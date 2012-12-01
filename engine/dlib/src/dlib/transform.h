@@ -95,7 +95,7 @@ namespace dmTransform
         return res;
     }
 
-    Matrix4 ToMatrix4(const TransformS1& t)
+    inline Matrix4 ToMatrix4(const TransformS1& t)
     {
         Matrix4 res(t.GetRotation(), t.GetTranslation());
         res = appendScale(res, Vector3(t.GetScale()));

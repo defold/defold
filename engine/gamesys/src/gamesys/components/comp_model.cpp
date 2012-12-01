@@ -114,14 +114,16 @@ namespace dmGameSystem
             mesh = model->m_Mesh;
             dmRender::RenderObject& ro = component.m_RenderObject;
 
-            Point3 world_pos = dmGameObject::GetWorldPosition(component.m_Instance);
-            Quat world_rot = dmGameObject::GetWorldRotation(component.m_Instance);
-            const Quat& local_rot = component.m_Rotation;
-            const Point3& local_pos = component.m_Position;
-            Quat rotation = world_rot * local_rot;
-            Point3 position = rotate(world_rot, Vector3(local_pos)) + world_pos;
-            Matrix4 world = Matrix4::rotation(rotation);
-            world.setCol3(Vector4(position));
+            dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(component.m_Instance);
+            dmTransform::TransformS1 local(Vector3(component.m_Position), component.m_Rotation, 1.0f);
+            if (dmGameObject::ScaleAlongZ(component.m_Instance))
+            {
+                world = dmTransform::Mul(world, local);
+            }
+            else
+            {
+                world = dmTransform::MulNoScaleZ(world, local);
+            }
 
             ro.m_Material = model->m_Material;
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
@@ -132,7 +134,7 @@ namespace dmGameSystem
             ro.m_VertexStart = 0;
             ro.m_VertexCount = mesh->m_VertexCount;
             ro.m_TextureTransform = Matrix4::identity();
-            ro.m_WorldTransform = world;
+            ro.m_WorldTransform = dmTransform::ToMatrix4(world);
             ro.m_CalculateDepthKey = 1;
             dmRender::AddToRender(render_context, &component.m_RenderObject);
         }
