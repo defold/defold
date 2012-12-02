@@ -12,7 +12,6 @@ import org.eclipse.equinox.p2.operations.ProvisioningSession;
 import org.eclipse.equinox.p2.operations.UpdateOperation;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Shell;
 
 /**
  * This class shows an example for checking for updates and performing the
@@ -31,7 +30,27 @@ import org.eclipse.swt.widgets.Shell;
  */
 public class P2Util {
 
+    private static boolean shouldUpdate(final String toVersion) {
+        final Display display = Display.getDefault();
+        final boolean[] ret = new boolean[] { false };
+        display.syncExec(new Runnable() {
+
+            @Override
+            public void run() {
+                boolean updateEditor = MessageDialog.openQuestion(display.getActiveShell(),
+                        "Update found",
+                        String.format("New version (%s) of editor found. Update?", toVersion));
+
+                ret[0] = updateEditor;
+            }
+        });
+        return ret[0];
+    }
+
     public static IStatus checkForUpdates(IProvisioningAgent agent, IProgressMonitor monitor) throws OperationCanceledException {
+         // NOTE: This method doens't run in the UI-thread. Hence all UI interaction must be performed using
+         // syncExec or asyncExec.
+
         ProvisioningSession session = new ProvisioningSession(agent);
         // the default update operation looks for updates to the currently
         // running profile, using the default profile root marker. To change
@@ -53,11 +72,7 @@ public class P2Util {
             // NOTE: We assume single unit update (com.dynamo.cr.editor)
             IInstallableUnit to = operation.getSelectedUpdates()[0].replacement;
 
-            Shell shell = Display.getDefault().getActiveShell();
-            boolean updateEditor = MessageDialog.openQuestion(shell,
-                    "Update found",
-                    String.format("New version (%s) of editor found. Update?", to.getVersion().toString()));
-            if (!updateEditor) {
+            if (!shouldUpdate(to.getVersion().toString())) {
                 // throw OperationCanceledException instead?
                 return Status.CANCEL_STATUS;
             }
