@@ -194,7 +194,8 @@
       </context>
       <context
             id="com.dynamo.cr.tileeditor.contexts.AtlasEditor"
-            name="Atlas Editor">
+            name="Atlas Editor"
+            parentId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor">
       </context>
    </extension>
    <extension
@@ -1292,6 +1293,7 @@
             loader="com.dynamo.cr.tileeditor.scene.AtlasLoader"
             node="com.dynamo.cr.tileeditor.scene.AtlasNode"
             presenter="com.dynamo.cr.tileeditor.scene.AtlasNodePresenter"
+            renderer="com.dynamo.cr.tileeditor.scene.AtlasRenderer"
             resource-type="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas">
          <reference-node-type
                node-type="com.dynamo.cr.tileeditor.nodetypes.atlasAnimation">

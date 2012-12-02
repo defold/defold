@@ -31,7 +31,7 @@ public class AtlasLayoutTest {
     }
 
     void assertRect(Layout layout, int i, int x, int y, Object id) {
-        Rect r = layout.rectangles.get(i);
+        Rect r = layout.getRectangles().get(i);
         assertThat(r.x, is(x));
         assertThat(r.y, is(y));
         assertThat(r.id, is(id));
@@ -46,8 +46,8 @@ public class AtlasLayoutTest {
                             rect(3, 16, 16));
 
         Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
-        assertThat(layout.width, is(32));
-        assertThat(layout.height, is(32));
+        assertThat(layout.getWidth(), is(32));
+        assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
         assertRect(layout, 1, 16, 0, 1);
         assertRect(layout, 2, 0, 16, 2);
@@ -66,8 +66,8 @@ public class AtlasLayoutTest {
                             rect(6, 8, 8));
 
         Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
-        assertThat(layout.width, is(32));
-        assertThat(layout.height, is(32));
+        assertThat(layout.getWidth(), is(32));
+        assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
         assertRect(layout, 1, 16, 0, 1);
         assertRect(layout, 2, 24, 0, 2);
@@ -75,6 +75,32 @@ public class AtlasLayoutTest {
         assertRect(layout, 4, 8, 16, 4);
         assertRect(layout, 5, 16, 16, 5);
         assertRect(layout, 6, 24, 16, 6);
+    }
+
+    @Test
+    public void testBasic3() {
+        List<AtlasLayout.Rect> rectangles
+            = Arrays.asList(rect(0, 512, 128));
+
+        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        assertThat(layout.getWidth(), is(512));
+        assertThat(layout.getHeight(), is(128));
+        assertRect(layout, 0, 0, 0, 0);
+    }
+
+    @Test
+    public void testBasic4() {
+        List<AtlasLayout.Rect> rectangles
+            = Arrays.asList(rect(0, 32, 12),
+                            rect(1, 16, 2),
+                            rect(2, 16, 2));
+
+        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        assertThat(layout.getWidth(), is(32));
+        assertThat(layout.getHeight(), is(16));
+        assertRect(layout, 0, 0, 0, 0);
+        assertRect(layout, 1, 0, 12, 1);
+        assertRect(layout, 2, 16, 12, 2);
     }
 
     @Test
@@ -86,8 +112,8 @@ public class AtlasLayoutTest {
                             rect(3, 16, 16));
 
         Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 2, rectangles);
-        assertThat(layout.width, is(64));
-        assertThat(layout.height, is(64));
+        assertThat(layout.getWidth(), is(64));
+        assertThat(layout.getHeight(), is(64));
         assertRect(layout, 0, 0, 0, 0);
         assertRect(layout, 1, 16 + 2, 0, 1);
         assertRect(layout, 2, 16 * 2 + 2 * 2, 0, 2);
@@ -103,8 +129,8 @@ public class AtlasLayoutTest {
                             rect(3, 15, 15));
 
         Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 2, rectangles);
-        assertThat(layout.width, is(32));
-        assertThat(layout.height, is(32));
+        assertThat(layout.getWidth(), is(32));
+        assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
         assertRect(layout, 1, 15 + 2, 0, 1);
         assertRect(layout, 2, 0, 15 + 2, 2);

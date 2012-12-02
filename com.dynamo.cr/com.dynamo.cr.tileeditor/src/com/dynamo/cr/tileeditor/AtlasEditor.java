@@ -27,14 +27,7 @@ public class AtlasEditor extends SceneEditor {
 
     @Override
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
-        if (adapter == IPageBookViewPage.class) {
-            if (curveEditorPage == null) {
-                curveEditorPage = getInjector().getInstance(IPageBookViewPage.class);
-            }
-            return curveEditorPage;
-        } else {
-            return super.getAdapter(adapter);
-        }
+        return super.getAdapter(adapter);
     }
 
     @Override

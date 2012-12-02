@@ -44,14 +44,25 @@ public class AtlasLayout {
     }
 
     public static class Layout {
-        public final List<Rect> rectangles;
-        public final int width;
-        public final int height;
+        private final List<Rect> rectangles;
+        private final int width;
+        private final int height;
         public Layout(int width, int height, List<Rect> rectangles) {
             this.width = width;
             this.height = height;
             this.rectangles = rectangles;
         }
+
+        public List<Rect> getRectangles() {
+            return rectangles;
+        }
+        public int getWidth() {
+            return width;
+        }
+        public int getHeight() {
+            return height;
+        }
+
     }
 
     private static List<Rect> doLayout(int width, int height, int margin, List<Rect> rectangles) {
@@ -64,6 +75,7 @@ public class AtlasLayout {
             if (width - x < rect.width) {
                 x = 0;
                 y += rowHeight + margin;
+                rowHeight = 0;
             }
 
             if (width - x < rect.width) {
@@ -116,6 +128,16 @@ public class AtlasLayout {
                 break;
             }
         }
+
+        // Adjust height if possible
+        int maxHeight = 0;
+        for (Rect rect : result) {
+            maxHeight = Math.max(maxHeight, rect.y + rect.height);
+        }
+        while (maxHeight <= height / 2) {
+            height /= 2;
+        }
+
         return new Layout(width, height, result);
     }
 

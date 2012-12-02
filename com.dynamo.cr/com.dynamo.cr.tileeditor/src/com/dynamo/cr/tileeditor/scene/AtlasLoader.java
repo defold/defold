@@ -50,6 +50,7 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
             IProgressMonitor monitor) throws IOException, CoreException {
 
         ImageAtlas.Builder atlasBuilder = ImageAtlas.newBuilder();
+        atlasBuilder.setMargin(node.getMargin());
 
         for (Node n : node.getChildren()) {
             if (n instanceof AtlasImageNode) {
