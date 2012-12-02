@@ -220,9 +220,10 @@ namespace dmPhysics
                 {
                     Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
                     Vectormath::Aos::Quat old_rotation = GetWorldRotation2D(context, body);
-                    Vectormath::Aos::Point3 position;
-                    Vectormath::Aos::Quat rotation;
-                    (*world->m_GetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                    dmTransform::TransformS1 world_transform;
+                    (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+                    Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                    Vectormath::Aos::Quat rotation = world_transform.GetRotation();
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                     b2Vec2 b2_position;
                     ToB2(position, b2_position, scale);
@@ -369,10 +370,17 @@ namespace dmPhysics
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
-    void SetGridShapeHull(HCollisionObject2D collision_object, HCollisionShape2D collision_shape, uint32_t row, uint32_t column, uint32_t hull)
+    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull)
     {
         b2Body* body = (b2Body*) collision_object;
-        b2GridShape* grid_shape = (b2GridShape*) collision_shape;
+        b2Fixture* fixture = body->GetFixtureList();
+        for (uint32_t i = 0; i < shape_index && fixture != 0x0; ++i)
+        {
+            fixture = fixture->GetNext();
+        }
+        assert(fixture != 0x0);
+        assert(fixture->GetShape()->GetType() == b2Shape::e_grid);
+        b2GridShape* grid_shape = (b2GridShape*) fixture->GetShape();
         grid_shape->SetCellHull(body, row, column, hull);
     }
 
@@ -435,10 +443,11 @@ namespace dmPhysics
     static b2Shape* TransformCopyShape(HContext2D context,
                                        const b2Shape* shape,
                                        const Vectormath::Aos::Vector3& translation,
-                                       const Vectormath::Aos::Quat& rotation)
+                                       const Vectormath::Aos::Quat& rotation,
+                                       float scale)
     {
         b2Vec2 t;
-        ToB2(translation, t, context->m_Scale);
+        ToB2(translation, t, context->m_Scale * scale);
         b2Rot r;
         r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
         b2Transform transform(t, r);
@@ -450,7 +459,8 @@ namespace dmPhysics
         {
             const b2CircleShape* circle_shape = (const b2CircleShape*) shape;
             b2CircleShape* circle_shape_prim = new b2CircleShape(*circle_shape);
-            circle_shape_prim->m_p = t;
+            circle_shape_prim->m_p = TransformScaleB2(transform, scale, circle_shape->m_p);
+            circle_shape_prim->m_radius *= scale;
             ret = circle_shape_prim;
         }
             break;
@@ -460,13 +470,13 @@ namespace dmPhysics
             const b2EdgeShape* edge_shape = (const b2EdgeShape*) shape;
             b2EdgeShape* edge_shape_prim = new b2EdgeShape(*edge_shape);
             if (edge_shape_prim->m_hasVertex0)
-                edge_shape_prim->m_vertex0 = b2Mul(transform, edge_shape->m_vertex0);
+                edge_shape_prim->m_vertex0 = TransformScaleB2(transform, scale, edge_shape->m_vertex0);
 
-            edge_shape_prim->m_vertex1 = b2Mul(transform, edge_shape->m_vertex1);
-            edge_shape_prim->m_vertex2 = b2Mul(transform, edge_shape->m_vertex2);
+            edge_shape_prim->m_vertex1 = TransformScaleB2(transform, scale, edge_shape->m_vertex1);
+            edge_shape_prim->m_vertex2 = TransformScaleB2(transform, scale, edge_shape->m_vertex2);
 
             if (edge_shape_prim->m_hasVertex3)
-                edge_shape_prim->m_vertex3 = b2Mul(transform, edge_shape->m_vertex3);
+                edge_shape_prim->m_vertex3 = TransformScaleB2(transform, scale, edge_shape->m_vertex3);
 
             ret = edge_shape_prim;
         }
@@ -481,12 +491,21 @@ namespace dmPhysics
             int32 n = poly_shape->GetVertexCount();
             for (int32 i = 0; i < n; ++i)
             {
-                tmp[i] = b2Mul(transform, poly_shape->GetVertex(i));
+                tmp[i] = TransformScaleB2(transform, scale, poly_shape->GetVertex(i));
             }
 
             poly_shape_prim->Set(tmp, n);
 
             ret = poly_shape_prim;
+        }
+            break;
+
+        case b2Shape::e_grid:
+        {
+            const b2GridShape* grid_shape = (const b2GridShape*) shape;
+            b2GridShape* grid_shape_prim = new b2GridShape(grid_shape->m_hullSet, TransformScaleB2(transform, scale, grid_shape->m_position),
+                    grid_shape->m_cellWidth * scale, grid_shape->m_cellHeight * scale, grid_shape->m_rowCount, grid_shape->m_columnCount);
+            ret = grid_shape_prim;
         }
             break;
 
@@ -520,6 +539,13 @@ namespace dmPhysics
         {
             b2PolygonShape* poly_shape = (b2PolygonShape*) shape;
             delete poly_shape;
+        }
+        break;
+
+        case b2Shape::e_grid:
+        {
+            b2GridShape* grid_shape = (b2GridShape*) shape;
+            delete grid_shape;
         }
         break;
 
@@ -563,15 +589,18 @@ namespace dmPhysics
 
         HContext2D context = world->m_Context;
         b2BodyDef def;
+        float scale = 1.0f;
         if (world->m_GetWorldTransformCallback != 0x0)
         {
             if (data.m_UserData != 0x0)
             {
-                Vectormath::Aos::Point3 position;
-                Vectormath::Aos::Quat rotation;
-                (*world->m_GetWorldTransformCallback)(data.m_UserData, position, rotation);
+                dmTransform::TransformS1 world_transform;
+                (*world->m_GetWorldTransformCallback)(data.m_UserData, world_transform);
+                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 ToB2(position, def.position, context->m_Scale);
                 def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+                scale = world_transform.GetScale();
             }
             else
             {
@@ -601,11 +630,11 @@ namespace dmPhysics
 
             if (translations && rotations)
             {
-                s = TransformCopyShape(context, s, translations[reverse_i], rotations[reverse_i]);
+                s = TransformCopyShape(context, s, translations[reverse_i], rotations[reverse_i], scale);
             }
             else
             {
-                s = TransformCopyShape(context, s, zero_vec3, Vectormath::Aos::Quat::identity());
+                s = TransformCopyShape(context, s, zero_vec3, Vectormath::Aos::Quat::identity(), scale);
             }
 
             b2FixtureDef f_def;
@@ -735,9 +764,10 @@ namespace dmPhysics
             body->SetAwake(true);
             if (world->m_GetWorldTransformCallback)
             {
-                Vectormath::Aos::Point3 position;
-                Vectormath::Aos::Quat rotation;
-                (*world->m_GetWorldTransformCallback)(body->GetUserData(), position, rotation);
+                dmTransform::TransformS1 world_transform;
+                (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
+                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                 b2Vec2 b2_position;
                 ToB2(position, b2_position, world->m_Context->m_Scale);

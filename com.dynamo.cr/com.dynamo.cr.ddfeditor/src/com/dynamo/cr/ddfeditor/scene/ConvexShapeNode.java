@@ -15,11 +15,13 @@ public class ConvexShapeNode extends Node {
 
     public ConvexShapeNode() {
         super();
+        setFlags(Flags.SUPPORTS_SCALE);
     }
 
     public ConvexShapeNode(ConvexShape convexShape) {
         super();
         this.convexShape = convexShape;
+        setFlags(Flags.SUPPORTS_SCALE);
         updateAABB();
     }
 

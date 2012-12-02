@@ -1,5 +1,6 @@
 package com.dynamo.cr.go.core;
 
+import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 
 import org.eclipse.core.runtime.IStatus;
@@ -50,5 +51,16 @@ public class InstanceNode extends Node {
     public void getLocalTransform(Matrix4d transform) {
         super.getLocalTransform(transform);
         transform.setScale(this.scale);
+    }
+
+    @Override
+    public void setLocalTransform(Matrix4d transform) {
+        Matrix4d localTransform = new Matrix4d(transform);
+        Matrix3d rotScale = new Matrix3d();
+        localTransform.getRotationScale(rotScale);
+        this.scale = rotScale.getScale();
+        rotScale.normalize();
+        localTransform.setRotationScale(rotScale);
+        super.setLocalTransform(localTransform);
     }
 }

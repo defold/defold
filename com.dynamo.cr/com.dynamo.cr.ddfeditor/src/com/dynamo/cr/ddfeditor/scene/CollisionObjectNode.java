@@ -29,6 +29,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     public CollisionObjectNode() {
         super();
+        setFlags(Flags.SUPPORTS_SCALE);
     }
 
     protected IStatus validateCollisionShape() {

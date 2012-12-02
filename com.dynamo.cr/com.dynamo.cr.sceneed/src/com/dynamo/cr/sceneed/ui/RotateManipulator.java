@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed.ui;
 
 import java.util.List;
 
+import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Quat4d;
 
@@ -35,11 +36,19 @@ public class RotateManipulator extends TransformManipulator {
         return "Rotate";
     }
 
+    private void getRotation(Matrix4d transform, Matrix3d tmpRotationScale, Quat4d rotation)
+    {
+        transform.getRotationScale(tmpRotationScale);
+        tmpRotationScale.normalize();
+        rotation.set(tmpRotationScale);
+    }
+
     @Override
     protected void applyTransform(List<Node> selection, List<Matrix4d> originalLocalTransforms) {
         Quat4d delta = getRotation();
         delta.mulInverse(this.originalRotation);
         Matrix4d world = new Matrix4d();
+        Matrix3d tmp = new Matrix3d();
         Quat4d rotation = new Quat4d();
         Quat4d localDelta = new Quat4d();
         int n = selection.size();
@@ -49,12 +58,12 @@ public class RotateManipulator extends TransformManipulator {
             localDelta.set(delta);
             if (parent != null) {
                 parent.getWorldTransform(world);
-                world.get(rotation);
+                getRotation(world, tmp, rotation);
                 localDelta.mul(rotation);
                 rotation.conjugate();
                 localDelta.mul(rotation, localDelta);
             }
-            originalLocalTransforms.get(i).get(rotation);
+            getRotation(originalLocalTransforms.get(i), tmp, rotation);
             rotation.mul(localDelta, rotation);
             node.setRotation(rotation);
         }

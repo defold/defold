@@ -34,9 +34,10 @@ namespace dmPhysics
         {
             if (m_GetWorldTransform != 0x0)
             {
-                Vectormath::Aos::Point3 position;
-                Vectormath::Aos::Quat rotation;
-                m_GetWorldTransform(m_UserData, position, rotation);
+                dmTransform::TransformS1 world_transform;
+                m_GetWorldTransform(m_UserData, world_transform);
+                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 btVector3 origin;
                 ToBt(position, origin, m_Context->m_Scale);
                 world_trans.setOrigin(origin);
@@ -225,13 +226,14 @@ namespace dmPhysics
                 {
                     Point3 old_position = GetWorldPosition3D(context, collision_object);
                     Quat old_rotation = GetWorldRotation3D(context, collision_object);
-                    Point3 position;
-                    Quat rotation;
-                    world->m_GetWorldTransform(collision_object->getUserPointer(), position, rotation);
+                    dmTransform::TransformS1 world_transform;
+                    (*world->m_GetWorldTransform)(collision_object->getUserPointer(), world_transform);
+                    Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                    Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                     btVector3 bt_pos;
                     ToBt(position, bt_pos, scale);
-                    btTransform world_transform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
-                    collision_object->setWorldTransform(world_transform);
+                    btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
+                    collision_object->setWorldTransform(world_t);
                     if ((distSqr(old_position, position) > 0.0f || lengthSqr(Vector4(rotation - old_rotation)) > 0.0f))
                     {
                         collision_object->activate(true);
@@ -520,21 +522,22 @@ namespace dmPhysics
         else
         {
             collision_object = new btGhostObject();
-            btTransform world_transform;
+            btTransform world_t;
             if (world->m_GetWorldTransform != 0x0)
             {
-                Vectormath::Aos::Point3 position;
-                Vectormath::Aos::Quat rotation;
-                world->m_GetWorldTransform(data.m_UserData, position, rotation);
+                dmTransform::TransformS1 world_transform;
+                world->m_GetWorldTransform(data.m_UserData, world_transform);
+                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 btVector3 bt_pos;
                 ToBt(position, bt_pos, world->m_Context->m_Scale);
-                world_transform = btTransform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
+                world_t = btTransform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
             }
             else
             {
-                world_transform = btTransform::getIdentity();
+                world_t = btTransform::getIdentity();
             }
-            collision_object->setWorldTransform(world_transform);
+            collision_object->setWorldTransform(world_t);
             collision_object->setCollisionShape(compound_shape);
             collision_object->setCollisionFlags(collision_object->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
             world->m_DynamicsWorld->addCollisionObject(collision_object, data.m_Group, data.m_Mask);
@@ -683,13 +686,14 @@ namespace dmPhysics
             body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
             if (world->m_GetWorldTransform != 0x0)
             {
-                Vectormath::Aos::Point3 position;
-                Vectormath::Aos::Quat rotation;
-                world->m_GetWorldTransform(body->getUserPointer(), position, rotation);
+                dmTransform::TransformS1 world_transform;
+                world->m_GetWorldTransform(body->getUserPointer(), world_transform);
+                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 btVector3 bt_position;
                 ToBt(position, bt_position, world->m_Context->m_Scale);
-                btTransform world_transform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_position);
-                body->setWorldTransform(world_transform);
+                btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_position);
+                body->setWorldTransform(world_t);
             }
             world->m_DynamicsWorld->addRigidBody(body);
         }

@@ -6,6 +6,7 @@
 
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <dlib/transform.h>
 
 namespace dmPhysics
 {
@@ -63,10 +64,9 @@ namespace dmPhysics
      * Callback used to propagate the world transform of an external object into the physics simulation.
      *
      * @param user_data User data pointing to the external object
-     * @param position Position output parameter
-     * @param rotation Rotation output parameter
+     * @param world_transform World transform output parameter
      */
-    typedef void (*GetWorldTransformCallback)(void* user_data, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation);
+    typedef void (*GetWorldTransformCallback)(void* user_data, dmTransform::TransformS1& world_transform);
     /**
      * Callback used to propagate the world transform from the physics simulation to an external object.
      *
@@ -405,12 +405,12 @@ namespace dmPhysics
     /**
      * Set hull for cell in grid-shape
      * @param collision_object collision object
-     * @param collision_shape collision shape
+     * @param shape_index index of the collision shape
      * @param row row
      * @param column column
      * @param hull hull index. Use GRIDSHAPE_EMPTY_CELL to clear the cell.
      */
-    void SetGridShapeHull(HCollisionObject2D collision_object, HCollisionShape2D collision_shape, uint32_t row, uint32_t column, uint32_t hull);
+    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull);
 
     /**
      * Set group and mask for collision object
