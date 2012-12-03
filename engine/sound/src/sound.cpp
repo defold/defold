@@ -407,8 +407,11 @@ namespace dmSound
 
         const char* p = (const char*) sound_data->m_Data;
         p += instance->m_CurrentBufferOffset;
-        alBufferData(buffer, sound_data->m_Format, p, to_buffer, sound_data->m_Frequency);
-        CheckAndPrintError();
+        if (to_buffer > 0)
+        {
+            alBufferData(buffer, sound_data->m_Format, p, to_buffer, sound_data->m_Frequency);
+            CheckAndPrintError();
+        }
 
         instance->m_CurrentBufferOffset += to_buffer;
         return to_buffer;
@@ -466,8 +469,11 @@ namespace dmSound
             }
         }
 
-        alBufferData(buffer, sound_data->m_Format, sound->m_TempBuffer, total_read, sound_data->m_Frequency);
-        CheckAndPrintError();
+        if (total_read > 0)
+        {
+            alBufferData(buffer, sound_data->m_Format, sound->m_TempBuffer, total_read, sound_data->m_Frequency);
+            CheckAndPrintError();
+        }
         return total_read;
     }
 
@@ -496,13 +502,16 @@ namespace dmSound
         ALuint buf2 = sound->m_Buffers[sound_instance->m_BufferIndices[1]];
 
         uint32_t to_buffer1 = FillBuffer(sound_data, sound_instance, buf1);
-        (void) to_buffer1;
         uint32_t to_buffer2 = FillBuffer(sound_data, sound_instance, buf2);
 
         uint32_t total = to_buffer1 + to_buffer2;
 
-        alSourceQueueBuffers(source, 1, &buf1);
-        CheckAndPrintError();
+        if (to_buffer1 > 0)
+        {
+            alSourceQueueBuffers(source, 1, &buf1);
+            CheckAndPrintError();
+        }
+
         if (to_buffer2 > 0)
         {
             alSourceQueueBuffers(source, 1, &buf2);
@@ -513,9 +522,11 @@ namespace dmSound
         {
             sound_instance->m_EndOfStream = 1;
         }
-
-        alSourcePlay(source);
-        CheckAndPrintError();
+        else
+        {
+            alSourcePlay(source);
+            CheckAndPrintError();
+        }
 
         return total;
     }
