@@ -577,6 +577,17 @@ TEST_F(HierarchyTest, TestHierarchyScale)
     ASSERT_EQ(scale, world.GetTranslation().getX());
     ASSERT_EQ(scale, world.GetScale());
 
+    // Unparent to verify the scale is reset
+    dmGameObject::SetParent(child, 0);
+
+    ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    // New world transform updated
+    world = dmGameObject::GetWorldTransform(child);
+    ASSERT_NE(scale, world.GetTranslation().getX());
+    ASSERT_NE(scale, world.GetScale());
+
     dmGameObject::Delete(m_Collection, child);
     dmGameObject::Delete(m_Collection, parent);
 }
