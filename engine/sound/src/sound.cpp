@@ -701,7 +701,7 @@ namespace dmSound
         switch(parameter)
         {
             case PARAMETER_GAIN:
-                sound_instance->m_Gain = value.getX();
+                sound_instance->m_Gain = dmMath::Max(0.0f, value.getX());
                 break;
             default:
                 dmLogError("Invalid parameter: %d\n", parameter);
