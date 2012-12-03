@@ -110,7 +110,8 @@ namespace dmGameSystem
                 {
                     id = dmGameObject::GenerateUniqueInstanceId(collection);
                 }
-                dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size, create->m_Position, create->m_Rotation);
+                dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
+                        create->m_Position, create->m_Rotation, create->m_Scale);
             }
         }
         return dmGameObject::UPDATE_RESULT_OK;

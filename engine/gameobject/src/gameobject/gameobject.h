@@ -526,9 +526,10 @@ namespace dmGameObject
      * @param property_buffer_size Size of property buffer
      * @param position Position of the spawed object
      * @param rotation Rotation of the spawned object
+     * @param scale Scale of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation);
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale);
 
     /**
      * Delete gameobject instance

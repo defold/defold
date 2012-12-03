@@ -478,7 +478,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation)
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
     {
         if (collection->m_InUpdate)
         {
@@ -490,6 +490,7 @@ namespace dmGameObject
         {
             SetPosition(instance, position);
             SetRotation(instance, rotation);
+            SetScale(instance, scale);
 
             dmHashInit64(&instance->m_CollectionPathHashState, true);
             dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));

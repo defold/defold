@@ -54,9 +54,17 @@ TEST_F(FactoryTest, Factory)
     {
         dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
         ASSERT_NE(0u, id);
-        dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat());
+        dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), 1.0f);
         ASSERT_NE(0u, (uintptr_t)instance);
     }
+}
+
+TEST_F(FactoryTest, FactoryScale)
+{
+    dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    ASSERT_NE(0u, id);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), 2.0f);
+    ASSERT_EQ(2.0f, dmGameObject::GetScale(instance));
 }
 
 int main(int argc, char **argv)

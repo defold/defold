@@ -136,6 +136,7 @@ namespace dmGameSystem
      * @param [position] the position of the new game object, the position of the game object containing the factory is used by default (vector3)
      * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
      * @param [properties] the properties defined in a script attached to the new game object (table)
+     * @param [scale] the scale of the new game object, 1 by default (number)
      * @return the id of the spawned game object (hash)
      * @examples
      * <p>
@@ -202,6 +203,14 @@ namespace dmGameSystem
                 actual_prop_buffer_size = dmGameObject::LuaTableToProperties(L, 4, prop_buffer, prop_buffer_size);
                 if (actual_prop_buffer_size > prop_buffer_size)
                     return luaL_error(L, "the properties supplied to factory.create are too many.");
+            }
+            if (top >= 5 && !lua_isnil(L, 5))
+            {
+                request->m_Scale = luaL_checknumber(L, 5);
+            }
+            else
+            {
+                request->m_Scale = 1.0f;
             }
             request->m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
 
