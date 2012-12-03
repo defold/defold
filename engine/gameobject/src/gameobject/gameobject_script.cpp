@@ -203,13 +203,19 @@ namespace dmGameObject
     /*# sets the uniform scale factor of the instance
      * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
      *
+     * NOTE! Physics are currently not affected when setting scale from this function.
+     *
      * @name go.set_scale
-     * @param scale uniform scale factor (number)
+     * @param scale uniform scale factor, can not be 0 (number)
      */
     int Script_SetScale(lua_State* L)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         lua_Number v = luaL_checknumber(L, 1);
+        if (v == 0.0)
+        {
+            return luaL_error(L, "The scale supplied to go.set_scale can not be 0.");
+        }
         dmGameObject::SetScale(i->m_Instance, (float)v);
         return 0;
     }

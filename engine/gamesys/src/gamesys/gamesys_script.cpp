@@ -131,12 +131,14 @@ namespace dmGameSystem
      * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
      * See go.property for more information on script properties.
      *
+     * NOTE! Physics will currently not be affected by the scale supplied to this function.
+     *
      * @name factory.create
      * @param url the factory that should create a game object (url)
      * @param [position] the position of the new game object, the position of the game object containing the factory is used by default (vector3)
      * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
      * @param [properties] the properties defined in a script attached to the new game object (table)
-     * @param [scale] the scale of the new game object, 1 by default (number)
+     * @param [scale] the scale of the new game object, can not be 0, 1 by default (number)
      * @return the id of the spawned game object (hash)
      * @examples
      * <p>
@@ -207,6 +209,10 @@ namespace dmGameSystem
             if (top >= 5 && !lua_isnil(L, 5))
             {
                 request->m_Scale = luaL_checknumber(L, 5);
+                if (request->m_Scale == 0.0f)
+                {
+                    return luaL_error(L, "The scale supplied to factory.create can not be 0.");
+                }
             }
             else
             {
