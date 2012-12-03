@@ -59,11 +59,11 @@
         <key>DTPlatformName</key>
         <string>iphoneos</string>
         <key>DTPlatformVersion</key>
-        <string>4.3</string>
+        <string>6.0</string>
         <key>DTSDKBuild</key>
         <string>8H7</string>
         <key>DTSDKName</key>
-        <string>iphoneos4.3</string>
+        <string>iphoneos6.0</string>
         <key>DTXcode</key>
         <string>0402</string>
         <key>DTXcodeBuild</key>
