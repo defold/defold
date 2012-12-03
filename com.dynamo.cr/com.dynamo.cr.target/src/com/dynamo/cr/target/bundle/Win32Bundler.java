@@ -3,9 +3,11 @@ package com.dynamo.cr.target.bundle;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.cr.editor.core.ProjectProperties;
 
@@ -45,9 +47,13 @@ public class Win32Bundler {
             FileUtils.copyFile(new File(contentRoot, name), new File(appDir, name));
         }
 
-        // Copy Executable
+        // Copy Executable and DLL:s
         File exeOut = new File(appDir, String.format("%s.exe", title));
         FileUtils.copyFile(new File(exe), exeOut);
+        Collection<File> dlls = FileUtils.listFiles(new File(FilenameUtils.getFullPath(exe)), new String[] {"dll"}, false);
+        for (File file : dlls) {
+            FileUtils.copyFileToDirectory(file, appDir);
+        }
 
         String icon = projectProperties.getStringValue("windows", "app_icon");
         if (icon != null) {
