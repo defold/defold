@@ -103,6 +103,7 @@ public class EmitterNode extends Node {
     public EmitterNode(Emitter emitter) {
         initDefaults();
         setTransformable(true);
+        setFlags(Flags.SUPPORTS_SCALE);
         setTranslation(LoaderUtil.toPoint3d(emitter.getPosition()));
         setRotation(LoaderUtil.toQuat4(emitter.getRotation()));
 

@@ -4,6 +4,7 @@
 
 #include <dlib/configfile.h>
 #include <dlib/index_pool.h>
+#include <dlib/transform.h>
 
 #include "particle/particle_ddf.h"
 
@@ -127,27 +128,26 @@ namespace dmParticle
     {
         Instance()
         : m_Emitters()
-        , m_Position(0.0f, 0.0f, 0.0f)
-        , m_Rotation(0.0f, 0.0f, 0.0f, 1.0f)
         , m_Prototype(0x0)
         , m_PlayTime(0.0f)
         , m_VersionNumber(0)
+        , m_ScaleAlongZ(0)
         {
-
+            m_WorldTransform.SetIdentity();
         }
 
         // Emitter buffer
         dmArray<Emitter>        m_Emitters;
-        /// World position of the emitter.
-        Vectormath::Aos::Point3 m_Position;
-        /// World rotation of the emitter.
-        Vectormath::Aos::Quat   m_Rotation;
+        /// World transform of the emitter.
+        dmTransform::TransformS1 m_WorldTransform;
         /// DDF resource.
         Prototype*              m_Prototype;
         /// Used when reloading to fast forward new emitters
         float                   m_PlayTime;
         /// Version number used to check that the handle is still valid.
         uint16_t                m_VersionNumber;
+        /// Whether the scale of the world transform should be used along Z.
+        uint16_t                m_ScaleAlongZ : 1;
     };
 
     /**

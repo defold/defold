@@ -227,13 +227,26 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, SetPosition, HContext context, HInstance instance, const Point3& position);
     /**
-     * Set the position of the specified instance.
+     * Set the rotation of the specified instance.
      * @param context Context in which the instance exists.
      * @param instance Instance to set rotation for.
      * @param rotation Rotation in world space.
      */
     DM_PARTICLE_PROTO(void, SetRotation, HContext context, HInstance instance, const Quat& rotation);
-
+    /**
+     * Set the scale of the specified instance.
+     * @param context Context in which the instance exists.
+     * @param instance Instance to set scale for.
+     * @param scale Scale in world space.
+     */
+    DM_PARTICLE_PROTO(void, SetScale, HContext context, HInstance instance, float scale);
+    /**
+     * Set if the scale should be used along Z or not.
+     * @param context Context in which the instance exists.
+     * @param instance Instance to set the property for.
+     * @param scale_along_z Whether the scale should be used along Z.
+     */
+    DM_PARTICLE_PROTO(void, SetScaleAlongZ, HContext context, HInstance instance, bool scale_along_z);
     /**
      * Returns if the specified instance is spawning particles or not.
      * Instances are sleeping when they are not spawning and have no remaining living particles.

@@ -375,14 +375,28 @@ namespace dmParticle
     {
         Instance* i = GetInstance(context, instance);
         if (!i) return;
-        i->m_Position = position;
+        i->m_WorldTransform.SetTranslation(Vector3(position));
     }
 
     void SetRotation(HContext context, HInstance instance, const Quat& rotation)
     {
         Instance* i = GetInstance(context, instance);
         if (!i) return;
-        i->m_Rotation = rotation;
+        i->m_WorldTransform.SetRotation(rotation);
+    }
+
+    void SetScale(HContext context, HInstance instance, float scale)
+    {
+        Instance* i = GetInstance(context, instance);
+        if (!i) return;
+        i->m_WorldTransform.SetScale(scale);
+    }
+
+    void SetScaleAlongZ(HContext context, HInstance instance, bool scale_along_z)
+    {
+        Instance* i = GetInstance(context, instance);
+        if (!i) return;
+        i->m_ScaleAlongZ = scale_along_z;
     }
 
     static bool IsSleeping(Emitter* emitter)
@@ -444,7 +458,7 @@ namespace dmParticle
     {
         // Update emitter velocity (1-frame estimate)
 
-        Point3 world_position = instance->m_Position + rotate(instance->m_Rotation, Vector3(emitter_ddf->m_Position));
+        Point3 world_position = dmTransform::Apply(instance->m_WorldTransform, emitter_ddf->m_Position);
         if (emitter->m_LastPositionSet)
         {
             if (dt > 0.0f)
@@ -563,7 +577,7 @@ namespace dmParticle
         }
     }
 
-    static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, Point3 emitter_position, Quat emitter_rotation, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt);
+    static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, const dmTransform::TransformS1& emitter_transform, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt);
 
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt)
     {
@@ -599,13 +613,14 @@ namespace dmParticle
             uint32_t spawn_count = (uint32_t)emitter->m_ParticlesToSpawn;
             emitter->m_ParticlesToSpawn -= spawn_count;
             uint32_t count = dmMath::Min(emitter->m_Particles.Remaining(), spawn_count);
-            Point3 emitter_position = emitter_ddf->m_Position;
-            Quat emitter_rotation = emitter_ddf->m_Rotation;
+            dmTransform::TransformS1 emitter_transform(Vector3(emitter_ddf->m_Position), emitter_ddf->m_Rotation, 1.0f);
             Vector3 emitter_velocity(0.0f);
             if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
             {
-                emitter_position = rotate(instance->m_Rotation, Vector3(emitter_position)) + instance->m_Position;
-                emitter_rotation = instance->m_Rotation * emitter_ddf->m_Rotation;
+                if (instance->m_ScaleAlongZ)
+                    emitter_transform = dmTransform::Mul(instance->m_WorldTransform, emitter_transform);
+                else
+                    emitter_transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, emitter_transform);
                 emitter_velocity = emitter->m_Velocity * emitter_ddf->m_InheritVelocity;
             }
             for (uint32_t i = 0; i < count; ++i)
@@ -616,7 +631,7 @@ namespace dmParticle
                 {
                     emitter_properties[i] = original_emitter_properties[i] + r * emitter_prototype->m_Properties[i].m_Spread;
                 }
-                SpawnParticle(emitter->m_Particles, &emitter->m_Seed, emitter_ddf, emitter_position, emitter_rotation, emitter_velocity, emitter_properties, dt);
+                SpawnParticle(emitter->m_Particles, &emitter->m_Seed, emitter_ddf, emitter_transform, emitter_velocity, emitter_properties, dt);
             }
 
             if (emitter_ddf->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer >= emitter_ddf->m_Duration)
@@ -629,7 +644,7 @@ namespace dmParticle
         }
     }
 
-    static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, Point3 emitter_position, Quat emitter_rotation, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt)
+    static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, const dmTransform::TransformS1& emitter_transform, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt)
     {
         DM_PROFILE(Particle, "Spawn");
 
@@ -645,14 +660,15 @@ namespace dmParticle
         // Include dt since already existing particles have already been advanced
         particle->SetTimeLeft(particle->GetMaxLifeTime() - dt);
         particle->SetSpreadFactor(dmMath::Rand11(seed));
-        particle->SetSourceSize(emitter_properties[EMITTER_KEY_PARTICLE_SIZE]);
+        particle->SetSourceSize(emitter_properties[EMITTER_KEY_PARTICLE_SIZE] * emitter_transform.GetScale());
         particle->SetSourceColor(Vector4(
                 emitter_properties[EMITTER_KEY_PARTICLE_RED],
                 emitter_properties[EMITTER_KEY_PARTICLE_GREEN],
                 emitter_properties[EMITTER_KEY_PARTICLE_BLUE],
                 emitter_properties[EMITTER_KEY_PARTICLE_ALPHA]));
 
-        Vector3 local_position;
+        dmTransform::TransformS1 transform;
+        transform.SetIdentity();
         Vector3 dir(0.0f, 0.0f, 0.0f);
 
         switch (ddf->m_Type)
@@ -668,7 +684,7 @@ namespace dmParticle
                 // Pick radius to give uniform dist. over volume, surface area of sub-spheres grows quadratic wrt radius
                 float radius = sqrtf(dmMath::RandOpen01(seed));
                 radius *= 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
-                local_position = dir * radius;
+                transform.SetTranslation(dir * radius);
 
                 break;
             }
@@ -682,7 +698,7 @@ namespace dmParticle
                 // Pick radius to give uniform dist. over volume, surface area of sub-spheres grows quadratic wrt radius
                 float radius = sqrtf(dmMath::RandOpen01(seed));
                 radius *= 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
-                local_position = dir * radius;
+                transform.SetTranslation(dir * radius);
 
                 break;
             }
@@ -700,7 +716,8 @@ namespace dmParticle
                 float height = h * emitter_properties[EMITTER_KEY_SIZE_Y];
                 float radius = h * r * 0.5f * emitter_properties[EMITTER_KEY_SIZE_X];
 
-                local_position = Vector3(radius * cosf(angle), height, radius * sinf(angle));
+                Vector3 local_position(radius * cosf(angle), height, radius * sinf(angle));
+                transform.SetTranslation(local_position);
 
                 // Finally normalize dir
                 if (lengthSqr(local_position) != 0.0f)
@@ -737,7 +754,8 @@ namespace dmParticle
                 // Mirror points outside triangle
                 y = dmMath::Select(height - y, y, 2 * height - y);
 
-                local_position = Vector3(x, y, 0.0f);
+                Vector3 local_position(x, y, 0.0f);
+                transform.SetTranslation(local_position);
                 if (lengthSqr(local_position) != 0.0f)
                     dir = normalize(local_position);
                 else
@@ -756,14 +774,14 @@ namespace dmParticle
                 Vector3 extent(0.5f * emitter_properties[EMITTER_KEY_SIZE_X],
                         0.5f * emitter_properties[EMITTER_KEY_SIZE_Y],
                         0.5f * emitter_properties[EMITTER_KEY_SIZE_Z]);
-                local_position = mulPerElem(p, extent);
+                transform.SetTranslation(mulPerElem(p, extent));
 
                 break;
             }
 
             default:
                 dmLogWarning("Unknown emitter type (%d), particle is spawned at emitter.", ddf->m_Type);
-                local_position = Vector3(0.0f, 0.0f, 0.0f);
+                transform.SetTranslation(Vector3(0.0f, 0.0f, 0.0f));
                 break;
         }
 
@@ -772,16 +790,17 @@ namespace dmParticle
         switch (ddf->m_ParticleOrientation)
         {
         case PARTICLE_ORIENTATION_DEFAULT:
-            rotation = Quat::identity();
+            // rotation is already identity
             break;
         case PARTICLE_ORIENTATION_INITIAL_DIRECTION:
-            rotation = Quat::rotation(Vector3::yAxis(), dir);
+            transform.SetRotation(Quat::rotation(Vector3::yAxis(), dir));
             break;
         }
 
-        particle->SetPosition(emitter_position + rotate(emitter_rotation, local_position));
-        particle->SetRotation(emitter_rotation * rotation);
-        particle->SetVelocity(rotate(emitter_rotation, velocity) + emitter_velocity);
+        transform = dmTransform::Mul(emitter_transform, transform);
+        particle->SetPosition(Point3(transform.GetTranslation()));
+        particle->SetRotation(transform.GetRotation());
+        particle->SetVelocity(dmTransform::Apply(emitter_transform, velocity) + emitter_velocity);
     }
 
     static float unit_tex_coords[] =
@@ -835,12 +854,12 @@ namespace dmParticle
         }
 
         // calculate emission space
-        Quat emission_rotation = Quat::identity();
-        Vector3 emission_position(0.0f, 0.0f, 0.0f);
+        dmTransform::TransformS1 emission_transform;
+        dmTransform::TransformS1 particle_transform;
+        emission_transform.SetIdentity();
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
-            emission_rotation = instance->m_Rotation;
-            emission_position = Vector3(instance->m_Position);
+            emission_transform = instance->m_WorldTransform;
         }
 
         uint32_t max_vertex_count = vertex_buffer_size / sizeof(Vertex);
@@ -851,17 +870,18 @@ namespace dmParticle
             Particle* particle = &emitter->m_Particles[j];
 
             float size = particle->GetSize();
+            particle_transform.SetTranslation(Vector3(particle->GetPosition()));
+            particle_transform.SetRotation(particle->GetRotation());
+            particle_transform.SetScale(size);
+            particle_transform = dmTransform::Mul(emission_transform, particle_transform);
 
-            Vector3 particle_position = rotate(emission_rotation, Vector3(particle->GetPosition())) + emission_position;
-            Quat particle_rotation = emission_rotation * particle->GetRotation();
+            Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
+            Vector3 y = dmTransform::Apply(particle_transform, Vector3(0.0f, height_factor, 0.0f));
 
-            Vector3 x = rotate(particle_rotation, Vector3(size * width_factor, 0.0f, 0.0f));
-            Vector3 y = rotate(particle_rotation, Vector3(0.0f, size * height_factor, 0.0f));
-
-            Vector3 p0 = -x - y + particle_position;
-            Vector3 p1 = -x + y + particle_position;
-            Vector3 p2 = x - y + particle_position;
-            Vector3 p3 = x + y + particle_position;
+            Vector3 p0 = -x - y + particle_transform.GetTranslation();
+            Vector3 p1 = -x + y + particle_transform.GetTranslation();
+            Vector3 p2 = x - y + particle_transform.GetTranslation();
+            Vector3 p3 = x + y + particle_transform.GetTranslation();
 
             // Evaluate anim frame
             uint32_t tile = 0;
@@ -1094,7 +1114,7 @@ namespace dmParticle
         return result;
     }
 
-    void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, float emitter_t, float dt)
+    void ApplyRadial(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, float scale, float emitter_t, float dt)
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
@@ -1104,7 +1124,7 @@ namespace dmParticle
         SAMPLE_PROP(magnitude_property.m_Segments[segment_index], emitter_t, magnitude)
         float mag_spread = magnitude_property.m_Spread;
         // We temporarily only sample the first frame until we have decided what to animate over
-        float max_distance = max_distance_property.m_Segments[0].m_Y;
+        float max_distance = max_distance_property.m_Segments[0].m_Y * scale;
         float max_sq_distance = max_distance * max_distance;
         for (uint32_t i = 0; i < particle_count; ++i)
         {
@@ -1119,7 +1139,7 @@ namespace dmParticle
         }
     }
 
-    void ApplyVortex(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, const Quat& rotation, float emitter_t, float dt)
+    void ApplyVortex(dmArray<Particle>& particles, Property* modifier_properties, const Point3& position, const Quat& rotation, float scale, float emitter_t, float dt)
     {
         uint32_t particle_count = particles.Size();
         const Property& magnitude_property = modifier_properties[MODIFIER_KEY_MAGNITUDE];
@@ -1129,7 +1149,7 @@ namespace dmParticle
         SAMPLE_PROP(magnitude_property.m_Segments[segment_index], emitter_t, magnitude)
         float mag_spread = magnitude_property.m_Spread;
         // We temporarily only sample the first frame until we have decided what to animate over
-        float max_distance = max_distance_property.m_Segments[0].m_Y;
+        float max_distance = max_distance_property.m_Segments[0].m_Y * scale;
         float max_sq_distance = max_distance * max_distance;
         Vector3 axis = rotate(rotation, VORTEX_LOCAL_AXIS);
         Vector3 start = rotate(rotation, VORTEX_LOCAL_START_DIR);
@@ -1161,7 +1181,10 @@ namespace dmParticle
         position = emitter_ddf->m_Position + rotate(emitter_ddf->m_Rotation, Vector3(position));
         if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
         {
-            position = instance->m_Position + rotate(instance->m_Rotation, Vector3(position));
+            if (instance->m_ScaleAlongZ)
+                position = dmTransform::Apply(instance->m_WorldTransform, position);
+            else
+                position = dmTransform::ApplyNoScaleZ(instance->m_WorldTransform, position);
         }
         return Point3(position);
     }
@@ -1201,14 +1224,14 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_RADIAL:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
-                    ApplyRadial(particles, modifier->m_Properties, position, emitter_t, dt);
+                    ApplyRadial(particles, modifier->m_Properties, position, instance->m_WorldTransform.GetScale(), emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_VORTEX:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyVortex(particles, modifier->m_Properties, position, rotation, emitter_t, dt);
+                    ApplyVortex(particles, modifier->m_Properties, position, rotation, instance->m_WorldTransform.GetScale(), emitter_t, dt);
                 }
                 break;
             }
@@ -1277,9 +1300,12 @@ namespace dmParticle
                     color.setY(1.0f - t);
                     color.setZ(t);
                 }
+                dmTransform::TransformS1 transform(Vector3(ddf->m_Position), ddf->m_Rotation, 1.0f);
+                if (instance->m_ScaleAlongZ)
+                    transform = dmTransform::Mul(instance->m_WorldTransform, transform);
+                else
+                    transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, transform);
 
-                Point3 position = instance->m_Position + rotate(instance->m_Rotation, Vector3(ddf->m_Position));
-                Quat rotation = instance->m_Rotation * ddf->m_Rotation;
                 switch (ddf->m_Type)
                 {
                 case EMITTER_TYPE_SPHERE:
@@ -1287,18 +1313,18 @@ namespace dmParticle
                     const float radius = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_X].m_Points[0].m_Y;
 
                     const uint32_t segment_count = 16;
-                    Vector3 vertices[segment_count + 1][3];
+                    Point3 vertices[segment_count + 1][3];
                     for (uint32_t j = 0; j < segment_count + 1; ++j)
                     {
                         float angle = 2.0f * ((float) M_PI) * j / segment_count;
-                        vertices[j][0] = Vector3(radius * cos(angle), radius * sin(angle), 0.0f);
-                        vertices[j][1] = Vector3(0.0f, radius * cos(angle), radius * sin(angle));
-                        vertices[j][2] = Vector3(radius * cos(angle), 0.0f, radius * sin(angle));
+                        vertices[j][0] = Point3(radius * cos(angle), radius * sin(angle), 0.0f);
+                        vertices[j][1] = Point3(0.0f, radius * cos(angle), radius * sin(angle));
+                        vertices[j][2] = Point3(radius * cos(angle), 0.0f, radius * sin(angle));
                     }
                     for (uint32_t j = 1; j < segment_count + 1; ++j)
                     {
                         for (uint32_t k = 0; k < 3; ++k)
-                            render_line_callback(user_context, position + rotate(rotation, vertices[j-1][k]), position + rotate(rotation, vertices[j][k]), color);
+                            render_line_callback(user_context, dmTransform::Apply(transform, vertices[j-1][k]), dmTransform::Apply(transform, vertices[j][k]), color);
                     }
                     break;
                 }
@@ -1308,23 +1334,23 @@ namespace dmParticle
                     const float height = ddf->m_Properties[EMITTER_KEY_SIZE_Y].m_Points[0].m_Y;
 
                     // 4 pillars
-                    render_line_callback(user_context, position, position + rotate(rotation, Vector3(radius, 0.0f, height)), color);
-                    render_line_callback(user_context, position, position + rotate(rotation, Vector3(-radius, 0.0f, height)), color);
-                    render_line_callback(user_context, position, position + rotate(rotation, Vector3(0.0f, radius, height)), color);
-                    render_line_callback(user_context, position, position + rotate(rotation, Vector3(0.0f, -radius, height)), color);
+                    render_line_callback(user_context, Point3(transform.GetTranslation()), dmTransform::Apply(transform, Point3(radius, 0.0f, height)), color);
+                    render_line_callback(user_context, Point3(transform.GetTranslation()), dmTransform::Apply(transform, Point3(-radius, 0.0f, height)), color);
+                    render_line_callback(user_context, Point3(transform.GetTranslation()), dmTransform::Apply(transform, Point3(0.0f, radius, height)), color);
+                    render_line_callback(user_context, Point3(transform.GetTranslation()), dmTransform::Apply(transform, Point3(0.0f, -radius, height)), color);
                     // circle
                     const uint32_t segment_count = 16;
-                    Vector3 vertices[segment_count];
+                    Point3 vertices[segment_count];
                     for (uint32_t j = 0; j < segment_count; ++j)
                     {
                         float angle = 2.0f * ((float) M_PI) * j / segment_count;
-                        vertices[j] = Vector3(radius * cos(angle), radius * sin(angle), height);
+                        vertices[j] = Point3(radius * cos(angle), radius * sin(angle), height);
                     }
                     for (uint32_t j = 1; j < segment_count; ++j)
                     {
-                        render_line_callback(user_context, position + rotate(rotation, vertices[j-1]), position + rotate(rotation, vertices[j]), color);
+                        render_line_callback(user_context, dmTransform::Apply(transform, vertices[j-1]), dmTransform::Apply(transform, vertices[j]), color);
                     }
-                    render_line_callback(user_context, position + rotate(rotation, vertices[segment_count - 1]), position + rotate(rotation, vertices[0]), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, vertices[segment_count - 1]), dmTransform::Apply(transform, vertices[0]), color);
                     break;
                 }
                 case EMITTER_TYPE_BOX:
@@ -1333,20 +1359,20 @@ namespace dmParticle
                     const float y_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_Y].m_Points[0].m_Y;
                     const float z_ext = 0.5f * ddf->m_Properties[EMITTER_KEY_SIZE_Z].m_Points[0].m_Y;
 
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(-x_ext, -y_ext, -z_ext)), position + rotate(rotation, Vector3(x_ext, -y_ext, -z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(x_ext, -y_ext, -z_ext)), position + rotate(rotation, Vector3(x_ext, y_ext, -z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(x_ext, y_ext, -z_ext)), position + rotate(rotation, Vector3(-x_ext, y_ext, -z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(-x_ext, y_ext, -z_ext)), position + rotate(rotation, Vector3(-x_ext, -y_ext, -z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(-x_ext, -y_ext, -z_ext)), dmTransform::Apply(transform, Point3(x_ext, -y_ext, -z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(x_ext, -y_ext, -z_ext)), dmTransform::Apply(transform, Point3(x_ext, y_ext, -z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(x_ext, y_ext, -z_ext)), dmTransform::Apply(transform, Point3(-x_ext, y_ext, -z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(-x_ext, y_ext, -z_ext)), dmTransform::Apply(transform, Point3(-x_ext, -y_ext, -z_ext)), color);
 
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(-x_ext, -y_ext, z_ext)), position + rotate(rotation, Vector3(x_ext, -y_ext, z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(x_ext, -y_ext, z_ext)), position + rotate(rotation, Vector3(x_ext, y_ext, z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(x_ext, y_ext, z_ext)), position + rotate(rotation, Vector3(-x_ext, y_ext, z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(-x_ext, y_ext, z_ext)), position + rotate(rotation, Vector3(-x_ext, -y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(-x_ext, -y_ext, z_ext)), dmTransform::Apply(transform, Point3(x_ext, -y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(x_ext, -y_ext, z_ext)), dmTransform::Apply(transform, Point3(x_ext, y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(x_ext, y_ext, z_ext)), dmTransform::Apply(transform, Point3(-x_ext, y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(-x_ext, y_ext, z_ext)), dmTransform::Apply(transform, Point3(-x_ext, -y_ext, z_ext)), color);
 
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(-x_ext, -y_ext, -z_ext)), position + rotate(rotation, Vector3(-x_ext, -y_ext, z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(x_ext, -y_ext, -z_ext)), position + rotate(rotation, Vector3(x_ext, -y_ext, z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(x_ext, y_ext, -z_ext)), position + rotate(rotation, Vector3(x_ext, y_ext, z_ext)), color);
-                    render_line_callback(user_context, position + rotate(rotation, Vector3(-x_ext, y_ext, -z_ext)), position + rotate(rotation, Vector3(-x_ext, y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(-x_ext, -y_ext, -z_ext)), dmTransform::Apply(transform, Point3(-x_ext, -y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(x_ext, -y_ext, -z_ext)), dmTransform::Apply(transform, Point3(x_ext, -y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(x_ext, y_ext, -z_ext)), dmTransform::Apply(transform, Point3(x_ext, y_ext, z_ext)), color);
+                    render_line_callback(user_context, dmTransform::Apply(transform, Point3(-x_ext, y_ext, -z_ext)), dmTransform::Apply(transform, Point3(-x_ext, y_ext, z_ext)), color);
 
                     break;
                 }
@@ -1647,6 +1673,8 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE2(void, ResetInstance, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HContext, HInstance, const Point3&);
     DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HContext, HInstance, const Quat&);
+    DM_PARTICLE_TRAMPOLINE3(void, SetScale, HContext, HInstance, float);
+    DM_PARTICLE_TRAMPOLINE3(void, SetScaleAlongZ, HContext, HInstance, bool);
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE6(void, Update, HContext, float, void*, uint32_t, uint32_t*, FetchAnimationCallback);

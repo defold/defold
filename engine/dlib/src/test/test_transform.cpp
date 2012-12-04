@@ -19,6 +19,26 @@ using namespace dmTransform;
     ASSERT_V4_NEAR(expected.GetRotation(), actual.GetRotation());\
     ASSERT_NEAR(expected.GetScale(), actual.GetScale(), EPSILON);
 
+TEST(dmTransform, Apply)
+{
+    TransformS1 t(Vector3(1.0f, 0.0f, 0.0f),
+            Quat::rotationZ(M_PI_2),
+            2.0f);
+
+    ASSERT_V3_NEAR(Vector3(0.0f, 2.0f, 0.0f), dmTransform::Apply(t, Vector3(1.0f, 0.0f, 0.0f)));
+    ASSERT_V3_NEAR(Point3(1.0f, 2.0f, 0.0f), dmTransform::Apply(t, Point3(1.0f, 0.0f, 0.0f)));
+}
+
+TEST(dmTransform, ApplyNoScaleZ)
+{
+    TransformS1 t(Vector3(0.0f, 0.0f, 0.0f),
+            Quat::identity(),
+            2.0f);
+
+    ASSERT_V3_NEAR(Vector3(2.0f, 0.0f, 1.0f), dmTransform::ApplyNoScaleZ(t, Vector3(1.0f, 0.0f, 1.0f)));
+    ASSERT_V3_NEAR(Point3(2.0f, 0.0f, 1.0f), dmTransform::ApplyNoScaleZ(t, Point3(1.0f, 0.0f, 1.0f)));
+}
+
 TEST(dmTransform, Multiply)
 {
     TransformS1 t0(Vector3(1.0f, 0.0f, 0.0f),

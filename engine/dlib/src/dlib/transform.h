@@ -77,6 +77,16 @@ namespace dmTransform
         return Point3(rotate(t.GetRotation(), mulPerElem(Vector3(t.GetScale(), t.GetScale(), 1.0f), Vector3(p))) + t.GetTranslation());
     }
 
+    inline Vector3 Apply(const TransformS1& t, const Vector3 v)
+    {
+        return Vector3(rotate(t.GetRotation(), v * t.GetScale()));
+    }
+
+    inline Vector3 ApplyNoScaleZ(const TransformS1& t, const Vector3 v)
+    {
+        return Vector3(rotate(t.GetRotation(), mulPerElem(Vector3(t.GetScale(), t.GetScale(), 1.0f), v)));
+    }
+
     inline TransformS1 Mul(const TransformS1& lhs, const TransformS1& rhs)
     {
         TransformS1 res;
