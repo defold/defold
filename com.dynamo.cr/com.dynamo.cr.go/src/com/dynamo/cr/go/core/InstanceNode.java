@@ -15,13 +15,13 @@ import com.dynamo.cr.sceneed.core.validators.Unique;
 public class InstanceNode extends Node {
 
     @Property
+    @NotZero
+    private double scale = 1.0;
+
+    @Property
     @NotEmpty(severity = IStatus.ERROR)
     @Unique(scope = InstanceNode.class, base = CollectionNode.class)
     private String id = "";
-
-    @Property
-    @NotZero
-    private double scale = 1.0;
 
     public InstanceNode() {
         super();
