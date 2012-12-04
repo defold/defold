@@ -61,7 +61,6 @@ public class TileGridNode extends ComponentTypeNode {
     @Override
     public void parentSet() {
         setTransformable(getParent() != null);
-        getParent().setFlags(Flags.SUPPORTS_SCALE);
     }
 
     public String getTileSource() {
