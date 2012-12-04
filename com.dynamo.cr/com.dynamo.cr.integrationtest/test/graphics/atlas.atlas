@@ -1,0 +1,4 @@
+images: "/graphics/ball.png"
+animations {
+    images: "/graphics/ball.png"
+}

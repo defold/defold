@@ -127,7 +127,7 @@
             id="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas"
             name="Atlas"
             proto-message-class="com.dynamo.atlas.proto.Atlas$ImageAtlas"
-            template-data=""
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.ImageAtlasRefactorParticipant"
             type-class="atlas">
          <references>
             <reference-type-class
