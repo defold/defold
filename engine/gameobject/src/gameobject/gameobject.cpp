@@ -1078,8 +1078,10 @@ namespace dmGameObject
                 dmGameObjectDDF::TransformResponse response;
                 response.m_Position = dmGameObject::GetPosition(instance);
                 response.m_Rotation = dmGameObject::GetRotation(instance);
+                response.m_Scale = dmGameObject::GetScale(instance);
                 response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
                 response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
+                response.m_WorldScale = dmGameObject::GetWorldScale(instance);
                 dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
                 uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
