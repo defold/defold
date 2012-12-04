@@ -39,7 +39,6 @@ public class ModelNode extends ComponentTypeNode {
     public ModelNode(ModelDesc modelDesc) {
         super();
         setFlags(Flags.TRANSFORMABLE);
-        setFlags(Flags.SUPPORTS_SCALE);
         mesh = modelDesc.getMesh();
         material = modelDesc.getMaterial();
         if (modelDesc.getTexturesCount() > 0) {

@@ -27,11 +27,6 @@ public class CollisionObjectNode extends ComponentTypeNode {
     @Property private String mask = "";
     private Node collisionShapeNode;
 
-    public CollisionObjectNode() {
-        super();
-        setFlags(Flags.SUPPORTS_SCALE);
-    }
-
     protected IStatus validateCollisionShape() {
         if (getChildren().size() == 0 && collisionShape.length() == 0) {
             return new Status(IStatus.INFO, "com.dynamo", "Add shapes or a collision file.");

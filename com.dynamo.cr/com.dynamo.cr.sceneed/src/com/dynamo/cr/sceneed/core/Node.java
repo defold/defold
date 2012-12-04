@@ -29,6 +29,7 @@ import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
 import com.dynamo.cr.properties.IPropertyModel;
+import com.dynamo.cr.properties.NotZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
@@ -40,10 +41,11 @@ public abstract class Node implements IAdaptable, Serializable {
 
     public enum Flags {
         TRANSFORMABLE,
+        SCALABLE,
         LOCKED,
-        NO_INHERIT_TRANSFORM,
-        INVISIBLE,
-        SUPPORTS_SCALE
+        NO_INHERIT_ROTATION,
+        NO_INHERIT_SCALE,
+        INVISIBLE
     }
 
     private transient ISceneModel model;
@@ -62,6 +64,10 @@ public abstract class Node implements IAdaptable, Serializable {
 
     @Property(displayName="rotation")
     protected Vector3d euler = new Vector3d(0, 0, 0);
+
+    @Property
+    @NotZero
+    private double scale = 1.0;
 
     // Used to preserve order when adding/removing child nodes
     private transient int childIndex = -1;
@@ -132,6 +138,14 @@ public abstract class Node implements IAdaptable, Serializable {
 
     public final boolean isEulerVisible() {
         return isTransformable();
+    }
+
+    public final boolean isScalable() {
+        return flags.contains(Flags.SCALABLE);
+    }
+
+    public final boolean isScaleVisible() {
+        return isScalable();
     }
 
     public final boolean isEditable() {
@@ -217,6 +231,16 @@ public abstract class Node implements IAdaptable, Serializable {
         return new Vector3d(euler);
     }
 
+    public void setScale(double scale) {
+        this.scale = scale;
+        setAABBDirty();
+        transformChanged();
+    }
+
+    public double getScale() {
+        return this.scale;
+    }
+
     private static void eulerToQuat(Tuple3d euler, Quat4d quat) {
         double bank = euler.x * Math.PI / 180;
         double heading = euler.y * Math.PI / 180;
@@ -278,33 +302,38 @@ public abstract class Node implements IAdaptable, Serializable {
     public void getLocalTransform(Matrix4d transform)
     {
         transform.setIdentity();
-        transform.set(new Vector3d(translation));
-        transform.m33 = 1;
+        transform.set(new Vector3d(translation.x, translation.y, translation.z));
         transform.setRotation(rotation);
+        transform.setScale(this.scale);
     }
 
     public void getWorldTransform(Matrix4d transform) {
-        boolean noInherit = flags.contains(Flags.NO_INHERIT_TRANSFORM);
-        boolean supportsScale = flags.contains(Flags.SUPPORTS_SCALE);
-        Matrix4d tmp = new Matrix4d();
+        boolean noInheritRotation = flags.contains(Flags.NO_INHERIT_ROTATION);
+        boolean noInheritScale = flags.contains(Flags.NO_INHERIT_SCALE);
+        Matrix4d local = new Matrix4d();
         transform.setIdentity();
         Node n = getParent();
-        while (n != null)
-        {
-            n.getLocalTransform(tmp);
-            transform.mul(tmp, transform);
-            if (noInherit)
-                break;
+        while (n != null) {
+            n.getLocalTransform(local);
+            transform.mul(local, transform);
             n = n.getParent();
         }
-        getLocalTransform(tmp);
-        transform.mul(tmp);
-        if (!supportsScale) {
+        if (noInheritRotation || noInheritScale) {
             Matrix3d rotationScale = new Matrix3d();
             transform.getRotationScale(rotationScale);
-            rotationScale.normalize();
+            if (noInheritRotation && noInheritScale) {
+                rotationScale.setIdentity();
+            } else if (noInheritRotation) {
+                double scale = rotationScale.getScale();
+                rotationScale.setIdentity();
+                rotationScale.mul(scale);
+            } else {
+                rotationScale.normalize();
+            }
             transform.setRotationScale(rotationScale);
         }
+        getLocalTransform(local);
+        transform.mul(local);
     }
 
     public final ISceneModel getModel() {
@@ -497,40 +526,47 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public void setWorldTransform(Matrix4d transform) {
-        boolean noInherit = flags.contains(Flags.NO_INHERIT_TRANSFORM);
-        Point3d translation;
-        Quat4d rotation;
+        boolean noInheritRotation = flags.contains(Flags.NO_INHERIT_ROTATION);
+        boolean noInheritScale = flags.contains(Flags.NO_INHERIT_SCALE);
 
-        if (noInherit) {
-            translation = this.translation;
+        Matrix4d worldInv = new Matrix4d();
+        getWorldTransform(worldInv);
+        worldInv.invert();
+
+        transform.mul(worldInv, transform);
+
+        Matrix4d local = new Matrix4d();
+        getLocalTransform(local);
+
+        local.mul(local, transform);
+
+        Vector3d translation = new Vector3d();
+        local.get(translation);
+
+        Quat4d rotation;
+        if (noInheritRotation) {
             rotation = this.rotation;
         } else {
-            Matrix4d worldInv = new Matrix4d();
-            getWorldTransform(worldInv);
-            worldInv.invert();
-
-            transform.mul(worldInv, transform);
-
-            Matrix4d local = new Matrix4d();
-            getLocalTransform(local);
-
-            local.mul(local, transform);
-
-            Vector4d t = new Vector4d();
             rotation = new Quat4d();
-            local.getColumn(3, t);
-            translation = new Point3d(t.x, t.y, t.z);
-            rotation.set(local);
+            local.get(rotation);
         }
-        setTranslation(translation);
+        double scale;
+        if (noInheritScale) {
+            scale = this.scale;
+        } else {
+            scale = local.getScale();
+        }
+        setTranslation(new Point3d(translation.x, translation.y, translation.z));
         setRotation(rotation);
+        setScale(scale);
     }
 
     public void setLocalTransform(Matrix4d transform) {
         Vector3d translation = new Vector3d();
         transform.get(translation);
         this.translation.set(translation);
-        rotation.set(transform);
+        this.scale = transform.getScale();
+        transform.get(this.rotation);
         quatToEuler(this.rotation, euler);
         setAABBDirty();
         transformChanged();
@@ -545,6 +581,7 @@ public abstract class Node implements IAdaptable, Serializable {
         out.writeObject(this.translation);
         out.writeObject(this.rotation);
         out.writeObject(this.euler);
+        out.writeDouble(this.scale);
     }
 
     @SuppressWarnings("unchecked")
@@ -562,5 +599,6 @@ public abstract class Node implements IAdaptable, Serializable {
         this.translation = (Point3d)in.readObject();
         this.rotation = (Quat4d)in.readObject();
         this.euler = (Vector3d)in.readObject();
+        this.scale = in.readDouble();
     }
 }

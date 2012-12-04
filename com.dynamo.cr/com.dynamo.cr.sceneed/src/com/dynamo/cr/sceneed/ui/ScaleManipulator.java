@@ -1,22 +1,19 @@
-package com.dynamo.cr.go.core.manipulators;
+package com.dynamo.cr.sceneed.ui;
 
 import java.util.List;
 
 import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 
-import com.dynamo.cr.go.core.InstanceNode;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.ui.ScaleAxisManipulator;
-import com.dynamo.cr.sceneed.ui.TransformManipulator;
 
 @SuppressWarnings("serial")
-public class UniformScaleManipulator extends TransformManipulator {
+public class ScaleManipulator extends TransformManipulator {
 
     private ScaleAxisManipulator scaleManipulator;
 
-    public UniformScaleManipulator() {
+    public ScaleManipulator() {
         scaleManipulator = new ScaleAxisManipulator(this, new float[] {1, 0, 0, 1});
         addChild(scaleManipulator);
     }
@@ -29,7 +26,7 @@ public class UniformScaleManipulator extends TransformManipulator {
     @Override
     public boolean match(Object[] selection) {
         for (Object object : selection) {
-            if (!(object instanceof InstanceNode)) {
+            if (!(object instanceof Node) || !((Node) object).isFlagSet(Node.Flags.SCALABLE)) {
                 return false;
             }
         }
@@ -48,7 +45,7 @@ public class UniformScaleManipulator extends TransformManipulator {
         double factor = 0.002; // * ManipulatorRendererUtil.getScaleFactor(this.scaleManipulator, getController().getRenderView());
         int n = selection.size();
         for (int i = 0; i < n; ++i) {
-            InstanceNode instance = (InstanceNode)selection.get(i);
+            Node instance = selection.get(i);
             double scale = getScale(originalLocalTransforms.get(i), tmp);
             scale += factor * distance;
             instance.setScale(scale);

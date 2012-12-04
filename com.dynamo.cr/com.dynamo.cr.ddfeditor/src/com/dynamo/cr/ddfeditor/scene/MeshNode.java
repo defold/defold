@@ -20,7 +20,6 @@ public class MeshNode extends Node {
     }
 
     public MeshNode() {
-        setFlags(Flags.SUPPORTS_SCALE);
     }
 
     public FloatBuffer getPositions() {

@@ -23,6 +23,7 @@ public abstract class AbstractModifierNode extends Node {
 
     public AbstractModifierNode(Modifier modifier) {
         super();
+        setFlags(Flags.NO_INHERIT_SCALE);
         updateAABB();
         setTransformable(true);
         setTranslation(LoaderUtil.toPoint3d(modifier.getPosition()));
