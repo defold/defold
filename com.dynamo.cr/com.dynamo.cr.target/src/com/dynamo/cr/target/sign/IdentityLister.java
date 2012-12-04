@@ -15,7 +15,7 @@ public class IdentityLister implements IIdentityLister {
         InputStream input = process.getInputStream();
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         IOUtils.copy(input, output);
-        String[] list = IdentityParser.parse(new String(output.toByteArray()));
+        String[] list = IdentityParser.parse(new String(output.toByteArray(), "UTF8"));
         return list;
     }
 
