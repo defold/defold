@@ -6,6 +6,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
+#include <dlib/transform.h>
 
 #include "gameobject.h"
 #include "gameobject_props.h"
@@ -74,13 +75,13 @@ namespace dmGameObject
         Instance(Prototype* prototype)
         {
             m_Collection = 0;
-            m_Rotation = Quat::identity();
-            m_Position = Point3(0,0,0);
+            m_Transform.SetIdentity();
             m_Prototype = prototype;
             m_Identifier = UNNAMED_IDENTIFIER;
             dmHashInit64(&m_CollectionPathHashState, true);
             m_Depth = 0;
             m_Initialized = 0;
+            m_ScaleAlongZ = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
             m_LevelIndex = INVALID_INSTANCE_INDEX;
@@ -93,11 +94,10 @@ namespace dmGameObject
         {
         }
 
+        dmTransform::TransformS1 m_Transform;
         // Collection this instances belongs to. Added for GetWorldPosition.
         // We should consider to remove this (memory footprint)
         HCollection     m_Collection;
-        Quat            m_Rotation;
-        Point3          m_Position;
         Prototype*      m_Prototype;
         dmhash_t        m_Identifier;
 
@@ -109,8 +109,10 @@ namespace dmGameObject
         uint16_t        m_Depth : 4;
         // If the instance was initialized or not (Init())
         uint16_t        m_Initialized : 1;
+        // If this game object should have the Z component of the position affected by scale
+        uint16_t        m_ScaleAlongZ : 1;
         // Padding
-        uint16_t        m_Pad : 11;
+        uint16_t        m_Pad : 10;
 
         // Index to parent
         uint16_t        m_Parent : 16;
@@ -138,13 +140,6 @@ namespace dmGameObject
         uintptr_t       m_ComponentInstanceUserData[0];
     };
 
-    // Internal representation of a transform
-    struct Transform
-    {
-        Point3 m_Translation;
-        Quat   m_Rotation;
-    };
-
     // Max component types could not be larger than 255 since the index is stored as a uint8_t
     const uint32_t MAX_COMPONENT_TYPES = 255;
 
@@ -165,8 +160,7 @@ namespace dmGameObject
         // Pointer to current collection. Protected by m_Mutex. Related to m_CurrentIdentifierPath above.
         Collection*                 m_CurrentCollection;
 
-        Vector3                     m_AccumulatedTranslation;
-        Quat                        m_AccumulatedRotation;
+        dmTransform::TransformS1    m_AccumulatedTransform;
 
         Register();
         ~Register();
@@ -207,7 +201,7 @@ namespace dmGameObject
             }
 
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
-            memset(&m_WorldTransforms[0], 0xcc, sizeof(Transform) * max_instances);
+            memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::TransformS1) * max_instances);
             memset(&m_LevelInstanceCount[0], 0, sizeof(m_LevelInstanceCount));
             memset(&m_ComponentInstanceCount[0], 0, sizeof(uint32_t) * MAX_COMPONENT_TYPES);
         }
@@ -246,7 +240,7 @@ namespace dmGameObject
         uint16_t                 m_LevelInstanceCount[MAX_HIERARCHICAL_DEPTH];
 
         // Array of world transforms. Calculated using m_LevelIndices above
-        dmArray<Transform>       m_WorldTransforms;
+        dmArray<dmTransform::TransformS1> m_WorldTransforms;
 
         // NOTE: Be *very* careful about m_InstancesToDelete
         // m_InstancesToDelete is an array of instances flagged for delete during Update(.)

@@ -7,24 +7,25 @@ using namespace Vectormath::Aos;
 VisualObject::VisualObject()
 : m_Position(0.0f, 0.0f, 0.0f)
 , m_Rotation(0.0f, 0.0f, 0.0f, 1.0f)
+, m_Scale(1.0f)
 , m_CollisionCount(0)
 , m_FirstCollisionGroup(0)
 {
 
 }
 
-void GetWorldTransform(void* visual_object, Vectormath::Aos::Point3& position, Vectormath::Aos::Quat& rotation)
+void GetWorldTransform(void* visual_object, dmTransform::TransformS1& world_transform)
 {
     if (visual_object != 0x0)
     {
         VisualObject* o = (VisualObject*) visual_object;
-        position = o->m_Position;
-        rotation = o->m_Rotation;
+        world_transform.SetTranslation(Vector3(o->m_Position));
+        world_transform.SetRotation(o->m_Rotation);
+        world_transform.SetScale(o->m_Scale);
     }
     else
     {
-        position = Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f);
-        rotation = Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
+        world_transform.SetIdentity();
     }
 }
 

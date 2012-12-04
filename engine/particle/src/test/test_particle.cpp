@@ -601,7 +601,6 @@ TEST_F(ParticleTest, MaxCount)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
-
 /**
  * The emitter has a spline for particle size, which has the points and tangents:
  * (0.00, 0), (1,0)
@@ -737,6 +736,28 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
     // t = 1, size = 0
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     ASSERT_NEAR(0.0f, particle->GetSize(), EPSILON);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that particles are scaled with the instance
+ */
+TEST_F(ParticleTest, ParticleInstanceScale)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("instance_scale.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+
+    dmParticle::SetScale(m_Context, instance, 2.0f);
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    dmParticle::Particle* p = &e->m_Particles[0];
+    ASSERT_EQ(2.0f, p->GetSize());
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1081,6 +1102,37 @@ TEST_F(ParticleTest, AccelerationWorld)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, AccelerationScaled)
+{
+    float dt = 1.0f;
+
+    float scale = 2.0f;
+
+    ASSERT_TRUE(LoadPrototype("mod_acc_world.particlefxc", &m_Prototype));
+    Vector3 delta[2];
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+        if (i == 1)
+            dmParticle::SetScale(m_Context, instance, 2.0f);
+
+        uint16_t index = instance & 0xffff;
+        dmParticle::Instance* inst = m_Context->m_Instances[index];
+
+        dmParticle::StartInstance(m_Context, instance);
+        dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+        dmParticle::Particle* particle = &inst->m_Emitters[0].m_Particles[0];
+        delta[i] = Vector3(particle->GetPosition());
+
+        dmParticle::DestroyInstance(m_Context, instance);
+    }
+    delta[1] *= 1.0f / scale;
+    ASSERT_EQ(delta[0].getX(), delta[1].getX());
+    ASSERT_EQ(delta[0].getY(), delta[1].getY());
+    ASSERT_EQ(delta[0].getZ(), delta[1].getZ());
+}
+
 TEST_F(ParticleTest, AccelerationEmitter)
 {
     float dt = 1.0f;
@@ -1232,6 +1284,14 @@ TEST_F(ParticleTest, RadialMaxDistance)
     dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
     ASSERT_EQ(0.0f, lengthSqr(particle->GetVelocity()));
 
+    // Test with instance scale
+    dmParticle::ResetInstance(m_Context, instance);
+    dmParticle::SetScale(m_Context, instance, 2.0f);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0.0f, lengthSqr(particle->GetVelocity()));
+
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
@@ -1287,9 +1347,15 @@ TEST_F(ParticleTest, VortexMaxDistance)
 
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     dmParticle::Particle* particle = &i->m_Emitters[0].m_Particles[0];
-    ASSERT_EQ(0.0f, particle->GetVelocity().getX());
-    ASSERT_EQ(0.0f, particle->GetVelocity().getY());
-    ASSERT_EQ(0.0f, particle->GetVelocity().getZ());
+    ASSERT_EQ(0.0f, lengthSqr(particle->GetVelocity()));
+
+    // Test with instance scale
+    dmParticle::ResetInstance(m_Context, instance);
+    dmParticle::SetScale(m_Context, instance, 2.0f);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    particle = &i->m_Emitters[0].m_Particles[0];
+    ASSERT_EQ(0.0f, lengthSqr(particle->GetVelocity()));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

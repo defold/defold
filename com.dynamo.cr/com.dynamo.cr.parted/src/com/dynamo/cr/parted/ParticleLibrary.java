@@ -52,6 +52,8 @@ public class ParticleLibrary {
 
     public static native void Particle_SetRotation(Pointer context, Pointer instance, Quat rotation);
 
+    public static native void Particle_SetScale(Pointer context, Pointer instance, float scale);
+
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
     public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer,

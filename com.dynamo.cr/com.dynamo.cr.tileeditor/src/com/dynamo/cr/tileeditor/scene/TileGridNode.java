@@ -46,6 +46,10 @@ public class TileGridNode extends ComponentTypeNode {
     // Graphics resources
     private transient FloatBuffer vertexData;
 
+    public TileGridNode() {
+        setFlags(Flags.SUPPORTS_SCALE);
+    }
+
     @Override
     public void dispose() {
         super.dispose();

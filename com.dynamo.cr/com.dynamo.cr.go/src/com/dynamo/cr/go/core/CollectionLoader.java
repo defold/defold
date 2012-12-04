@@ -38,6 +38,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
         CollectionDesc desc = builder.build();
         CollectionNode node = new CollectionNode();
         node.setName(desc.getName());
+        node.setScaleAlongZ(desc.getScaleAlongZ() != 0);
         Map<String, GameObjectInstanceNode> idToInstance = new HashMap<String, GameObjectInstanceNode>();
         Set<GameObjectInstanceNode> remainingInstances = new HashSet<GameObjectInstanceNode>();
         int n = desc.getInstancesCount();
@@ -48,6 +49,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             GameObjectInstanceNode instanceNode = new GameObjectInstanceNode(gameObjectNode);
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
+            instanceNode.setScale(instanceDesc.getScale());
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setGameObject(path);
             idToInstance.put(instanceDesc.getId(), instanceNode);
@@ -85,6 +87,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             CollectionInstanceNode instanceNode = new CollectionInstanceNode(collectionNode);
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
+            instanceNode.setScale(instanceDesc.getScale());
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setCollection(path);
             node.addChild(instanceNode);
@@ -97,6 +100,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             throws IOException, CoreException {
         Builder builder = CollectionDesc.newBuilder();
         builder.setName(collection.getName());
+        builder.setScaleAlongZ(collection.isScaleAlongZ() ? 1 : 0);
         buildInstances(collection, builder, monitor);
         return builder.build();
     }
@@ -109,6 +113,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 InstanceDesc.Builder instanceBuilder = InstanceDesc.newBuilder();
                 instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
+                instanceBuilder.setScale((float)instance.getScale());
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setPrototype(instance.getGameObject());
                 for (Node grandChild : child.getChildren()) {
@@ -124,6 +129,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 CollectionInstanceDesc.Builder instanceBuilder = CollectionInstanceDesc.newBuilder();
                 instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
+                instanceBuilder.setScale((float)instance.getScale());
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setCollection(instance.getCollection());
                 builder.addCollectionInstances(instanceBuilder);

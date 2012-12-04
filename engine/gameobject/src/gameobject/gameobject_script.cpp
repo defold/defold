@@ -159,6 +159,19 @@ namespace dmGameObject
         return 1;
     }
 
+    /*# gets the uniform scale factor of the instance
+     * The uniform scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
+     *
+     * @name go.get_scale
+     * @return uniform instance scale factor (number)
+     */
+    int Script_GetScale(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        lua_pushnumber(L, dmGameObject::GetScale(i->m_Instance));
+        return 1;
+    }
+
     /*# sets the position of the instance
      * The position is relative to the parent (if any). The global world position cannot be manually set.
      *
@@ -187,6 +200,26 @@ namespace dmGameObject
         return 0;
     }
 
+    /*# sets the uniform scale factor of the instance
+     * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
+     *
+     * NOTE! Physics are currently not affected when setting scale from this function.
+     *
+     * @name go.set_scale
+     * @param scale uniform scale factor, can not be 0 (number)
+     */
+    int Script_SetScale(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        lua_Number v = luaL_checknumber(L, 1);
+        if (v == 0.0)
+        {
+            return luaL_error(L, "The scale supplied to go.set_scale can not be 0.");
+        }
+        dmGameObject::SetScale(i->m_Instance, (float)v);
+        return 0;
+    }
+
     /*# gets the instance world position
      * Use <code>go.get_position</code> to retrieve the position relative to the parent.
      *
@@ -210,6 +243,19 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         dmScript::PushQuat(L, dmGameObject::GetWorldRotation(i->m_Instance));
+        return 1;
+    }
+
+    /*# gets the instance world scale factor
+     * Use <code>go.get_scale</code> to retrieve the scale factor relative to the parent.
+     *
+     * @name go.get_world_scale
+     * @return uniform instance world scale factor (number)
+     */
+    int Script_GetWorldScale(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        lua_pushnumber(L, dmGameObject::GetWorldScale(i->m_Instance));
         return 1;
     }
 
@@ -476,10 +522,13 @@ namespace dmGameObject
     {
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
+        {"get_scale",           Script_GetScale},
         {"set_position",        Script_SetPosition},
         {"set_rotation",        Script_SetRotation},
+        {"set_scale",           Script_SetScale},
         {"get_world_position",  Script_GetWorldPosition},
         {"get_world_rotation",  Script_GetWorldRotation},
+        {"get_world_scale",     Script_GetWorldScale},
         {"get_id",              Script_GetId},
         {"delete",              Script_Delete},
         {"screen_ray",          Script_ScreenRay},

@@ -155,12 +155,12 @@ namespace dmGameSystem
             if (c.m_Instance != 0)
             {
                 ParticleFXComponentPrototype* prototype = &w->m_Prototypes[c.m_PrototypeIndex];
-                Point3 world_position = dmGameObject::GetWorldPosition(c.m_Instance);
-                Quat world_rotation = dmGameObject::GetWorldRotation(c.m_Instance);
-                world_position += rotate(world_rotation, prototype->m_Translation);
-                world_rotation *= prototype->m_Rotation;
-                dmParticle::SetPosition(particle_context, c.m_ParticleInstance, world_position);
-                dmParticle::SetRotation(particle_context, c.m_ParticleInstance, world_rotation);
+                dmTransform::TransformS1 world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
+                world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(c.m_Instance), world_transform);
+                dmParticle::SetPosition(particle_context, c.m_ParticleInstance, Point3(world_transform.GetTranslation()));
+                dmParticle::SetRotation(particle_context, c.m_ParticleInstance, world_transform.GetRotation());
+                dmParticle::SetScale(particle_context, c.m_ParticleInstance, world_transform.GetScale());
+                dmParticle::SetScaleAlongZ(particle_context, c.m_ParticleInstance, dmGameObject::ScaleAlongZ(c.m_Instance));
             }
         }
 
@@ -238,10 +238,15 @@ namespace dmGameSystem
         if (params.m_Message->m_Id == dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash)
         {
             dmParticle::HContext context = world->m_ParticleContext;
-            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, (ParticleFXComponentPrototype*)*params.m_UserData);
+            ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
+            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype);
             dmParticle::StartInstance(context, instance);
-            dmParticle::SetPosition(context, instance, dmGameObject::GetWorldPosition(params.m_Instance));
-            dmParticle::SetRotation(context, instance, dmGameObject::GetWorldRotation(params.m_Instance));
+            dmTransform::TransformS1 world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
+            world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
+            dmParticle::SetPosition(context, instance, Point3(world_transform.GetTranslation()));
+            dmParticle::SetRotation(context, instance, world_transform.GetRotation());
+            dmParticle::SetScale(context, instance, world_transform.GetScale());
+            dmParticle::SetScaleAlongZ(context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {

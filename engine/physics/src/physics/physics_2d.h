@@ -98,6 +98,13 @@ namespace dmPhysics
         p1.setY(p0.y * inv_scale);
         p1.setZ(0.0f);
     }
+
+    inline b2Vec2 TransformScaleB2(const b2Transform& t, float scale, const b2Vec2& p)
+    {
+        b2Vec2 pp = p;
+        pp *= scale;
+        return b2Mul(t, pp);
+    }
 }
 
 #endif // PHYSICS_2D_H

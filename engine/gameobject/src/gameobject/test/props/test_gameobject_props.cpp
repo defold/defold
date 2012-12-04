@@ -160,7 +160,7 @@ TEST_F(PropsTest, PropsNil)
 
 TEST_F(PropsTest, PropsSpawnNoProperties)
 {
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f));
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
     ASSERT_NE((void*)0u, instance);
     // Script init is run in spawn which verifies the properties
 }

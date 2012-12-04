@@ -28,6 +28,15 @@ def build(bld):
 
     test_math.install_path = None
 
+    test_transform = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_transform.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_transform')
+
+    test_transform.install_path = None
+
     test_hashtable = bld.new_task_gen(features = 'cxx cprogram',
                                       source = 'test_hashtable.cpp',
                                       uselib = 'GTEST',

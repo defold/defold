@@ -45,8 +45,7 @@ namespace dmGameObject
                 return dmResource::RESULT_OUT_OF_RESOURCES;
             }
             regist->m_CurrentCollection = collection;
-            regist->m_AccumulatedTranslation = Vector3(0, 0, 0);
-            regist->m_AccumulatedRotation = Quat::identity();
+            regist->m_AccumulatedTransform.SetIdentity();
 
             // NOTE: Root-collection name is not prepended to identifier
             prev_identifier_path[0] = '\0';
@@ -66,11 +65,16 @@ namespace dmGameObject
             dmGameObject::HInstance instance = dmGameObject::New(collection, instance_desc.m_Prototype);
             if (instance != 0x0)
             {
-                Quat rot = regist->m_AccumulatedRotation * instance_desc.m_Rotation;
-                Vector3 pos = rotate(regist->m_AccumulatedRotation, Vector3(instance_desc.m_Position)) + regist->m_AccumulatedTranslation;
-
-                dmGameObject::SetPosition(instance, Point3(pos));
-                dmGameObject::SetRotation(instance, rot);
+                instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
+                dmTransform::TransformS1 instance_t(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
+                if (instance->m_ScaleAlongZ)
+                {
+                    instance->m_Transform = dmTransform::Mul(regist->m_AccumulatedTransform, instance_t);
+                }
+                else
+                {
+                    instance->m_Transform = dmTransform::MulNoScaleZ(regist->m_AccumulatedTransform, instance_t);
+                }
 
                 dmHashInit64(&instance->m_CollectionPathHashState, true);
                 dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, regist->m_CurrentIdentifierPath, strlen(regist->m_CurrentIdentifierPath));
@@ -163,13 +167,19 @@ namespace dmGameObject
                 if (child)
                 {
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);
-                    // Reverse transform
-                    Quat inv_acc_rot = conj(regist->m_AccumulatedRotation);
-                    Quat rot = inv_acc_rot * dmGameObject::GetRotation(child);
-                    Point3 pos = Point3(rotate(inv_acc_rot, Vector3(dmGameObject::GetPosition(child) - regist->m_AccumulatedTranslation)));
-                    dmGameObject::SetPosition(child, pos);
-                    dmGameObject::SetRotation(child, rot);
-                    if (r != dmGameObject::RESULT_OK)
+                    if (r == dmGameObject::RESULT_OK)
+                    {
+                        // Reverse transform
+                        if (child->m_ScaleAlongZ)
+                        {
+                            child->m_Transform = dmTransform::Mul(dmTransform::Inv(regist->m_AccumulatedTransform), child->m_Transform);
+                        }
+                        else
+                        {
+                            child->m_Transform = dmTransform::MulNoScaleZ(dmTransform::Inv(regist->m_AccumulatedTransform), child->m_Transform);
+                        }
+                    }
+                    else
                     {
                         dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
                     }
@@ -191,15 +201,11 @@ namespace dmGameObject
             dmStrlCat(regist->m_CurrentIdentifierPath, ID_SEPARATOR, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
 
             Collection* child_coll;
-            Vector3 prev_translation = regist->m_AccumulatedTranslation;
-            Quat prev_rotation = regist->m_AccumulatedRotation;
+            dmTransform::TransformS1 prev_transform = regist->m_AccumulatedTransform;
+            dmTransform::TransformS1 coll_instance_t(Vector3(coll_instance_desc.m_Position),
+                    coll_instance_desc.m_Rotation, coll_instance_desc.m_Scale);
 
-            Quat rot = regist->m_AccumulatedRotation * coll_instance_desc.m_Rotation;
-            Vector3 trans = (regist->m_AccumulatedRotation * Quat(Vector3(coll_instance_desc.m_Position), 0.0f) * conj(regist->m_AccumulatedRotation)).getXYZ()
-                       + regist->m_AccumulatedTranslation;
-
-            regist->m_AccumulatedRotation = rot;
-            regist->m_AccumulatedTranslation = trans;
+            regist->m_AccumulatedTransform = Mul(regist->m_AccumulatedTransform, coll_instance_t);
 
             dmResource::Result r = dmResource::Get(factory, coll_instance_desc.m_Collection, (void**) &child_coll);
             if (r != dmResource::RESULT_OK)
@@ -215,8 +221,7 @@ namespace dmGameObject
 
             dmStrlCpy(regist->m_CurrentIdentifierPath, prev_identifier_path, DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX);
 
-            regist->m_AccumulatedTranslation = prev_translation;
-            regist->m_AccumulatedRotation = prev_rotation;
+            regist->m_AccumulatedTransform = prev_transform;
         }
 
         if (loading_root)

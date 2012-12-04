@@ -15,6 +15,7 @@ public abstract class PositionalModifierNode extends AbstractModifierNode {
 
     public PositionalModifierNode(Modifier modifier) {
         super(modifier);
+        setFlags(Flags.SUPPORTS_SCALE);
         for (Modifier.Property p : modifier.getPropertiesList()) {
             switch (p.getKey()) {
             case MODIFIER_KEY_MAX_DISTANCE:

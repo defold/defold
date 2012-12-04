@@ -16,6 +16,7 @@ message Create
     required dmMath.Point3  position = 1;
     required dmMath.Quat    rotation = 2;
     optional uint64         id       = 3 [default=0];
+    optional float          scale    = 4 [default=1];
 }
 
 message CollectionProxyDesc

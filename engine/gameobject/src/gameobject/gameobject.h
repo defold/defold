@@ -6,6 +6,7 @@
 
 #include <dlib/message.h>
 #include <dlib/hash.h>
+#include <dlib/transform.h>
 
 #include <ddf/ddf.h>
 
@@ -525,9 +526,10 @@ namespace dmGameObject
      * @param property_buffer_size Size of property buffer
      * @param position Position of the spawed object
      * @param rotation Rotation of the spawned object
+     * @param scale Scale of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation);
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale);
 
     /**
      * Delete gameobject instance
@@ -594,6 +596,13 @@ namespace dmGameObject
      * @return RESULT_OK if the comopnent was found
      */
     Result GetComponentId(HInstance instance, uint8_t component_index, dmhash_t* component_id);
+
+    /**
+     * Returns whether the scale of the supplied instance should be applied along Z or not.
+     * @param instance Instance
+     * @return if the scale should be applied along Z
+     */
+    bool ScaleAlongZ(HInstance instance);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -705,6 +714,20 @@ namespace dmGameObject
     Quat GetRotation(HInstance instance);
 
     /**
+     * Set gameobject instance uniform scale
+     * @param instance Gameobject instance
+     * @param scale New uniform scale
+     */
+    void SetScale(HInstance instance, float scale);
+
+    /**
+     * Get gameobject instance uniform scale
+     * @param instance Gameobject instance
+     * @return Uniform scale
+     */
+    float GetScale(HInstance instance);
+
+    /**
      * Get gameobject instance world position
      * @param instance Gameobject instance
      * @return World position
@@ -717,6 +740,20 @@ namespace dmGameObject
      * @return World rotation
      */
     Quat GetWorldRotation(HInstance instance);
+
+    /**
+     * Get game object instance world transform
+     * @param instance Game object instance
+     * @return World uniform scale
+     */
+    float GetWorldScale(HInstance instance);
+
+    /**
+     * Get game object instance world uniform scale
+     * @param instance Game object instance
+     * @return World uniform scale
+     */
+    const dmTransform::TransformS1& GetWorldTransform(HInstance instance);
 
     /**
      * Set parent instance to child

@@ -110,10 +110,12 @@ public class ParticleFXNode extends ComponentTypeNode {
     private transient boolean running = false;
 
     public ParticleFXNode() {
+        setFlags(Flags.SUPPORTS_SCALE);
     }
 
     public ParticleFXNode(Vector4d translation, Quat4d rotation) {
         super();
+        setFlags(Flags.SUPPORTS_SCALE);
         setTranslation(new Point3d(translation.getX(), translation.getY(), translation.getZ()));
         setRotation(rotation);
     }
@@ -157,6 +159,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
         ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(0, 0, 0));
         ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
+        ParticleLibrary.Particle_SetScale(context, instance, 1);
     }
 
     public void unbindContext() {

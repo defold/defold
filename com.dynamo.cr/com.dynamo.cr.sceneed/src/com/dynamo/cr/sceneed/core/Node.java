@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -41,7 +42,8 @@ public abstract class Node implements IAdaptable, Serializable {
         TRANSFORMABLE,
         LOCKED,
         NO_INHERIT_TRANSFORM,
-        INVISIBLE
+        INVISIBLE,
+        SUPPORTS_SCALE
     }
 
     private transient ISceneModel model;
@@ -90,7 +92,7 @@ public abstract class Node implements IAdaptable, Serializable {
         }
     }
 
-    private void setAABBDirty() {
+    protected void setAABBDirty() {
         Node p = this;
         while (p != null) {
             p.worldAABBDirty = true;
@@ -283,9 +285,10 @@ public abstract class Node implements IAdaptable, Serializable {
 
     public void getWorldTransform(Matrix4d transform) {
         boolean noInherit = flags.contains(Flags.NO_INHERIT_TRANSFORM);
+        boolean supportsScale = flags.contains(Flags.SUPPORTS_SCALE);
         Matrix4d tmp = new Matrix4d();
         transform.setIdentity();
-        Node n = this;
+        Node n = getParent();
         while (n != null)
         {
             n.getLocalTransform(tmp);
@@ -293,6 +296,14 @@ public abstract class Node implements IAdaptable, Serializable {
             if (noInherit)
                 break;
             n = n.getParent();
+        }
+        getLocalTransform(tmp);
+        transform.mul(tmp);
+        if (!supportsScale) {
+            Matrix3d rotationScale = new Matrix3d();
+            transform.getRotationScale(rotationScale);
+            rotationScale.normalize();
+            transform.setRotationScale(rotationScale);
         }
     }
 

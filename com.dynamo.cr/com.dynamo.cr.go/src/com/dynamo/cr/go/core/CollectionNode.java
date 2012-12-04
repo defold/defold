@@ -13,6 +13,9 @@ public class CollectionNode extends Node {
     @NotEmpty
     private String name = "";
 
+    @Property
+    private boolean scaleAlongZ = false;
+
     private String path;
 
     public String getName() {
@@ -21,6 +24,14 @@ public class CollectionNode extends Node {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public boolean isScaleAlongZ() {
+        return this.scaleAlongZ;
+    }
+
+    public void setScaleAlongZ(boolean scaleAlongZ) {
+        this.scaleAlongZ = scaleAlongZ;
     }
 
     public String getPath() {
