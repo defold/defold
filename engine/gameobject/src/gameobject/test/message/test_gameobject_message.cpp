@@ -348,8 +348,10 @@ struct GameObjectTransformContext
 {
     Vectormath::Aos::Point3 m_Position;
     Vectormath::Aos::Quat m_Rotation;
+    float m_Scale;
     Vectormath::Aos::Point3 m_WorldPosition;
     Vectormath::Aos::Quat m_WorldRotation;
+    float m_WorldScale;
 };
 
 void DispatchGameObjectTransformCallback(dmMessage::Message *message, void* user_ptr)
@@ -360,8 +362,10 @@ void DispatchGameObjectTransformCallback(dmMessage::Message *message, void* user
         GameObjectTransformContext* context = (GameObjectTransformContext*)user_ptr;
         context->m_Position = ddf->m_Position;
         context->m_Rotation = ddf->m_Rotation;
+        context->m_Scale = ddf->m_Scale;
         context->m_WorldPosition = ddf->m_WorldPosition;
         context->m_WorldRotation = ddf->m_WorldRotation;
+        context->m_WorldScale = ddf->m_WorldScale;
     }
 }
 
@@ -379,9 +383,11 @@ TEST_F(MessageTest, TestGameObjectTransform)
     float sq_2_half = sqrtf(2.0f) * 0.5f;
     dmGameObject::SetPosition(parent, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
     dmGameObject::SetRotation(parent, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+    dmGameObject::SetScale(parent, 2.0f);
 
     dmGameObject::SetPosition(go, Vectormath::Aos::Point3(1.0f, 0.0f, 0.0f));
     dmGameObject::SetRotation(go, Vectormath::Aos::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
+    dmGameObject::SetScale(go, 2.0f);
 
     dmhash_t message_id = dmGameObjectDDF::RequestTransform::m_DDFDescriptor->m_NameHash;
     dmMessage::HSocket socket;
@@ -405,15 +411,20 @@ TEST_F(MessageTest, TestGameObjectTransform)
 
     Vectormath::Aos::Point3 position = dmGameObject::GetPosition(go);
     Vectormath::Aos::Quat rotation = dmGameObject::GetRotation(go);
+    float scale = dmGameObject::GetScale(go);
     Vectormath::Aos::Point3 world_position = dmGameObject::GetWorldPosition(go);
     Vectormath::Aos::Quat world_rotation = dmGameObject::GetWorldRotation(go);
+    float world_scale = dmGameObject::GetWorldScale(go);
 
     ASSERT_EQ(position.getX(), context.m_Position.getX());
     ASSERT_EQ(rotation.getX(), context.m_Rotation.getX());
+    ASSERT_EQ(scale, context.m_Scale);
     ASSERT_EQ(world_position.getX(), context.m_WorldPosition.getX());
     ASSERT_EQ(world_rotation.getX(), context.m_WorldRotation.getX());
+    ASSERT_EQ(world_scale, context.m_WorldScale);
     ASSERT_NE(context.m_Position.getX(), context.m_WorldPosition.getX());
     ASSERT_NE(context.m_Rotation.getX(), context.m_WorldRotation.getX());
+    ASSERT_NE(context.m_Scale, context.m_WorldScale);
 
     dmMessage::DeleteSocket(socket);
 

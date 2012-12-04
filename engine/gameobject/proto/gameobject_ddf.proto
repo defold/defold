@@ -136,8 +136,8 @@ message AcquireInputFocus {}
  */
 message ReleaseInputFocus {}
 
-/*# requests the position and rotation from an instance
- * Send this message to an instance to request its transform (position/rotation).
+/*# requests the transform from an instance
+ * Send this message to an instance to request its transform (position, rotation, scale).
  * The sending script will receive the answer as a <code>transform_response</code>-message
  * at a later time.
  *
@@ -176,8 +176,8 @@ message ReleaseInputFocus {}
  */
 message RequestTransform {}
 
-/*# reports back the position and rotation of an instance
- * The response a script receives after it has requested the position and rotation from an instance
+/*# reports back the transform of an instance
+ * The response a script receives after it has requested the transform from an instance
  * using the <code>request_transform</code>-message. See the description of that message
  * for a complete example on how to use it.
  *
@@ -185,8 +185,10 @@ message RequestTransform {}
  * @name transform_response
  * @param position local position of the instance (vector3)
  * @param rotation local rotation of the instance (quaternion)
+ * @param scale local scale of the instance (number)
  * @param world_position world position of the instance (vector3)
  * @param world_rotation world rotation of the instancee (quaternion)
+ * @param world_scale world scale of the instance (number)
  */
 message TransformResponse
 {
@@ -194,6 +196,8 @@ message TransformResponse
     required dmMath.Quat    rotation        = 2;
     required dmMath.Point3  world_position  = 3;
     required dmMath.Quat    world_rotation  = 4;
+    optional float          scale           = 5 [default = 1.0];
+    optional float          world_scale     = 6 [default = 1.0];
 }
 
 /*# sets the parent of the receiving instance
