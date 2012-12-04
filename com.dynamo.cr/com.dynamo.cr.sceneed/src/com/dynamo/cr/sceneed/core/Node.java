@@ -45,6 +45,7 @@ public abstract class Node implements IAdaptable, Serializable {
         LOCKED,
         NO_INHERIT_ROTATION,
         NO_INHERIT_SCALE,
+        NO_SCALE_ALONG_Z,
         INVISIBLE
     }
 
@@ -125,6 +126,13 @@ public abstract class Node implements IAdaptable, Serializable {
         flags.add(flag);
         for (Node child : this.children) {
             child.setFlagsRecursively(flag);
+        }
+    }
+
+    public void clearFlagsRecursively(Flags flag) {
+        flags.remove(flag);
+        for (Node child : this.children) {
+            child.clearFlagsRecursively(flag);
         }
     }
 
@@ -310,13 +318,12 @@ public abstract class Node implements IAdaptable, Serializable {
     public void getWorldTransform(Matrix4d transform) {
         boolean noInheritRotation = flags.contains(Flags.NO_INHERIT_ROTATION);
         boolean noInheritScale = flags.contains(Flags.NO_INHERIT_SCALE);
-        Matrix4d local = new Matrix4d();
-        transform.setIdentity();
+        boolean noScaleAlongZ = flags.contains(Flags.NO_SCALE_ALONG_Z);
         Node n = getParent();
-        while (n != null) {
-            n.getLocalTransform(local);
-            transform.mul(local, transform);
-            n = n.getParent();
+        if (n != null) {
+            n.getWorldTransform(transform);
+        } else {
+            transform.setIdentity();
         }
         if (noInheritRotation || noInheritScale) {
             Matrix3d rotationScale = new Matrix3d();
@@ -332,8 +339,27 @@ public abstract class Node implements IAdaptable, Serializable {
             }
             transform.setRotationScale(rotationScale);
         }
-        getLocalTransform(local);
-        transform.mul(local);
+        Matrix4d local = new Matrix4d();
+        if (noScaleAlongZ) {
+            Matrix3d rotationScale = new Matrix3d();
+            transform.getRotationScale(rotationScale);
+            Vector3d z = new Vector3d();
+            rotationScale.getColumn(2, z);
+            z.normalize();
+            rotationScale.setColumn(2, z);
+            Vector3d translation = new Vector3d(this.translation);
+            rotationScale.transform(translation);
+            local.setIdentity();
+            local.setRotation(this.rotation);
+            local.setScale(this.scale);
+            transform.mul(local);
+            transform.setM03(transform.getM03() + translation.x);
+            transform.setM13(transform.getM13() + translation.y);
+            transform.setM23(transform.getM23() + translation.z);
+        } else {
+            getLocalTransform(local);
+            transform.mul(local);
+        }
     }
 
     public final ISceneModel getModel() {
@@ -523,42 +549,6 @@ public abstract class Node implements IAdaptable, Serializable {
             }
         }
         return super.toString();
-    }
-
-    public void setWorldTransform(Matrix4d transform) {
-        boolean noInheritRotation = flags.contains(Flags.NO_INHERIT_ROTATION);
-        boolean noInheritScale = flags.contains(Flags.NO_INHERIT_SCALE);
-
-        Matrix4d worldInv = new Matrix4d();
-        getWorldTransform(worldInv);
-        worldInv.invert();
-
-        transform.mul(worldInv, transform);
-
-        Matrix4d local = new Matrix4d();
-        getLocalTransform(local);
-
-        local.mul(local, transform);
-
-        Vector3d translation = new Vector3d();
-        local.get(translation);
-
-        Quat4d rotation;
-        if (noInheritRotation) {
-            rotation = this.rotation;
-        } else {
-            rotation = new Quat4d();
-            local.get(rotation);
-        }
-        double scale;
-        if (noInheritScale) {
-            scale = this.scale;
-        } else {
-            scale = local.getScale();
-        }
-        setTranslation(new Point3d(translation.x, translation.y, translation.z));
-        setRotation(rotation);
-        setScale(scale);
     }
 
     public void setLocalTransform(Matrix4d transform) {

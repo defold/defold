@@ -127,14 +127,6 @@ public class NodeTest extends AbstractNodeTest {
         double worldScale = scale * scale;
         assertWorld(child, worldTranslation, worldRotation, worldScale);
 
-        Matrix4d world = new Matrix4d();
-        world.setIdentity();
-        world.set(new Vector3d(worldTranslation));
-        world.setRotation(worldRotation);
-        world.setScale(worldScale);
-        child.setWorldTransform(world);
-
-        assertWorld(child, worldTranslation, worldRotation, worldScale);
     }
 
     @Test
@@ -172,23 +164,44 @@ public class NodeTest extends AbstractNodeTest {
 
         assertWorld(childNoRotation, worldTranslationNoRotation, rotation, worldScale);
         assertWorld(childNoScale, worldTranslationNoScale, worldRotation, scale);
-
-        Matrix4d world = new Matrix4d();
-        world.setIdentity();
-        world.set(new Vector3d(worldTranslationNoRotation));
-        world.setRotation(rotation);
-        world.setScale(worldScale);
-        childNoRotation.setWorldTransform(world);
-        assertWorld(childNoRotation, worldTranslationNoRotation, rotation, worldScale);
-
-        world.setIdentity();
-        world.set(new Vector3d(worldTranslationNoScale));
-        world.setRotation(worldRotation);
-        world.setScale(scale);
-        childNoScale.setWorldTransform(world);
-        assertWorld(childNoScale, worldTranslationNoScale, worldRotation, scale);
     }
 
+    @Test
+    public void testScaleAlongZ() throws Exception {
+        DummyNode parent = new DummyNode();
+        DummyNode childScale = new DummyNode();
+        childScale.clearFlags(Flags.NO_SCALE_ALONG_Z);
+        parent.addChild(childScale);
+        DummyNode childNoScale = new DummyNode();
+        childNoScale.setFlags(Flags.NO_SCALE_ALONG_Z);
+        parent.addChild(childNoScale);
+
+        Point3d translation = new Point3d(0, 0, 1);
+        Quat4d rotation = new Quat4d();
+        rotation.set(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), Math.PI * 0.5));
+        double scale = 2.0;
+
+        parent.setTranslation(translation);
+        parent.setRotation(rotation);
+        parent.setScale(scale);
+
+        childScale.setTranslation(translation);
+        childScale.setRotation(rotation);
+        childScale.setScale(scale);
+
+        childNoScale.setTranslation(translation);
+        childNoScale.setRotation(rotation);
+        childNoScale.setScale(scale);
+
+        Point3d worldTranslationScale = new Point3d(2.0, 0.0, 1.0);
+        Point3d worldTranslationNoScale = new Point3d(1.0, 0.0, 1.0);
+        Quat4d worldRotation = new Quat4d(rotation);
+        worldRotation.mul(rotation);
+        double worldScale = scale * scale;
+
+        assertWorld(childScale, worldTranslationScale, worldRotation, worldScale);
+        assertWorld(childNoScale, worldTranslationNoScale, worldRotation, worldScale);
+    }
 
     void assertAABBCenterX(Node node, double x) {
         AABB aabb = new AABB();
