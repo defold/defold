@@ -41,6 +41,7 @@ public interface ISceneView extends ISelectionListener {
         void onFrameSelection();
 
         void toogleSimulation();
+        boolean isSimulating();
     }
 
     public interface IPresenterContext {

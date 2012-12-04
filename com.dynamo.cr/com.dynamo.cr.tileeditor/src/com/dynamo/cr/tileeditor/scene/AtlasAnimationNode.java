@@ -19,6 +19,20 @@ public class AtlasAnimationNode extends Node {
     @Property
     private boolean flipVertically;
 
+    @Override
+    protected void childAdded(Node child) {
+        super.childAdded(child);
+        if (getParent() != null)
+            ((AtlasNode) getParent()).increaseVersion();
+    }
+
+    @Override
+    protected void childRemoved(Node child) {
+        super.childRemoved(child);
+        if (getParent() != null)
+            ((AtlasNode) getParent()).increaseVersion();
+    }
+
     public void setPlayback(Playback playback) {
         this.playback = playback;
     }

@@ -38,6 +38,17 @@ public class AtlasLayoutTest {
     }
 
     @Test
+    public void testEmpty() {
+        List<AtlasLayout.Rect> rectangles
+            = Arrays.asList();
+
+        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        assertThat(layout.getWidth(), is(1));
+        assertThat(layout.getHeight(), is(1));
+        assertThat(layout.getRectangles().size(), is(0));
+    }
+
+    @Test
     public void testBasic1() {
         List<AtlasLayout.Rect> rectangles
             = Arrays.asList(rect(0, 16, 16),

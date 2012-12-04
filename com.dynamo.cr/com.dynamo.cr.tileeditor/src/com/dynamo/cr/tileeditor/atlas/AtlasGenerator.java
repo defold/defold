@@ -34,17 +34,21 @@ public class AtlasGenerator {
             float y0 = r.y;
             float x1 = r.x + r.width;
             float y1 = r.y + r.height;
+            float w2 = r.width * 0.5f;
+            float h2 = r.height * 0.5f;
             float[] vertices = new float[] {
-                    x0 * xs, y1 * ys, x0, y0, 0,
-                    x1 * xs, y1 * ys, x1, y0, 0,
-                    x1 * xs, y0 * ys, x1, y1, 0,
+                    x0 * xs, y1 * ys, -w2, -h2, 0,
+                    x1 * xs, y1 * ys, w2, -h2, 0,
+                    x1 * xs, y0 * ys, w2, h2, 0,
 
-                    x0 * xs, y1 * ys, x0, y0, 0,
-                    x1 * xs, y0 * ys, x1, y1, 0,
-                    x0 * xs, y0 * ys, x0, y1, 0,
+                    x0 * xs, y1 * ys, -w2, -h2, 0,
+                    x1 * xs, y0 * ys, w2, h2, 0,
+                    x0 * xs, y0 * ys, -w2, h2, 0,
 
             };
-            tiles.add(new Tile(ids.get(index), vertices));
+            float cx = r.x + r.width * 0.5f;
+            float cy = r.y + r.height * 0.5f;
+            tiles.add(new Tile(ids.get(index), cx, cy, vertices));
         }
         g.dispose();
         AtlasMap atlasMap = new AtlasMap(image, tiles);

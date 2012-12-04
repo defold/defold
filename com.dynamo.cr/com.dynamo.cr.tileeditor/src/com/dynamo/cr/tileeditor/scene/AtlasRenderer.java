@@ -7,6 +7,7 @@ import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
@@ -20,6 +21,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
 
     private Texture texture;
     private int version = -1;
+    private float time = 0;
 
     @Override
     public void dispose() {
@@ -50,9 +52,8 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
     @Override
     public void render(RenderContext renderContext, AtlasNode node,
             RenderData<AtlasNode> renderData) {
-        AtlasMap atlasMap = (AtlasMap) renderData.getUserData();
-
         GL gl = renderContext.getGL();
+        AtlasMap atlasMap = (AtlasMap) renderData.getUserData();
 
         if (renderData.getPass() == Pass.OVERLAY) {
             // Special case for background pass. Render simulation time feedback
@@ -67,44 +68,106 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             textRenderer.draw3D(text, x0, y0, 1, 1);
             textRenderer.end3DRendering();
             gl.glPopMatrix();
-
-        } else if (renderData.getPass() == Pass.TRANSPARENT){
-            List<Tile> tiles = atlasMap.getTiles();
-
-            texture.bind();
-            texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_LINEAR);
-            texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
-            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-            texture.enable();
-
-            gl.glBegin(GL.GL_TRIANGLES);
-            gl.glColor4f(1, 1, 1, 1);
-            for (Tile tile : tiles) {
-                float[] vertices = tile.getVertices();
-
-                int index = 0;
-                for (int i = 0; i < vertices.length / 5; ++i) {
-                    gl.glTexCoord2f(vertices[index++], vertices[index++]);
-                    gl.glVertex3f(vertices[index++], vertices[index++], vertices[index++]);
-                }
+        } else if (renderData.getPass() == Pass.TRANSPARENT) {
+            time += renderContext.getDt();
+            AtlasAnimationNode playBackNode = node.getPlayBackNode();
+            if (playBackNode != null) {
+                renderAnimation(atlasMap, playBackNode, gl);
+                renderTiles(atlasMap, gl, 0.1f);
+            } else {
+                renderTiles(atlasMap, gl, 1);
             }
-            gl.glEnd();
-            texture.disable();
-
-            gl.glBegin(GL.GL_TRIANGLES);
-            gl.glColor4f(1, 1, 1, 0.1f);
-            for (Tile tile : tiles) {
-                float[] vertices = tile.getVertices();
-
-                int index = 0;
-                for (int i = 0; i < vertices.length / 5; ++i) {
-                    gl.glTexCoord2f(vertices[index++], vertices[index++]);
-                    gl.glVertex3f(vertices[index++], vertices[index++], vertices[index++]);
-                }
-            }
-            gl.glEnd();
         }
+    }
+
+    private void renderAnimation(AtlasMap atlasMap,
+            AtlasAnimationNode playBackNode, GL gl) {
+        bindTexture();
+        List<Node> children = playBackNode.getChildren();
+        int nFrames = children.size();
+        float T = 1.0f / playBackNode.getFps();
+        int frameTime = (int) (time / T + 0.5);
+        int frame = 0;
+
+        switch (playBackNode.getPlayback()) {
+        case PLAYBACK_LOOP_FORWARD:
+        case PLAYBACK_ONCE_FORWARD:
+            frame = frameTime % nFrames;
+            break;
+        case PLAYBACK_LOOP_BACKWARD:
+        case PLAYBACK_ONCE_BACKWARD:
+            frame = (nFrames-1) - (frameTime % nFrames);
+            break;
+        case PLAYBACK_LOOP_PINGPONG:
+            // Unwrap to nFrames + (nFrames - 2)
+            frame = frameTime % (nFrames * 2 - 2);
+            if (frame >= nFrames) {
+                // Map backwards
+                frame = (nFrames - 1) - (frame - nFrames) - 1;
+            }
+        case PLAYBACK_NONE:
+            break;
+
+        }
+
+        AtlasImageNode imageNode = (AtlasImageNode) children.get(frame);
+        String id = imageNode.getId();
+        List<Tile> tiles = atlasMap.getTiles();
+        Tile tileToRender = null;
+        for (Tile tile : tiles) {
+            if (tile.getId().equals(id)) {
+                tileToRender = tile;
+                break;
+            }
+        }
+
+        if (tileToRender != null) {
+            float centerX = atlasMap.getImage().getWidth() * 0.5f;
+            float centerY = atlasMap.getImage().getHeight() * 0.5f;
+            gl.glColor4f(1, 1, 1, 1);
+            renderTile(gl, tileToRender, centerX, centerY);
+            texture.disable();
+        }
+    }
+
+    private void renderTiles(AtlasMap atlasMap, GL gl, float alpha) {
+        List<Tile> tiles = atlasMap.getTiles();
+        bindTexture();
+
+        gl.glColor4f(1, 1, 1, 1 * alpha);
+        for (Tile tile : tiles) {
+
+            renderTile(gl, tile, tile.getCenterX(), tile.getCenterY());
+        }
+        texture.disable();
+
+        gl.glColor4f(1, 1, 1, 0.1f * alpha);
+        for (Tile tile : tiles) {
+            renderTile(gl, tile, tile.getCenterX(), tile.getCenterY());
+        }
+    }
+
+    private void renderTile(GL gl, Tile tile, float offsetX, float offsetY) {
+        gl.glTranslatef(offsetX, offsetY, 0);
+        gl.glBegin(GL.GL_TRIANGLES);
+        float[] vertices = tile.getVertices();
+
+        int index = 0;
+        for (int i = 0; i < vertices.length / 5; ++i) {
+            gl.glTexCoord2f(vertices[index++], vertices[index++]);
+            gl.glVertex3f(vertices[index++], vertices[index++], vertices[index++]);
+        }
+        gl.glEnd();
+        gl.glTranslatef(-offsetX, -offsetY, 0);
+    }
+
+    private void bindTexture() {
+        texture.bind();
+        texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_LINEAR);
+        texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
+        texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
+        texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
+        texture.enable();
     }
 }
 

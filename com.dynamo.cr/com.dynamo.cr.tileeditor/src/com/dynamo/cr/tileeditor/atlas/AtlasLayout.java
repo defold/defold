@@ -105,6 +105,9 @@ public class AtlasLayout {
      * @return {@link Layout} result
      */
     public static Layout layout(LayoutType layout, int margin, List<Rect> rectangles) {
+        if (rectangles.size() == 0) {
+            return new Layout(1, 1, new ArrayList<AtlasLayout.Rect>());
+        }
         int totalArea = 0;
         for (Rect rect : rectangles) {
             totalArea += rect.area();

@@ -42,6 +42,10 @@ public class AtlasImageNode extends Node {
         return this.image;
     }
 
+    public String getId() {
+        return this.image;
+    }
+
     @Override
     public String toString() {
         return new Path(image).lastSegment();

@@ -10,11 +10,23 @@ public class AtlasMap {
 
     public static class Tile {
         private String id;
-        // x, y, z, u, v
+        // u, v, x, y, z
         private float[] vertices;
-        public Tile(String id, float[] vertices) {
+        private float centerX;
+        private float centerY;
+        public Tile(String id, float cx, float cy, float[] vertices) {
+            this.centerX = cx;
+            this.centerY = cy;
             this.id = id;
             this.vertices = vertices;
+        }
+
+        public float getCenterX() {
+            return centerX;
+        }
+
+        public float getCenterY() {
+            return centerY;
         }
 
         public String getId() {

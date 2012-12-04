@@ -823,6 +823,19 @@
                </and>
             </visibleWhen>
          </command>
+         <command
+               commandId="com.dynamo.cr.sceneed.commands.toggleSimulation"
+               label="Play/Stop Animation"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
       </menuContribution>  </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -1110,6 +1123,20 @@
             <and>
                <reference
                      definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.ToggleAtlasPlaybackHandler"
+            commandId="com.dynamo.cr.sceneed.commands.toggleSimulation">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
                </reference>
             </and>
          </activeWhen>
