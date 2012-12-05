@@ -48,6 +48,7 @@ public class ScaleManipulator extends TransformManipulator {
             Node instance = selection.get(i);
             double scale = getScale(originalLocalTransforms.get(i), tmp);
             scale += factor * distance;
+            scale = Math.max(0.0, scale);
             instance.setScale(scale);
         }
     }
