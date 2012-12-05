@@ -18,7 +18,7 @@ public abstract class RotationalModifierNode extends AbstractModifierNode {
         Node parent = getParent();
         if (parent instanceof EmitterNode) {
             EmitterNode emitter = (EmitterNode)parent;
-            if (emitter.getEmissionSpace().equals(EmissionSpace.EMISSION_SPACE_WORLD)) {
+            if (EmissionSpace.EMISSION_SPACE_WORLD.equals(emitter.getEmissionSpace())) {
                 setFlags(Flags.NO_INHERIT_ROTATION);
             } else {
                 clearFlags(Flags.NO_INHERIT_ROTATION);
