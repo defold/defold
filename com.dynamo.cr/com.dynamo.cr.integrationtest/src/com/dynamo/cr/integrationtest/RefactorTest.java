@@ -235,7 +235,7 @@ public class RefactorTest {
             @Override
             public String[] getReferences(ImageAtlas atlas) {
                 if (atlas.getImagesCount() == 1) {
-                    return new String[] {atlas.getImages(0)};
+                    return new String[] {atlas.getImages(0).getImage()};
                 } else {
                     return new String[] {};
                 }
@@ -251,7 +251,7 @@ public class RefactorTest {
             public String[] getReferences(ImageAtlas atlas) {
                 List<AtlasAnimation> animationList = atlas.getAnimationsList();
                 if (animationList.size() == 1 && animationList.get(0).getImagesList().size() == 1) {
-                    return new String[] {animationList.get(0).getImages(0)};
+                    return new String[] {animationList.get(0).getImages(0).getImage()};
                 } else {
                     return new String[] {};
                 }

@@ -7,6 +7,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
 import com.dynamo.atlas.proto.Atlas.AtlasAnimation;
+import com.dynamo.atlas.proto.Atlas.AtlasImage;
 import com.dynamo.atlas.proto.Atlas.ImageAtlas;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
@@ -25,8 +26,8 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
         ImageAtlas atlas = atlasBuilder.build();
 
         AtlasNode node = new AtlasNode();
-        for (String image : atlas.getImagesList()) {
-            node.addChild(new AtlasImageNode(image));
+        for (AtlasImage image : atlas.getImagesList()) {
+            node.addChild(new AtlasImageNode(image.getImage()));
         }
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
@@ -36,8 +37,8 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
             animNode.setFlipHorizontally(anim.getFlipHorizontal() != 0);
             animNode.setFlipVertically(anim.getFlipVertical() != 0);
 
-            for (String image : anim.getImagesList()) {
-                animNode.addChild(new AtlasImageNode(image));
+            for (AtlasImage image : anim.getImagesList()) {
+                animNode.addChild(new AtlasImageNode(image.getImage()));
             }
             node.addChild(animNode);
         }
@@ -55,12 +56,12 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
         for (Node n : node.getChildren()) {
             if (n instanceof AtlasImageNode) {
                 AtlasImageNode imageNode = (AtlasImageNode) n;
-                atlasBuilder.addImages(imageNode.getImage());
+                atlasBuilder.addImages(AtlasImage.newBuilder().setImage(imageNode.getImage()));
             } else if (n instanceof AtlasAnimationNode) {
                 AtlasAnimationNode animNode = (AtlasAnimationNode) n;
                 AtlasAnimation.Builder b = AtlasAnimation.newBuilder();
                 for (Node n2 : animNode.getChildren()) {
-                    b.addImages(((AtlasImageNode) n2).getImage());
+                    b.addImages(AtlasImage.newBuilder().setImage(((AtlasImageNode) n2).getImage()));
                 }
                 b.setPlayback(animNode.getPlayback());
                 b.setFps(animNode.getFps());

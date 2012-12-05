@@ -8,10 +8,14 @@ import "tile_ddf.proto";
 option java_package = "com.dynamo.atlas.proto";
 option java_outer_classname = "Atlas";
 
+message AtlasImage
+{
+    required string image = 1 [(resource) = true];
+}
+
 message AtlasAnimation
 {
-    // TODO: Wrap in message for future-proof?
-    repeated string images          = 1;
+    repeated AtlasImage images       = 1;
     optional Playback playback      = 2 [default = PLAYBACK_ONCE_FORWARD];
     optional uint32 fps             = 3 [default = 30];
     optional uint32 flip_horizontal = 4 [default = 0];
@@ -20,8 +24,7 @@ message AtlasAnimation
 
 message ImageAtlas
 {
-    // TODO: Wrap in message for future-proof?
-    repeated string images = 1;
+    repeated AtlasImage images = 1;
     repeated AtlasAnimation animations = 2;
     optional uint32 margin = 3 [default = 0];
 }
