@@ -42,12 +42,13 @@ public class ScaleManipulator extends TransformManipulator {
     protected void applyTransform(List<Node> selection, List<Matrix4d> originalLocalTransforms) {
         Matrix3d tmp = new Matrix3d();
         double distance = this.scaleManipulator.getDistance();
-        double factor = 0.002; // * ManipulatorRendererUtil.getScaleFactor(this.scaleManipulator, getController().getRenderView());
+        double factor = 0.05;
         int n = selection.size();
         for (int i = 0; i < n; ++i) {
             Node instance = selection.get(i);
             double scale = getScale(originalLocalTransforms.get(i), tmp);
             scale += factor * distance;
+            scale = Math.abs(scale);
             instance.setScale(scale);
         }
     }

@@ -28,8 +28,8 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.IPropertyModel;
-import com.dynamo.cr.properties.NotZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
@@ -66,7 +66,7 @@ public abstract class Node implements IAdaptable, Serializable {
     protected Vector3d euler = new Vector3d(0, 0, 0);
 
     @Property
-    @NotZero
+    @GreaterThanZero
     private double scale = 1.0;
 
     // Used to preserve order when adding/removing child nodes
