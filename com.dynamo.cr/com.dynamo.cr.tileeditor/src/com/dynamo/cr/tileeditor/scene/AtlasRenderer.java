@@ -128,8 +128,11 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         if (tileToRender != null) {
             float centerX = atlasMap.getImage().getWidth() * 0.5f;
             float centerY = atlasMap.getImage().getHeight() * 0.5f;
+            float scaleX = playBackNode.isFlipHorizontally() ? - 1 : 1;
+            float scaleY = playBackNode.isFlipVertically() ? - 1 : 1;
+
             gl.glColor4f(1, 1, 1, 1);
-            renderTile(gl, tileToRender, centerX, centerY);
+            renderTile(gl, tileToRender, centerX, centerY, scaleX, scaleY);
             texture.disable();
         }
     }
@@ -141,17 +144,17 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         gl.glColor4f(1, 1, 1, 1 * alpha);
         for (Tile tile : tiles) {
 
-            renderTile(gl, tile, tile.getCenterX(), tile.getCenterY());
+            renderTile(gl, tile, tile.getCenterX(), tile.getCenterY(), 1, 1);
         }
         texture.disable();
 
         gl.glColor4f(1, 1, 1, 0.1f * alpha);
         for (Tile tile : tiles) {
-            renderTile(gl, tile, tile.getCenterX(), tile.getCenterY());
+            renderTile(gl, tile, tile.getCenterX(), tile.getCenterY(), 1, 1);
         }
     }
 
-    private void renderTile(GL gl, Tile tile, float offsetX, float offsetY) {
+    private void renderTile(GL gl, Tile tile, float offsetX, float offsetY, float scaleX, float scaleY) {
         gl.glTranslatef(offsetX, offsetY, 0);
         gl.glBegin(GL.GL_TRIANGLES);
         float[] vertices = tile.getVertices();
@@ -159,7 +162,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         int index = 0;
         for (int i = 0; i < vertices.length / 5; ++i) {
             gl.glTexCoord2f(vertices[index++], vertices[index++]);
-            gl.glVertex3f(vertices[index++], vertices[index++], vertices[index++]);
+            gl.glVertex3f(scaleX * vertices[index++], scaleY * vertices[index++], vertices[index++]);
         }
         gl.glEnd();
         gl.glTranslatef(-offsetX, -offsetY, 0);
