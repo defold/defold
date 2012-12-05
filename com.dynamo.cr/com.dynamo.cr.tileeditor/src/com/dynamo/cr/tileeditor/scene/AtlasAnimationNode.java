@@ -2,6 +2,7 @@ package com.dynamo.cr.tileeditor.scene;
 
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
@@ -12,6 +13,7 @@ public class AtlasAnimationNode extends Node {
 
     @Property
     private Playback playback = Playback.PLAYBACK_ONCE_FORWARD;
+    @GreaterThanZero
     @Property
     private int fps = 30;
     @Property

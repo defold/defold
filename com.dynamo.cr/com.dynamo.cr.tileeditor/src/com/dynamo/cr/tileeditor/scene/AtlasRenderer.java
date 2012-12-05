@@ -85,7 +85,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         bindTexture();
         List<Node> children = playBackNode.getChildren();
         int nFrames = children.size();
-        if (nFrames == 0) {
+        if (nFrames == 0 || playBackNode.getFps() <= 0) {
             return;
         }
 
