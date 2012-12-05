@@ -1,5 +1,51 @@
 :max-width: 45em
 
+Scaling things (Release 1.2.9)
+------------------------------
+_December 5, 2012_
+
+We are happy to announce that game objects and collections can now be scaled!
+This is extremely useful for fast prototyping and other things.
+This release also contains improved error reporting, optimizations when working with large collections and game objects as well as other fixes.
+Details follow below.
+
+Scaling
+~~~~~~~
+
+We have added support for uniform scaling throughout the scene graph, meaning game objects and sub-collections (which is basically a collection inside another collection).
+The neat thing is that the scaling not only affects graphics, but also physics.
+You can also scale the game objects from scripts by using the new function link:/ref/go#go.set_scale[go.set_scale].
+Please note that physics are not currently updated when using that function (we plan to add this later since it's less common).
+
+Improved Error Reporting and Optimized Editing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you get any errors when building your project, these are now shown in the Project Explorer.
+The files and folders which contains them now get overlayed error icons.
+
+[IMAGE]
+
+Remember that you can still double click on the errors in the Problems View to jump straight to the files.
+
+We are still validating the files when you edit them, but have removed the feature of displaying errors actually located elsewhere.
+An example of this is the message saying that a file contains errors when you add that file as a reference to another object.
+This feature was very expensive and lowered the responsiveness of the editor, especially when working with large collections or game objects.
+That feature should be covered by the new error reporting in the Project Explorer though.
+
+Frozen Auto-update
+~~~~~~~~~~~~~~~~~~
+
+The progress bar when updating Defold to a new release was not correctly updated, on Windows this could result in the OS reporting Defold as having frozen.
+Please note that this fix is located in 1.2.9 so it takes effect first when you update to 1.2.10.
+If you experience this problem, please remove the Defold installation and download it again, just don't forget to Synchronize your files before you do.
+
+Other Fixes
+~~~~~~~~~~~
+
+* When painting tiles in a tile map far down to the left (negative coordinates), the tile map would not load in the game.
+* Sound gain is now clamped to 0-1.
+* Playback-problems with some sounds on iOS, like short sounds being repeated.
+
 Tile map rendering and better sound control (Release 1.2.8)
 -----------------------------------------------------------
 _November 26, 2012_

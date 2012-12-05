@@ -10,7 +10,7 @@ namespace dmTransform
     using namespace Vectormath::Aos;
 
     /**
-     * Transform with uniform scale.
+     * Transform with uniform (1-component) scale.
      * Transform applied as:
      * T(p) = translate(rotate(scale(p))) = p'
      */
@@ -67,26 +67,56 @@ namespace dmTransform
         }
     };
 
+    /**
+     * Apply the transform on a point (includes the transform translation).
+     * @param t Transform
+     * @param p Point
+     * @return Transformed point
+     */
     inline Point3 Apply(const TransformS1& t, const Point3 p)
     {
         return Point3(rotate(t.GetRotation(), Vector3(p) * t.GetScale()) + t.GetTranslation());
     }
 
+    /**
+     * Apply the transform on a point, but without scaling the Z-component of the point (includes the transform translation).
+     * @param t Transform
+     * @param p Point
+     * @return Transformed point
+     */
     inline Point3 ApplyNoScaleZ(const TransformS1& t, const Point3 p)
     {
         return Point3(rotate(t.GetRotation(), mulPerElem(Vector3(t.GetScale(), t.GetScale(), 1.0f), Vector3(p))) + t.GetTranslation());
     }
 
+    /**
+     * Apply the transform on a vector (excludes the transform translation).
+     * @param t Transform
+     * @param v Vector
+     * @return Transformed vector
+     */
     inline Vector3 Apply(const TransformS1& t, const Vector3 v)
     {
         return Vector3(rotate(t.GetRotation(), v * t.GetScale()));
     }
 
+    /**
+     * Apply the transform on a vector, but without scaling the Z-component of the vector (excludes the transform translation).
+     * @param t Transform
+     * @param v Vector
+     * @return Transformed vector
+     */
     inline Vector3 ApplyNoScaleZ(const TransformS1& t, const Vector3 v)
     {
         return Vector3(rotate(t.GetRotation(), mulPerElem(Vector3(t.GetScale(), t.GetScale(), 1.0f), v)));
     }
 
+    /**
+     * Transforms the right-hand transform by the left-hand transform
+     * @param lhs Transforming transform
+     * @param rhs Transformed transform
+     * @return Transformed transform
+     */
     inline TransformS1 Mul(const TransformS1& lhs, const TransformS1& rhs)
     {
         TransformS1 res;
@@ -96,6 +126,12 @@ namespace dmTransform
         return res;
     }
 
+    /**
+     * Transforms the right-hand transform by the left-hand transform, without scaling the Z-component of the transition of the transformed transform
+     * @param lhs Transforming transform
+     * @param rhs Transformed transform
+     * @return Transformed transform
+     */
     inline TransformS1 MulNoScaleZ(const TransformS1& lhs, const TransformS1& rhs)
     {
         TransformS1 res;
@@ -105,6 +141,11 @@ namespace dmTransform
         return res;
     }
 
+    /**
+     * Invert a transform
+     * @param t Transform to invert
+     * @return Inverted transform
+     */
     inline TransformS1 Inv(const TransformS1& t)
     {
         assert(t.GetScale() != 0.0f && "Transform can not be inverted (0 scale).");
@@ -115,6 +156,11 @@ namespace dmTransform
         return res;
     }
 
+    /**
+     * Convert a transform into a 4-dim matrix
+     * @param t Transform to convert
+     * @return Matrix representing the same transform
+     */
     inline Matrix4 ToMatrix4(const TransformS1& t)
     {
         Matrix4 res(t.GetRotation(), t.GetTranslation());

@@ -367,6 +367,7 @@ namespace dmGameObject
         Instance* instance = new(instance_memory) Instance(proto);
         instance->m_ComponentInstanceUserDataCount = component_instance_userdata_count;
         instance->m_Collection = collection;
+        instance->m_ScaleAlongZ = collection->m_ScaleAlongZ;
         uint16_t instance_index = collection->m_InstanceIndices.Pop();
         instance->m_Index = instance_index;
         assert(collection->m_Instances[instance_index] == 0);

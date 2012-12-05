@@ -4,7 +4,7 @@ import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.Modifier.Builder;
 import com.dynamo.particle.proto.Particle.ModifierType;
 
-public class DragNode extends AbstractModifierNode {
+public class DragNode extends RotationalModifierNode {
 
     private static final long serialVersionUID = 1L;
 

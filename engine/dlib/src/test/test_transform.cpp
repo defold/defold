@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "dlib/transform.h"
+#include "dlib/math.h"
 
 using namespace Vectormath::Aos;
 using namespace dmTransform;

@@ -195,8 +195,7 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.moveManipulator"
-            node="com.dynamo.cr.sceneed.ui.MoveManipulator"
-            renderer="com.dynamo.cr.sceneed.ui.MoveManipulatorRenderer">
+            node="com.dynamo.cr.sceneed.ui.MoveManipulator">
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.axisManipulator"
@@ -226,6 +225,10 @@
             id="com.dynamo.cr.sceneed.ui.selectionBoxNode"
             node="com.dynamo.cr.sceneed.ui.SelectionBoxNode"
             renderer="com.dynamo.cr.sceneed.ui.SelectionBoxRenderer">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.ui.scaleManipulator"
+            node="com.dynamo.cr.sceneed.ui.ScaleManipulator">
       </node-type>
    </extension>
    <extension
@@ -261,6 +264,11 @@
             id="com.dynamo.cr.sceneed.core.manipulators.rotate-mode"
             name="Rotate Manipulator">
       </manipulator-mode>
+      <manipulator
+            mode="com.dynamo.cr.sceneed.core.manipulators.scale-mode"
+            name="Scale Manipualtor"
+            node-type="com.dynamo.cr.sceneed.ui.scaleManipulator">
+      </manipulator>
    </extension>
    <extension
          point="org.eclipse.ui.menus">

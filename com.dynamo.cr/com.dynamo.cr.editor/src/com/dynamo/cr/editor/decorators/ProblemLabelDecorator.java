@@ -6,10 +6,14 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IDecoration;
 import org.eclipse.jface.viewers.ILabelProviderListener;
 import org.eclipse.jface.viewers.ILightweightLabelDecorator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.editor.Activator;
 
 public class ProblemLabelDecorator implements ILightweightLabelDecorator {
+
+    private static Logger logger = LoggerFactory.getLogger(ProblemLabelDecorator.class);
 
     public ProblemLabelDecorator() {
     }
@@ -19,17 +23,19 @@ public class ProblemLabelDecorator implements ILightweightLabelDecorator {
 
         if (element instanceof IResource) {
             IResource resource = (IResource) element;
-            try {
-                IMarker[] markers = resource.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
-                if (markers.length > 0) {
-                    decoration.addOverlay(Activator.getDefault().getImageRegistry().getDescriptor(Activator.OVERLAY_ERROR_IMAGE_ID));
-                    for (IMarker marker : markers) {
-                        if (marker.getResource() == resource) {
+            if (resource.exists()) {
+                try {
+                    IMarker[] markers = resource.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
+                    if (markers.length > 0) {
+                        decoration.addOverlay(Activator.getDefault().getImageRegistry().getDescriptor(Activator.OVERLAY_ERROR_IMAGE_ID));
+                        for (IMarker marker : markers) {
+                            if (marker.getResource() == resource) {
+                            }
                         }
                     }
+                } catch (CoreException e) {
+                    logger.error("Error when decorating resource", e);
                 }
-            } catch (CoreException e) {
-                e.printStackTrace();
             }
         }
     }

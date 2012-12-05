@@ -103,7 +103,6 @@ public class EmitterNode extends Node {
     public EmitterNode(Emitter emitter) {
         initDefaults();
         setTransformable(true);
-        setFlags(Flags.SUPPORTS_SCALE);
         setTranslation(LoaderUtil.toPoint3d(emitter.getPosition()));
         setRotation(LoaderUtil.toQuat4(emitter.getRotation()));
 
@@ -349,6 +348,15 @@ public class EmitterNode extends Node {
 
     public void setEmissionSpace(EmissionSpace emissionSpace) {
         this.emissionSpace = emissionSpace;
+        for (Node node : getChildren()) {
+            if (node instanceof RotationalModifierNode) {
+                if (emissionSpace.equals(EmissionSpace.EMISSION_SPACE_WORLD)) {
+                    node.setFlags(Flags.NO_INHERIT_ROTATION);
+                } else {
+                    node.clearFlags(Flags.NO_INHERIT_ROTATION);
+                }
+            }
+        }
         reloadSystem(false);
     }
 

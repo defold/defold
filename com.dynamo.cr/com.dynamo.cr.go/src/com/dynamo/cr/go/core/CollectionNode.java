@@ -67,4 +67,9 @@ public class CollectionNode extends Node {
             }
         });
     }
+
+    @Override
+    protected boolean scaleAlongZ() {
+        return scaleAlongZ;
+    }
 }

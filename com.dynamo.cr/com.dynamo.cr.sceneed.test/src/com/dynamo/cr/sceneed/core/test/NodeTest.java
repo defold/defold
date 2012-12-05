@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 
+import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -25,6 +26,7 @@ import com.dynamo.cr.editor.core.IResourceType;
 import com.dynamo.cr.editor.core.IResourceTypeRegistry;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.Node.Flags;
 
 public class NodeTest extends AbstractNodeTest {
 
@@ -82,46 +84,122 @@ public class NodeTest extends AbstractNodeTest {
         assertEquals(new Vector3d(0, 180, 0), node.getEuler());
     }
 
-    void assertWorld(Node node, Point3d translation, Quat4d rotation) {
+    void assertWorld(Node node, Point3d translation, Quat4d rotation, double scale) {
         Matrix4d world = new Matrix4d();
         node.getWorldTransform(world);
-        Vector4d t = new Vector4d();
-        world.getColumn(3, t);
+        Vector3d t = new Vector3d();
+        world.get(t);
+        double s = world.getScale();
         Quat4d r = new Quat4d();
-        r.set(world);
-        assertThat(new Point3d(t.x, t.y, t.z), is(translation));
-        assertThat(r, is(rotation));
+        world.get(r);
+        double epsilon = 0.0000000001;
+        assertTrue(translation.epsilonEquals(new Point3d(t.x, t.y, t.z), epsilon));
+        assertTrue(rotation.epsilonEquals(r, epsilon));
+        assertThat(s, is(scale));
     }
 
     @Test
-    public void testNoInheritTransform() throws Exception {
+    public void testInheritTransform() throws Exception {
         DummyNode parent = new DummyNode();
-        DummyNoInheritTransform child = new DummyNoInheritTransform();
+        DummyNode child = new DummyNode();
         parent.addChild(child);
 
-        parent.setTranslation(new Point3d(10, 0, 0));
-        parent.setRotation(new Quat4d(Math.sqrt(2), 0, 0, Math.sqrt(2)));
+        Point3d translation = new Point3d(1, 0, 0);
+        Quat4d rotation = new Quat4d();
+        rotation.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), Math.PI * 0.5));
+        double scale = 2.0;
 
-        Point3d translation = new Point3d(1, 2, 3);
+        parent.setTranslation(translation);
+        parent.setRotation(rotation);
+        parent.setScale(scale);
+
         child.setTranslation(translation);
-
-        Quat4d rotation = new Quat4d(-0.5, -0.5, 0.5, 0.5);
         child.setRotation(rotation);
+        child.setScale(scale);
 
         assertThat(child.getTranslation(), is(translation));
         assertThat(child.getRotation(), is(rotation));
+        assertThat(child.getScale(), is(scale));
 
-        assertWorld(child, translation, rotation);
+        Point3d worldTranslation = new Point3d(1.0, 2.0, 0.0);
+        Quat4d worldRotation = new Quat4d(rotation);
+        worldRotation.mul(rotation);
+        double worldScale = scale * scale;
+        assertWorld(child, worldTranslation, worldRotation, worldScale);
 
-        Matrix4d world = new Matrix4d();
-        world.setIdentity();
-        world.set(rotation);
-        world.setColumn(3, new Vector4d(translation.x, translation.y, translation.z, 0));
-        child.setWorldTransform(world);
-
-        assertWorld(child, translation, rotation);
     }
 
+    @Test
+    public void testNoInherit() throws Exception {
+        DummyNode parent = new DummyNode();
+        DummyNode childNoRotation = new DummyNode();
+        childNoRotation.setFlags(Flags.NO_INHERIT_ROTATION);
+        parent.addChild(childNoRotation);
+        DummyNode childNoScale = new DummyNode();
+        childNoScale.setFlags(Flags.NO_INHERIT_SCALE);
+        parent.addChild(childNoScale);
+
+        Point3d translation = new Point3d(1, 0, 0);
+        Quat4d rotation = new Quat4d();
+        rotation.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), Math.PI * 0.5));
+        double scale = 2.0;
+
+        parent.setTranslation(translation);
+        parent.setRotation(rotation);
+        parent.setScale(scale);
+
+        childNoRotation.setTranslation(translation);
+        childNoRotation.setRotation(rotation);
+        childNoRotation.setScale(scale);
+
+        childNoScale.setTranslation(translation);
+        childNoScale.setRotation(rotation);
+        childNoScale.setScale(scale);
+
+        Point3d worldTranslationNoRotation = new Point3d(3.0, 0.0, 0.0);
+        Point3d worldTranslationNoScale = new Point3d(1.0, 1.0, 0.0);
+        Quat4d worldRotation = new Quat4d(rotation);
+        worldRotation.mul(rotation);
+        double worldScale = scale * scale;
+
+        assertWorld(childNoRotation, worldTranslationNoRotation, rotation, worldScale);
+        assertWorld(childNoScale, worldTranslationNoScale, worldRotation, scale);
+    }
+
+    @Test
+    public void testScaleAlongZ() throws Exception {
+        DummyNode parent = new DummyNode();
+        DummyNode childScale = new DummyScaleAlongZ(true);
+        parent.addChild(childScale);
+        DummyNode childNoScale = new DummyScaleAlongZ(false);
+        parent.addChild(childNoScale);
+
+        Point3d translation = new Point3d(0, 0, 1);
+        Quat4d rotation = new Quat4d();
+        rotation.set(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), Math.PI * 0.5));
+        double scale = 2.0;
+
+        parent.setTranslation(translation);
+        parent.setRotation(rotation);
+        parent.setScale(scale);
+
+        childScale.setTranslation(translation);
+        childScale.setRotation(rotation);
+        childScale.setScale(scale);
+
+        childNoScale.setTranslation(translation);
+        childNoScale.setRotation(rotation);
+        childNoScale.setScale(scale);
+
+        Point3d worldTranslationScale = new Point3d(2.0, 0.0, 1.0);
+        Point3d worldTranslationNoScale = new Point3d(1.0, 0.0, 1.0);
+        Quat4d worldRotation = new Quat4d(rotation);
+        worldRotation.mul(rotation);
+        double worldScale = scale * scale;
+
+        assertWorld(childScale, worldTranslationScale, worldRotation, worldScale);
+        assertWorld(childNoScale, worldTranslationNoScale, worldRotation, worldScale);
+    }
 
     void assertAABBCenterX(Node node, double x) {
         AABB aabb = new AABB();
