@@ -169,11 +169,9 @@ public class NodeTest extends AbstractNodeTest {
     @Test
     public void testScaleAlongZ() throws Exception {
         DummyNode parent = new DummyNode();
-        DummyNode childScale = new DummyNode();
-        childScale.clearFlags(Flags.NO_SCALE_ALONG_Z);
+        DummyNode childScale = new DummyScaleAlongZ(true);
         parent.addChild(childScale);
-        DummyNode childNoScale = new DummyNode();
-        childNoScale.setFlags(Flags.NO_SCALE_ALONG_Z);
+        DummyNode childNoScale = new DummyScaleAlongZ(false);
         parent.addChild(childNoScale);
 
         Point3d translation = new Point3d(0, 0, 1);

@@ -18,10 +18,6 @@ public class CollectionNode extends Node {
 
     private String path;
 
-    public CollectionNode() {
-        setFlags(Flags.NO_SCALE_ALONG_Z);
-    }
-
     public String getName() {
         return this.name;
     }
@@ -34,17 +30,8 @@ public class CollectionNode extends Node {
         return this.scaleAlongZ;
     }
 
-    private void syncScaleAlongZ(Node node) {
-        if (this.scaleAlongZ) {
-            node.clearFlagsRecursively(Flags.NO_SCALE_ALONG_Z);
-        } else {
-            node.setFlagsRecursively(Flags.NO_SCALE_ALONG_Z);
-        }
-    }
-
     public void setScaleAlongZ(boolean scaleAlongZ) {
         this.scaleAlongZ = scaleAlongZ;
-        syncScaleAlongZ(this);
     }
 
     public String getPath() {
@@ -58,7 +45,6 @@ public class CollectionNode extends Node {
     @Override
     protected void childAdded(Node child) {
         sortInstances();
-        syncScaleAlongZ(child);
     }
 
     public void sortInstances() {
@@ -80,5 +66,10 @@ public class CollectionNode extends Node {
 
             }
         });
+    }
+
+    @Override
+    protected boolean scaleAlongZ() {
+        return scaleAlongZ;
     }
 }

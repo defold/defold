@@ -45,7 +45,6 @@ public abstract class Node implements IAdaptable, Serializable {
         LOCKED,
         NO_INHERIT_ROTATION,
         NO_INHERIT_SCALE,
-        NO_SCALE_ALONG_Z,
         INVISIBLE
     }
 
@@ -315,10 +314,18 @@ public abstract class Node implements IAdaptable, Serializable {
         transform.setScale(this.scale);
     }
 
+    protected boolean scaleAlongZ() {
+        if (this.parent != null) {
+            return parent.scaleAlongZ();
+        } else {
+            return true;
+        }
+    }
+
     public void getWorldTransform(Matrix4d transform) {
         boolean noInheritRotation = flags.contains(Flags.NO_INHERIT_ROTATION);
         boolean noInheritScale = flags.contains(Flags.NO_INHERIT_SCALE);
-        boolean noScaleAlongZ = flags.contains(Flags.NO_SCALE_ALONG_Z);
+        boolean noScaleAlongZ = !scaleAlongZ();
         Node n = getParent();
         if (n != null) {
             n.getWorldTransform(transform);
