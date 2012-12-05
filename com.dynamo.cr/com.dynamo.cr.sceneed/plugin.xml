@@ -195,8 +195,7 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.moveManipulator"
-            node="com.dynamo.cr.sceneed.ui.MoveManipulator"
-            renderer="com.dynamo.cr.sceneed.ui.MoveManipulatorRenderer">
+            node="com.dynamo.cr.sceneed.ui.MoveManipulator">
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.axisManipulator"
@@ -229,8 +228,7 @@
       </node-type>
       <node-type
             id="com.dynamo.cr.sceneed.ui.scaleManipulator"
-            node="com.dynamo.cr.sceneed.ui.ScaleManipulator"
-            renderer="com.dynamo.cr.sceneed.ui.ScaleManipulatorRenderer">
+            node="com.dynamo.cr.sceneed.ui.ScaleManipulator">
       </node-type>
    </extension>
    <extension
