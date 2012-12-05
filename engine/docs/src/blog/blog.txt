@@ -13,9 +13,10 @@ Scaling
 ~~~~~~~
 
 We have added support for uniform scaling throughout the scene graph, meaning game objects and sub-collections (which is basically a collection inside another collection).
-The neat thing is that the scaling not only affects graphics, but also physics.
+By restricting scaling to uniform only, we can automatically scale all physics primitives and the calculations becomes faster.
+We will later add support for non-uniform scaling specifically for the components that need it, such as sprites.
 You can also scale the game objects from scripts by using the new function link:/ref/go#go.set_scale[go.set_scale].
-Please note that physics are not currently updated when using that function (we plan to add this later since it's less common).
+Please note that physics is not currently updated when using that function (we plan to add this later since it's less common).
 
 Improved Error Reporting and Optimized Editing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -23,7 +24,9 @@ Improved Error Reporting and Optimized Editing
 If you get any errors when building your project, these are now shown in the Project Explorer.
 The files and folders which contains them now get overlayed error icons.
 
-[IMAGE]
+((((
+image::images/blog/20121205/project_explorer.png["Error Reporting", align="center"]
+((((
 
 Remember that you can still double click on the errors in the Problems View to jump straight to the files.
 
@@ -36,7 +39,7 @@ Frozen Auto-update
 ~~~~~~~~~~~~~~~~~~
 
 The progress bar when updating Defold to a new release was not correctly updated, on Windows this could result in the OS reporting Defold as having frozen.
-Please note that this fix is located in 1.2.9 so it takes effect first when you update to 1.2.10.
+Please note that this fix is part of 1.2.9 so it takes effect first when you update to 1.2.10.
 If you experience this problem, please remove the Defold installation and download it again, just don't forget to Synchronize your files before you do.
 
 Other Fixes
