@@ -44,6 +44,7 @@ namespace dmGameObject
                 dmMutex::Unlock(regist->m_Mutex);
                 return dmResource::RESULT_OUT_OF_RESOURCES;
             }
+            collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
             regist->m_CurrentCollection = collection;
             regist->m_AccumulatedTransform.SetIdentity();
 

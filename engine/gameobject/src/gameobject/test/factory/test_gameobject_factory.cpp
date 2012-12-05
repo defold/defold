@@ -67,6 +67,18 @@ TEST_F(FactoryTest, FactoryScale)
     ASSERT_EQ(2.0f, dmGameObject::GetScale(instance));
 }
 
+TEST_F(FactoryTest, FactoryScaleAlongZ)
+{
+    dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    m_Collection->m_ScaleAlongZ = 1;
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), 2.0f);
+    ASSERT_TRUE(dmGameObject::ScaleAlongZ(instance));
+    id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    m_Collection->m_ScaleAlongZ = 0;
+    instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), 2.0f);
+    ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

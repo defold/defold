@@ -194,6 +194,7 @@ namespace dmGameObject
             m_GenInstanceCounter = 0;
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
+            m_ScaleAlongZ = 0;
 
             for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
             {
@@ -270,6 +271,8 @@ namespace dmGameObject
         uint32_t                 m_InUpdate : 1;
         // Used for deferred deletion
         uint32_t                 m_ToBeDeleted : 1;
+        // If the game object dynamically created in this collection should have the Z component of the position affected by scale
+        uint32_t                 m_ScaleAlongZ : 1;
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
