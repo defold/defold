@@ -82,7 +82,9 @@ namespace dmParticle
         AnimPlayback m_Playback;
         uint32_t m_TileWidth;
         uint32_t m_TileHeight;
+        // NOTE: From index 1!
         uint32_t m_StartTile;
+        // NOTE: From index 1!
         uint32_t m_EndTile;
         uint32_t m_FPS;
         uint32_t m_HFlip;
