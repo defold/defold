@@ -4,10 +4,13 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import org.junit.Test;
+
+import com.dynamo.cr.tileeditor.atlas.AtlasGenerator.AnimDesc;
 
 public class AtlasGeneratorTest {
 
@@ -25,7 +28,9 @@ public class AtlasGeneratorTest {
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
 
-        AtlasMap atlas = AtlasGenerator.generate(images, ids, 0);
+
+        List<AnimDesc> animations = new ArrayList<AtlasGenerator.AnimDesc>();
+        AtlasMap atlas = AtlasGenerator.generate(images, ids, animations, 0);
         BufferedImage image = atlas.getImage();
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));

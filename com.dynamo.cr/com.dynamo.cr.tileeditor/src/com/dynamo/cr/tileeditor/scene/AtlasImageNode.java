@@ -16,9 +16,11 @@ public class AtlasImageNode extends Node {
 
     private transient BufferedImage loadedImage;
     private String image;
+    private String id;
 
     public AtlasImageNode(String image) {
         this.image = image;
+        this.id = new Path(image).removeFileExtension().lastSegment();
     }
 
     @Override
@@ -43,7 +45,7 @@ public class AtlasImageNode extends Node {
     }
 
     public String getId() {
-        return this.image;
+        return this.id;
     }
 
     @Override

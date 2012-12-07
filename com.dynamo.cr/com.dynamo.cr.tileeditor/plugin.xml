@@ -92,6 +92,12 @@
             <reference-resource-type
                   resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
             </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.tileSource">
+            </reference-resource-type>
          </references>
       </resource-type>
       <resource-type

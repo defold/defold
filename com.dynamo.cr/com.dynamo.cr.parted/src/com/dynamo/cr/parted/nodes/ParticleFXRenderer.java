@@ -80,7 +80,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
                 --index;
                 EmitterNode emitter = (EmitterNode)
                         currentNode.getChildren().get(index);
-                t = emitter.getTileSetNode().getTextureHandle().getTexture();
+                t = emitter.getTextureSetNode().getTextureHandle().getTexture();
                 t.bind();
                 t.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_INTERPOLATE);
                 t.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_INTERPOLATE);
