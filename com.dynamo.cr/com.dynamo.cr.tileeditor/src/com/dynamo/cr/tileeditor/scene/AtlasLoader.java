@@ -32,6 +32,7 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             AtlasAnimationNode animNode = new AtlasAnimationNode();
+            animNode.setId(anim.getId());
             animNode.setPlayback(anim.getPlayback());
             animNode.setFps(anim.getFps());
             animNode.setFlipHorizontally(anim.getFlipHorizontal() != 0);
@@ -63,6 +64,7 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
                 for (Node n2 : animNode.getChildren()) {
                     b.addImages(AtlasImage.newBuilder().setImage(((AtlasImageNode) n2).getImage()));
                 }
+                b.setId(animNode.getId());
                 b.setPlayback(animNode.getPlayback());
                 b.setFps(animNode.getFps());
                 b.setFlipHorizontal(animNode.isFlipHorizontally() ? 1 : 0);

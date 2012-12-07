@@ -2,7 +2,8 @@ images {
     image:  "/graphics/ball.png"
 }
 animations {
+    id: "anim"
     images {
         image:   "/graphics/ball.png"
-   }
+    }
 }

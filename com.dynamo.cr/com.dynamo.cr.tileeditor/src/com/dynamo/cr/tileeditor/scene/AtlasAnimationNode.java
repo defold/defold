@@ -10,7 +10,8 @@ import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
 public class AtlasAnimationNode extends Node {
-
+    @Property
+    private String id;
     @Property
     private Playback playback = Playback.PLAYBACK_ONCE_FORWARD;
     @GreaterThanZero
@@ -20,6 +21,14 @@ public class AtlasAnimationNode extends Node {
     private boolean flipHorizontally;
     @Property
     private boolean flipVertically;
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public String getId() {
+        return id;
+    }
 
     @Override
     protected void childAdded(Node child) {
@@ -69,7 +78,7 @@ public class AtlasAnimationNode extends Node {
 
     @Override
     public String toString() {
-        return "Animation Group";
+        return id;
     }
 
     @Override

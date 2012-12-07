@@ -78,7 +78,7 @@ public class AtlasTest extends AbstractNodeTest {
 
     @Test
     public void testLoadAnimation() throws Exception {
-        AtlasNode node = load("animations: { images: { image: \"/2x5_16_1.png\" } }");
+        AtlasNode node = load("animations: { id: \"anim\" images: { image: \"/2x5_16_1.png\" } }");
         assertThat(node.getChildren().size(), is(1));
         assertThat(node.getChildren().get(0).getChildren().size(), is(1));
         assertNodeStatus(node, IStatus.OK, null);
@@ -97,7 +97,7 @@ public class AtlasTest extends AbstractNodeTest {
 
     @Test
     public void testOnlyDistinctImages2() throws Exception {
-        AtlasNode node = load("animations: { images: { image: \"/16x16_1.png\" } images: { image: \"/16x16_1.png\" } }");
+        AtlasNode node = load("animations: { id: \"anim\" images: { image: \"/16x16_1.png\" } images: { image: \"/16x16_1.png\" } }");
         assertThat(node.getChildren().size(), is(1));
         assertThat(node.getChildren().get(0).getChildren().size(), is(2));
         assertNodeStatus(node, IStatus.OK, null);

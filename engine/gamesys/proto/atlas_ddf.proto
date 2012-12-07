@@ -15,11 +15,12 @@ message AtlasImage
 
 message AtlasAnimation
 {
-    repeated AtlasImage images       = 1;
-    optional Playback playback      = 2 [default = PLAYBACK_ONCE_FORWARD];
-    optional uint32 fps             = 3 [default = 30];
-    optional uint32 flip_horizontal = 4 [default = 0];
-    optional uint32 flip_vertical   = 5 [default = 0];
+    required string id              = 1;
+    repeated AtlasImage images      = 2;
+    optional Playback playback      = 3 [default = PLAYBACK_ONCE_FORWARD];
+    optional uint32 fps             = 4 [default = 30];
+    optional uint32 flip_horizontal = 5 [default = 0];
+    optional uint32 flip_vertical   = 6 [default = 0];
 }
 
 message ImageAtlas
