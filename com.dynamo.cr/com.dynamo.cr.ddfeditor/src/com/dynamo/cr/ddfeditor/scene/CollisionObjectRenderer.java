@@ -23,7 +23,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     private final static float COLOR[] = new float[] { 255.0f / 255.0f, 247.0f / 255.0f, 73.0f/255.0f, 0.4f };
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);

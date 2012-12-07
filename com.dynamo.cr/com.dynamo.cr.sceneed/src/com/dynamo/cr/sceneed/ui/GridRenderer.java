@@ -17,7 +17,7 @@ public class GridRenderer implements INodeRenderer<GridNode> {
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, GridNode node) {

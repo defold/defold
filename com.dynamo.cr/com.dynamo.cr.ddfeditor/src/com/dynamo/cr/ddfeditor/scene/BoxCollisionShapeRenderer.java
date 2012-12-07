@@ -19,7 +19,7 @@ public class BoxCollisionShapeRenderer extends CollisionShapeRenderer implements
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, BoxCollisionShapeNode node) {

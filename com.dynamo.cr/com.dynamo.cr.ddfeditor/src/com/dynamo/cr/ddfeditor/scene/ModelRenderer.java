@@ -20,7 +20,7 @@ public class ModelRenderer implements INodeRenderer<ModelNode> {
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
     }
 
     @Override

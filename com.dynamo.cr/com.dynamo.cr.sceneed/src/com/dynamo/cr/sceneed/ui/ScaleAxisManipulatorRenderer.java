@@ -14,7 +14,7 @@ public class ScaleAxisManipulatorRenderer implements INodeRenderer<ScaleAxisMani
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, ScaleAxisManipulator node) {

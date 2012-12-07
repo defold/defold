@@ -25,7 +25,7 @@ public abstract class IconRenderer<T extends Node> implements INodeRenderer<T> {
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
     }
 
     @Override

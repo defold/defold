@@ -24,7 +24,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
     private float time = 0;
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
         if (texture != null) {
             texture.dispose();
         }

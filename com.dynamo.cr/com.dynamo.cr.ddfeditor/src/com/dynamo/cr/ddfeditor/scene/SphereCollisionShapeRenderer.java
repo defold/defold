@@ -19,7 +19,7 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, SphereCollisionShapeNode node) {

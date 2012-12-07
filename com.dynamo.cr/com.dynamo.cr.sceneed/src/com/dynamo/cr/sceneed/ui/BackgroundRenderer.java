@@ -15,7 +15,7 @@ public class BackgroundRenderer implements INodeRenderer<BackgroundNode> {
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, BackgroundNode node) {

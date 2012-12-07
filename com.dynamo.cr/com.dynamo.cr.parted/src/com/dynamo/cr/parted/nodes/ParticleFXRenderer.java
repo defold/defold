@@ -111,12 +111,12 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
         if (this.shader != null) {
             this.shader.dispose();
         }
         if (this.vbo != null) {
-            this.vbo.dispose();
+            this.vbo.dispose(gl);
         }
     }
 
@@ -136,7 +136,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             }
         }
         if (this.vbo == null) {
-            this.vbo = new VertexBufferObject(gl);
+            this.vbo = new VertexBufferObject();
         }
 
         if (context != null && this.shader != null && passes.contains(renderContext.getPass())) {
@@ -219,7 +219,8 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
             ByteBuffer vb = node.getVertexBuffer();
             int vbSize = node.getVertexBufferSize();
-            this.vbo.enable(vb, vbSize);
+            this.vbo.bufferData(vb, vbSize);
+            this.vbo.enable(gl);
             this.vertexFormat.enable(gl, this.shader);
 
             Matrix4d viewProj = (Matrix4d)this.uniforms.get(Shader.Uniform.VIEW_PROJ);
@@ -230,7 +231,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
             callBack.currentNode = node;
             ParticleLibrary.Particle_Render(context, new Pointer(0), callBack);
 
-            this.vbo.disable();
+            this.vbo.disable(gl);
             this.shader.disable();
             this.vertexFormat.disable(gl, this.shader);
 
