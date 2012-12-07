@@ -34,6 +34,7 @@ namespace dmScript
         SUB_TYPE_QUAT       = 2,
         SUB_TYPE_MATRIX4    = 3,
         SUB_TYPE_HASH       = 4,
+        SUB_TYPE_URL        = 5,
     };
 
     uint32_t DoCheckTable(lua_State* L, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
@@ -244,6 +245,19 @@ namespace dmScript
                         memcpy(buffer, (const void*)&hash, hash_size);
                         buffer += hash_size;
                     }
+                    else if (IsURL(L, -1))
+                    {
+                        dmMessage::URL* url = CheckURL(L, -1);
+                        const uint32_t url_size = sizeof(dmMessage::URL);
+
+                        if (buffer_end - buffer < int32_t(url_size))
+                            luaL_error(L, "table too large");
+
+                        *sub_type = (char) SUB_TYPE_URL;
+
+                        memcpy(buffer, (const void*)url, url_size);
+                        buffer += url_size;
+                    }
                     else
                     {
                         luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
@@ -382,6 +396,14 @@ namespace dmScript
                         memcpy(&hash, buffer, hash_size);
                         dmScript::PushHash(L, hash);
                         buffer += hash_size;
+                    }
+                    else if (sub_type == (char) SUB_TYPE_URL)
+                    {
+                        dmMessage::URL url;
+                        uint32_t url_size = sizeof(dmMessage::URL);
+                        memcpy(&url, buffer, url_size);
+                        dmScript::PushURL(L, url);
+                        buffer += url_size;
                     }
                     else
                     {

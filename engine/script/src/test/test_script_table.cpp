@@ -396,6 +396,38 @@ TEST_F(LuaTableTest, Hash)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(LuaTableTest, URL)
+{
+    int top = lua_gettop(L);
+
+    // Create table
+    lua_newtable(L);
+    dmMessage::URL url = dmMessage::URL();
+    url.m_Socket = 1;
+    url.m_Path = 2;
+    url.m_Fragment = 3;
+    dmScript::PushURL(L, url);
+    lua_setfield(L, -2, "url");
+
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    dmScript::PushTable(L, m_Buf);
+
+    lua_getfield(L, -1, "url");
+    ASSERT_TRUE(dmScript::IsURL(L, -1));
+    dmMessage::URL url2 = *dmScript::CheckURL(L, -1);
+    ASSERT_EQ(url.m_Socket, url2.m_Socket);
+    ASSERT_EQ(url.m_Path, url2.m_Path);
+    ASSERT_EQ(url.m_Fragment, url2.m_Fragment);
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(LuaTableTest, MixedKeys)
 {
     // Create table
