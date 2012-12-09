@@ -1,0 +1,18 @@
+go.property("number", 100)
+go.property("url", msg.url())
+go.property("hash", hash(""))
+go.property("vector3", vmath.vector3())
+go.property("vector4", vmath.vector4())
+go.property("quat", vmath.quat())
+
+function init(self)
+    assert(self.number == 200)
+    local url = msg.url("/path")
+    assert(self.url.socket == url.socket)
+    assert(self.url.path == url.path)
+    assert(self.url.fragment == url.fragment)
+    assert(self.hash == hash("hash"))
+    assert(self.vector3 == vmath.vector3(1, 2, 3))
+    assert(self.vector4 == vmath.vector4(1, 2, 3, 4))
+    assert(self.quat == vmath.quat(1, 2, 3, 4))
+end

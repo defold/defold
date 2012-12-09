@@ -6,6 +6,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../gameobject_script.h"
 #include "../proto/gameobject_ddf.h"
 
 using namespace Vectormath::Aos;
@@ -37,7 +38,7 @@ void CompNoUserDataSetProperties(const dmGameObject::ComponentSetPropertiesParam
 {
     // The test is that this function should never be reached
     dmGameObject::HProperties properties = (dmGameObject::HProperties)*params.m_UserData;
-    dmGameObject::SetProperties(properties, params.m_PropertyBuffer, params.m_PropertyBufferSize);
+    SetPropertyData(properties, dmGameObject::PROPERTY_LAYER_INSTANCE, params.m_PropertyData);
 }
 
 class PropsTest : public ::testing::Test
@@ -149,52 +150,80 @@ TEST_F(PropsTest, PropsMultiScript)
     dmResource::Release(m_Factory, collection);
 }
 
-TEST_F(PropsTest, PropsNil)
+TEST_F(PropsTest, PropsSpawn)
 {
-    lua_State* L = luaL_newstate();
-    lua_pushnil(L);
-    uint32_t size = dmGameObject::LuaTableToProperties(L, 1, 0x0, 0);
-    ASSERT_EQ(0u, size);
-    lua_close(L);
+    lua_State* L = dmGameObject::GetLuaState();
+    int top = lua_gettop(L);
+    lua_newtable(L);
+    lua_pushliteral(L, "number");
+    lua_pushnumber(L, 200);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "hash");
+    dmScript::PushHash(L, dmHashString64("hash"));
+    lua_rawset(L, -3);
+    dmMessage::URL url;
+    dmMessage::ResetURL(url);
+    url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    url.m_Path = dmHashString64("/path");
+    lua_pushliteral(L, "url");
+    dmScript::PushURL(L, url);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "vector3");
+    dmScript::PushVector3(L, Vector3(1, 2, 3));
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "vector4");
+    dmScript::PushVector4(L, Vector4(1, 2, 3, 4));
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "quat");
+    dmScript::PushQuat(L, Quat(1, 2, 3, 4));
+    lua_rawset(L, -3);
+    uint8_t buffer[1024];
+    uint32_t buffer_size = 1024;
+    uint32_t size_used = dmScript::CheckTable(L, (char*)buffer, buffer_size, -1);
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_LT(0u, size_used);
+    ASSERT_LT(size_used, buffer_size);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
+    // Script init is run in spawn which verifies the properties
+    ASSERT_NE((void*)0u, instance);
 }
 
 TEST_F(PropsTest, PropsSpawnNoProperties)
 {
     dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), 1.0f);
-    ASSERT_NE((void*)0u, instance);
     // Script init is run in spawn which verifies the properties
+    ASSERT_NE((void*)0u, instance);
 }
 
-TEST_F(PropsTest, PropsFailDefaultURL)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_default_url.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
-}
-
-TEST_F(PropsTest, PropsFailRelURL)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_rel_url.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
-}
-
-TEST_F(PropsTest, PropsFailOverflowDefs)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_defs.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
-}
-
-TEST_F(PropsTest, PropsFailOverflowGo)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_go.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
-}
-
-TEST_F(PropsTest, PropsFailOverflowColl)
+TEST_F(PropsTest, PropsRelativeURL)
 {
     dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_overflow_coll.collectionc", (void**)&collection);
-    ASSERT_NE(dmResource::RESULT_OK, res);
+    dmResource::Result res = dmResource::Get(m_Factory, "/props_rel_url.collectionc", (void**)&collection);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    bool result = dmGameObject::Init(collection);
+    ASSERT_TRUE(result);
+    dmResource::Release(m_Factory, collection);
 }
+
+//TEST_F(PropsTest, PropsFailOverflowDefs)
+//{
+//    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_defs.goc");
+//    ASSERT_EQ((void*) 0, (void*) go);
+//}
+
+//TEST_F(PropsTest, PropsFailOverflowGo)
+//{
+//    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_go.goc");
+//    ASSERT_EQ((void*) 0, (void*) go);
+//}
+
+//TEST_F(PropsTest, PropsFailOverflowColl)
+//{
+//    dmGameObject::HCollection collection;
+//    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_overflow_coll.collectionc", (void**)&collection);
+//    ASSERT_NE(dmResource::RESULT_OK, res);
+//}
 
 TEST_F(PropsTest, PropsFailUnsuppGo)
 {
@@ -218,25 +247,25 @@ TEST_F(PropsTest, PropsFailDefInInit)
     dmGameObject::Delete(m_Collection, go);
 }
 
-TEST_F(PropsTest, PropsFailLuaTableOverflow)
-{
-    lua_State* L = luaL_newstate();
-    const uint32_t original_count = 16;
-    lua_newtable(L);
-    for (uint32_t i = 0; i < original_count; ++i)
-    {
-        char key[3];
-        DM_SNPRINTF(key, 3, "%d", i);
-        lua_pushstring(L, key);
-        lua_pushnumber(L, i);
-        lua_settable(L, 1);
-    }
-    const uint32_t buffer_size = original_count*2;
-    uint8_t buffer[buffer_size];
-    uint32_t actual_size = dmGameObject::LuaTableToProperties(L, 1, buffer, buffer_size);
-    ASSERT_GT(actual_size, buffer_size);
-    lua_close(L);
-}
+//TEST_F(PropsTest, PropsFailLuaTableOverflow)
+//{
+//    lua_State* L = luaL_newstate();
+//    const uint32_t original_count = 16;
+//    lua_newtable(L);
+//    for (uint32_t i = 0; i < original_count; ++i)
+//    {
+//        char key[3];
+//        DM_SNPRINTF(key, 3, "%d", i);
+//        lua_pushstring(L, key);
+//        lua_pushnumber(L, i);
+//        lua_settable(L, 1);
+//    }
+//    const uint32_t buffer_size = original_count*2;
+//    uint8_t buffer[buffer_size];
+//    uint32_t actual_size = dmGameObject::LuaTableToProperties(L, 1, buffer, buffer_size);
+//    ASSERT_GT(actual_size, buffer_size);
+//    lua_close(L);
+//}
 
 TEST_F(PropsTest, PropsFailNoUserData)
 {

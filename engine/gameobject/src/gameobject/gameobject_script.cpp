@@ -53,6 +53,24 @@ namespace dmGameObject
         m_Instances.SetCapacity(1024);
     }
 
+    static Script* GetScript(lua_State *L)
+    {
+        lua_pushliteral(L, SCRIPT_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        Script* script = (Script*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return script;
+    }
+
+    static ScriptInstance* GetScriptInstance(lua_State *L)
+    {
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return i;
+    }
+
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
         ScriptInstance* i;
@@ -125,10 +143,7 @@ namespace dmGameObject
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
     {
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        ScriptInstance* i = GetScriptInstance(L);
         if (i == NULL) luaL_error(L, "Lua state did not contain any '%s'.", SCRIPT_INSTANCE_NAME);
         return i;
     }
@@ -400,10 +415,7 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
-        lua_pushliteral(L, SCRIPT_NAME);
-        lua_rawget(L, LUA_GLOBALSINDEX);
-        Script* script = (Script*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Script* script = GetScript(L);
 
         if (script == 0x0)
         {
@@ -417,7 +429,7 @@ namespace dmGameObject
             script->m_PropertyDefs.OffsetCapacity(8);
         }
         bool valid_type = false;
-        PropertyDef p;
+        ScriptPropertyDef p;
         if (lua_isnumber(L, 2))
         {
             lua_Number default_val = lua_tonumber(L, 2);
@@ -429,7 +441,18 @@ namespace dmGameObject
         {
             dmMessage::URL url = *dmScript::CheckURL(L, 2);
             p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_URL;
-            p.m_URL = url;
+            p.m_URL.m_URL = url;
+            p.m_URL.m_UnresolvedPath = 0x0;
+            lua_pushliteral(L, TMP_URL_PATH_NAME);
+            lua_rawget(L, LUA_GLOBALSINDEX);
+            if (!lua_isnil(L, -1))
+            {
+                p.m_URL.m_UnresolvedPath = strdup(lua_tostring(L, -1));
+            }
+            lua_pop(L, 1);
+            lua_pushliteral(L, TMP_URL_PATH_NAME);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
             valid_type = true;
         }
         else if (dmScript::IsHash(L, 2))
@@ -489,26 +512,49 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
-        if (i == 0)
+        if (i != 0)
         {
-            luaL_error(L, "You can only create empty URLs outside functions with a self-reference, use msg.url() instead.");
-        }
-        url->m_Socket = i->m_Instance->m_Collection->m_ComponentSocket;
-        url->m_Path = i->m_Instance->m_Identifier;
-        url->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
-    }
-
-    dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L);
-
-        if (path_size > 0)
-        {
-            return GetAbsoluteIdentifier(i->m_Instance, path, path_size);
+            url->m_Socket = i->m_Instance->m_Collection->m_ComponentSocket;
+            url->m_Path = i->m_Instance->m_Identifier;
+            url->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
         }
         else
         {
-            return i->m_Instance->m_Identifier;
+            dmMessage::ResetURL(*url);
+        }
+    }
+
+    dmhash_t ResolvePathCallback(uintptr_t user_data, const char* path, uint32_t path_size)
+    {
+        lua_State* L = (lua_State*)user_data;
+        ScriptInstance* i = GetScriptInstance(L);
+
+        if (i != 0)
+        {
+            if (path_size > 0)
+            {
+                return GetAbsoluteIdentifier(i->m_Instance, path, path_size);
+            }
+            else
+            {
+                return i->m_Instance->m_Identifier;
+            }
+        }
+        else
+        {
+            Script* script = GetScript(L);
+
+            if (script == 0x0)
+            {
+                return luaL_error(L, "No context available in which to resolve the supplied URL.");
+            }
+            else
+            {
+                lua_pushliteral(L, TMP_URL_PATH_NAME);
+                lua_pushlstring(L, path, path_size);
+                lua_rawset(L, LUA_GLOBALSINDEX);
+                return dmHashBuffer64(path, path_size);
+            }
         }
     }
 
@@ -686,23 +732,7 @@ bail:
         return result;
     }
 
-    bool LoadProperties(const dmArray<PropertyDef>& property_defs, Properties* out_properties, const char* filename)
-    {
-        if (property_defs.Size() == 0)
-            return true;
-
-        const uint32_t buffer_size = 1024;
-        uint8_t buffer[buffer_size];
-        uint32_t actual = SerializeProperties(property_defs, buffer, buffer_size);
-        if (buffer_size < actual)
-        {
-            dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
-            return false;
-        }
-
-        SetProperties(out_properties, buffer, actual);
-        return true;
-    }
+    static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
 
     HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename)
     {
@@ -711,31 +741,36 @@ bail:
         HScript script = new Script();
         script->m_PropertyDefs.SetCapacity(0);
         script->m_OldPropertyDefs.SetCapacity(0);
+        script->m_PropertyData.m_UserData = (uintptr_t)script;
+        script->m_PropertyData.m_GetPropertyCallback = GetPropertyDefault;
         if (!LoadScript(L, buffer, buffer_size, filename, script))
         {
             delete script;
             return 0;
         }
-        script->m_Properties = NewProperties();
-        if (!LoadProperties(script->m_PropertyDefs, script->m_Properties, filename))
-        {
-            DeleteProperties(script->m_Properties);
-            DeletePropertyDefs(script->m_PropertyDefs);
-            delete script;
-            return 0;
-        }
+
         return script;
+    }
+
+    static void DeletePropertyDefs(const dmArray<ScriptPropertyDef>& property_defs)
+    {
+        uint32_t count = property_defs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const ScriptPropertyDef& def = property_defs[i];
+            free((void*)def.m_Name);
+            if (def.m_Type == dmGameObjectDDF::PROPERTY_TYPE_URL && def.m_URL.m_UnresolvedPath != 0x0)
+                free((void*)def.m_URL.m_UnresolvedPath);
+        }
     }
 
     bool ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename)
     {
-        dmArray<PropertyDef> tmp_old_property_defs;
+        dmArray<ScriptPropertyDef> tmp_old_property_defs;
         tmp_old_property_defs.SetCapacity(0);
         tmp_old_property_defs.Swap(script->m_PropertyDefs);
         bool result = true;
         if (!LoadScript(g_LuaState, buffer, buffer_size, filename, script))
-            result = false;
-        if (result && !LoadProperties(script->m_PropertyDefs, script->m_Properties, filename))
             result = false;
 
         if (!result)
@@ -757,10 +792,52 @@ bail:
             if (script->m_FunctionReferences[i])
                 luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
         }
-        DeleteProperties(script->m_Properties);
         DeletePropertyDefs(script->m_PropertyDefs);
         DeletePropertyDefs(script->m_OldPropertyDefs);
         delete script;
+    }
+
+    static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var)
+    {
+        Script* script = (Script*)user_data;
+        const dmArray<ScriptPropertyDef>& defs = script->m_PropertyDefs;
+        uint32_t n = defs.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const ScriptPropertyDef& def = defs[i];
+            if (def.m_Id == id)
+            {
+                out_var.m_Type = def.m_Type;
+                switch (def.m_Type)
+                {
+                case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
+                    out_var.m_Number = def.m_Number;
+                    break;
+                case dmGameObjectDDF::PROPERTY_TYPE_HASH:
+                    out_var.m_Hash = def.m_Hash;
+                    break;
+                case dmGameObjectDDF::PROPERTY_TYPE_URL:
+                    out_var.m_URL = def.m_URL.m_URL;
+                    if (def.m_URL.m_UnresolvedPath != 0x0)
+                    {
+                        out_var.m_URL.m_Path = properties->m_ResolvePathCallback(properties->m_ResolvePathUserData, def.m_URL.m_UnresolvedPath, strlen(def.m_URL.m_UnresolvedPath));
+                    }
+                    break;
+                case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+                case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+                case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+                    out_var.m_V4[0] = def.m_V4[0];
+                    out_var.m_V4[1] = def.m_V4[1];
+                    out_var.m_V4[2] = def.m_V4[2];
+                    out_var.m_V4[3] = def.m_V4[3];
+                    break;
+                default:
+                    return PROPERTY_RESULT_UNKNOWN_TYPE;
+                }
+                return PROPERTY_RESULT_OK;
+            }
+        }
+        return PROPERTY_RESULT_NOT_FOUND;
     }
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index)
@@ -783,7 +860,12 @@ bail:
 
         i->m_Instance = instance;
         i->m_ComponentIndex = component_index;
-        i->m_Properties = NewProperties();
+        NewPropertiesParams params;
+        params.m_ResolvePathCallback = ResolvePathCallback;
+        params.m_ResolvePathUserData = (uintptr_t)L;
+        params.m_GetURLCallback = GetURLCallback;
+        i->m_Properties = NewProperties(params);
+        SetPropertyData(i->m_Properties, PROPERTY_LAYER_DEFAULT, script->m_PropertyData);
         luaL_getmetatable(L, SCRIPTINSTANCE);
         lua_setmetatable(L, -2);
 
@@ -808,6 +890,110 @@ bail:
         DeleteProperties(script_instance->m_Properties);
 
         assert(top == lua_gettop(L));
+    }
+
+    void ClearPropertiesFromLuaTable(const dmArray<ScriptPropertyDef>& property_defs, lua_State* L, int index)
+    {
+        uint32_t count = property_defs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const ScriptPropertyDef& def = property_defs[i];
+            lua_pushstring(L, def.m_Name);
+            lua_pushnil(L);
+            lua_settable(L, index-2);
+        }
+    }
+
+    void PropertiesToLuaTable(HInstance instance, const dmArray<ScriptPropertyDef>& property_defs, const HProperties properties, lua_State* L, int index)
+    {
+        uint32_t count = property_defs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const ScriptPropertyDef& def = property_defs[i];
+            lua_pushstring(L, def.m_Name);
+            bool found_value = false;
+            switch (def.m_Type)
+            {
+            case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
+                {
+                    double v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        lua_pushnumber(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_HASH:
+                {
+                    dmhash_t v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        dmScript::PushHash(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_URL:
+                {
+                    dmMessage::URL v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        if (v.m_Socket == 0 && (v.m_Path != 0 || v.m_Fragment != 0))
+                        {
+                            v.m_Socket = GetMessageSocket(instance->m_Collection);
+                        }
+                        if (v.m_Path == 0 && v.m_Fragment != 0)
+                        {
+                            v.m_Path = GetIdentifier(instance);
+                        }
+                        dmScript::PushURL(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+                {
+                    Vectormath::Aos::Vector3 v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        dmScript::PushVector3(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+                {
+                    Vectormath::Aos::Vector4 v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        dmScript::PushVector4(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+                {
+                    Vectormath::Aos::Quat v;
+                    if (GetProperty(properties, def.m_Id, v))
+                    {
+                        dmScript::PushQuat(L, v);
+                        found_value = true;
+                    }
+                }
+                break;
+            default:
+                break;
+            }
+            if (found_value)
+            {
+                lua_settable(L, index-2);
+            }
+            else
+            {
+                lua_pop(L, 1);
+            }
+        }
     }
 
     // Documentation for the scripts

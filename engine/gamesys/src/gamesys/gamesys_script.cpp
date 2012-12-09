@@ -198,9 +198,9 @@ namespace dmGameSystem
             uint32_t actual_prop_buffer_size = 0;
             if (top >= 4)
             {
-                uint8_t* prop_buffer = &buffer[msg_size];
+                char* prop_buffer = (char*)&buffer[msg_size];
                 uint32_t prop_buffer_size = buffer_size - msg_size;
-                actual_prop_buffer_size = dmGameObject::LuaTableToProperties(L, 4, prop_buffer, prop_buffer_size);
+                actual_prop_buffer_size = dmScript::CheckTable(L, prop_buffer, prop_buffer_size, 4);
                 if (actual_prop_buffer_size > prop_buffer_size)
                     return luaL_error(L, "the properties supplied to factory.create are too many.");
             }

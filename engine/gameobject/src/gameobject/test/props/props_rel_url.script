@@ -1,0 +1,20 @@
+go.property("type", 1)
+go.property("url", msg.url("go#script1"))
+
+function init(self)
+    if self.type == 1 then
+        assert(msg.url("/go#script1") == self.url, "Incorrect url")
+    elseif self.type == 2 then
+        assert(msg.url("/go#script2") == self.url, "Incorrect url")
+    elseif self.type == 3 then
+        assert(msg.url("/sub/go#script1") == self.url, "Incorrect url")
+    elseif self.type == 4 then
+        assert(msg.url("/sub/go#script1") == self.url, "Incorrect url")
+    elseif self.type == 5 then
+        assert(msg.url("/go#script2") == self.url, "Incorrect url")
+    elseif self.type == 6 then
+        assert(msg.url("/sub/go#script3") == self.url, "Incorrect url")
+    else
+        assert(false, "No correct type")
+    end
+end

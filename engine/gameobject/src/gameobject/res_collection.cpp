@@ -6,6 +6,7 @@
 #include "gameobject.h"
 #include "gameobject_private.h"
 #include "gameobject_props.h"
+#include "gameobject_props_ddf.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -112,23 +113,17 @@ namespace dmGameObject
 
                     ComponentSetPropertiesParams params;
                     params.m_Instance = instance;
-                    const uint32_t buffer_size = 1024;
-                    uint8_t buffer[buffer_size];
-                    uint32_t actual = SerializeProperties(comp_prop.m_Properties.m_Data, comp_prop.m_Properties.m_Count, buffer, buffer_size);
-                    if (actual == 0)
+                    bool r = CreatePropertyDataUserData(comp_prop.m_Properties.m_Data, comp_prop.m_Properties.m_Count, &params.m_PropertyData.m_UserData);
+                    if (!r)
                     {
                         dmLogError("Could not instantiate game object '%s' in collection %s.", instance_desc.m_Id, filename);
                         res = dmResource::RESULT_FORMAT_ERROR;
                         goto bail;
                     }
-                    else if (buffer_size < actual)
-                    {
-                        dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
-                        res = dmResource::RESULT_FORMAT_ERROR;
-                        goto bail;
-                    }
                     else
                     {
+                        params.m_PropertyData.m_GetPropertyCallback = GetPropertyCallbackDDF;
+                        params.m_PropertyData.m_FreeUserDataCallback = DestroyPropertyDataUserData;
                         uint32_t component_instance_data_index = 0;
                         for (uint32_t j = 0; j < index; ++j)
                         {
@@ -136,8 +131,6 @@ namespace dmGameObject
                                 ++component_instance_data_index;
                         }
                         uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
-                        params.m_PropertyBuffer = buffer;
-                        params.m_PropertyBufferSize = actual;
                         params.m_UserData = component_instance_data;
                         type->m_SetPropertiesFunction(params);
                     }

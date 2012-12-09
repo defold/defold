@@ -39,13 +39,13 @@ namespace dmScript
 
     /**
      * Callback used to resolve paths.
-     * Implementations of this callback are expected to resolve the path given the lua state.
-     * @param L lua state
+     * Implementations of this callback are expected to resolve the path given the user data.
+     * @param resolve_user_data user data passed to the callback
      * @param path
      * @param path_size
      * @return hashed resolved path
      */
-    typedef dmhash_t (*ResolvePathCallback)(lua_State* L, const char* path, uint32_t path_size);
+    typedef dmhash_t (*ResolvePathCallback)(uintptr_t resolve_user_data, const char* path, uint32_t path_size);
 
     /**
      * Callback used to retrieve url
@@ -265,6 +265,8 @@ namespace dmScript
      * @return true if a URL could be found
      */
     bool GetURL(lua_State* L, dmMessage::URL* out_url);
+
+    dmMessage::Result ResolveURL(ResolvePathCallback resolve_path_callback, uintptr_t resolve_user_data, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
     /**
      * Attempts to convert the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.

@@ -1,5 +1,0 @@
-components {
-  id: "script"
-  component: "/props_fail_rel_url.scriptc"
-  properties {id: "url" value: "path#script" type: PROPERTY_TYPE_URL}
-}

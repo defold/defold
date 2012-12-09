@@ -16,7 +16,7 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
+dmhash_t ResolvePathCallback(uintptr_t user_data, const char* path, uint32_t path_size)
 {
     return dmHashBuffer64(path, path_size);
 }

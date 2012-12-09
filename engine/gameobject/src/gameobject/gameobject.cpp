@@ -15,6 +15,7 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
+#include "gameobject_props_lua.h"
 #include "res_collection.h"
 #include "res_prototype.h"
 #include "res_script.h"
@@ -400,6 +401,7 @@ namespace dmGameObject
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
+            params.m_PropertyData = component->m_PropertyData;
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
@@ -529,13 +531,27 @@ namespace dmGameObject
                     {
                         ComponentSetPropertiesParams params;
                         params.m_Instance = instance;
-                        params.m_PropertyBuffer = property_buffer;
-                        params.m_PropertyBufferSize = property_buffer_size;
                         params.m_UserData = component_instance_data;
-                        component.m_Type->m_SetPropertiesFunction(params);
+                        if (CreatePropertyDataUserDataLua(GetLuaState(), property_buffer, property_buffer_size, &params.m_PropertyData.m_UserData))
+                        {
+                            params.m_PropertyData.m_FreeUserDataCallback = DestroyPropertyDataUserDataLua;
+                            params.m_PropertyData.m_GetPropertyCallback = GetPropertyCallbackLua;
+                            component.m_Type->m_SetPropertiesFunction(params);
+                        }
+                        else
+                        {
+                            dmLogError("Could not read properties when spawning %s.", prototype_name);
+                            Delete(collection, instance);
+                            return 0;
+                        }
                     }
                 }
-                Init(collection, instance);
+                if (instance != 0 && !Init(collection, instance))
+                {
+                    dmLogError("Could not initialize when spawning %s.", prototype_name);
+                    Delete(collection, instance);
+                    return 0;
+                }
             }
         }
         if (instance == 0)
@@ -697,7 +713,6 @@ namespace dmGameObject
                     params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
                     params.m_Context = component_type->m_Context;
                     params.m_UserData = component_instance_data;
-                    params.m_Properties = component->m_Properties;
                     CreateResult result = component_type->m_InitFunction(params);
                     if (result != CREATE_RESULT_OK)
                     {

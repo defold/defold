@@ -4,11 +4,24 @@
 
 #include "gameobject_private.h"
 #include "gameobject_props.h"
+#include "gameobject_props_ddf.h"
 
 #include "../proto/gameobject_ddf.h"
 
 namespace dmGameObject
 {
+    static void DestroyPrototype(Prototype* prototype, dmResource::HFactory factory)
+    {
+        for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
+        {
+            Prototype::Component& c = prototype->m_Components[i];
+            dmResource::Release(factory, c.m_Resource);
+            DestroyPropertyDataUserData(c.m_PropertyData.m_UserData);
+        }
+
+        delete prototype;
+    }
+
     dmResource::Result ResPrototypeCreate(dmResource::HFactory factory,
                                                 void* context,
                                                 const void* buffer, uint32_t buffer_size,
@@ -58,9 +71,8 @@ namespace dmGameObject
                 for (uint32_t j = 0; j < component_count; ++j)
                 {
                     dmResource::Release(factory, proto->m_Components[j].m_Resource);
-                    DeleteProperties(proto->m_Components[j].m_Properties);
                 }
-                delete proto;
+                DestroyPrototype(proto, factory);
                 dmDDF::FreeMessage(proto_desc);
                 if (id_used)
                     return dmResource::RESULT_FORMAT_ERROR;
@@ -87,40 +99,15 @@ namespace dmGameObject
                                                                               type_index,
                                                                               component_desc.m_Position,
                                                                               component_desc.m_Rotation);
-                c.m_Properties = NewProperties();
-                uint32_t prop_count = component_desc.m_Properties.m_Count;
-                if (prop_count > 0)
-                {
-                    const uint32_t buffer_size = 1024;
-                    uint8_t buffer[buffer_size];
-                    uint32_t actual = SerializeProperties(component_desc.m_Properties.m_Data, prop_count, buffer, buffer_size);
-                    bool result = true;
-                    if (actual == 0)
-                    {
-                        dmLogError("Prototype '%s' could not be created.", filename);
-                        result = false;
-                    }
-                    else if (buffer_size < actual)
-                    {
-                        dmLogError("Properties could not be stored when loading %s: too many properties.", filename);
-                        result = false;
-                    }
-                    else
-                    {
-                        SetProperties(c.m_Properties, buffer, actual);
-                    }
-                    if (!result)
-                    {
-                        DeleteProperties(c.m_Properties);
-                        dmResource::Release(factory, component);
-                        dmDDF::FreeMessage(proto_desc);
-                        resource->m_Resource = (void*) proto;
-                        ResPrototypeDestroy(factory, context, resource);
-                        return dmResource::RESULT_FORMAT_ERROR;
-                    }
-                }
+                c.m_PropertyData.m_GetPropertyCallback = GetPropertyCallbackDDF;
+                bool r = CreatePropertyDataUserData(component_desc.m_Properties.m_Data, component_desc.m_Properties.m_Count, &c.m_PropertyData.m_UserData);
                 proto->m_Components.Push(c);
-
+                if (!r)
+                {
+                    DestroyPrototype(proto, factory);
+                    dmDDF::FreeMessage(proto_desc);
+                    return dmResource::RESULT_FORMAT_ERROR;
+                }
             }
         }
 
@@ -135,13 +122,7 @@ namespace dmGameObject
                                                  dmResource::SResourceDescriptor* resource)
     {
         Prototype* proto = (Prototype*) resource->m_Resource;
-        for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
-        {
-            dmResource::Release(factory, proto->m_Components[i].m_Resource);
-            DeleteProperties(proto->m_Components[i].m_Properties);
-        }
-
-        delete proto;
+        DestroyPrototype(proto, factory);
         return dmResource::RESULT_OK;
     }
 }

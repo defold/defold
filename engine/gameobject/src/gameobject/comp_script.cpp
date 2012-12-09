@@ -54,6 +54,7 @@ namespace dmGameObject
         }
 
         HScriptInstance script_instance = NewScriptInstance(script, params.m_Instance, params.m_ComponentIndex);
+        SetPropertyData(script_instance->m_Properties, PROPERTY_LAYER_PROTOTYPE, params.m_PropertyData);
         if (script_instance == 0x0)
         {
             dmLogError("Could not create script component, out of memory.");
@@ -148,14 +149,20 @@ namespace dmGameObject
         int top = lua_gettop(g_LuaState);
         (void)top;
 
-        AppendProperties(script_instance->m_Properties, params.m_Properties);
-        AppendProperties(script_instance->m_Properties, script_instance->m_Script->m_Properties);
-
         lua_State* L = g_LuaState;
+
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_pushlightuserdata(L, (void*) script_instance);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
-        const dmArray<PropertyDef>& property_defs = script_instance->m_Script->m_PropertyDefs;
+        const dmArray<ScriptPropertyDef>& property_defs = script_instance->m_Script->m_PropertyDefs;
         PropertiesToLuaTable(script_instance->m_Instance, property_defs, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
+
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
 
         RunScriptParams run_params;
         ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
@@ -392,11 +399,21 @@ namespace dmGameObject
         (void)top;
 
         // Clean stale properties and add new
+
         lua_State* L = g_LuaState;
+
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_pushlightuserdata(L, (void*) script_instance);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
-        ClearPropertiesFromLuaTable(script_instance->m_Script->m_OldPropertyDefs, script_instance->m_Properties, L, -1);
+        ClearPropertiesFromLuaTable(script_instance->m_Script->m_OldPropertyDefs, L, -1);
         PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script->m_PropertyDefs, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
+
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
 
         RunScriptParams run_params;
         RunScript(script_instance->m_Script, SCRIPT_FUNCTION_ONRELOAD, script_instance, run_params);
@@ -406,7 +423,7 @@ namespace dmGameObject
     void CompScriptSetProperties(const ComponentSetPropertiesParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
-        SetProperties(script_instance->m_Properties, params.m_PropertyBuffer, params.m_PropertyBufferSize);
+        SetPropertyData(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertyData);
     }
 
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)

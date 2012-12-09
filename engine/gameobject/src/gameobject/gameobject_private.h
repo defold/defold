@@ -20,6 +20,7 @@ namespace dmGameObject
 {
 #define SCRIPT_NAME "__script__"
 #define SCRIPT_INSTANCE_NAME "__script_instance__"
+#define TMP_URL_PATH_NAME "__tmp_url_path__"
 
     extern const char* ID_SEPARATOR;
 
@@ -48,7 +49,7 @@ namespace dmGameObject
                 m_ResourceType(resource_type),
                 m_Position(position),
                 m_Rotation(rotation),
-                m_Properties(0x0)
+                m_PropertyData()
             {
             }
 
@@ -60,7 +61,7 @@ namespace dmGameObject
             uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
-            HProperties     m_Properties;
+            PropertyData    m_PropertyData;
         };
 
         dmArray<Component>     m_Components;

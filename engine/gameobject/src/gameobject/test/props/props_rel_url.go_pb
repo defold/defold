@@ -1,0 +1,14 @@
+components {
+  id: "script1"
+  component: "/props_rel_url.scriptc"
+}
+components {
+  id: "script2"
+  component: "/props_rel_url.scriptc"
+  properties {id: "type" value: "2" type: PROPERTY_TYPE_NUMBER}
+  properties {id: "url" value: "go#script2" type: PROPERTY_TYPE_URL}
+}
+components {
+  id: "script3"
+  component: "/props_rel_url.scriptc"
+}

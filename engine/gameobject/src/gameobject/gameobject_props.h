@@ -6,6 +6,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <ddf/ddf.h>
+#include <script/script.h>
 
 #include "gameobject.h"
 
@@ -19,49 +20,45 @@ extern "C"
 
 namespace dmGameObject
 {
-    struct PropertyDef
+
+    enum PropertyLayer
     {
-        const char* m_Name;
-        dmhash_t m_Id;
-        dmGameObjectDDF::PropertyType m_Type;
-        union
-        {
-            double m_Number;
-            dmhash_t m_Hash;
-            dmMessage::URL m_URL;
-            float m_V4[4];
-        };
+        PROPERTY_LAYER_INSTANCE = 0,
+        PROPERTY_LAYER_PROTOTYPE = 1,
+        PROPERTY_LAYER_DEFAULT = 2,
+        MAX_PROPERTY_LAYER_COUNT
     };
 
     struct Properties
     {
         Properties();
 
-        uint8_t* m_Buffer;
-        uint32_t m_BufferSize;
-        Properties* m_Next;
+        PropertyData m_Data[MAX_PROPERTY_LAYER_COUNT];
+        dmScript::ResolvePathCallback m_ResolvePathCallback;
+        uintptr_t m_ResolvePathUserData;
+        dmScript::GetURLCallback m_GetURLCallback;
     };
 
-    void DeletePropertyDefs(const dmArray<PropertyDef>& property_defs);
+    struct NewPropertiesParams
+    {
+        NewPropertiesParams();
 
-    HProperties NewProperties();
+        dmScript::ResolvePathCallback m_ResolvePathCallback;
+        uintptr_t m_ResolvePathUserData;
+        dmScript::GetURLCallback m_GetURLCallback;
+    };
+
+    HProperties NewProperties(const NewPropertiesParams& params);
     void DeleteProperties(HProperties properties);
 
-    bool GetProperty(HProperties properties, dmhash_t id, double& value);
-    bool GetProperty(HProperties properties, dmhash_t id, dmhash_t& value);
-    bool GetProperty(HProperties properties, dmhash_t id, dmMessage::URL& value);
-    bool GetProperty(HProperties properties, dmhash_t id, Vectormath::Aos::Vector3& value);
-    bool GetProperty(HProperties properties, dmhash_t id, Vectormath::Aos::Vector4& value);
-    bool GetProperty(HProperties properties, dmhash_t id, Vectormath::Aos::Quat& value);
+    void SetPropertyData(HProperties properties, PropertyLayer layer, const PropertyData& data);
 
-    void SetProperties(HProperties properties, uint8_t* buffer, uint32_t buffer_size);
-    uint32_t SerializeProperties(const dmGameObjectDDF::PropertyDesc* properties, uint32_t count, uint8_t* out_buffer, uint32_t out_buffer_size);
-    uint32_t SerializeProperties(const dmArray<PropertyDef>& properties, uint8_t* out_buffer, uint32_t out_buffer_size);
-
-    void AppendProperties(HProperties properties, HProperties next);
-
-    void PropertiesToLuaTable(HInstance instance, const dmArray<PropertyDef>& property_defs, const Properties* properties, lua_State* L, int index);
-    void ClearPropertiesFromLuaTable(const dmArray<PropertyDef>& property_defs, const Properties* properties, lua_State* L, int index);
+    bool GetProperty(const HProperties properties, dmhash_t id, double& value);
+    bool GetProperty(const HProperties properties, dmhash_t id, dmhash_t& value);
+    bool GetProperty(const HProperties properties, dmhash_t id, dmMessage::URL& value);
+    bool GetProperty(const HProperties properties, dmhash_t id, Vectormath::Aos::Vector3& value);
+    bool GetProperty(const HProperties properties, dmhash_t id, Vectormath::Aos::Vector4& value);
+    bool GetProperty(const HProperties properties, dmhash_t id, Vectormath::Aos::Quat& value);
 }
 
 #endif // GAMEOBJECT_PROPS_H

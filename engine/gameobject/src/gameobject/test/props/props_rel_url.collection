@@ -1,0 +1,14 @@
+name: "main"
+collection_instances {
+  id: "sub"
+  collection: "/props_rel_url_sub.collectionc"
+}
+instances {
+  id: "go"
+  prototype: "/props_rel_url.goc"
+  component_properties {
+    id: "script3"
+    properties {id: "type" value: "3" type: PROPERTY_TYPE_NUMBER}
+    properties {id: "url" value: "sub/go#script1" type: PROPERTY_TYPE_URL}
+  }
+}

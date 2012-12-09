@@ -1,0 +1,20 @@
+name: "main"
+instances {
+  id: "go"
+  prototype: "/props_rel_url.goc"
+  component_properties {
+    id: "script1"
+    properties {id: "type" value: "4" type: PROPERTY_TYPE_NUMBER}
+    properties {id: "url" value: "go#script1" type: PROPERTY_TYPE_URL}
+  }
+  component_properties {
+    id: "script2"
+    properties {id: "type" value: "5" type: PROPERTY_TYPE_NUMBER}
+    properties {id: "url" value: "/go#script2" type: PROPERTY_TYPE_URL}
+  }
+  component_properties {
+    id: "script3"
+    properties {id: "type" value: "6" type: PROPERTY_TYPE_NUMBER}
+    properties {id: "url" value: "#script3" type: PROPERTY_TYPE_URL}
+  }
+}

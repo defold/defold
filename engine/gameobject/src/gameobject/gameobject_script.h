@@ -39,13 +39,33 @@ namespace dmGameObject
 
     extern const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT];
 
+    struct UnresolvedURL
+    {
+        dmMessage::URL m_URL;
+        const char* m_UnresolvedPath;
+    };
+
+    struct ScriptPropertyDef
+    {
+        const char* m_Name;
+        dmhash_t m_Id;
+        dmGameObjectDDF::PropertyType m_Type;
+        union
+        {
+            double m_Number;
+            dmhash_t m_Hash;
+            UnresolvedURL m_URL;
+            float m_V4[4];
+        };
+    };
+
     struct Script
     {
-        dmArray<PropertyDef> m_PropertyDefs;
+        dmArray<ScriptPropertyDef> m_PropertyDefs;
         // Used for reloading scripts
-        dmArray<PropertyDef> m_OldPropertyDefs;
+        dmArray<ScriptPropertyDef> m_OldPropertyDefs;
         int m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
-        HProperties m_Properties;
+        PropertyData m_PropertyData;
     };
 
     typedef Script* HScript;
@@ -57,7 +77,7 @@ namespace dmGameObject
         int         m_InstanceReference;
         int         m_ScriptDataReference;
         uint8_t     m_ComponentIndex;
-        HProperties  m_Properties;
+        HProperties m_Properties;
     };
 
     struct ScriptWorld
@@ -79,6 +99,9 @@ namespace dmGameObject
 
     extern lua_State* g_LuaState;
     extern dmScript::HContext g_ScriptContext;
+
+    void ClearPropertiesFromLuaTable(const dmArray<ScriptPropertyDef>& property_defs, lua_State* L, int index);
+    void PropertiesToLuaTable(HInstance instance, const dmArray<ScriptPropertyDef>& property_defs, const HProperties properties, lua_State* L, int index);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

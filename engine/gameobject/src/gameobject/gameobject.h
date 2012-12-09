@@ -14,6 +14,8 @@
 
 #include <resource/resource.h>
 
+#include "../proto/gameobject_ddf.h"
+
 namespace dmGameObject
 {
     using namespace Vectormath::Aos;
@@ -82,6 +84,14 @@ namespace dmGameObject
         INPUT_RESULT_UNKNOWN_ERROR = -1000  //!< INPUT_RESULT_UNKNOWN_ERROR
     };
 
+    enum PropertyResult
+    {
+        PROPERTY_RESULT_OK = 0,
+        PROPERTY_RESULT_NOT_FOUND = -1,
+        PROPERTY_RESULT_INVALID_FORMAT = -2,
+        PROPERTY_RESULT_UNKNOWN_TYPE = -3
+    };
+
     /**
      * Update context
      */
@@ -120,6 +130,30 @@ namespace dmGameObject
         uint16_t m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
         uint16_t m_PositionSet : 1;
+    };
+
+    struct PropertyVar
+    {
+        dmGameObjectDDF::PropertyType m_Type;
+        union
+        {
+            double m_Number;
+            dmhash_t m_Hash;
+            dmMessage::URL m_URL;
+            float m_V4[4];
+        };
+    };
+
+    typedef PropertyResult (*GetPropertyCallback)(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
+    typedef void (*FreeUserDataCallback)(uintptr_t user_data);
+
+    struct PropertyData
+    {
+        PropertyData();
+
+        GetPropertyCallback m_GetPropertyCallback;
+        FreeUserDataCallback m_FreeUserDataCallback;
+        uintptr_t m_UserData;
     };
 
     /**
@@ -172,6 +206,7 @@ namespace dmGameObject
         Point3    m_Position;
         /// Local component rotation
         Quat      m_Rotation;
+        PropertyData m_PropertyData;
         /// Component resource
         void* m_Resource;
         /// Component world, as created in the ComponentNewWorld callback
@@ -230,8 +265,6 @@ namespace dmGameObject
         void* m_Context;
         /// User data storage pointer
         uintptr_t* m_UserData;
-        /// Properties handle
-        HProperties m_Properties;
     };
 
     /**
@@ -380,10 +413,7 @@ namespace dmGameObject
     {
         /// Instance handle
         HInstance m_Instance;
-        /// Serialized properties data
-        uint8_t* m_PropertyBuffer;
-        /// Properties data size
-        uint32_t m_PropertyBufferSize;
+        PropertyData m_PropertyData;
         /// User data storage pointer
         uintptr_t* m_UserData;
     };
@@ -812,16 +842,6 @@ namespace dmGameObject
 
     lua_State* GetLuaState();
 
-    /**
-     * Convert the table at the given index to a properties buffer.
-     * If the buffer is too small to fit the properties, the returned value will be greater than buffer_size and the content of the buffer should not be used.
-     * @param L lua state
-     * @param index index of the table
-     * @param buffer buffer to store the properties in
-     * @param buffer_size size of buffer
-     * @return the size of the buffer used, 0 if the table could not be found and great than buffer_size at overflow
-     */
-    uint32_t LuaTableToProperties(lua_State* L, int index, uint8_t* buffer, uint32_t buffer_size);
 }
 
 #endif // GAMEOBJECT_H
