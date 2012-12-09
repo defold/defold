@@ -137,6 +137,11 @@ namespace dmHID
             // TODO: Add touch device here
             context->m_TouchDeviceConnected = 0;
         }
+        if (!context->m_IgnoreAcceleration)
+        {
+        	AccelerationPacket& packet = context->m_AccelerationPacket;
+        	glfwGetAcceleration(&packet.m_X, &packet.m_Y, &packet.m_Z);
+        }
     }
 
     void GetGamepadDeviceName(HGamepad gamepad, const char** device_name)

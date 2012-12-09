@@ -620,12 +620,16 @@ bail:
         input_action.m_Released = action->m_Released;
         input_action.m_Repeated = action->m_Repeated;
         input_action.m_PositionSet = action->m_PositionSet;
+        input_action.m_AccelerationSet = action->m_AccelerationSet;
         float width_ratio = engine->m_InvPhysicalWidth * engine->m_Width;
         float height_ratio = engine->m_InvPhysicalHeight * engine->m_Height;
         input_action.m_X = (action->m_X + 0.5f) * width_ratio;
         input_action.m_Y = engine->m_Height - (action->m_Y + 0.5f) * height_ratio;
         input_action.m_DX = action->m_DX * width_ratio;
         input_action.m_DY = -action->m_DY * height_ratio;
+        input_action.m_AccX = action->m_AccX;
+        input_action.m_AccY = action->m_AccY;
+        input_action.m_AccZ = action->m_AccZ;
         input_buffer->Push(input_action);
     }
 

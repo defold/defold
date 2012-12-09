@@ -262,5 +262,6 @@ const _GLFWfbconfig *_glfwChooseFBConfig( const _GLFWfbconfig *desired,
                                           const _GLFWfbconfig *alternatives,
                                           unsigned int count );
 
+int _glfwPlatformGetAcceleration(float* x, float* y, float* z);
 
 #endif // _internal_h_
