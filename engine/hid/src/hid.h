@@ -326,6 +326,14 @@ namespace dmHID
     bool IsTouchDeviceConnected(HContext context);
 
     /**
+     * Check if an accelerometer is connected.
+     *
+     * @param context context in which to search
+     * @return If an accelerometer is connected or not
+     */
+    bool IsAccelerometerConnected(HContext context);
+
+    /**
      * Obtain a keyboard packet reflecting the current input state of a HID context.
      *
      * @param context context from which to retrieve the packet

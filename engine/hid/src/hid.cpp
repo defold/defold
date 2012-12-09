@@ -75,6 +75,11 @@ namespace dmHID
         return context->m_TouchDeviceConnected;
     }
 
+    bool IsAccelerometerConnected(HContext context)
+    {
+        return context->m_AccelerometerConnected;
+    }
+
     bool GetKeyboardPacket(HContext context, KeyboardPacket* out_packet)
     {
         if (out_packet != 0x0 && context->m_KeyboardConnected)

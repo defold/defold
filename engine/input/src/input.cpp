@@ -227,6 +227,8 @@ namespace dmInput
         }
         if (binding->m_TouchDeviceBinding != 0x0)
             delete binding->m_TouchDeviceBinding;
+        if (binding->m_AccelerationBinding != 0x0)
+            delete binding->m_AccelerationBinding;
         delete binding;
     }
 
@@ -547,15 +549,19 @@ namespace dmInput
         }
         if (binding->m_AccelerationBinding != 0x0)
         {
-            AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
-            dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
-            dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
-            dmHID::GetAccelerationPacket(hid_context, packet);
-            context.m_AccX = packet->m_X;
-            context.m_AccY = packet->m_Y;
-            context.m_AccZ = packet->m_Z;
-            context.m_AccelerationSet = 1;
-            *prev_packet = *packet;
+            context.m_AccelerationSet = 0;
+            if (dmHID::IsAccelerometerConnected(hid_context))
+            {
+                AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
+                dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
+                dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
+                dmHID::GetAccelerationPacket(hid_context, packet);
+                context.m_AccX = packet->m_X;
+                context.m_AccY = packet->m_Y;
+                context.m_AccZ = packet->m_Z;
+                context.m_AccelerationSet = 1;
+                *prev_packet = *packet;
+            }
         }
         context.m_DT = dt;
         context.m_Context = binding->m_Context;

@@ -26,6 +26,7 @@ namespace dmHID
         uint32_t m_KeyboardConnected : 1;
         uint32_t m_MouseConnected : 1;
         uint32_t m_TouchDeviceConnected : 1;
+        uint32_t m_AccelerometerConnected : 1;
         uint32_t m_IgnoreMouse : 1;
         uint32_t m_IgnoreKeyboard : 1;
         uint32_t m_IgnoreGamepads : 1;

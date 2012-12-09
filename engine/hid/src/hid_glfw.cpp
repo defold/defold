@@ -139,8 +139,13 @@ namespace dmHID
         }
         if (!context->m_IgnoreAcceleration)
         {
-        	AccelerationPacket& packet = context->m_AccelerationPacket;
-        	glfwGetAcceleration(&packet.m_X, &packet.m_Y, &packet.m_Z);
+            AccelerationPacket packet;
+            context->m_AccelerometerConnected = 0;
+            if (glfwGetAcceleration(&packet.m_X, &packet.m_Y, &packet.m_Z))
+            {
+                context->m_AccelerometerConnected = 1;
+                context->m_AccelerationPacket = packet;
+            }
         }
     }
 
