@@ -810,6 +810,46 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the node adjust mode
+     * Adjust mode defines how the node will adjust itself to a screen resolution which differs from the project settings.
+     *
+     * @name gui.get_adjust_mode
+     * @param node node from which to get the adjust mode (node)
+     * @return node adjust mode (constant)
+     * <ul>
+     *   <li><code>gui.ADJUST_FIT</code></li>
+     *   <li><code>gui.ADJUST_ZOOM</code></li>
+     *   <li><code>gui.ADJUST_STRETCH</code></li>
+     * </ul>
+     */
+    static int LuaGetAdjustMode(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushnumber(L, (lua_Number) n->m_Node.m_AdjustMode);
+        return 1;
+    }
+
+    /*# sets node adjust mode
+     * Adjust mode defines how the node will adjust itself to a screen resolution which differs from the project settings.
+     *
+     * @name gui.set_adjust_mode
+     * @param node node to set adjust mode for (node)
+     * @param adjust_mode adjust mode to set (constant)
+     * <ul>
+     *   <li><code>gui.ADJUST_FIT</code></li>
+     *   <li><code>gui.ADJUST_ZOOM</code></li>
+     *   <li><code>gui.ADJUST_STRETCH</code></li>
+     * </ul>
+     */
+    static int LuaSetAdjustMode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int adjust_mode = (int) luaL_checknumber(L, 2);
+        n->m_Node.m_AdjustMode = (AdjustMode) adjust_mode;
+        return 0;
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -990,6 +1030,8 @@ namespace dmGui
         {"get_height",      LuaGetHeight},
         {"pick_node",       LuaPickNode},
         {"set_enabled",     LuaSetEnabled},
+        {"get_adjust_mode", LuaGetAdjustMode},
+        {"set_adjust_mode", LuaSetAdjustMode},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -1166,6 +1208,27 @@ namespace dmGui
      * @variable
      */
 
+    /*# fit adjust mode
+     * Adjust mode is used when the screen resolution differs from the project settings.
+     * The fit mode ensures that the entire node is visible in the adjusted gui scene.
+     * @name gui.ADJUST_FIT
+     * @variable
+     */
+
+    /*# zoom adjust mode
+     * Adjust mode is used when the screen resolution differs from the project settings.
+     * The zoom mode ensures that the node fills its entire area and might make the node exceed it.
+     * @name gui.ADJUST_ZOOM
+     * @variable
+     */
+
+    /*# stretch adjust mode
+     * Adjust mode is used when the screen resolution differs from the project settings.
+     * The stretch mode ensures that the node is displayed as is in the adjusted gui scene, which might scale it non-uniformally.
+     * @name gui.ADJUST_STRETCH
+     * @variable
+     */
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = lua_open();
@@ -1253,6 +1316,16 @@ namespace dmGui
         SETPIVOT(NW)
 
 #undef SETPIVOT
+
+#define SETADJUST(name) \
+        lua_pushnumber(L, (lua_Number) ADJUST_MODE_##name); \
+        lua_setfield(L, -2, "ADJUST_"#name);\
+
+        SETADJUST(FIT)
+        SETADJUST(ZOOM)
+        SETADJUST(STRETCH)
+
+#undef SETADJUST
 
         lua_pop(L, 1);
 

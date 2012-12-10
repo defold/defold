@@ -53,6 +53,13 @@ message NodeDesc
         PIVOT_NW     = 8 [(displayName) = "North West"];
     };
 
+    enum AdjustMode
+    {
+        ADJUST_MODE_FIT = 0 [(displayName) = "Fit"];
+        ADJUST_MODE_ZOOM = 1 [(displayName) = "Zoom"];
+        ADJUST_MODE_STRETCH = 2 [(displayName) = "Stretch"];
+    };
+
     required dmMath.Vector4 position = 1;
     required dmMath.Vector4 rotation = 2;
     required dmMath.Vector4 scale    = 3;
@@ -69,6 +76,7 @@ message NodeDesc
     optional Pivot      pivot        = 14 [default = PIVOT_CENTER];
     optional dmMath.Vector4 outline  = 15;
     optional dmMath.Vector4 shadow   = 16;
+    optional AdjustMode adjust_mode  = 17 [default = ADJUST_MODE_FIT];
 }
 
 message SceneDesc

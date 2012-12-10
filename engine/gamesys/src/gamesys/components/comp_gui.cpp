@@ -152,6 +152,7 @@ namespace dmGameSystem
             // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
             dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
             dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
+            dmGui::AdjustMode adjust_mode = (dmGui::AdjustMode) node_desc->m_AdjustMode;
 
             Vector4 position = node_desc->m_Position;
             Vector4 size = node_desc->m_Size;
@@ -186,6 +187,7 @@ namespace dmGameSystem
                 dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
                 dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
                 dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
+                dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
             }
             else
             {

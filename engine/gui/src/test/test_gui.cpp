@@ -1492,28 +1492,30 @@ TEST_F(dmGuiTest, Anchoring)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
 
     Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    // Nodes have adjust mode "fit" by default
+    float uniform_ref_scale = dmMath::Min(ref_scale.getX(), ref_scale.getY());
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
     dmGui::SetNodeXAnchor(m_Scene, n1, dmGui::XANCHOR_LEFT);
-    dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_TOP);
+    dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_BOTTOM);
 
     const char* n2_name = "n2";
     dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10, height - 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n2, n2_name);
     dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
-    dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_TOP);
 
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
     Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
-    ASSERT_EQ(10 * ref_scale.getX(), pos1.getX());
-    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY());
+    ASSERT_EQ(10 * uniform_ref_scale, pos1.getX());
+    ASSERT_EQ(10 * uniform_ref_scale, pos1.getY());
 
     Vector4 pos2 = m_NodeTextToRenderedPosition[n2_name];
-    ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX());
-    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY());
+    ASSERT_EQ(physical_width - 10 * uniform_ref_scale, pos2.getX());
+    ASSERT_EQ(physical_height - 10 * uniform_ref_scale, pos2.getY());
 }
 
 TEST_F(dmGuiTest, ScriptAnchoring)
@@ -1534,10 +1536,10 @@ TEST_F(dmGuiTest, ScriptAnchoring)
                     "    assert (768 == gui.get_height())\n"
                     "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
                     "    gui.set_xanchor(self.n1, gui.ANCHOR_LEFT)\n"
-                    "    gui.set_yanchor(self.n1, gui.ANCHOR_TOP)\n"
+                    "    gui.set_yanchor(self.n1, gui.ANCHOR_BOTTOM)\n"
                     "    self.n2 = gui.new_text_node(vmath.vector3(gui.get_width() - 10, gui.get_height()-10, 0), \"n2\")"
                     "    gui.set_xanchor(self.n2, gui.ANCHOR_RIGHT)\n"
-                    "    gui.set_yanchor(self.n2, gui.ANCHOR_BOTTOM)\n"
+                    "    gui.set_yanchor(self.n2, gui.ANCHOR_TOP)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -1554,15 +1556,16 @@ TEST_F(dmGuiTest, ScriptAnchoring)
 
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
+    // Nodes have adjust mode "fit" by default
     // These tests the actual position of the cursor when rendering text so we need to adjust with the ref-scaled text metrics
     float ref_factor = dmMath::Min(ref_scale.getX(), ref_scale.getY());
     Vector4 pos1 = m_NodeTextToRenderedPosition["n1"];
-    ASSERT_EQ(10 * ref_scale.getX(), pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
+    ASSERT_EQ(10 * ref_factor, pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(10 * ref_factor, pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
 
     Vector4 pos2 = m_NodeTextToRenderedPosition["n2"];
-    ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
+    ASSERT_EQ(physical_width - 10 * ref_factor, pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(physical_height - 10 * ref_factor, pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
 }
 
 TEST_F(dmGuiTest, ScriptErroneousReturnValues)

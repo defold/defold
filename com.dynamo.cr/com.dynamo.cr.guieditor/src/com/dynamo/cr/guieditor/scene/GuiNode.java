@@ -25,6 +25,7 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.PropertyIntrospector;
 import com.dynamo.cr.properties.PropertyIntrospectorModel;
 import com.dynamo.gui.proto.Gui.NodeDesc;
+import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
@@ -72,6 +73,9 @@ public abstract class GuiNode implements IAdaptable {
 
     @Property()
     private YAnchor yanchor;
+
+    @Property()
+    private AdjustMode adjustMode;
 
     protected Map<String, IStatus> statusMap = new HashMap<String, IStatus>();
 
@@ -185,6 +189,14 @@ public abstract class GuiNode implements IAdaptable {
         this.yanchor = yanchor;
     }
 
+    public AdjustMode getAdjustMode() {
+        return adjustMode;
+    }
+
+    public void setAdjustMode(AdjustMode adjustMode) {
+        this.adjustMode = adjustMode;
+    }
+
     public void setScene(GuiScene scene) {
         this.scene = scene;
     }
@@ -214,6 +226,7 @@ public abstract class GuiNode implements IAdaptable {
         this.pivot = nodeDesc.getPivot();
         this.xanchor = nodeDesc.getXanchor();
         this.yanchor = nodeDesc.getYanchor();
+        this.adjustMode = nodeDesc.getAdjustMode();
         verify();
     }
 
@@ -282,7 +295,8 @@ public abstract class GuiNode implements IAdaptable {
         .setId(id)
         .setPivot(pivot)
         .setXanchor(xanchor)
-        .setYanchor(yanchor);
+        .setYanchor(yanchor)
+        .setAdjustMode(adjustMode);
         doBuildNodeDesc(builder);
         return builder.build();
     }

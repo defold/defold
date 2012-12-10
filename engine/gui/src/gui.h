@@ -170,6 +170,15 @@ namespace dmGui
         PIVOT_NW     = 8,
     };
 
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+    enum AdjustMode
+    {
+        ADJUST_MODE_FIT     = 0,
+        ADJUST_MODE_ZOOM    = 1,
+        ADJUST_MODE_STRETCH = 2,
+    };
+
     /**
      * Container of input related information.
      */
@@ -374,6 +383,8 @@ namespace dmGui
     void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor);
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
+
+    void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
 
     void AnimateNode(HScene scene, HNode node,
                      Property property,

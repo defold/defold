@@ -814,6 +814,12 @@ namespace dmGui
         n->m_Node.m_Pivot = (uint32_t) pivot;
     }
 
+    void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_AdjustMode = (uint32_t) adjust_mode;
+    }
+
     void AnimateNode(HScene scene,
                      HNode node,
                      Property property,
@@ -1005,6 +1011,22 @@ namespace dmGui
         }
     }
 
+    static Quat EulerToQuat(Vector3 euler_radians)
+    {
+        // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        Vector3 half_euler = euler_radians * 0.5f;
+        float cx = (float)cos(half_euler.getX());
+        float sx = (float)sin(half_euler.getX());
+        float cy = (float)cos(half_euler.getY());
+        float sy = (float)sin(half_euler.getY());
+        float cz = (float)cos(half_euler.getZ());
+        float sz = (float)sin(half_euler.getZ());
+        return Quat(sx*cy*cz - cx*sy*sz,
+                cx*sy*cz + sx*cy*sz,
+                cx*cy*sz - sx*sy*cz,
+                cx*cy*cz + sx*sy*sz);
+    }
+
     void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform)
     {
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
@@ -1013,18 +1035,46 @@ namespace dmGui
         const Vector4& scale = node.m_Properties[dmGui::PROPERTY_SCALE];
         const dmGui::Pivot pivot = (dmGui::Pivot) node.m_Pivot;
 
-        // Apply anchoring
         HContext context = scene->m_Context;
-        Vector4 scaled_position = mulPerElem(position, reference_scale);
-        if (node.m_XAnchor == XANCHOR_RIGHT)
+
+        // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
+        Vector3 adjust_scale = reference_scale.getXYZ();
+        if (node.m_AdjustMode == dmGui::ADJUST_MODE_FIT)
         {
-            float distance = (context->m_Width - position.getX()) * reference_scale.getX();
+            float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
+            adjust_scale = Vector3(uniform, uniform, 1.0f);
+        }
+        else if (node.m_AdjustMode == dmGui::ADJUST_MODE_ZOOM)
+        {
+            float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
+            adjust_scale = Vector3(uniform, uniform, 1.0f);
+        }
+        Vector3 screen_dims = Vector3(context->m_Width, context->m_Height, 0.0f);
+        Vector3 adjusted_dims = mulPerElem(screen_dims, adjust_scale);
+        Vector3 offset = (Vector3(context->m_PhysicalWidth, context->m_PhysicalHeight, 0.0f) - adjusted_dims) * 0.5f;
+        // Apply anchoring
+        Vector4 scaled_position = mulPerElem(position, Vector4(adjust_scale, 1.0f));
+        if (node.m_XAnchor == XANCHOR_LEFT)
+        {
+            offset.setX(0.0f);
+            scaled_position.setX(position.getX() * adjust_scale.getX());
+        }
+        else if (node.m_XAnchor == XANCHOR_RIGHT)
+        {
+            offset.setX(0.0f);
+            float distance = (context->m_Width - position.getX()) * adjust_scale.getX();
             scaled_position.setX(context->m_PhysicalWidth - distance);
         }
-        if (node.m_YAnchor == YANCHOR_BOTTOM)
+        if (node.m_YAnchor == YANCHOR_TOP)
         {
-            float distance = (context->m_Height - position.getY()) * reference_scale.getY();
+            offset.setY(0.0f);
+            float distance = (context->m_Height - position.getY()) * adjust_scale.getY();
             scaled_position.setY(context->m_PhysicalHeight - distance);
+        }
+        else if (node.m_YAnchor == YANCHOR_BOTTOM)
+        {
+            offset.setY(0.0f);
+            scaled_position.setY(position.getY() * adjust_scale.getY());
         }
         position = scaled_position;
 
@@ -1090,16 +1140,13 @@ namespace dmGui
                 break;
         }
 
-        // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
-        float uniform_ref_scale = dmMath::Min(reference_scale.getX(), reference_scale.getY());
-
         const float deg_to_rad = 3.1415926f / 180.0f;
-        *out_transform = Matrix4::translation(position.getXYZ()) *
-                    Matrix4::rotationZ(rotation.getZ() * deg_to_rad) *
-                    Matrix4::rotationY(rotation.getY() * deg_to_rad) *
-                    Matrix4::rotationX(rotation.getX() * deg_to_rad) *
-                    Matrix4::scale(mulPerElem(scale.getXYZ(), Vector3(uniform_ref_scale, uniform_ref_scale, 1))) *
-                    Matrix4::translation(-delta_pivot.getXYZ());
+        Quat r = EulerToQuat(rotation.getXYZ() * deg_to_rad);
+        Vector3 s = mulPerElem(scale.getXYZ(), adjust_scale);
+        Vector3 t = -delta_pivot.getXYZ();
+        t = offset + position.getXYZ() + rotate(r, mulPerElem(s, t));
+        *out_transform = Matrix4::rotation(r) * Matrix4::scale(s);
+        out_transform->setTranslation(t);
         if (!render_text)
         {
             *out_transform *= Matrix4::scale(Vector3(width, height, 1));
