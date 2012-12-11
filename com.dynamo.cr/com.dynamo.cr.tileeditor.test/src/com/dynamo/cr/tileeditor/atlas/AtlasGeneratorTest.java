@@ -11,7 +11,7 @@ import java.util.List;
 import org.junit.Test;
 
 import com.dynamo.cr.tileeditor.atlas.AtlasGenerator.AnimDesc;
-import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.tile.proto.Tile.Playback;
 
 public class AtlasGeneratorTest {
@@ -45,13 +45,15 @@ public class AtlasGeneratorTest {
         assertThat(atlas.getAnimations().size(), is(4 + 2));
 
         // NOTE: We currently assume 6 vertices per frame
-        assertThat(getAnim(atlas, "1").getVertexCount(), is(6));
-        assertThat(getAnim(atlas, "2").getVertexCount(), is(6));
-        assertThat(getAnim(atlas, "3").getVertexCount(), is(6));
-        assertThat(getAnim(atlas, "4").getVertexCount(), is(6));
+        assertThat(atlas.getVertexCount(getAnim(atlas, "1")), is(6));
+        assertThat(atlas.getVertexCount(getAnim(atlas, "2")), is(6));
+        assertThat(atlas.getVertexCount(getAnim(atlas, "3")), is(6));
+        assertThat(atlas.getVertexCount(getAnim(atlas, "4")), is(6));
+        assertThat(getAnim(atlas, "1").getIsAnimation(), is(0));
 
-        assertThat(getAnim(atlas, "anim1").getVertexCount(), is(6 * 3));
-        assertThat(getAnim(atlas, "anim2").getVertexCount(), is(6 * 2));
+        assertThat(atlas.getVertexCount(getAnim(atlas, "anim1")), is(6 * 3));
+        assertThat(atlas.getVertexCount(getAnim(atlas, "anim2")), is(6 * 2));
+        assertThat(getAnim(atlas, "anim1").getIsAnimation(), is(1));
     }
 
     private TextureSetAnimation getAnim(AtlasMap atlas, String id) {

@@ -12,6 +12,7 @@ import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.cr.tileeditor.atlas.AtlasMap;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.sun.opengl.util.j2d.TextRenderer;
 import com.sun.opengl.util.texture.Texture;
 
@@ -63,8 +64,8 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             VertexBufferObject vertexBuffer = node.getVertexBuffer();
             vertexBuffer.enable(gl);
 
-            gl.glTexCoordPointer(2, GL.GL_FLOAT, TextureSetAnimation.COMPONENT_COUNT * 4, 0);
-            gl.glVertexPointer(3, GL.GL_FLOAT, TextureSetAnimation.COMPONENT_COUNT * 4, 2 * 4);
+            gl.glTexCoordPointer(2, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 0);
+            gl.glVertexPointer(3, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 2 * 4);
 
             time += renderContext.getDt();
             AtlasAnimationNode playBackNode = node.getPlayBackNode();
@@ -130,7 +131,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             float scaleY = playBackNode.isFlipVertically() ? - 1 : 1;
 
             gl.glColor4f(1, 1, 1, 1);
-            renderTile(gl, tileToRender, centerX, centerY, scaleX, scaleY);
+            renderTile(gl, atlasMap, tileToRender, centerX, centerY, scaleX, scaleY);
             texture.disable();
         }
     }
@@ -141,24 +142,24 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
 
         gl.glColor4f(1, 1, 1, 1 * alpha);
         for (TextureSetAnimation tile : tiles) {
-            if (!tile.isAnimation()) {
-                renderTile(gl, tile, tile.getCenterX(), tile.getCenterY(), 1, 1);
+            if (tile.getIsAnimation() == 0) {
+                renderTile(gl, atlasMap, tile, atlasMap.getCenterX(tile), atlasMap.getCenterY(tile), 1, 1);
             }
         }
         texture.disable();
 
         gl.glColor4f(1, 1, 1, 0.1f * alpha);
         for (TextureSetAnimation tile : tiles) {
-            if (!tile.isAnimation()) {
-                renderTile(gl, tile, tile.getCenterX(), tile.getCenterY(), 1, 1);
+            if (tile.getIsAnimation() == 0) {
+                renderTile(gl, atlasMap, tile, atlasMap.getCenterX(tile), atlasMap.getCenterY(tile), 1, 1);
             }
         }
     }
 
-    private void renderTile(GL gl, TextureSetAnimation tile, float offsetX, float offsetY, float scaleX, float scaleY) {
+    private void renderTile(GL gl, AtlasMap atlasMap, TextureSetAnimation tile, float offsetX, float offsetY, float scaleX, float scaleY) {
         gl.glTranslatef(offsetX, offsetY, 0);
         gl.glScalef(scaleX, scaleY, 1);
-        gl.glDrawArrays(GL.GL_TRIANGLES, tile.getVertexStart(), tile.getVertexCount());
+        gl.glDrawArrays(GL.GL_TRIANGLES, atlasMap.getVertexStart(tile), atlasMap.getVertexCount(tile));
         gl.glScalef(scaleX, scaleY, 1);
         gl.glTranslatef(-offsetX, -offsetY, 0);
     }

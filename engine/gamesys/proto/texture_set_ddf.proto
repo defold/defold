@@ -10,12 +10,15 @@ option java_outer_classname = "TextureSetProto";
 message TextureSetAnimation
 {
     required string id              = 1;
-    required uint32 start           = 2;
-    required uint32 end             = 3;
-    optional uint32 fps             = 4 [default = 30];
-    optional Playback playback      = 5 [default = PLAYBACK_ONCE_FORWARD];
-    optional uint32 flip_horizontal = 6 [default = 0];
-    optional uint32 flip_vertical   = 7 [default = 0];
+    required uint32 width           = 2;
+    required uint32 height          = 3;
+    required uint32 start           = 4;
+    required uint32 end             = 5;
+    optional uint32 fps             = 6 [default = 30];
+    optional Playback playback      = 7 [default = PLAYBACK_ONCE_FORWARD];
+    optional uint32 flip_horizontal = 8 [default = 0];
+    optional uint32 flip_vertical   = 9 [default = 0];
+    optional uint32 is_animation    = 10 [default = 0]; // Not set for primary images. Only used for atlasmap-editor
 }
 
 /*

@@ -13,6 +13,7 @@ import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.cr.tileeditor.atlas.AtlasGenerator;
 import com.dynamo.cr.tileeditor.atlas.AtlasMap;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 
 @SuppressWarnings("serial")
 public class AtlasNode extends TextureSetNode {
@@ -222,6 +223,26 @@ public class AtlasNode extends TextureSetNode {
             return am.getTexCoordsBuffer();
         }
         return null;
+    }
+
+    @Override
+    public int getVertexStart(TextureSetAnimation anim) {
+        return getAtlasMap().getVertexStart(anim);
+    }
+
+    @Override
+    public int getVertexCount(TextureSetAnimation anim) {
+        return getAtlasMap().getVertexCount(anim);
+    }
+
+    @Override
+    public int getOutlineVertexStart(TextureSetAnimation anim) {
+        return getAtlasMap().getOutlineVertexStart(anim);
+    }
+
+    @Override
+    public int getOutlineVertexCount(TextureSetAnimation anim) {
+        return getAtlasMap().getOutlineVertexCount(anim);
     }
 
 }

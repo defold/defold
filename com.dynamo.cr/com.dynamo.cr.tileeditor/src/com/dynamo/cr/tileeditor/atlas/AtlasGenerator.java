@@ -11,7 +11,8 @@ import java.util.Map;
 import com.dynamo.cr.tileeditor.atlas.AtlasLayout.Layout;
 import com.dynamo.cr.tileeditor.atlas.AtlasLayout.LayoutType;
 import com.dynamo.cr.tileeditor.atlas.AtlasLayout.Rect;
-import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
+import com.dynamo.cr.tileeditor.scene.TextureSetNode;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.tile.proto.Tile.Playback;
 import com.sun.opengl.util.BufferUtil;
 
@@ -93,7 +94,7 @@ public class AtlasGenerator {
             totalAnimationFrameCount += anim.getIds().size();
         }
 
-        final int components = TextureSetAnimation.COMPONENT_COUNT;
+        final int components = TextureSetNode.COMPONENT_COUNT;
         FloatBuffer vertexBuffer = BufferUtil.newFloatBuffer(components * 6 * (layout.getRectangles().size() + totalAnimationFrameCount));
         FloatBuffer outlineVertexBuffer = BufferUtil.newFloatBuffer(components * 4 * (layout.getRectangles().size() + totalAnimationFrameCount));
         FloatBuffer texCoordsBuffer = BufferUtil.newFloatBuffer(4 * (layout.getRectangles().size() + totalAnimationFrameCount));
@@ -136,9 +137,14 @@ public class AtlasGenerator {
             outlineVertexBuffer.put(outlineVertices);
             texCoordsBuffer.put(texCoords);
 
-            float cx = r.x + r.width * 0.5f;
-            float cy = r.y + r.height * 0.5f;
-            TextureSetAnimation anim = new TextureSetAnimation(imageIds.get(index), tileIndex, r.width, r.height, cx, cy);
+            TextureSetAnimation anim = TextureSetAnimation.newBuilder()
+                    .setId(imageIds.get(index))
+                    .setStart(tileIndex)
+                    .setEnd(tileIndex)
+                    .setWidth(r.width)
+                    .setHeight(r.height)
+                    .build();
+
             tiles.add(anim);
             idToAnimation.put(imageIds.get(index), anim);
             ++tileIndex;
@@ -158,10 +164,19 @@ public class AtlasGenerator {
                 }
 
                 TextureSetAnimation imageAnim = idToAnimation.get(ids.get(0));
-                TextureSetAnimation setAnim = new TextureSetAnimation(anim.getId(),
-                                                                      imageAnim.getWidth(), imageAnim.getHeight(), imageAnim.getCenterX(), imageAnim.getCenterY(),
-                                                                      anim.getPlayback(), tileIndex, tileIndex + ids.size() - 1, anim.getFps(),
-                                                                      anim.isFlipHorizontally(), anim.isFlipVertically());
+                TextureSetAnimation setAnim = TextureSetAnimation.newBuilder()
+                        .setId(anim.getId())
+                        .setStart(tileIndex)
+                        .setEnd(tileIndex + ids.size() - 1)
+                        .setWidth(imageAnim.getWidth())
+                        .setHeight(imageAnim.getHeight())
+                        .setPlayback(anim.getPlayback())
+                        .setFps(anim.getFps())
+                        .setFlipHorizontal(anim.isFlipHorizontally() ? 1 : 0)
+                        .setFlipVertical(anim.isFlipVertically() ? 1 : 0)
+                        .setIsAnimation(1)
+                        .build();
+
                 tiles.add(setAnim);
 
                 tileIndex += ids.size();

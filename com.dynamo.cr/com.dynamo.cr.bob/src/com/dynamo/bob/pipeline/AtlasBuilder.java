@@ -25,10 +25,9 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.cr.tileeditor.atlas.AtlasGenerator;
 import com.dynamo.cr.tileeditor.atlas.AtlasGenerator.AnimDesc;
 import com.dynamo.cr.tileeditor.atlas.AtlasMap;
-import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.textureset.proto.TextureSetProto;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.ByteString;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".texturesetc")
@@ -92,20 +91,6 @@ public class AtlasBuilder extends Builder<Void>  {
         return animDescs;
     }
 
-    private static TextureSetProto.TextureSetAnimation textureSetAnimation(TextureSetAnimation anim) {
-        TextureSetProto.TextureSetAnimation.Builder b
-            = TextureSetProto.TextureSetAnimation.newBuilder()
-            .setId(anim.getId())
-            .setStart(anim.getStart())
-            .setEnd(anim.getEnd())
-            .setFps(anim.getFps())
-            .setPlayback(anim.getPlayback())
-            .setFlipHorizontal(anim.isFlipHorizontally() ? 1 : 0)
-            .setFlipVertical(anim.isFlipVertically() ? 1 : 0);
-
-        return b.build();
-    }
-
     private static short toShortUV(float fuv) {
         int uv = (int) (fuv * 65535.0f);
         return (short) (uv & 0xffff);
@@ -114,14 +99,14 @@ public class AtlasBuilder extends Builder<Void>  {
     private static void createVertices(AtlasMap atlasMap, TextureSet.Builder b) {
         int vertexCount = 0;
         for (TextureSetAnimation anim : atlasMap.getAnimations()) {
-            vertexCount += anim.getVertexCount();
+            vertexCount += atlasMap.getVertexCount(anim);
         }
 
         FloatBuffer inVb = atlasMap.getVertexBuffer();
         ByteBuffer outVb = ByteBuffer.allocate(vertexCount * (3 * 4 + 4)).order(ByteOrder.LITTLE_ENDIAN);
         for (TextureSetAnimation anim : atlasMap.getAnimations()) {
-            int start = anim.getVertexStart();
-            int count = anim.getVertexCount();
+            int start = atlasMap.getVertexStart(anim);
+            int count = atlasMap.getVertexCount(anim);
 
             for (int i = 0; i < count; ++i) {
                 outVb.putFloat(inVb.get((start + i) * 5 + 0));
@@ -141,7 +126,7 @@ public class AtlasBuilder extends Builder<Void>  {
         TextureSet.Builder b = TextureSet.newBuilder();
 
         for (TextureSetAnimation anim : atlasMap.getAnimations()) {
-            b.addAnimations(textureSetAnimation(anim));
+            b.addAnimations(anim);
         }
         createVertices(atlasMap, b);
 

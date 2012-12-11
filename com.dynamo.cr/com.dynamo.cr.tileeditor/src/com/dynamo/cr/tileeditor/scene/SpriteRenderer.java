@@ -10,6 +10,7 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.sun.opengl.util.texture.Texture;
 
 public class SpriteRenderer implements INodeRenderer<SpriteNode> {
@@ -80,13 +81,13 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
         vertexBuffer.enable(gl);
 
-        gl.glTexCoordPointer(2, GL.GL_FLOAT, TextureSetAnimation.COMPONENT_COUNT * 4, 0);
-        gl.glVertexPointer(3, GL.GL_FLOAT, TextureSetAnimation.COMPONENT_COUNT * 4, 2 * 4);
+        gl.glTexCoordPointer(2, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 0);
+        gl.glVertexPointer(3, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 2 * 4);
 
         if ( renderData.getPass() == Pass.OUTLINE) {
-            gl.glDrawArrays(GL.GL_LINE_LOOP, animation.getOutlineVertexStart(), animation.getOutlineVertexCount());
+            gl.glDrawArrays(GL.GL_LINE_LOOP, textureSet.getOutlineVertexStart(animation), textureSet.getOutlineVertexCount(animation));
         } else {
-            gl.glDrawArrays(GL.GL_TRIANGLES, animation.getVertexStart(), animation.getVertexCount());
+            gl.glDrawArrays(GL.GL_TRIANGLES, textureSet.getVertexStart(animation), textureSet.getVertexCount(animation));
         }
 
         vertexBuffer.disable(gl);
