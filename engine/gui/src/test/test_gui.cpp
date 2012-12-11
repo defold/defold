@@ -65,7 +65,8 @@ public:
     dmMessage::HSocket m_Socket;
     dmGui::HScript m_Script;
     std::map<std::string, dmGui::HNode> m_NodeTextToNode;
-    std::map<std::string, Vector4> m_NodeTextToRenderedPosition;
+    std::map<std::string, Point3> m_NodeTextToRenderedPosition;
+    std::map<std::string, Vector3> m_NodeTextToRenderedSize;
 
     virtual void SetUp()
     {
@@ -93,15 +94,15 @@ public:
     {
         dmGuiTest* self = (dmGuiTest*) context;
         // The node is defined to completely cover the local space (0,1),(0,1)
-        Vector4 origin_pivot(0.f, 0.f, 0.0f, 1.0f);
-        Vector4 center_pivot(0.5f, 0.5f, 0.0f, 1.0f);
+        Vector4 origin(0.f, 0.f, 0.0f, 1.0f);
+        Vector4 unit(1.0f, 1.0f, 0.0f, 1.0f);
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            dmGui::HNode node = nodes[i];
-            if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT)
-                self->m_NodeTextToRenderedPosition[dmGui::GetNodeText(scene, nodes[i])] = node_transforms[i] * origin_pivot;
-            else
-                self->m_NodeTextToRenderedPosition[dmGui::GetNodeText(scene, nodes[i])] = node_transforms[i] * center_pivot;
+            Vector4 o = node_transforms[i] * origin;
+            Vector4 u = node_transforms[i] * unit;
+            const char* text = dmGui::GetNodeText(scene, nodes[i]);
+            self->m_NodeTextToRenderedPosition[text] = Point3(o.getXYZ());
+            self->m_NodeTextToRenderedSize[text] = Vector3((u - o).getXYZ());
         }
     }
 
@@ -149,6 +150,22 @@ TEST_F(dmGuiTest, Basic)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     ASSERT_EQ((dmGui::HNode) 0, node);
     ASSERT_EQ(m_Script, dmGui::GetSceneScript(m_Scene));
+}
+
+// Test that a newly re-created node has default values
+TEST_F(dmGuiTest, RecreateNodes)
+{
+    uint32_t n = MAX_NODES + 1;
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        ASSERT_NE((dmGui::HNode) 0, node);
+        ASSERT_EQ(dmGui::PIVOT_CENTER, dmGui::GetNodePivot(m_Scene, node));
+        dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_E);
+        ASSERT_EQ(dmGui::PIVOT_E, dmGui::GetNodePivot(m_Scene, node));
+
+        dmGui::DeleteNode(m_Scene, node);
+    }
 }
 
 TEST_F(dmGuiTest, Name)
@@ -1469,15 +1486,17 @@ TEST_F(dmGuiTest, Scaling)
 
     dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2, height/2,0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
+
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
-    Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
-    ASSERT_EQ(physical_width/2, pos1.getX());
-    ASSERT_EQ(physical_height/2, pos1.getY());
+    Point3 center = m_NodeTextToRenderedPosition[n1_name] + m_NodeTextToRenderedSize[n1_name] * 0.5f;
+    ASSERT_EQ(physical_width/2, center.getX());
+    ASSERT_EQ(physical_height/2, center.getY());
 }
 
 TEST_F(dmGuiTest, Anchoring)
@@ -1492,8 +1511,6 @@ TEST_F(dmGuiTest, Anchoring)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
 
     Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
-    // Nodes have adjust mode "fit" by default
-    float uniform_ref_scale = dmMath::Min(ref_scale.getX(), ref_scale.getY());
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
@@ -1509,13 +1526,14 @@ TEST_F(dmGuiTest, Anchoring)
 
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
-    Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
-    ASSERT_EQ(10 * uniform_ref_scale, pos1.getX());
-    ASSERT_EQ(10 * uniform_ref_scale, pos1.getY());
+    Point3 pos1 = m_NodeTextToRenderedPosition[n1_name] + m_NodeTextToRenderedSize[n1_name] * 0.5f;
+    const float EPSILON = 0.0001f;
+    ASSERT_NEAR(10 * ref_scale.getX(), pos1.getX(), EPSILON);
+    ASSERT_NEAR(10 * ref_scale.getY(), pos1.getY(), EPSILON);
 
-    Vector4 pos2 = m_NodeTextToRenderedPosition[n2_name];
-    ASSERT_EQ(physical_width - 10 * uniform_ref_scale, pos2.getX());
-    ASSERT_EQ(physical_height - 10 * uniform_ref_scale, pos2.getY());
+    Point3 pos2 = m_NodeTextToRenderedPosition[n2_name] + m_NodeTextToRenderedSize[n2_name] * 0.5f;
+    ASSERT_NEAR(physical_width - 10 * ref_scale.getX(), pos2.getX(), EPSILON);
+    ASSERT_NEAR(physical_height - 10 * ref_scale.getY(), pos2.getY(), EPSILON);
 }
 
 TEST_F(dmGuiTest, ScriptAnchoring)
@@ -1556,16 +1574,78 @@ TEST_F(dmGuiTest, ScriptAnchoring)
 
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
-    // Nodes have adjust mode "fit" by default
     // These tests the actual position of the cursor when rendering text so we need to adjust with the ref-scaled text metrics
     float ref_factor = dmMath::Min(ref_scale.getX(), ref_scale.getY());
-    Vector4 pos1 = m_NodeTextToRenderedPosition["n1"];
-    ASSERT_EQ(10 * ref_factor, pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(10 * ref_factor, pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
+    Point3 pos1 = m_NodeTextToRenderedPosition["n1"];
+    ASSERT_EQ(10 * ref_scale.getX(), pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
 
-    Vector4 pos2 = m_NodeTextToRenderedPosition["n2"];
-    ASSERT_EQ(physical_width - 10 * ref_factor, pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(physical_height - 10 * ref_factor, pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
+    Point3 pos2 = m_NodeTextToRenderedPosition["n2"];
+    ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
+}
+
+TEST_F(dmGuiTest, AdjustMode)
+{
+    uint32_t width = 640;
+    uint32_t height = 320;
+
+    uint32_t physical_width = 1280;
+    uint32_t physical_height = 320;
+
+    dmGui::SetResolution(m_Context, width, height);
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    float min_ref_scale = dmMath::Min(ref_scale.getX(), ref_scale.getY());
+    float max_ref_scale = dmMath::Max(ref_scale.getX(), ref_scale.getY());
+
+    dmGui::AdjustMode modes[] = {dmGui::ADJUST_MODE_FIT, dmGui::ADJUST_MODE_ZOOM, dmGui::ADJUST_MODE_STRETCH};
+    Vector3 adjust_scales[] = {
+            Vector3(min_ref_scale, min_ref_scale, 1.0f),
+            Vector3(max_ref_scale, max_ref_scale, 1.0f),
+            ref_scale.getXYZ()
+    };
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmGui::AdjustMode mode = modes[i];
+        Vector3 adjust_scale = adjust_scales[i];
+
+        const char* center_name = "center";
+        dmGui::HNode center_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeText(m_Scene, center_node, center_name);
+        dmGui::SetNodePivot(m_Scene, center_node, dmGui::PIVOT_CENTER);
+        dmGui::SetNodeAdjustMode(m_Scene, center_node, mode);
+
+        const char* bl_name = "bottom_left";
+        dmGui::HNode bl_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeText(m_Scene, bl_node, bl_name);
+        dmGui::SetNodePivot(m_Scene, bl_node, dmGui::PIVOT_SW);
+        dmGui::SetNodeAdjustMode(m_Scene, bl_node, mode);
+
+        const char* tr_name = "top_right";
+        dmGui::HNode tr_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeText(m_Scene, tr_node, tr_name);
+        dmGui::SetNodePivot(m_Scene, tr_node, dmGui::PIVOT_NE);
+        dmGui::SetNodeAdjustMode(m_Scene, tr_node, mode);
+
+        dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+        Vector3 offset((physical_width - width * adjust_scale.getX()) * 0.5f, (physical_height - height * adjust_scale.getY()) * 0.5f, 0.0f);
+
+        Point3 center_p = m_NodeTextToRenderedPosition[center_name] + m_NodeTextToRenderedSize[center_name] * 0.5f;
+        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), center_p.getX());
+        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), center_p.getY());
+
+        Point3 bl_p = m_NodeTextToRenderedPosition[bl_name];
+        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), bl_p.getX());
+        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), bl_p.getY());
+
+        Point3 tr_p = m_NodeTextToRenderedPosition[tr_name] + m_NodeTextToRenderedSize[center_name];
+        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), tr_p.getX());
+        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), tr_p.getY());
+    }
 }
 
 TEST_F(dmGuiTest, ScriptErroneousReturnValues)

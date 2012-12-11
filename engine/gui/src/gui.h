@@ -382,6 +382,7 @@ namespace dmGui
 
     void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor);
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
+    Pivot GetNodePivot(HScene scene, HNode node);
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);

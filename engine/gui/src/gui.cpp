@@ -672,8 +672,10 @@ namespace dmGui
         }
 
         scene->m_NodePool.Push(n->m_Index);
+        if (n->m_Node.m_Text)
+            free((void*)n->m_Node.m_Text);
+        memset(n, 0, sizeof(InternalNode));
         n->m_Index = 0xffff;
-        n->m_NameHash = 0;
     }
 
     void ClearNodes(HScene scene)
@@ -806,6 +808,12 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_YAnchor = (uint32_t) y_anchor;
+    }
+
+    Pivot GetNodePivot(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return (Pivot)n->m_Node.m_Pivot;
     }
 
     void SetNodePivot(HScene scene, HNode node, Pivot pivot)
@@ -1057,24 +1065,24 @@ namespace dmGui
         if (node.m_XAnchor == XANCHOR_LEFT)
         {
             offset.setX(0.0f);
-            scaled_position.setX(position.getX() * adjust_scale.getX());
+            scaled_position.setX(position.getX() * reference_scale.getX());
         }
         else if (node.m_XAnchor == XANCHOR_RIGHT)
         {
             offset.setX(0.0f);
-            float distance = (context->m_Width - position.getX()) * adjust_scale.getX();
+            float distance = (context->m_Width - position.getX()) * reference_scale.getX();
             scaled_position.setX(context->m_PhysicalWidth - distance);
         }
         if (node.m_YAnchor == YANCHOR_TOP)
         {
             offset.setY(0.0f);
-            float distance = (context->m_Height - position.getY()) * adjust_scale.getY();
+            float distance = (context->m_Height - position.getY()) * reference_scale.getY();
             scaled_position.setY(context->m_PhysicalHeight - distance);
         }
         else if (node.m_YAnchor == YANCHOR_BOTTOM)
         {
             offset.setY(0.0f);
-            scaled_position.setY(position.getY() * adjust_scale.getY());
+            scaled_position.setY(position.getY() * reference_scale.getY());
         }
         position = scaled_position;
 
