@@ -6,6 +6,7 @@ import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 
 /**
  * Abstract base-class for nodes representing a set of textures and animations.
@@ -17,6 +18,8 @@ import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
  */
 @SuppressWarnings("serial")
 public abstract class TextureSetNode extends Node {
+
+    public static int COMPONENT_COUNT = 5;
 
     /**
      * Get texture of the laid out images
@@ -59,6 +62,34 @@ public abstract class TextureSetNode extends Node {
      * @return {@link TextureSetAnimation}
      */
     public abstract TextureSetAnimation getAnimation(Comparable<String> comparable);
+
+    /**
+     * Get vertex-buffer start index
+     * @param anim animation to get start index for
+     * @return start index
+     */
+    public abstract int getVertexStart(TextureSetAnimation anim);
+
+    /**
+     * Get vertex count for animation
+     * @param anim animation to get count for
+     * @return vertex count
+     */
+    public abstract int getVertexCount(TextureSetAnimation anim);
+
+    /**
+     * Get outline vertex-buffer start index
+     * @param anim animation to get start index for
+     * @return start index
+     */
+    public abstract int getOutlineVertexStart(TextureSetAnimation anim);
+
+    /**
+     * Get outline vertex count for animation
+     * @param anim animation to get count for
+     * @return vertex count
+     */
+    public abstract int getOutlineVertexCount(TextureSetAnimation anim);
 
     /**
      * Get texture coordinates for all images/animations.

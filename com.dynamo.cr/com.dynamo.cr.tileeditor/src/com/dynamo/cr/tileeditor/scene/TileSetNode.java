@@ -30,6 +30,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
@@ -292,8 +293,8 @@ public class TileSetNode extends TextureSetNode {
         boolean flipVertical = false;
         List<AnimationNode> animations = getAnimations();
 
-        FloatBuffer vertices = FloatBuffer.allocate(TextureSetAnimation.COMPONENT_COUNT * 6 * animations.size());
-        FloatBuffer outlineVertices = FloatBuffer.allocate(TextureSetAnimation.COMPONENT_COUNT * 4 * animations.size());
+        FloatBuffer vertices = FloatBuffer.allocate(TextureSetNode.COMPONENT_COUNT * 6 * animations.size());
+        FloatBuffer outlineVertices = FloatBuffer.allocate(TextureSetNode.COMPONENT_COUNT * 4 * animations.size());
 
         textureSetAnimations.clear();
         int index = 0;
@@ -372,15 +373,19 @@ public class TileSetNode extends TextureSetNode {
 
     private TextureSetAnimation createTextureSetAnimation(AnimationNode animation, int index) {
         String id = animation.getId();
-        float w = getTileWidth();
-        float h = getTileHeight();
-        return new TextureSetAnimation(id, w, h, 0, 0,
-                                       animation.getPlayback(),
-                                       // NOTE: Tile indices is in range [1,n] *but*
-                                       // TextureSetAnimation is in idiomatic range [0,n-1]
-                                       animation.getStartTile()-1, animation.getEndTile()-1,
-                                       animation.getFps(),
-                                       animation.isFlipHorizontally(), animation.isFlipVertically());
+        int w = getTileWidth();
+        int h = getTileHeight();
+        return TextureSetAnimation.newBuilder()
+                .setId(id)
+                .setWidth(w)
+                .setHeight(h)
+                .setPlayback(animation.getPlayback())
+                .setStart(animation.getStartTile()-1)
+                .setEnd(animation.getEndTile()-1)
+                .setFps(animation.getFps())
+                .setFlipHorizontal(animation.isFlipHorizontally() ? 1 : 0)
+                .setFlipVertical(animation.isFlipVertically() ? 1 : 0)
+                .build();
     }
 
     @Override
@@ -653,5 +658,25 @@ public class TileSetNode extends TextureSetNode {
     private static TileSetUtil.Metrics calculateMetrics(TileSetNode node) {
         return TileSetUtil.calculateMetrics(node.getLoadedImage(), node.getTileWidth(), node.getTileHeight(),
                 node.getTileMargin(), node.getTileSpacing(), null, 1.0f, 0.0f);
+    }
+
+    @Override
+    public int getVertexStart(TextureSetAnimation anim) {
+        return anim.getStart() * 6;
+    }
+
+    @Override
+    public int getVertexCount(TextureSetAnimation anim) {
+        return (anim.getEnd() - anim.getStart() + 1) * 6;
+    }
+
+    @Override
+    public int getOutlineVertexStart(TextureSetAnimation anim) {
+        return anim.getStart() * 4;
+    }
+
+    @Override
+    public int getOutlineVertexCount(TextureSetAnimation anim) {
+        return (anim.getEnd() - anim.getStart() + 1) * 4;
     }
 }

@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 
 /**
  * Atlas-map representation. The fundamental entity is "animation". Separate
@@ -18,14 +18,14 @@ import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
 public class AtlasMap {
 
     private final BufferedImage image;
-    private final List<TextureSetAnimation> tiles;
+    private final List<TextureSetAnimation> animations;
     private FloatBuffer vertexBuffer;
     private FloatBuffer outlineVertexBuffer;
     private final FloatBuffer texCoordsBuffer;
 
-    public AtlasMap(BufferedImage image, List<TextureSetAnimation> tiles, FloatBuffer vertexBuffer, FloatBuffer outlineVertexBuffer, FloatBuffer texCoordsBuffer) {
+    public AtlasMap(BufferedImage image, List<TextureSetAnimation> animations, FloatBuffer vertexBuffer, FloatBuffer outlineVertexBuffer, FloatBuffer texCoordsBuffer) {
         this.image = image;
-        this.tiles = Collections.unmodifiableList(new ArrayList<TextureSetAnimation>(tiles));
+        this.animations = Collections.unmodifiableList(new ArrayList<TextureSetAnimation>(animations));
         this.vertexBuffer = vertexBuffer;
         this.outlineVertexBuffer = outlineVertexBuffer;
         this.texCoordsBuffer = texCoordsBuffer;
@@ -44,7 +44,7 @@ public class AtlasMap {
      * @return
      */
     public List<TextureSetAnimation> getAnimations() {
-        return tiles;
+        return animations;
     }
 
     /**
@@ -73,6 +73,68 @@ public class AtlasMap {
      */
     public FloatBuffer getTexCoordsBuffer() {
         return texCoordsBuffer;
+    }
+
+    /**
+     * Get vertex-buffer start index
+     * @param anim animation to get start index for
+     * @return start index
+     */
+    public int getVertexStart(TextureSetAnimation anim) {
+        return anim.getStart() * 6;
+    }
+
+    /**
+     * Get vertex count for animation
+     * @param anim animation to get count for
+     * @return vertex count
+     */
+    public int getVertexCount(TextureSetAnimation anim) {
+        return (anim.getEnd() - anim.getStart() + 1) * 6;
+    }
+
+    /**
+     * Get outline vertex-buffer start index
+     * @param anim animation to get start index for
+     * @return start index
+     */
+    public int getOutlineVertexStart(TextureSetAnimation anim) {
+        return anim.getStart() * 4;
+    }
+
+    /**
+     * Get outline vertex count for animation
+     * @param anim animation to get count for
+     * @return vertex count
+     */
+    public int getOutlineVertexCount(TextureSetAnimation anim) {
+        return (anim.getEnd() - anim.getStart() + 1) * 4;
+    }
+
+    /**
+     * Get atlas-image center x in pixels
+     * @param anim animation to get center x for
+     * @return center x
+     */
+    public float getCenterX(TextureSetAnimation anim) {
+        int width = getImage().getWidth();
+        FloatBuffer tc = getTexCoordsBuffer();
+        int start = anim.getStart() * 4;
+        float c = width * (tc.get(start) + tc.get(start + 2)) * 0.5f;
+        return c;
+    }
+
+    /**
+     * Get atlas-image center y in pixels
+     * @param anim animation to get center y for
+     * @return center y
+     */
+    public float getCenterY(TextureSetAnimation anim) {
+        int height = getImage().getHeight();
+        FloatBuffer tc = getTexCoordsBuffer();
+        int start = anim.getStart() * 4;
+        float c = height * (tc.get(start + 1) + tc.get(start + 3)) * 0.5f;
+        return c;
     }
 
 }

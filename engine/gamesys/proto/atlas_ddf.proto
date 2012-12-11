@@ -6,7 +6,7 @@ import "ddf/ddf_math.proto";
 import "tile_ddf.proto";
 
 option java_package = "com.dynamo.atlas.proto";
-option java_outer_classname = "Atlas";
+option java_outer_classname = "AtlasProto";
 
 message AtlasImage
 {
@@ -23,7 +23,7 @@ message AtlasAnimation
     optional uint32 flip_vertical   = 6 [default = 0];
 }
 
-message ImageAtlas
+message Atlas
 {
     repeated AtlasImage images = 1;
     repeated AtlasAnimation animations = 2;

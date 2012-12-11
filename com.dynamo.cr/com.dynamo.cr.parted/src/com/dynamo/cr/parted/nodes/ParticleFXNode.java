@@ -23,11 +23,11 @@ import com.dynamo.cr.parted.ParticleLibrary.Vector3;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
@@ -93,12 +93,12 @@ public class ParticleFXNode extends ComponentTypeNode {
                 data.tileWidth = (int) animation.getWidth();
                 data.tileHeight = (int) animation.getHeight();
                 // NOTE: Tile indices from 1!
-                data.startTile = animation.getStartTile() + 1;
+                data.startTile = animation.getStart() + 1;
                 // NOTE: Tile indices from 1!
-                data.endTile = animation.getEndTile() + 1;
+                data.endTile = animation.getEnd() + 1;
                 data.fps = animation.getFps();
-                data.hFlip = animation.isFlipHorizontally() ? 1 : 0;
-                data.vFlip = animation.isFlipVertically() ? 1 : 0;
+                data.hFlip = animation.getFlipHorizontal();
+                data.vFlip = animation.getFlipVertical();
                 data.structSize = data.size();
                 return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
             }

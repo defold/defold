@@ -25,7 +25,7 @@ import com.dynamo.cr.tileeditor.scene.AtlasImageNode;
 import com.dynamo.cr.tileeditor.scene.AtlasLoader;
 import com.dynamo.cr.tileeditor.scene.AtlasNode;
 import com.dynamo.cr.tileeditor.scene.Messages;
-import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 

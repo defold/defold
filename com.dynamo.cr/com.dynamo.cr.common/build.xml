@@ -25,7 +25,6 @@
     <target name="compile">
         <mkdir dir="ext_generated"/>
         <copy file="${env.DYNAMO_HOME}/share/java/upnp.jar" todir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/gamesys.jar" todir="ext_generated"/>
         <copy file="${env.DYNAMO_HOME}/share/java/resource_archive.jar" todir="ext_generated"/>
         <copy file="${env.DYNAMO_HOME}/share/java/render.jar" todir="ext_generated"/>
         <copy file="${env.DYNAMO_HOME}/share/java/tile.jar" todir="ext_generated"/>
@@ -50,6 +49,7 @@
             <proto dir="../../engine/gamesys/proto/" file="physics_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sound_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sprite_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="texture_set_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
             <proto dir="../../engine/graphics/proto" file="graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input_ddf.proto"/>

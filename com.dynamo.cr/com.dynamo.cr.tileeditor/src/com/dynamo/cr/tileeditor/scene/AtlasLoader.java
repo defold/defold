@@ -6,9 +6,9 @@ import java.io.InputStream;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
-import com.dynamo.atlas.proto.Atlas.AtlasAnimation;
-import com.dynamo.atlas.proto.Atlas.AtlasImage;
-import com.dynamo.atlas.proto.Atlas.ImageAtlas;
+import com.dynamo.atlas.proto.AtlasProto.Atlas;
+import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
+import com.dynamo.atlas.proto.AtlasProto.AtlasImage;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
@@ -21,9 +21,9 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
     public AtlasNode load(ILoaderContext context, InputStream contents)
             throws IOException, CoreException {
 
-        ImageAtlas.Builder atlasBuilder = ImageAtlas.newBuilder();
+        Atlas.Builder atlasBuilder = Atlas.newBuilder();
         LoaderUtil.loadBuilder(atlasBuilder, contents);
-        ImageAtlas atlas = atlasBuilder.build();
+        Atlas atlas = atlasBuilder.build();
 
         AtlasNode node = new AtlasNode();
         for (AtlasImage image : atlas.getImagesList()) {
@@ -51,7 +51,7 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
     public Message buildMessage(ILoaderContext context, AtlasNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
 
-        ImageAtlas.Builder atlasBuilder = ImageAtlas.newBuilder();
+        Atlas.Builder atlasBuilder = Atlas.newBuilder();
         atlasBuilder.setMargin(node.getMargin());
 
         for (Node n : node.getChildren()) {

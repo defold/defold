@@ -130,9 +130,9 @@
       </resource-type>
       <resource-type
             file-extension="atlas"
-            id="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas"
+            id="com.dynamo.cr.tileeditor.resourcetypes.Atlas"
             name="Atlas"
-            proto-message-class="com.dynamo.atlas.proto.Atlas$ImageAtlas"
+            proto-message-class="com.dynamo.atlas.proto.AtlasProto$Atlas"
             resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.ImageAtlasRefactorParticipant"
             template-data=" "
             type-class="atlas">
@@ -1328,7 +1328,7 @@
             node="com.dynamo.cr.tileeditor.scene.AtlasNode"
             presenter="com.dynamo.cr.tileeditor.scene.AtlasNodePresenter"
             renderer="com.dynamo.cr.tileeditor.scene.AtlasRenderer"
-            resource-type="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas">
+            resource-type="com.dynamo.cr.tileeditor.resourcetypes.Atlas">
          <reference-node-type
                node-type="com.dynamo.cr.tileeditor.nodetypes.atlasAnimation">
          </reference-node-type>
