@@ -149,18 +149,20 @@ public class AtlasGenerator {
         for (AnimDesc anim : animations) {
             List<String> ids = anim.getIds();
             if (ids.size() > 0) {
-                for (String id : anim.getIds()) {
+                for (String id : ids) {
                     TextureSetAnimation imageAnim = idToAnimation.get(id);
-                    TextureSetAnimation setAnim = new TextureSetAnimation(anim.getId(),
-                                                                          imageAnim.getWidth(), imageAnim.getHeight(), imageAnim.getCenterX(), imageAnim.getCenterY(),
-                                                                          anim.getPlayback(), tileIndex, tileIndex + ids.size() - 1, anim.getFps(),
-                                                                          anim.isFlipHorizontally(), anim.isFlipVertically());
 
-                    duplicate(vertexBuffer, imageAnim.getStartTile() * components * 6 , 6 * components);
-                    duplicate(outlineVertexBuffer, imageAnim.getStartTile() * components * 4, 4 * components);
-                    duplicate(texCoordsBuffer, imageAnim.getStartTile() * 4, 4);
-                    tiles.add(setAnim);
+                    duplicate(vertexBuffer, imageAnim.getStart() * components * 6 , 6 * components);
+                    duplicate(outlineVertexBuffer, imageAnim.getStart() * components * 4, 4 * components);
+                    duplicate(texCoordsBuffer, imageAnim.getStart() * 4, 4);
                 }
+
+                TextureSetAnimation imageAnim = idToAnimation.get(ids.get(0));
+                TextureSetAnimation setAnim = new TextureSetAnimation(anim.getId(),
+                                                                      imageAnim.getWidth(), imageAnim.getHeight(), imageAnim.getCenterX(), imageAnim.getCenterY(),
+                                                                      anim.getPlayback(), tileIndex, tileIndex + ids.size() - 1, anim.getFps(),
+                                                                      anim.isFlipHorizontally(), anim.isFlipVertically());
+                tiles.add(setAnim);
 
                 tileIndex += ids.size();
             }

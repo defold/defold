@@ -13,8 +13,8 @@ public class TextureSetAnimation {
     private final float centerY;
     private final int fps;
     private final Playback playback;
-    private final int startTile;
-    private final int endTile;
+    private final int start;
+    private final int end;
     private final boolean flipHorizontally;
     private final boolean flipVertically;
     private final boolean isAnimation;
@@ -28,8 +28,8 @@ public class TextureSetAnimation {
         this.centerY = cy;
         this.fps = 30;
         this.playback = Playback.PLAYBACK_ONCE_FORWARD;
-        this.startTile = index;
-        this.endTile = index;
+        this.start = index;
+        this.end = index;
         this.flipHorizontally = false;
         this.flipVertically = false;
         this.isAnimation = false;
@@ -37,7 +37,7 @@ public class TextureSetAnimation {
 
     public TextureSetAnimation(String id,
                                float w, float h, float cx, float cy,
-                               Playback playback, int startTile, int endTile, int fps,
+                               Playback playback, int start, int end, int fps,
                                boolean flipHorizontally, boolean flipVertically) {
         this.id = id;
         this.width = w;
@@ -45,8 +45,8 @@ public class TextureSetAnimation {
         this.centerX = cx;
         this.centerY = cy;
         this.playback = playback;
-        this.startTile = startTile;
-        this.endTile = endTile;
+        this.start = start;
+        this.end = end;
         this.fps = fps;
         this.flipHorizontally = flipHorizontally;
         this.flipVertically = flipVertically;
@@ -74,19 +74,19 @@ public class TextureSetAnimation {
     }
 
     public int getVertexStart() {
-        return startTile * 6;
+        return start * 6;
     }
 
     public int getVertexCount() {
-        return 6;
+        return (end - start + 1) * 6;
     }
 
     public int getOutlineVertexStart() {
-        return startTile * 4;
+        return start * 4;
     }
 
     public int getOutlineVertexCount() {
-        return 4;
+        return (end - start + 1) * 4;
     }
 
     public int getFps() {
@@ -97,12 +97,12 @@ public class TextureSetAnimation {
         return playback;
     }
 
-    public int getStartTile() {
-        return startTile;
+    public int getStart() {
+        return start;
     }
 
-    public int getEndTile() {
-        return endTile;
+    public int getEnd() {
+        return end;
     }
 
     public boolean isFlipHorizontally() {

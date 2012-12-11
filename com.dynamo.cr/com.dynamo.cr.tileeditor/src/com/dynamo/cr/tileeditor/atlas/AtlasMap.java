@@ -18,14 +18,14 @@ import com.dynamo.cr.tileeditor.scene.TextureSetAnimation;
 public class AtlasMap {
 
     private final BufferedImage image;
-    private final List<TextureSetAnimation> tiles;
+    private final List<TextureSetAnimation> animations;
     private FloatBuffer vertexBuffer;
     private FloatBuffer outlineVertexBuffer;
     private final FloatBuffer texCoordsBuffer;
 
-    public AtlasMap(BufferedImage image, List<TextureSetAnimation> tiles, FloatBuffer vertexBuffer, FloatBuffer outlineVertexBuffer, FloatBuffer texCoordsBuffer) {
+    public AtlasMap(BufferedImage image, List<TextureSetAnimation> animations, FloatBuffer vertexBuffer, FloatBuffer outlineVertexBuffer, FloatBuffer texCoordsBuffer) {
         this.image = image;
-        this.tiles = Collections.unmodifiableList(new ArrayList<TextureSetAnimation>(tiles));
+        this.animations = Collections.unmodifiableList(new ArrayList<TextureSetAnimation>(animations));
         this.vertexBuffer = vertexBuffer;
         this.outlineVertexBuffer = outlineVertexBuffer;
         this.texCoordsBuffer = texCoordsBuffer;
@@ -44,7 +44,7 @@ public class AtlasMap {
      * @return
      */
     public List<TextureSetAnimation> getAnimations() {
-        return tiles;
+        return animations;
     }
 
     /**

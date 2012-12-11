@@ -130,8 +130,11 @@ public class TextureGenerator {
 
     static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
-
         inputStream.close();
+        return generate(origImage);
+     }
+
+    static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
         BufferedImage image;
         if (origImage.getType() == BufferedImage.TYPE_BYTE_INDEXED) {
             /*
