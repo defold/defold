@@ -30,6 +30,14 @@ namespace dmGui
         return n;
     }
 
+    static Scene* GetScene(lua_State* L)
+    {
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return scene;
+    }
+
     static bool LuaIsNode(lua_State *L, int ud)
     {
         void *p = lua_touserdata(L, ud);
@@ -163,10 +171,10 @@ namespace dmGui
         {0, 0}
     };
 
-    /*# gets the node with the specified name
+    /*# gets the node with the specified id
      *
      * @name gui.get_node
-     * @param name name of the node to retrieve (string)
+     * @param id id of the node to retrieve (string|hash)
      * @return node instance (node)
      */
     int LuaGetNode(lua_State* L)
@@ -174,15 +182,30 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
 
-        const char* name = luaL_checkstring(L, 1);
-        HNode node = GetNodeById(scene, name);
-        if (node == 0)
+        HNode node = 0;
+        if (lua_isstring(L, 1))
         {
-            luaL_error(L, "No such node: %s", name);
+            const char* id = luaL_checkstring(L, 1);
+            node = GetNodeById(scene, id);
+            if (node == 0)
+            {
+                luaL_error(L, "No such node: %s", id);
+            }
+        }
+        else
+        {
+            dmhash_t id = dmScript::CheckHash(L, 1);
+            node = GetNodeById(scene, id);
+            if (node == 0)
+            {
+                const char* id_string = (const char*)dmHashReverse64(id, 0x0);
+                if (id_string != 0x0)
+                    luaL_error(L, "No such node: %s", id_string);
+                else
+                    luaL_error(L, "No such node: %llu", id);
+            }
         }
 
         NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
@@ -190,6 +213,49 @@ namespace dmGui
         node_proxy->m_Node = node;
         luaL_getmetatable(L, NODE_PROXY_TYPE_NAME);
         lua_setmetatable(L, -2);
+
+        assert(top + 1 == lua_gettop(L));
+
+        return 1;
+    }
+
+    /*# gets the id of the specified node
+     *
+     * @name gui.get_id
+     * @param node node to retrieve the id from (node)
+     * @return id of the node (hash)
+     */
+    int LuaGetId(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+
+        dmScript::PushHash(L, n->m_NameHash);
+
+        assert(top + 1 == lua_gettop(L));
+
+        return 1;
+    }
+
+    /*# gets the index of the specified node
+     * The index defines the order in which a node appear in a gui scene.
+     * Higher index means the node is drawn above lower indexed nodes.
+     * @name gui.get_index
+     * @param node node to retrieve the id from (node)
+     * @return id of the node (hash)
+     */
+    int LuaGetIndex(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+
+        lua_pushnumber(L, n->m_Index);
 
         assert(top + 1 == lua_gettop(L));
 
@@ -331,9 +397,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
 
         HNode hnode;
         InternalNode* node = LuaCheckNode(L, 1, &hnode);
@@ -412,9 +476,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
 
         HNode hnode;
         InternalNode* node = LuaCheckNode(L, 1, &hnode);
@@ -438,9 +500,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
 
         HNode node = NewNode(scene, pos, size, node_type);
         if (!node)
@@ -582,30 +642,83 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the node texture
+     * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_texture
+     * @param node node to get texture from (node)
+     * @return texture id (hash)
+     */
+    static int LuaGetTexture(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeTextureId(scene, hnode));
+        return 1;
+    }
+
     /*# sets the node texture
      * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_texture
      * @param node node to set texture for (node)
-     * @param texture texture name (string)
+     * @param texture texture id (string|hash)
      */
     static int LuaSetTexture(lua_State* L)
     {
+        Scene* scene = GetScene(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void)n;
-        const char* texture_name = luaL_checkstring(L, 2);
-
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        Result r = SetNodeTexture(scene, hnode, texture_name);
-        if (r != RESULT_OK)
+        if (lua_isstring(L, 2))
         {
-            luaL_error(L, "Texture %s is not specified in scene", texture_name);
+            const char* texture_id = luaL_checkstring(L, 2);
+
+            Result r = SetNodeTexture(scene, hnode, texture_id);
+            if (r != RESULT_OK)
+            {
+                luaL_error(L, "Texture %s is not specified in scene", texture_id);
+            }
+        }
+        else
+        {
+            dmhash_t texture_id = dmScript::CheckHash(L, 2);
+
+            Result r = SetNodeTexture(scene, hnode, texture_id);
+            if (r != RESULT_OK)
+            {
+                const char* id_string = (const char*)dmHashReverse64(texture_id, 0x0);
+                if (id_string != 0x0)
+                    luaL_error(L, "Texture %s is not specified in scene", id_string);
+                else
+                    luaL_error(L, "Texture %llu is not specified in scene", texture_id);
+            }
         }
         return 0;
+    }
+
+    /*# gets the node font
+     * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_font
+     * @param node node from which to get the font (node)
+     * @return font id (hash)
+     */
+    static int LuaGetFont(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeFontId(scene, hnode));
+        return 1;
     }
 
     /*# sets the node font
@@ -613,25 +726,65 @@ namespace dmGui
      *
      * @name gui.set_font
      * @param node node for which to set the font (node)
-     * @param font font name (string)
+     * @param font font id (string|hash)
      */
     static int LuaSetFont(lua_State* L)
     {
+        Scene* scene = GetScene(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void)n;
-        const char* font_name = luaL_checkstring(L, 2);
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        Result r = SetNodeFont(scene, hnode, font_name);
-        if (r != RESULT_OK)
+        if (lua_isstring(L, 2))
         {
-            luaL_error(L, "Font %s is not specified in scene", font_name);
+            const char* font_id = luaL_checkstring(L, 2);
+
+            Result r = SetNodeFont(scene, hnode, font_id);
+            if (r != RESULT_OK)
+            {
+                luaL_error(L, "Font %s is not specified in scene", font_id);
+            }
+        }
+        else
+        {
+            dmhash_t font_id = dmScript::CheckHash(L, 2);
+            Result r = SetNodeFont(scene, hnode, font_id);
+            if (r != RESULT_OK)
+            {
+                const char* id_string = (const char*)dmHashReverse64(font_id, 0x0);
+                if (id_string != 0x0)
+                    luaL_error(L, "Font %s is not specified in scene", id_string);
+                else
+                    luaL_error(L, "Font %llu is not specified in scene", font_id);
+            }
         }
         return 0;
+    }
+
+    /*# gets the x-anchor of a node
+     * The x-anchor specifies how the node is moved when the game is run in a different resolution.
+     *
+     * @name gui.get_xanchor
+     * @param node node to get x-anchor from (node)
+     * @return anchor anchor constant (constant)
+     * <ul>
+     *   <li><code>gui.ANCHOR_NONE</code></li>
+     *   <li><code>gui.ANCHOR_LEFT</code></li>
+     *   <li><code>gui.ANCHOR_RIGHT</code></li>
+     * </ul>
+     */
+    static int LuaGetXAnchor(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GetScene(L);
+
+        lua_pushnumber(L, GetNodeXAnchor(scene, hnode));
+
+        return 1;
     }
 
     /*# sets the x-anchor of a node
@@ -641,6 +794,7 @@ namespace dmGui
      * @param node node to set x-anchor for (node)
      * @param anchor anchor constant (constant)
      * <ul>
+     *   <li><code>gui.ANCHOR_NONE</code></li>
      *   <li><code>gui.ANCHOR_LEFT</code></li>
      *   <li><code>gui.ANCHOR_RIGHT</code></li>
      * </ul>
@@ -652,18 +806,41 @@ namespace dmGui
         (void) n;
 
         int anchor = luaL_checknumber(L, 2);
-        if (anchor != XANCHOR_LEFT && anchor != XANCHOR_RIGHT)
+        if (anchor != XANCHOR_NONE && anchor != XANCHOR_LEFT && anchor != XANCHOR_RIGHT)
         {
             luaL_error(L, "Invalid x-anchor: %d", anchor);
         }
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
 
         SetNodeXAnchor(scene, hnode, (XAnchor) anchor);
 
         return 0;
+    }
+
+    /*# gets the y-anchor of a node
+     * The y-anchor specifies how the node is moved when the game is run in a different resolution.
+     *
+     * @name gui.get_yanchor
+     * @param node node to get y-anchor from (node)
+     * @return anchor anchor constant (constant)
+     * <ul>
+     *   <li><code>gui.ANCHOR_NONE</code></li>
+     *   <li><code>gui.ANCHOR_TOP</code></li>
+     *   <li><code>gui.ANCHOR_BOTTOM</code></li>
+     * </ul>
+     */
+    static int LuaGetYAnchor(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GetScene(L);
+
+        lua_pushnumber(L, GetNodeYAnchor(scene, hnode));
+
+        return 1;
     }
 
     /*# sets the y-anchor of a node
@@ -673,6 +850,7 @@ namespace dmGui
      * @param node node to set y-anchor for (node)
      * @param anchor anchor constant (constant)
      * <ul>
+     *   <li><code>gui.ANCHOR_NONE</code></li>
      *   <li><code>gui.ANCHOR_TOP</code></li>
      *   <li><code>gui.ANCHOR_BOTTOM</code></li>
      * </ul>
@@ -684,18 +862,47 @@ namespace dmGui
         (void) n;
 
         int anchor = luaL_checknumber(L, 2);
-        if (anchor != YANCHOR_TOP && anchor != YANCHOR_BOTTOM)
+        if (anchor != YANCHOR_NONE && anchor != YANCHOR_TOP && anchor != YANCHOR_BOTTOM)
         {
             luaL_error(L, "Invalid y-anchor: %d", anchor);
         }
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
 
         SetNodeYAnchor(scene, hnode, (YAnchor) anchor);
 
         return 0;
+    }
+
+    /*# gets the pivot of a node
+     * The pivot specifies how the node is drawn and rotated from its position.
+     *
+     * @name gui.get_pivot
+     * @param node node to get pivot from (node)
+     * @return pivot constant (constant)
+     * <ul>
+     *   <li><code>gui.PIVOT_CENTER</code></lid>
+     *   <li><code>gui.PIVOT_N</code></lid>
+     *   <li><code>gui.PIVOT_NE</code></lid>
+     *   <li><code>gui.PIVOT_E</code></lid>
+     *   <li><code>gui.PIVOT_SE</code></lid>
+     *   <li><code>gui.PIVOT_S</code></lid>
+     *   <li><code>gui.PIVOT_SW</code></lid>
+     *   <li><code>gui.PIVOT_W</code></lid>
+     *   <li><code>gui.PIVOT_NW</code></lid>
+     * </ul>
+     */
+    static int LuaGetPivot(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, dmGui::GetNodePivot(scene, hnode));
+
+        return 1;
     }
 
     /*# sets the pivot of a node
@@ -728,9 +935,7 @@ namespace dmGui
             luaL_error(L, "Invalid pivot: %d", pivot);
         }
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
 
         SetNodePivot(scene, hnode, (Pivot) pivot);
 
@@ -744,8 +949,8 @@ namespace dmGui
      */
     static int LuaGetWidth(lua_State* L)
     {
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*)lua_touserdata(L, -1);
+        Scene* scene = GetScene(L);
+
         lua_pushnumber(L, scene->m_Context->m_Width);
         return 1;
     }
@@ -757,8 +962,8 @@ namespace dmGui
      */
     static int LuaGetHeight(lua_State* L)
     {
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*)lua_touserdata(L, -1);
+        Scene* scene = GetScene(L);
+
         lua_pushnumber(L, scene->m_Context->m_Height);
         return 1;
     }
@@ -779,10 +984,31 @@ namespace dmGui
 
         lua_Number x = luaL_checknumber(L, 2);
         lua_Number y = luaL_checknumber(L, 3);
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*)lua_touserdata(L, -1);
+
+        Scene* scene = GetScene(L);
 
         lua_pushboolean(L, PickNode(scene, hnode, x, y));
+        return 1;
+    }
+
+    /*# retrieves if a node is enabled or not
+     *
+     * Disabled nodes are not rendered and animations acting on them are not evaluated.
+     *
+     * @name gui.is_enabled
+     * @param node node to query (node)
+     * @return whether the node is enabled or not (boolean)
+     */
+    static int LuaIsEnabled(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GetScene(L);
+
+        lua_pushboolean(L, dmGui::IsNodeEnabled(scene, hnode));
+
         return 1;
     }
 
@@ -802,8 +1028,7 @@ namespace dmGui
 
         int enabled = lua_toboolean(L, 2);
 
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*)lua_touserdata(L, -1);
+        Scene* scene = GetScene(L);
 
         dmGui::SetNodeEnabled(scene, hnode, enabled != 0);
 
@@ -956,8 +1181,7 @@ namespace dmGui
             Vector4 v;\
             if (dmScript::IsVector3(L, 2))\
             {\
-                lua_getglobal(L, "__scene__");\
-                Scene* scene = (Scene*)lua_touserdata(L, -1);\
+                Scene* scene = GetScene(L);\
                 Vector4 original = dmGui::GetNodeProperty(scene, hnode, property);\
                 v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());\
             }\
@@ -1012,6 +1236,8 @@ namespace dmGui
     static const luaL_reg Gui_methods[] =
     {
         {"get_node",        LuaGetNode},
+        {"get_id",          LuaGetId},
+        {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
         {"cancel_animation",LuaCancelAnimation},
@@ -1021,14 +1247,20 @@ namespace dmGui
         {"set_text",        LuaSetText},
         {"get_blend_mode",  LuaGetBlendMode},
         {"set_blend_mode",  LuaSetBlendMode},
+        {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
+        {"get_font",        LuaGetFont},
         {"set_font",        LuaSetFont},
+        {"get_xanchor",     LuaGetXAnchor},
         {"set_xanchor",     LuaSetXAnchor},
+        {"get_yanchor",     LuaGetYAnchor},
         {"set_yanchor",     LuaSetYAnchor},
+        {"get_pivot",       LuaGetPivot},
         {"set_pivot",       LuaSetPivot},
         {"get_width",       LuaGetWidth},
         {"get_height",      LuaGetHeight},
         {"pick_node",       LuaPickNode},
+        {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
@@ -1046,29 +1278,26 @@ namespace dmGui
 
     dmhash_t ScriptResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
     {
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
+
         return scene->m_Context->m_ResolvePathCallback(scene, path, path_size);
     }
 
     void ScriptGetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        Scene* scene = GetScene(L);
         if (scene == 0x0)
         {
             luaL_error(L, "You can only create URLs inside inside the callback functions (init, update, etc).");
         }
-        lua_pop(L, 1);
+
         scene->m_Context->m_GetURLCallback(scene, url);
     }
 
     uintptr_t ScriptGetUserDataCallback(lua_State* L)
     {
-        lua_getglobal(L, "__scene__");
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
+        Scene* scene = GetScene(L);
+
         return scene->m_Context->m_GetUserDataCallback(scene);
     }
 
@@ -1292,6 +1521,12 @@ namespace dmGui
 
 #undef SETBLEND
 
+        // Assert that the assumption of 0 below holds
+        assert(XANCHOR_NONE == 0);
+        assert(YANCHOR_NONE == 0);
+
+        lua_pushnumber(L, 0);
+        lua_setfield(L, -2, "ANCHOR_NONE");
         lua_pushnumber(L, (lua_Number) XANCHOR_LEFT);
         lua_setfield(L, -2, "ANCHOR_LEFT");
         lua_pushnumber(L, (lua_Number) XANCHOR_RIGHT);

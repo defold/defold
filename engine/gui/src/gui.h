@@ -351,6 +351,7 @@ namespace dmGui
     void SetNodeId(HScene scene, HNode node, const char* name);
 
     HNode GetNodeById(HScene scene, const char* id);
+    HNode GetNodeById(HScene scene, dmhash_t id);
 
     uint32_t GetNodeCount(HScene scene);
 
@@ -372,15 +373,21 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
 
     void* GetNodeTexture(HScene scene, HNode node);
-    Result SetNodeTexture(HScene scene, HNode node, const char* texture);
+    dmhash_t GetNodeTextureId(HScene scene, HNode node);
+    Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
+    Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
 
     void* GetNodeFont(HScene scene, HNode node);
-    Result SetNodeFont(HScene scene, HNode node, const char* font);
+    dmhash_t GetNodeFontId(HScene scene, HNode node);
+    Result SetNodeFont(HScene scene, HNode node, dmhash_t font_id);
+    Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
 
+    XAnchor GetNodeXAnchor(HScene scene, HNode node);
     void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor);
+    YAnchor GetNodeYAnchor(HScene scene, HNode node);
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
     Pivot GetNodePivot(HScene scene, HNode node);
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
@@ -410,6 +417,14 @@ namespace dmGui
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
 
+    /** retrieves if a node is enabled or not
+     * Only enabled nodes are animated and rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be enabled/disabled
+     * @return whether the node is enabled or not
+     */
+    bool IsNodeEnabled(HScene scene, HNode node);
     /** enables/disables a node
      * Set if a node should be enabled or not. Only enabled nodes are animated and rendered.
      *

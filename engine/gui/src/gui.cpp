@@ -634,12 +634,16 @@ namespace dmGui
     HNode GetNodeById(HScene scene, const char* id)
     {
         dmhash_t name_hash = dmHashString64(id);
+        return GetNodeById(scene, name_hash);
+    }
 
+    HNode GetNodeById(HScene scene, dmhash_t id)
+    {
         uint32_t n = scene->m_Nodes.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
             InternalNode* node = &scene->m_Nodes[i];
-            if (node->m_NameHash == name_hash)
+            if (node->m_NameHash == id)
             {
                 return ((uint32_t) node->m_Version) << 16 | node->m_Index;
             }
@@ -746,14 +750,19 @@ namespace dmGui
         return n->m_Node.m_Texture;
     }
 
-    Result SetNodeTexture(HScene scene, HNode node, const char* texture_name)
+    dmhash_t GetNodeTextureId(HScene scene, HNode node)
     {
-        uint64_t texture_hash = dmHashString64(texture_name);
-        void** texture = scene->m_Textures.Get(texture_hash);
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_TextureHash;
+    }
+
+    Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)
+    {
+        void** texture = scene->m_Textures.Get(texture_id);
         if (texture)
         {
             InternalNode* n = GetNode(scene, node);
-            n->m_Node.m_TextureHash = texture_hash;
+            n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = *texture;
             return RESULT_OK;
         }
@@ -763,20 +772,30 @@ namespace dmGui
         }
     }
 
+    Result SetNodeTexture(HScene scene, HNode node, const char* texture_id)
+    {
+        return SetNodeTexture(scene, node, dmHashString64(texture_id));
+    }
+
     void* GetNodeFont(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_Font;
     }
 
-    Result SetNodeFont(HScene scene, HNode node, const char* font_name)
+    dmhash_t GetNodeFontId(HScene scene, HNode node)
     {
-        uint64_t font_hash = dmHashString64(font_name);
-        void** font = scene->m_Fonts.Get(font_hash);
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_FontHash;
+    }
+
+    Result SetNodeFont(HScene scene, HNode node, dmhash_t font_id)
+    {
+        void** font = scene->m_Fonts.Get(font_id);
         if (font)
         {
             InternalNode* n = GetNode(scene, node);
-            n->m_Node.m_FontHash = font_hash;
+            n->m_Node.m_FontHash = font_id;
             n->m_Node.m_Font = *font;
             return RESULT_OK;
         }
@@ -784,6 +803,11 @@ namespace dmGui
         {
             return RESULT_RESOURCE_NOT_FOUND;
         }
+    }
+
+    Result SetNodeFont(HScene scene, HNode node, const char* font_id)
+    {
+        return SetNodeFont(scene, node, dmHashString64(font_id));
     }
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
@@ -798,10 +822,22 @@ namespace dmGui
         n->m_Node.m_BlendMode = (uint32_t) blend_mode;
     }
 
+    XAnchor GetNodeXAnchor(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return (XAnchor)n->m_Node.m_XAnchor;
+    }
+
     void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_XAnchor = (uint32_t) x_anchor;
+    }
+
+    YAnchor GetNodeYAnchor(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return (YAnchor)n->m_Node.m_YAnchor;
     }
 
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor)
@@ -1001,6 +1037,12 @@ namespace dmGui
                 && node_pos.getX() <= 1.0f
                 && node_pos.getY() >= 0.0f
                 && node_pos.getY() <= 1.0f;
+    }
+
+    bool IsNodeEnabled(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Enabled;
     }
 
     void SetNodeEnabled(HScene scene, HNode node, bool enabled)

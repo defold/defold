@@ -139,6 +139,13 @@ void GetTextMetricsCallback(const void* font, const char* text, dmGui::TextMetri
     out_metrics->m_MaxDescent = TEXT_MAX_DESCENT;
 }
 
+static bool SetScript(dmGui::HScript script, const char* source)
+{
+    dmGui::Result r;
+    r = dmGui::SetScript(script, source, strlen(source), "dummy_source");
+    return dmGui::RESULT_OK == r;
+}
+
 TEST_F(dmGuiTest, Basic)
 {
     for (uint32_t i = 0; i < MAX_NODES; ++i)
@@ -179,6 +186,16 @@ TEST_F(dmGuiTest, Name)
     dmGui::SetNodeId(m_Scene, node, "my_node");
     get_node = dmGui::GetNodeById(m_Scene, "my_node");
     ASSERT_EQ(node, get_node);
+
+    const char* s = "function init(self)\n"
+                    "    local n = gui.get_node(\"my_node\")\n"
+                    "    local id = gui.get_id(n)\n"
+                    "    local n2 = gui.get_node(id)\n"
+                    "    assert(n == n2)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
 TEST_F(dmGuiTest, TextureFont)
@@ -246,6 +263,60 @@ TEST_F(dmGuiTest, TextureFont)
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
 
     dmGui::DeleteNode(m_Scene, node);
+}
+
+TEST_F(dmGuiTest, ScriptTextureFont)
+{
+    int t;
+    int f;
+
+    dmGui::AddTexture(m_Scene, "t", (void*) &t);
+    dmGui::AddFont(m_Scene, "f", &f);
+
+    const char* id = "n";
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id);
+
+    const char* s = "function init(self)\n"
+                    "    local n = gui.get_node(\"n\")\n"
+                    "    gui.set_texture(n, \"t\")\n"
+                    "    local t = gui.get_texture(n)\n"
+                    "    gui.set_texture(n, t)\n"
+                    "    local t2 = gui.get_texture(n)\n"
+                    "    assert(t == t2)\n"
+                    "    gui.set_font(n, \"f\")\n"
+                    "    local f = gui.get_font(n)\n"
+                    "    gui.set_font(n, f)\n"
+                    "    local f2 = gui.get_font(n)\n"
+                    "    assert(f == f2)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
+
+TEST_F(dmGuiTest, ScriptIndex)
+{
+    const char* id = "n";
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id);
+
+    const char* id2 = "n2";
+    node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id2);
+
+    const char* s = "function init(self)\n"
+                    "    local n = gui.get_node(\"n\")\n"
+                    "    assert(gui.get_index(n) == 0)\n"
+                    "    local n2 = gui.get_node(\"n2\")\n"
+                    "    assert(gui.get_index(n2) == 1)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
 TEST_F(dmGuiTest, NewDeleteNode)
@@ -1554,10 +1625,14 @@ TEST_F(dmGuiTest, ScriptAnchoring)
                     "    assert (768 == gui.get_height())\n"
                     "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
                     "    gui.set_xanchor(self.n1, gui.ANCHOR_LEFT)\n"
+                    "    assert(gui.get_xanchor(self.n1) == gui.ANCHOR_LEFT)\n"
                     "    gui.set_yanchor(self.n1, gui.ANCHOR_BOTTOM)\n"
+                    "    assert(gui.get_yanchor(self.n1) == gui.ANCHOR_BOTTOM)\n"
                     "    self.n2 = gui.new_text_node(vmath.vector3(gui.get_width() - 10, gui.get_height()-10, 0), \"n2\")"
                     "    gui.set_xanchor(self.n2, gui.ANCHOR_RIGHT)\n"
+                    "    assert(gui.get_xanchor(self.n2) == gui.ANCHOR_RIGHT)\n"
                     "    gui.set_yanchor(self.n2, gui.ANCHOR_TOP)\n"
+                    "    assert(gui.get_yanchor(self.n2) == gui.ANCHOR_TOP)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -1583,6 +1658,20 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     Point3 pos2 = m_NodeTextToRenderedPosition["n2"];
     ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
     ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
+}
+
+TEST_F(dmGuiTest, ScriptPivot)
+{
+    const char* s = "function init(self)\n"
+                    "    local n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
+                    "    assert(gui.get_pivot(n1) == gui.PIVOT_CENTER)\n"
+                    "    gui.set_pivot(n1, gui.PIVOT_N)\n"
+                    "    assert(gui.get_pivot(n1) == gui.PIVOT_N)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
 TEST_F(dmGuiTest, AdjustMode)
@@ -1815,7 +1904,9 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
                     "    local size = vmath.vector3(string.len(id) * %.2f, %.2f + %.2f, 0)\n"
                     "    local position = size * 0.5\n"
                     "    self.n1 = gui.new_text_node(position, id)\n"
+                    "    assert(gui.is_enabled(self.n1))\n"
                     "    gui.set_enabled(self.n1, false)\n"
+                    "    assert(not gui.is_enabled(self.n1))\n"
                     "end\n";
     sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
