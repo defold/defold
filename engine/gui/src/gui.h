@@ -19,6 +19,11 @@ namespace dmGui
     typedef struct Script* HScript;
     typedef uint32_t HNode;
 
+    /**
+     * Invalid node handle
+     */
+    const HNode INVALID_HANDLE = 0;
+
     struct NewSceneParams;
     void SetDefaultNewSceneParams(NewSceneParams* params);
 
@@ -434,6 +439,27 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+
+    /** reorders the given node relative the reference
+     * Move the given node to be positioned above the reference node.
+     * If the reference node is INVALID_HANDLE, the node is moved to the top.
+     *
+     * @note This function might alter the indices of any number of nodes in the scene.
+     * @param scene Scene the node exists in
+     * @param node Node to be moved
+     * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     */
+    void MoveNodeAbove(HScene scene, HNode node, HNode reference);
+    /** reorders the given node relative the reference
+     * Move the given node to be positioned below the reference node.
+     * If the reference node is INVALID_HANDLE, the node is moved to the bottom.
+     *
+     * @note This function might alter the indices of any number of nodes in the scene.
+     * @param scene Scene the node exists in
+     * @param node Node to be moved
+     * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     */
+    void MoveNodeBelow(HScene scene, HNode node, HNode reference);
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);

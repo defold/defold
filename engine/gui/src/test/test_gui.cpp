@@ -1849,8 +1849,11 @@ TEST_F(dmGuiTest, ScriptPicking)
 // This render function simply flags a provided boolean when called
 static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
 {
-    bool* rendered = (bool*)context;
-    *rendered = true;
+    if (node_count > 0)
+    {
+        bool* rendered = (bool*)context;
+        *rendered = true;
+    }
 }
 
 TEST_F(dmGuiTest, EnableDisable)
@@ -1921,6 +1924,299 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     dmGui::InternalNode* node = &m_Scene->m_Nodes[0];
     ASSERT_STREQ("node_1", node->m_Node.m_Text); // make sure we found the right one
     ASSERT_FALSE(node->m_Enabled);
+}
+
+static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+{
+    std::map<dmGui::HNode, uint16_t>* order = (std::map<dmGui::HNode, uint16_t>*)context;
+    order->clear();
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+        (*order)[nodes[i]] = (uint16_t)i;
+    }
+}
+
+/**
+ * Verify specific use cases of moving around nodes:
+ * - single node (nop)
+ *   - move to top
+ *   - move to self (up)
+ *   - move to bottom
+ *   - move to self (down)
+ * - two nodes
+ *   - initial order
+ *   - move to top
+ *   - move explicit to top
+ *   - move to bottom
+ *   - move explicit to bottom
+ * - three nodes
+ *   - move to top
+ *   - move from head to middle
+ *   - move from middle to tail
+ *   - move to bottom
+ *   - move from tail to middle
+ *   - move from middle to head
+ */
+TEST_F(dmGuiTest, MoveNodes)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    std::map<dmGui::HNode, uint16_t> order;
+
+    // Edge case: single node
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to top
+    dmGui::MoveNodeAbove(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to self
+    dmGui::MoveNodeAbove(m_Scene, n1, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to bottom
+    dmGui::MoveNodeBelow(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to self
+    dmGui::MoveNodeBelow(m_Scene, n1, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+
+    // Two nodes
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    // Move to top
+    dmGui::MoveNodeAbove(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    // Move explicit
+    dmGui::MoveNodeAbove(m_Scene, n2, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    // Move to bottom
+    dmGui::MoveNodeBelow(m_Scene, n2, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    // Move explicit
+    dmGui::MoveNodeBelow(m_Scene, n1, n2);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+
+    // Three nodes
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+    // Move to top
+    dmGui::MoveNodeAbove(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(2u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    ASSERT_EQ(1u, order[n3]);
+    // Move explicit from head to middle
+    dmGui::MoveNodeAbove(m_Scene, n2, n3);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(2u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(0u, order[n3]);
+    // Move explicit from middle to tail
+    dmGui::MoveNodeAbove(m_Scene, n2, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(2u, order[n2]);
+    ASSERT_EQ(0u, order[n3]);
+    // Move to bottom
+    dmGui::MoveNodeBelow(m_Scene, n2, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(2u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    ASSERT_EQ(1u, order[n3]);
+    // Move explicit from tail to middle
+    dmGui::MoveNodeBelow(m_Scene, n1, n3);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+    // Move explicit from middle to head
+    dmGui::MoveNodeBelow(m_Scene, n1, n2);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+}
+
+TEST_F(dmGuiTest, MoveNodesScript)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    const char* id1 = "n1";
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n1, id1);
+    const char* id2 = "n2";
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n2, id2);
+    const char* s = "function init(self)\n"
+                    "    local n1 = gui.get_node(\"n1\")\n"
+                    "    local n2 = gui.get_node(\"n2\")\n"
+                    "    assert(gui.get_index(n1) == 0)\n"
+                    "    assert(gui.get_index(n2) == 1)\n"
+                    "    gui.move_above(n1, n2)\n"
+                    "    assert(gui.get_index(n1) == 1)\n"
+                    "    assert(gui.get_index(n2) == 0)\n"
+                    "    gui.move_below(n1, n2)\n"
+                    "    assert(gui.get_index(n1) == 0)\n"
+                    "    assert(gui.get_index(n2) == 1)\n"
+                    "end\n";
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
+
+static void RenderNodesCount(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+{
+    uint32_t* count = (uint32_t*)context;
+    *count = node_count;
+}
+
+static dmGui::HNode PickNode(dmGui::HScene scene, uint32_t* seed)
+{
+    const uint32_t max_it = 10;
+    for (uint32_t i = 0; i < max_it; ++i)
+    {
+        uint32_t index = dmMath::Rand(seed) % scene->m_Nodes.Size();
+        if (scene->m_Nodes[index].m_Index != dmGui::INVALID_INDEX)
+        {
+            return dmGui::GetNodeHandle(&scene->m_Nodes[index]);
+        }
+    }
+    return dmGui::INVALID_HANDLE;
+}
+
+/**
+ * Verify that the render count holds under random inserts, deletes and moves
+ */
+TEST_F(dmGuiTest, MoveNodesLoad)
+{
+    const uint32_t node_count = 100;
+    const uint32_t iterations = 500;
+
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = node_count * 2;
+    params.m_MaxAnimations = MAX_ANIMATIONS;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+        dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX);
+    }
+    uint32_t current_count = node_count;
+    uint32_t render_count = 0;
+
+    enum OpType {OP_ADD, OP_DELETE, OP_MOVE_ABOVE, OP_MOVE_BELOW, OP_TYPE_COUNT};
+
+    uint32_t seed = 0;
+
+    uint32_t min_node_count = node_count;
+    uint32_t max_node_count = 0;
+    uint32_t relative_move_count = 0;
+    uint32_t absolute_move_count = 0;
+    OpType op_type = OP_ADD;
+    uint32_t op_count = 0;
+    for (uint32_t i = 0; i < iterations; ++i)
+    {
+        if (op_count == 0)
+        {
+            op_type = (OpType)(dmMath::Rand(&seed) % OP_TYPE_COUNT);
+            op_count = dmMath::Rand(&seed) % 10 + 1;
+            if (op_type == OP_ADD || op_type == OP_DELETE)
+            {
+                int32_t diff = (int32_t)current_count - (int32_t)node_count;
+                float t = dmMath::Min(1.0f, dmMath::Max(-1.0f, diff / (0.5f * node_count)));
+                if (dmMath::Rand11(&seed) > t*t*t)
+                {
+                    op_type = OP_ADD;
+                }
+                else
+                {
+                    op_type = OP_DELETE;
+                }
+            }
+        }
+        --op_count;
+        switch (op_type)
+        {
+        case OP_ADD:
+            dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX);
+            ++current_count;
+            break;
+        case OP_DELETE:
+            {
+                dmGui::HNode node = PickNode(scene, &seed);
+                if (node != dmGui::INVALID_HANDLE)
+                {
+                    dmGui::DeleteNode(scene, node);
+                    --current_count;
+                }
+            }
+            break;
+        case OP_MOVE_ABOVE:
+        case OP_MOVE_BELOW:
+            {
+                dmGui::HNode source = PickNode(scene, &seed);
+                if (source != dmGui::INVALID_HANDLE)
+                {
+                    dmGui::HNode target = dmGui::INVALID_HANDLE;
+                    if (dmMath::Rand01(&seed) < 0.8f)
+                        target = PickNode(scene, &seed);
+                    if (op_type == OP_MOVE_ABOVE)
+                    {
+                        dmGui::MoveNodeAbove(scene, source, target);
+                    }
+                    else
+                    {
+                        dmGui::MoveNodeBelow(scene, source, target);
+                    }
+                    if (target != dmGui::INVALID_HANDLE)
+                    {
+                        ++relative_move_count;
+                    }
+                    else
+                    {
+                        ++absolute_move_count;
+                    }
+                }
+            }
+            break;
+        default:
+            break;
+        }
+        dmGui::RenderScene(scene, RenderNodesCount, &render_count);
+        ASSERT_EQ(current_count, render_count);
+        if (min_node_count > current_count)
+            min_node_count = current_count;
+        if (max_node_count < current_count)
+            max_node_count = current_count;
+    }
+    printf("[STATS] current: %03d min: %03d max: %03d rel: %03d abs: %03d\n", current_count, min_node_count, max_node_count, relative_move_count, absolute_move_count);
+
+    dmGui::DeleteScene(scene);
 }
 
 int main(int argc, char **argv)

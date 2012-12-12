@@ -18,6 +18,8 @@
 
 namespace dmGui
 {
+    const uint16_t INVALID_INDEX = 0xffff;
+
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
         "init",
@@ -112,14 +114,15 @@ namespace dmGui
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_DefaultFont = 0;
         scene->m_UserData = params->m_UserData;
-
+        scene->m_RenderHead = INVALID_INDEX;
+        scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             InternalNode* n = &scene->m_Nodes[i];
             memset(n, 0, sizeof(*n));
-            n->m_Index = 0xffff;
+            n->m_Index = INVALID_INDEX;
         }
 
         lua_State* L = scene->m_Context->m_LuaState;
@@ -244,18 +247,31 @@ namespace dmGui
 
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
     {
-        Vector4 scale = CalculateReferenceScale(scene->m_Context);
-        Matrix4 node_transform;
-        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        Context* c = scene->m_Context;
+        Vector4 scale = CalculateReferenceScale(c);
+        c->m_RenderNodes.SetSize(0);
+        c->m_RenderTransforms.SetSize(0);
+        uint32_t capacity = scene->m_NodePool.Size();
+        if (capacity > c->m_RenderNodes.Capacity())
         {
-            InternalNode* n = &scene->m_Nodes[i];
-            if (n->m_Index != 0xffff && n->m_Enabled)
+            c->m_RenderNodes.SetCapacity(capacity);
+            c->m_RenderTransforms.SetCapacity(capacity);
+        }
+        Matrix4 node_transform;
+        uint32_t index = scene->m_RenderHead;
+        while (index != INVALID_INDEX)
+        {
+            InternalNode* n = &scene->m_Nodes[index];
+            if (n->m_Enabled)
             {
                 CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
                 HNode node = GetNodeHandle(n);
-                render_nodes(scene, &node, &node_transform, 1, context);
+                c->m_RenderNodes.Push(node);
+                c->m_RenderTransforms.Push(node_transform);
             }
+            index = n->m_NextIndex;
         }
+        render_nodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderNodes.Size(), context);
     }
 
     void UpdateAnimations(HScene scene, float dt)
@@ -591,6 +607,7 @@ namespace dmGui
     {
         if (scene->m_NodePool.Remaining() == 0)
         {
+            dmLogError("Could not create the node since the buffer is full (%d).", scene->m_NodePool.Capacity());
             return 0;
         }
         else
@@ -619,7 +636,10 @@ namespace dmGui
             node->m_Version = version;
             node->m_Index = index;
             node->m_Enabled = 1;
+            node->m_PrevIndex = INVALID_INDEX;
+            node->m_NextIndex = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
+            MoveNodeAbove(scene, hnode, INVALID_HANDLE);
 
             return hnode;
         }
@@ -656,6 +676,19 @@ namespace dmGui
         return scene->m_NodePool.Size();
     }
 
+    static void RemoveFromRenderList(HScene scene, InternalNode* n)
+    {
+        // Remove from list
+        if (n->m_PrevIndex != INVALID_INDEX)
+            scene->m_Nodes[n->m_PrevIndex].m_NextIndex = n->m_NextIndex;
+        if (n->m_NextIndex != INVALID_INDEX)
+            scene->m_Nodes[n->m_NextIndex].m_PrevIndex = n->m_PrevIndex;
+        if (scene->m_RenderHead == n->m_Index)
+            scene->m_RenderHead = n->m_NextIndex;
+        if (scene->m_RenderTail == n->m_Index)
+            scene->m_RenderTail = n->m_PrevIndex;
+    }
+
     void DeleteNode(HScene scene, HNode node)
     {
         InternalNode*n = GetNode(scene, node);
@@ -674,12 +707,12 @@ namespace dmGui
                 continue;
             }
         }
-
+        RemoveFromRenderList(scene, n);
         scene->m_NodePool.Push(n->m_Index);
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         memset(n, 0, sizeof(InternalNode));
-        n->m_Index = 0xffff;
+        n->m_Index = INVALID_INDEX;
     }
 
     void ClearNodes(HScene scene)
@@ -688,8 +721,10 @@ namespace dmGui
         {
             InternalNode* n = &scene->m_Nodes[i];
             memset(n, 0, sizeof(*n));
-            n->m_Index = 0xffff;
+            n->m_Index = INVALID_INDEX;
         }
+        scene->m_RenderHead = INVALID_INDEX;
+        scene->m_RenderTail = INVALID_INDEX;
         scene->m_NodePool.Clear();
         scene->m_Animations.SetSize(0);
     }
@@ -1057,6 +1092,68 @@ namespace dmGui
             if (anim.m_Node == node)
             {
                 anim.m_Enabled = enabled;
+            }
+        }
+    }
+
+    void MoveNodeBelow(HScene scene, HNode node, HNode reference)
+    {
+        if (node != INVALID_HANDLE && node != reference)
+        {
+            InternalNode* n = GetNode(scene, node);
+            RemoveFromRenderList(scene, n);
+            uint16_t ref_index = reference & 0xffff;
+            if (reference == INVALID_HANDLE || scene->m_RenderHead == ref_index)
+            {
+                // Insert at head
+                ref_index = scene->m_RenderHead;
+                if (ref_index != INVALID_INDEX)
+                    scene->m_Nodes[ref_index].m_PrevIndex = n->m_Index;
+                n->m_NextIndex = ref_index;
+                n->m_PrevIndex = INVALID_INDEX;
+                scene->m_RenderHead = n->m_Index;
+                if (scene->m_RenderTail == INVALID_INDEX)
+                    scene->m_RenderTail = n->m_Index;
+            }
+            else
+            {
+                // Insert in middle
+                InternalNode* ref = &scene->m_Nodes[ref_index];
+                scene->m_Nodes[ref->m_PrevIndex].m_NextIndex = n->m_Index;
+                n->m_PrevIndex = ref->m_PrevIndex;
+                ref->m_PrevIndex = n->m_Index;
+                n->m_NextIndex = ref_index;
+            }
+        }
+    }
+
+    void MoveNodeAbove(HScene scene, HNode node, HNode reference)
+    {
+        if (node != INVALID_HANDLE && node != reference)
+        {
+            InternalNode* n = GetNode(scene, node);
+            RemoveFromRenderList(scene, n);
+            uint16_t ref_index = reference & 0xffff;
+            if (reference == INVALID_HANDLE || scene->m_RenderTail == ref_index)
+            {
+                // Insert at tail
+                ref_index = scene->m_RenderTail;
+                if (ref_index != INVALID_INDEX)
+                    scene->m_Nodes[ref_index].m_NextIndex = n->m_Index;
+                n->m_PrevIndex = ref_index;
+                n->m_NextIndex = INVALID_INDEX;
+                scene->m_RenderTail = n->m_Index;
+                if (scene->m_RenderHead == INVALID_INDEX)
+                    scene->m_RenderHead = n->m_Index;
+            }
+            else
+            {
+                // Insert in middle
+                InternalNode* ref = &scene->m_Nodes[ref_index];
+                scene->m_Nodes[ref->m_NextIndex].m_PrevIndex = n->m_Index;
+                n->m_NextIndex = ref->m_NextIndex;
+                ref->m_NextIndex = n->m_Index;
+                n->m_PrevIndex = ref_index;
             }
         }
     }

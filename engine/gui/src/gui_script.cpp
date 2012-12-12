@@ -265,7 +265,16 @@ namespace dmGui
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
 
-        lua_pushnumber(L, n->m_Index);
+        Scene* scene = GetScene(L);
+
+        uint32_t index = 0;
+        uint16_t i = scene->m_RenderHead;
+        while (i != INVALID_INDEX && i != n->m_Index)
+        {
+            ++index;
+            i = scene->m_Nodes[i].m_NextIndex;
+        }
+        lua_pushnumber(L, index);
 
         assert(top + 1 == lua_gettop(L));
 
@@ -1102,6 +1111,48 @@ namespace dmGui
         return 0;
     }
 
+    /*# moves the first node above the second
+     * Supply nil as the second argument to move the first node to the top.
+     *
+     * @name gui.move_above
+     * @param node to move (node)
+     * @param ref reference node above which the first node should be moved (node)
+     */
+    static int LuaMoveAbove(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        HNode r = INVALID_HANDLE;
+        if (!lua_isnil(L, 2))
+        {
+            r = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
+        }
+        Scene* scene = GetScene(L);
+        MoveNodeAbove(scene, GetNodeHandle(n), r);
+        return 0;
+    }
+
+    /*# moves the first node below the second
+     * Supply nil as the second argument to move the first node to the bottom.
+     *
+     * @name gui.move_below
+     * @param node to move (node)
+     * @param ref reference node below which the first node should be moved (node)
+     */
+    static int LuaMoveBelow(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        HNode r = INVALID_HANDLE;
+        if (!lua_isnil(L, 2))
+        {
+            r = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
+        }
+        Scene* scene = GetScene(L);
+        MoveNodeBelow(scene, GetNodeHandle(n), r);
+        return 0;
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -1291,6 +1342,8 @@ namespace dmGui
         {"set_enabled",     LuaSetEnabled},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
+        {"move_above",      LuaMoveAbove},
+        {"move_below",      LuaMoveBelow},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)

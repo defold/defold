@@ -15,6 +15,7 @@ extern "C"
 namespace dmGui
 {
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
+    extern const uint16_t INVALID_INDEX;
 
     enum ScriptFunction
     {
@@ -38,6 +39,8 @@ namespace dmGui
         uint32_t                m_Height;
         uint32_t                m_PhysicalWidth;
         uint32_t                m_PhysicalHeight;
+        dmArray<HNode>          m_RenderNodes;
+        dmArray<Matrix4>        m_RenderTransforms;
     };
 
     struct Node
@@ -63,6 +66,8 @@ namespace dmGui
         dmhash_t m_NameHash;
         uint16_t m_Version;
         uint16_t m_Index;
+        uint16_t m_PrevIndex;
+        uint16_t m_NextIndex;
         uint16_t m_Deleted : 1; // Set to true for deferred deletion
         uint16_t m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
     };
@@ -112,6 +117,8 @@ namespace dmGui
         dmHashTable64<void*>    m_Fonts;
         void*                   m_DefaultFont;
         void*                   m_UserData;
+        uint16_t                m_RenderHead;
+        uint16_t                m_RenderTail;
         uint16_t                m_NextVersionNumber;
     };
 
@@ -139,6 +146,8 @@ namespace dmGui
      * @return a scaling vector (ref_scale, ref_scale, 1, 1)
      */
     Vector4 CalculateReferenceScale(HContext context);
+
+    HNode GetNodeHandle(InternalNode* node);
 }
 
 #endif
