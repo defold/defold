@@ -32,14 +32,19 @@ namespace dmGui
 
     static Scene* GetScene(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
         lua_getglobal(L, "__scene__");
         Scene* scene = (Scene*) lua_touserdata(L, -1);
         lua_pop(L, 1);
+        assert(top == lua_gettop(L));
         return scene;
     }
 
     static bool LuaIsNode(lua_State *L, int ud)
     {
+        int top = lua_gettop(L);
+        (void) top;
         void *p = lua_touserdata(L, ud);
         if (p != NULL)
         {
@@ -49,10 +54,12 @@ namespace dmGui
                 if (lua_rawequal(L, -1, -2))
                 {
                     lua_pop(L, 2);
+                    assert(top == lua_gettop(L));
                     return true;
                 }
             }
         }
+        assert(top == lua_gettop(L));
         return false;
     }
 
@@ -96,6 +103,8 @@ namespace dmGui
 
     static int NodeProxy_tostring (lua_State *L)
     {
+        int top = lua_gettop(L);
+        (void) top;
         InternalNode* n = LuaCheckNode(L, 1, 0);
         Vector4 pos = n->m_Node.m_Properties[PROPERTY_POSITION];
         switch (n->m_Node.m_NodeType)
@@ -110,6 +119,7 @@ namespace dmGui
                 lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
                 break;
         }
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -286,6 +296,9 @@ namespace dmGui
     {
         lua_State* L = scene->m_Context->m_LuaState;
 
+        int top = lua_gettop(L);
+        (void) top;
+
         lua_pushlightuserdata(L, (void*) scene);
         lua_setglobal(L, "__scene__");
 
@@ -307,6 +320,8 @@ namespace dmGui
 
         lua_pushlightuserdata(L, (void*) 0x0);
         lua_setglobal(L, "__scene__");
+
+        assert(top == lua_gettop(L));
     }
 
     /*# linear interpolation
@@ -670,6 +685,9 @@ namespace dmGui
      */
     static int LuaSetTexture(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         Scene* scene = GetScene(L);
 
         HNode hnode;
@@ -699,6 +717,7 @@ namespace dmGui
                     luaL_error(L, "Texture %llu is not specified in scene", texture_id);
             }
         }
+        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -730,6 +749,9 @@ namespace dmGui
      */
     static int LuaSetFont(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         Scene* scene = GetScene(L);
 
         HNode hnode;
@@ -759,6 +781,7 @@ namespace dmGui
                     luaL_error(L, "Font %llu is not specified in scene", font_id);
             }
         }
+        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -801,6 +824,9 @@ namespace dmGui
      */
     static int LuaSetXAnchor(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
@@ -815,6 +841,7 @@ namespace dmGui
 
         SetNodeXAnchor(scene, hnode, (XAnchor) anchor);
 
+        assert(top == lua_gettop(L));
         return 0;
     }
 
