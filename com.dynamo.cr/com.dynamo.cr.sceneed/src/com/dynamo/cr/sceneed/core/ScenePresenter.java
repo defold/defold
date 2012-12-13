@@ -209,6 +209,11 @@ public class ScenePresenter implements IPresenter, IModelListener {
         view.refreshRenderView();
     }
 
+    @Override
+    public boolean isSimulating() {
+        return simulating;
+    }
+
     private boolean sameSelection(ISelection selectionA, ISelection selectionB) {
         if (selectionA == selectionB) {
             return true;

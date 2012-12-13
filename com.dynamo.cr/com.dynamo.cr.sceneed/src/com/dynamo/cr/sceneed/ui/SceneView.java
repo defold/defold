@@ -1,5 +1,8 @@
 package com.dynamo.cr.sceneed.ui;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.inject.Inject;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
@@ -14,7 +17,6 @@ import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.dialogs.ListDialog;
-import org.eclipse.ui.dialogs.ResourceListSelectionDialog;
 
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.FilteredResourceListSelectionDialog;
@@ -100,13 +102,29 @@ public class SceneView extends AbstractSceneView {
 
     @Override
     public String selectFile(String title, String[] extensions) {
-        ResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions);
+        FilteredResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions);
         dialog.setTitle(title);
 
         int ret = dialog.open();
         if (ret == Dialog.OK) {
             IResource r = (IResource) dialog.getResult()[0];
             return EditorUtil.makeResourcePath(r);
+        }
+        return null;
+    }
+
+    @Override
+    public String[] selectFiles(String title, String[] extensions) {
+        FilteredResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(this.editor.getSite().getShell(), this.contentRoot, IResource.FILE, extensions, true);
+        dialog.setTitle(title);
+
+        int ret = dialog.open();
+        if (ret == Dialog.OK) {
+            List<String> lst = new ArrayList<String>();
+            for (Object x : dialog.getResult()) {
+                lst.add(EditorUtil.makeResourcePath((IResource) x));
+            }
+            return lst.toArray(new String[lst.size()]);
         }
         return null;
     }

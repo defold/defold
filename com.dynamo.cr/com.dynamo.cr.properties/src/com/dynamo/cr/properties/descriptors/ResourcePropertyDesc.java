@@ -106,7 +106,7 @@ public class ResourcePropertyDesc<T, U extends IPropertyObjectWorld> extends Pro
             } else if (event.type == SWT.FocusOut && !value.equals(oldValue)) {
                 updateValue = true;
             } else if (event.type == SWT.Selection) {
-                ResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(
+                FilteredResourceListSelectionDialog dialog = new FilteredResourceListSelectionDialog(
                         getControl().getShell(), contentRoot, IResource.FILE, extensions);
 
                 int ret = dialog.open();

@@ -153,7 +153,7 @@ def compile_java_file(self, java_node, outdir):
     # Set variables for javac
     if self.env['CLASSPATH'] == []:
         self.env['CLASSPATH'] = ''
-    self.env['CLASSPATH'] = self.env['CLASSPATH'] + os.pathsep + "." + os.pathsep + self.classpath
+    self.env['CLASSPATH'] = self.env['CLASSPATH'] + os.pathsep + "." + os.pathsep + self.classpath + os.pathsep + outdir
     self.env['OUTDIR'] = outdir
     java_node_out = java_node.change_ext('.class')
     javac = self.create_task('javac')

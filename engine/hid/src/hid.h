@@ -201,6 +201,11 @@ namespace dmHID
         uint32_t m_TouchCount;
     };
 
+    struct AccelerationPacket
+    {
+        float m_X, m_Y, m_Z;
+    };
+
     /// parameters to be passed to NewContext
     struct NewContextParams
     {
@@ -214,6 +219,8 @@ namespace dmHID
         uint32_t m_IgnoreGamepads : 1;
         /// if touch device input should be ignored
         uint32_t m_IgnoreTouchDevice : 1;
+        /// if acceleration input should be ignored
+        uint32_t m_IgnoreAcceleration : 1;
     };
 
     /**
@@ -319,6 +326,14 @@ namespace dmHID
     bool IsTouchDeviceConnected(HContext context);
 
     /**
+     * Check if an accelerometer is connected.
+     *
+     * @param context context in which to search
+     * @return If an accelerometer is connected or not
+     */
+    bool IsAccelerometerConnected(HContext context);
+
+    /**
      * Obtain a keyboard packet reflecting the current input state of a HID context.
      *
      * @param context context from which to retrieve the packet
@@ -353,6 +368,8 @@ namespace dmHID
      * @return If the packet was successfully updated or not.
      */
     bool GetTouchDevicePacket(HContext context, TouchDevicePacket* out_packet);
+
+    bool GetAccelerationPacket(HContext context, AccelerationPacket* out_packet);
 
     /**
      * Convenience function to retrieve the state of a key from a keyboard packet.

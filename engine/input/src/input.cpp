@@ -207,6 +207,11 @@ namespace dmInput
             delete binding->m_TouchDeviceBinding;
             binding->m_TouchDeviceBinding = 0x0;
         }
+        if (binding->m_AccelerationBinding == 0x0)
+        {
+            binding->m_AccelerationBinding = new AccelerationBinding();
+            memset(binding->m_AccelerationBinding, 0, sizeof(*binding->m_AccelerationBinding));
+        }
     }
 
     void DeleteBinding(HBinding binding)
@@ -222,6 +227,8 @@ namespace dmInput
         }
         if (binding->m_TouchDeviceBinding != 0x0)
             delete binding->m_TouchDeviceBinding;
+        if (binding->m_AccelerationBinding != 0x0)
+            delete binding->m_AccelerationBinding;
         delete binding;
     }
 
@@ -279,6 +286,7 @@ namespace dmInput
         action->m_PrevValue = action->m_Value;
         action->m_Value = 0.0f;
         action->m_PositionSet = 0;
+        action->m_AccelerationSet = 0;
     }
 
     struct UpdateContext
@@ -294,7 +302,11 @@ namespace dmInput
         int32_t m_Y;
         int32_t m_DX;
         int32_t m_DY;
+        float m_AccX;
+        float m_AccY;
+        float m_AccZ;
         uint32_t m_PositionSet : 1;
+        uint32_t m_AccelerationSet : 1;
     };
 
     void UpdateAction(void* context, const dmhash_t* id, Action* action)
@@ -328,6 +340,13 @@ namespace dmInput
             action->m_DX = update_context->m_DX;
             action->m_DY = update_context->m_DY;
             action->m_PositionSet = update_context->m_PositionSet;
+        }
+        if (action->m_AccelerationSet == 0)
+        {
+            action->m_AccX = update_context->m_AccX;
+            action->m_AccY = update_context->m_AccY;
+            action->m_AccZ = update_context->m_AccZ;
+            action->m_AccelerationSet = update_context->m_AccelerationSet;
         }
     }
 
@@ -528,6 +547,22 @@ namespace dmInput
                 *prev_packet = *packet;
             }
         }
+        if (binding->m_AccelerationBinding != 0x0)
+        {
+            context.m_AccelerationSet = 0;
+            if (dmHID::IsAccelerometerConnected(hid_context))
+            {
+                AccelerationBinding* acceleration_binding = binding->m_AccelerationBinding;
+                dmHID::AccelerationPacket* packet = &acceleration_binding->m_Packet;
+                dmHID::AccelerationPacket* prev_packet = &acceleration_binding->m_PreviousPacket;
+                dmHID::GetAccelerationPacket(hid_context, packet);
+                context.m_AccX = packet->m_X;
+                context.m_AccY = packet->m_Y;
+                context.m_AccZ = packet->m_Z;
+                context.m_AccelerationSet = 1;
+                *prev_packet = *packet;
+            }
+        }
         context.m_DT = dt;
         context.m_Context = binding->m_Context;
         binding->m_Actions.Iterate<void>(UpdateAction, &context);
@@ -584,7 +619,7 @@ namespace dmInput
     {
         bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released;
         // Mouse move action
-        active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0));
+        active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)
         {
             data->m_Callback(*key, action, data->m_UserData);

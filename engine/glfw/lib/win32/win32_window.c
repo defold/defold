@@ -1880,3 +1880,11 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
     SetCursorPos( pos.x, pos.y );
 }
 
+//========================================================================
+// Get physical accelerometer
+//========================================================================
+
+int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
+{
+	return 0;
+}

@@ -18,10 +18,14 @@ namespace dmInput
         int32_t m_Y;
         int32_t m_DX;
         int32_t m_DY;
+        float m_AccX;
+        float m_AccY;
+        float m_AccZ;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
         uint32_t m_PositionSet : 1;
+        uint32_t m_AccelerationSet : 1;
     };
 
     typedef struct Context* HContext;

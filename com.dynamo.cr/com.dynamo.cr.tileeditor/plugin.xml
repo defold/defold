@@ -39,6 +39,15 @@
             id="com.dynamo.cr.tileeditor.spriteEditor"
             name="Sprite Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.tileeditor.AtlasEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
+            extensions="atlas"
+            icon="icons/images.png"
+            id="com.dynamo.cr.tileeditor.AtlasEditor"
+            name="Atlas Editor">
+      </editor>
    </extension>
    <extension
          point="com.dynamo.cr.resourcetypes">
@@ -83,6 +92,12 @@
             <reference-resource-type
                   resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
             </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.tileSource">
+            </reference-resource-type>
          </references>
       </resource-type>
       <resource-type
@@ -113,6 +128,20 @@
             </reference-resource-type>
          </references>
       </resource-type>
+      <resource-type
+            file-extension="atlas"
+            id="com.dynamo.cr.tileeditor.resourcetypes.Atlas"
+            name="Atlas"
+            proto-message-class="com.dynamo.atlas.proto.AtlasProto$Atlas"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.ImageAtlasRefactorParticipant"
+            template-data=" "
+            type-class="atlas">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -136,6 +165,13 @@
             icon="icons/pictures.png"
             id="com.dynamo.cr.tileeditor.wizards.spriteNewWizard"
             name="Sprite File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.tileeditor.wizards.AtlasNewWizard"
+            icon="icons/images.png"
+            id="com.dynamo.cr.tileeditor.wizards.atlasNewWizard"
+            name="Atlas File">
       </wizard>
    </extension>
    <extension
@@ -162,6 +198,11 @@
       <context
             id="com.dynamo.cr.tileeditor.contexts.GridEditor"
             name="Tile Grid Editor">
+      </context>
+      <context
+            id="com.dynamo.cr.tileeditor.contexts.AtlasEditor"
+            name="Atlas Editor"
+            parentId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor">
       </context>
    </extension>
    <extension
@@ -252,6 +293,16 @@
             description="Select the eraser tool for tile maps"
             id="com.dynamo.cr.tileeditor.commands.selectEraser"
             name="Select Eraser">
+      </command>
+      <command
+            description="Add animation group"
+            id="com.dynamo.cr.tileeditor.commands.addAnimationGroup"
+            name="Add Animation Group">
+      </command>
+      <command
+            description="Add images to atlas"
+            id="com.dynamo.cr.tileeditor.commands.addImages"
+            name="Add Images">
       </command>
    </extension>
    <extension
@@ -504,6 +555,18 @@
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="BS">
       </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.addAnimationGroup"
+            contextId="com.dynamo.cr.tileeditor.contexts.AtlasEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="O">
+      </key>
+      <key
+            commandId="com.dynamo.cr.tileeditor.commands.addImages"
+            contextId="com.dynamo.cr.tileeditor.contexts.AtlasEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="I">
+      </key>
    </extension>
    <extension
          point="org.eclipse.ui.menus">
@@ -724,6 +787,62 @@
                </visibleWhen>
             </command>
          </menu>
+      </menuContribution>
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
+         <command
+               commandId="com.dynamo.cr.tileeditor.commands.addImages"
+               icon="icons/image_add.png"
+               label="Add Images"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <and>
+                  <reference
+                        definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+                  </reference>
+                  <or>
+                     <reference
+                           definitionId="com.dynamo.cr.tileeditor.definitions.atlasSelected">
+                     </reference>
+                     <reference
+                           definitionId="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
+                     </reference>
+                  </or>
+               </and>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.tileeditor.commands.addAnimationGroup"
+               icon="icons/film.png"
+               label="Add Animation Group"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <and>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.atlasSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+                  </reference>
+               </and>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.sceneed.commands.toggleSimulation"
+               label="Play/Stop Animation"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
       </menuContribution>  </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -993,6 +1112,42 @@
             </reference>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.AddImagesHandler"
+            commandId="com.dynamo.cr.tileeditor.commands.addImages">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.AddAnimationGroupHandler"
+            commandId="com.dynamo.cr.tileeditor.commands.addAnimationGroup">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.tileeditor.handlers.ToggleAtlasPlaybackHandler"
+            commandId="com.dynamo.cr.sceneed.commands.toggleSimulation">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
+               </reference>
+            </and>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.core.expressions.definitions">
@@ -1054,6 +1209,30 @@
                   operator="or">
                <instanceof
                      value="com.dynamo.cr.tileeditor.scene.AnimationNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.atlasSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.tileeditor.scene.AtlasNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
+      <definition
+            id="com.dynamo.cr.tileeditor.definitions.atlasAnimationSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.tileeditor.scene.AtlasAnimationNode">
                </instanceof>
             </iterate>
          </with>
@@ -1143,6 +1322,31 @@
             id="com.dynamo.cr.tileeditor.nodetypes.collisionGroup"
             node="com.dynamo.cr.tileeditor.scene.CollisionGroupNode">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.tileeditor.nodetypes.atlas"
+            loader="com.dynamo.cr.tileeditor.scene.AtlasLoader"
+            node="com.dynamo.cr.tileeditor.scene.AtlasNode"
+            presenter="com.dynamo.cr.tileeditor.scene.AtlasNodePresenter"
+            renderer="com.dynamo.cr.tileeditor.scene.AtlasRenderer"
+            resource-type="com.dynamo.cr.tileeditor.resourcetypes.Atlas">
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.atlasAnimation">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.atlasImage">
+         </reference-node-type>
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.tileeditor.nodetypes.atlasAnimation"
+            node="com.dynamo.cr.tileeditor.scene.AtlasAnimationNode">
+         <reference-node-type
+               node-type="com.dynamo.cr.tileeditor.nodetypes.atlasImage">
+         </reference-node-type>
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.tileeditor.nodetypes.atlasImage"
+            node="com.dynamo.cr.tileeditor.scene.AtlasImageNode">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
@@ -1159,6 +1363,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.tileeditor.wizards.spriteNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.tileeditor.wizards.atlasNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>

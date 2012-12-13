@@ -14,7 +14,7 @@ public class CircleManipulatorRenderer implements INodeRenderer<CircleManipulato
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, CircleManipulator node) {

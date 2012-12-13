@@ -267,3 +267,8 @@ GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun )
     }
 }
 
+GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
+{
+	return _glfwPlatformGetAcceleration(x, y, z);
+}
+

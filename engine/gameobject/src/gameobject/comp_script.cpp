@@ -357,6 +357,21 @@ namespace dmGameObject
                 lua_settable(L, action_table);
             }
 
+            if (params.m_InputAction->m_AccelerationSet)
+            {
+                lua_pushliteral(L, "acc_x");
+                lua_pushnumber(L, params.m_InputAction->m_AccX);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "acc_y");
+                lua_pushnumber(L, params.m_InputAction->m_AccY);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "acc_z");
+                lua_pushnumber(L, params.m_InputAction->m_AccZ);
+                lua_settable(L, action_table);
+            }
+
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);

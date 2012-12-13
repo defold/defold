@@ -1,8 +1,5 @@
 package com.dynamo.cr.tileeditor.scene;
 
-import java.nio.FloatBuffer;
-import java.util.List;
-
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -18,12 +15,11 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc.BlendMode;
-import com.dynamo.tile.TileSetUtil;
 
 @SuppressWarnings("serial")
 public class SpriteNode extends ComponentTypeNode {
 
-    @Property(editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource","atlas"})
     @Resource
     @NotEmpty
     private String tileSource = "";
@@ -32,7 +28,7 @@ public class SpriteNode extends ComponentTypeNode {
     @NotEmpty
     private String defaultAnimation = "";
 
-    private transient TileSetNode tileSetNode = null;
+    private transient TextureSetNode textureSetNode = null;
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
     @Resource
@@ -42,14 +38,11 @@ public class SpriteNode extends ComponentTypeNode {
     @Property
     private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
-    // Graphics resources
-    private transient FloatBuffer vertexData;
-
     @Override
     public void dispose() {
         super.dispose();
-        if (this.tileSetNode != null) {
-            this.tileSetNode.dispose();
+        if (this.textureSetNode != null) {
+            this.textureSetNode.dispose();
         }
     }
 
@@ -65,9 +58,9 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public IStatus validateTileSource() {
-        if (this.tileSetNode != null) {
-            this.tileSetNode.updateStatus();
-            IStatus status = this.tileSetNode.getStatus();
+        if (this.textureSetNode != null) {
+            this.textureSetNode.updateStatus();
+            IStatus status = this.textureSetNode.getStatus();
             if (!status.isOK()) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpriteNode_tileSet_INVALID_REFERENCE);
             }
@@ -84,19 +77,20 @@ public class SpriteNode extends ComponentTypeNode {
     public void setDefaultAnimation(String defaultAnimation) {
         this.defaultAnimation = defaultAnimation;
         updateStatus();
-        updateVertexData();
+        updateAABB();
+    }
+
+    private void updateAABB() {
+        if (this.textureSetNode != null) {
+            AABB aabb = this.textureSetNode.getTextureBounds(this.defaultAnimation);
+            setAABB(aabb);
+        }
     }
 
     public IStatus validateDefaultAnimation() {
         if (!this.defaultAnimation.isEmpty()) {
-            if (this.tileSetNode != null) {
-                boolean exists = false;
-                for (AnimationNode animation : this.tileSetNode.getAnimations()) {
-                    if (animation.getId().equals(this.defaultAnimation)) {
-                        exists = true;
-                        break;
-                    }
-                }
+            if (this.textureSetNode != null) {
+                boolean exists = textureSetNode.getAnimation(this.defaultAnimation) != null;
                 if (!exists) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, this.defaultAnimation));
                 }
@@ -105,8 +99,8 @@ public class SpriteNode extends ComponentTypeNode {
         return Status.OK_STATUS;
     }
 
-    public TileSetNode getTileSetNode() {
-        return this.tileSetNode;
+    public TextureSetNode getTextureSetNode() {
+        return this.textureSetNode;
     }
 
     public String getMaterial() {
@@ -125,10 +119,6 @@ public class SpriteNode extends ComponentTypeNode {
         this.blendMode = blendMode;
     }
 
-    public FloatBuffer getVertexData() {
-        return this.vertexData;
-    }
-
     @Override
     public void parentSet() {
         if (getParent() != null) {
@@ -141,7 +131,7 @@ public class SpriteNode extends ComponentTypeNode {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
-        if (model != null && this.tileSetNode == null) {
+        if (model != null && this.textureSetNode == null) {
             reloadTileSource();
         }
     }
@@ -156,8 +146,8 @@ public class SpriteNode extends ComponentTypeNode {
                     reloaded = true;
                 }
             }
-            if (this.tileSetNode != null) {
-                if (this.tileSetNode.handleReload(file)) {
+            if (this.textureSetNode != null) {
+                if (this.textureSetNode.handleReload(file)) {
                     reloaded = true;
                 }
             }
@@ -168,101 +158,24 @@ public class SpriteNode extends ComponentTypeNode {
     private boolean reloadTileSource() {
         ISceneModel model = getModel();
         if (model != null) {
-            this.tileSetNode = null;
+            this.textureSetNode = null;
             if (!this.tileSource.isEmpty()) {
                 try {
                     Node node = model.loadNode(this.tileSource);
-                    if (node instanceof TileSetNode) {
-                        this.tileSetNode = (TileSetNode)node;
-                        this.tileSetNode.setModel(getModel());
+                    if (node instanceof TextureSetNode) {
+                        this.textureSetNode = (TextureSetNode)node;
+                        this.textureSetNode.setModel(getModel());
                         updateStatus();
                     }
                 } catch (Exception e) {
                     // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
                 }
             }
-            updateVertexData();
+            updateAABB();
             // attempted to reload
             return true;
         }
         return false;
-    }
-
-    private void updateVertexData() {
-        if (this.tileSetNode == null || this.tileSetNode.getLoadedImage() == null || !this.tileSetNode.getStatus().isOK()) {
-            this.vertexData = null;
-            return;
-        }
-
-        TileSetUtil.Metrics metrics = calculateMetrics(this.tileSetNode);
-        if (metrics == null) {
-            this.vertexData = null;
-            return;
-        }
-
-        int tile = 0;
-        boolean flipHorizontal = false;
-        boolean flipVertical = false;
-        List<AnimationNode> animations = this.tileSetNode.getAnimations();
-        for (AnimationNode animation : animations) {
-            if (animation.getId().equals(this.defaultAnimation)) {
-                tile = animation.getStartTile() - 1;
-                flipHorizontal = animation.isFlipHorizontally();
-                flipVertical = animation.isFlipVertically();
-                break;
-            }
-        }
-
-        float recipImageWidth = 1.0f / metrics.tileSetWidth;
-        float recipImageHeight = 1.0f / metrics.tileSetHeight;
-
-        int tileWidth = this.tileSetNode.getTileWidth();
-        int tileHeight = this.tileSetNode.getTileHeight();
-
-        float f = 0.5f;
-        float x0 = -f * tileWidth;
-        float x1 = f * tileWidth;
-        float y0 = -f * tileHeight;
-        float y1 = f * tileHeight;
-
-        int tileMargin = this.tileSetNode.getTileMargin();
-        int tileSpacing = this.tileSetNode.getTileSpacing();
-        int x = tile % metrics.tilesPerRow;
-        int y = tile / metrics.tilesPerRow;
-        float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
-        float u1 = u0 + tileWidth * recipImageWidth;
-        float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-        float v1 = v0 + tileHeight * recipImageHeight;
-        if (flipHorizontal) {
-            float u = u0;
-            u0 = u1;
-            u1 = u;
-        }
-        if (flipVertical) {
-            float v = v0;
-            v0 = v1;
-            v1 = v;
-        }
-
-        final int vertexCount = 4;
-        final int componentCount = 5;
-        this.vertexData = FloatBuffer.allocate(vertexCount * componentCount);
-        FloatBuffer v = this.vertexData;
-        float z = 0.0f;
-        v.put(u0); v.put(v1); v.put(x0); v.put(y0); v.put(z);
-        v.put(u0); v.put(v0); v.put(x0); v.put(y1); v.put(z);
-        v.put(u1); v.put(v0); v.put(x1); v.put(y1); v.put(z);
-        v.put(u1); v.put(v1); v.put(x1); v.put(y0); v.put(z);
-        v.flip();
-
-        AABB aabb = new AABB();
-        aabb.union(x0, y0, z);
-        aabb.union(x1, y1, z);
-        setAABB(aabb);
-    }
-
-    private static TileSetUtil.Metrics calculateMetrics(TileSetNode node) {
-        return TileSetUtil.calculateMetrics(node.getLoadedImage(), node.getTileWidth(), node.getTileHeight(), node.getTileMargin(), node.getTileSpacing(), null, 1.0f, 0.0f);
     }
 
 }

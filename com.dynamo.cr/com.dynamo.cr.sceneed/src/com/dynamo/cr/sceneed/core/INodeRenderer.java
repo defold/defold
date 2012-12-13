@@ -1,5 +1,7 @@
 package com.dynamo.cr.sceneed.core;
 
+import javax.media.opengl.GL;
+
 
 /**
  * Node render class. Instances are created on a per context basis, e.g. a render-view,
@@ -11,7 +13,7 @@ package com.dynamo.cr.sceneed.core;
  * @param <T>
  */
 public interface INodeRenderer<T extends Node> {
-    void dispose();
+    void dispose(GL gl);
     void setup(RenderContext renderContext, T node);
     void render(RenderContext renderContext, T node, RenderData<T> renderData);
 }

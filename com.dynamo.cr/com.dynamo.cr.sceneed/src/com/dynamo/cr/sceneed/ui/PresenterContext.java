@@ -65,6 +65,11 @@ com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext {
     }
 
     @Override
+    public String[] selectFiles(String title, String[] extensions) {
+        return this.view.selectFiles(title, extensions);
+    }
+
+    @Override
     public void getCameraFocusPoint(Point3d focusPoint) {
         this.view.getCameraFocusPoint(focusPoint);
     }

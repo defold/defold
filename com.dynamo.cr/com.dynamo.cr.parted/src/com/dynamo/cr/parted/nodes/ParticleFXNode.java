@@ -23,11 +23,11 @@ import com.dynamo.cr.parted.ParticleLibrary.Vector3;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.tileeditor.scene.AnimationNode;
-import com.dynamo.cr.tileeditor.scene.TileSetNode;
+import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
@@ -46,7 +46,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         private List<Node> children;
 
         @Override
-        public int invoke(Pointer tileSource, long hash, AnimationData data) {
+        public int invoke(Pointer tileSource, final long hash, AnimationData data) {
             int emitterIndex = (int)Pointer.nativeValue(tileSource);
             // emitterIndex is coded as index + 1
             if (emitterIndex == 0) {
@@ -54,45 +54,53 @@ public class ParticleFXNode extends ComponentTypeNode {
             }
             --emitterIndex;
             EmitterNode emitterNode = (EmitterNode)children.get(emitterIndex);
-            TileSetNode tileSetNode = emitterNode.getTileSetNode();
-            if (tileSetNode == null) {
+            TextureSetNode textureSetNode = emitterNode.getTextureSetNode();
+            if (textureSetNode == null) {
                 return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_NOT_FOUND;
             }
-            for (AnimationNode animation : tileSetNode.getAnimations()) {
-                long h = ParticleLibrary.Particle_Hash(animation.getId());
-                if (h == hash) {
-                    data.texture = new Pointer(emitterIndex + 1);
-                    data.texCoords = tileSetNode.getTexCoords();
-                    switch (animation.getPlayback()) {
-                    case PLAYBACK_NONE:
-                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_NONE;
-                        break;
-                    case PLAYBACK_ONCE_FORWARD:
-                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
-                        break;
-                    case PLAYBACK_ONCE_BACKWARD:
-                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_BACKWARD;
-                        break;
-                    case PLAYBACK_LOOP_FORWARD:
-                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_FORWARD;
-                        break;
-                    case PLAYBACK_LOOP_BACKWARD:
-                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_BACKWARD;
-                        break;
-                    case PLAYBACK_LOOP_PINGPONG:
-                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_PINGPONG;
-                        break;
-                    }
-                    data.tileWidth = tileSetNode.getTileWidth();
-                    data.tileHeight = tileSetNode.getTileHeight();
-                    data.startTile = animation.getStartTile();
-                    data.endTile = animation.getEndTile();
-                    data.fps = animation.getFps();
-                    data.hFlip = animation.isFlipHorizontally() ? 1 : 0;
-                    data.vFlip = animation.isFlipVertically() ? 1 : 0;
-                    data.structSize = data.size();
-                    return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
+
+            TextureSetAnimation animation = textureSetNode.getAnimation(new Comparable<String>() {
+
+                @Override
+                public int compareTo(String s) {
+                    return (int) (ParticleLibrary.Particle_Hash(s) - hash);
                 }
+            });
+
+            if (animation != null) {
+                data.texture = new Pointer(emitterIndex + 1);
+                data.texCoords = textureSetNode.getTexCoords();
+                switch (animation.getPlayback()) {
+                case PLAYBACK_NONE:
+                    data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_NONE;
+                    break;
+                case PLAYBACK_ONCE_FORWARD:
+                    data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
+                    break;
+                case PLAYBACK_ONCE_BACKWARD:
+                    data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_BACKWARD;
+                    break;
+                case PLAYBACK_LOOP_FORWARD:
+                    data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_FORWARD;
+                    break;
+                case PLAYBACK_LOOP_BACKWARD:
+                    data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_BACKWARD;
+                    break;
+                case PLAYBACK_LOOP_PINGPONG:
+                    data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_PINGPONG;
+                    break;
+                }
+                data.tileWidth = (int) animation.getWidth();
+                data.tileHeight = (int) animation.getHeight();
+                // NOTE: Tile indices from 1!
+                data.startTile = animation.getStart() + 1;
+                // NOTE: Tile indices from 1!
+                data.endTile = animation.getEnd() + 1;
+                data.fps = animation.getFps();
+                data.hFlip = animation.getFlipHorizontal();
+                data.vFlip = animation.getFlipVertical();
+                data.structSize = data.size();
+                return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
             }
             return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_NOT_FOUND;
         }

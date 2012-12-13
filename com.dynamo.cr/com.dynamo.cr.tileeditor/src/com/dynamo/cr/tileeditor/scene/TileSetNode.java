@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
@@ -23,16 +25,19 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.properties.ValidatorUtil;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
+import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.TileSetUtil.ConvexHulls;
 import com.sun.opengl.util.BufferUtil;
 
 @SuppressWarnings("serial")
-public class TileSetNode extends Node {
+public class TileSetNode extends TextureSetNode {
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
@@ -73,10 +78,13 @@ public class TileSetNode extends Node {
     private float[] convexHullPoints = new float[0];
 
     // Graphics resources
-    private BufferedImage loadedImage;
-    private BufferedImage loadedCollision;
-    private TextureHandle textureHandle;
+    private transient BufferedImage loadedImage;
+    private transient BufferedImage loadedCollision;
+    private transient TextureHandle textureHandle;
     private transient FloatBuffer texCoords;
+    private transient VertexBufferObject vertexBuffer = new VertexBufferObject();
+    private transient VertexBufferObject outlineVertexBuffer = new VertexBufferObject();
+    private transient Map<String, TextureSetAnimation> textureSetAnimations = new HashMap<String, TextureSetAnimation>();
 
     public TileSetNode() {
         this.tileCollisionGroups = new ArrayList<CollisionGroupNode>();
@@ -269,10 +277,143 @@ public class TileSetNode extends Node {
         return this.loadedCollision;
     }
 
+    @Override
     public TextureHandle getTextureHandle() {
         return this.textureHandle;
     }
 
+    private void updateVertexData() {
+        TileSetUtil.Metrics metrics = calculateMetrics(this);
+        if (metrics == null) {
+            return;
+        }
+
+        int tile = -1;
+        boolean flipHorizontal = false;
+        boolean flipVertical = false;
+        List<AnimationNode> animations = getAnimations();
+
+        FloatBuffer vertices = FloatBuffer.allocate(TextureSetNode.COMPONENT_COUNT * 6 * animations.size());
+        FloatBuffer outlineVertices = FloatBuffer.allocate(TextureSetNode.COMPONENT_COUNT * 4 * animations.size());
+
+        textureSetAnimations.clear();
+        int index = 0;
+        for (AnimationNode animation : animations) {
+            // NOTE: Yet another index conversion... from [1,n] to [0,n-1]
+            tile = animation.getStartTile() - 1;
+            flipHorizontal = animation.isFlipHorizontally();
+            flipVertical = animation.isFlipVertically();
+
+            float recipImageWidth = 1.0f / metrics.tileSetWidth;
+            float recipImageHeight = 1.0f / metrics.tileSetHeight;
+
+            int tileWidth = getTileWidth();
+            int tileHeight = getTileHeight();
+
+            float f = 0.5f;
+            float x0 = -f * tileWidth;
+            float x1 = f * tileWidth;
+            float y0 = -f * tileHeight;
+            float y1 = f * tileHeight;
+
+            int tileMargin = getTileMargin();
+            int tileSpacing = getTileSpacing();
+            int x = tile % metrics.tilesPerRow;
+            int y = tile / metrics.tilesPerRow;
+            float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
+            float u1 = u0 + tileWidth * recipImageWidth;
+            float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
+            float v1 = v0 + tileHeight * recipImageHeight;
+            if (flipHorizontal) {
+                float u = u0;
+                u0 = u1;
+                u1 = u;
+            }
+            if (flipVertical) {
+                float v = v0;
+                v0 = v1;
+                v1 = v;
+            }
+
+            float z = 0.0f;
+            FloatBuffer v = outlineVertices;
+            v.put(u0); v.put(v1); v.put(x0); v.put(y0); v.put(z);
+            v.put(u0); v.put(v0); v.put(x0); v.put(y1); v.put(z);
+            v.put(u1); v.put(v0); v.put(x1); v.put(y1); v.put(z);
+            v.put(u1); v.put(v1); v.put(x1); v.put(y0); v.put(z);
+
+            FloatBuffer ov = vertices;
+            ov.put(u0); ov.put(v1); ov.put(x0); ov.put(y0); ov.put(z);
+            ov.put(u0); ov.put(v0); ov.put(x0); ov.put(y1); ov.put(z);
+            ov.put(u1); ov.put(v0); ov.put(x1); ov.put(y1); ov.put(z);
+
+            ov.put(u1); ov.put(v0); ov.put(x1); ov.put(y1); ov.put(z);
+            ov.put(u1); ov.put(v1); ov.put(x1); ov.put(y0); ov.put(z);
+            ov.put(u0); ov.put(v1); ov.put(x0); ov.put(y0); ov.put(z);
+
+            TextureSetAnimation textureSetAnimation = createTextureSetAnimation(animation, index);
+            this.textureSetAnimations.put(animation.getId(), textureSetAnimation);
+            ++index;
+        }
+        vertices.rewind();
+        outlineVertices.rewind();
+        this.vertexBuffer.bufferData(vertices, vertices.capacity() * 4);
+        this.outlineVertexBuffer.bufferData(outlineVertices, outlineVertices.capacity() * 4);
+    }
+
+    @Override
+    public VertexBufferObject getVertexBuffer() {
+        return this.vertexBuffer;
+    }
+
+    @Override
+    public VertexBufferObject getOutlineVertexBuffer() {
+        return this.outlineVertexBuffer;
+    }
+
+    private TextureSetAnimation createTextureSetAnimation(AnimationNode animation, int index) {
+        String id = animation.getId();
+        int w = getTileWidth();
+        int h = getTileHeight();
+        return TextureSetAnimation.newBuilder()
+                .setId(id)
+                .setWidth(w)
+                .setHeight(h)
+                .setPlayback(animation.getPlayback())
+                .setStart(animation.getStartTile()-1)
+                .setEnd(animation.getEndTile()-1)
+                .setFps(animation.getFps())
+                .setFlipHorizontal(animation.isFlipHorizontally() ? 1 : 0)
+                .setFlipVertical(animation.isFlipVertically() ? 1 : 0)
+                .build();
+    }
+
+    @Override
+    public TextureSetAnimation getAnimation(String id) {
+        return this.textureSetAnimations.get(id);
+    }
+
+    @Override
+    public TextureSetAnimation getAnimation(Comparable<String> comparable) {
+        for (String id : this.textureSetAnimations.keySet()) {
+            if (comparable.compareTo(id) == 0) {
+                return this.textureSetAnimations.get(id);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public AABB getTextureBounds(String id) {
+        AABB aabb = new AABB();
+        float w2 = getTileWidth() * 0.5f;
+        float h2 = getTileHeight() * 0.5f;
+        aabb.union(-w2, -h2, 0);
+        aabb.union(w2, h2, 0);
+        return aabb;
+    }
+
+    @Override
     public FloatBuffer getTexCoords() {
         return this.texCoords;
     }
@@ -349,6 +490,7 @@ public class TileSetNode extends Node {
     public void updateData() {
         updateConvexHulls();
         updateTexCoords();
+        updateVertexData();
     }
 
     public void updateConvexHulls() {
@@ -516,5 +658,25 @@ public class TileSetNode extends Node {
     private static TileSetUtil.Metrics calculateMetrics(TileSetNode node) {
         return TileSetUtil.calculateMetrics(node.getLoadedImage(), node.getTileWidth(), node.getTileHeight(),
                 node.getTileMargin(), node.getTileSpacing(), null, 1.0f, 0.0f);
+    }
+
+    @Override
+    public int getVertexStart(TextureSetAnimation anim) {
+        return anim.getStart() * 6;
+    }
+
+    @Override
+    public int getVertexCount(TextureSetAnimation anim) {
+        return (anim.getEnd() - anim.getStart() + 1) * 6;
+    }
+
+    @Override
+    public int getOutlineVertexStart(TextureSetAnimation anim) {
+        return anim.getStart() * 4;
+    }
+
+    @Override
+    public int getOutlineVertexCount(TextureSetAnimation anim) {
+        return (anim.getEnd() - anim.getStart() + 1) * 4;
     }
 }
