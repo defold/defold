@@ -64,6 +64,7 @@ public class IOSBundler {
 
     static {
         addProperty("CFBundleIdentifier", "ios", "bundle_identifier", "example.unnamed");
+        addProperty("CFBundleVersion", "project", "version", "1.0");
         addProperty("CFBundleShortVersionString", "project", "version", "1.0");
     }
 
