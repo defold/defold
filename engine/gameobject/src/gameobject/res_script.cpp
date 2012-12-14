@@ -87,9 +87,7 @@ namespace dmGameObject
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
-
-        HScript script = NewScript((const void*) lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
-        dmDDF::FreeMessage(lua_module);
+        HScript script = NewScript(lua_module, filename);
         if (script)
         {
             resource->m_Resource = (void*) script;
@@ -97,6 +95,7 @@ namespace dmGameObject
         }
         else
         {
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
@@ -105,7 +104,9 @@ namespace dmGameObject
                                         void* context,
                                         dmResource::SResourceDescriptor* resource)
     {
-        DeleteScript((HScript) resource->m_Resource);
+        HScript script = (HScript)resource->m_Resource;
+        dmDDF::FreeMessage(script->m_LuaModule);
+        DeleteScript((HScript) script);
         return dmResource::RESULT_OK;
     }
 
@@ -122,14 +123,16 @@ namespace dmGameObject
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        bool ok = ReloadScript(script, (const void*) lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
-        dmDDF::FreeMessage(lua_module);
+        dmLuaDDF::LuaModule* old_lua_module = script->m_LuaModule;
+        bool ok = ReloadScript(script, lua_module, filename);
         if (ok)
         {
+            dmDDF::FreeMessage(old_lua_module);
             return dmResource::RESULT_OK;
         }
         else
         {
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }

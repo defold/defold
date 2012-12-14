@@ -30,23 +30,23 @@ namespace dmGameObject
                     switch (lua_type(L, -1))
                     {
                     case LUA_TNUMBER:
-                        var.m_Type = dmGameObjectDDF::PROPERTY_TYPE_NUMBER;
+                        var.m_Type = PROPERTY_TYPE_NUMBER;
                         var.m_Number = lua_tonumber(L, -1);
                         break;
                     case LUA_TUSERDATA:
                         if (dmScript::IsHash(L, -1))
                         {
-                            var.m_Type = dmGameObjectDDF::PROPERTY_TYPE_HASH;
+                            var.m_Type = PROPERTY_TYPE_HASH;
                             var.m_Hash = dmScript::CheckHash(L, -1);
                         }
                         else if (dmScript::IsURL(L, -1))
                         {
-                            var.m_Type = dmGameObjectDDF::PROPERTY_TYPE_URL;
+                            var.m_Type = PROPERTY_TYPE_URL;
                             var.m_URL = *dmScript::CheckURL(L, -1);
                         }
                         else if (dmScript::IsVector3(L, -1))
                         {
-                            var.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR3;
+                            var.m_Type = PROPERTY_TYPE_VECTOR3;
                             Vector3 v = *dmScript::CheckVector3(L, -1);
                             var.m_V4[0] = v.getX();
                             var.m_V4[1] = v.getY();
@@ -54,7 +54,7 @@ namespace dmGameObject
                         }
                         else if (dmScript::IsVector4(L, -1))
                         {
-                            var.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR4;
+                            var.m_Type = PROPERTY_TYPE_VECTOR4;
                             Vector4 v = *dmScript::CheckVector4(L, -1);
                             var.m_V4[0] = v.getX();
                             var.m_V4[1] = v.getY();
@@ -63,7 +63,7 @@ namespace dmGameObject
                         }
                         else if (dmScript::IsQuat(L, -1))
                         {
-                            var.m_Type = dmGameObjectDDF::PROPERTY_TYPE_QUAT;
+                            var.m_Type = PROPERTY_TYPE_QUAT;
                             Quat q = *dmScript::CheckQuat(L, -1);
                             var.m_V4[0] = q.getX();
                             var.m_V4[1] = q.getY();

@@ -101,9 +101,9 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // empty
     ASSERT_TRUE(RunString(L,
         "local url = msg.url()\n"
-        "assert(url.socket == nil, \"invalid socket\")\n"
-        "assert(url.path == nil, \"invalid path\")\n"
-        "assert(url.fragment == nil, \"invalid fragment\")\n"
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
+        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
        ));
 
     // empty string

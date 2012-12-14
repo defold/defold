@@ -16,6 +16,7 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
+
 // Not to pretty to include res_lua.h here but lua-modules
 // are released at system shutdown and not on a per parent-resource basis
 // as all other resource are. Due to the nature of lua-code and
@@ -423,83 +424,36 @@ namespace dmGameObject
         }
 
         const char* id = luaL_checkstring(L, 1);
+        (void)id;
 
-        if (script->m_PropertyDefs.Full())
-        {
-            script->m_PropertyDefs.OffsetCapacity(8);
-        }
         bool valid_type = false;
-        ScriptPropertyDef p;
         if (lua_isnumber(L, 2))
         {
-            lua_Number default_val = lua_tonumber(L, 2);
-            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_NUMBER;
-            p.m_Number = default_val;
             valid_type = true;
         }
         else if (dmScript::IsURL(L, 2))
         {
-            dmMessage::URL url = *dmScript::CheckURL(L, 2);
-            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_URL;
-            p.m_URL.m_URL = url;
-            p.m_URL.m_UnresolvedPath = 0x0;
-            lua_pushliteral(L, TMP_URL_PATH_NAME);
-            lua_rawget(L, LUA_GLOBALSINDEX);
-            if (!lua_isnil(L, -1))
-            {
-                p.m_URL.m_UnresolvedPath = strdup(lua_tostring(L, -1));
-            }
-            lua_pop(L, 1);
-            lua_pushliteral(L, TMP_URL_PATH_NAME);
-            lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
             valid_type = true;
         }
         else if (dmScript::IsHash(L, 2))
         {
-            dmhash_t hash = dmScript::CheckHash(L, 2);
-            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_HASH;
-            p.m_Hash = hash;
             valid_type = true;
         }
         else if (dmScript::IsVector3(L, 2))
         {
-            Vectormath::Aos::Vector3 v = *dmScript::CheckVector3(L, 2);
-            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR3;
-            p.m_V4[0] = v[0];
-            p.m_V4[1] = v[1];
-            p.m_V4[2] = v[2];
             valid_type = true;
         }
         else if (dmScript::IsVector4(L, 2))
         {
-            Vectormath::Aos::Vector4 v = *dmScript::CheckVector4(L, 2);
-            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_VECTOR4;
-            p.m_V4[0] = v[0];
-            p.m_V4[1] = v[1];
-            p.m_V4[2] = v[2];
-            p.m_V4[3] = v[3];
             valid_type = true;
         }
         else if (dmScript::IsQuat(L, 2))
         {
-            Vectormath::Aos::Quat v = *dmScript::CheckQuat(L, 2);
-            p.m_Type = dmGameObjectDDF::PROPERTY_TYPE_QUAT;
-            p.m_V4[0] = v[0];
-            p.m_V4[1] = v[1];
-            p.m_V4[2] = v[2];
-            p.m_V4[3] = v[3];
             valid_type = true;
         }
-        if (valid_type)
+        if (!valid_type)
         {
-            p.m_Name = strdup(id);
-            p.m_Id = dmHashString64(id);
-            script->m_PropertyDefs.Push(p);
-        }
-        else
-        {
-            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, hash or URL.", lua_typename(L, lua_type(L, 2)));
+            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, hash, URL, vector3, vector4 or quat.", lua_typename(L, lua_type(L, 2)));
         }
         assert(top == lua_gettop(L));
         return 0;
@@ -543,16 +497,14 @@ namespace dmGameObject
         else
         {
             Script* script = GetScript(L);
-
             if (script == 0x0)
             {
                 return luaL_error(L, "No context available in which to resolve the supplied URL.");
             }
             else
             {
-                lua_pushliteral(L, TMP_URL_PATH_NAME);
-                lua_pushlstring(L, path, path_size);
-                lua_rawset(L, LUA_GLOBALSINDEX);
+                // NOTE No resolve takes place here.
+                // If it's called from within a go.property() it doesn't matter, since such URLs are resolved at script instance creation
                 return dmHashBuffer64(path, path_size);
             }
         }
@@ -734,16 +686,15 @@ bail:
 
     static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
 
-    HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename)
+    HScript NewScript(dmLuaDDF::LuaModule* lua_module, const char* filename)
     {
         lua_State* L = g_LuaState;
 
         HScript script = new Script();
-        script->m_PropertyDefs.SetCapacity(0);
-        script->m_OldPropertyDefs.SetCapacity(0);
         script->m_PropertyData.m_UserData = (uintptr_t)script;
         script->m_PropertyData.m_GetPropertyCallback = GetPropertyDefault;
-        if (!LoadScript(L, buffer, buffer_size, filename, script))
+        script->m_LuaModule = lua_module;
+        if (!LoadScript(L, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
         {
             delete script;
             return 0;
@@ -752,36 +703,13 @@ bail:
         return script;
     }
 
-    static void DeletePropertyDefs(const dmArray<ScriptPropertyDef>& property_defs)
+    bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename)
     {
-        uint32_t count = property_defs.Size();
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            const ScriptPropertyDef& def = property_defs[i];
-            free((void*)def.m_Name);
-            if (def.m_Type == dmGameObjectDDF::PROPERTY_TYPE_URL && def.m_URL.m_UnresolvedPath != 0x0)
-                free((void*)def.m_URL.m_UnresolvedPath);
-        }
-    }
-
-    bool ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename)
-    {
-        dmArray<ScriptPropertyDef> tmp_old_property_defs;
-        tmp_old_property_defs.SetCapacity(0);
-        tmp_old_property_defs.Swap(script->m_PropertyDefs);
         bool result = true;
-        if (!LoadScript(g_LuaState, buffer, buffer_size, filename, script))
+        script->m_LuaModule = lua_module;
+        if (!LoadScript(g_LuaState, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
             result = false;
-
-        if (!result)
-        {
-            tmp_old_property_defs.Swap(script->m_PropertyDefs);
-            DeletePropertyDefs(tmp_old_property_defs);
-            return false;
-        }
-        tmp_old_property_defs.Swap(script->m_OldPropertyDefs);
-        DeletePropertyDefs(tmp_old_property_defs);
-        return true;
+        return result;
     }
 
     void DeleteScript(HScript script)
@@ -792,48 +720,94 @@ bail:
             if (script->m_FunctionReferences[i])
                 luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
         }
-        DeletePropertyDefs(script->m_PropertyDefs);
-        DeletePropertyDefs(script->m_OldPropertyDefs);
         delete script;
     }
 
     static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var)
     {
         Script* script = (Script*)user_data;
-        const dmArray<ScriptPropertyDef>& defs = script->m_PropertyDefs;
-        uint32_t n = defs.Size();
+        const dmLuaDDF::PropertyDeclarations* defs = &script->m_LuaModule->m_Properties;
+        uint32_t n = defs->m_NumberEntries.m_Count;
         for (uint32_t i = 0; i < n; ++i)
         {
-            const ScriptPropertyDef& def = defs[i];
-            if (def.m_Id == id)
+            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_NumberEntries[i];
+            if (entry.m_Id == id)
             {
-                out_var.m_Type = def.m_Type;
-                switch (def.m_Type)
+                out_var.m_Type = PROPERTY_TYPE_NUMBER;
+                out_var.m_Number = defs->m_FloatValues[entry.m_Index];
+                return PROPERTY_RESULT_OK;
+            }
+        }
+        n = defs->m_HashEntries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_HashEntries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_HASH;
+                out_var.m_Hash = defs->m_HashValues[entry.m_Index];
+                return PROPERTY_RESULT_OK;
+            }
+        }
+        n = defs->m_UrlEntries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_UrlEntries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_URL;
+                dmMessage::URL default_url;
+                properties->m_GetURLCallback((lua_State*)properties->m_ResolvePathUserData, &default_url);
+                const char* url_string = defs->m_StringValues[entry.m_Index];
+                dmMessage::Result result = dmScript::ResolveURL(properties->m_ResolvePathCallback, properties->m_ResolvePathUserData, url_string, &out_var.m_URL, &default_url);
+                if (result != dmMessage::RESULT_OK)
                 {
-                case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
-                    out_var.m_Number = def.m_Number;
-                    break;
-                case dmGameObjectDDF::PROPERTY_TYPE_HASH:
-                    out_var.m_Hash = def.m_Hash;
-                    break;
-                case dmGameObjectDDF::PROPERTY_TYPE_URL:
-                    out_var.m_URL = def.m_URL.m_URL;
-                    if (def.m_URL.m_UnresolvedPath != 0x0)
-                    {
-                        out_var.m_URL.m_Path = properties->m_ResolvePathCallback(properties->m_ResolvePathUserData, def.m_URL.m_UnresolvedPath, strlen(def.m_URL.m_UnresolvedPath));
-                    }
-                    break;
-                case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
-                case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
-                case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
-                    out_var.m_V4[0] = def.m_V4[0];
-                    out_var.m_V4[1] = def.m_V4[1];
-                    out_var.m_V4[2] = def.m_V4[2];
-                    out_var.m_V4[3] = def.m_V4[3];
-                    break;
-                default:
-                    return PROPERTY_RESULT_UNKNOWN_TYPE;
+                    return PROPERTY_RESULT_INVALID_FORMAT;
                 }
+                return PROPERTY_RESULT_OK;
+            }
+        }
+        n = defs->m_Vector3Entries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_Vector3Entries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_VECTOR3;
+                const float* v = &defs->m_FloatValues[entry.m_Index];
+                out_var.m_V4[0] = v[0];
+                out_var.m_V4[1] = v[1];
+                out_var.m_V4[2] = v[2];
+                return PROPERTY_RESULT_OK;
+            }
+        }
+        n = defs->m_Vector4Entries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_Vector4Entries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_VECTOR4;
+                const float* v = &defs->m_FloatValues[entry.m_Index];
+                out_var.m_V4[0] = v[0];
+                out_var.m_V4[1] = v[1];
+                out_var.m_V4[2] = v[2];
+                out_var.m_V4[3] = v[3];
+                return PROPERTY_RESULT_OK;
+            }
+        }
+        n = defs->m_QuatEntries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_QuatEntries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_QUAT;
+                const float* v = &defs->m_FloatValues[entry.m_Index];
+                out_var.m_V4[0] = v[0];
+                out_var.m_V4[1] = v[1];
+                out_var.m_V4[2] = v[2];
+                out_var.m_V4[3] = v[3];
                 return PROPERTY_RESULT_OK;
             }
         }
@@ -892,107 +866,81 @@ bail:
         assert(top == lua_gettop(L));
     }
 
-    void ClearPropertiesFromLuaTable(const dmArray<ScriptPropertyDef>& property_defs, lua_State* L, int index)
+    void PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index)
     {
-        uint32_t count = property_defs.Size();
+        const dmLuaDDF::PropertyDeclarations* declarations = &script->m_LuaModule->m_Properties;
+        PropertyVar var;
+        uint32_t count = declarations->m_NumberEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const ScriptPropertyDef& def = property_defs[i];
-            lua_pushstring(L, def.m_Name);
-            lua_pushnil(L);
-            lua_settable(L, index-2);
+            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_NumberEntries[i];
+            lua_pushstring(L, entry.m_Key);
+            bool result = GetProperty(properties, entry.m_Id, var);
+            (void)result;
+            assert(result);
+            assert(var.m_Type == PROPERTY_TYPE_NUMBER);
+            lua_pushnumber(L, var.m_Number);
+            lua_settable(L, index - 2);
         }
-    }
-
-    void PropertiesToLuaTable(HInstance instance, const dmArray<ScriptPropertyDef>& property_defs, const HProperties properties, lua_State* L, int index)
-    {
-        uint32_t count = property_defs.Size();
+        count = declarations->m_HashEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const ScriptPropertyDef& def = property_defs[i];
-            lua_pushstring(L, def.m_Name);
-            bool found_value = false;
-            switch (def.m_Type)
-            {
-            case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
-                {
-                    double v;
-                    if (GetProperty(properties, def.m_Id, v))
-                    {
-                        lua_pushnumber(L, v);
-                        found_value = true;
-                    }
-                }
-                break;
-            case dmGameObjectDDF::PROPERTY_TYPE_HASH:
-                {
-                    dmhash_t v;
-                    if (GetProperty(properties, def.m_Id, v))
-                    {
-                        dmScript::PushHash(L, v);
-                        found_value = true;
-                    }
-                }
-                break;
-            case dmGameObjectDDF::PROPERTY_TYPE_URL:
-                {
-                    dmMessage::URL v;
-                    if (GetProperty(properties, def.m_Id, v))
-                    {
-                        if (v.m_Socket == 0 && (v.m_Path != 0 || v.m_Fragment != 0))
-                        {
-                            v.m_Socket = GetMessageSocket(instance->m_Collection);
-                        }
-                        if (v.m_Path == 0 && v.m_Fragment != 0)
-                        {
-                            v.m_Path = GetIdentifier(instance);
-                        }
-                        dmScript::PushURL(L, v);
-                        found_value = true;
-                    }
-                }
-                break;
-            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
-                {
-                    Vectormath::Aos::Vector3 v;
-                    if (GetProperty(properties, def.m_Id, v))
-                    {
-                        dmScript::PushVector3(L, v);
-                        found_value = true;
-                    }
-                }
-                break;
-            case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
-                {
-                    Vectormath::Aos::Vector4 v;
-                    if (GetProperty(properties, def.m_Id, v))
-                    {
-                        dmScript::PushVector4(L, v);
-                        found_value = true;
-                    }
-                }
-                break;
-            case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
-                {
-                    Vectormath::Aos::Quat v;
-                    if (GetProperty(properties, def.m_Id, v))
-                    {
-                        dmScript::PushQuat(L, v);
-                        found_value = true;
-                    }
-                }
-                break;
-            default:
-                break;
-            }
-            if (found_value)
-            {
-                lua_settable(L, index-2);
-            }
-            else
-            {
-                lua_pop(L, 1);
-            }
+            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_HashEntries[i];
+            lua_pushstring(L, entry.m_Key);
+            bool result = GetProperty(properties, entry.m_Id, var);
+            (void)result;
+            assert(result);
+            assert(var.m_Type == PROPERTY_TYPE_HASH);
+            dmScript::PushHash(L, var.m_Hash);
+            lua_settable(L, index - 2);
+        }
+        count = declarations->m_UrlEntries.m_Count;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_UrlEntries[i];
+            lua_pushstring(L, entry.m_Key);
+            bool result = GetProperty(properties, entry.m_Id, var);
+            (void)result;
+            assert(result);
+            assert(var.m_Type == PROPERTY_TYPE_URL);
+            dmScript::PushURL(L, var.m_URL);
+            lua_settable(L, index - 2);
+        }
+        count = declarations->m_Vector3Entries.m_Count;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_Vector3Entries[i];
+            lua_pushstring(L, entry.m_Key);
+            bool result = GetProperty(properties, entry.m_Id, var);
+            (void)result;
+            assert(result);
+            assert(var.m_Type == PROPERTY_TYPE_VECTOR3);
+            dmScript::PushVector3(L, Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
+            lua_settable(L, index - 2);
+        }
+        count = declarations->m_Vector4Entries.m_Count;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_Vector4Entries[i];
+            lua_pushstring(L, entry.m_Key);
+            bool result = GetProperty(properties, entry.m_Id, var);
+            (void)result;
+            assert(result);
+            assert(var.m_Type == PROPERTY_TYPE_VECTOR4);
+            dmScript::PushVector4(L, Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            lua_settable(L, index - 2);
+        }
+        count = declarations->m_QuatEntries.m_Count;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_QuatEntries[i];
+            lua_pushstring(L, entry.m_Key);
+            bool result = GetProperty(properties, entry.m_Id, var);
+            (void)result;
+            assert(result);
+            assert(var.m_Type == PROPERTY_TYPE_QUAT);
+            dmScript::PushQuat(L, Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            lua_settable(L, index - 2);
         }
     }
 

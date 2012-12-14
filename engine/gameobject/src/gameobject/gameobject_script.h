@@ -9,6 +9,8 @@
 #include "gameobject.h"
 #include "gameobject_props.h"
 
+#include "../proto/lua_ddf.h"
+
 /**
  * Private header for GameObject
  */
@@ -39,33 +41,11 @@ namespace dmGameObject
 
     extern const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT];
 
-    struct UnresolvedURL
-    {
-        dmMessage::URL m_URL;
-        const char* m_UnresolvedPath;
-    };
-
-    struct ScriptPropertyDef
-    {
-        const char* m_Name;
-        dmhash_t m_Id;
-        dmGameObjectDDF::PropertyType m_Type;
-        union
-        {
-            double m_Number;
-            dmhash_t m_Hash;
-            UnresolvedURL m_URL;
-            float m_V4[4];
-        };
-    };
-
     struct Script
     {
-        dmArray<ScriptPropertyDef> m_PropertyDefs;
-        // Used for reloading scripts
-        dmArray<ScriptPropertyDef> m_OldPropertyDefs;
         int m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         PropertyData m_PropertyData;
+        dmLuaDDF::LuaModule* m_LuaModule;
     };
 
     typedef Script* HScript;
@@ -90,8 +70,8 @@ namespace dmGameObject
     void    InitializeScript(dmScript::HContext context, dmResource::HFactory factory);
     void    FinalizeScript(dmResource::HFactory factory);
 
-    HScript NewScript(const void* buffer, uint32_t buffer_size, const char* filename);
-    bool    ReloadScript(HScript script, const void* buffer, uint32_t buffer_size, const char* filename);
+    HScript NewScript(dmLuaDDF::LuaModule* lua_module, const char* filename);
+    bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename);
     void    DeleteScript(HScript script);
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index);
@@ -100,8 +80,7 @@ namespace dmGameObject
     extern lua_State* g_LuaState;
     extern dmScript::HContext g_ScriptContext;
 
-    void ClearPropertiesFromLuaTable(const dmArray<ScriptPropertyDef>& property_defs, lua_State* L, int index);
-    void PropertiesToLuaTable(HInstance instance, const dmArray<ScriptPropertyDef>& property_defs, const HProperties properties, lua_State* L, int index);
+    void PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

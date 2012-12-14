@@ -57,14 +57,16 @@ def strip_single_lua_comments(str):
 
 def scan_lua(str):
     str = strip_single_lua_comments(str)
-    ptr = re.compile('--\\[\\[.*?--\\]\\]', re.MULTILINE | re.DOTALL)
+    ptr = re.compile(r'--\[\[.*?--\]\]', re.MULTILINE | re.DOTALL)
     # NOTE: We don't preserve line-numbers
     # '' could be replaced with a function
     str = ptr.sub('', str)
 
     modules = []
-    rp1 = re.compile("require\\s*?\"(.*?)\"$")
-    rp2 = re.compile("require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$")
+    props = {}
+    rp1 = re.compile(r"require\s*?\"(.*?)\"$")
+    rp2 = re.compile(r"require\s*?\(\s*?\"(.*?)\"\s*?\)$")
+    rp_prop = re.compile(r"go.property\(\"(.*?)\",\s*(.*?)\)$")
     for line in str.split('\n'):
         line = line.strip()
         m1 = rp1.match(line)
@@ -73,13 +75,87 @@ def scan_lua(str):
             modules.append(m1.group(1))
         elif m2:
             modules.append(m2.group(1))
-    return modules
+        m_prop = rp_prop.match(line)
+        if m_prop:
+            props[m_prop.group(1)] = m_prop.group(2).strip()
+    return modules, props
+
+def parse_properties(props):
+    import lua_ddf_pb2
+    import dlib
+    declarations = lua_ddf_pb2.PropertyDeclarations()
+    if props:
+        # http://docs.python.org/dev/library/re.html#simulating-scanf
+        rp_num = re.compile(r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?")
+        rp_hash = re.compile(r"hash\(\"(.*?)\"\)")
+        rp_url = re.compile(r"msg\.url\((\"(.*?)\")?\)")
+        rp_vec3 = re.compile(r"vmath\.vector3\(((.*?),(.*?),(.*?)|)\)")
+        rp_vec4 = re.compile(r"vmath\.vector4\(((.*?),(.*?),(.*?),(.*?)|)\)")
+        rp_quat = re.compile(r"vmath\.quat\(((.*?),(.*?),(.*?),(.*?)|)\)")
+        for k,v in props.items():
+            m_num = rp_num.match(v)
+            m_hash = rp_hash.match(v)
+            m_url = rp_url.match(v)
+            m_vec3 = rp_vec3.match(v)
+            m_vec4 = rp_vec4.match(v)
+            m_quat = rp_quat.match(v)
+            entry = None
+            if m_num:
+                entry = declarations.number_entries.add()
+                entry.index = len(declarations.float_values)
+                num = float(m_num.group(0))
+                declarations.float_values.append(num)
+            elif m_hash:
+                entry = declarations.hash_entries.add()
+                entry.index = len(declarations.hash_values)
+                hash = dlib.dmHashBuffer64(m_hash.group(1))
+                declarations.hash_values.append(hash)
+            elif m_url:
+                entry = declarations.url_entries.add()
+                entry.index = len(declarations.string_values)
+                if (m_url.group(2) and len(m_url.group(2)) > 0):
+                    url = m_url.group(2)
+                else:
+                    url = ""
+                declarations.string_values.append(url)
+            elif m_vec3:
+                entry = declarations.vector3_entries.add()
+                entry.index = len(declarations.float_values)
+                if (m_vec3.group(2)):
+                    vec3 = (float(m_vec3.group(2)), float(m_vec3.group(3)), float(m_vec3.group(4)))
+                else:
+                    vec3 = (0, 0, 0)
+                declarations.float_values.extend(vec3)
+            elif m_vec4:
+                entry = declarations.vector4_entries.add()
+                entry.index = len(declarations.float_values)
+                if (m_vec4.group(2)):
+                    vec4 = (float(m_vec4.group(2)), float(m_vec4.group(3)), float(m_vec4.group(4)), float(m_vec4.group(5)))
+                else:
+                    vec4 = (0, 0, 0, 0)
+                declarations.float_values.extend(vec4)
+            elif m_quat:
+                entry = declarations.quat_entries.add()
+                entry.index = len(declarations.float_values)
+                if (m_quat.group(2)):
+                    quat = (float(m_quat.group(2)), float(m_quat.group(3)), float(m_quat.group(4)), float(m_quat.group(5)))
+                else:
+                    quat = (0, 0, 0, 0)
+                declarations.float_values.extend(quat)
+            else:
+                # TODO Handle error?
+                print("%s has unknown format: \"%s\"" % (k,v))
+                pass
+            entry.key = k
+            entry.id = dlib.dmHashBuffer64(k)
+
+    return declarations
 
 def compile_lua(task):
     import lua_ddf_pb2
     with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
         script = in_f.read()
-        modules = scan_lua(script)
+        modules, props = scan_lua(script)
         lua_module = lua_ddf_pb2.LuaModule()
         lua_module.script = script
         lua_module.type = lua_ddf_pb2.LuaModule.TYPE_TEXT
@@ -87,7 +163,7 @@ def compile_lua(task):
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)
             lua_module.resources.append(module_file + 'c')
-
+        lua_module.properties.CopyFrom(parse_properties(props))
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
             out_f.write(lua_module.SerializeToString())
 

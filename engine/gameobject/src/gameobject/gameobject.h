@@ -14,8 +14,6 @@
 
 #include <resource/resource.h>
 
-#include "../proto/gameobject_ddf.h"
-
 namespace dmGameObject
 {
     using namespace Vectormath::Aos;
@@ -104,6 +102,21 @@ namespace dmGameObject
     extern const uint32_t UNNAMED_IDENTIFIER;
 
     /**
+     * Supported property types.
+     */
+    enum PropertyType
+    {
+        // NOTE These must match the values in gameobject_ddf.proto
+        PROPERTY_TYPE_NUMBER = 0,
+        PROPERTY_TYPE_HASH = 1,
+        PROPERTY_TYPE_URL = 2,
+        PROPERTY_TYPE_VECTOR3 = 3,
+        PROPERTY_TYPE_VECTOR4 = 4,
+        PROPERTY_TYPE_QUAT = 5,
+        PROPERTY_TYPE_COUNT
+    };
+
+    /**
      * Container of input related information.
      */
     struct InputAction
@@ -136,7 +149,7 @@ namespace dmGameObject
 
     struct PropertyVar
     {
-        dmGameObjectDDF::PropertyType m_Type;
+        PropertyType m_Type;
         union
         {
             double m_Number;

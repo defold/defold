@@ -53,6 +53,7 @@ namespace dmGameObject
 
     void SetPropertyData(HProperties properties, PropertyLayer layer, const PropertyData& data);
 
+    bool GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
     bool GetProperty(const HProperties properties, dmhash_t id, double& value);
     bool GetProperty(const HProperties properties, dmhash_t id, dmhash_t& value);
     bool GetProperty(const HProperties properties, dmhash_t id, dmMessage::URL& value);

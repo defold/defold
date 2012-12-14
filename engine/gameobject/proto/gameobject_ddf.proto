@@ -6,6 +6,7 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.gameobject.proto";
 option java_outer_classname = "GameObject";
 
+/* This must match with enum PropertyType in gameobject.h */
 enum PropertyType
 {
     PROPERTY_TYPE_NUMBER = 0;

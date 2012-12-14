@@ -20,7 +20,6 @@ namespace dmGameObject
 {
 #define SCRIPT_NAME "__script__"
 #define SCRIPT_INSTANCE_NAME "__script_instance__"
-#define TMP_URL_PATH_NAME "__tmp_url_path__"
 
     extern const char* ID_SEPARATOR;
 

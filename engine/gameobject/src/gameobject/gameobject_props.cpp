@@ -93,7 +93,7 @@ namespace dmGameObject
         }
     }
 
-    static bool GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var)
+    bool GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var)
     {
         for (uint32_t i = 0; i < MAX_PROPERTY_LAYER_COUNT; ++i)
         {
@@ -165,7 +165,7 @@ namespace dmGameObject
         PropertyVar var;
         if (!GetProperty(properties, id, var))
             return false;
-        if (var.m_Type != dmGameObjectDDF::PROPERTY_TYPE_NUMBER)
+        if (var.m_Type != PROPERTY_TYPE_NUMBER)
             return false;
         out_value = var.m_Number;
         return true;
@@ -176,7 +176,7 @@ namespace dmGameObject
         PropertyVar var;
         if (!GetProperty(properties, id, var))
             return false;
-        if (var.m_Type != dmGameObjectDDF::PROPERTY_TYPE_HASH)
+        if (var.m_Type != PROPERTY_TYPE_HASH)
             return false;
         out_value = var.m_Hash;
         return true;
@@ -187,7 +187,7 @@ namespace dmGameObject
         PropertyVar var;
         if (!GetProperty(properties, id, var))
             return false;
-        if (var.m_Type != dmGameObjectDDF::PROPERTY_TYPE_URL)
+        if (var.m_Type != PROPERTY_TYPE_URL)
             return false;
         out_value = var.m_URL;
         return true;
@@ -198,7 +198,7 @@ namespace dmGameObject
         PropertyVar var;
         if (!GetProperty(properties, id, var))
             return false;
-        if (var.m_Type != dmGameObjectDDF::PROPERTY_TYPE_VECTOR3)
+        if (var.m_Type != PROPERTY_TYPE_VECTOR3)
             return false;
         out_value = Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]);
         return true;
@@ -209,7 +209,7 @@ namespace dmGameObject
         PropertyVar var;
         if (!GetProperty(properties, id, var))
             return false;
-        if (var.m_Type != dmGameObjectDDF::PROPERTY_TYPE_VECTOR4)
+        if (var.m_Type != PROPERTY_TYPE_VECTOR4)
             return false;
         out_value = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
         return true;
@@ -220,7 +220,7 @@ namespace dmGameObject
         PropertyVar var;
         if (!GetProperty(properties, id, var))
             return false;
-        if (var.m_Type != dmGameObjectDDF::PROPERTY_TYPE_QUAT)
+        if (var.m_Type != PROPERTY_TYPE_QUAT)
             return false;
         out_value = Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
         return true;
@@ -230,17 +230,17 @@ namespace dmGameObject
     {
         switch (type)
         {
-        case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
+        case PROPERTY_TYPE_NUMBER:
             return sizeof(double);
-        case dmGameObjectDDF::PROPERTY_TYPE_HASH:
+        case PROPERTY_TYPE_HASH:
             return sizeof(dmhash_t);
-        case dmGameObjectDDF::PROPERTY_TYPE_URL:
+        case PROPERTY_TYPE_URL:
             return sizeof(dmMessage::URL);
-        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
+        case PROPERTY_TYPE_VECTOR3:
             return sizeof(Vectormath::Aos::Vector3);
-        case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
+        case PROPERTY_TYPE_VECTOR4:
             return sizeof(Vectormath::Aos::Vector4);
-        case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
+        case PROPERTY_TYPE_QUAT:
             return sizeof(Vectormath::Aos::Quat);
         default:
             return 0;

@@ -247,7 +247,7 @@ namespace dmScript
     };
 
     /*# creates a new URL
-     * The URL is empty and cannot be used to send messages to.
+     * This is equivalent to msg.url("").
      *
      * @name msg.url
      * @return a new URL (url)
@@ -280,17 +280,13 @@ namespace dmScript
     int URL_new(lua_State* L)
     {
         int top = lua_gettop(L);
+        (void)top;
         dmMessage::URL url;
         dmMessage::ResetURL(url);
-        if (top == 0)
-        {
-            PushURL(L, url);
-            return 1;
-        }
         dmMessage::URL default_url;
         dmMessage::ResetURL(default_url);
         GetURL(L, &default_url);
-        if (top == 1 && !lua_isnil(L, 1))
+        if (top < 2)
         {
             ResolveURL(L, 1, &url, &default_url);
         }
@@ -601,7 +597,7 @@ namespace dmScript
 
     int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* default_url)
     {
-        if (lua_isnil(L, index))
+        if (lua_gettop(L) < index || lua_isnil(L, index))
         {
             *out_url = *default_url;
         }

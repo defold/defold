@@ -133,7 +133,7 @@ namespace dmGameObject
                     default:
                         return PROPERTY_RESULT_UNKNOWN_TYPE;
                     }
-                    out_var.m_Type = var.m_Type;
+                    out_var.m_Type = (PropertyType)var.m_Type;
                     return PROPERTY_RESULT_OK;
                 }
             }

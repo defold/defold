@@ -67,11 +67,6 @@ namespace dmGameObject
                 // Error, release created
                 if (id_used)
                     dmResource::Release(factory, component);
-                uint32_t component_count = proto->m_Components.Size();
-                for (uint32_t j = 0; j < component_count; ++j)
-                {
-                    dmResource::Release(factory, proto->m_Components[j].m_Resource);
-                }
                 DestroyPrototype(proto, factory);
                 dmDDF::FreeMessage(proto_desc);
                 if (id_used)
