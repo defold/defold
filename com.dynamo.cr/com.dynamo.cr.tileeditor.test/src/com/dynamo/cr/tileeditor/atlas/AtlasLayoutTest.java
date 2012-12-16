@@ -9,8 +9,9 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.dynamo.cr.tileeditor.atlas.AtlasLayout.Layout;
-import com.dynamo.cr.tileeditor.atlas.AtlasLayout.Rect;
+import com.dynamo.bob.atlas.AtlasLayout;
+import com.dynamo.bob.atlas.AtlasLayout.Layout;
+import com.dynamo.bob.atlas.AtlasLayout.Rect;
 
 public class AtlasLayoutTest {
 

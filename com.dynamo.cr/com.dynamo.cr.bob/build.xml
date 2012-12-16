@@ -1,6 +1,14 @@
-
 <project default="compile">
     <property environment="env"/>
+    <property name="classes.dir" value="build"/>
+
+    <path id="classpath">
+        <fileset dir="lib" includes="*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
+        <fileset dir="lib" includes="*.jar"/>
+    </path>
 
     <macrodef name="proto">
         <attribute name="dir"/>
@@ -19,18 +27,17 @@
     </macrodef>
 
     <target name="clean">
+        <delete dir="${classes.dir}"/>
         <delete dir="generated"/>
+        <delete dir="dist"/>
+        <delete dir="tmp"/>
     </target>
 
     <target name="compile">
-        <mkdir dir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/upnp.jar" todir="ext_generated"/>
-
+        <mkdir dir="${classes.dir}"/>
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
-        <parallel threadCount="10">
-            <proto dir="proto" file="cr_ddf.proto"/>
-            <proto dir="proto" file="cr_protocol_ddf.proto"/>
+        <parallel threadCount="20">
             <proto dir="../../engine/ddf/src" file="ddf/ddf_extensions.proto"/>
             <proto dir="../../engine/ddf/src" file="ddf/ddf_math.proto"/>
             <proto dir="../../engine/engine/proto" file="engine_ddf.proto"/>
@@ -57,5 +64,59 @@
             <proto dir="../../engine/script/proto" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
+
+        <javac srcdir="generated"
+               destdir="${classes.dir}"
+               includeantruntime="false">
+            <classpath>
+                <path refid="classpath"/>
+            </classpath>
+            <compilerarg value="-g"/>
+        </javac>
+
+        <javac destdir="${classes.dir}"
+               includeantruntime="false">
+            <src path="src"/>
+            <include name="com/**"/>
+            <exclude name="com/dynamo/bob/*Osgi*"/>
+
+            <classpath>
+                <path refid="classpath"/>
+            </classpath>
+            <compilerarg value="-g"/>
+        </javac>
+
+        <copy todir="${classes.dir}">
+            <fileset dir="src" includes="**/*.properties" />
+        </copy>
     </target>
+
+    <target name="dist">
+        <mkdir dir="dist"/>
+        <mkdir dir="tmp"/>
+
+        <jar jarfile="tmp/external-libs.jar">
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext">
+              <include name="protobuf-java*.jar"/>
+              <include name="commons*.jar"/>
+              <include name="vecmath.jar"/>
+            </zipgroupfileset>
+            <zipgroupfileset dir="lib">
+              <include name="*.jar"/>
+            </zipgroupfileset>
+         </jar>
+
+        <jar destfile="dist/bob.jar">
+            <fileset dir="${classes.dir}"/>
+            <zipfileset src="tmp/external-libs.jar">
+              <exclude name="**/META-INF/**"/>
+            </zipfileset>
+
+            <manifest>
+                <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
+            </manifest>
+
+        </jar>
+    </target>
+
 </project>

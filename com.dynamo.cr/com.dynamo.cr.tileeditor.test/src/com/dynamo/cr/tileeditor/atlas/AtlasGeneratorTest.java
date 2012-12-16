@@ -10,7 +10,9 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.dynamo.cr.tileeditor.atlas.AtlasGenerator.AnimDesc;
+import com.dynamo.bob.atlas.AtlasGenerator;
+import com.dynamo.bob.atlas.AtlasMap;
+import com.dynamo.bob.atlas.AtlasGenerator.AnimDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.tile.proto.Tile.Playback;
 

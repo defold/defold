@@ -1,22 +1,29 @@
-package com.dynamo.cr.tileeditor.atlas;
+package com.dynamo.bob.atlas;
 
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.dynamo.cr.tileeditor.atlas.AtlasLayout.Layout;
-import com.dynamo.cr.tileeditor.atlas.AtlasLayout.LayoutType;
-import com.dynamo.cr.tileeditor.atlas.AtlasLayout.Rect;
-import com.dynamo.cr.tileeditor.scene.TextureSetNode;
+import com.dynamo.bob.atlas.AtlasLayout.Layout;
+import com.dynamo.bob.atlas.AtlasLayout.LayoutType;
+import com.dynamo.bob.atlas.AtlasLayout.Rect;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.tile.proto.Tile.Playback;
-import com.sun.opengl.util.BufferUtil;
 
 public class AtlasGenerator {
+
+    public static int COMPONENT_COUNT = 5;
+
+    private static FloatBuffer newFloatBuffer(int n) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(n * 4);
+        return bb.order(ByteOrder.nativeOrder()).asFloatBuffer();
+    }
 
     public static class AnimDesc {
         private String id;
@@ -94,10 +101,10 @@ public class AtlasGenerator {
             totalAnimationFrameCount += anim.getIds().size();
         }
 
-        final int components = TextureSetNode.COMPONENT_COUNT;
-        FloatBuffer vertexBuffer = BufferUtil.newFloatBuffer(components * 6 * (layout.getRectangles().size() + totalAnimationFrameCount));
-        FloatBuffer outlineVertexBuffer = BufferUtil.newFloatBuffer(components * 4 * (layout.getRectangles().size() + totalAnimationFrameCount));
-        FloatBuffer texCoordsBuffer = BufferUtil.newFloatBuffer(4 * (layout.getRectangles().size() + totalAnimationFrameCount));
+        final int components = COMPONENT_COUNT;
+        FloatBuffer vertexBuffer = newFloatBuffer(components * 6 * (layout.getRectangles().size() + totalAnimationFrameCount));
+        FloatBuffer outlineVertexBuffer = newFloatBuffer(components * 4 * (layout.getRectangles().size() + totalAnimationFrameCount));
+        FloatBuffer texCoordsBuffer = newFloatBuffer(4 * (layout.getRectangles().size() + totalAnimationFrameCount));
 
         Map<String, TextureSetAnimation> idToAnimation = new HashMap<String, TextureSetAnimation>();
         int tileIndex = 0;

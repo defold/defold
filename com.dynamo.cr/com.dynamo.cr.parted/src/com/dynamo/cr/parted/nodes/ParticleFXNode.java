@@ -13,7 +13,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.common.util.MathUtil;
+import com.dynamo.bob.util.MathUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;

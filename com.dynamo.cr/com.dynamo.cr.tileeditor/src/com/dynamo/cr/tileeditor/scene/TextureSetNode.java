@@ -19,8 +19,6 @@ import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 @SuppressWarnings("serial")
 public abstract class TextureSetNode extends Node {
 
-    public static int COMPONENT_COUNT = 5;
-
     /**
      * Get texture of the laid out images
      * @return {@link TextureHandle}

@@ -15,8 +15,8 @@ import javax.imageio.ImageIO;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.tile.ConvexHull2D;
-import com.dynamo.tile.ConvexHull2D.Point;
+import com.dynamo.bob.tile.ConvexHull2D;
+import com.dynamo.bob.tile.ConvexHull2D.Point;
 
 public class ConvexHull2DTest {
 

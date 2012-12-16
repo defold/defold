@@ -1,4 +1,4 @@
-package com.dynamo.tile;
+package com.dynamo.bob.tile;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.Raster;

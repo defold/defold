@@ -1,4 +1,4 @@
-package com.dynamo.tile;
+package com.dynamo.bob.tile;
 
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -16,7 +16,7 @@ import java.io.Reader;
 
 import javax.imageio.ImageIO;
 
-import com.dynamo.tile.TileSetUtil.ConvexHulls;
+import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.ConvexHull.Builder;
 import com.dynamo.tile.proto.Tile.TileSet;

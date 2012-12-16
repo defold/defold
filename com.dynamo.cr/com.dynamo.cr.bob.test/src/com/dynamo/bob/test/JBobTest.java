@@ -19,7 +19,6 @@ import java.util.Set;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Platform;
 import org.junit.After;
 import org.junit.Before;
@@ -30,11 +29,12 @@ import com.dynamo.bob.AbstractFileSystem;
 import com.dynamo.bob.AbstractResource;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.ClassScanner;
 import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.IResource;
+import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
@@ -269,11 +269,11 @@ public class JBobTest {
         bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
         project = new Project(fileSystem);
-        project.scanBundlePackage(bundle, "com.dynamo.bob.test");
+        project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
     }
 
     List<TaskResult> build() throws IOException, CompileExceptionError {
-        return project.build(new NullProgressMonitor(), "build");
+        return project.build(new NullProgress(), "build");
     }
 
     @After
@@ -282,7 +282,7 @@ public class JBobTest {
 
     @Test
     public void testFilePackageScan() throws Exception {
-        Set<String> classes = ClassScanner.scanBundle(bundle, "com.dynamo.bob.test");
+        Set<String> classes = new OsgiScanner(bundle).scan("com.dynamo.bob.test");
         assertThat(classes, hasItem("com.dynamo.bob.test.JBobTest"));
     }
 

@@ -5,13 +5,13 @@ import java.util.List;
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
+import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
-import com.dynamo.cr.tileeditor.atlas.AtlasMap;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.sun.opengl.util.j2d.TextRenderer;
 import com.sun.opengl.util.texture.Texture;

@@ -20,7 +20,8 @@ Require-Bundle: org.eclipse.ui,
  com.dynamo.cr.tileeditor;bundle-version="1.0.0",
  com.google.inject;bundle-version="3.0.0",
  org.eclipse.ui.navigator,
- com.dynamo.cr.go;bundle-version="1.0.0"
+ com.dynamo.cr.go;bundle-version="1.0.0",
+ com.dynamo.cr.bob;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Eclipse-BundleShape: dir

@@ -1,4 +1,4 @@
-package com.dynamo.render;
+package com.dynamo.bob.font;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -32,8 +32,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Comparator;
-
-import javax.imageio.ImageIO;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;

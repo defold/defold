@@ -41,6 +41,7 @@ import org.eclipse.ui.services.IDisposable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.SceneUtil.MouseType;
 import com.dynamo.cr.sceneed.core.util.CameraUtil;
@@ -50,7 +51,6 @@ import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.core.MapBrush;
-import com.dynamo.tile.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;

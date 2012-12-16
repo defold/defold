@@ -1,4 +1,4 @@
-package com.dynamo.tile;
+package com.dynamo.bob.tile;
 
 import java.util.Arrays;
 import javax.vecmath.Vector2d;

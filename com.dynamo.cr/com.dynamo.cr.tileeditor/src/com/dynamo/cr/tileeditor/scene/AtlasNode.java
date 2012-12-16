@@ -5,14 +5,14 @@ import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.dynamo.bob.atlas.AtlasGenerator;
+import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.cr.properties.GreaterEqualThanZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
-import com.dynamo.cr.tileeditor.atlas.AtlasGenerator;
-import com.dynamo.cr.tileeditor.atlas.AtlasMap;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 
 @SuppressWarnings("serial")

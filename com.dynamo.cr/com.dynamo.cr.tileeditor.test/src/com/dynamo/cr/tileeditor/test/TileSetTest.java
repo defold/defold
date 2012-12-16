@@ -50,13 +50,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
+import com.dynamo.bob.tile.ConvexHull;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.tileeditor.core.ITileSetView;
 import com.dynamo.cr.tileeditor.core.Messages;
 import com.dynamo.cr.tileeditor.core.TileSetModel;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
-import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.common.base.Joiner;
 import com.google.protobuf.TextFormat;

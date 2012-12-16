@@ -1,4 +1,4 @@
-package com.dynamo.cr.resource.archive;
+package com.dynamo.bob.archive;
 
 import java.io.File;
 import java.io.FileInputStream;

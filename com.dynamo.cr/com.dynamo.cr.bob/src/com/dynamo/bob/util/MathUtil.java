@@ -1,4 +1,4 @@
-package com.dynamo.cr.common.util;
+package com.dynamo.bob.util;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;

@@ -27,9 +27,9 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.ui.services.IDisposable;
 
+import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.tileeditor.core.TileSetPresenter;
-import com.dynamo.tile.TileSetUtil;
 import com.sun.opengl.util.BufferUtil;
 import com.sun.opengl.util.texture.Texture;
 import com.sun.opengl.util.texture.TextureIO;

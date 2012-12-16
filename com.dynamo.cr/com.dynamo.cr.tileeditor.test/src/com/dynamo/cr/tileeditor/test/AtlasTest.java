@@ -16,9 +16,9 @@ import org.eclipse.swt.widgets.Display;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
-import com.dynamo.cr.tileeditor.atlas.AtlasMap;
 import com.dynamo.cr.tileeditor.operations.AddImagesNodeOperation;
 import com.dynamo.cr.tileeditor.scene.AtlasAnimationNode;
 import com.dynamo.cr.tileeditor.scene.AtlasImageNode;

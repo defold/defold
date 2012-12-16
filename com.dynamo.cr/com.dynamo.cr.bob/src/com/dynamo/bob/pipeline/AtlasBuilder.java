@@ -11,7 +11,7 @@ import java.util.List;
 
 import javax.imageio.ImageIO;
 
-import org.eclipse.core.runtime.Path;
+import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
@@ -22,9 +22,9 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
-import com.dynamo.cr.tileeditor.atlas.AtlasGenerator;
-import com.dynamo.cr.tileeditor.atlas.AtlasGenerator.AnimDesc;
-import com.dynamo.cr.tileeditor.atlas.AtlasMap;
+import com.dynamo.bob.atlas.AtlasGenerator;
+import com.dynamo.bob.atlas.AtlasMap;
+import com.dynamo.bob.atlas.AtlasGenerator.AnimDesc;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
@@ -50,7 +50,7 @@ public class AtlasBuilder extends Builder<Void>  {
     }
 
     private static String pathToId(String path) {
-        return new Path(path).removeFileExtension().lastSegment().toString();
+        return FilenameUtils.removeExtension(FilenameUtils.getName(path));
     }
 
     private static List<BufferedImage> loadImages(Task<Void> task) throws IOException {

@@ -11,7 +11,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
-import com.dynamo.render.Fontc;
+import com.dynamo.bob.font.Fontc;
 import com.dynamo.render.proto.Font.FontDesc;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")

@@ -18,6 +18,10 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 
+import com.dynamo.bob.atlas.AtlasGenerator;
+import com.dynamo.bob.tile.ConvexHull;
+import com.dynamo.bob.tile.TileSetUtil;
+import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.cr.editor.ui.EditorUIPlugin;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -31,9 +35,6 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
-import com.dynamo.tile.ConvexHull;
-import com.dynamo.tile.TileSetUtil;
-import com.dynamo.tile.TileSetUtil.ConvexHulls;
 import com.sun.opengl.util.BufferUtil;
 
 @SuppressWarnings("serial")
@@ -293,8 +294,8 @@ public class TileSetNode extends TextureSetNode {
         boolean flipVertical = false;
         List<AnimationNode> animations = getAnimations();
 
-        FloatBuffer vertices = FloatBuffer.allocate(TextureSetNode.COMPONENT_COUNT * 6 * animations.size());
-        FloatBuffer outlineVertices = FloatBuffer.allocate(TextureSetNode.COMPONENT_COUNT * 4 * animations.size());
+        FloatBuffer vertices = FloatBuffer.allocate(AtlasGenerator.COMPONENT_COUNT * 6 * animations.size());
+        FloatBuffer outlineVertices = FloatBuffer.allocate(AtlasGenerator.COMPONENT_COUNT * 4 * animations.size());
 
         textureSetAnimations.clear();
         int index = 0;

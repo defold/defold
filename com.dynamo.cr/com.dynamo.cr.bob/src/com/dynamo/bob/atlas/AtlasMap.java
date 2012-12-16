@@ -1,4 +1,4 @@
-package com.dynamo.cr.tileeditor.atlas;
+package com.dynamo.bob.atlas;
 
 import java.awt.image.BufferedImage;
 import java.nio.FloatBuffer;

@@ -1,4 +1,4 @@
-package com.dynamo.tile;
+package com.dynamo.bob.tile;
 
 public class ConvexHull {
     String collisionGroup = "";
