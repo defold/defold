@@ -195,8 +195,9 @@ class Configuration(object):
 
         self._log('Building bob')
 
-        self.exec_command([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install'],
-                          cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
+        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                          cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
+                          shell = True)
 
         for lib in libs:
             self._log('Building %s' % lib)
