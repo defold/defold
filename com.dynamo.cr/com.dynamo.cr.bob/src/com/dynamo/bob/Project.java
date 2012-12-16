@@ -42,7 +42,7 @@ public class Project {
     }
 
     public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
-        this.rootDirectory = normalizeNoEndSeparator(sourceRootDirectory, true);
+        this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);

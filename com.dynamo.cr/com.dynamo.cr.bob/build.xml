@@ -91,7 +91,7 @@
         </copy>
     </target>
 
-    <target name="dist">
+    <target name="dist" depends="compile">
         <mkdir dir="dist"/>
         <mkdir dir="tmp"/>
 
@@ -117,6 +117,10 @@
             </manifest>
 
         </jar>
+    </target>
+
+    <target name="install" depends="dist">
+        <copy file="dist/bob.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
 
 </project>

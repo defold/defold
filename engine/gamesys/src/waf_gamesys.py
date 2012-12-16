@@ -371,7 +371,7 @@ def dae_file(self, node):
 
 new_copy_task('gui_script', '.gui_script', '.gui_scriptc')
 
-Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.tile.TileSetc ${SRC} ${TGT}',
+Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='cc cxx',
@@ -379,15 +379,7 @@ Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.til
 
 @extension(['.tileset', '.tilesource'])
 def tileset_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
-                 self.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
-                 self.env['DYNAMO_HOME'] + '/share/java/gamesys.jar',
-                 self.env['DYNAMO_HOME'] + '/share/java/tile.jar',
-                 self.env['DYNAMO_HOME'] + '/ext/share/java/vecmath.jar',
-                 # NOTE: Only needed when running within gamesys-project.
-                 # Should be fixed somehow... in configure perhaps?
-                 'default/src/java',
-                 'default/src/gamesys/gamesys.jar']
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob.jar']
     tileset = self.create_task('tileset')
     tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
     tileset.set_inputs(node)

@@ -9,10 +9,7 @@ def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                            includes = ['. opengl'],
                            proto_gen_py = True,
-                           proto_gen_java = True,
-                           ddf_jar = 'graphics.jar',
                            protoc_includes = '../proto',
-                           classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                            target = 'graphics')
 
     obj.find_sources_in_dirs('. opengl ../proto')

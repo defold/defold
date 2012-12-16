@@ -5,6 +5,7 @@ import java.util.List;
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
+import com.dynamo.bob.atlas.AtlasGenerator;
 import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.Node;
@@ -64,8 +65,8 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             VertexBufferObject vertexBuffer = node.getVertexBuffer();
             vertexBuffer.enable(gl);
 
-            gl.glTexCoordPointer(2, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 0);
-            gl.glVertexPointer(3, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 2 * 4);
+            gl.glTexCoordPointer(2, GL.GL_FLOAT, AtlasGenerator.COMPONENT_COUNT * 4, 0);
+            gl.glVertexPointer(3, GL.GL_FLOAT, AtlasGenerator.COMPONENT_COUNT * 4, 2 * 4);
 
             time += renderContext.getDt();
             AtlasAnimationNode playBackNode = node.getPlayBackNode();

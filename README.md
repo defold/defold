@@ -32,6 +32,16 @@ Folder Structure
 
 **share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
 
+Content pipeline
+----------------
+
+The primary build tool is bob. Bob is used for the editor but also for engine-tests.
+In the first build-step a standalone version of bob is built. A legacy pipeline, waf/python and some classes from bob.jar,
+is still used for gamesys and for built-in content. This might be changed in the future but integrating bob with waf 1.5.x
+is pretty hard as waf 1.5.x is very restrictive where source and built content is located. Built-in content is compiled
+, via .arc-files, to header-files, installed to $DYNAMO_HOME, etc In other words tightly integrated with waf.
+
+
 iOS Debugging
 -------------
 

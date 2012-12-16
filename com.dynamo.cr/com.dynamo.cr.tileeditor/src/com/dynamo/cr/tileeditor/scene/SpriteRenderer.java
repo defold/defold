@@ -5,6 +5,7 @@ import java.util.EnumSet;
 import javax.media.opengl.GL;
 import javax.vecmath.Point3d;
 
+import com.dynamo.bob.atlas.AtlasGenerator;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -81,8 +82,8 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
         vertexBuffer.enable(gl);
 
-        gl.glTexCoordPointer(2, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 0);
-        gl.glVertexPointer(3, GL.GL_FLOAT, TextureSetNode.COMPONENT_COUNT * 4, 2 * 4);
+        gl.glTexCoordPointer(2, GL.GL_FLOAT, AtlasGenerator.COMPONENT_COUNT * 4, 0);
+        gl.glVertexPointer(3, GL.GL_FLOAT, AtlasGenerator.COMPONENT_COUNT * 4, 2 * 4);
 
         if ( renderData.getPass() == Pass.OUTLINE) {
             gl.glDrawArrays(GL.GL_LINE_LOOP, textureSet.getOutlineVertexStart(animation), textureSet.getOutlineVertexCount(animation));

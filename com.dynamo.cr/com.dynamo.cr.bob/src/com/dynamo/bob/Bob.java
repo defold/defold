@@ -18,9 +18,9 @@ public class Bob {
 
     private static CommandLine parse(String[] args) {
         Options options = new Options();
-        options.addOption("r", "root", true, "Build root message. Default is current directory.");
+        options.addOption("r", "root", true, "Build root directory. Default is current directory");
         options.addOption("o", "out", true, "Output directory. Default is \"build/default\"");
-        options.addOption("i", "input", true, "Source directory. Default is is current directory");
+        options.addOption("i", "input", true, "Source directory. Default is current directory");
         options.addOption("h", "help", false, "This help directory");
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
@@ -45,7 +45,7 @@ public class Bob {
         CommandLine cmd = parse(args);
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
-        String sourceDirectory = getOptionsValue(cmd, 'i', cwd);
+        String sourceDirectory = getOptionsValue(cmd, 'i', ".");
 
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
