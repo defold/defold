@@ -473,7 +473,7 @@ Multiple commands can be specified'''
 
 
         for cmd in args:
-            if cmd == 'build_engine' or cmd == 'archive_engine':
+            if cmd in ['distclean', 'install_ext', 'build_engine', 'archive_engine']:
                 f = getattr(c, cmd, None)
                 if not f:
                     parser.error('Unknown command %s' % cmd)
