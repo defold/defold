@@ -65,8 +65,11 @@
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
 
+        <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
+             specifically vecmath.jar on OSX -->
         <javac srcdir="generated"
                destdir="${classes.dir}"
+               extdirs="foo"
                includeantruntime="false">
             <classpath>
                 <path refid="classpath"/>
@@ -75,6 +78,7 @@
         </javac>
 
         <javac destdir="${classes.dir}"
+               extdirs="foo"
                includeantruntime="false">
             <src path="src"/>
             <include name="com/**"/>
