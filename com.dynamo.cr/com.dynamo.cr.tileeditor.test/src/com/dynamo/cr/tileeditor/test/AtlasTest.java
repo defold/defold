@@ -104,7 +104,7 @@ public class AtlasTest extends AbstractNodeTest {
 
         AtlasMap atlasMap = node.getAtlasMap();
         List<TextureSetAnimation> tiles = atlasMap.getAnimations();
-        assertThat(tiles.size(), is(3));
+        assertThat(tiles.size(), is(2));
         assertThat(atlasMap.getImage().getWidth(), is(16));
         assertThat(atlasMap.getImage().getHeight(), is(16));
 
