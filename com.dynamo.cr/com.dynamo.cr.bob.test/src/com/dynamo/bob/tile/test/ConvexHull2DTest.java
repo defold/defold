@@ -1,4 +1,4 @@
-package com.dynamo.cr.tileeditor.pipeline.test;
+package com.dynamo.bob.tile.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
