@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -13,22 +15,20 @@ import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodeUtil;
-import com.dynamo.cr.sceneed.core.test.DummyIdNode.DummyIdFetcher;
 
 public class NodeUtilTest {
 
     @Test
     public void testUniqueId() {
-        DummyNode parent = new DummyNode();
-        parent.addChild(new DummyIdNode("default"));
-
-        DummyIdFetcher idFetcher = new DummyIdFetcher();
-        assertThat(NodeUtil.getUniqueId(parent, "default", idFetcher), is("default1"));
-        assertThat(NodeUtil.getUniqueId(parent.getChildren(), "default", idFetcher), is("default1"));
-
-        parent.addChild(new DummyIdNode("default1"));
-        assertThat(NodeUtil.getUniqueId(parent, "default", idFetcher), is("default2"));
-        assertThat(NodeUtil.getUniqueId(parent.getChildren(), "default", idFetcher), is("default2"));
+        Set<String> ids = new HashSet<String>();
+        ids.add("default");
+        assertThat(NodeUtil.getUniqueId(ids, "default"), is("default1"));
+        ids.add("default1");
+        assertThat(NodeUtil.getUniqueId(ids, "default"), is("default2"));
+        ids.add("");
+        assertThat(NodeUtil.getUniqueId(ids, ""), is("1"));
+        ids.add("1test1");
+        assertThat(NodeUtil.getUniqueId(ids, "1test1"), is("1test2"));
     }
 
     @Test

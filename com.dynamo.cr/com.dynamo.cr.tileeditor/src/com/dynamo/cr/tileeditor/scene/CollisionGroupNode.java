@@ -10,13 +10,14 @@ import org.eclipse.swt.graphics.Image;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.cr.tileeditor.Activator;
 
 @SuppressWarnings("serial")
 public class CollisionGroupNode extends Node implements
-Comparable<CollisionGroupNode> {
+Comparable<CollisionGroupNode>, Identifiable {
 
     @Property
     @Unique(scope = CollisionGroupNode.class)
@@ -28,7 +29,7 @@ Comparable<CollisionGroupNode> {
     private static CollisionGroupIndexPool cache = new CollisionGroupIndexPool(Activator.MAX_COLLISION_GROUP_COUNT);
 
     public CollisionGroupNode() {
-        this.id = "";
+        this.id = "default";
         this.idRegistered = false;
     }
 

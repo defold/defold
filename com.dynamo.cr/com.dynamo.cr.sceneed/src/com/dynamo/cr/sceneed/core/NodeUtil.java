@@ -1,34 +1,29 @@
 package com.dynamo.cr.sceneed.core;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class NodeUtil {
 
-    public static interface IdFetcher<T extends Node> {
-        String getId(T node);
-    }
+    private static final Pattern ID_PATTERN = Pattern.compile("^(.*?)(\\d+)$");
 
-    public static <T extends Node> String getUniqueId(List<T> nodes, String baseId, IdFetcher<T> idFetcher) {
-        List<String> ids = new ArrayList<String>(nodes.size());
-        for (T node: nodes) {
-            String nodeId = idFetcher.getId(node);
-            if (nodeId != null) {
-                ids.add(nodeId);
-            }
+    public static String getUniqueId(Set<String> ids, String baseId) {
+        String format = "%s%d";
+        Matcher matcher = ID_PATTERN.matcher(baseId);
+        int i = 1;
+        String base = baseId;
+        if (matcher.matches()) {
+            base = matcher.group(1);
+            i = Integer.parseInt(matcher.group(2)) + 1;
         }
         String id = baseId;
-        String format = "%s%d";
-        int i = 1;
         while (ids.contains(id)) {
-            id = String.format(format, baseId, i);
+            id = String.format(format, base, i);
             ++i;
         }
         return id;
-    }
-
-    public static String getUniqueId(Node parent, String baseId, IdFetcher<Node> idFetcher) {
-        return getUniqueId(parent.getChildren(), baseId, idFetcher);
     }
 
     /**

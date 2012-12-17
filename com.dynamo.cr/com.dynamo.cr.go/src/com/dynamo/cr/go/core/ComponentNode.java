@@ -4,11 +4,12 @@ import org.eclipse.core.runtime.IStatus;
 
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 
 @SuppressWarnings("serial")
-public class ComponentNode extends Node {
+public class ComponentNode extends Node implements Identifiable {
 
     @Property
     @NotEmpty(severity = IStatus.ERROR)
