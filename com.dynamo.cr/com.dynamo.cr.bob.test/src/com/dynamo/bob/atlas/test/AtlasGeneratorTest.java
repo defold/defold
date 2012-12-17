@@ -1,4 +1,4 @@
-package com.dynamo.cr.tileeditor.atlas;
+package com.dynamo.bob.atlas.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
