@@ -618,6 +618,9 @@ public class TileSetNode extends TextureSetNode {
         this.materialTag = (String)in.readObject();
         this.tileCollisionGroups = (List<CollisionGroupNode>)in.readObject();
         this.convexHulls = new ArrayList<ConvexHull>();
+        this.vertexBuffer = new VertexBufferObject();
+        this.outlineVertexBuffer = new VertexBufferObject();
+        this.textureSetAnimations = new HashMap<String, TextureSetAnimation>();
     }
 
     private void updateTexCoords() {
