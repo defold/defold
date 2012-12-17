@@ -138,7 +138,7 @@
                   resource-type="com.dynamo.cr.tileeditor.resourcetypes.tileSource">
             </reference-resource-type>
             <reference-resource-type
-                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas">
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.Atlas">
             </reference-resource-type>
             <reference-resource-type
                   resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
