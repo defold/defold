@@ -1809,13 +1809,13 @@ TEST_F(dmGuiTest, Picking)
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
     Vector3 ext(pos);
-    ext.setX(ext.getX() / sqrt(2.0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), size.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX() + 0.5f), size.getY()));
+    ext.setX(ext.getX() * cosf(M_PI * 0.25f));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), pos.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX()), pos.getY()));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 90, 0, 0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), size.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, size.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), pos.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, pos.getY()));
 }
 
 TEST_F(dmGuiTest, ScriptPicking)
