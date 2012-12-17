@@ -93,7 +93,7 @@
                   resource-type="com.dynamo.cr.tileeditor.resourcetypes.TileSet">
             </reference-resource-type>
             <reference-resource-type
-                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.ImageAtlas">
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.Atlas">
             </reference-resource-type>
             <reference-resource-type
                   resource-type="com.dynamo.cr.tileeditor.resourcetypes.tileSource">
@@ -133,7 +133,7 @@
             id="com.dynamo.cr.tileeditor.resourcetypes.Atlas"
             name="Atlas"
             proto-message-class="com.dynamo.atlas.proto.AtlasProto$Atlas"
-            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.ImageAtlasRefactorParticipant"
+            resource-refactor-participant-class="com.dynamo.cr.tileeditor.core.refactoring.AtlasRefactorParticipant"
             template-data=" "
             type-class="atlas">
          <references>
