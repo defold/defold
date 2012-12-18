@@ -3,15 +3,13 @@ package com.dynamo.bob.pipeline;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.Pair;
 
 import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
@@ -23,12 +21,9 @@ import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.atlas.AtlasGenerator;
-import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.bob.atlas.AtlasGenerator.AnimDesc;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
-import com.google.protobuf.ByteString;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".texturesetc")
 public class AtlasBuilder extends Builder<Void>  {
@@ -91,48 +86,6 @@ public class AtlasBuilder extends Builder<Void>  {
         return animDescs;
     }
 
-    private static short toShortUV(float fuv) {
-        int uv = (int) (fuv * 65535.0f);
-        return (short) (uv & 0xffff);
-    }
-
-    private static void createVertices(AtlasMap atlasMap, TextureSet.Builder b) {
-        int vertexCount = 0;
-        for (TextureSetAnimation anim : atlasMap.getAnimations()) {
-            vertexCount += atlasMap.getVertexCount(anim);
-        }
-
-        FloatBuffer inVb = atlasMap.getVertexBuffer();
-        ByteBuffer outVb = ByteBuffer.allocate(vertexCount * (3 * 4 + 4)).order(ByteOrder.LITTLE_ENDIAN);
-        for (TextureSetAnimation anim : atlasMap.getAnimations()) {
-            int start = atlasMap.getVertexStart(anim);
-            int count = atlasMap.getVertexCount(anim);
-
-            for (int i = 0; i < count; ++i) {
-                outVb.putFloat(inVb.get((start + i) * 5 + 0));
-                outVb.putFloat(inVb.get((start + i) * 5 + 1));
-                outVb.putFloat(inVb.get((start + i) * 5 + 2));
-                outVb.putShort(toShortUV((start + i) * 5 + 3));
-                outVb.putShort(toShortUV((start + i) * 5 + 4));
-            }
-            b.addVertexCount(count);
-        }
-
-        outVb.rewind();
-        b.setVertices(ByteString.copyFrom(outVb));
-    }
-
-    public static TextureSet.Builder createTextureSet(AtlasMap atlasMap) {
-        TextureSet.Builder b = TextureSet.newBuilder();
-
-        for (TextureSetAnimation anim : atlasMap.getAnimations()) {
-            b.addAnimations(anim);
-        }
-        createVertices(atlasMap, b);
-
-        return b;
-    }
-
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
@@ -161,17 +114,16 @@ public class AtlasBuilder extends Builder<Void>  {
         List<String> ids = createImageIds(task);
         List<AnimDesc> animDescs = createAnimDescs(atlas);
 
-        AtlasMap atlasMap = AtlasGenerator.generate(images, ids, animDescs, Math.max(0, atlas.getMargin()));
+        Pair<com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder, BufferedImage> pair
+            = AtlasGenerator.generate(images, ids, animDescs, Math.max(0, atlas.getMargin()));
 
-        TextureSet.Builder textureSetBuilder = createTextureSet(atlasMap);
         int buildDirLen = project.getBuildDirectory().length();
         String texturePath = task.output(1).getPath().substring(buildDirLen);
-        textureSetBuilder.setTexture(texturePath);
-        TextureSet textureSet = textureSetBuilder.build();
+        TextureSet textureSet = pair.left.setTexture(texturePath).build();
 
         TextureImage texture;
         try {
-            texture = TextureGenerator.generate(atlasMap.getImage());
+            texture = TextureGenerator.generate(pair.right);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, "Unable to create atlas texture", e);
         }

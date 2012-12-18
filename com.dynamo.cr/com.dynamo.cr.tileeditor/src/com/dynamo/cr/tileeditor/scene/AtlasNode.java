@@ -1,24 +1,22 @@
 package com.dynamo.cr.tileeditor.scene;
 
 import java.awt.image.BufferedImage;
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang3.Pair;
+
 import com.dynamo.bob.atlas.AtlasGenerator;
-import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.cr.properties.GreaterEqualThanZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
-import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder;
 
 @SuppressWarnings("serial")
 public class AtlasNode extends TextureSetNode {
-    private AtlasMap atlasMap;
-
     private int version = 0;
     private int cleanVersion = 0;
 
@@ -27,12 +25,8 @@ public class AtlasNode extends TextureSetNode {
     private int margin;
 
     private transient AtlasAnimationNode playBackNode;
-
     private transient TextureHandle textureHandle = new TextureHandle();
-
-    private transient VertexBufferObject vertexBuffer = new VertexBufferObject();
-
-    private transient VertexBufferObject outlineVertexBuffer = new VertexBufferObject();
+    private transient RuntimeTextureSet runtimeTextureSet = new RuntimeTextureSet();
 
     public AtlasNode() {
         AABB aabb = new AABB();
@@ -95,7 +89,7 @@ public class AtlasNode extends TextureSetNode {
         return version;
     }
 
-    public AtlasMap getAtlasMap() {
+    public RuntimeTextureSet getRuntimeTextureSet() {
         if (version != cleanVersion) {
             List<String> imageNames = new ArrayList<String>(64);
             List<String> ids = new ArrayList<String>(64);
@@ -116,22 +110,21 @@ public class AtlasNode extends TextureSetNode {
             }
 
             if (ok) {
-                atlasMap = AtlasGenerator.generate(images, ids, animations, Math.max(0, margin));
-                this.vertexBuffer.bufferData(atlasMap.getVertexBuffer(), atlasMap.getVertexBuffer().capacity() * 4);
-                this.outlineVertexBuffer.bufferData(atlasMap.getOutlineVertexBuffer(), atlasMap.getOutlineVertexBuffer().capacity() * 4);
-                BufferedImage image = atlasMap.getImage();
+                Pair<Builder, BufferedImage> pair = AtlasGenerator.generate(images, ids, animations, Math.max(0, margin));
+                TextureSet textureSet = pair.left.setTexture("").build();
+                runtimeTextureSet.update(textureSet);
+
                 AABB aabb = new AABB();
                 aabb.union(0, 0, 0);
+                BufferedImage image = pair.right;
                 aabb.union(image.getWidth(), image.getHeight(), 0);
                 this.textureHandle.setImage(image);
                 setAABB(aabb);
-            } else {
-                atlasMap = null;
             }
 
             cleanVersion = version;
         }
-        return atlasMap;
+        return runtimeTextureSet;
     }
 
     public void increaseVersion() {
@@ -154,95 +147,6 @@ public class AtlasNode extends TextureSetNode {
     @Override
     public TextureHandle getTextureHandle() {
         return textureHandle;
-    }
-
-    private TextureSetAnimation getTile(String id) {
-        AtlasMap am = getAtlasMap();
-        if (am != null) {
-            List<TextureSetAnimation> tiles = am.getAnimations();
-            for (TextureSetAnimation tile : tiles) {
-                if (tile.getId().equals(id)) {
-                    return tile;
-                }
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public VertexBufferObject getVertexBuffer() {
-        return vertexBuffer;
-    }
-
-    @Override
-    public VertexBufferObject getOutlineVertexBuffer() {
-        return outlineVertexBuffer;
-    }
-
-    @Override
-    public AABB getTextureBounds(String id) {
-        AABB aabb = new AABB();
-        TextureSetAnimation tile = getTile(id);
-        if (tile != null) {
-            float w2 = tile.getWidth() * 0.5f;
-            float h2 = tile.getHeight() * 0.5f;
-            aabb.union(-w2, -h2, 0);
-            aabb.union(w2, h2, 0);
-        }
-
-        return aabb;
-    }
-
-    @Override
-    public TextureSetAnimation getAnimation(String id) {
-        TextureSetAnimation tile = getTile(id);
-        if (tile != null) {
-            return tile;
-        }
-        return null;
-    }
-
-    @Override
-    public TextureSetAnimation getAnimation(Comparable<String> comparable) {
-        AtlasMap am = getAtlasMap();
-        if (am != null) {
-            List<TextureSetAnimation> tiles = am.getAnimations();
-            for (TextureSetAnimation tile : tiles) {
-                if (comparable.compareTo(tile.getId()) == 0) {
-                    return tile;
-                }
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public FloatBuffer getTexCoords() {
-        AtlasMap am = getAtlasMap();
-        if (am != null) {
-            return am.getTexCoordsBuffer();
-        }
-        return null;
-    }
-
-    @Override
-    public int getVertexStart(TextureSetAnimation anim) {
-        return getAtlasMap().getVertexStart(anim);
-    }
-
-    @Override
-    public int getVertexCount(TextureSetAnimation anim) {
-        return getAtlasMap().getVertexCount(anim);
-    }
-
-    @Override
-    public int getOutlineVertexStart(TextureSetAnimation anim) {
-        return getAtlasMap().getOutlineVertexStart(anim);
-    }
-
-    @Override
-    public int getOutlineVertexCount(TextureSetAnimation anim) {
-        return getAtlasMap().getOutlineVertexCount(anim);
     }
 
 }

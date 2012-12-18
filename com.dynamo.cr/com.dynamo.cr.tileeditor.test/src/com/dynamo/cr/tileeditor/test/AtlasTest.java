@@ -16,7 +16,6 @@ import org.eclipse.swt.widgets.Display;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.cr.tileeditor.operations.AddImagesNodeOperation;
@@ -25,6 +24,7 @@ import com.dynamo.cr.tileeditor.scene.AtlasImageNode;
 import com.dynamo.cr.tileeditor.scene.AtlasLoader;
 import com.dynamo.cr.tileeditor.scene.AtlasNode;
 import com.dynamo.cr.tileeditor.scene.Messages;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -90,8 +90,8 @@ public class AtlasTest extends AbstractNodeTest {
         assertThat(node.getChildren().size(), is(2));
         assertNodeStatus(node, IStatus.OK, null);
 
-        AtlasMap atlasMap = node.getAtlasMap();
-        List<TextureSetAnimation> tiles = atlasMap.getAnimations();
+        TextureSet textureSet = node.getRuntimeTextureSet().getTextureSet();
+        List<TextureSetAnimation> tiles = textureSet.getAnimationsList();
         assertThat(tiles.size(), is(1));
     }
 
@@ -102,12 +102,10 @@ public class AtlasTest extends AbstractNodeTest {
         assertThat(node.getChildren().get(0).getChildren().size(), is(2));
         assertNodeStatus(node, IStatus.OK, null);
 
-        AtlasMap atlasMap = node.getAtlasMap();
-        List<TextureSetAnimation> tiles = atlasMap.getAnimations();
-        assertThat(tiles.size(), is(2));
-        assertThat(atlasMap.getImage().getWidth(), is(16));
-        assertThat(atlasMap.getImage().getHeight(), is(16));
+        TextureSet textureSet = node.getRuntimeTextureSet().getTextureSet();
 
+        List<TextureSetAnimation> tiles = textureSet.getAnimationsList();
+        assertThat(tiles.size(), is(2));
     }
 
     @Test

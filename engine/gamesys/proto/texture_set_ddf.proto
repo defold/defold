@@ -7,6 +7,11 @@ import "tile_ddf.proto";
 option java_package = "com.dynamo.textureset.proto";
 option java_outer_classname = "TextureSetProto";
 
+enum Constants
+{
+    VERTEX_SIZE = 16; // 3 * 4 + 4
+}
+
 message TextureSetAnimation
 {
     required string id              = 1;
@@ -39,9 +44,18 @@ message TextureSet
     required string texture                 = 1;
     repeated TextureSetAnimation animations = 2;
     repeated ConvexHull convex_hulls        = 3;
+
     required bytes vertices                 = 4;
-    repeated uint32 vertex_count            = 5;
-    repeated float bounds_texcoords         = 6; // (minu, minv, maxu, maxv), 4 float per animation
-    repeated float convex_hull_points       = 7;
-    repeated string collision_groups        = 8;
+    repeated uint32 vertex_start            = 5;
+    repeated uint32 vertex_count            = 6;
+
+    required bytes outline_vertices         = 7;
+    repeated uint32 outline_vertex_start    = 8;
+    repeated uint32 outline_vertex_count    = 9;
+
+    repeated float convex_hull_points       = 10;
+    repeated string collision_groups        = 11;
+
+    // min/max uv, 4 floats. Legacy and the vertex-buffer should be used instead.
+    required bytes tex_coords               = 12;
 }

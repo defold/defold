@@ -59,7 +59,7 @@ public class ParticleFXNode extends ComponentTypeNode {
                 return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_NOT_FOUND;
             }
 
-            TextureSetAnimation animation = textureSetNode.getAnimation(new Comparable<String>() {
+            TextureSetAnimation animation = textureSetNode.getRuntimeTextureSet().getAnimation(new Comparable<String>() {
 
                 @Override
                 public int compareTo(String s) {
@@ -69,7 +69,7 @@ public class ParticleFXNode extends ComponentTypeNode {
 
             if (animation != null) {
                 data.texture = new Pointer(emitterIndex + 1);
-                data.texCoords = textureSetNode.getTexCoords();
+                data.texCoords = textureSetNode.getRuntimeTextureSet().getTexCoords().asFloatBuffer();
                 switch (animation.getPlayback()) {
                 case PLAYBACK_NONE:
                     data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_NONE;

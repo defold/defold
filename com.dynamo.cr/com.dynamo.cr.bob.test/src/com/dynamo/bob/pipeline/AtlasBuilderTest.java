@@ -8,12 +8,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.commons.lang3.Pair;
 import org.junit.Test;
 
 import com.dynamo.bob.atlas.AtlasGenerator;
-import com.dynamo.bob.atlas.AtlasMap;
 import com.dynamo.bob.atlas.AtlasGenerator.AnimDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder;
 import com.dynamo.tile.proto.Tile.Playback;
 
 public class AtlasBuilderTest {
@@ -41,12 +42,12 @@ public class AtlasBuilderTest {
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
         animations.add(newAnim("anim2", Arrays.asList("2", "4")));
 
-        AtlasMap atlas = AtlasGenerator.generate(images, ids, animations, 0);
-        BufferedImage image = atlas.getImage();
+        Pair<Builder, BufferedImage> pair = AtlasGenerator.generate(images, ids, animations, 0);
+        BufferedImage image = pair.right;
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));
 
-        TextureSet textureSet = AtlasBuilder.createTextureSet(atlas).setTexture("foo").build();
+        TextureSet textureSet = pair.left.setTexture("").build();
 
         assertThat(textureSet.getAnimationsCount(), is(4 + 2));
         // NOTE: We currently assume 6 vertices per frame
