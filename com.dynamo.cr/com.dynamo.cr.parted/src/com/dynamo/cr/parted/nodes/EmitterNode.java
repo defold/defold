@@ -26,6 +26,7 @@ import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
@@ -43,7 +44,7 @@ import com.dynamo.particle.proto.Particle.ParticleOrientation;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.proto.DdfExtensions;
 
-public class EmitterNode extends Node {
+public class EmitterNode extends Node implements Identifiable {
 
     private static final long serialVersionUID = 1L;
 

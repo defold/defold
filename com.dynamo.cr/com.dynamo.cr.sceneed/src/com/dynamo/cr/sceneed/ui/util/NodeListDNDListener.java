@@ -25,6 +25,9 @@ public class NodeListDNDListener extends ViewerDropAdapter implements DragSource
         super(viewer);
         this.presenter = presenter;
         this.presenterContext = presenterContext;
+        // Removes visual feedback, like horizontal lines, between items when using DND
+        // Should be removed once we support custom ordering
+        setFeedbackEnabled(false);
     }
 
     @Override
@@ -96,7 +99,7 @@ public class NodeListDNDListener extends ViewerDropAdapter implements DragSource
         }
         Node target = (Node)event.item.getData();
         List<Node> nodes = getSelectedNodes();
-        return NodeUtil.findAcceptingParent(target, nodes, this.presenterContext);
+        return NodeUtil.findDropTarget(target, nodes, this.presenterContext);
     }
 
     private List<Node> getSelectedNodes() {

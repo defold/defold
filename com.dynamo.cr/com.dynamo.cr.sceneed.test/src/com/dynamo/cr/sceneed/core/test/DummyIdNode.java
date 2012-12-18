@@ -1,18 +1,10 @@
 package com.dynamo.cr.sceneed.core.test;
 
 import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.NodeUtil;
+import com.dynamo.cr.sceneed.core.Identifiable;
 
 @SuppressWarnings("serial")
-public class DummyIdNode extends DummyNode {
-
-    public static class DummyIdFetcher implements NodeUtil.IdFetcher<Node> {
-        @Override
-        public String getId(Node child) {
-            return ((DummyIdNode)child).getId();
-        }
-    }
+public class DummyIdNode extends DummyNode implements Identifiable {
 
     @Property
     private String id;

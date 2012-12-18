@@ -1,34 +1,29 @@
 package com.dynamo.cr.sceneed.core;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class NodeUtil {
 
-    public static interface IdFetcher<T extends Node> {
-        String getId(T node);
-    }
+    private static final Pattern ID_PATTERN = Pattern.compile("^(.*?)(\\d+)$");
 
-    public static <T extends Node> String getUniqueId(List<T> nodes, String baseId, IdFetcher<T> idFetcher) {
-        List<String> ids = new ArrayList<String>(nodes.size());
-        for (T node: nodes) {
-            String nodeId = idFetcher.getId(node);
-            if (nodeId != null) {
-                ids.add(nodeId);
-            }
+    public static String getUniqueId(Set<String> ids, String baseId) {
+        String format = "%s%d";
+        Matcher matcher = ID_PATTERN.matcher(baseId);
+        int i = 1;
+        String base = baseId;
+        if (matcher.matches()) {
+            base = matcher.group(1);
+            i = Integer.parseInt(matcher.group(2)) + 1;
         }
         String id = baseId;
-        String format = "%s%d";
-        int i = 1;
         while (ids.contains(id)) {
-            id = String.format(format, baseId, i);
+            id = String.format(format, base, i);
             ++i;
         }
         return id;
-    }
-
-    public static String getUniqueId(Node parent, String baseId, IdFetcher<Node> idFetcher) {
-        return getUniqueId(parent.getChildren(), baseId, idFetcher);
     }
 
     /**
@@ -69,7 +64,7 @@ public class NodeUtil {
             return siblings.get(0).getParent();
     }
 
-    public static Node findAcceptingParent(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
+    public static Node findPasteTarget(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
         INodeType targetType = null;
         // Verify that the target is not a descendant, in which case use common parent instead
         Node t = target;
@@ -103,6 +98,39 @@ public class NodeUtil {
                 }
             }
             target = target.getParent();
+        }
+        if (target == null || targetType == null)
+            return null;
+        return target;
+    }
+
+    public static Node findDropTarget(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
+        INodeType targetType = null;
+        // Verify that the target is not a descendant, would cause cycles
+        Node t = target;
+        while (t != null) {
+            if (nodes.contains(t)) {
+                return null;
+            }
+            t = t.getParent();
+        }
+        // Verify acceptance of child classes
+        if (target != null) {
+            targetType = presenterContext.getNodeType(target.getClass());
+            if (targetType != null) {
+                for (Node node : nodes) {
+                    boolean nodeAccepted = false;
+                    for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
+                        if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
+                            nodeAccepted = true;
+                            break;
+                        }
+                    }
+                    if (!nodeAccepted) {
+                        return null;
+                    }
+                }
+            }
         }
         if (target == null || targetType == null)
             return null;

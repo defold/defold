@@ -61,6 +61,12 @@ public class RefComponentNode extends ComponentNode {
     public void setComponent(String component) {
         this.component = component;
         reloadType();
+        if (getId() == null) {
+            int index = component.lastIndexOf('.');
+            if (index >= 0) {
+                setId(component.substring(index + 1));
+            }
+        }
     }
 
     public ComponentTypeNode getType() {
