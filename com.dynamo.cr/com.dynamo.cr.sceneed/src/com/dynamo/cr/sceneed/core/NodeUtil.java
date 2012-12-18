@@ -64,7 +64,7 @@ public class NodeUtil {
             return siblings.get(0).getParent();
     }
 
-    public static Node findAcceptingParent(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
+    public static Node findPasteTarget(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
         INodeType targetType = null;
         // Verify that the target is not a descendant, in which case use common parent instead
         Node t = target;
@@ -98,6 +98,39 @@ public class NodeUtil {
                 }
             }
             target = target.getParent();
+        }
+        if (target == null || targetType == null)
+            return null;
+        return target;
+    }
+
+    public static Node findDropTarget(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
+        INodeType targetType = null;
+        // Verify that the target is not a descendant, would cause cycles
+        Node t = target;
+        while (t != null) {
+            if (nodes.contains(t)) {
+                return null;
+            }
+            t = t.getParent();
+        }
+        // Verify acceptance of child classes
+        if (target != null) {
+            targetType = presenterContext.getNodeType(target.getClass());
+            if (targetType != null) {
+                for (Node node : nodes) {
+                    boolean nodeAccepted = false;
+                    for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
+                        if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
+                            nodeAccepted = true;
+                            break;
+                        }
+                    }
+                    if (!nodeAccepted) {
+                        return null;
+                    }
+                }
+            }
         }
         if (target == null || targetType == null)
             return null;

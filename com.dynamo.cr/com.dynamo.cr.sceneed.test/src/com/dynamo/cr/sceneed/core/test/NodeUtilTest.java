@@ -46,7 +46,7 @@ public class NodeUtilTest {
     }
 
     @Test
-    public void testAcceptingParent() {
+    public void testPasteTargets() {
         // Mocking
         ISceneView.IPresenterContext presenterContext = mock(ISceneView.IPresenterContext.class);
         when(presenterContext.getNodeType(DummyNode.class)).thenReturn(Activator.getDefault().getNodeTypeRegistry().getNodeTypeClass(DummyNode.class));
@@ -61,34 +61,85 @@ public class NodeUtilTest {
         node2.addChild(child2);
 
         // Null
-        Node parent = NodeUtil.findAcceptingParent(null, Collections.singletonList((Node)node), presenterContext);
+        Node parent = NodeUtil.findPasteTarget(null, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
 
         // Empty source
-        parent = NodeUtil.findAcceptingParent(node2, Collections.<Node>emptyList(), presenterContext);
+        parent = NodeUtil.findPasteTarget(node2, Collections.<Node>emptyList(), presenterContext);
         assertThat(parent, is((Node)node2));
 
         // Non-matching types
-        parent = NodeUtil.findAcceptingParent(node2, Collections.singletonList((Node)node), presenterContext);
+        parent = NodeUtil.findPasteTarget(node2, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
 
         // Matching types
-        parent = NodeUtil.findAcceptingParent(node2, Collections.singletonList((Node)child), presenterContext);
+        parent = NodeUtil.findPasteTarget(node2, Collections.singletonList((Node)child), presenterContext);
         assertThat(parent, is((Node)node2));
 
         // Descendants
         child.addChild(child2);
-        parent = NodeUtil.findAcceptingParent(child2, Collections.singletonList((Node)child), presenterContext);
+        parent = NodeUtil.findPasteTarget(child2, Collections.singletonList((Node)child), presenterContext);
         assertThat(parent, is((Node)node));
-        parent = NodeUtil.findAcceptingParent(child2, Collections.singletonList((Node)node), presenterContext);
+        parent = NodeUtil.findPasteTarget(child2, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
 
         // Unknown type
         @SuppressWarnings("serial")
         Node n = new Node() {};
-        parent = NodeUtil.findAcceptingParent(n, Collections.singletonList((Node)node), presenterContext);
+        parent = NodeUtil.findPasteTarget(n, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
-        parent = NodeUtil.findAcceptingParent(node, Collections.singletonList(n), presenterContext);
+        parent = NodeUtil.findPasteTarget(node, Collections.singletonList(n), presenterContext);
+        assertThat(parent, is((Node)null));
+    }
+
+    @Test
+    public void testDropTargets() {
+        // Mocking
+        ISceneView.IPresenterContext presenterContext = mock(ISceneView.IPresenterContext.class);
+        when(presenterContext.getNodeType(DummyNode.class)).thenReturn(Activator.getDefault().getNodeTypeRegistry().getNodeTypeClass(DummyNode.class));
+        when(presenterContext.getNodeType(DummyChild.class)).thenReturn(Activator.getDefault().getNodeTypeRegistry().getNodeTypeClass(DummyChild.class));
+
+        DummyNode node = new DummyNode();
+        DummyChild child = new DummyChild();
+        node.addChild(child);
+
+        DummyNode node2 = new DummyNode();
+        DummyChild child2 = new DummyChild();
+        node2.addChild(child2);
+
+        // Null
+        Node parent = NodeUtil.findDropTarget(null, Collections.singletonList((Node)node), presenterContext);
+        assertThat(parent, is((Node)null));
+
+        // Empty source
+        parent = NodeUtil.findDropTarget(node2, Collections.<Node>emptyList(), presenterContext);
+        assertThat(parent, is((Node)node2));
+
+        // Non-matching types
+        parent = NodeUtil.findDropTarget(node2, Collections.singletonList((Node)node), presenterContext);
+        assertThat(parent, is((Node)null));
+
+        // Matching types
+        parent = NodeUtil.findDropTarget(node2, Collections.singletonList((Node)child), presenterContext);
+        assertThat(parent, is((Node)node2));
+
+        // Hierarchy
+        parent = NodeUtil.findDropTarget(child, Collections.singletonList((Node)child2), presenterContext);
+        assertThat(parent, is((Node)child));
+
+        // Descendants
+        child.addChild(child2);
+        parent = NodeUtil.findDropTarget(child2, Collections.singletonList((Node)child), presenterContext);
+        assertThat(parent, is((Node)null));
+        parent = NodeUtil.findDropTarget(child2, Collections.singletonList((Node)node), presenterContext);
+        assertThat(parent, is((Node)null));
+
+        // Unknown type
+        @SuppressWarnings("serial")
+        Node n = new Node() {};
+        parent = NodeUtil.findDropTarget(n, Collections.singletonList((Node)node), presenterContext);
+        assertThat(parent, is((Node)null));
+        parent = NodeUtil.findDropTarget(node, Collections.singletonList(n), presenterContext);
         assertThat(parent, is((Node)null));
     }
 }

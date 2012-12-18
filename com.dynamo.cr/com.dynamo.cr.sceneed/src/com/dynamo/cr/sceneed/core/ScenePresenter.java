@@ -164,10 +164,10 @@ public class ScenePresenter implements IPresenter, IModelListener {
                 target = originals.get(0);
             }
             if (target != null) {
-                target = NodeUtil.findAcceptingParent(target, nodes, context);
+                target = NodeUtil.findPasteTarget(target, nodes, context);
                 // If a target could not be found, check at the selection level
                 if (target == null && originals.size() == 1) {
-                    target = NodeUtil.findAcceptingParent(originals.get(0), nodes, context);
+                    target = NodeUtil.findPasteTarget(originals.get(0), nodes, context);
                 }
                 if (target != null) {
                     context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
