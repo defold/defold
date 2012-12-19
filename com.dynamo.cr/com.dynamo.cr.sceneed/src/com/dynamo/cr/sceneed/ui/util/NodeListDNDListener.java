@@ -9,7 +9,6 @@ import org.eclipse.jface.viewers.ViewerDropAdapter;
 import org.eclipse.swt.dnd.DND;
 import org.eclipse.swt.dnd.DragSourceEvent;
 import org.eclipse.swt.dnd.DragSourceListener;
-import org.eclipse.swt.dnd.DropTargetEvent;
 import org.eclipse.swt.dnd.TransferData;
 
 import com.dynamo.cr.sceneed.core.ISceneView;
@@ -18,16 +17,31 @@ import com.dynamo.cr.sceneed.core.NodeUtil;
 
 public class NodeListDNDListener extends ViewerDropAdapter implements DragSourceListener {
 
+    private static class DropTarget {
+        public DropTarget(Node node, int index) {
+            this.node = node;
+            this.index = index;
+        }
+
+        public Node node;
+        public int index;
+    }
+
     private final ISceneView.IPresenter presenter;
     private final ISceneView.IPresenterContext presenterContext;
+    private boolean supportsReordering = false;
 
-    public NodeListDNDListener(Viewer viewer, ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext) {
+    public NodeListDNDListener(Viewer viewer, ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, boolean supportsReordering) {
         super(viewer);
         this.presenter = presenter;
         this.presenterContext = presenterContext;
-        // Removes visual feedback, like horizontal lines, between items when using DND
-        // Should be removed once we support custom ordering
-        setFeedbackEnabled(false);
+        this.supportsReordering = supportsReordering;
+        setFeedbackEnabled(supportsReordering);
+    }
+
+    public void setSupportsReordering(boolean supportsReordering) {
+        this.supportsReordering = supportsReordering;
+        setFeedbackEnabled(supportsReordering);
     }
 
     @Override
@@ -37,7 +51,7 @@ public class NodeListDNDListener extends ViewerDropAdapter implements DragSource
             event.doit = false;
             return;
         }
-        // check siblings
+        // Only allow siblings to be dragged
         Node parent = nodes.get(0).getParent();
         if (parent == null) {
             event.doit = false;
@@ -49,6 +63,27 @@ public class NodeListDNDListener extends ViewerDropAdapter implements DragSource
                 return;
             }
         }
+    }
+
+    private DropTarget getDropTarget(Object target, int location) {
+        if (!(target instanceof Node)) {
+            return null;
+        }
+        Node targetNode = (Node)target;
+        int index = targetNode.getChildren().size();
+        if (supportsReordering && (location == LOCATION_AFTER || location == LOCATION_BEFORE)) {
+            if (targetNode.getParent() == null) {
+                return null;
+            }
+            index = targetNode.getParent().getChildren().indexOf(target);
+            // If we don't get a valid index, there is a dangling child which is critical
+            assert(index >= 0);
+            if (location == LOCATION_AFTER) {
+                ++index;
+            }
+            targetNode = targetNode.getParent();
+        }
+        return new DropTarget(targetNode, index);
     }
 
     @Override
@@ -64,42 +99,33 @@ public class NodeListDNDListener extends ViewerDropAdapter implements DragSource
     @SuppressWarnings("unchecked")
     @Override
     public boolean performDrop(Object data) {
+        DropTarget dropTarget = getDropTarget(getCurrentTarget(), getCurrentLocation());
+        if (dropTarget == null) {
+            return false;
+        }
         switch (getCurrentOperation()) {
         case DND.DROP_MOVE:
-            presenter.onDNDMoveSelection(presenterContext, (List<Node>)data, (Node)getCurrentTarget());
-            break;
+            presenter.onDNDMoveSelection(presenterContext, (List<Node>)data, dropTarget.node, dropTarget.index);
+            return true;
         case DND.DROP_COPY:
-            presenter.onDNDDuplicateSelection(presenterContext, (List<Node>)data, (Node)getCurrentTarget());
-            break;
+            presenter.onDNDDuplicateSelection(presenterContext, (List<Node>)data, dropTarget.node, dropTarget.index);
+            return true;
+        default:
+            return false;
         }
-        return false;
     }
 
     @Override
     public boolean validateDrop(Object target, int operation, TransferData transferType) {
-        if (target == null) {
+        DropTarget dropTarget = getDropTarget(target, getCurrentLocation());
+        if (dropTarget == null) {
             return false;
         }
-        Node targetNode = (Node)target;
         List<Node> nodes = getSelectedNodes();
-        if (nodes.contains(targetNode)) {
+        if (nodes.contains(dropTarget.node)) {
             return false;
         }
-        Node parent = nodes.get(0).getParent();
-        if (operation == DND.DROP_MOVE && parent == targetNode) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    protected Object determineTarget(DropTargetEvent event) {
-        if (event.item == null) {
-            return null;
-        }
-        Node target = (Node)event.item.getData();
-        List<Node> nodes = getSelectedNodes();
-        return NodeUtil.findDropTarget(target, nodes, this.presenterContext);
+        return NodeUtil.findValidAncestor(dropTarget.node, nodes, this.presenterContext) == dropTarget.node;
     }
 
     private List<Node> getSelectedNodes() {

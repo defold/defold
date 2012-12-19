@@ -20,16 +20,26 @@ public class AddChildrenOperation extends AbstractSelectOperation {
 
     final private Node parent;
     final private List<Node> children;
+    final private int index;
 
     public AddChildrenOperation(String title, Node parent, Node child, IPresenterContext presenterContext) {
         super(title, child, presenterContext);
         this.parent = parent;
+        this.index = parent.getChildren().size();
         this.children = Collections.singletonList(child);
     }
 
     public AddChildrenOperation(String title, Node parent, List<Node> children, IPresenterContext presenterContext) {
         super(title, children, presenterContext);
         this.parent = parent;
+        this.index = parent.getChildren().size();
+        this.children = children;
+    }
+
+    public AddChildrenOperation(String title, Node parent, int index, List<Node> children, IPresenterContext presenterContext) {
+        super(title, children, presenterContext);
+        this.parent = parent;
+        this.index = index;
         this.children = children;
     }
 
@@ -57,8 +67,10 @@ public class AddChildrenOperation extends AbstractSelectOperation {
     protected IStatus doExecute(IProgressMonitor monitor, IAdaptable info)
             throws ExecutionException {
         resolveIds();
+        int i = index;
         for (Node child : this.children) {
-            this.parent.addChild(child);
+            this.parent.addChild(i, child);
+            ++i;
         }
         return Status.OK_STATUS;
     }
