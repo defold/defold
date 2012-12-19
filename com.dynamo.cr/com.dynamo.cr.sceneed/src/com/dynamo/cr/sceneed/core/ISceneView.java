@@ -35,8 +35,8 @@ public interface ISceneView extends ISelectionListener {
         void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onCutSelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onPasteIntoSelection(IPresenterContext presenterContext) throws IOException, CoreException;
-        void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
-        void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
+        void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent, int index);
+        void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent, int index);
 
         void onFrameSelection();
 

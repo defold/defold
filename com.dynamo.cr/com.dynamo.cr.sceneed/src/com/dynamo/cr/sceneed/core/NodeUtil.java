@@ -64,76 +64,59 @@ public class NodeUtil {
             return siblings.get(0).getParent();
     }
 
-    public static Node findPasteTarget(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
-        INodeType targetType = null;
-        // Verify that the target is not a descendant, in which case use common parent instead
-        Node t = target;
-        while (t != null) {
-            if (nodes.contains(t)) {
-                target = t.getParent();
-                break;
-            }
-            t = t.getParent();
+    /**
+     * Test if the supplied parent is valid for the supplied children.
+     * All children must be valid for a match.
+     *
+     * @param parent Node to test as parent
+     * @param children Children to test, all children must be valid for the parent
+     * @param presenterContext Context to use for testing validity
+     * @return Whether the parent is valid or not
+     */
+    public static boolean isValidParent(Node parent, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
+        if (parent == null) {
+            return false;
         }
-        // Verify acceptance of child classes
-        while (target != null) {
-            boolean accepted = true;
-            targetType = presenterContext.getNodeType(target.getClass());
-            if (targetType != null) {
-                for (Node node : nodes) {
-                    boolean nodeAccepted = false;
-                    for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
-                        if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
-                            nodeAccepted = true;
-                            break;
-                        }
-                    }
-                    if (!nodeAccepted) {
-                        accepted = false;
+        if (nodes.isEmpty()) {
+            return true;
+        }
+        INodeType parentType = presenterContext.getNodeType(parent.getClass());
+        if (parentType != null) {
+            for (Node node : nodes) {
+                boolean nodeAccepted = false;
+                for (INodeType nodeType : parentType.getReferenceNodeTypes()) {
+                    if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
+                        nodeAccepted = true;
                         break;
                     }
                 }
-                if (accepted) {
-                    break;
+                if (!nodeAccepted) {
+                    return false;
                 }
             }
-            target = target.getParent();
+            return true;
         }
-        if (target == null || targetType == null)
-            return null;
-        return target;
+        return false;
     }
 
-    public static Node findDropTarget(Node target, List<Node> nodes, ISceneView.IPresenterContext presenterContext) {
-        INodeType targetType = null;
-        // Verify that the target is not a descendant, would cause cycles
-        Node t = target;
-        while (t != null) {
-            if (nodes.contains(t)) {
-                return null;
+    /**
+     * Search for ancestor that accepts the given children towards the root of the supplied parent.
+     * The search is aborted as soon as a valid ancestor is found.
+     * All children must be valid for a match.
+     *
+     * @param parent Node to start searching from
+     * @param children Children to test, all children must be valid for the ancestor
+     * @param presenterContext Context to use for testing validity
+     * @return Node if an acceptable ancestor could be found, null otherwise
+     */
+    public static Node findValidAncestor(Node parent, List<Node> children, ISceneView.IPresenterContext presenterContext) {
+        while (parent != null) {
+            if (isValidParent(parent, children, presenterContext)) {
+                return parent;
             }
-            t = t.getParent();
+            parent = parent.getParent();
         }
-        // Verify acceptance of child classes
-        if (target != null) {
-            targetType = presenterContext.getNodeType(target.getClass());
-            if (targetType != null) {
-                for (Node node : nodes) {
-                    boolean nodeAccepted = false;
-                    for (INodeType nodeType : targetType.getReferenceNodeTypes()) {
-                        if (nodeType.getNodeClass().isAssignableFrom(node.getClass())) {
-                            nodeAccepted = true;
-                            break;
-                        }
-                    }
-                    if (!nodeAccepted) {
-                        return null;
-                    }
-                }
-            }
-        }
-        if (target == null || targetType == null)
-            return null;
-        return target;
+        return null;
     }
+
 }

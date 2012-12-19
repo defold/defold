@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.inject.Singleton;
@@ -259,78 +260,143 @@ public class PresenterTest extends AbstractPresenterTest {
         assertThat(node.getChildren().size(), is(0));
     }
 
-    @Test
-    public void testDNDMove() throws Exception {
-        DummyNode node = new DummyNode();
-        node.setModel(this.model);
-        DummyChild child = new DummyChild();
-        child.setIntVal(1);
-        node.addChild(child);
-        DummyChild child2 = new DummyChild();
-        child2.setIntVal(2);
-        node.addChild(child2);
+    private void dndMove(Node[] nodes, Node target) throws Exception {
+        dndMove(nodes, target, target.getChildren().size());
+    }
 
-        DummyNode node2 = new DummyNode();
+    private void dndMove(Node nodes[], Node target, int index) throws Exception {
+        select(nodes);
+        this.presenter.onDNDMoveSelection(getPresenterContext(), duplicate(Arrays.asList(nodes)), target, index);
+    }
 
-        List<Node> originals = new ArrayList<Node>(2);
-        originals.add(child);
-        originals.add(child2);
+    private static int childCount(Node node) {
+        return node.getChildren().size();
+    }
 
-        select(new Node[] {child, child2});
-        List<Node> copies = duplicate(originals);
-
-        this.presenter.onDNDMoveSelection(getPresenterContext(), copies, node2);
-
-        assertThat(node.getChildren().size(), is(0));
-        assertThat(node2.getChildren().size(), is(2));
-        DummyChild child3 = (DummyChild)node2.getChildren().get(0);
-        assertThat(child3.getIntVal(), is(1));
-        DummyChild child4 = (DummyChild)node2.getChildren().get(1);
-        assertThat(child4.getIntVal(), is(2));
-
-        undo();
-        assertThat(node2.getChildren().size(), is(0));
-        assertThat(node.getChildren().size(), is(2));
-
-        redo();
-        assertThat(node.getChildren().size(), is(0));
-        assertThat(node2.getChildren().size(), is(2));
+    private static DummyChild getChild(Node node, int index) {
+        return (DummyChild)node.getChildren().get(index);
     }
 
     @Test
-    public void testDNDDuplicate() throws Exception {
+    public void testDNDMoveExternal() throws Exception {
         DummyNode node = new DummyNode();
         node.setModel(this.model);
-        DummyChild child = new DummyChild();
-        child.setIntVal(1);
-        node.addChild(child);
-        DummyChild child2 = new DummyChild();
-        child2.setIntVal(2);
-        node.addChild(child2);
+        DummyChild child = new DummyChild(node, 1);
+        DummyChild child2 = new DummyChild(node, 2);
 
         DummyNode node2 = new DummyNode();
 
-        List<Node> originals = new ArrayList<Node>(2);
-        originals.add(child);
-        originals.add(child2);
+        dndMove(new Node[] {child, child2}, node2);
 
-        List<Node> copies = duplicate(originals);
-        this.presenter.onDNDDuplicateSelection(getPresenterContext(), copies, node2);
-
-        assertThat(node.getChildren().size(), is(2));
-        assertThat(node2.getChildren().size(), is(2));
-        DummyChild child3 = (DummyChild)node2.getChildren().get(0);
-        assertThat(child3.getIntVal(), is(1));
-        DummyChild child4 = (DummyChild)node2.getChildren().get(1);
-        assertThat(child4.getIntVal(), is(2));
+        assertThat(childCount(node), is(0));
+        assertThat(childCount(node2), is(2));
+        assertThat(getChild(node2, 0).getIntVal(), is(1));
+        assertThat(getChild(node2, 1).getIntVal(), is(2));
 
         undo();
-        assertThat(node2.getChildren().size(), is(0));
-        assertThat(node.getChildren().size(), is(2));
+        assertThat(childCount(node2), is(0));
+        assertThat(childCount(node), is(2));
 
         redo();
-        assertThat(node.getChildren().size(), is(2));
-        assertThat(node2.getChildren().size(), is(2));
+        assertThat(childCount(node), is(0));
+        assertThat(childCount(node2), is(2));
+    }
+
+    private static void assertOrder(Node parent, int[] order) {
+        int n = order.length;
+        for (int i = 0; i < n; ++i) {
+            assertThat(getChild(parent, i).getIntVal(), is(order[i]));
+        }
+    }
+
+    @Test
+    public void testDNDMoveInternal() throws Exception {
+        DummyNode node = new DummyNode();
+        node.setModel(this.model);
+        DummyChild child[] = new DummyChild[5];
+        for (int i = 0; i < 5; ++i) {
+            child[i] = new DummyChild(node, i);
+        }
+
+        // Reorder to beginning
+        dndMove(new Node[] {child[1], child[3]}, node, 0);
+        assertOrder(node, new int[] {1, 3, 0, 2, 4});
+        undo();
+        assertOrder(node, new int[] {0, 1, 2, 3, 4});
+
+        // Reorder to middle
+        dndMove(new Node[] {child[1], child[3]}, node, 2);
+        assertOrder(node, new int[] {0, 1, 3, 2, 4});
+        undo();
+        assertOrder(node, new int[] {0, 1, 2, 3, 4});
+
+        // Reorder to end
+        dndMove(new Node[] {child[1], child[3]}, node);
+        assertOrder(node, new int[] {0, 2, 4, 1, 3});
+        undo();
+        assertOrder(node, new int[] {0, 1, 2, 3, 4});
+    }
+
+    private void dndDuplicate(Node[] nodes, Node target) throws Exception {
+        dndDuplicate(nodes, target, target.getChildren().size());
+    }
+
+    private void dndDuplicate(Node nodes[], Node target, int index) throws Exception {
+        select(nodes);
+        this.presenter.onDNDDuplicateSelection(getPresenterContext(), duplicate(Arrays.asList(nodes)), target, index);
+    }
+
+    @Test
+    public void testDNDDuplicateExternal() throws Exception {
+        DummyNode node = new DummyNode();
+        node.setModel(this.model);
+        DummyChild child = new DummyChild(node, 1);
+        DummyChild child2 = new DummyChild(node, 2);
+
+        DummyNode node2 = new DummyNode();
+
+        dndDuplicate(new Node[] {child, child2}, node2);
+
+        assertThat(childCount(node), is(2));
+        assertThat(childCount(node2), is(2));
+        assertThat(getChild(node2, 0).getIntVal(), is(1));
+        assertThat(getChild(node2, 1).getIntVal(), is(2));
+
+        undo();
+        assertThat(childCount(node2), is(0));
+        assertThat(childCount(node), is(2));
+
+        redo();
+        assertThat(childCount(node), is(2));
+        assertThat(childCount(node2), is(2));
+    }
+
+    @Test
+    public void testDNDDuplicateInternal() throws Exception {
+        DummyNode node = new DummyNode();
+        node.setModel(this.model);
+        DummyChild child[] = new DummyChild[5];
+        for (int i = 0; i < 5; ++i) {
+            child[i] = new DummyChild(node, i);
+        }
+
+        // Reorder to beginning
+        dndDuplicate(new Node[] {child[1], child[3]}, node, 0);
+        assertOrder(node, new int[] {1, 3, 0, 1, 2, 3, 4});
+        undo();
+        assertOrder(node, new int[] {0, 1, 2, 3, 4});
+
+        // Reorder to middle
+        dndDuplicate(new Node[] {child[1], child[3]}, node, 2);
+        assertOrder(node, new int[] {0, 1, 1, 3, 2, 3, 4});
+        undo();
+        assertOrder(node, new int[] {0, 1, 2, 3, 4});
+
+        // Reorder to end
+        dndDuplicate(new Node[] {child[1], child[3]}, node);
+        assertOrder(node, new int[] {0, 1, 2, 3, 4, 1, 3});
+        undo();
+        assertOrder(node, new int[] {0, 1, 2, 3, 4});
     }
 
 }
