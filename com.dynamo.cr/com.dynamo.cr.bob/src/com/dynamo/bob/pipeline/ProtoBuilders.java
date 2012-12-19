@@ -248,6 +248,7 @@ public class ProtoBuilders {
             BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             return messageBuilder;
         }
@@ -262,6 +263,7 @@ public class ProtoBuilders {
             BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             return messageBuilder;
         }
@@ -282,6 +284,7 @@ public class ProtoBuilders {
                 BuilderUtil.checkFile(this.project, resource, "material", emitterBuilder.getMaterial());
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "texturesetc"));
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "atlas", "texturesetc"));
                 emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
                 Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
                 Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation());
