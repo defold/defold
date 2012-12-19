@@ -70,7 +70,7 @@ public class EmitterNode extends Node implements Identifiable {
     @Range(min = 0.0)
     private float startDelay;
 
-    @Property(editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
+    @Property(displayName = "Image", editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
     private String tileSource = "";
 
     private transient TextureSetNode textureSetNode = null;
