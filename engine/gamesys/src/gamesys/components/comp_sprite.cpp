@@ -518,7 +518,8 @@ namespace dmGameSystem
                     {
                         dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
                         dmGameSystemDDF::AnimationDone message;
-                        message.m_CurrentTile = component->m_CurrentTile;
+                        // Engine has 0-based indices, scripts use 1-based
+                        message.m_CurrentTile = component->m_CurrentTile + 1;
                         dmMessage::URL receiver;
                         receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
                         if (dmMessage::IsSocketValid(receiver.m_Socket))
