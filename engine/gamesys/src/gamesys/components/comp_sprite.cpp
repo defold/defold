@@ -148,6 +148,8 @@ namespace dmGameSystem
         {
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[component->m_CurrentAnimation];
             component->m_CurrentTile = animation->m_Start;
+            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD)
+                component->m_CurrentTile = animation->m_End;
             component->m_PlayBackwards = 0;
             component->m_FrameTime = 1.0f / animation->m_Fps;
             component->m_FrameTimer = 0.0f;
@@ -506,41 +508,39 @@ namespace dmGameSystem
             dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_CurrentAnimation];
 
-            int16_t end_tile = (int16_t)animation_ddf->m_End;
+            uint16_t start_tile = animation_ddf->m_Start;
+            uint16_t end_tile = animation_ddf->m_End;
             // Stop once-animation and broadcast animation_done
-            if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
-                || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD)
+            if ((animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD && component->m_CurrentTile == end_tile)
+                || (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD && component->m_CurrentTile == start_tile))
             {
-                if (component->m_CurrentTile == end_tile)
+                component->m_Playing = 0;
+                if (component->m_ListenerInstance != 0x0)
                 {
-                    component->m_Playing = 0;
-                    if (component->m_ListenerInstance != 0x0)
+                    dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
+                    dmGameSystemDDF::AnimationDone message;
+                    // Engine has 0-based indices, scripts use 1-based
+                    message.m_CurrentTile = component->m_CurrentTile + 1;
+                    dmMessage::URL receiver;
+                    receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
+                    if (dmMessage::IsSocketValid(receiver.m_Socket))
                     {
-                        dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
-                        dmGameSystemDDF::AnimationDone message;
-                        // Engine has 0-based indices, scripts use 1-based
-                        message.m_CurrentTile = component->m_CurrentTile + 1;
-                        dmMessage::URL receiver;
-                        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
-                        if (dmMessage::IsSocketValid(receiver.m_Socket))
+                        receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
+                        receiver.m_Fragment = component->m_ListenerComponent;
+                        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
+                        uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
+                        dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &message, data_size);
+                        component->m_ListenerInstance = 0x0;
+                        component->m_ListenerComponent = 0xff;
+                        if (result != dmMessage::RESULT_OK)
                         {
-                            receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
-                            receiver.m_Fragment = component->m_ListenerComponent;
-                            uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
-                            uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
-                            dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &message, data_size);
-                            component->m_ListenerInstance = 0x0;
-                            component->m_ListenerComponent = 0xff;
-                            if (result != dmMessage::RESULT_OK)
-                            {
-                                dmLogError("Could not send animation_done to listener.");
-                            }
+                            dmLogError("Could not send animation_done to listener.");
                         }
-                        else
-                        {
-                            component->m_ListenerInstance = 0x0;
-                            component->m_ListenerComponent = 0xff;
-                        }
+                    }
+                    else
+                    {
+                        component->m_ListenerInstance = 0x0;
+                        component->m_ListenerComponent = 0xff;
                     }
                 }
             }
@@ -580,7 +580,7 @@ namespace dmGameSystem
                                 ++current_tile;
                             break;
                         case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                            if (current_tile != end_tile)
+                            if (current_tile != start_tile)
                                 --current_tile;
                             break;
                         case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
@@ -590,8 +590,8 @@ namespace dmGameSystem
                                 ++current_tile;
                             break;
                         case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD:
-                            if (current_tile == end_tile)
-                                current_tile = start_tile;
+                            if (current_tile == start_tile)
+                                current_tile = end_tile;
                             else
                                 --current_tile;
                             break;
