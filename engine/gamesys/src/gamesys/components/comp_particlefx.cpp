@@ -399,17 +399,8 @@ namespace dmGameSystem
     {
         TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
         dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
-        uint32_t anim_count = texture_set_res->m_AnimationIds.Size();
-        uint32_t anim_index = ~0u;
-        for (uint32_t i = 0; i < anim_count; ++i)
-        {
-            if (texture_set_res->m_AnimationIds[i] == animation)
-            {
-                anim_index = i;
-                break;
-            }
-        }
-        if (anim_index != ~0u)
+        uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
+        if (anim_index)
         {
             if (texture_set_res->m_TextureSet->m_TexCoords.m_Count == 0)
             {
@@ -417,7 +408,7 @@ namespace dmGameSystem
             }
             out_data->m_Texture = texture_set_res->m_Texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
-            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[anim_index];
+            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
             out_data->m_FPS = animation->m_Fps;
             out_data->m_TileWidth = animation->m_Width;
             out_data->m_TileHeight = animation->m_Height;

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include <dlib/hashtable.h>
+
 #include <resource/resource.h>
 
 #include <render/render.h>
@@ -17,14 +19,16 @@ namespace dmGameSystem
     {
         inline TextureSetResource()
         {
-            memset(this, 0, sizeof(*this));
+            m_Texture = 0;
+            m_TextureSet = 0;
+            m_HullSet = 0;
         }
 
-        dmArray<dmhash_t>           m_HullCollisionGroups;
-        dmArray<dmhash_t>           m_AnimationIds;
-        dmGraphics::HTexture        m_Texture;
-        dmGameSystemDDF::TextureSet*   m_TextureSet;
-        dmPhysics::HHullSet2D       m_HullSet;
+        dmArray<dmhash_t>                   m_HullCollisionGroups;
+        dmHashTable<dmhash_t, uint32_t>     m_AnimationIds;
+        dmGraphics::HTexture                m_Texture;
+        dmGameSystemDDF::TextureSet*        m_TextureSet;
+        dmPhysics::HHullSet2D               m_HullSet;
     };
 
     dmResource::Result ResTextureSetCreate(dmResource::HFactory factory,

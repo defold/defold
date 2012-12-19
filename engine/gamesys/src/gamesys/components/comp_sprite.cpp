@@ -54,7 +54,7 @@ namespace dmGameSystem
         dmArray<dmGameSystemDDF::SetConstant> m_RenderConstants;
         float                       m_FrameTime;
         float                       m_FrameTimer;
-        uint16_t                    m_CurrentAnimation;
+        dmhash_t                    m_CurrentAnimation;
         uint16_t                    m_CurrentTile;
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_PlayBackwards : 1;
@@ -132,21 +132,12 @@ namespace dmGameSystem
 
     bool PlayAnimation(SpriteComponent* component, dmhash_t animation_id)
     {
-        bool anim_found = false;
         TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
-        uint32_t n = texture_set->m_AnimationIds.Size();
-        for (uint32_t i = 0; i < n; ++i)
+        uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation_id);
+        if (anim_id)
         {
-            if (animation_id == texture_set->m_AnimationIds[i])
-            {
-                component->m_CurrentAnimation = i;
-                anim_found = true;
-                break;
-            }
-        }
-        if (anim_found)
-        {
-            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[component->m_CurrentAnimation];
+            component->m_CurrentAnimation = animation_id;
+            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             component->m_CurrentTile = animation->m_Start;
             if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD)
                 component->m_CurrentTile = animation->m_End;
@@ -155,7 +146,7 @@ namespace dmGameSystem
             component->m_FrameTimer = 0.0f;
             component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
         }
-        return anim_found;
+        return anim_id != 0;
     }
 
     void ReHash(SpriteComponent* component)
@@ -284,7 +275,13 @@ namespace dmGameSystem
         {
             const SpriteComponent* component = &components[sort_buffer[i]];
 
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_CurrentAnimation];
+            uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+            if (!anim_id)
+            {
+                continue;
+            }
+
+            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
 
             SpriteVertex *v = (SpriteVertex*)((vertex_buffer)) + i * 6;
 
@@ -448,11 +445,17 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* c = &components[i];
-            if (c->m_Enabled)
+
+            // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
+            if (!c->m_Enabled)
+                continue;
+
+            TextureSetResource* texture_set = c->m_Resource->m_TextureSet;
+            uint32_t* anim_id = texture_set->m_AnimationIds.Get(c->m_CurrentAnimation);
+            if (anim_id)
             {
-                TextureSetResource* texture_set = c->m_Resource->m_TextureSet;
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[c->m_CurrentAnimation];
+                dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[*anim_id];
 
                 dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(c->m_Instance);
                 dmTransform::TransformS1 local(Vector3(c->m_Position), c->m_Rotation, 1.0f);
@@ -501,12 +504,19 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* component = &components[i];
+            // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
             if (!component->m_Enabled)
                 continue;
 
             TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+            uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+            if (!anim_id)
+            {
+                continue;
+            }
+
             dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_CurrentAnimation];
+            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
 
             uint16_t start_tile = animation_ddf->m_Start;
             uint16_t end_tile = animation_ddf->m_End;
@@ -556,12 +566,19 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* component = &components[i];
+            // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
             if (!component->m_Enabled)
                 continue;
 
             TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
+            uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+            if (!anim_id)
+            {
+                continue;
+            }
+
             dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_CurrentAnimation];
+            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
             int16_t start_tile = (int16_t)animation_ddf->m_Start;
             int16_t end_tile = (int16_t)animation_ddf->m_End;
 
@@ -573,6 +590,10 @@ namespace dmGameSystem
                 {
                     component->m_FrameTimer -= component->m_FrameTime;
                     int16_t current_tile = (int16_t)component->m_CurrentTile;
+
+                    current_tile = dmMath::Min(current_tile, (int16_t) animation_ddf->m_End);
+                    current_tile = dmMath::Max(current_tile, (int16_t) animation_ddf->m_Start);
+
                     switch (animation_ddf->m_Playback)
                     {
                         case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:

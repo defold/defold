@@ -28,17 +28,7 @@ namespace dmGameSystem
             return fr;
         }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
-        uint32_t n_animations = resource->m_TextureSet->m_AnimationIds.Size();
-        bool found = false;
-        for (uint32_t i = 0; i < n_animations; ++i)
-        {
-            if (resource->m_TextureSet->m_AnimationIds[i] == resource->m_DefaultAnimation)
-            {
-                found = true;
-                break;
-            }
-        }
-        if (!found)
+        if (!resource->m_TextureSet->m_AnimationIds.Get(resource->m_DefaultAnimation))
         {
             if (resource->m_DDF->m_DefaultAnimation == 0 || resource->m_DDF->m_DefaultAnimation[0] == '\0')
             {
