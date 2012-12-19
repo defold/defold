@@ -144,6 +144,14 @@ public:
         }
     }
 
+    void Swap(dmHashTable<KEY, T>& other)
+    {
+        char buf[sizeof(*this)];
+        memcpy(buf, &other, sizeof(buf));
+        memcpy(&other, this, sizeof(buf));
+        memcpy(this, buf, sizeof(buf));
+    }
+
     /**
      * Check if the table is full
      * @return true if the table is full
