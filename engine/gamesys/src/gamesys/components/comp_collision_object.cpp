@@ -257,8 +257,8 @@ namespace dmGameSystem
                     for (uint32_t i = 0; i < shape_count; ++i)
                     {
                         dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
-                        TileSetResource* tile_set_resource = tile_grid_resource->m_TileSet;
-                        dmGameSystemDDF::TileSet* tile_set = tile_set_resource->m_TileSet;
+                        TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
+                        dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
                         uint32_t cell_count = layer->m_Cell.m_Count;
                         for (uint32_t j = 0; j < cell_count; ++j)
                         {
@@ -271,7 +271,7 @@ namespace dmGameSystem
                                 uint32_t cell_y = cell->m_Y - tile_grid_resource->m_MinCellY;
                                 dmPhysics::SetGridShapeHull(component->m_Object2D, i, cell_y, cell_x, tile);
                                 uint16_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
-                                uint16_t group = GetGroupBitIndex(world, tile_set_resource->m_HullCollisionGroups[tile]);
+                                uint16_t group = GetGroupBitIndex(world, texture_set_resource->m_HullCollisionGroups[tile]);
                                 dmPhysics::SetCollisionObjectFilter(component->m_Object2D, i, child, group, data.m_Mask);
                             }
                         }
@@ -761,7 +761,7 @@ namespace dmGameSystem
             // Hull-index of 0xffffffff is empty cell
             if (hull != ~0u)
             {
-                group = GetGroupBitIndex((CollisionWorld*)params.m_World, tile_grid_resource->m_TileSet->m_HullCollisionGroups[hull]);
+                group = GetGroupBitIndex((CollisionWorld*)params.m_World, tile_grid_resource->m_TextureSet->m_HullCollisionGroups[hull]);
                 mask = component->m_Mask;
             }
             dmPhysics::SetCollisionObjectFilter(component->m_Object2D, ddf->m_Shape, child, group, mask);

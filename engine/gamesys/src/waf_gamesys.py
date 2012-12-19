@@ -15,8 +15,8 @@ def transform_texture_name(task, name):
     return name
 
 def transform_tilesource_name(name):
-    name = name.replace('.tileset', '.tilesetc')
-    name = name.replace('.tilesource', '.tilesetc')
+    name = name.replace('.tileset', '.texturesetc')
+    name = name.replace('.tilesource', '.texturesetc')
     return name
 
 def transform_collection(task, msg):
@@ -82,8 +82,8 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.factory', '.factoryc')
         c.component = c.component.replace('.light', '.lightc')
         c.component = c.component.replace('.sprite', '.spritec')
-        c.component = c.component.replace('.tileset', '.tilesetc')
-        c.component = c.component.replace('.tilesource', '.tilesetc')
+        c.component = c.component.replace('.tileset', '.texturesetc')
+        c.component = c.component.replace('.tilesource', '.texturesetc')
         c.component = c.component.replace('.tilegrid', '.tilegridc')
         c.component = c.component.replace('.tilemap', '.tilegridc')
     return msg
@@ -125,8 +125,8 @@ def transform_render(task, msg):
     return msg
 
 def transform_sprite(task, msg):
-    msg.tile_set = msg.tile_set.replace('.tileset', '.tilesetc')
-    msg.tile_set = msg.tile_set.replace('.tilesource', '.tilesetc')
+    msg.tile_set = msg.tile_set.replace('.tileset', '.texturesetc')
+    msg.tile_set = msg.tile_set.replace('.tilesource', '.texturesetc')
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
@@ -383,6 +383,6 @@ def tileset_file(self, node):
     tileset = self.create_task('tileset')
     tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
     tileset.set_inputs(node)
-    obj_ext = '.tilesetc'
+    obj_ext = '.texturesetc'
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)

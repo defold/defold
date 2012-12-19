@@ -28,7 +28,7 @@
 #include "resources/res_render_script.h"
 #include "resources/res_render_prototype.h"
 #include "resources/res_sprite.h"
-#include "resources/res_tileset.h"
+#include "resources/res_textureset.h"
 #include "resources/res_tilegrid.h"
 
 #include "components/comp_collection_proxy.h"
@@ -98,7 +98,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, ResRenderScriptCreate, ResRenderScriptDestroy, ResRenderScriptRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
-        REGISTER_RESOURCE_TYPE("tilesetc", physics_context, ResTileSetCreate, ResTileSetDestroy, ResTileSetRecreate);
+        REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetCreate, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE("tilegridc", physics_context, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
 
 #undef REGISTER_RESOURCE_TYPE

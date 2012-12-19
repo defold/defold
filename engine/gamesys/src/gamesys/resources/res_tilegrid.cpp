@@ -21,7 +21,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TileSet);
+        dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
         if (r != dmResource::RESULT_OK)
         {
             return r;
@@ -32,9 +32,9 @@ namespace dmGameSystem
             return r;
         }
         tile_grid->m_TileGrid = tile_grid_ddf;
-        TileSetResource* tile_set = tile_grid->m_TileSet;
-        dmGameSystemDDF::TileSet* tile_set_ddf = tile_set->m_TileSet;
-        dmPhysics::HHullSet2D hull_set = tile_set->m_HullSet;
+        TextureSetResource* texture_set = tile_grid->m_TextureSet;
+        dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+        dmPhysics::HHullSet2D hull_set = texture_set->m_HullSet;
         if (hull_set != 0x0)
         {
             // Calculate AABB for offset
@@ -64,8 +64,8 @@ namespace dmGameSystem
             tile_grid->m_RowCount = max_y - min_y;
             tile_grid->m_MinCellX = min_x;
             tile_grid->m_MinCellY = min_y;
-            uint32_t cell_width = tile_set_ddf->m_TileWidth;
-            uint32_t cell_height = tile_set_ddf->m_TileHeight;
+            uint32_t cell_width = texture_set_ddf->m_TileWidth;
+            uint32_t cell_height = texture_set_ddf->m_TileHeight;
             offset.setX(cell_width * 0.5f * (min_x + max_x));
             offset.setY(cell_height * 0.5f * (min_y + max_y));
             for (uint32_t i = 0; i < layer_count; ++i)
@@ -78,8 +78,8 @@ namespace dmGameSystem
 
     void ReleaseResources(dmResource::HFactory factory, TileGridResource* tile_grid)
     {
-        if (tile_grid->m_TileSet)
-            dmResource::Release(factory, tile_grid->m_TileSet);
+        if (tile_grid->m_TextureSet)
+            dmResource::Release(factory, tile_grid->m_TextureSet);
 
         if (tile_grid->m_Material)
             dmResource::Release(factory, tile_grid->m_Material);

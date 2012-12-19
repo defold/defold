@@ -16,9 +16,8 @@ import java.io.Reader;
 
 import javax.imageio.ImageIO;
 
-import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
-import com.dynamo.tile.proto.Tile;
-import com.dynamo.tile.proto.Tile.ConvexHull.Builder;
+import com.dynamo.bob.atlas.TileSetGenerator;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
@@ -55,46 +54,10 @@ public class TileSetc {
             TextFormat.merge(reader, builder);
             TileSet tileSet = builder.build();
 
-            TileSet.Builder outBuilder = TileSet.newBuilder();
-            outBuilder.mergeFrom(tileSet);
-
-            outBuilder.clearConvexHulls();
-            outBuilder.clearConvexHullPoints();
-
             String collisionPath = tileSet.getCollision();
             BufferedImage collisionImage = null;
             if (!collisionPath.equals("")) {
                 collisionImage = loadImageFile(collisionPath);
-                int width = collisionImage.getWidth();
-                int height = collisionImage.getHeight();
-
-                if (collisionImage.getAlphaRaster() == null) {
-                    throw new RuntimeException(String.format("Collision image '%s' is missing alpha channel", collisionPath));
-                }
-
-                ConvexHulls convexHulls = TileSetUtil.calculateConvexHulls(
-                        collisionImage.getAlphaRaster(), 16, width, height,
-                        tileSet.getTileWidth(), tileSet.getTileHeight(),
-                        tileSet.getTileMargin(), tileSet.getTileSpacing());
-
-                for (int i = 0; i < convexHulls.hulls.length; ++i) {
-                    ConvexHull convexHull = convexHulls.hulls[i];
-                    Builder hullBuilder = Tile.ConvexHull.newBuilder();
-                    String collisionGroup = "";
-                    if (i < tileSet.getConvexHullsCount()) {
-                        collisionGroup = tileSet.getConvexHulls(i).getCollisionGroup();
-                    }
-                    hullBuilder
-                        .setCollisionGroup(collisionGroup)
-                        .setCount(convexHull.getCount())
-                        .setIndex(convexHull.getIndex());
-
-                    outBuilder.addConvexHulls(hullBuilder);
-                }
-
-                for (int i = 0; i < convexHulls.points.length; ++i) {
-                    outBuilder.addConvexHullPoints(convexHulls.points[i]);
-                }
             }
 
             String imagePath = tileSet.getImage();
@@ -108,10 +71,12 @@ public class TileSetc {
             String compiledImageName = imagePath;
             int index = compiledImageName.lastIndexOf('.');
             compiledImageName = compiledImageName.substring(0, index) + ".texturec";
-            outBuilder.setImage(compiledImageName);
-
-            TileSet outTileSet = outBuilder.build();
-            outTileSet.writeTo(output);
+            TextureSet.Builder textureSetBuilder = TileSetGenerator.generate(tileSet, image, collisionImage, false);
+            textureSetBuilder
+                .setTexture(compiledImageName)
+                .setTileWidth(tileSet.getTileWidth())
+                .setTileHeight(tileSet.getTileHeight());
+            textureSetBuilder.build().writeTo(output);
         } finally {
             reader.close();
             output.close();

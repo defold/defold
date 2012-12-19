@@ -1,5 +1,5 @@
-#ifndef DMGAMESYSTEM_RES_TILESET_H
-#define DMGAMESYSTEM_RES_TILESET_H
+#ifndef DMGAMESYSTEM_RES_TEXTURESET_H
+#define DMGAMESYSTEM_RES_TEXTURESET_H
 
 #include <stdint.h>
 
@@ -9,40 +9,39 @@
 
 #include <physics/physics.h>
 
-#include "tile_ddf.h"
+#include "texture_set_ddf.h"
 
 namespace dmGameSystem
 {
-    struct TileSetResource
+    struct TextureSetResource
     {
-        inline TileSetResource()
+        inline TextureSetResource()
         {
             memset(this, 0, sizeof(*this));
         }
 
-        dmArray<float>              m_TexCoords;
         dmArray<dmhash_t>           m_HullCollisionGroups;
         dmArray<dmhash_t>           m_AnimationIds;
         dmGraphics::HTexture        m_Texture;
-        dmGameSystemDDF::TileSet*   m_TileSet;
+        dmGameSystemDDF::TextureSet*   m_TextureSet;
         dmPhysics::HHullSet2D       m_HullSet;
     };
 
-    dmResource::Result ResTileSetCreate(dmResource::HFactory factory,
+    dmResource::Result ResTextureSetCreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 
-    dmResource::Result ResTileSetDestroy(dmResource::HFactory factory,
+    dmResource::Result ResTextureSetDestroy(dmResource::HFactory factory,
             void* context,
             dmResource::SResourceDescriptor* resource);
 
-    dmResource::Result ResTileSetRecreate(dmResource::HFactory factory,
+    dmResource::Result ResTextureSetRecreate(dmResource::HFactory factory,
             void* context,
             const void* buffer, uint32_t buffer_size,
             dmResource::SResourceDescriptor* resource,
             const char* filename);
 }
 
-#endif // DMGAMESYSTEM_RES_TILESET_H
+#endif // DMGAMESYSTEM_RES_TEXTURESET_H

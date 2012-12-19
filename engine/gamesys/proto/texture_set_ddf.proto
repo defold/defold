@@ -45,17 +45,22 @@ message TextureSet
     repeated TextureSetAnimation animations = 2;
     repeated ConvexHull convex_hulls        = 3;
 
-    required bytes vertices                 = 4;
-    repeated uint32 vertex_start            = 5;
-    repeated uint32 vertex_count            = 6;
+    // Only used when the source is a tile-source
+    // tile_width and tile_height should only be used in tilmap
+    optional uint32 tile_width              = 4;
+    optional uint32 tile_height             = 5;
 
-    required bytes outline_vertices         = 7;
-    repeated uint32 outline_vertex_start    = 8;
-    repeated uint32 outline_vertex_count    = 9;
+    required bytes vertices                 = 6;
+    repeated uint32 vertex_start            = 7;
+    repeated uint32 vertex_count            = 8;
 
-    repeated float convex_hull_points       = 10;
-    repeated string collision_groups        = 11;
+    required bytes outline_vertices         = 9;
+    repeated uint32 outline_vertex_start    = 10;
+    repeated uint32 outline_vertex_count    = 11;
+
+    repeated float convex_hull_points       = 12;
+    repeated string collision_groups        = 13;
 
     // min/max uv, 4 floats. Legacy and the vertex-buffer should be used instead.
-    required bytes tex_coords               = 12;
+    required bytes tex_coords               = 14;
 }

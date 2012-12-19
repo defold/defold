@@ -17,7 +17,7 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TileSet);
+        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TextureSet);
         if (fr != dmResource::RESULT_OK)
         {
             return fr;
@@ -28,11 +28,11 @@ namespace dmGameSystem
             return fr;
         }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
-        uint32_t n_animations = resource->m_TileSet->m_AnimationIds.Size();
+        uint32_t n_animations = resource->m_TextureSet->m_AnimationIds.Size();
         bool found = false;
         for (uint32_t i = 0; i < n_animations; ++i)
         {
-            if (resource->m_TileSet->m_AnimationIds[i] == resource->m_DefaultAnimation)
+            if (resource->m_TextureSet->m_AnimationIds[i] == resource->m_DefaultAnimation)
             {
                 found = true;
                 break;
@@ -60,8 +60,8 @@ namespace dmGameSystem
     {
         if (resource->m_DDF != 0x0)
             dmDDF::FreeMessage(resource->m_DDF);
-        if (resource->m_TileSet != 0x0)
-            dmResource::Release(factory, resource->m_TileSet);
+        if (resource->m_TextureSet != 0x0)
+            dmResource::Release(factory, resource->m_TextureSet);
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
     }

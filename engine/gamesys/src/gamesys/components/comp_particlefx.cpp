@@ -17,7 +17,7 @@
 #include "../gamesys_private.h"
 
 #include "resources/res_particlefx.h"
-#include "resources/res_tileset.h"
+#include "resources/res_textureset.h"
 
 namespace dmGameSystem
 {
@@ -136,7 +136,7 @@ namespace dmGameSystem
 
     void RenderInstanceCallback(void* render_context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
-    dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data);
+    dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
@@ -395,15 +395,15 @@ namespace dmGameSystem
         dmRender::Line3D((dmRender::HRenderContext)usercontext, start, end, color, color);
     }
 
-    dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+    dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data)
     {
-        TileSetResource* tile_set_res = (TileSetResource*)tile_source;
-        dmGameSystemDDF::TileSet* tile_set = tile_set_res->m_TileSet;
-        uint32_t anim_count = tile_set_res->m_AnimationIds.Size();
+        TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
+        dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
+        uint32_t anim_count = texture_set_res->m_AnimationIds.Size();
         uint32_t anim_index = ~0u;
         for (uint32_t i = 0; i < anim_count; ++i)
         {
-            if (tile_set_res->m_AnimationIds[i] == animation)
+            if (texture_set_res->m_AnimationIds[i] == animation)
             {
                 anim_index = i;
                 break;
@@ -411,18 +411,18 @@ namespace dmGameSystem
         }
         if (anim_index != ~0u)
         {
-            if (tile_set_res->m_TexCoords.Size() == 0)
+            if (texture_set_res->m_TextureSet->m_TexCoords.m_Count == 0)
             {
                 return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
-            out_data->m_Texture = tile_set_res->m_Texture;
-            out_data->m_TexCoords = &tile_set_res->m_TexCoords.Front();
-            dmGameSystemDDF::Animation* animation = &tile_set->m_Animations[anim_index];
+            out_data->m_Texture = texture_set_res->m_Texture;
+            out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
+            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[anim_index];
             out_data->m_FPS = animation->m_Fps;
-            out_data->m_TileWidth = tile_set->m_TileWidth;
-            out_data->m_TileHeight = tile_set->m_TileHeight;
-            out_data->m_StartTile = animation->m_StartTile;
-            out_data->m_EndTile = animation->m_EndTile;
+            out_data->m_TileWidth = animation->m_Width;
+            out_data->m_TileHeight = animation->m_Height;
+            out_data->m_StartTile = animation->m_Start;
+            out_data->m_EndTile = animation->m_End;
             out_data->m_HFlip = animation->m_FlipHorizontal;
             out_data->m_VFlip = animation->m_FlipVertical;
             switch (animation->m_Playback)
