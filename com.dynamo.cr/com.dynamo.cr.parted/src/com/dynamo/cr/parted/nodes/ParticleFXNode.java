@@ -92,10 +92,8 @@ public class ParticleFXNode extends ComponentTypeNode {
                 }
                 data.tileWidth = (int) animation.getWidth();
                 data.tileHeight = (int) animation.getHeight();
-                // NOTE: Tile indices from 1!
-                data.startTile = animation.getStart() + 1;
-                // NOTE: Tile indices from 1!
-                data.endTile = animation.getEnd() + 1;
+                data.startTile = animation.getStart();
+                data.endTile = animation.getEnd();
                 data.fps = animation.getFps();
                 data.hFlip = animation.getFlipHorizontal();
                 data.vFlip = animation.getFlipVertical();

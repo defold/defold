@@ -817,9 +817,8 @@ namespace dmParticle
 
         const AnimationData& anim_data = emitter->m_AnimationData;
         // texture animation
-        // NOTE: Tiles indices start from index 1!
-        uint32_t start_tile = anim_data.m_StartTile - 1;
-        uint32_t end_tile = anim_data.m_EndTile - 1;
+        uint32_t start_tile = anim_data.m_StartTile;
+        uint32_t end_tile = anim_data.m_EndTile;
         uint32_t tile_count = end_tile - start_tile + 1;
         float inv_anim_length = anim_data.m_FPS / (float)tile_count;
         float* tex_coords = anim_data.m_TexCoords;
@@ -852,20 +851,6 @@ namespace dmParticle
             start_tile = 0;
             end_tile = 0;
             tile_count = 1;
-        }
-        else
-        {
-            // Validate
-            // NOTE: Tile indices start from index 1!
-            // This validation is placed here due to the corresponding
-            // if-statement to this else-clause. Start and end-tile
-            // can be 0 if and only if tex_coords is NULL.
-            // Indices in C/C++ should always start from 0 and this
-            // should probably be changed. With indices from zero
-            // the asserts could be removed as the asserts are only
-            // there to prevent from unsigned integer wrapping (0-1 = 0xffffffff)
-            assert(anim_data.m_StartTile != 0);
-            assert(anim_data.m_EndTile != 0);
         }
 
         // calculate emission space
