@@ -1,33 +1,28 @@
 package com.dynamo.cr.sceneed.ui.util;
 
-import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.media.opengl.GL;
 
 import com.sun.opengl.util.BufferUtil;
 
 public class VertexFormat {
-    public enum Attribute {
-        POSITION,
-        COLOR,
-        TEX_COORD;
-    }
-
     public static class AttributeFormat {
-        public AttributeFormat(Attribute attribute, int size, int type, boolean normalize) {
+        public AttributeFormat(String attribute, int size, int type, boolean normalize) {
             this.attribute = attribute;
             this.size = size;
             this.type = type;
             this.normalize = normalize;
         }
 
-        private Attribute attribute;
+        private String attribute;
         private int size;
         private int type;
         private boolean normalize;
     }
 
-    private EnumMap<Attribute, Integer> attributeOffsets = new EnumMap<Attribute, Integer>(Attribute.class);
+    private Map<String, Integer> attributeOffsets = new HashMap<String, Integer>();
     private AttributeFormat[] attributeFormats;
     private int stride;
 
@@ -43,16 +38,22 @@ public class VertexFormat {
 
     public void enable(GL gl, Shader shader) {
         for (AttributeFormat attributeFormat : this.attributeFormats) {
-            int index = shader.getAttributeLocation(attributeFormat.attribute);
-            gl.glEnableVertexAttribArray(index);
-            gl.glVertexAttribPointer(index, attributeFormat.size, attributeFormat.type, attributeFormat.normalize, this.stride, attributeOffsets.get(attributeFormat.attribute));
+            int index = shader.getAttributeLocation(gl, attributeFormat.attribute);
+            if (index != -1) {
+                // We skip attributes not found. Certain vertex attribute
+                // might not be used in shader, e.g. texcoords in lines
+                gl.glEnableVertexAttribArray(index);
+                gl.glVertexAttribPointer(index, attributeFormat.size, attributeFormat.type, attributeFormat.normalize, this.stride, attributeOffsets.get(attributeFormat.attribute));
+            }
         }
     }
 
     public void disable(GL gl, Shader shader) {
         for (AttributeFormat attributeFormat : this.attributeFormats) {
-            int index = shader.getAttributeLocation(attributeFormat.attribute);
-            gl.glDisableVertexAttribArray(index);
+            int index = shader.getAttributeLocation(gl, attributeFormat.attribute);
+            if (index != -1) {
+                gl.glDisableVertexAttribArray(index);
+            }
         }
     }
 

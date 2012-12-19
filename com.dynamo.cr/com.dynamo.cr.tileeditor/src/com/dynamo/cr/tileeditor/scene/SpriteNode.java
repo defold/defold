@@ -82,7 +82,7 @@ public class SpriteNode extends ComponentTypeNode {
 
     private void updateAABB() {
         if (this.textureSetNode != null) {
-            AABB aabb = this.textureSetNode.getTextureBounds(this.defaultAnimation);
+            AABB aabb = this.textureSetNode.getRuntimeTextureSet().getTextureBounds(this.defaultAnimation);
             setAABB(aabb);
         }
     }
@@ -90,7 +90,7 @@ public class SpriteNode extends ComponentTypeNode {
     public IStatus validateDefaultAnimation() {
         if (!this.defaultAnimation.isEmpty()) {
             if (this.textureSetNode != null) {
-                boolean exists = textureSetNode.getAnimation(this.defaultAnimation) != null;
+                boolean exists = textureSetNode.getRuntimeTextureSet().getAnimation(this.defaultAnimation) != null;
                 if (!exists) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, this.defaultAnimation));
                 }

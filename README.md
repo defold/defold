@@ -41,6 +41,14 @@ is still used for gamesys and for built-in content. This might be changed in the
 is pretty hard as waf 1.5.x is very restrictive where source and built content is located. Built-in content is compiled
 , via .arc-files, to header-files, installed to $DYNAMO_HOME, etc In other words tightly integrated with waf.
 
+Byte order/endian
+-----------------
+
+By convention all graphics resources are expliticly in little-ending and specifically ByteOrder.LITTLE_ENDIAN in Java. Currently we support
+only little endian architectures. If this is about to change we would have to byte-swap at run-time or similar.
+As run-time editor code and pipeline code often is shared little-endian applies to both. For specific editor-code ByteOrder.nativeOrder() is
+the correct order to use.
+
 
 iOS Debugging
 -------------

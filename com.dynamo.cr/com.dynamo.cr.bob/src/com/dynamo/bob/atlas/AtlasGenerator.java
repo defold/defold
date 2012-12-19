@@ -4,25 +4,27 @@ import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.Pair;
+
 import com.dynamo.bob.atlas.AtlasLayout.Layout;
 import com.dynamo.bob.atlas.AtlasLayout.LayoutType;
 import com.dynamo.bob.atlas.AtlasLayout.Rect;
+import com.dynamo.textureset.proto.TextureSetProto;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.tile.proto.Tile.Playback;
+import com.google.protobuf.ByteString;
 
 public class AtlasGenerator {
 
-    public static int COMPONENT_COUNT = 5;
-
-    private static FloatBuffer newFloatBuffer(int n) {
-        ByteBuffer bb = ByteBuffer.allocateDirect(n * 4);
-        return bb.order(ByteOrder.nativeOrder()).asFloatBuffer();
+    private static ByteBuffer newBuffer(int n) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(n);
+        return bb.order(ByteOrder.LITTLE_ENDIAN);
     }
 
     public static class AnimDesc {
@@ -67,8 +69,27 @@ public class AtlasGenerator {
 
     }
 
+    private static short toShortUV(float fuv) {
+        int uv = (int) (fuv * 65535.0f);
+        return (short) (uv & 0xffff);
+    }
+
+    private static void putVertex(ByteBuffer b, float x, float y, float z, float u, float v) {
+        b.putFloat(x);
+        b.putFloat(y);
+        b.putFloat(z);
+        b.putShort(toShortUV(u));
+        b.putShort(toShortUV(v));
+    }
+
+    private static void duplicate(ByteBuffer buffer, int index, int count) {
+        for (int i = 0; i < count; ++i) {
+            buffer.put(buffer.get(index + i));
+        }
+    }
+
     /**
-     * Generate an atlas-map for individual images and animations. The basic steps of the algorithm are:
+     * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
      *
      * 1. All images in (images and imageIds) are laid out in an atlas. Vertex-data and separate texture coordinates are created
      *    for every image
@@ -80,7 +101,8 @@ public class AtlasGenerator {
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
-    public static AtlasMap generate(List<BufferedImage> images, List<String> imageIds, List<AnimDesc> animations, int margin) {
+    public static Pair<TextureSet.Builder, BufferedImage> generate(List<BufferedImage> images, List<String> imageIds, List<AnimDesc> animations, int margin) {
+
         List<AtlasLayout.Rect> rectangles = new ArrayList<AtlasLayout.Rect>(images.size());
         int i = 0;
         for (BufferedImage image : images) {
@@ -88,8 +110,6 @@ public class AtlasGenerator {
         }
 
         Layout layout = AtlasLayout.layout(LayoutType.BASIC, margin, rectangles);
-
-        List<TextureSetAnimation> tiles = new ArrayList<TextureSetAnimation>(layout.getRectangles().size());
 
         BufferedImage image = new BufferedImage(layout.getWidth(), layout.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
         Graphics g = image.getGraphics();
@@ -101,13 +121,20 @@ public class AtlasGenerator {
             totalAnimationFrameCount += anim.getIds().size();
         }
 
-        final int components = COMPONENT_COUNT;
-        FloatBuffer vertexBuffer = newFloatBuffer(components * 6 * (layout.getRectangles().size() + totalAnimationFrameCount));
-        FloatBuffer outlineVertexBuffer = newFloatBuffer(components * 4 * (layout.getRectangles().size() + totalAnimationFrameCount));
-        FloatBuffer texCoordsBuffer = newFloatBuffer(4 * (layout.getRectangles().size() + totalAnimationFrameCount));
+        int vertexSize = TextureSetProto.Constants.VERTEX_SIZE.getNumber();
+
+        ByteBuffer vertexBuffer = newBuffer(vertexSize * 6 * (layout.getRectangles().size() + totalAnimationFrameCount));
+        ByteBuffer outlineVertexBuffer = newBuffer(vertexSize * 4 * (layout.getRectangles().size() + totalAnimationFrameCount));
+        ByteBuffer texCoordsBuffer = newBuffer(4 * 4 * (layout.getRectangles().size() + totalAnimationFrameCount));
+
+        TextureSet.Builder textureSet = TextureSet.newBuilder();
+
+        final int triangleVertexCount = 6;
+        final int outlineVertexCount = 4;
 
         Map<String, TextureSetAnimation> idToAnimation = new HashMap<String, TextureSetAnimation>();
         int tileIndex = 0;
+
         // First layout all images
         for (Rect r : layout.getRectangles()) {
             int index = (Integer) r.id;
@@ -118,31 +145,29 @@ public class AtlasGenerator {
             float y1 = r.y + r.height;
             float w2 = r.width * 0.5f;
             float h2 = r.height * 0.5f;
-            float[] vertices = new float[] {
-                    x0 * xs, y1 * ys, -w2, -h2, 0,
-                    x1 * xs, y1 * ys, w2, -h2, 0,
-                    x1 * xs, y0 * ys, w2, h2, 0,
+            putVertex(vertexBuffer, -w2, -h2, 0, x0 * xs, y1 * ys);
+            putVertex(vertexBuffer, w2, -h2, 0, x1 * xs, y1 * ys);
+            putVertex(vertexBuffer, w2, h2, 0, x1 * xs, y0 * ys);
 
-                    x0 * xs, y1 * ys, -w2, -h2, 0,
-                    x1 * xs, y0 * ys, w2, h2, 0,
-                    x0 * xs, y0 * ys, -w2, h2, 0,
-            };
+            putVertex(vertexBuffer, -w2, -h2, 0, x0 * xs, y1 * ys);
+            putVertex(vertexBuffer, w2, h2, 0, x1 * xs, y0 * ys);
+            putVertex(vertexBuffer, -w2, h2, 0, x0 * xs, y0 * ys);
 
-            float[] outlineVertices = new float[] {
-                    x0 * xs, y1 * ys, -w2, -h2, 0,
-                    x1 * xs, y1 * ys, w2, -h2, 0,
-                    x1 * xs, y0 * ys, w2, h2, 0,
-                    x0 * xs, y0 * ys, -w2, h2, 0,
-            };
+            putVertex(outlineVertexBuffer, -w2, -h2, 0, x0 * xs, y1 * ys);
+            putVertex(outlineVertexBuffer, w2, -h2, 0, x1 * xs, y1 * ys);
+            putVertex(outlineVertexBuffer, w2, h2, 0, x1 * xs, y0 * ys);
+            putVertex(outlineVertexBuffer, -w2, h2, 0, x0 * xs, y0 * ys);
 
-            float[] texCoords = new float[] {
-                    x0 * xs, y0 * ys,
-                    x1 * xs, y1 * ys,
-            };
+            texCoordsBuffer.putFloat(x0 * xs);
+            texCoordsBuffer.putFloat(y0 * ys);
+            texCoordsBuffer.putFloat(x1 * xs);
+            texCoordsBuffer.putFloat(y1 * ys);
 
-            vertexBuffer.put(vertices);
-            outlineVertexBuffer.put(outlineVertices);
-            texCoordsBuffer.put(texCoords);
+            textureSet.addVertexStart(tileIndex * triangleVertexCount);
+            textureSet.addVertexCount(triangleVertexCount);
+
+            textureSet.addOutlineVertexStart(tileIndex * outlineVertexCount);
+            textureSet.addOutlineVertexCount(outlineVertexCount);
 
             TextureSetAnimation anim = TextureSetAnimation.newBuilder()
                     .setId(imageIds.get(index))
@@ -152,7 +177,8 @@ public class AtlasGenerator {
                     .setHeight(r.height)
                     .build();
 
-            tiles.add(anim);
+            textureSet.addAnimations(anim);
+
             idToAnimation.put(imageIds.get(index), anim);
             ++tileIndex;
         }
@@ -162,12 +188,19 @@ public class AtlasGenerator {
         for (AnimDesc anim : animations) {
             List<String> ids = anim.getIds();
             if (ids.size() > 0) {
+                int animIndex = 0;
                 for (String id : ids) {
                     TextureSetAnimation imageAnim = idToAnimation.get(id);
 
-                    duplicate(vertexBuffer, imageAnim.getStart() * components * 6 , 6 * components);
-                    duplicate(outlineVertexBuffer, imageAnim.getStart() * components * 4, 4 * components);
-                    duplicate(texCoordsBuffer, imageAnim.getStart() * 4, 4);
+                    duplicate(vertexBuffer, imageAnim.getStart() * vertexSize * 6 , 6 * vertexSize);
+                    duplicate(outlineVertexBuffer, imageAnim.getStart() * vertexSize * 4, 4 * vertexSize);
+                    duplicate(texCoordsBuffer, imageAnim.getStart() * 4 * 4, 4 * 4);
+
+                    textureSet.addVertexStart((tileIndex + animIndex) * triangleVertexCount);
+                    textureSet.addVertexCount(triangleVertexCount);
+                    textureSet.addOutlineVertexStart((tileIndex + animIndex) * outlineVertexCount);
+                    textureSet.addOutlineVertexCount(outlineVertexCount);
+                    ++animIndex;
                 }
 
                 TextureSetAnimation imageAnim = idToAnimation.get(ids.get(0));
@@ -184,7 +217,7 @@ public class AtlasGenerator {
                         .setIsAnimation(1)
                         .build();
 
-                tiles.add(setAnim);
+                textureSet.addAnimations(setAnim);
 
                 tileIndex += ids.size();
             }
@@ -194,14 +227,11 @@ public class AtlasGenerator {
         outlineVertexBuffer.rewind();
         texCoordsBuffer.rewind();
 
-        AtlasMap atlasMap = new AtlasMap(image, tiles, vertexBuffer, outlineVertexBuffer, texCoordsBuffer);
-        return atlasMap;
-    }
+        textureSet.setVertices(ByteString.copyFrom(vertexBuffer));
+        textureSet.setOutlineVertices(ByteString.copyFrom(outlineVertexBuffer));
+        textureSet.setTexCoords(ByteString.copyFrom(texCoordsBuffer));
 
-    private static void duplicate(FloatBuffer buffer, int index, int count) {
-        for (int i = 0; i < count; ++i) {
-            buffer.put(buffer.get(index + i));
-        }
+        return new Pair<TextureSetProto.TextureSet.Builder, BufferedImage>(textureSet, image);
     }
 
 }

@@ -137,7 +137,7 @@ public class TargetService implements ITargetService, Runnable {
                 }
                 updateLog();
             } catch (IOException e) {
-                logger.error(e.getMessage(), e);
+                // Do not log IOException. Network is down, etc
             }
         }
     }

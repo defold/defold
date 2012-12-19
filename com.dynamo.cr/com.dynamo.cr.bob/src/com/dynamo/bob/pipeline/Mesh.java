@@ -12,7 +12,7 @@ public class Mesh {
 
     private static FloatBuffer newFloatBuffer(int n) {
         ByteBuffer bb = ByteBuffer.allocateDirect(n * 4);
-        return bb.order(ByteOrder.nativeOrder()).asFloatBuffer();
+        return bb.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
     }
 
     public Mesh(List<Float> positions, List<Float> normals, List<Float> uvs) {

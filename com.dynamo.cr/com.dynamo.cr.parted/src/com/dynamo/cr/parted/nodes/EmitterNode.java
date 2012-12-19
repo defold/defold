@@ -417,7 +417,7 @@ public class EmitterNode extends Node implements Identifiable {
     public IStatus validateAnimation() {
         if (!this.animation.isEmpty()) {
             if (this.textureSetNode != null) {
-                boolean exists = this.textureSetNode.getAnimation(this.animation) != null;
+                boolean exists = this.textureSetNode.getRuntimeTextureSet().getAnimation(this.animation) != null;
                 if (!exists) {
                     return new Status(IStatus.ERROR, ParticleEditorPlugin.PLUGIN_ID, NLS.bind(
                             Messages.EmitterNode_animation_INVALID, this.animation));
