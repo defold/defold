@@ -19,7 +19,7 @@ import com.dynamo.sprite.proto.Sprite.SpriteDesc.BlendMode;
 @SuppressWarnings("serial")
 public class SpriteNode extends ComponentTypeNode {
 
-    @Property(editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource","atlas"})
+    @Property(displayName="Image", editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource","atlas"})
     @Resource
     @NotEmpty
     private String tileSource = "";
