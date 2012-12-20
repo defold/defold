@@ -1,6 +1,6 @@
 package com.dynamo.bob;
 
-import static org.apache.commons.io.FilenameUtils.normalize;
+import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,9 +18,6 @@ import java.util.Set;
 import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.eclipse.core.runtime.IProgressMonitor;
-import org.eclipse.core.runtime.SubProgressMonitor;
-import org.osgi.framework.Bundle;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -45,8 +42,8 @@ public class Project {
     }
 
     public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
-        this.rootDirectory = sourceRootDirectory;
-        this.buildDirectory = buildDirectory;
+        this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
+        this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
@@ -62,21 +59,11 @@ public class Project {
 
     /**
      * Scan package for builder classes
+     * @param scanner class scanner
      * @param pkg package name to be scanned
      */
-    public void scanPackage(String pkg) {
-        Set<String> classNames = ClassScanner.scan(pkg);
-        doScan(classNames);
-    }
-
-    /**
-     * OSGi-version of {@link #scanPackage(String)}
-     * Scan bundle package for builder classes
-     * @param bundle bundle to use for class scanning
-     * @param pkg package name to be scanned
-     */
-    public void scanBundlePackage(Bundle bundle, String pkg) {
-        Set<String> classNames = ClassScanner.scanBundle(bundle, pkg);
+    public void scan(IClassScanner scanner, String pkg) {
+        Set<String> classNames = scanner.scan(pkg);
         doScan(classNames);
     }
 
@@ -181,7 +168,7 @@ public class Project {
      * @throws IOException
      * @throws CompileExceptionError
      */
-    public List<TaskResult> build(IProgressMonitor monitor, String... commands) throws IOException, CompileExceptionError {
+    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         try {
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
@@ -192,7 +179,7 @@ public class Project {
         }
     }
 
-    private List<TaskResult> doBuild(IProgressMonitor monitor, String... commands) throws IOException, CompileExceptionError {
+    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
         createTasks();
@@ -202,12 +189,12 @@ public class Project {
 
         for (String command : commands) {
             if (command.equals("build")) {
-                SubProgressMonitor m = new SubProgressMonitor(monitor, 99);
+                IProgress m = monitor.subProgress(99);
                 m.beginTask("Building...", tasks.size());
                 result = runTasks(m);
                 m.done();
             } else if (command.equals("clean")) {
-                SubProgressMonitor m = new SubProgressMonitor(monitor, 1);
+                IProgress m = monitor.subProgress(1);
                 m.beginTask("Cleaning...", tasks.size());
                 for (Task<?> t : tasks) {
                     List<IResource> outputs = t.getOutputs();
@@ -218,7 +205,7 @@ public class Project {
                 }
                 m.done();
             } else if (command.equals("distclean")) {
-                SubProgressMonitor m = new SubProgressMonitor(monitor, 1);
+                IProgress m = monitor.subProgress(1);
                 m.beginTask("Cleaning...", tasks.size());
                 FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                 m.worked(1);
@@ -232,7 +219,7 @@ public class Project {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<TaskResult> runTasks(IProgressMonitor monitor) throws IOException {
+    private List<TaskResult> runTasks(IProgress monitor) throws IOException {
 
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
@@ -408,11 +395,12 @@ run:
         }
 
         public List<String> walk(String path) throws IOException {
-            path = normalize(path, true);
+            path = normalizeNoEndSeparator(path, true);
+
             result = new ArrayList<String>(1024);
             walk(new File(path), result);
             for (int i = 0; i < result.size(); ++i) {
-                String relPath = result.get(i).substring(path.length()+1);
+                String relPath = result.get(i).substring(rootDirectory.length()+1);
                 result.set(i, relPath);
             }
             return result;
@@ -448,11 +436,14 @@ run:
 
     /**
      * Find source files
-     * @param path path to begin in
+     * @param path path to begin in. Absolute or relative to root-directory
      * @param skipDirs
      * @throws IOException
      */
-    public void findSources(final String path, Set<String> skipDirs) throws IOException {
+    public void findSources(String path, Set<String> skipDirs) throws IOException {
+        if (!new File(path).isAbsolute()) {
+            path = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path));
+        }
         Walker walker = new Walker(skipDirs);
         walker.walk(path);
         List<String> result = walker.getResult();

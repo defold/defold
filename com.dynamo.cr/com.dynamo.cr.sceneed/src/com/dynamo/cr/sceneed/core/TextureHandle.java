@@ -19,9 +19,9 @@ public class TextureHandle {
         if (this.reloadTexture) {
             if (this.image != null) {
                 if (this.texture == null) {
-                    this.texture = TextureIO.newTexture(this.image, false);
+                    this.texture = TextureIO.newTexture(this.image, true);
                 } else {
-                    this.texture.updateImage(TextureIO.newTextureData(this.image, false));
+                    this.texture.updateImage(TextureIO.newTextureData(this.image, true));
                 }
                 this.image = null;
             } else if (this.texture != null) {

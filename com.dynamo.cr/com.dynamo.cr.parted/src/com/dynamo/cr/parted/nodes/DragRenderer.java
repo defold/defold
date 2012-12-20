@@ -57,7 +57,7 @@ public class DragRenderer implements INodeRenderer<DragNode> {
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
     }
 
     @Override

@@ -14,7 +14,7 @@ public class AxisManipulatorRenderer implements INodeRenderer<AxisManipulator> {
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, AxisManipulator node) {

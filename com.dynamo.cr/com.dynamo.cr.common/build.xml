@@ -25,11 +25,6 @@
     <target name="compile">
         <mkdir dir="ext_generated"/>
         <copy file="${env.DYNAMO_HOME}/share/java/upnp.jar" todir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/gamesys.jar" todir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/resource_archive.jar" todir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/render.jar" todir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/tile.jar" todir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/fontc.jar" todir="ext_generated"/>
 
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
@@ -41,6 +36,7 @@
             <proto dir="../../engine/engine/proto" file="engine_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="lua_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="atlas_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="camera_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gui_ddf.proto"/>
@@ -49,6 +45,7 @@
             <proto dir="../../engine/gamesys/proto/" file="physics_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sound_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sprite_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="texture_set_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="tile_ddf.proto"/>
             <proto dir="../../engine/graphics/proto" file="graphics_ddf.proto"/>
             <proto dir="../../engine/input/proto" file="input_ddf.proto"/>

@@ -112,6 +112,7 @@ namespace dmGameObject
         float m_DX;
         /// Cursor dy since last frame, in virtual screen space
         float m_DY;
+        float m_AccX, m_AccY, m_AccZ;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
@@ -120,6 +121,7 @@ namespace dmGameObject
         uint16_t m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
         uint16_t m_PositionSet : 1;
+        uint16_t m_AccelerationSet : 1;
     };
 
     /**

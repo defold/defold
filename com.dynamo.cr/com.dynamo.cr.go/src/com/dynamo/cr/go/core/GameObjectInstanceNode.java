@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
@@ -54,6 +56,10 @@ public class GameObjectInstanceNode extends InstanceNode {
     public void setGameObject(String gameObject) {
         this.gameObject = gameObject;
         reloadGameObject();
+        if (getId() == null) {
+            IPath p = new Path(gameObject).removeFileExtension();
+            setId(p.lastSegment());
+        }
     }
 
     @Override

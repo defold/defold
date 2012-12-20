@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry exported="true" kind="lib" path="ext/commons-io-2.4.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext_generated/fontc.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext_generated/tile.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext_generated/gamesys.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext_generated/render.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext_generated/resource_archive.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext_generated/upnp.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/protobuf-java-2.3.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/vecmath.jar"/>

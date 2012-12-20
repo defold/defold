@@ -25,6 +25,7 @@ namespace dmHID
         context->m_IgnoreKeyboard = params.m_IgnoreKeyboard;
         context->m_IgnoreGamepads = params.m_IgnoreGamepads;
         context->m_IgnoreTouchDevice = params.m_IgnoreTouchDevice;
+        context->m_IgnoreAcceleration = params.m_IgnoreAcceleration;
         return context;
     }
 
@@ -74,6 +75,11 @@ namespace dmHID
         return context->m_TouchDeviceConnected;
     }
 
+    bool IsAccelerometerConnected(HContext context)
+    {
+        return context->m_AccelerometerConnected;
+    }
+
     bool GetKeyboardPacket(HContext context, KeyboardPacket* out_packet)
     {
         if (out_packet != 0x0 && context->m_KeyboardConnected)
@@ -118,6 +124,19 @@ namespace dmHID
         if (out_packet != 0x0 && context->m_TouchDeviceConnected)
         {
             *out_packet = context->m_TouchDevicePacket;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool GetAccelerationPacket(HContext context, AccelerationPacket* out_packet)
+    {
+        if (out_packet != 0x0)
+        {
+            *out_packet = context->m_AccelerationPacket;
             return true;
         }
         else

@@ -16,7 +16,7 @@ public class SelectionBoxRenderer implements INodeRenderer<SelectionBoxNode> {
     }
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, SelectionBoxNode node) {

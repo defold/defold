@@ -65,7 +65,8 @@ public:
     dmMessage::HSocket m_Socket;
     dmGui::HScript m_Script;
     std::map<std::string, dmGui::HNode> m_NodeTextToNode;
-    std::map<std::string, Vector4> m_NodeTextToRenderedPosition;
+    std::map<std::string, Point3> m_NodeTextToRenderedPosition;
+    std::map<std::string, Vector3> m_NodeTextToRenderedSize;
 
     virtual void SetUp()
     {
@@ -93,15 +94,15 @@ public:
     {
         dmGuiTest* self = (dmGuiTest*) context;
         // The node is defined to completely cover the local space (0,1),(0,1)
-        Vector4 origin_pivot(0.f, 0.f, 0.0f, 1.0f);
-        Vector4 center_pivot(0.5f, 0.5f, 0.0f, 1.0f);
+        Vector4 origin(0.f, 0.f, 0.0f, 1.0f);
+        Vector4 unit(1.0f, 1.0f, 0.0f, 1.0f);
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            dmGui::HNode node = nodes[i];
-            if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT)
-                self->m_NodeTextToRenderedPosition[dmGui::GetNodeText(scene, nodes[i])] = node_transforms[i] * origin_pivot;
-            else
-                self->m_NodeTextToRenderedPosition[dmGui::GetNodeText(scene, nodes[i])] = node_transforms[i] * center_pivot;
+            Vector4 o = node_transforms[i] * origin;
+            Vector4 u = node_transforms[i] * unit;
+            const char* text = dmGui::GetNodeText(scene, nodes[i]);
+            self->m_NodeTextToRenderedPosition[text] = Point3(o.getXYZ());
+            self->m_NodeTextToRenderedSize[text] = Vector3((u - o).getXYZ());
         }
     }
 
@@ -138,6 +139,13 @@ void GetTextMetricsCallback(const void* font, const char* text, dmGui::TextMetri
     out_metrics->m_MaxDescent = TEXT_MAX_DESCENT;
 }
 
+static bool SetScript(dmGui::HScript script, const char* source)
+{
+    dmGui::Result r;
+    r = dmGui::SetScript(script, source, strlen(source), "dummy_source");
+    return dmGui::RESULT_OK == r;
+}
+
 TEST_F(dmGuiTest, Basic)
 {
     for (uint32_t i = 0; i < MAX_NODES; ++i)
@@ -151,6 +159,22 @@ TEST_F(dmGuiTest, Basic)
     ASSERT_EQ(m_Script, dmGui::GetSceneScript(m_Scene));
 }
 
+// Test that a newly re-created node has default values
+TEST_F(dmGuiTest, RecreateNodes)
+{
+    uint32_t n = MAX_NODES + 1;
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+        ASSERT_NE((dmGui::HNode) 0, node);
+        ASSERT_EQ(dmGui::PIVOT_CENTER, dmGui::GetNodePivot(m_Scene, node));
+        dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_E);
+        ASSERT_EQ(dmGui::PIVOT_E, dmGui::GetNodePivot(m_Scene, node));
+
+        dmGui::DeleteNode(m_Scene, node);
+    }
+}
+
 TEST_F(dmGuiTest, Name)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -162,6 +186,16 @@ TEST_F(dmGuiTest, Name)
     dmGui::SetNodeId(m_Scene, node, "my_node");
     get_node = dmGui::GetNodeById(m_Scene, "my_node");
     ASSERT_EQ(node, get_node);
+
+    const char* s = "function init(self)\n"
+                    "    local n = gui.get_node(\"my_node\")\n"
+                    "    local id = gui.get_id(n)\n"
+                    "    local n2 = gui.get_node(id)\n"
+                    "    assert(n == n2)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
 TEST_F(dmGuiTest, TextureFont)
@@ -229,6 +263,60 @@ TEST_F(dmGuiTest, TextureFont)
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
 
     dmGui::DeleteNode(m_Scene, node);
+}
+
+TEST_F(dmGuiTest, ScriptTextureFont)
+{
+    int t;
+    int f;
+
+    dmGui::AddTexture(m_Scene, "t", (void*) &t);
+    dmGui::AddFont(m_Scene, "f", &f);
+
+    const char* id = "n";
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id);
+
+    const char* s = "function init(self)\n"
+                    "    local n = gui.get_node(\"n\")\n"
+                    "    gui.set_texture(n, \"t\")\n"
+                    "    local t = gui.get_texture(n)\n"
+                    "    gui.set_texture(n, t)\n"
+                    "    local t2 = gui.get_texture(n)\n"
+                    "    assert(t == t2)\n"
+                    "    gui.set_font(n, \"f\")\n"
+                    "    local f = gui.get_font(n)\n"
+                    "    gui.set_font(n, f)\n"
+                    "    local f2 = gui.get_font(n)\n"
+                    "    assert(f == f2)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
+
+TEST_F(dmGuiTest, ScriptIndex)
+{
+    const char* id = "n";
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id);
+
+    const char* id2 = "n2";
+    node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id2);
+
+    const char* s = "function init(self)\n"
+                    "    local n = gui.get_node(\"n\")\n"
+                    "    assert(gui.get_index(n) == 0)\n"
+                    "    local n2 = gui.get_node(\"n2\")\n"
+                    "    assert(gui.get_index(n2) == 1)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
 TEST_F(dmGuiTest, NewDeleteNode)
@@ -1469,15 +1557,17 @@ TEST_F(dmGuiTest, Scaling)
 
     dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2, height/2,0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
+
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
-    Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
-    ASSERT_EQ(physical_width/2, pos1.getX());
-    ASSERT_EQ(physical_height/2, pos1.getY());
+    Point3 center = m_NodeTextToRenderedPosition[n1_name] + m_NodeTextToRenderedSize[n1_name] * 0.5f;
+    ASSERT_EQ(physical_width/2, center.getX());
+    ASSERT_EQ(physical_height/2, center.getY());
 }
 
 TEST_F(dmGuiTest, Anchoring)
@@ -1497,23 +1587,24 @@ TEST_F(dmGuiTest, Anchoring)
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
     dmGui::SetNodeXAnchor(m_Scene, n1, dmGui::XANCHOR_LEFT);
-    dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_TOP);
+    dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_BOTTOM);
 
     const char* n2_name = "n2";
     dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10, height - 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n2, n2_name);
     dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
-    dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_BOTTOM);
+    dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_TOP);
 
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
 
-    Vector4 pos1 = m_NodeTextToRenderedPosition[n1_name];
-    ASSERT_EQ(10 * ref_scale.getX(), pos1.getX());
-    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY());
+    Point3 pos1 = m_NodeTextToRenderedPosition[n1_name] + m_NodeTextToRenderedSize[n1_name] * 0.5f;
+    const float EPSILON = 0.0001f;
+    ASSERT_NEAR(10 * ref_scale.getX(), pos1.getX(), EPSILON);
+    ASSERT_NEAR(10 * ref_scale.getY(), pos1.getY(), EPSILON);
 
-    Vector4 pos2 = m_NodeTextToRenderedPosition[n2_name];
-    ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX());
-    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY());
+    Point3 pos2 = m_NodeTextToRenderedPosition[n2_name] + m_NodeTextToRenderedSize[n2_name] * 0.5f;
+    ASSERT_NEAR(physical_width - 10 * ref_scale.getX(), pos2.getX(), EPSILON);
+    ASSERT_NEAR(physical_height - 10 * ref_scale.getY(), pos2.getY(), EPSILON);
 }
 
 TEST_F(dmGuiTest, ScriptAnchoring)
@@ -1534,10 +1625,14 @@ TEST_F(dmGuiTest, ScriptAnchoring)
                     "    assert (768 == gui.get_height())\n"
                     "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
                     "    gui.set_xanchor(self.n1, gui.ANCHOR_LEFT)\n"
-                    "    gui.set_yanchor(self.n1, gui.ANCHOR_TOP)\n"
+                    "    assert(gui.get_xanchor(self.n1) == gui.ANCHOR_LEFT)\n"
+                    "    gui.set_yanchor(self.n1, gui.ANCHOR_BOTTOM)\n"
+                    "    assert(gui.get_yanchor(self.n1) == gui.ANCHOR_BOTTOM)\n"
                     "    self.n2 = gui.new_text_node(vmath.vector3(gui.get_width() - 10, gui.get_height()-10, 0), \"n2\")"
                     "    gui.set_xanchor(self.n2, gui.ANCHOR_RIGHT)\n"
-                    "    gui.set_yanchor(self.n2, gui.ANCHOR_BOTTOM)\n"
+                    "    assert(gui.get_xanchor(self.n2) == gui.ANCHOR_RIGHT)\n"
+                    "    gui.set_yanchor(self.n2, gui.ANCHOR_TOP)\n"
+                    "    assert(gui.get_yanchor(self.n2) == gui.ANCHOR_TOP)\n"
                     "end\n"
                     "function update(self)\n"
                     "end\n";
@@ -1556,13 +1651,90 @@ TEST_F(dmGuiTest, ScriptAnchoring)
 
     // These tests the actual position of the cursor when rendering text so we need to adjust with the ref-scaled text metrics
     float ref_factor = dmMath::Min(ref_scale.getX(), ref_scale.getY());
-    Vector4 pos1 = m_NodeTextToRenderedPosition["n1"];
+    Point3 pos1 = m_NodeTextToRenderedPosition["n1"];
     ASSERT_EQ(10 * ref_scale.getX(), pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
     ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
 
-    Vector4 pos2 = m_NodeTextToRenderedPosition["n2"];
+    Point3 pos2 = m_NodeTextToRenderedPosition["n2"];
     ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
     ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
+}
+
+TEST_F(dmGuiTest, ScriptPivot)
+{
+    const char* s = "function init(self)\n"
+                    "    local n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
+                    "    assert(gui.get_pivot(n1) == gui.PIVOT_CENTER)\n"
+                    "    gui.set_pivot(n1, gui.PIVOT_N)\n"
+                    "    assert(gui.get_pivot(n1) == gui.PIVOT_N)\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
+
+TEST_F(dmGuiTest, AdjustMode)
+{
+    uint32_t width = 640;
+    uint32_t height = 320;
+
+    uint32_t physical_width = 1280;
+    uint32_t physical_height = 320;
+
+    dmGui::SetResolution(m_Context, width, height);
+    dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
+
+    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
+    float min_ref_scale = dmMath::Min(ref_scale.getX(), ref_scale.getY());
+    float max_ref_scale = dmMath::Max(ref_scale.getX(), ref_scale.getY());
+
+    dmGui::AdjustMode modes[] = {dmGui::ADJUST_MODE_FIT, dmGui::ADJUST_MODE_ZOOM, dmGui::ADJUST_MODE_STRETCH};
+    Vector3 adjust_scales[] = {
+            Vector3(min_ref_scale, min_ref_scale, 1.0f),
+            Vector3(max_ref_scale, max_ref_scale, 1.0f),
+            ref_scale.getXYZ()
+    };
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmGui::AdjustMode mode = modes[i];
+        Vector3 adjust_scale = adjust_scales[i];
+
+        const char* center_name = "center";
+        dmGui::HNode center_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeText(m_Scene, center_node, center_name);
+        dmGui::SetNodePivot(m_Scene, center_node, dmGui::PIVOT_CENTER);
+        dmGui::SetNodeAdjustMode(m_Scene, center_node, mode);
+
+        const char* bl_name = "bottom_left";
+        dmGui::HNode bl_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeText(m_Scene, bl_node, bl_name);
+        dmGui::SetNodePivot(m_Scene, bl_node, dmGui::PIVOT_SW);
+        dmGui::SetNodeAdjustMode(m_Scene, bl_node, mode);
+
+        const char* tr_name = "top_right";
+        dmGui::HNode tr_node = dmGui::NewNode(m_Scene, Point3(10, 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeText(m_Scene, tr_node, tr_name);
+        dmGui::SetNodePivot(m_Scene, tr_node, dmGui::PIVOT_NE);
+        dmGui::SetNodeAdjustMode(m_Scene, tr_node, mode);
+
+        dmGui::RenderScene(m_Scene, &RenderNodes, this);
+
+        Vector3 offset((physical_width - width * adjust_scale.getX()) * 0.5f, (physical_height - height * adjust_scale.getY()) * 0.5f, 0.0f);
+
+        Point3 center_p = m_NodeTextToRenderedPosition[center_name] + m_NodeTextToRenderedSize[center_name] * 0.5f;
+        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), center_p.getX());
+        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), center_p.getY());
+
+        Point3 bl_p = m_NodeTextToRenderedPosition[bl_name];
+        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), bl_p.getX());
+        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), bl_p.getY());
+
+        Point3 tr_p = m_NodeTextToRenderedPosition[tr_name] + m_NodeTextToRenderedSize[center_name];
+        ASSERT_EQ(offset.getX() + 10 * adjust_scale.getX(), tr_p.getX());
+        ASSERT_EQ(offset.getY() + 10 * adjust_scale.getY(), tr_p.getY());
+    }
 }
 
 TEST_F(dmGuiTest, ScriptErroneousReturnValues)
@@ -1637,13 +1809,13 @@ TEST_F(dmGuiTest, Picking)
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
     Vector3 ext(pos);
-    ext.setX(ext.getX() / sqrt(2.0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), size.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX() + 0.5f), size.getY()));
+    ext.setX(ext.getX() * cosf(M_PI * 0.25f));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), pos.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX()), pos.getY()));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 90, 0, 0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), size.getY()));
-    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, size.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), pos.getY()));
+    ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, pos.getY()));
 }
 
 TEST_F(dmGuiTest, ScriptPicking)
@@ -1677,8 +1849,11 @@ TEST_F(dmGuiTest, ScriptPicking)
 // This render function simply flags a provided boolean when called
 static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
 {
-    bool* rendered = (bool*)context;
-    *rendered = true;
+    if (node_count > 0)
+    {
+        bool* rendered = (bool*)context;
+        *rendered = true;
+    }
 }
 
 TEST_F(dmGuiTest, EnableDisable)
@@ -1732,7 +1907,9 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
                     "    local size = vmath.vector3(string.len(id) * %.2f, %.2f + %.2f, 0)\n"
                     "    local position = size * 0.5\n"
                     "    self.n1 = gui.new_text_node(position, id)\n"
+                    "    assert(gui.is_enabled(self.n1))\n"
                     "    gui.set_enabled(self.n1, false)\n"
+                    "    assert(not gui.is_enabled(self.n1))\n"
                     "end\n";
     sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
@@ -1747,6 +1924,299 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     dmGui::InternalNode* node = &m_Scene->m_Nodes[0];
     ASSERT_STREQ("node_1", node->m_Node.m_Text); // make sure we found the right one
     ASSERT_FALSE(node->m_Enabled);
+}
+
+static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+{
+    std::map<dmGui::HNode, uint16_t>* order = (std::map<dmGui::HNode, uint16_t>*)context;
+    order->clear();
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+        (*order)[nodes[i]] = (uint16_t)i;
+    }
+}
+
+/**
+ * Verify specific use cases of moving around nodes:
+ * - single node (nop)
+ *   - move to top
+ *   - move to self (up)
+ *   - move to bottom
+ *   - move to self (down)
+ * - two nodes
+ *   - initial order
+ *   - move to top
+ *   - move explicit to top
+ *   - move to bottom
+ *   - move explicit to bottom
+ * - three nodes
+ *   - move to top
+ *   - move from head to middle
+ *   - move from middle to tail
+ *   - move to bottom
+ *   - move from tail to middle
+ *   - move from middle to head
+ */
+TEST_F(dmGuiTest, MoveNodes)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    std::map<dmGui::HNode, uint16_t> order;
+
+    // Edge case: single node
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to top
+    dmGui::MoveNodeAbove(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to self
+    dmGui::MoveNodeAbove(m_Scene, n1, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to bottom
+    dmGui::MoveNodeBelow(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // Move to self
+    dmGui::MoveNodeBelow(m_Scene, n1, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+
+    // Two nodes
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    // Move to top
+    dmGui::MoveNodeAbove(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    // Move explicit
+    dmGui::MoveNodeAbove(m_Scene, n2, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    // Move to bottom
+    dmGui::MoveNodeBelow(m_Scene, n2, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    // Move explicit
+    dmGui::MoveNodeBelow(m_Scene, n1, n2);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+
+    // Three nodes
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+    // Move to top
+    dmGui::MoveNodeAbove(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(2u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    ASSERT_EQ(1u, order[n3]);
+    // Move explicit from head to middle
+    dmGui::MoveNodeAbove(m_Scene, n2, n3);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(2u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(0u, order[n3]);
+    // Move explicit from middle to tail
+    dmGui::MoveNodeAbove(m_Scene, n2, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(2u, order[n2]);
+    ASSERT_EQ(0u, order[n3]);
+    // Move to bottom
+    dmGui::MoveNodeBelow(m_Scene, n2, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(2u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    ASSERT_EQ(1u, order[n3]);
+    // Move explicit from tail to middle
+    dmGui::MoveNodeBelow(m_Scene, n1, n3);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+    // Move explicit from middle to head
+    dmGui::MoveNodeBelow(m_Scene, n1, n2);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+}
+
+TEST_F(dmGuiTest, MoveNodesScript)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    const char* id1 = "n1";
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n1, id1);
+    const char* id2 = "n2";
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n2, id2);
+    const char* s = "function init(self)\n"
+                    "    local n1 = gui.get_node(\"n1\")\n"
+                    "    local n2 = gui.get_node(\"n2\")\n"
+                    "    assert(gui.get_index(n1) == 0)\n"
+                    "    assert(gui.get_index(n2) == 1)\n"
+                    "    gui.move_above(n1, n2)\n"
+                    "    assert(gui.get_index(n1) == 1)\n"
+                    "    assert(gui.get_index(n2) == 0)\n"
+                    "    gui.move_below(n1, n2)\n"
+                    "    assert(gui.get_index(n1) == 0)\n"
+                    "    assert(gui.get_index(n2) == 1)\n"
+                    "end\n";
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
+
+static void RenderNodesCount(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+{
+    uint32_t* count = (uint32_t*)context;
+    *count = node_count;
+}
+
+static dmGui::HNode PickNode(dmGui::HScene scene, uint32_t* seed)
+{
+    const uint32_t max_it = 10;
+    for (uint32_t i = 0; i < max_it; ++i)
+    {
+        uint32_t index = dmMath::Rand(seed) % scene->m_Nodes.Size();
+        if (scene->m_Nodes[index].m_Index != dmGui::INVALID_INDEX)
+        {
+            return dmGui::GetNodeHandle(&scene->m_Nodes[index]);
+        }
+    }
+    return dmGui::INVALID_HANDLE;
+}
+
+/**
+ * Verify that the render count holds under random inserts, deletes and moves
+ */
+TEST_F(dmGuiTest, MoveNodesLoad)
+{
+    const uint32_t node_count = 100;
+    const uint32_t iterations = 500;
+
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = node_count * 2;
+    params.m_MaxAnimations = MAX_ANIMATIONS;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+
+    for (uint32_t i = 0; i < node_count; ++i)
+    {
+        dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX);
+    }
+    uint32_t current_count = node_count;
+    uint32_t render_count = 0;
+
+    enum OpType {OP_ADD, OP_DELETE, OP_MOVE_ABOVE, OP_MOVE_BELOW, OP_TYPE_COUNT};
+
+    uint32_t seed = 0;
+
+    uint32_t min_node_count = node_count;
+    uint32_t max_node_count = 0;
+    uint32_t relative_move_count = 0;
+    uint32_t absolute_move_count = 0;
+    OpType op_type = OP_ADD;
+    uint32_t op_count = 0;
+    for (uint32_t i = 0; i < iterations; ++i)
+    {
+        if (op_count == 0)
+        {
+            op_type = (OpType)(dmMath::Rand(&seed) % OP_TYPE_COUNT);
+            op_count = dmMath::Rand(&seed) % 10 + 1;
+            if (op_type == OP_ADD || op_type == OP_DELETE)
+            {
+                int32_t diff = (int32_t)current_count - (int32_t)node_count;
+                float t = dmMath::Min(1.0f, dmMath::Max(-1.0f, diff / (0.5f * node_count)));
+                if (dmMath::Rand11(&seed) > t*t*t)
+                {
+                    op_type = OP_ADD;
+                }
+                else
+                {
+                    op_type = OP_DELETE;
+                }
+            }
+        }
+        --op_count;
+        switch (op_type)
+        {
+        case OP_ADD:
+            dmGui::NewNode(scene, pos, size, dmGui::NODE_TYPE_BOX);
+            ++current_count;
+            break;
+        case OP_DELETE:
+            {
+                dmGui::HNode node = PickNode(scene, &seed);
+                if (node != dmGui::INVALID_HANDLE)
+                {
+                    dmGui::DeleteNode(scene, node);
+                    --current_count;
+                }
+            }
+            break;
+        case OP_MOVE_ABOVE:
+        case OP_MOVE_BELOW:
+            {
+                dmGui::HNode source = PickNode(scene, &seed);
+                if (source != dmGui::INVALID_HANDLE)
+                {
+                    dmGui::HNode target = dmGui::INVALID_HANDLE;
+                    if (dmMath::Rand01(&seed) < 0.8f)
+                        target = PickNode(scene, &seed);
+                    if (op_type == OP_MOVE_ABOVE)
+                    {
+                        dmGui::MoveNodeAbove(scene, source, target);
+                    }
+                    else
+                    {
+                        dmGui::MoveNodeBelow(scene, source, target);
+                    }
+                    if (target != dmGui::INVALID_HANDLE)
+                    {
+                        ++relative_move_count;
+                    }
+                    else
+                    {
+                        ++absolute_move_count;
+                    }
+                }
+            }
+            break;
+        default:
+            break;
+        }
+        dmGui::RenderScene(scene, RenderNodesCount, &render_count);
+        ASSERT_EQ(current_count, render_count);
+        if (min_node_count > current_count)
+            min_node_count = current_count;
+        if (max_node_count < current_count)
+            max_node_count = current_count;
+    }
+    printf("[STATS] current: %03d min: %03d max: %03d rel: %03d abs: %03d\n", current_count, min_node_count, max_node_count, relative_move_count, absolute_move_count);
+
+    dmGui::DeleteScene(scene);
 }
 
 int main(int argc, char **argv)

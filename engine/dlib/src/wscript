@@ -92,20 +92,16 @@ def build(bld):
                      source_root='java')
 
     bld.env["JAVACFLAGS"] = '-g'
-    bld.add_group()
 
     bld.new_task_gen(features='jar seq',
                      basedir='java',
                      destfile='upnp.jar')
-    bld.add_group()
 
     bld.install_files('${PREFIX}/share/java', 'upnp.jar')
 
     bld.new_task_gen(features='javac seq',
                      classpath=classpath  + os.pathsep + 'default/src/java',
                      source_root='java_test')
-    bld.add_group()
-
 
 def configure(conf):
     pass

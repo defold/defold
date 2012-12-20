@@ -14,7 +14,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
-import com.dynamo.cr.resource.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveBuilder;
 
 /**
  * Game project and disk archive builder.

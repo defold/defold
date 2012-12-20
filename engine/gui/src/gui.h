@@ -19,6 +19,11 @@ namespace dmGui
     typedef struct Script* HScript;
     typedef uint32_t HNode;
 
+    /**
+     * Invalid node handle
+     */
+    const HNode INVALID_HANDLE = 0;
+
     struct NewSceneParams;
     void SetDefaultNewSceneParams(NewSceneParams* params);
 
@@ -168,6 +173,15 @@ namespace dmGui
         PIVOT_SW     = 6,
         PIVOT_W      = 7,
         PIVOT_NW     = 8,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+    enum AdjustMode
+    {
+        ADJUST_MODE_FIT     = 0,
+        ADJUST_MODE_ZOOM    = 1,
+        ADJUST_MODE_STRETCH = 2,
     };
 
     /**
@@ -342,6 +356,7 @@ namespace dmGui
     void SetNodeId(HScene scene, HNode node, const char* name);
 
     HNode GetNodeById(HScene scene, const char* id);
+    HNode GetNodeById(HScene scene, dmhash_t id);
 
     uint32_t GetNodeCount(HScene scene);
 
@@ -363,17 +378,26 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
 
     void* GetNodeTexture(HScene scene, HNode node);
-    Result SetNodeTexture(HScene scene, HNode node, const char* texture);
+    dmhash_t GetNodeTextureId(HScene scene, HNode node);
+    Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id);
+    Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
 
     void* GetNodeFont(HScene scene, HNode node);
-    Result SetNodeFont(HScene scene, HNode node, const char* font);
+    dmhash_t GetNodeFontId(HScene scene, HNode node);
+    Result SetNodeFont(HScene scene, HNode node, dmhash_t font_id);
+    Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
 
+    XAnchor GetNodeXAnchor(HScene scene, HNode node);
     void SetNodeXAnchor(HScene scene, HNode node, XAnchor x_anchor);
+    YAnchor GetNodeYAnchor(HScene scene, HNode node);
     void SetNodeYAnchor(HScene scene, HNode node, YAnchor y_anchor);
+    Pivot GetNodePivot(HScene scene, HNode node);
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
+
+    void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
 
     void AnimateNode(HScene scene, HNode node,
                      Property property,
@@ -398,6 +422,14 @@ namespace dmGui
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
 
+    /** retrieves if a node is enabled or not
+     * Only enabled nodes are animated and rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be enabled/disabled
+     * @return whether the node is enabled or not
+     */
+    bool IsNodeEnabled(HScene scene, HNode node);
     /** enables/disables a node
      * Set if a node should be enabled or not. Only enabled nodes are animated and rendered.
      *
@@ -407,6 +439,27 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+
+    /** reorders the given node relative the reference
+     * Move the given node to be positioned above the reference node.
+     * If the reference node is INVALID_HANDLE, the node is moved to the top.
+     *
+     * @note This function might alter the indices of any number of nodes in the scene.
+     * @param scene Scene the node exists in
+     * @param node Node to be moved
+     * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     */
+    void MoveNodeAbove(HScene scene, HNode node, HNode reference);
+    /** reorders the given node relative the reference
+     * Move the given node to be positioned below the reference node.
+     * If the reference node is INVALID_HANDLE, the node is moved to the bottom.
+     *
+     * @note This function might alter the indices of any number of nodes in the scene.
+     * @param scene Scene the node exists in
+     * @param node Node to be moved
+     * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     */
+    void MoveNodeBelow(HScene scene, HNode node, HNode reference);
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);

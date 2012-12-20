@@ -26,10 +26,10 @@ import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
-import com.dynamo.cr.tileeditor.scene.AnimationNode;
-import com.dynamo.cr.tileeditor.scene.TileSetNode;
+import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.particle.proto.Particle;
 import com.dynamo.particle.proto.Particle.BlendMode;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
@@ -44,7 +44,7 @@ import com.dynamo.particle.proto.Particle.ParticleOrientation;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.proto.DdfExtensions;
 
-public class EmitterNode extends Node {
+public class EmitterNode extends Node implements Identifiable {
 
     private static final long serialVersionUID = 1L;
 
@@ -70,10 +70,10 @@ public class EmitterNode extends Node {
     @Range(min = 0.0)
     private float startDelay;
 
-    @Property(editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset" })
+    @Property(displayName = "Image", editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
     private String tileSource = "";
 
-    private transient TileSetNode tileSetNode = null;
+    private transient TextureSetNode textureSetNode = null;
 
     @Property
     private String animation = "";
@@ -391,9 +391,9 @@ public class EmitterNode extends Node {
     }
 
     public IStatus validateTileSource() {
-        if (this.tileSetNode != null) {
-            this.tileSetNode.updateStatus();
-            IStatus status = this.tileSetNode.getStatus();
+        if (this.textureSetNode != null) {
+            this.textureSetNode.updateStatus();
+            IStatus status = this.textureSetNode.getStatus();
             if (!status.isOK()) {
                 return new Status(IStatus.ERROR, ParticleEditorPlugin.PLUGIN_ID,
                         Messages.EmitterNode_tileSource_INVALID_REFERENCE);
@@ -416,14 +416,8 @@ public class EmitterNode extends Node {
 
     public IStatus validateAnimation() {
         if (!this.animation.isEmpty()) {
-            if (this.tileSetNode != null) {
-                boolean exists = false;
-                for (AnimationNode animation : this.tileSetNode.getAnimations()) {
-                    if (animation.getId().equals(this.animation)) {
-                        exists = true;
-                        break;
-                    }
-                }
+            if (this.textureSetNode != null) {
+                boolean exists = this.textureSetNode.getRuntimeTextureSet().getAnimation(this.animation) != null;
                 if (!exists) {
                     return new Status(IStatus.ERROR, ParticleEditorPlugin.PLUGIN_ID, NLS.bind(
                             Messages.EmitterNode_animation_INVALID, this.animation));
@@ -508,8 +502,8 @@ public class EmitterNode extends Node {
         return this.emissionSpace == EmissionSpace.EMISSION_SPACE_WORLD;
     }
 
-    public TileSetNode getTileSetNode() {
-        return this.tileSetNode;
+    public TextureSetNode getTextureSetNode() {
+        return this.textureSetNode;
     }
 
     @Override
@@ -569,7 +563,7 @@ public class EmitterNode extends Node {
     @Override
     public void setModel(ISceneModel model) {
         super.setModel(model);
-        if (model != null && this.tileSetNode == null) {
+        if (model != null && this.textureSetNode == null) {
             reloadTileSource();
         }
     }
@@ -585,8 +579,8 @@ public class EmitterNode extends Node {
                     reloadSystem(false);
                 }
             }
-            if (this.tileSetNode != null) {
-                if (this.tileSetNode.handleReload(file)) {
+            if (this.textureSetNode != null) {
+                if (this.textureSetNode.handleReload(file)) {
                     reloaded = true;
                     reloadSystem(false);
                 }
@@ -598,13 +592,13 @@ public class EmitterNode extends Node {
     private boolean reloadTileSource() {
         ISceneModel model = getModel();
         if (model != null) {
-            this.tileSetNode = null;
+            this.textureSetNode = null;
             if (!this.tileSource.isEmpty()) {
                 try {
                     Node node = model.loadNode(this.tileSource);
-                    if (node instanceof TileSetNode) {
-                        this.tileSetNode = (TileSetNode) node;
-                        this.tileSetNode.setModel(getModel());
+                    if (node instanceof TextureSetNode) {
+                        this.textureSetNode = (TextureSetNode) node;
+                        this.textureSetNode.setModel(getModel());
                         updateStatus();
                     }
                 } catch (Exception e) {

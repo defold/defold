@@ -6,6 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -13,22 +15,20 @@ import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.NodeUtil;
-import com.dynamo.cr.sceneed.core.test.DummyIdNode.DummyIdFetcher;
 
 public class NodeUtilTest {
 
     @Test
     public void testUniqueId() {
-        DummyNode parent = new DummyNode();
-        parent.addChild(new DummyIdNode("default"));
-
-        DummyIdFetcher idFetcher = new DummyIdFetcher();
-        assertThat(NodeUtil.getUniqueId(parent, "default", idFetcher), is("default1"));
-        assertThat(NodeUtil.getUniqueId(parent.getChildren(), "default", idFetcher), is("default1"));
-
-        parent.addChild(new DummyIdNode("default1"));
-        assertThat(NodeUtil.getUniqueId(parent, "default", idFetcher), is("default2"));
-        assertThat(NodeUtil.getUniqueId(parent.getChildren(), "default", idFetcher), is("default2"));
+        Set<String> ids = new HashSet<String>();
+        ids.add("default");
+        assertThat(NodeUtil.getUniqueId(ids, "default"), is("default1"));
+        ids.add("default1");
+        assertThat(NodeUtil.getUniqueId(ids, "default"), is("default2"));
+        ids.add("");
+        assertThat(NodeUtil.getUniqueId(ids, ""), is("1"));
+        ids.add("1test1");
+        assertThat(NodeUtil.getUniqueId(ids, "1test1"), is("1test2"));
     }
 
     @Test
@@ -46,7 +46,7 @@ public class NodeUtilTest {
     }
 
     @Test
-    public void testAcceptingParent() {
+    public void testValidAncestors() {
         // Mocking
         ISceneView.IPresenterContext presenterContext = mock(ISceneView.IPresenterContext.class);
         when(presenterContext.getNodeType(DummyNode.class)).thenReturn(Activator.getDefault().getNodeTypeRegistry().getNodeTypeClass(DummyNode.class));
@@ -61,34 +61,35 @@ public class NodeUtilTest {
         node2.addChild(child2);
 
         // Null
-        Node parent = NodeUtil.findAcceptingParent(null, Collections.singletonList((Node)node), presenterContext);
+        Node parent = NodeUtil.findValidAncestor(null, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
 
         // Empty source
-        parent = NodeUtil.findAcceptingParent(node2, Collections.<Node>emptyList(), presenterContext);
+        parent = NodeUtil.findValidAncestor(node2, Collections.<Node>emptyList(), presenterContext);
         assertThat(parent, is((Node)node2));
 
         // Non-matching types
-        parent = NodeUtil.findAcceptingParent(node2, Collections.singletonList((Node)node), presenterContext);
+        parent = NodeUtil.findValidAncestor(node2, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
 
         // Matching types
-        parent = NodeUtil.findAcceptingParent(node2, Collections.singletonList((Node)child), presenterContext);
+        parent = NodeUtil.findValidAncestor(node2, Collections.singletonList((Node)child), presenterContext);
         assertThat(parent, is((Node)node2));
 
         // Descendants
         child.addChild(child2);
-        parent = NodeUtil.findAcceptingParent(child2, Collections.singletonList((Node)child), presenterContext);
-        assertThat(parent, is((Node)node));
-        parent = NodeUtil.findAcceptingParent(child2, Collections.singletonList((Node)node), presenterContext);
+        parent = NodeUtil.findValidAncestor(child2, Collections.singletonList((Node)child), presenterContext);
+        assertThat(parent, is((Node)child2));
+        parent = NodeUtil.findValidAncestor(child2, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
 
         // Unknown type
         @SuppressWarnings("serial")
         Node n = new Node() {};
-        parent = NodeUtil.findAcceptingParent(n, Collections.singletonList((Node)node), presenterContext);
+        parent = NodeUtil.findValidAncestor(n, Collections.singletonList((Node)node), presenterContext);
         assertThat(parent, is((Node)null));
-        parent = NodeUtil.findAcceptingParent(node, Collections.singletonList(n), presenterContext);
+        parent = NodeUtil.findValidAncestor(node, Collections.singletonList(n), presenterContext);
         assertThat(parent, is((Node)null));
     }
+
 }

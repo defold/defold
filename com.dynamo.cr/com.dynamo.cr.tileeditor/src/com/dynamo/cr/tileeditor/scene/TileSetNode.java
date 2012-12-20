@@ -4,7 +4,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,9 +12,16 @@ import java.util.List;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.atlas.TileSetGenerator;
+import com.dynamo.bob.tile.ConvexHull;
+import com.dynamo.bob.tile.TileSetUtil;
+import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.cr.editor.ui.EditorUIPlugin;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -26,13 +32,14 @@ import com.dynamo.cr.properties.ValidatorUtil;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
-import com.dynamo.tile.ConvexHull;
-import com.dynamo.tile.TileSetUtil;
-import com.dynamo.tile.TileSetUtil.ConvexHulls;
-import com.sun.opengl.util.BufferUtil;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder;
+import com.dynamo.tile.proto.Tile.TileSet;
 
 @SuppressWarnings("serial")
-public class TileSetNode extends Node {
+public class TileSetNode extends TextureSetNode {
+
+    private static Logger logger = LoggerFactory.getLogger(TileSetNode.class);
 
     // TODO: Should be configurable
     private static final int PLANE_COUNT = 16;
@@ -73,10 +80,11 @@ public class TileSetNode extends Node {
     private float[] convexHullPoints = new float[0];
 
     // Graphics resources
-    private BufferedImage loadedImage;
-    private BufferedImage loadedCollision;
-    private TextureHandle textureHandle;
-    private transient FloatBuffer texCoords;
+    private transient BufferedImage loadedImage;
+    private transient BufferedImage loadedCollision;
+    private transient TextureHandle textureHandle;
+
+    private transient RuntimeTextureSet runtimeTextureSet = new RuntimeTextureSet();
 
     public TileSetNode() {
         this.tileCollisionGroups = new ArrayList<CollisionGroupNode>();
@@ -269,12 +277,23 @@ public class TileSetNode extends Node {
         return this.loadedCollision;
     }
 
+    @Override
     public TextureHandle getTextureHandle() {
         return this.textureHandle;
     }
 
-    public FloatBuffer getTexCoords() {
-        return this.texCoords;
+    private void updateVertexData() {
+        TileSetLoader loader = new TileSetLoader();
+        try {
+            TileSet tileSet = (TileSet) loader.buildMessage(null, this, new NullProgressMonitor());
+            Builder textureSetBuilder = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true);
+            if (textureSetBuilder != null) {
+                TextureSet textureSet = textureSetBuilder.setTexture("").build();
+                runtimeTextureSet.update(textureSet);
+            }
+        } catch (Exception e) {
+            logger.error("Error occurred while creating tile source vertex-data", e);
+        }
     }
 
     @Override
@@ -348,7 +367,7 @@ public class TileSetNode extends Node {
 
     public void updateData() {
         updateConvexHulls();
-        updateTexCoords();
+        updateVertexData();
     }
 
     public void updateConvexHulls() {
@@ -475,46 +494,11 @@ public class TileSetNode extends Node {
         this.materialTag = (String)in.readObject();
         this.tileCollisionGroups = (List<CollisionGroupNode>)in.readObject();
         this.convexHulls = new ArrayList<ConvexHull>();
+        this.runtimeTextureSet = new RuntimeTextureSet();
     }
 
-    private void updateTexCoords() {
-        IStatus status = getStatus();
-        if (status == null) {
-            updateStatus();
-            status = getStatus();
-        }
-        if (getLoadedImage() == null || !status.isOK()) {
-            this.texCoords = null;
-            return;
-        }
-
-        TileSetUtil.Metrics metrics = calculateMetrics(this);
-        if (metrics == null) {
-            this.texCoords = null;
-            return;
-        }
-
-        float recipImageWidth = 1.0f / metrics.tileSetWidth;
-        float recipImageHeight = 1.0f / metrics.tileSetHeight;
-
-        int tileCount = metrics.tilesPerRow * metrics.tilesPerColumn;
-        final int componentCount = 4;
-        this.texCoords = BufferUtil.newFloatBuffer(tileCount * componentCount);
-        for (int tile = 0; tile < tileCount; ++tile) {
-            int x = tile % metrics.tilesPerRow;
-            int y = tile / metrics.tilesPerRow;
-            float u0 = (x * (tileSpacing + 2 * tileMargin + tileWidth) + tileMargin) * recipImageWidth;
-            float u1 = u0 + tileWidth * recipImageWidth;
-            float v0 = (y * (tileSpacing + 2 * tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-            float v1 = v0 + tileHeight * recipImageHeight;
-
-            this.texCoords.put(u0).put(v0).put(u1).put(v1);
-        }
-        this.texCoords.flip();
-    }
-
-    private static TileSetUtil.Metrics calculateMetrics(TileSetNode node) {
-        return TileSetUtil.calculateMetrics(node.getLoadedImage(), node.getTileWidth(), node.getTileHeight(),
-                node.getTileMargin(), node.getTileSpacing(), null, 1.0f, 0.0f);
+    @Override
+    public RuntimeTextureSet getRuntimeTextureSet() {
+        return runtimeTextureSet;
     }
 }

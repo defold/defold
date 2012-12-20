@@ -1,0 +1,66 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+import "tile_ddf.proto";
+
+option java_package = "com.dynamo.textureset.proto";
+option java_outer_classname = "TextureSetProto";
+
+enum Constants
+{
+    VERTEX_SIZE = 16; // 3 * 4 + 4
+}
+
+message TextureSetAnimation
+{
+    required string id              = 1;
+    required uint32 width           = 2;
+    required uint32 height          = 3;
+    required uint32 start           = 4;
+    required uint32 end             = 5;
+    optional uint32 fps             = 6 [default = 30];
+    optional Playback playback      = 7 [default = PLAYBACK_ONCE_FORWARD];
+    optional uint32 flip_horizontal = 8 [default = 0];
+    optional uint32 flip_vertical   = 9 [default = 0];
+    optional uint32 is_animation    = 10 [default = 0]; // Not set for primary images. Only used for atlasmap-editor
+}
+
+/*
+  Vertex format:
+
+  struct Vertex
+  {
+      // Offset 0
+      float x, y, z;
+      // Offset 12
+      uint16_t u, v;
+      // Offset 16
+  };
+ */
+
+message TextureSet
+{
+    required string texture                 = 1;
+    repeated TextureSetAnimation animations = 2;
+    repeated ConvexHull convex_hulls        = 3;
+
+    // Only used when the source is a tile-source
+    // tile_width and tile_height should only be used in tilmap
+    optional uint32 tile_width              = 4;
+    optional uint32 tile_height             = 5;
+
+    required bytes vertices                 = 6;
+    repeated uint32 vertex_start            = 7;
+    repeated uint32 vertex_count            = 8;
+
+    required bytes outline_vertices         = 9;
+    repeated uint32 outline_vertex_start    = 10;
+    repeated uint32 outline_vertex_count    = 11;
+
+    repeated float convex_hull_points       = 12;
+    repeated string collision_groups        = 13;
+
+    // min/max uv, 4 floats. Legacy and the vertex-buffer should be used instead.
+    required bytes tex_coords               = 14;
+}

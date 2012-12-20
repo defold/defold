@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.DefaultFileSystem;
+import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
@@ -115,8 +116,9 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         }
 
         Bundle bundle = Activator.getDefault().getBundle();
-        project.scanBundlePackage(bundle, "com.dynamo.bob");
-        project.scanBundlePackage(bundle, "com.dynamo.bob.pipeline");
+        OsgiScanner scanner = new OsgiScanner(bundle);
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
 
         Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory));
 
@@ -132,7 +134,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         boolean ret = true;
         try {
             project.findSources(branchLocation, skipDirs);
-            List<TaskResult> result = project.build(monitor, commands);
+            List<TaskResult> result = project.build(new ProgressDelegate(monitor), commands);
             for (TaskResult taskResult : result) {
                 if (!taskResult.isOk()) {
                     ret = false;

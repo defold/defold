@@ -1,0 +1,10 @@
+attribute vec4 position;
+attribute vec2 texcoord0;
+
+varying vec2 var_texcoord0;
+
+void main()
+{
+    gl_Position = gl_ModelViewProjectionMatrix * vec4(position.xyz, 1);
+    var_texcoord0 = texcoord0;
+}

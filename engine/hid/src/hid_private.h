@@ -22,13 +22,16 @@ namespace dmHID
         MousePacket m_MousePacket;
         Gamepad m_Gamepads[MAX_GAMEPAD_COUNT];
         TouchDevicePacket m_TouchDevicePacket;
+        AccelerationPacket m_AccelerationPacket;
         uint32_t m_KeyboardConnected : 1;
         uint32_t m_MouseConnected : 1;
         uint32_t m_TouchDeviceConnected : 1;
+        uint32_t m_AccelerometerConnected : 1;
         uint32_t m_IgnoreMouse : 1;
         uint32_t m_IgnoreKeyboard : 1;
         uint32_t m_IgnoreGamepads : 1;
         uint32_t m_IgnoreTouchDevice : 1;
+        uint32_t m_IgnoreAcceleration : 1;
     };
 }
 

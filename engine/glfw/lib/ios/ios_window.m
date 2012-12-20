@@ -297,7 +297,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 // View controller
 
-@interface ViewController : UIViewController
+@interface ViewController : UIViewController<UIAccelerometerDelegate>
 {
     EAGLView *glView;
 }
@@ -323,6 +323,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [ [self view] addSubview: glView ];
+    [[UIAccelerometer sharedAccelerometer] setUpdateInterval:1.0/60.0];
+    [[UIAccelerometer sharedAccelerometer] setDelegate:self];
 
     float version = [[UIDevice currentDevice].systemVersion floatValue];
 
@@ -384,6 +386,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     }
 }
 
+- (void)accelerometer:(UIAccelerometer *)accelerometer didAccelerate:(UIAcceleration *)acceleration
+{
+    _glfwInput.AccX = acceleration.x;
+    _glfwInput.AccY = acceleration.y;
+    _glfwInput.AccZ = acceleration.z;
+}
 @end
 
 // Application delegate
@@ -608,7 +616,10 @@ void _glfwPlatformRefreshWindowParams( void )
 void _glfwPlatformPollEvents( void )
 {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, TRUE);
+    SInt32 result;
+    do {
+        result = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, TRUE);
+    } while (result == kCFRunLoopRunHandledSource);
     [pool release];
 }
 
@@ -642,4 +653,16 @@ void _glfwPlatformShowMouseCursor( void )
 
 void _glfwPlatformSetMouseCursorPos( int x, int y )
 {
+}
+
+//========================================================================
+// Get physical accelerometer
+//========================================================================
+
+int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
+{
+    *x = _glfwInput.AccX;
+    *y = _glfwInput.AccY;
+    *z = _glfwInput.AccZ;
+    return 1;
 }

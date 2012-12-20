@@ -19,7 +19,7 @@ public class TileGridRenderer implements INodeRenderer<TileGridNode> {
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
 
     @Override
-    public void dispose() { }
+    public void dispose(GL gl) { }
 
     @Override
     public void setup(RenderContext renderContext, TileGridNode node) {

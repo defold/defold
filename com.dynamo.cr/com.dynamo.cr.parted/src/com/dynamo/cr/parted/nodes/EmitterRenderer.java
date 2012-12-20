@@ -32,7 +32,7 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
     }
 
     @Override

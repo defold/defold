@@ -248,7 +248,7 @@ namespace dmGameSystem
         region->m_Dirty = false;
 
         dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
-        dmGameSystemDDF::TileSet* tile_set_ddf = resource->m_TileSet->m_TileSet;
+        dmGameSystemDDF::TextureSet* texture_set_ddf = resource->m_TextureSet->m_TextureSet;
 
         // TODO Cull against screen
         uint32_t column_count = resource->m_ColumnCount;
@@ -312,8 +312,7 @@ namespace dmGameSystem
         float t[4];
 
         uint32_t vertex_count = 0;
-        dmArray<float>& tex_coords = resource->m_TileSet->m_TexCoords;
-
+        const float* tex_coords = (const float*) resource->m_TextureSet->m_TextureSet->m_TexCoords.m_Data;
         for (uint32_t j = 0; j < layer_count; ++j)
         {
             TileGridComponent::Layer* layer = &layers[j];
@@ -328,8 +327,8 @@ namespace dmGameSystem
                         uint16_t tile = component->m_Cells[cell];
                         if (tile != 0xffff)
                         {
-                            CalculateCellBounds(x, y, tile_set_ddf->m_TileWidth, tile_set_ddf->m_TileHeight, p);
-                            float* puv = &tex_coords[tile * 4];
+                            CalculateCellBounds(x, y, texture_set_ddf->m_TileWidth, texture_set_ddf->m_TileHeight, p);
+                            const float* puv = &tex_coords[tile * 4];
                             t[0] = puv[0];
                             t[1] = puv[1];
                             t[2] = puv[2];
@@ -374,7 +373,7 @@ namespace dmGameSystem
         {
             TileGridComponent* tile_grid = tile_grids[i];
             TileGridResource* resource = tile_grid->m_TileGridResource;
-            dmGraphics::HTexture texture = resource->m_TileSet->m_Texture;
+            dmGraphics::HTexture texture = resource->m_TextureSet->m_Texture;
             dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);
             dmTransform::TransformS1 local(tile_grid->m_Translation, tile_grid->m_Rotation, 1.0f);
             if (dmGameObject::ScaleAlongZ(tile_grid->m_Instance))
@@ -441,8 +440,8 @@ namespace dmGameSystem
                 cell = dmTransform::ApplyNoScaleZ(inv_world, cell);
             }
             TileGridResource* resource = component->m_TileGridResource;
-            dmGameSystemDDF::TileSet* tile_set = resource->m_TileSet->m_TileSet;
-            cell = mulPerElem(cell, Point3(1.0f / tile_set->m_TileWidth, 1.0f / tile_set->m_TileHeight, 0.0f));
+            dmGameSystemDDF::TextureSet* texture_set = resource->m_TextureSet->m_TextureSet;
+            cell = mulPerElem(cell, Point3(1.0f / texture_set->m_TileWidth, 1.0f / texture_set->m_TileHeight, 0.0f));
             int32_t cell_x = (int32_t)floor(cell.getX()) + st->m_Dx - resource->m_MinCellX;
             int32_t cell_y = (int32_t)floor(cell.getY()) + st->m_Dy - resource->m_MinCellY;
             if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)

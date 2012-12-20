@@ -30,11 +30,7 @@ def build(bld):
                                 ddf_namespace = 'DUMMY',
                                 proto_gen_cc = True,
                                 proto_compile_cc = True,
-                                proto_gen_java = True,
                                 protoc_includes = '. ..',
-                                ddf_jar = 'test_ddf.jar',
-                                # NOTE: default/... is hardcoded. How to solve?
-                                classpath='default/src/test/generated' + os.pathsep + 'default/src/ddf/generated' + os.pathsep + bld.env.PROTOBUF_JAR + os.pathsep + 'default/src/java',
                                 includes = '. .. ../ddf',
                                 target = 'test_ddf')
     test_ddf.install_path = None

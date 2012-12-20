@@ -84,11 +84,11 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
                 .setCollision(node.getCollision())
                 .setMaterialTag(node.getMaterialTag());
         // Save tile collision groups
-        List<com.dynamo.tile.ConvexHull> hulls = node.getConvexHulls();
+        List<com.dynamo.bob.tile.ConvexHull> hulls = node.getConvexHulls();
         List<CollisionGroupNode> tileCollisionGroups = node.getTileCollisionGroups();
         int count = hulls.size();
         for (int i = 0; i < count; ++i) {
-            com.dynamo.tile.ConvexHull convexHull = hulls.get(i);
+            com.dynamo.bob.tile.ConvexHull convexHull = hulls.get(i);
             Tile.ConvexHull.Builder convexHullBuilder = Tile.ConvexHull.newBuilder();
             convexHullBuilder.setIndex(convexHull.getIndex());
             convexHullBuilder.setCount(convexHull.getCount());

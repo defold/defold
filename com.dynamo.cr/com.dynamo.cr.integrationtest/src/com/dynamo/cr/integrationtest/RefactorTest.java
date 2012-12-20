@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Enumeration;
+import java.util.List;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
@@ -36,6 +37,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
+import com.dynamo.atlas.proto.AtlasProto.Atlas;
+import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -217,6 +220,42 @@ public class RefactorTest {
             @Override
             public String[] getReferences(TileSet desc) {
                 return new String[] {desc.getCollision()};
+            }
+        });
+    }
+
+    /*
+     * Atlas
+     */
+
+    @Test
+    public void testImageForAtlas() throws CoreException, IOException {
+
+        testRenameAndDelete(Atlas.newBuilder(), "graphics/atlas.atlas", "/graphics/ball.png", new ReferenceFetcher<Atlas>() {
+            @Override
+            public String[] getReferences(Atlas atlas) {
+                if (atlas.getImagesCount() == 1) {
+                    return new String[] {atlas.getImages(0).getImage()};
+                } else {
+                    return new String[] {};
+                }
+            }
+        });
+    }
+
+    @Test
+    public void testAnimationImageForAtlas() throws CoreException, IOException {
+
+
+        testRenameAndDelete(Atlas.newBuilder(), "graphics/atlas.atlas", "/graphics/ball.png", new ReferenceFetcher<Atlas>() {
+            @Override
+            public String[] getReferences(Atlas atlas) {
+                List<AtlasAnimation> animationList = atlas.getAnimationsList();
+                if (animationList.size() == 1 && animationList.get(0).getImagesList().size() == 1) {
+                    return new String[] {animationList.get(0).getImages(0).getImage()};
+                } else {
+                    return new String[] {};
+                }
             }
         });
     }

@@ -25,7 +25,7 @@ public class RadialRenderer implements INodeRenderer<RadialNode> {
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
     }
 
     @Override

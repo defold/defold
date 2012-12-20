@@ -156,10 +156,11 @@ IRenderView {
     public void dispose() {
         if (this.context != null) {
             this.context.makeCurrent();
+            GL gl = this.context.getGL();
 
             for (INodeRenderer<Node> r : this.renderers.values()) {
                 if (r != null) {
-                    r.dispose();
+                    r.dispose(gl);
                 }
             }
 

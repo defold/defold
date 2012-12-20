@@ -27,7 +27,7 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
     }
 
     @Override

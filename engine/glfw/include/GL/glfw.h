@@ -465,6 +465,8 @@ GLFWAPI void GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun )
 GLFWAPI void GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
 
+GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);
+
 /* Joystick input */
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickParam( int joy, int param );
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickPos( int joy, float *pos, int numaxes );

@@ -10,6 +10,12 @@ Require-Bundle: com.dynamo.cr.common;bundle-version="1.0.0",
  javax.media.opengl;bundle-version="1.1.1"
 Bundle-ClassPath: lib/javolution-5.5.1.jar,
  .,
- lib/openmali.jar
+ lib/openmali.jar,
+ lib/commons-cli-1.2.jar
 Export-Package: com.dynamo.bob,
- com.dynamo.bob.pipeline
+ com.dynamo.bob.archive,
+ com.dynamo.bob.atlas,
+ com.dynamo.bob.font,
+ com.dynamo.bob.pipeline,
+ com.dynamo.bob.tile,
+ com.dynamo.bob.util

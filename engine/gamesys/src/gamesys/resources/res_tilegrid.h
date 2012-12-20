@@ -5,7 +5,7 @@
 
 #include <resource/resource.h>
 #include "tile_ddf.h"
-#include "res_tileset.h"
+#include "res_textureset.h"
 
 namespace dmGameSystem
 {
@@ -16,7 +16,7 @@ namespace dmGameSystem
             memset(this, 0, sizeof(TileGridResource));
         }
 
-        TileSetResource*                        m_TileSet;
+        TextureSetResource*                     m_TextureSet;
         dmGameSystemDDF::TileGrid*              m_TileGrid;
         dmArray<dmPhysics::HCollisionShape2D>   m_GridShapes;
         dmRender::HMaterial                     m_Material;

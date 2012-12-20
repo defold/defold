@@ -8,14 +8,14 @@
 
 #include "sprite_ddf.h"
 
-#include "res_tileset.h"
+#include "res_textureset.h"
 
 namespace dmGameSystem
 {
     struct SpriteResource
     {
         dmhash_t m_DefaultAnimation;
-        TileSetResource* m_TileSet;
+        TextureSetResource* m_TextureSet;
         dmGameSystemDDF::SpriteDesc* m_DDF;
         dmRender::HMaterial m_Material;
     };

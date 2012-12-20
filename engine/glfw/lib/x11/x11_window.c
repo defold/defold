@@ -1893,3 +1893,11 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
     XWarpPointer( _glfwLibrary.display, None, _glfwWin.window, 0,0,0,0, x, y );
 }
 
+//========================================================================
+// Get physical accelerometer
+//========================================================================
+
+int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
+{
+	return 0;
+}

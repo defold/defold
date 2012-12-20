@@ -8,6 +8,8 @@
 #include <dlib/profile.h>
 #include "../engine.h"
 
+#define CONTENT_ROOT "src/test/build/default"
+
 class EngineTest : public ::testing::Test
 {
 protected:
@@ -42,7 +44,7 @@ static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
 TEST_F(EngineTest, Project)
 {
     uint32_t frame_count = 0;
-    const char* argv[] = {"test_engine", "build/default/src/test/game.projectc"};
+    const char* argv[] = {"test_engine", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_GT(frame_count, 5u);
 }
@@ -50,14 +52,14 @@ TEST_F(EngineTest, Project)
 TEST_F(EngineTest, ArchiveNotFound)
 {
     uint32_t frame_count = 0;
-    const char* argv[] = {"test_engine", "--config=resource.uri=arc:not_found.arc", "build/default/src/test/game.projectc"};
+    const char* argv[] = {"test_engine", "--config=resource.uri=arc:not_found.arc", CONTENT_ROOT "/game.projectc"};
     dmEngine::Launch(2, (char**)argv, 0, PostRunFrameCount, &frame_count);
 }
 
 TEST_F(EngineTest, GuiRenderCrash)
 {
     uint32_t frame_count = 0;
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/gui_render_crash/gui_render_crash.collectionc", "build/default/src/test/game.projectc"};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/gui_render_crash/gui_render_crash.collectionc", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_GT(frame_count, 5u);
 }
@@ -65,7 +67,7 @@ TEST_F(EngineTest, GuiRenderCrash)
 TEST_F(EngineTest, CrossScriptMessaging)
 {
     uint32_t frame_count = 0;
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/cross_script_messaging/main.collectionc", "--config=bootstrap.render=/cross_script_messaging/default.renderc", "build/default/src/test/game.projectc"};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/cross_script_messaging/main.collectionc", "--config=bootstrap.render=/cross_script_messaging/default.renderc", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(4, (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_EQ(frame_count, 1u);
 }
@@ -105,7 +107,7 @@ static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
 
 TEST_F(EngineTest, HttpPost)
 {
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/http_post/http_post.collectionc", "build/default/src/test/game.projectc"};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/http_post/http_post.collectionc", CONTENT_ROOT "/game.projectc"};
     HttpTestContext ctx;
     ctx.m_Script = "post_exit.py";
 
@@ -116,7 +118,7 @@ TEST_F(EngineTest, HttpPost)
 
 TEST_F(EngineTest, Reboot)
 {
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "build/default/src/test/game.projectc"};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(7, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
 }
 

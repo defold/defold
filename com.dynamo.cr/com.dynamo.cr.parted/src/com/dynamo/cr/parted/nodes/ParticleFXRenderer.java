@@ -3,7 +3,6 @@ package com.dynamo.cr.parted.nodes;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.EnumMap;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
@@ -41,7 +40,6 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     private int frameCounter = 0;
     private Shader shader;
     private VertexFormat vertexFormat;
-    private EnumMap<Shader.Uniform, Object> uniforms = new EnumMap<Shader.Uniform, Object>(Shader.Uniform.class);
     private VertexBufferObject vbo;
 
     private static class Callback implements RenderInstanceCallback {
@@ -80,7 +78,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
                 --index;
                 EmitterNode emitter = (EmitterNode)
                         currentNode.getChildren().get(index);
-                t = emitter.getTileSetNode().getTextureHandle().getTexture();
+                t = emitter.getTextureSetNode().getTextureHandle().getTexture();
                 t.bind();
                 t.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_INTERPOLATE);
                 t.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_INTERPOLATE);
@@ -97,26 +95,22 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     }
 
     public ParticleFXRenderer() {
-        this.uniforms = new EnumMap<Shader.Uniform, Object>(Shader.Uniform.class);
         Matrix4d viewProj = new Matrix4d();
         viewProj.setIdentity();
-        this.uniforms.put(Shader.Uniform.VIEW_PROJ, viewProj);
-        this.uniforms.put(Shader.Uniform.DIFFUSE_TEXTURE, 0);
-        this.uniforms.put(Shader.Uniform.TINT, new Vector4f(1.0f, 1.0f, 1.0f, 1.0f));
 
         this.vertexFormat = new VertexFormat(
-                new AttributeFormat(VertexFormat.Attribute.POSITION, 3, GL.GL_FLOAT, false),
-                new AttributeFormat(VertexFormat.Attribute.COLOR, 4, GL.GL_UNSIGNED_BYTE, true),
-                new AttributeFormat(VertexFormat.Attribute.TEX_COORD, 2, GL.GL_UNSIGNED_SHORT, true));
+                new AttributeFormat("position", 3, GL.GL_FLOAT, false),
+                new AttributeFormat("color", 4, GL.GL_UNSIGNED_BYTE, true),
+                new AttributeFormat("texcoord0", 2, GL.GL_UNSIGNED_SHORT, true));
     }
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
         if (this.shader != null) {
-            this.shader.dispose();
+            this.shader.dispose(gl);
         }
         if (this.vbo != null) {
-            this.vbo.dispose();
+            this.vbo.dispose(gl);
         }
     }
 
@@ -128,15 +122,15 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
         if (this.shader == null) {
             this.shader = new Shader(gl);
             try {
-                this.shader.load(ParticleEditorPlugin.getDefault().getBundle(), "/content/particlefx");
+                this.shader.load(gl, ParticleEditorPlugin.getDefault().getBundle(), "/content/particlefx");
             } catch (IOException e) {
-                this.shader.dispose();
+                this.shader.dispose(gl);
                 this.shader = null;
                 throw new IllegalStateException(e);
             }
         }
         if (this.vbo == null) {
-            this.vbo = new VertexBufferObject(gl);
+            this.vbo = new VertexBufferObject();
         }
 
         if (context != null && this.shader != null && passes.contains(renderContext.getPass())) {
@@ -215,23 +209,26 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
             node.simulate(dt);
 
-            this.shader.enable();
+            this.shader.enable(gl);
 
             ByteBuffer vb = node.getVertexBuffer();
             int vbSize = node.getVertexBufferSize();
-            this.vbo.enable(vb, vbSize);
+            this.vbo.bufferData(vb, vbSize);
+            this.vbo.enable(gl);
             this.vertexFormat.enable(gl, this.shader);
 
-            Matrix4d viewProj = (Matrix4d)this.uniforms.get(Shader.Uniform.VIEW_PROJ);
+            Matrix4d viewProj = new Matrix4d();
             viewProj.mul(renderContext.getRenderView().getProjectionTransform(), renderContext.getRenderView().getViewTransform());
-            this.shader.setUniforms(this.uniforms);
+            this.shader.setUniforms(gl, "view_proj", viewProj);
+            this.shader.setUniforms(gl, "DIFFUSE_TEXTURE", 0);
+            this.shader.setUniforms(gl, "tint", new Vector4f(1.0f, 1.0f, 1.0f, 1.0f));
 
             callBack.gl = gl;
             callBack.currentNode = node;
             ParticleLibrary.Particle_Render(context, new Pointer(0), callBack);
 
-            this.vbo.disable();
-            this.shader.disable();
+            this.vbo.disable(gl);
+            this.shader.disable(gl);
             this.vertexFormat.disable(gl, this.shader);
 
             // Reset to default blend functions

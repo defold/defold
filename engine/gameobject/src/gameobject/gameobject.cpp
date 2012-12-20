@@ -1471,7 +1471,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
             InputAction& input_action = input_actions[i];
-            if (input_action.m_ActionId != 0 || input_action.m_PositionSet)
+            if (input_action.m_ActionId != 0 || input_action.m_PositionSet || input_action.m_AccelerationSet)
             {
                 uint32_t stack_size = collection->m_InputFocusStack.Size();
                 for (uint32_t k = 0; k < stack_size; ++k)

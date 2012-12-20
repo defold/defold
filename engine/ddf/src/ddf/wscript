@@ -51,12 +51,9 @@ def build(bld):
             source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
             proto_gen_cc = True,
             proto_compile_cc = True,
-            proto_gen_java = True,
             proto_gen_py = True,
             protoc_includes = '..',
-            target = 'ddf',
-            # NOTE: default/... is hardcoded. How to solve?
-            classpath=bld.env.PROTOBUF_JAR + os.pathsep + 'default/src/java' + os.pathsep + 'default/src/ddf/generated')
+            target = 'ddf')
 
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
 

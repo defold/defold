@@ -75,6 +75,12 @@ public class TileSetSceneView extends AbstractSceneView {
     }
 
     @Override
+    public String[] selectFiles(String title, String[] extensions) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
     public void getCameraFocusPoint(Point3d focusPoint) {
         throw new RuntimeException("Not implemented");
     }

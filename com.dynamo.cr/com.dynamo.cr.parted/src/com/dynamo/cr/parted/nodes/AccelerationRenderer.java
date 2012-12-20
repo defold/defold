@@ -19,7 +19,7 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION, Pass.OVERLAY);
 
     @Override
-    public void dispose() {
+    public void dispose(GL gl) {
     }
 
     @Override

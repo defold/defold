@@ -26,6 +26,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.tile.ConvexHull;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
@@ -39,7 +40,6 @@ import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.Messages;
 import com.dynamo.cr.tileeditor.scene.TileSetLoader;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
-import com.dynamo.tile.ConvexHull;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.TileSet;
 

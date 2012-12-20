@@ -6,7 +6,7 @@ main_collection = /main.collectionc
 gamepads = /default.gamepadsc
 game_binding = /default.input_bindingc
 [resource]
-uri = build/default/src/test
+uri = src/test/build/default
 [physics]
 world_count = 11
 [collection_proxy]

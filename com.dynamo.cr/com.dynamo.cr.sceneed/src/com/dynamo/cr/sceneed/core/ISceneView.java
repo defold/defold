@@ -35,12 +35,13 @@ public interface ISceneView extends ISelectionListener {
         void onCopySelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onCutSelection(IPresenterContext presenterContext, ILoaderContext loaderContext, IProgressMonitor monitor) throws IOException, CoreException;
         void onPasteIntoSelection(IPresenterContext presenterContext) throws IOException, CoreException;
-        void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
-        void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent);
+        void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent, int index);
+        void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent, int index);
 
         void onFrameSelection();
 
         void toogleSimulation();
+        boolean isSimulating();
     }
 
     public interface IPresenterContext {
@@ -55,6 +56,7 @@ public interface ISceneView extends ISelectionListener {
         String selectFromList(String title, String message, String... lst);
         Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
         String selectFile(String title, String[] extensions);
+        String[] selectFiles(String title, String[] extensions);
         void getCameraFocusPoint(Point3d focusPoint);
         INodeType getNodeType(Class<? extends Node> nodeClass);
     }
@@ -70,6 +72,7 @@ public interface ISceneView extends ISelectionListener {
     String selectFromList(String title, String message, String... lst);
     Object selectFromArray(String title, String message, Object[] input, ILabelProvider labelProvider);
     String selectFile(String title, String[] extensions);
+    String[] selectFiles(String title, String[] extensions);
 
     void getCameraFocusPoint(Point3d focusPoint);
     void frameSelection();
