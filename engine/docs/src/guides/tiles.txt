@@ -1,5 +1,5 @@
-Defold Tiles and Sprites
-========================
+Defold 2D Graphics - Tiles and Sprites
+======================================
 
 In 2D games, graphics are usually made up of a set of smaller images, which are either used just as they are, for flip-book animations or mapped out into levels or backgrounds.
 For performance reasons, these images are often combined into one larger image, which is then used for many different purposes.
@@ -21,6 +21,7 @@ Atlas
 -----
 
 To create an atlas:
+
 . Import your image files as described above
 . Select *New* > *Atlas File* from the context menu in the Project Explorer.
 . Select *Add Images* from the context menu in the Outline.
@@ -34,7 +35,8 @@ image::images/tiles/atlas.png["Atlas editor", align="center"]
 Animations
 ~~~~~~~~~~
 
-You can define animations of the sub-images in an atlas.
+You can define animations of the sub-images in an atlas:
+
 . Select *Add Animation Group* from the context menu in the Outline.
 . Select *Add Images* from the context menu of the created anim-item and choose the images that represent the frames of the animation.
   Note that you can filter the image files and select multiple files at once.

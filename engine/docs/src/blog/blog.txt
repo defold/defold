@@ -1,5 +1,58 @@
 :max-width: 45em
 
+Defold Christmas Gift: Atlas (Release 1.2.11)
+---------------------------------------------
+_December 20, 2012_
+
+This will be the last release of 2012 and Defold would like to take the moment to thank you for this fantastic year.
+We have grown to the cap of our user base (1000) and got a lot of attention from all kinds of places.
+Though there is still lots to be done, we seem to be on the right track.
+Gamedev newbies are releasing games on the App Store and the old-timers are amazed by the fast turnaround times and flexibility.
+If you haven't yet had access to the service, you could ask for an invite in our forum and one of our many friendly users will probably step in and offer one.
+
+Public Release
+~~~~~~~~~~~~~~
+
+Regarding the public release, it has been post-poned to January.
+We have also removed Android as a supported target device for this release, but will support it at a later time.
+Defold runs well on a Nexus 7, but to put Android as a target platform we would need to test and verify a multitude of devices.
+We want everything we release to have a very high quality and doing this for Android would simply mean a lot of work and resources.
+Instead, we are going to focus harder on iOS and the workflow around it, as well as the general experience of using Defold.
+We hope you understand and appreciate this new direction.
+
+Atlas
+~~~~~
+
+A new feature in the engine is texture atlases.
+By using an atlas, you automatically get a composite texture of all the image files you add to it.
+This is very important for performance on devices and should be used as much as possible.
+Read more about them in the link:http://www.defold.com/doc/tiles[guide].
+
+Gui
+~~~
+
+We have improved our Gui component a bit.
+Now you can select adjust mode for every node, which is a great way of dealing with different resolutions (e.g. iPhone vs iPad).
+The settings are fit, zoom and stretch and works similarly to how you would adjust an image on your desktop background.
+The fastest way to see how your Gui perform for different resolutions is to start the game on your computer in windowed mode and start resizing the window.
+We have also extended the gui-scripts with getters to access the different properties of the nodes, as well as functions for reordering the nodes among themselves in runtime.
+Please see the link:http://www.defold.com/ref/gui[reference] for the complete list of available functions.
+
+Other fixes
+~~~~~~~~~~~
+
+* When copy-pasting items in the outline that has and id, the id will be automatically adjusted to avoid a collision.
+* Drag and drop in the outline is more consistent in terms of letting you know where things will end up.
+* Sprite animation playback has changed for the backwards play mode.
+  If you have an animation playing forwards, the only thing you should change to make it go backwards is the playback mode, not the start and end tiles.
+
+Why the jump to 1.2.11?
+~~~~~~~~~~~~~~~~~~~~~~~
+
+We found a crash bug in the iOS app after 1.2.10 went live, hence the quick release of 1.2.11 which fixes that crash.
+
+Team Defold wishes you happy, relaxing and creative holidays!
+
 Scaling things (Release 1.2.9)
 ------------------------------
 _December 5, 2012_
