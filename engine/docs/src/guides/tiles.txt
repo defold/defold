@@ -1,13 +1,42 @@
 Defold Tiles and Sprites
 ========================
 
-In 2D games, graphics are usually made up of a set of smaller images, which are either used for flip-book animations or mapped out into levels or backgrounds.
-For performance reasons, these images are usually put into a larger image, which is then used for many purposes.
-In Defold, we call the smaller sub-images _tiles_ and the large image which contains them a _tile source_ (_sprite sheet_ and _tile set_ are other common names).
-Tiles are commonly used for two things.
-By placing tiles in a grid-like fashion, you can quickly produce graphics that span over a large area, such as the environment in a level.
-By rapidly switching tiles in the same place, you can produce flip-book animations.
-More about this later, let's start with the tile source.
+In 2D games, graphics are usually made up of a set of smaller images, which are either used just as they are, for flip-book animations or mapped out into levels or backgrounds.
+For performance reasons, these images are often combined into one larger image, which is then used for many different purposes.
+This is especially important to do on mobile devices.
+
+In Defold, there are two types of assets that represents such a larger image.
+The first is called link:http://en.wikipedia.org/wiki/Texture_atlas[atlas] and contains a list of image files, which will then be automatically combined into a larger image.
+The second type is called a tile source (link:http://en.wikipedia.org/wiki/Tileset#Tile_set[tile set] and sprite sheet are other common names).
+A tile source references an image file that contains sub-images ordered in a grid.
+
+Importing Image Files
+---------------------
+
+The first thing you need to do to create graphics in Defold is to import the image files.
+You can do this by simply dragging the files from the file system of your machine into the Project Explorer in Defold.
+For the time being we only support the PNG format.
+
+Atlas
+-----
+
+To create an atlas:
+. Import your image files as described above
+. Select *New* > *Atlas File* from the context menu in the Project Explorer.
+. Select *Add Images* from the context menu in the Outline.
+. Use the dialog to find and select the images you want to include.
+  Note that you can filter the image files and select multiple files at once.
+
+Animations
+~~~~~~~~~~
+
+You can define animations of the sub-images in an atlas.
+. Select *Add Animation Group* from the context menu in the Outline.
+. Select *Add Images* from the context menu of the created anim-item and choose the images that represent the frames of the animation.
+  Note that you can filter the image files and select multiple files at once.
+  You can also reorder the images in the Outline.
+
+Your atlas has now been populated with images (and animations) it can be used as a graphics source to other components in Defold (see link:#_sprite[Sprite] below and the link:particlefx[ParticleFX guide]).
 
 Tile Source
 -----------
