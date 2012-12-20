@@ -27,6 +27,10 @@ To create an atlas:
 . Use the dialog to find and select the images you want to include.
   Note that you can filter the image files and select multiple files at once.
 
+((((
+image::images/tiles/atlas.png["Atlas editor", align="center"]
+((((
+
 Animations
 ~~~~~~~~~~
 
