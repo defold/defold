@@ -187,6 +187,9 @@
          <newWizardShortcut
                id="com.dynamo.cr.tileeditor.wizards.GridNewWizard">
          </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.tileeditor.wizards.atlasNewWizard">
+         </newWizardShortcut>
       </perspectiveExtension>
    </extension>
    <extension
