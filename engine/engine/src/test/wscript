@@ -22,7 +22,8 @@ def build(bld):
     shutil.copytree(builtins_src, builtins_dst)
 
     # Build engine test content using bob
-    bld.new_task_gen(rule = 'java -jar ${DYNAMO_HOME}/share/java/bob.jar -r ${SRC[0].src_dir(env)}',
+    # We always run distclean. Hook into waf clean/distclean in some way?
+    bld.new_task_gen(rule = 'java -jar ${DYNAMO_HOME}/share/java/bob.jar -r ${SRC[0].src_dir(env)} distclean build',
                      source = 'wscript',
                      always = True)
 
