@@ -18,6 +18,7 @@ namespace dmDDF
         Message     AllocMessage(const Descriptor* desc);
         void*       AllocRepeated(const FieldDescriptor* field_desc, int count);
         char*       AllocString(int length);
+        char*       AllocBytes(int length);
         uint32_t    GetOffset(void* memory);
 
         void        SetMemoryBuffer(char* buffer, int buffer_size, bool dry_run);

@@ -325,7 +325,7 @@ namespace dmDDF
         assert((Type) field->m_Type == TYPE_BYTES);
 
         // Always alloc
-        char* bytes_buf = load_context->AllocString(buffer_len);
+        char* bytes_buf = load_context->AllocBytes(buffer_len);
 
         if (!m_DryRun)
         {
