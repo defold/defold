@@ -89,8 +89,12 @@ public class SpriteNode extends ComponentTypeNode {
 
     public IStatus validateDefaultAnimation() {
         if (!this.defaultAnimation.isEmpty()) {
+            RuntimeTextureSet textureSet = null;
             if (this.textureSetNode != null) {
-                boolean exists = textureSetNode.getRuntimeTextureSet().getAnimation(this.defaultAnimation) != null;
+                textureSet = textureSetNode.getRuntimeTextureSet();
+            }
+            if (textureSet != null) {
+                boolean exists = textureSet.getAnimation(this.defaultAnimation) != null;
                 if (!exists) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, this.defaultAnimation));
                 }

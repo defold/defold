@@ -101,10 +101,13 @@ public class RuntimeTextureSet {
      * @return {@link TextureSetAnimation}
      */
     public TextureSetAnimation getAnimation(String id) {
-        List<TextureSetAnimation> animations = getTextureSet().getAnimationsList();
-        for (TextureSetAnimation a : animations) {
-            if (a.getId().equals(id)) {
-                return a;
+        TextureSet textureSet = getTextureSet();
+        if (textureSet != null) {
+            List<TextureSetAnimation> animations = getTextureSet().getAnimationsList();
+            for (TextureSetAnimation a : animations) {
+                if (a.getId().equals(id)) {
+                    return a;
+                }
             }
         }
         return null;

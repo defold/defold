@@ -17,8 +17,8 @@ import com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder;
 
 @SuppressWarnings("serial")
 public class AtlasNode extends TextureSetNode {
-    private int version = -1;
-    private int cleanVersion = 0;
+    private int version = 0;
+    private int cleanVersion = -1;
 
     @Property
     @GreaterEqualThanZero
