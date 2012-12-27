@@ -77,6 +77,13 @@ public class AtlasTest extends AbstractNodeTest {
     }
 
     @Test
+    public void testLoadJPG() throws Exception {
+        AtlasNode node = load("images: { image: \"/2x5_16_1.jpg\" }");
+        assertThat(node.getChildren().size(), is(1));
+        assertNodeStatus(node, IStatus.OK, null);
+    }
+
+    @Test
     public void testLoadAnimation() throws Exception {
         AtlasNode node = load("animations: { id: \"anim\" images: { image: \"/2x5_16_1.png\" } }");
         assertThat(node.getChildren().size(), is(1));
