@@ -1374,7 +1374,7 @@ namespace dmRender
         url->m_Socket = i->m_RenderContext->m_Socket;
     }
 
-    dmhash_t ResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
+    dmhash_t ResolvePathCallback(uintptr_t resolve_user_data, const char* path, uint32_t path_size)
     {
         return dmHashBuffer64(path, path_size);
     }
