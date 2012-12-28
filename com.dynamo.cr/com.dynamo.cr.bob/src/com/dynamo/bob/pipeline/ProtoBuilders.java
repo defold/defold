@@ -47,8 +47,14 @@ import com.dynamo.tile.proto.Tile.TileGrid;
 
 public class ProtoBuilders {
 
+    private static String[] textureSrcExts = {".png", ".jpg", ".tga"};
+
     static String replaceTextureName(String str) {
-        return BuilderUtil.replaceExt(BuilderUtil.replaceExt(str, ".png", ".texturec"), ".tga", ".texturec");
+        String out = str;
+        for (String srcExt : textureSrcExts) {
+            out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
+        }
+        return out;
     }
 
     @ProtoParams(messageClass = CollectionDesc.class)
