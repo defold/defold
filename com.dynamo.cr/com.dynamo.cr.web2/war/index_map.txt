@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/defold_christmas_gift_atlas_release_1_2_11.html
 /blog/scaling_things_release_1_2_9.html
 /blog/tile_map_rendering_and_better_sound_control_release_1_2_8.html
 /blog/particle_editor_and_ios_improvements_release_1_2_7.html

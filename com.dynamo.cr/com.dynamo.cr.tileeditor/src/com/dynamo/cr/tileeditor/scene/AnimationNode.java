@@ -8,6 +8,7 @@ import org.eclipse.swt.graphics.Image;
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.cr.tileeditor.Activator;
@@ -15,7 +16,7 @@ import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
-public class AnimationNode extends Node {
+public class AnimationNode extends Node implements Identifiable {
 
     @Property
     @NotEmpty
@@ -46,6 +47,10 @@ public class AnimationNode extends Node {
     private int currentTile = 1;
     private float cursor = 0.0f;
     private boolean playing = false;
+
+    public AnimationNode() {
+        this.id = "anim";
+    }
 
     @Override
     public void dispose() {

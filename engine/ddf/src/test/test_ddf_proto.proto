@@ -124,7 +124,9 @@ message NestedArray
 
 message Bytes
 {
-    required bytes data = 1;
+    /* Pad to check alignment of data */
+    required string pad = 1;
+    required bytes data = 2;
 }
 
 message MaterialDesc

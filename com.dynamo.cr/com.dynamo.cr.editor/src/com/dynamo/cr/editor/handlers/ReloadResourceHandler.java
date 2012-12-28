@@ -62,8 +62,9 @@ public class ReloadResourceHandler extends AbstractHandler {
                 String stringPath = path.toPortableString() + "c";
                 // TODO Hack to handle tilesource => tilesetc (ProtoBuilders.java)
                 // https://defold.fogbugz.com/default.asp?1770
-                if (FilenameUtils.isExtension(stringPath, "tilesourcec")) {
-                    stringPath = ResourceUtil.changeExt(stringPath, ".tilesetc");
+                if (FilenameUtils.isExtension(stringPath, "tilesourcec")
+                 || FilenameUtils.isExtension(stringPath, "atlasc")) {
+                    stringPath = ResourceUtil.changeExt(stringPath, ".texturesetc");
                 }
                 final String sPath = stringPath;
                 editor.getSite().getPage().saveEditor(editor, false);

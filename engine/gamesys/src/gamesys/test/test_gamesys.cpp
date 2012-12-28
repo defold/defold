@@ -475,7 +475,7 @@ const char* invalid_sprite_gos[] = {"/sprite/invalid_sprite.goc"};
 INSTANTIATE_TEST_CASE_P(Sprite, ComponentFailTest, ::testing::ValuesIn(invalid_sprite_gos));
 
 /* TileSet */
-const char* valid_tileset_resources[] = {"/tile/valid.tilesetc"};
+const char* valid_tileset_resources[] = {"/tile/valid.texturesetc"};
 INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, ::testing::ValuesIn(valid_tileset_resources));
 
 /* TileGrid */

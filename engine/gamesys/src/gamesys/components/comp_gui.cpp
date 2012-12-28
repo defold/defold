@@ -89,6 +89,8 @@ namespace dmGameSystem
         tex_params.m_Height = 2;
         tex_params.m_OriginalWidth = 2;
         tex_params.m_OriginalHeight = 2;
+        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_params);
 
         // TODO: Configurable

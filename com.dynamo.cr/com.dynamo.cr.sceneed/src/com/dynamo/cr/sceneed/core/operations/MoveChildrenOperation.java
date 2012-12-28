@@ -15,19 +15,25 @@ public class MoveChildrenOperation extends AbstractSelectOperation {
     final private AddChildrenOperation addChildren;
     final private RemoveChildrenOperation removeChildren;
 
-    public MoveChildrenOperation(List<Node> originals, Node targetParent, List<Node> copies, IPresenterContext presenterContext) {
+    public MoveChildrenOperation(List<Node> originals, Node targetParent, int index, List<Node> copies, IPresenterContext presenterContext) {
         super("Move", copies, presenterContext);
-        this.addChildren = new AddChildrenOperation("Add", targetParent, copies, presenterContext);
+        // Adjust index for removed nodes
+        for (Node child : originals) {
+            if (child.getParent() == targetParent && targetParent.getChildren().indexOf(child) < index) {
+                --index;
+            }
+        }
+        this.addChildren = new AddChildrenOperation("Add", targetParent, index, copies, presenterContext);
         this.removeChildren = new RemoveChildrenOperation(originals, presenterContext);
     }
 
     @Override
     public IStatus doExecute(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
-        IStatus status = this.addChildren.execute(monitor, info);
+        IStatus status = this.removeChildren.execute(monitor, info);
         if (status.isOK()) {
-            status = this.removeChildren.execute(monitor, info);
+            status = this.addChildren.execute(monitor, info);
             if (!status.isOK()) {
-                this.addChildren.undo(monitor, info);
+                this.removeChildren.undo(monitor, info);
             }
         }
         return status;
@@ -35,11 +41,11 @@ public class MoveChildrenOperation extends AbstractSelectOperation {
 
     @Override
     public IStatus doRedo(IProgressMonitor monitor, IAdaptable info) throws ExecutionException {
-        IStatus status = this.addChildren.redo(monitor, info);
+        IStatus status = this.removeChildren.redo(monitor, info);
         if (status.isOK()) {
-            status = this.removeChildren.redo(monitor, info);
+            status = this.addChildren.redo(monitor, info);
             if (!status.isOK()) {
-                this.addChildren.undo(monitor, info);
+                this.removeChildren.undo(monitor, info);
             }
         }
         return status;

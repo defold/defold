@@ -26,6 +26,7 @@ import com.dynamo.cr.properties.descriptors.ValueSpreadPropertyDesc;
 import com.dynamo.cr.properties.types.ValueSpread;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
@@ -43,7 +44,7 @@ import com.dynamo.particle.proto.Particle.ParticleOrientation;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.proto.DdfExtensions;
 
-public class EmitterNode extends Node {
+public class EmitterNode extends Node implements Identifiable {
 
     private static final long serialVersionUID = 1L;
 
@@ -69,7 +70,7 @@ public class EmitterNode extends Node {
     @Range(min = 0.0)
     private float startDelay;
 
-    @Property(editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
+    @Property(displayName = "Image", editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
     private String tileSource = "";
 
     private transient TextureSetNode textureSetNode = null;
@@ -416,7 +417,7 @@ public class EmitterNode extends Node {
     public IStatus validateAnimation() {
         if (!this.animation.isEmpty()) {
             if (this.textureSetNode != null) {
-                boolean exists = this.textureSetNode.getAnimation(this.animation) != null;
+                boolean exists = this.textureSetNode.getRuntimeTextureSet().getAnimation(this.animation) != null;
                 if (!exists) {
                     return new Status(IStatus.ERROR, ParticleEditorPlugin.PLUGIN_ID, NLS.bind(
                             Messages.EmitterNode_animation_INVALID, this.animation));

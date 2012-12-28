@@ -16,7 +16,6 @@
 #include "../gamesys_private.h"
 
 #include "resources/res_particlefx.h"
-#include "resources/res_tileset.h"
 
 extern "C"
 {

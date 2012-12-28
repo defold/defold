@@ -8,7 +8,6 @@ def build(bld):
                      source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g'
-    bld.add_group()
 
     test_align = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_align.cpp',

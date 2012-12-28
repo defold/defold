@@ -8,32 +8,12 @@ def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
                                 includes = '. ../../proto',
                                 proto_gen_py = True,
-                                proto_gen_java = True,
                                 protoc_includes = '../../proto',
-                                # NOTE: default/... is hardcoded. How to solve?
-                                classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                                 target = 'gamesys',
-                                ddf_jar = 'gamesys.jar',
                                 embed_source='../../content/materials/gui.vpc ../../content/materials/gui.fpc')
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto'])
     bld.add_group()
-
-    classpath = [bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar',
-                 bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
-                 bld.env['DYNAMO_HOME'] + '/ext/share/java/vecmath.jar',
-                 'default/src/gamesys/gamesys.jar']
-
-    bld.new_task_gen(features='javac seq',
-                     classpath=os.pathsep.join(classpath),
-                     source_root='../java')
-    bld.env["JAVACFLAGS"] = '-g'
-
-    bld.add_group()
-    bld.new_task_gen(features='jar seq',
-                     basedir='../java',
-                     destfile='tile.jar')
-    bld.install_files('${PREFIX}/share/java', 'tile.jar')
 
     doc_dirs = ['.', '../../proto', 'scripts']
     doc_task = bld.new_task_gen(target = 'gamesys_doc.sdoc',

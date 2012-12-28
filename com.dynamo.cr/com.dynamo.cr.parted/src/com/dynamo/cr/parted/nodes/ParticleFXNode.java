@@ -13,7 +13,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.cr.common.util.MathUtil;
+import com.dynamo.bob.util.MathUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
@@ -59,7 +59,7 @@ public class ParticleFXNode extends ComponentTypeNode {
                 return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_NOT_FOUND;
             }
 
-            TextureSetAnimation animation = textureSetNode.getAnimation(new Comparable<String>() {
+            TextureSetAnimation animation = textureSetNode.getRuntimeTextureSet().getAnimation(new Comparable<String>() {
 
                 @Override
                 public int compareTo(String s) {
@@ -69,7 +69,7 @@ public class ParticleFXNode extends ComponentTypeNode {
 
             if (animation != null) {
                 data.texture = new Pointer(emitterIndex + 1);
-                data.texCoords = textureSetNode.getTexCoords();
+                data.texCoords = textureSetNode.getRuntimeTextureSet().getTexCoords().asFloatBuffer();
                 switch (animation.getPlayback()) {
                 case PLAYBACK_NONE:
                     data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_NONE;
@@ -92,10 +92,8 @@ public class ParticleFXNode extends ComponentTypeNode {
                 }
                 data.tileWidth = (int) animation.getWidth();
                 data.tileHeight = (int) animation.getHeight();
-                // NOTE: Tile indices from 1!
-                data.startTile = animation.getStart() + 1;
-                // NOTE: Tile indices from 1!
-                data.endTile = animation.getEnd() + 1;
+                data.startTile = animation.getStart();
+                data.endTile = animation.getEnd();
                 data.fps = animation.getFps();
                 data.hFlip = animation.getFlipHorizontal();
                 data.vFlip = animation.getFlipVertical();

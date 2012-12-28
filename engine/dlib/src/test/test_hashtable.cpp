@@ -452,6 +452,32 @@ TEST(dmHashTable, Clear)
     }
 }
 
+TEST(dmHashTable, Swap)
+{
+    dmHashTable<int, int> h1;
+    dmHashTable<int, int> h2;
+    h1.SetCapacity(37, 10);
+    h2.SetCapacity(37, 10);
+
+    h1.Put(1, 10);
+    h1.Put(2, 20);
+    h1.Put(3, 30);
+
+    h2.Put(10, 100);
+    h2.Put(20, 200);
+    h2.Put(30, 300);
+
+    h1.Swap(h2);
+
+    ASSERT_EQ(10, *h2.Get(1));
+    ASSERT_EQ(20, *h2.Get(2));
+    ASSERT_EQ(30, *h2.Get(3));
+
+    ASSERT_EQ(100, *h1.Get(10));
+    ASSERT_EQ(200, *h1.Get(20));
+    ASSERT_EQ(300, *h1.Get(30));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -62,6 +62,15 @@ namespace dmDDF
         return b;
     }
 
+    char* LoadContext::AllocBytes(int length)
+    {
+        m_Current = (char*) DM_ALIGN(m_Current, 4);
+        char* b = m_Current;
+        m_Current += length;
+        assert(m_DryRun || m_Current <= m_End);
+        return b;
+    }
+
     uint32_t LoadContext::GetOffset(void* memory)
     {
         return ((uintptr_t) memory) - ((uintptr_t) m_Start);

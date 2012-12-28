@@ -11,11 +11,11 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
-import com.dynamo.tile.TileSetc;
+import com.dynamo.bob.tile.TileSetc;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
-@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".tilesetc")
+@BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".texturesetc")
 public class TileSetBuilder extends Builder<Void>  {
 
     @Override

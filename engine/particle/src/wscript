@@ -8,12 +8,9 @@ def build(bld):
     particle = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                 includes = ['.', '../proto'],
                                 proto_gen_py = True,
-                                proto_gen_java = True,
-                                ddf_jar = 'particle.jar',
                                 protoc_includes = '../proto',
                                 target = 'particle',
                                 uselib = 'DDF DLIB PLATFORM_SOCKET',
-                                classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
                                 source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     particle_shared = bld.new_task_gen(features = 'cxx cshlib ddf',

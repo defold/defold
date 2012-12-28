@@ -64,6 +64,8 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
     private final RedoActionHandler redoHandler;
     private final RootItem root;
     private final OutlineLabelProvider labelProvider;
+    private boolean supportsReordering = false;
+    private NodeListDNDListener dndListener;
 
     @Inject
     public SceneOutlinePage(SceneEditor sceneEditor, ISceneView.IPresenter presenter, ISceneView.IPresenterContext presenterContext, UndoActionHandler undoHandler, RedoActionHandler redoHandler) {
@@ -311,7 +313,7 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
 
         int operations = DND.DROP_MOVE | DND.DROP_COPY;
         Transfer[] transferTypes = new Transfer[] {NodeListTransfer.getInstance()};
-        NodeListDNDListener dndListener = new NodeListDNDListener(viewer, this.presenter, this.presenterContext);
+        this.dndListener = new NodeListDNDListener(viewer, this.presenter, this.presenterContext, supportsReordering);
         viewer.addDragSupport(operations, transferTypes, dndListener);
         viewer.addDropSupport(operations, transferTypes, dndListener);
 
@@ -323,4 +325,10 @@ public class SceneOutlinePage extends ContentOutlinePage implements ISceneOutlin
         return SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL;
     }
 
+    public void setSupportsReordering(boolean supportsReordering) {
+        this.supportsReordering = supportsReordering;
+        if (this.dndListener != null) {
+            this.dndListener.setSupportsReordering(supportsReordering);
+        }
+    }
 }

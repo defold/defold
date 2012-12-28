@@ -28,8 +28,8 @@ import org.eclipse.ui.statushandlers.StatusManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.font.Fontc;
 import com.dynamo.cr.protobind.MessageNode;
-import com.dynamo.render.Fontc;
 import com.dynamo.render.proto.Font.FontDesc;
 
 public class FontEditor extends DdfEditor {

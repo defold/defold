@@ -37,7 +37,7 @@ public class AtlasNodePresenter implements INodePresenter<AtlasNode> {
         }
 
         if (parent != null) {
-            String[] files = presenterContext.selectFiles("Add Images", new String[] {"png"});
+            String[] files = presenterContext.selectFiles("Add Images", new String[] {"png", "jpg"});
             if (files != null) {
 
                 List<Node> nodes = new ArrayList<Node>();

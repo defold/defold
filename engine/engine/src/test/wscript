@@ -13,21 +13,17 @@ def build(bld):
         defines = '_XBOX',
         proto_gen_py = True,
         protoc_includes = '../proto',
+        source = 'test_engine.cpp',
         target = 'test_engine')
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
     if os.path.isdir(builtins_dst):
         shutil.rmtree(builtins_dst)
     shutil.copytree(builtins_src, builtins_dst)
-    content_source_dirs = ['.']
-    cwd = os.getcwd()
-    os.chdir('src/test')
-    for top_file in glob.glob('*'):
-        if os.path.isdir(top_file):
-            content_source_dirs.append(top_file)
-            for root, dirs, files in os.walk(top_file):
-                for d in dirs:
-                    content_source_dirs.append(os.path.join(root, d))
-    os.chdir(cwd)
-    obj.find_sources_in_dirs(' '.join(content_source_dirs))
-    obj.install_path = None
+
+    # Build engine test content using bob
+    # We always run distclean. Hook into waf clean/distclean in some way?
+    bld.new_task_gen(rule = 'java -jar ${DYNAMO_HOME}/share/java/bob.jar -r ${SRC[0].src_dir(env)} distclean build',
+                     source = 'wscript',
+                     always = True)
+

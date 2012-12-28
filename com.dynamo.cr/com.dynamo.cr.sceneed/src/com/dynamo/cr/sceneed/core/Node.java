@@ -390,17 +390,27 @@ public abstract class Node implements IAdaptable, Serializable {
         return !this.children.isEmpty();
     }
 
+    private void doAddChild(int index, Node child) {
+        child.childIndex = index;
+        children.add(index, child);
+        child.setParent(this);
+        childAdded(child);
+        setAABBDirty();
+    }
+
     public final void addChild(Node child) {
         if (child != null && !this.children.contains(child)) {
-            if (child.childIndex >= 0 && child.childIndex < children.size()) {
-                children.add(child.childIndex, child);
-            } else {
-                children.add(child);
-                child.childIndex = children.size() - 1;
+            int index = child.childIndex;
+            if (index < 0 || index >= children.size()) {
+                index = children.size();
             }
-            child.setParent(this);
-            childAdded(child);
-            setAABBDirty();
+            doAddChild(index, child);
+        }
+    }
+
+    public final void addChild(int index, Node child) {
+        if (child != null && !this.children.contains(child)) {
+            doAddChild(index, child);
         }
     }
 

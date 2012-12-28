@@ -8,26 +8,10 @@ def build(bld):
     resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                 includes = '. ../proto',
                                 protoc_includes = '../proto',
-                                proto_gen_java = True,
                                 proto_gen_py = True,
-                                # NOTE: default/... is hardcoded. How to solve?
-                                classpath=bld.env['DYNAMO_HOME'] + '/ext/share/java/protobuf-java-2.3.0.jar' + os.pathsep + bld.env['DYNAMO_HOME'] + '/share/java/ddf.jar',
-                                ddf_jar = 'resource.jar',
                                 target = 'resource')
     resource.find_sources_in_dirs('.')
     resource.find_sources_in_dirs('../proto')
-
-    bld.new_task_gen(features='javac seq',
-                     source_root='java')
-    bld.env["JAVACFLAGS"] = '-g'
-    bld.add_group() # Infinite loop in waf otherwise..
-
-    bld.new_task_gen(features='jar seq',
-                     basedir='java',
-                     destfile='resource_archive.jar')
-    bld.install_files('${PREFIX}/share/java', 'resource_archive.jar')
-
-    bld.add_group()
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/resource', 'resource.h')

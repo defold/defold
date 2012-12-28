@@ -803,8 +803,8 @@ dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhas
     out_data->m_TexCoords = ts->m_TexCoords;
     out_data->m_TileWidth = 2;
     out_data->m_TileHeight = 3;
-    out_data->m_StartTile = 1;
-    out_data->m_EndTile = 5;
+    out_data->m_StartTile = 0;
+    out_data->m_EndTile = 4;
     out_data->m_FPS = 4;
     out_data->m_Texture = (void*)0xBAADF00D;
     out_data->m_StructSize = sizeof(dmParticle::AnimationData);

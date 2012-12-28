@@ -501,6 +501,7 @@ TEST(NestedArray, Load)
 TEST(Bytes, Load)
 {
     TestDDF::Bytes bytes;
+    bytes.set_pad(".."); // Three bytes for alignment test
     bytes.set_data((void*) "foo", 3);
     std::string msg_str = bytes.SerializeAsString();
     const char* msg_buf = msg_str.c_str();
@@ -511,10 +512,13 @@ TEST(Bytes, Load)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     DUMMY::TestDDF::Bytes* msg = (DUMMY::TestDDF::Bytes*) message;
+    // Ensure at least 4 bytes aligment
     ASSERT_EQ((uint32_t) 3, msg->m_Data.m_Count);
     ASSERT_EQ('f', msg->m_Data[0]);
     ASSERT_EQ('o', msg->m_Data[1]);
     ASSERT_EQ('o', msg->m_Data[2]);
+
+    ASSERT_EQ(0U, ((uintptr_t) msg->m_Data.m_Data) & 3);
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_Bytes_DESCRIPTOR, msg_str2);

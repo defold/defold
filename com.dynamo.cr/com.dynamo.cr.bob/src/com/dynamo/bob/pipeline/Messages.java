@@ -1,8 +1,8 @@
 package com.dynamo.bob.pipeline;
 
-import org.eclipse.osgi.util.NLS;
+import com.dynamo.bob.util.BobNLS;
 
-public class Messages extends NLS {
+public class Messages extends BobNLS {
     private static final String BUNDLE_NAME = "com.dynamo.bob.pipeline.messages"; //$NON-NLS-1$
 
     public static String BuilderUtil_EMPTY_RESOURCE;
@@ -15,7 +15,7 @@ public class Messages extends NLS {
 
     static {
         // initialize resource bundle
-        NLS.initializeMessages(BUNDLE_NAME, Messages.class);
+        BobNLS.initializeMessages(BUNDLE_NAME, Messages.class);
     }
 
     private Messages() {

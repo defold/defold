@@ -9,15 +9,14 @@ import java.util.Set;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 
-import org.eclipse.osgi.util.NLS;
-
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
+import com.dynamo.bob.util.BobNLS;
+import com.dynamo.bob.util.MathUtil;
 import com.dynamo.camera.proto.Camera.CameraDesc;
-import com.dynamo.cr.common.util.MathUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
@@ -48,8 +47,14 @@ import com.dynamo.tile.proto.Tile.TileGrid;
 
 public class ProtoBuilders {
 
+    private static String[] textureSrcExts = {".png", ".jpg", ".tga"};
+
     static String replaceTextureName(String str) {
-        return BuilderUtil.replaceExt(BuilderUtil.replaceExt(str, ".png", ".texturec"), ".tga", ".texturec");
+        String out = str;
+        for (String srcExt : textureSrcExts) {
+            out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
+        }
+        return out;
     }
 
     @ProtoParams(messageClass = CollectionDesc.class)
@@ -175,13 +180,13 @@ public class ProtoBuilders {
             for (NodeDesc n : messageBuilder.getNodesList()) {
                 if (n.hasTexture() && n.getTexture().length() > 0) {
                     if (!textureNames.contains(n.getTexture())) {
-                        throw new CompileExceptionError(input, 0, NLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
+                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
                     }
                 }
 
                 if (n.hasFont() && n.getFont().length() > 0) {
                     if (!fontNames.contains(n.getFont())) {
-                        throw new CompileExceptionError(input, 0, NLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
+                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
                     }
                 }
 
@@ -247,8 +252,9 @@ public class ProtoBuilders {
         protected SpriteDesc.Builder transform(IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "tilesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "tilesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             return messageBuilder;
         }
@@ -261,8 +267,9 @@ public class ProtoBuilders {
         protected TileGrid.Builder transform(IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "tilesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "tilesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
+            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             return messageBuilder;
         }
@@ -281,8 +288,9 @@ public class ProtoBuilders {
                 Emitter.Builder emitterBuilder = Emitter.newBuilder(messageBuilder.getEmitters(i));
                 BuilderUtil.checkFile(this.project, resource, "tile source", emitterBuilder.getTileSource());
                 BuilderUtil.checkFile(this.project, resource, "material", emitterBuilder.getMaterial());
-                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "tilesetc"));
-                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "tilesetc"));
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "texturesetc"));
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "texturesetc"));
+                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "atlas", "texturesetc"));
                 emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
                 Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
                 Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation());

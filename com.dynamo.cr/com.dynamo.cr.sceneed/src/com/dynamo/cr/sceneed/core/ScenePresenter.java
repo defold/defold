@@ -158,16 +158,18 @@ public class ScenePresenter implements IPresenter, IModelListener {
         List<Node> nodes = (List<Node>)this.clipboard.getContents(transfer);
 
         if (nodes != null && nodes.size() > 0) {
-            // Always check for targets starting at the parent level
+            // NOTE this is a special case for dealing with copy-paste without changing the selection
+            // The idea is that this should result in pasting into the parent, not each node
+            // This currently makes it cumbersome to paste into a specific node in the hierarchy, as it then might paste into the parent instead
             Node target = originals.get(0).getParent();
             if (target == null && originals.size() == 1) {
                 target = originals.get(0);
             }
             if (target != null) {
-                target = NodeUtil.findAcceptingParent(target, nodes, context);
+                target = NodeUtil.findValidAncestor(target, nodes, context);
                 // If a target could not be found, check at the selection level
                 if (target == null && originals.size() == 1) {
-                    target = NodeUtil.findAcceptingParent(originals.get(0), nodes, context);
+                    target = NodeUtil.findValidAncestor(originals.get(0), nodes, context);
                 }
                 if (target != null) {
                     context.executeOperation(new AddChildrenOperation("Paste", target, nodes, context));
@@ -177,14 +179,14 @@ public class ScenePresenter implements IPresenter, IModelListener {
     }
 
     @Override
-    public void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent) {
+    public void onDNDMoveSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent, int index) {
         List<Node> originals = selectionToNodeList(presenterContext);
-        presenterContext.executeOperation(new MoveChildrenOperation(originals, targetParent, copies, presenterContext));
+        presenterContext.executeOperation(new MoveChildrenOperation(originals, targetParent, index, copies, presenterContext));
     }
 
     @Override
-    public void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent) {
-        presenterContext.executeOperation(new AddChildrenOperation("Duplicate", targetParent, copies, presenterContext));
+    public void onDNDDuplicateSelection(IPresenterContext presenterContext, List<Node> copies, Node targetParent, int index) {
+        presenterContext.executeOperation(new AddChildrenOperation("Duplicate", targetParent, index, copies, presenterContext));
     }
 
     private List<Node> selectionToNodeList(IPresenterContext presenterContext) {

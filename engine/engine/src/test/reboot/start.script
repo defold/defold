@@ -1,5 +1,5 @@
 function init(self)
     local arg1 = '--config=bootstrap.main_collection=/reboot/reboot.collectionc'
-    local arg2 = 'build/default/src/test/game.projectc'
+    local arg2 = 'src/test/build/default/game.projectc'
     msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
 end

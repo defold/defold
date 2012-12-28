@@ -17,12 +17,12 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.ui.services.IDisposable;
 
+import com.dynamo.bob.tile.ConvexHull;
+import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupOperation;
 import com.dynamo.cr.tileeditor.operations.RemoveCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.RenameCollisionGroupsOperation;
 import com.dynamo.cr.tileeditor.operations.SetConvexHullsOperation;
-import com.dynamo.tile.ConvexHull;
-import com.dynamo.tile.TileSetUtil;
 
 public class TileSetPresenter implements PropertyChangeListener, IOperationHistoryListener, IDisposable {
     private final TileSetModel model;

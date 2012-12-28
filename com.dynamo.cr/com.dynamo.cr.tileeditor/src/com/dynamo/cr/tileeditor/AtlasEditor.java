@@ -1,13 +1,18 @@
 package com.dynamo.cr.tileeditor;
 
+import org.eclipse.ui.IEditorInput;
+import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.part.IPageBookViewPage;
+import org.eclipse.ui.views.contentoutline.IContentOutlinePage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.sceneed.core.IModelListener;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.ui.SceneEditor;
+import com.dynamo.cr.sceneed.ui.SceneOutlinePage;
 import com.google.inject.AbstractModule;
 import com.google.inject.Singleton;
 
@@ -43,5 +48,12 @@ public class AtlasEditor extends SceneEditor {
     @Override
     public void partOpened(IWorkbenchPart part) {
         super.partOpened(part);
+    }
+
+    @Override
+    public void init(IEditorSite site, IEditorInput input) throws PartInitException {
+        super.init(site, input);
+        SceneOutlinePage page = (SceneOutlinePage)getAdapter(IContentOutlinePage.class);
+        page.setSupportsReordering(true);
     }
 }

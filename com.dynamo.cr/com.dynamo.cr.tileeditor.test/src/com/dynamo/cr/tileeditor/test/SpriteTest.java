@@ -14,6 +14,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
+import com.dynamo.cr.tileeditor.scene.AtlasLoader;
+import com.dynamo.cr.tileeditor.scene.AtlasNode;
 import com.dynamo.cr.tileeditor.scene.Messages;
 import com.dynamo.cr.tileeditor.scene.SpriteLoader;
 import com.dynamo.cr.tileeditor.scene.SpriteNode;
@@ -44,6 +46,15 @@ public class SpriteTest extends AbstractNodeTest {
             TileSetNode tileSet = new TileSetLoader().load(getLoaderContext(), getFile(path).getContents());
             tileSet.setModel(getModel());
             registerLoadedNode(path, tileSet);
+        }
+        paths = new String[] {"/empty.atlas"};
+        contents = new String[] {""};
+        for (int i = 0; i < paths.length; ++i) {
+            String path = paths[i];
+            registerFile(path, contents[i]);
+            AtlasNode atlas = new AtlasLoader().load(getLoaderContext(), getFile(path).getContents());
+            atlas.setModel(getModel());
+            registerLoadedNode(path, atlas);
         }
 
         this.spriteNode = registerAndLoadRoot(SpriteNode.class, "sprite", this.loader);
@@ -116,6 +127,9 @@ public class SpriteTest extends AbstractNodeTest {
 
         setProperty("tileSource", "/test.tileset2");
         setProperty("defaultAnimation", "test");
+        assertPropertyStatus("defaultAnimation", IStatus.ERROR, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, "test"));
+
+        setProperty("tileSource", "/empty.atlas");
         assertPropertyStatus("defaultAnimation", IStatus.ERROR, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, "test"));
     }
 

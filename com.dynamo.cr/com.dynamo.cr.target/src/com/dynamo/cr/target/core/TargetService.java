@@ -137,7 +137,7 @@ public class TargetService implements ITargetService, Runnable {
                 }
                 updateLog();
             } catch (IOException e) {
-                logger.error(e.getMessage(), e);
+                // Do not log IOException. Network is down, etc
             }
         }
     }
@@ -229,7 +229,7 @@ public class TargetService implements ITargetService, Runnable {
 
                 }
             } catch (JDOMParseException e) {
-                logger.error("Failed to parse UPNP response", e);
+                // Do not log here. We've seen invalid xml responses in real networks
             } catch (IOException e) {
                 // Do not log IOException. This happens...
                 if (e instanceof SocketTimeoutException) {

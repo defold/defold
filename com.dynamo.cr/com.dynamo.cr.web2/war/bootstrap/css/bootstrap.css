@@ -4907,6 +4907,10 @@ body {
   padding-top: 60px;
 }
 
+.container {
+  padding-left: 30px;
+}
+
 /* Avatar/account container */
 
 .account-container {
@@ -5164,7 +5168,7 @@ span.gwt-CheckBox label {
 }
 
 span.gwt-CheckBox input {
-  margin-right: 0.5em;
+  margin-right: 0.3em;
 }
 
 .ref-doc h3.name {

@@ -9,15 +9,6 @@ def build(bld):
     bld.add_subdirs('ddf')
     bld.add_subdirs('test')
 
-    bld.add_group()
-
-    # Add additional generated class-files to ddf.jar
-    bld.new_task_gen(features='jar',
-                     basedir='ddf/generated',
-                     destfile='ddf.jar')
-
-    bld.install_files('${PREFIX}/share/java', 'ddf.jar')
-
     bld.install_files('${PREFIX}/lib/python', 'waf_ddf.py')
     bld.install_files('${PREFIX}/bin', 'ddfc.py', chmod=493)
     bld.install_files('${PREFIX}/bin', 'ddfc_cxx', chmod=493)

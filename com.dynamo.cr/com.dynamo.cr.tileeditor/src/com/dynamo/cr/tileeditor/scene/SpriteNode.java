@@ -19,7 +19,7 @@ import com.dynamo.sprite.proto.Sprite.SpriteDesc.BlendMode;
 @SuppressWarnings("serial")
 public class SpriteNode extends ComponentTypeNode {
 
-    @Property(editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource","atlas"})
+    @Property(displayName="Image", editorType=EditorType.RESOURCE, extensions={"tileset", "tilesource","atlas"})
     @Resource
     @NotEmpty
     private String tileSource = "";
@@ -82,15 +82,19 @@ public class SpriteNode extends ComponentTypeNode {
 
     private void updateAABB() {
         if (this.textureSetNode != null) {
-            AABB aabb = this.textureSetNode.getTextureBounds(this.defaultAnimation);
+            AABB aabb = this.textureSetNode.getRuntimeTextureSet().getTextureBounds(this.defaultAnimation);
             setAABB(aabb);
         }
     }
 
     public IStatus validateDefaultAnimation() {
         if (!this.defaultAnimation.isEmpty()) {
+            RuntimeTextureSet textureSet = null;
             if (this.textureSetNode != null) {
-                boolean exists = textureSetNode.getAnimation(this.defaultAnimation) != null;
+                textureSet = textureSetNode.getRuntimeTextureSet();
+            }
+            if (textureSet != null) {
+                boolean exists = textureSet.getAnimation(this.defaultAnimation) != null;
                 if (!exists) {
                     return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpriteNode_defaultAnimation_INVALID, this.defaultAnimation));
                 }

@@ -12,6 +12,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
+import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -22,7 +23,6 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.cr.tileeditor.core.Layer;
-import com.dynamo.tile.TileSetUtil;
 import com.dynamo.tile.proto.Tile.TileGrid.BlendMode;
 
 @SuppressWarnings("serial")

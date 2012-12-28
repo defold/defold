@@ -11,7 +11,7 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.8.4 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 PVRTexToolCL-2.08.28.0634 vpx-v0.9.7-p1".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
@@ -192,6 +192,12 @@ class Configuration(object):
             cwd = join(self.defold_root, 'engine/dlib')
             cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
+
+        self._log('Building bob')
+
+        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                          cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
+                          shell = True)
 
         for lib in libs:
             self._log('Building %s' % lib)
@@ -467,7 +473,7 @@ Multiple commands can be specified'''
 
 
         for cmd in args:
-            if cmd == 'build_engine' or cmd == 'archive_engine':
+            if cmd in ['distclean', 'install_ext', 'build_engine', 'archive_engine']:
                 f = getattr(c, cmd, None)
                 if not f:
                     parser.error('Unknown command %s' % cmd)

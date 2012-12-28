@@ -31,7 +31,7 @@ def apply_archive_file(self):
     arcc.outputs = [out]
     arcc.env['ARCCFLAGS'] = ['-r', self.path.bldpath(self.env)]
 
-Task.simple_task_type('resource_jarchive', '${JAVA} -classpath ${CLASSPATH} com.dynamo.cr.resource.archive.ArchiveBuilder ${ARCCFLAGS} ${TGT} ${SRC}',
+Task.simple_task_type('resource_jarchive', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.archive.ArchiveBuilder ${ARCCFLAGS} ${TGT} ${SRC}',
                       color='PINK',
                       shell=False)
 
@@ -51,7 +51,7 @@ def apply_jarchive_file(self):
         error('archive_target not specified')
         return
 
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/resource.jar',
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob.jar',
                  # NOTE: Only needed when running within resource-project.
                  # Should be fixed somehow... in configure perhaps?
                  'default/src/java']

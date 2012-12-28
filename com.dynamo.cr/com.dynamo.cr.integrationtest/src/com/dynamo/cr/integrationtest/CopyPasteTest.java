@@ -1,5 +1,7 @@
 package com.dynamo.cr.integrationtest;
 
+import java.util.Collections;
+
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
 
@@ -25,9 +27,14 @@ import com.dynamo.cr.parted.operations.AddEmitterOperation;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
+import com.dynamo.cr.tileeditor.operations.AddAnimationGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
+import com.dynamo.cr.tileeditor.operations.AddImagesNodeOperation;
 import com.dynamo.cr.tileeditor.scene.AnimationNode;
+import com.dynamo.cr.tileeditor.scene.AtlasAnimationNode;
+import com.dynamo.cr.tileeditor.scene.AtlasImageNode;
+import com.dynamo.cr.tileeditor.scene.AtlasNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileGridNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
@@ -135,6 +142,20 @@ public class CopyPasteTest extends AbstractSceneTest {
         TileGridNode tileGrid = new TileGridNode();
         tileGrid.setTileSource("/tileset/test.tileset");
         testCopyPaste(go, tileGrid);
+    }
+
+    @Test
+    public void testAtlasAnimation() throws Exception {
+        AtlasNode atlas = new AtlasNode();
+        AtlasAnimationNode anim = new AtlasAnimationNode();
+        testCopyPaste(atlas, anim, new AddAnimationGroupNodeOperation(atlas, anim, getPresenterContext()));
+    }
+
+    @Test
+    public void testAtlasImage() throws Exception {
+        AtlasNode atlas = new AtlasNode();
+        AtlasImageNode image = new AtlasImageNode("/textures/test.png");
+        testCopyPaste(atlas, image, new AddImagesNodeOperation(atlas, Collections.singletonList((Node)image), getPresenterContext()));
     }
 
     private void testCopyPaste(GameObjectNode gameObject, ComponentNode component) throws Exception {

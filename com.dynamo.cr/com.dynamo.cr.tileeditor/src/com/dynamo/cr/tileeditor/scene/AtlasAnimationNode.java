@@ -4,12 +4,13 @@ import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
-public class AtlasAnimationNode extends Node {
+public class AtlasAnimationNode extends Node implements Identifiable {
     @Property
     private String id;
     @Property
@@ -21,6 +22,10 @@ public class AtlasAnimationNode extends Node {
     private boolean flipHorizontally;
     @Property
     private boolean flipVertically;
+
+    public AtlasAnimationNode() {
+        this.id = "anim";
+    }
 
     public void setId(String id) {
         this.id = id;
