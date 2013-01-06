@@ -13,7 +13,7 @@ namespace dmGameObject
         PropertyVar m_Var;
     };
 
-    bool CreatePropertyDataUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
+    bool CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
     {
         if (buffer_size > 0)
         {
@@ -107,7 +107,7 @@ namespace dmGameObject
         return true;
     }
 
-    void DestroyPropertyDataUserDataLua(uintptr_t user_data)
+    void DestroyPropertySetUserDataLua(uintptr_t user_data)
     {
         if (user_data != 0)
         {

@@ -16,7 +16,7 @@ namespace dmGameObject
         {
             Prototype::Component& c = prototype->m_Components[i];
             dmResource::Release(factory, c.m_Resource);
-            DestroyPropertyDataUserData(c.m_PropertyData.m_UserData);
+            DestroyPropertySetUserData(c.m_PropertySet.m_UserData);
         }
 
         delete prototype;
@@ -94,8 +94,8 @@ namespace dmGameObject
                                                                               type_index,
                                                                               component_desc.m_Position,
                                                                               component_desc.m_Rotation);
-                c.m_PropertyData.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                bool r = CreatePropertyDataUserData(&component_desc.m_PropertyDecls, &c.m_PropertyData.m_UserData);
+                c.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
+                bool r = CreatePropertySetUserData(&component_desc.m_PropertyDecls, &c.m_PropertySet.m_UserData);
                 proto->m_Components.Push(c);
                 if (!r)
                 {

@@ -38,7 +38,7 @@ void CompNoUserDataSetProperties(const dmGameObject::ComponentSetPropertiesParam
 {
     // The test is that this function should never be reached
     dmGameObject::HProperties properties = (dmGameObject::HProperties)*params.m_UserData;
-    SetPropertyData(properties, dmGameObject::PROPERTY_LAYER_INSTANCE, params.m_PropertyData);
+    SetPropertySet(properties, dmGameObject::PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
 }
 
 class PropsTest : public ::testing::Test

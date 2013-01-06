@@ -48,7 +48,7 @@ namespace dmGameObject
                 m_ResourceType(resource_type),
                 m_Position(position),
                 m_Rotation(rotation),
-                m_PropertyData()
+                m_PropertySet()
             {
             }
 
@@ -60,7 +60,7 @@ namespace dmGameObject
             uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
-            PropertyData    m_PropertyData;
+            PropertySet     m_PropertySet;
         };
 
         dmArray<Component>     m_Components;

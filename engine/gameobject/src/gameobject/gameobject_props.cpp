@@ -22,7 +22,7 @@ namespace dmGameObject
             "quat"
     };
 
-    PropertyData::PropertyData()
+    PropertySet::PropertySet()
     {
         memset(this, 0, sizeof(*this));
     }
@@ -52,19 +52,19 @@ namespace dmGameObject
         {
             for (uint32_t i = 0; i < MAX_PROPERTY_LAYER_COUNT; ++i)
             {
-                PropertyData& data = properties->m_Data[i];
-                if (data.m_FreeUserDataCallback != 0)
+                PropertySet& set = properties->m_Set[i];
+                if (set.m_FreeUserDataCallback != 0)
                 {
-                    data.m_FreeUserDataCallback(data.m_UserData);
+                    set.m_FreeUserDataCallback(set.m_UserData);
                 }
             }
             delete properties;
         }
     }
 
-    void SetPropertyData(HProperties properties, PropertyLayer layer, const PropertyData& data)
+    void SetPropertySet(HProperties properties, PropertyLayer layer, const PropertySet& set)
     {
-        properties->m_Data[layer] = data;
+        properties->m_Set[layer] = set;
     }
 
     void LogNotFound(dmhash_t id)
@@ -97,10 +97,10 @@ namespace dmGameObject
     {
         for (uint32_t i = 0; i < MAX_PROPERTY_LAYER_COUNT; ++i)
         {
-            const PropertyData& data = properties->m_Data[i];
-            if (data.m_GetPropertyCallback != 0x0)
+            const PropertySet& set = properties->m_Set[i];
+            if (set.m_GetPropertyCallback != 0x0)
             {
-                PropertyResult result = data.m_GetPropertyCallback(properties, data.m_UserData, id, var);
+                PropertyResult result = set.m_GetPropertyCallback(properties, set.m_UserData, id, var);
                 if (result == PROPERTY_RESULT_OK)
                 {
                     return true;

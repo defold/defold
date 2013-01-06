@@ -20,7 +20,7 @@ namespace dmGameObject
         };
     };
 
-    bool CreatePropertyDataUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data)
+    bool CreatePropertySetUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data)
     {
         uint32_t save_size = 0;
         dmDDF::Result result = dmDDF::SaveMessageSize(prop_descs, dmPropertiesDDF::PropertyDeclarations::m_DDFDescriptor, &save_size);
@@ -42,7 +42,7 @@ namespace dmGameObject
         return true;
     }
 
-    void DestroyPropertyDataUserData(uintptr_t user_data)
+    void DestroyPropertySetUserData(uintptr_t user_data)
     {
         if (user_data != 0)
         {

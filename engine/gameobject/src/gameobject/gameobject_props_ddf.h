@@ -11,8 +11,8 @@
 
 namespace dmGameObject
 {
-    bool CreatePropertyDataUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data);
-    void DestroyPropertyDataUserData(uintptr_t user_data);
+    bool CreatePropertySetUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data);
+    void DestroyPropertySetUserData(uintptr_t user_data);
 
     PropertyResult GetPropertyCallbackDDF(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
 }

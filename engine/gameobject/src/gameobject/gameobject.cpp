@@ -401,7 +401,7 @@ namespace dmGameObject
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
-            params.m_PropertyData = component->m_PropertyData;
+            params.m_PropertySet = component->m_PropertySet;
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
@@ -532,10 +532,10 @@ namespace dmGameObject
                         ComponentSetPropertiesParams params;
                         params.m_Instance = instance;
                         params.m_UserData = component_instance_data;
-                        if (CreatePropertyDataUserDataLua(GetLuaState(), property_buffer, property_buffer_size, &params.m_PropertyData.m_UserData))
+                        if (CreatePropertySetUserDataLua(GetLuaState(), property_buffer, property_buffer_size, &params.m_PropertySet.m_UserData))
                         {
-                            params.m_PropertyData.m_FreeUserDataCallback = DestroyPropertyDataUserDataLua;
-                            params.m_PropertyData.m_GetPropertyCallback = GetPropertyCallbackLua;
+                            params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserDataLua;
+                            params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackLua;
                             component.m_Type->m_SetPropertiesFunction(params);
                         }
                         else

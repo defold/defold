@@ -162,9 +162,9 @@ namespace dmGameObject
     typedef PropertyResult (*GetPropertyCallback)(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
     typedef void (*FreeUserDataCallback)(uintptr_t user_data);
 
-    struct PropertyData
+    struct PropertySet
     {
-        PropertyData();
+        PropertySet();
 
         GetPropertyCallback m_GetPropertyCallback;
         FreeUserDataCallback m_FreeUserDataCallback;
@@ -221,7 +221,7 @@ namespace dmGameObject
         Point3    m_Position;
         /// Local component rotation
         Quat      m_Rotation;
-        PropertyData m_PropertyData;
+        PropertySet m_PropertySet;
         /// Component resource
         void* m_Resource;
         /// Component world, as created in the ComponentNewWorld callback
@@ -428,7 +428,7 @@ namespace dmGameObject
     {
         /// Instance handle
         HInstance m_Instance;
-        PropertyData m_PropertyData;
+        PropertySet m_PropertySet;
         /// User data storage pointer
         uintptr_t* m_UserData;
     };

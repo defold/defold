@@ -113,7 +113,7 @@ namespace dmGameObject
 
                     ComponentSetPropertiesParams params;
                     params.m_Instance = instance;
-                    bool r = CreatePropertyDataUserData(&comp_prop.m_PropertyDecls, &params.m_PropertyData.m_UserData);
+                    bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
                     if (!r)
                     {
                         dmLogError("Could not instantiate game object '%s' in collection %s.", instance_desc.m_Id, filename);
@@ -122,8 +122,8 @@ namespace dmGameObject
                     }
                     else
                     {
-                        params.m_PropertyData.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                        params.m_PropertyData.m_FreeUserDataCallback = DestroyPropertyDataUserData;
+                        params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
+                        params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
                         uint32_t component_instance_data_index = 0;
                         for (uint32_t j = 0; j < index; ++j)
                         {

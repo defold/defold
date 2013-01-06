@@ -44,7 +44,7 @@ namespace dmGameObject
     struct Script
     {
         int m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
-        PropertyData m_PropertyData;
+        PropertySet m_PropertySet;
         dmLuaDDF::LuaModule* m_LuaModule;
     };
 

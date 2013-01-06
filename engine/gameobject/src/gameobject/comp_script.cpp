@@ -54,7 +54,7 @@ namespace dmGameObject
         }
 
         HScriptInstance script_instance = NewScriptInstance(script, params.m_Instance, params.m_ComponentIndex);
-        SetPropertyData(script_instance->m_Properties, PROPERTY_LAYER_PROTOTYPE, params.m_PropertyData);
+        SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_PROTOTYPE, params.m_PropertySet);
         if (script_instance == 0x0)
         {
             dmLogError("Could not create script component, out of memory.");
@@ -436,7 +436,7 @@ namespace dmGameObject
     void CompScriptSetProperties(const ComponentSetPropertiesParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
-        SetPropertyData(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertyData);
+        SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
     }
 
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)

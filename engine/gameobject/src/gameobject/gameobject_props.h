@@ -33,7 +33,7 @@ namespace dmGameObject
     {
         Properties();
 
-        PropertyData m_Data[MAX_PROPERTY_LAYER_COUNT];
+        PropertySet m_Set[MAX_PROPERTY_LAYER_COUNT];
         dmScript::ResolvePathCallback m_ResolvePathCallback;
         uintptr_t m_ResolvePathUserData;
         dmScript::GetURLCallback m_GetURLCallback;
@@ -51,7 +51,7 @@ namespace dmGameObject
     HProperties NewProperties(const NewPropertiesParams& params);
     void DeleteProperties(HProperties properties);
 
-    void SetPropertyData(HProperties properties, PropertyLayer layer, const PropertyData& data);
+    void SetPropertySet(HProperties properties, PropertyLayer layer, const PropertySet& set);
 
     bool GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
 }

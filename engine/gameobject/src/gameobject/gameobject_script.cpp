@@ -693,8 +693,8 @@ bail:
         lua_State* L = g_LuaState;
 
         HScript script = new Script();
-        script->m_PropertyData.m_UserData = (uintptr_t)script;
-        script->m_PropertyData.m_GetPropertyCallback = GetPropertyDefault;
+        script->m_PropertySet.m_UserData = (uintptr_t)script;
+        script->m_PropertySet.m_GetPropertyCallback = GetPropertyDefault;
         script->m_LuaModule = lua_module;
         if (!LoadScript(L, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
         {
@@ -841,7 +841,7 @@ bail:
         params.m_ResolvePathUserData = (uintptr_t)L;
         params.m_GetURLCallback = GetURLCallback;
         i->m_Properties = NewProperties(params);
-        SetPropertyData(i->m_Properties, PROPERTY_LAYER_DEFAULT, script->m_PropertyData);
+        SetPropertySet(i->m_Properties, PROPERTY_LAYER_DEFAULT, script->m_PropertySet);
         luaL_getmetatable(L, SCRIPTINSTANCE);
         lua_setmetatable(L, -2);
 

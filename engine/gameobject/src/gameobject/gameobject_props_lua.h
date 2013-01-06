@@ -10,8 +10,8 @@
 
 namespace dmGameObject
 {
-    bool CreatePropertyDataUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data);
-    void DestroyPropertyDataUserDataLua(uintptr_t user_data);
+    bool CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data);
+    void DestroyPropertySetUserDataLua(uintptr_t user_data);
 
     PropertyResult GetPropertyCallbackLua(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
 }
