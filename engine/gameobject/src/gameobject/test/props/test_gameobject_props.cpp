@@ -225,19 +225,6 @@ TEST_F(PropsTest, PropsRelativeURL)
 //    ASSERT_NE(dmResource::RESULT_OK, res);
 //}
 
-TEST_F(PropsTest, PropsFailUnsuppGo)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_unsupp_go.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
-}
-
-TEST_F(PropsTest, PropsFailUnsuppColl)
-{
-    dmGameObject::HCollection collection;
-    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_unsupp_coll.collectionc", (void**)&collection);
-    ASSERT_NE(dmResource::RESULT_OK, res);
-}
-
 TEST_F(PropsTest, PropsFailDefInInit)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_def_in_init.goc");

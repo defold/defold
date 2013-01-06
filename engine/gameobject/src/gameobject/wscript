@@ -29,4 +29,5 @@ def build(bld):
     bld.install_files('${PREFIX}/share/doc', 'go_doc.json')
 
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject.h')
+    bld.install_files('${PREFIX}/share/proto', '../../proto/properties_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/gameobject_ddf.proto')

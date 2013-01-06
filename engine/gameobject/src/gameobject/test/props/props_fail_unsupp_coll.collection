@@ -1,9 +1,0 @@
-name: "main"
-instances {
-  id: "props_coll"
-  prototype: "/props_fail_unsupp_coll.goc"
-  component_properties {
-    id: "script"
-    properties {id: "vec3" value: "0, 0, 0" type: PROPERTY_TYPE_VECTOR3}
-  }
-}

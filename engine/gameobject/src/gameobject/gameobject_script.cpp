@@ -34,6 +34,8 @@ namespace dmGameObject
 {
 #define SCRIPTINSTANCE "ScriptInstance"
 
+    using namespace dmPropertiesDDF;
+
     const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT] =
     {
         "init",
@@ -726,11 +728,11 @@ bail:
     static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var)
     {
         Script* script = (Script*)user_data;
-        const dmLuaDDF::PropertyDeclarations* defs = &script->m_LuaModule->m_Properties;
+        const PropertyDeclarations* defs = &script->m_LuaModule->m_Properties;
         uint32_t n = defs->m_NumberEntries.m_Count;
         for (uint32_t i = 0; i < n; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_NumberEntries[i];
+            const PropertyDeclarationEntry& entry = defs->m_NumberEntries[i];
             if (entry.m_Id == id)
             {
                 out_var.m_Type = PROPERTY_TYPE_NUMBER;
@@ -741,7 +743,7 @@ bail:
         n = defs->m_HashEntries.m_Count;
         for (uint32_t i = 0; i < n; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_HashEntries[i];
+            const PropertyDeclarationEntry& entry = defs->m_HashEntries[i];
             if (entry.m_Id == id)
             {
                 out_var.m_Type = PROPERTY_TYPE_HASH;
@@ -752,7 +754,7 @@ bail:
         n = defs->m_UrlEntries.m_Count;
         for (uint32_t i = 0; i < n; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_UrlEntries[i];
+            const PropertyDeclarationEntry& entry = defs->m_UrlEntries[i];
             if (entry.m_Id == id)
             {
                 out_var.m_Type = PROPERTY_TYPE_URL;
@@ -770,7 +772,7 @@ bail:
         n = defs->m_Vector3Entries.m_Count;
         for (uint32_t i = 0; i < n; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_Vector3Entries[i];
+            const PropertyDeclarationEntry& entry = defs->m_Vector3Entries[i];
             if (entry.m_Id == id)
             {
                 out_var.m_Type = PROPERTY_TYPE_VECTOR3;
@@ -784,7 +786,7 @@ bail:
         n = defs->m_Vector4Entries.m_Count;
         for (uint32_t i = 0; i < n; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_Vector4Entries[i];
+            const PropertyDeclarationEntry& entry = defs->m_Vector4Entries[i];
             if (entry.m_Id == id)
             {
                 out_var.m_Type = PROPERTY_TYPE_VECTOR4;
@@ -799,7 +801,7 @@ bail:
         n = defs->m_QuatEntries.m_Count;
         for (uint32_t i = 0; i < n; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = defs->m_QuatEntries[i];
+            const PropertyDeclarationEntry& entry = defs->m_QuatEntries[i];
             if (entry.m_Id == id)
             {
                 out_var.m_Type = PROPERTY_TYPE_QUAT;
@@ -868,12 +870,12 @@ bail:
 
     void PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index)
     {
-        const dmLuaDDF::PropertyDeclarations* declarations = &script->m_LuaModule->m_Properties;
+        const PropertyDeclarations* declarations = &script->m_LuaModule->m_Properties;
         PropertyVar var;
         uint32_t count = declarations->m_NumberEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_NumberEntries[i];
+            const PropertyDeclarationEntry& entry = declarations->m_NumberEntries[i];
             lua_pushstring(L, entry.m_Key);
             bool result = GetProperty(properties, entry.m_Id, var);
             (void)result;
@@ -885,7 +887,7 @@ bail:
         count = declarations->m_HashEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_HashEntries[i];
+            const PropertyDeclarationEntry& entry = declarations->m_HashEntries[i];
             lua_pushstring(L, entry.m_Key);
             bool result = GetProperty(properties, entry.m_Id, var);
             (void)result;
@@ -897,7 +899,7 @@ bail:
         count = declarations->m_UrlEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_UrlEntries[i];
+            const PropertyDeclarationEntry& entry = declarations->m_UrlEntries[i];
             lua_pushstring(L, entry.m_Key);
             bool result = GetProperty(properties, entry.m_Id, var);
             (void)result;
@@ -909,7 +911,7 @@ bail:
         count = declarations->m_Vector3Entries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_Vector3Entries[i];
+            const PropertyDeclarationEntry& entry = declarations->m_Vector3Entries[i];
             lua_pushstring(L, entry.m_Key);
             bool result = GetProperty(properties, entry.m_Id, var);
             (void)result;
@@ -921,7 +923,7 @@ bail:
         count = declarations->m_Vector4Entries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_Vector4Entries[i];
+            const PropertyDeclarationEntry& entry = declarations->m_Vector4Entries[i];
             lua_pushstring(L, entry.m_Key);
             bool result = GetProperty(properties, entry.m_Id, var);
             (void)result;
@@ -933,7 +935,7 @@ bail:
         count = declarations->m_QuatEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
-            const dmLuaDDF::PropertyDeclarationEntry& entry = declarations->m_QuatEntries[i];
+            const PropertyDeclarationEntry& entry = declarations->m_QuatEntries[i];
             lua_pushstring(L, entry.m_Key);
             bool result = GetProperty(properties, entry.m_Id, var);
             (void)result;

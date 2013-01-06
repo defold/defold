@@ -7,10 +7,11 @@
 #include "gameobject_props.h"
 
 #include "../proto/gameobject_ddf.h"
+#include "../proto/properties_ddf.h"
 
 namespace dmGameObject
 {
-    bool CreatePropertyDataUserData(const dmGameObjectDDF::PropertyDesc* prop_descs, uint32_t prop_desc_count, uintptr_t* user_data);
+    bool CreatePropertyDataUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data);
     void DestroyPropertyDataUserData(uintptr_t user_data);
 
     PropertyResult GetPropertyCallbackDDF(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);

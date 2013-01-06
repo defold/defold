@@ -95,7 +95,7 @@ namespace dmGameObject
                                                                               component_desc.m_Position,
                                                                               component_desc.m_Rotation);
                 c.m_PropertyData.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                bool r = CreatePropertyDataUserData(component_desc.m_Properties.m_Data, component_desc.m_Properties.m_Count, &c.m_PropertyData.m_UserData);
+                bool r = CreatePropertyDataUserData(&component_desc.m_PropertyDecls, &c.m_PropertyData.m_UserData);
                 proto->m_Components.Push(c);
                 if (!r)
                 {

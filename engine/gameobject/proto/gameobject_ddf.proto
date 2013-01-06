@@ -3,6 +3,8 @@ package dmGameObjectDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
+import "properties_ddf.proto";
+
 option java_package = "com.dynamo.gameobject.proto";
 option java_outer_classname = "GameObject";
 
@@ -32,6 +34,7 @@ message ComponentDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     repeated PropertyDesc properties    = 5;
+    optional dmPropertiesDDF.PropertyDeclarations property_decls = 6;
 }
 
 message EmbeddedComponentDesc
@@ -53,6 +56,7 @@ message ComponentPropertyDesc
 {
     required string id = 1;
     repeated PropertyDesc properties = 2;
+    optional dmPropertiesDDF.PropertyDeclarations property_decls = 3;
 }
 
 message InstanceDesc

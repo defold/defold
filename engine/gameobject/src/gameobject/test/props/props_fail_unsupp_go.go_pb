@@ -1,5 +1,0 @@
-components {
-  id: "script"
-  component: "/props_fail_unsupp_go.scriptc"
-  properties {id: "vec3" value: "0, 0, 0" type: PROPERTY_TYPE_VECTOR3}
-}

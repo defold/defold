@@ -1,5 +1,0 @@
-go.property("vec3", vmath.vector3(0, 0, 0))
-
-function init(self)
-    assert(self.vec3.x == 0)
-end

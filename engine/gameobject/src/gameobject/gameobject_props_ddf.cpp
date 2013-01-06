@@ -7,16 +7,6 @@
 
 namespace dmGameObject
 {
-    static const char* TYPE_NAMES[dmGameObjectDDF::PROPERTY_TYPE_COUNT] =
-    {
-            "number",
-            "hash",
-            "URL",
-            "vector3",
-            "vector4",
-            "quat"
-    };
-
     struct PropertyVarDDF
     {
         dmhash_t m_Id;
@@ -30,43 +20,24 @@ namespace dmGameObject
         };
     };
 
-    bool CreatePropertyDataUserData(const dmGameObjectDDF::PropertyDesc* prop_descs, uint32_t prop_desc_count, uintptr_t* user_data)
+    bool CreatePropertyDataUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data)
     {
-        if (prop_desc_count > 0)
+        uint32_t save_size = 0;
+        dmDDF::Result result = dmDDF::SaveMessageSize(prop_descs, dmPropertiesDDF::PropertyDeclarations::m_DDFDescriptor, &save_size);
+        *user_data = 0;
+        if (result == dmDDF::RESULT_OK && save_size > 0)
         {
-            dmArray<PropertyVarDDF> vars;
-            vars.SetCapacity(prop_desc_count);
-            vars.SetSize(prop_desc_count);
-            for (uint32_t i = 0; i < prop_desc_count; ++i)
-            {
-                const dmGameObjectDDF::PropertyDesc& desc = prop_descs[i];
-                PropertyVarDDF& var = vars[i];
-                var.m_Id = dmHashString64(desc.m_Id);
-                var.m_Type = desc.m_Type;
-                switch (desc.m_Type)
-                {
-                case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
-                    var.m_Number = atof(desc.m_Value);
-                    break;
-                case dmGameObjectDDF::PROPERTY_TYPE_HASH:
-                    var.m_Hash = dmHashString64(desc.m_Value);
-                    break;
-                case dmGameObjectDDF::PROPERTY_TYPE_URL:
-                    var.m_URL = strdup(desc.m_Value);
-                    break;
-                case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
-                case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
-                case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
-                    dmLogError("The property type %s is not yet supported in collections and game objects.", TYPE_NAMES[desc.m_Type]);
-                    return false;
-                default:
-                    dmLogError("Unknown property type %d.", desc.m_Type);
-                    return false;
-                }
-            }
-            dmArray<PropertyVarDDF>* result = new dmArray<PropertyVarDDF>();
-            vars.Swap(*result);
-            *user_data = (uintptr_t)result;
+            dmArray<unsigned char> buffer_array;
+            buffer_array.SetCapacity(save_size);
+            buffer_array.SetSize(save_size);
+            result = dmDDF::SaveMessageToArray(prop_descs, dmPropertiesDDF::PropertyDeclarations::m_DDFDescriptor, buffer_array);
+            if (result != dmDDF::RESULT_OK)
+                return false;
+            dmPropertiesDDF::PropertyDeclarations* copy = 0;
+            result = dmDDF::LoadMessage(buffer_array.Begin(), save_size, &copy);
+            if (result != dmDDF::RESULT_OK)
+                return false;
+            *user_data = (uintptr_t)copy;
         }
         return true;
     }
@@ -75,15 +46,7 @@ namespace dmGameObject
     {
         if (user_data != 0)
         {
-            dmArray<PropertyVarDDF>* var_array = (dmArray<PropertyVarDDF>*)user_data;
-            uint32_t count = var_array->Size();
-            PropertyVarDDF* vars = var_array->Begin();
-            for (uint32_t i = 0; i < count; ++i)
-            {
-                if (vars[i].m_Type == dmGameObjectDDF::PROPERTY_TYPE_URL)
-                    free((void*)vars[i].m_URL);
-            }
-            delete var_array;
+            dmDDF::FreeMessage((void*)user_data);
         }
     }
 
@@ -99,44 +62,69 @@ namespace dmGameObject
         return true;
     }
 
+    static bool GetPropertyEntryIndex(dmhash_t id, dmPropertiesDDF::PropertyDeclarationEntry* entries, uint32_t entry_count, uint32_t* index)
+    {
+        for (uint32_t i = 0; i < entry_count; ++i)
+        {
+            if (entries[i].m_Id == id)
+            {
+                *index = entries[i].m_Index;
+                return true;
+            }
+        }
+        return false;
+    }
+
     PropertyResult GetPropertyCallbackDDF(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var)
     {
         if (user_data != 0)
         {
-            const dmArray<PropertyVarDDF>& vars = *(dmArray<PropertyVarDDF>*)user_data;
-            uint32_t count = vars.Size();
-            for (uint32_t i = 0; i < count; ++i)
+            dmPropertiesDDF::PropertyDeclarations* copy = (dmPropertiesDDF::PropertyDeclarations*)user_data;
+            uint32_t index = 0;
+            if (GetPropertyEntryIndex(id, copy->m_NumberEntries.m_Data, copy->m_NumberEntries.m_Count, &index))
             {
-                const PropertyVarDDF& var = vars[i];
-                if (var.m_Id == id)
-                {
-                    switch (var.m_Type)
-                    {
-                    case dmGameObjectDDF::PROPERTY_TYPE_NUMBER:
-                        out_var.m_Number = var.m_Number;
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_HASH:
-                        out_var.m_Hash = var.m_Hash;
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_URL:
-                        if (!ResolveURL(properties, var.m_URL, out_var.m_URL))
-                            return PROPERTY_RESULT_INVALID_FORMAT;
-                        break;
-                    case dmGameObjectDDF::PROPERTY_TYPE_VECTOR3:
-                    case dmGameObjectDDF::PROPERTY_TYPE_VECTOR4:
-                    case dmGameObjectDDF::PROPERTY_TYPE_QUAT:
-                        out_var.m_V4[0] = var.m_V4[0];
-                        out_var.m_V4[1] = var.m_V4[1];
-                        out_var.m_V4[2] = var.m_V4[2];
-                        out_var.m_V4[3] = var.m_V4[3];
-                        break;
-                    default:
-                        return PROPERTY_RESULT_UNKNOWN_TYPE;
-                    }
-                    out_var.m_Type = (PropertyType)var.m_Type;
-                    return PROPERTY_RESULT_OK;
-                }
+                out_var.m_Number = copy->m_FloatValues[index];
+                out_var.m_Type = PROPERTY_TYPE_NUMBER;
             }
+            else if (GetPropertyEntryIndex(id, copy->m_HashEntries.m_Data, copy->m_HashEntries.m_Count, &index))
+            {
+                out_var.m_Hash = copy->m_HashValues[index];
+                out_var.m_Type = PROPERTY_TYPE_HASH;
+            }
+            else if (GetPropertyEntryIndex(id, copy->m_UrlEntries.m_Data, copy->m_UrlEntries.m_Count, &index))
+            {
+                if (!ResolveURL(properties, copy->m_StringValues[index], out_var.m_URL))
+                    return PROPERTY_RESULT_INVALID_FORMAT;
+                out_var.m_Type = PROPERTY_TYPE_URL;
+            }
+            else if (GetPropertyEntryIndex(id, copy->m_Vector3Entries.m_Data, copy->m_Vector3Entries.m_Count, &index))
+            {
+                out_var.m_V4[0] = copy->m_FloatValues[index+0];
+                out_var.m_V4[1] = copy->m_FloatValues[index+1];
+                out_var.m_V4[2] = copy->m_FloatValues[index+2];
+                out_var.m_Type = PROPERTY_TYPE_VECTOR3;
+            }
+            else if (GetPropertyEntryIndex(id, copy->m_Vector4Entries.m_Data, copy->m_Vector4Entries.m_Count, &index))
+            {
+                out_var.m_V4[0] = copy->m_FloatValues[index+0];
+                out_var.m_V4[1] = copy->m_FloatValues[index+1];
+                out_var.m_V4[2] = copy->m_FloatValues[index+2];
+                out_var.m_V4[3] = copy->m_FloatValues[index+3];
+                out_var.m_Type = PROPERTY_TYPE_VECTOR4;
+            }
+            else if (GetPropertyEntryIndex(id, copy->m_QuatEntries.m_Data, copy->m_QuatEntries.m_Count, &index))
+            {
+                out_var.m_V4[0] = copy->m_FloatValues[index+0];
+                out_var.m_V4[1] = copy->m_FloatValues[index+1];
+                out_var.m_V4[2] = copy->m_FloatValues[index+2];
+                out_var.m_V4[3] = copy->m_FloatValues[index+3];
+                out_var.m_Type = PROPERTY_TYPE_QUAT;
+            }
+            else
+            {
+                return PROPERTY_RESULT_NOT_FOUND;
+            }
+            return PROPERTY_RESULT_OK;
         }
         return PROPERTY_RESULT_NOT_FOUND;
     }

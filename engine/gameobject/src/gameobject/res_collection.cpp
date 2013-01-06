@@ -113,7 +113,7 @@ namespace dmGameObject
 
                     ComponentSetPropertiesParams params;
                     params.m_Instance = instance;
-                    bool r = CreatePropertyDataUserData(comp_prop.m_Properties.m_Data, comp_prop.m_Properties.m_Count, &params.m_PropertyData.m_UserData);
+                    bool r = CreatePropertyDataUserData(&comp_prop.m_PropertyDecls, &params.m_PropertyData.m_UserData);
                     if (!r)
                     {
                         dmLogError("Could not instantiate game object '%s' in collection %s.", instance_desc.m_Id, filename);

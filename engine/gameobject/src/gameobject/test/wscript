@@ -1,6 +1,13 @@
-import os, re
+import os, re, sys
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+import dlib
+import gameobject_ddf_pb2
+import properties_ddf_pb2
+import google.protobuf.text_format
+from threading import Lock
+
+stderr_lock = Lock()
 
 def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = ''):
     def create(self, node):
@@ -18,22 +25,143 @@ create_simple_protoc_task('bresource', '.b_pb', '.b', 'TestGameObjectDDF.BResour
 create_simple_protoc_task('cresource', '.c_pb', '.c', 'TestGameObjectDDF.CResource', before='cc cxx', proto_file = '../src/gameobject/test/component/test_gameobject_component_ddf.proto')
 create_simple_protoc_task('message_target', '.mt_pb', '.mt', 'TestGameObjectDDF.MessageTarget', before='cc cxx', proto_file = '../src/gameobject/test/message/test_gameobject_message_ddf.proto')
 create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.InputTarget', before='cc cxx', proto_file = '../src/gameobject/test/input/test_gameobject_input_ddf.proto')
-create_simple_protoc_task('collection', '.collection', '.collectionc', 'dmGameObjectDDF.CollectionDesc', before='cc cxx', proto_file = '../proto/gameobject_ddf.proto')
 create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.ReloadTarget', before='cc cxx', proto_file = '../src/gameobject/test/reload/test_gameobject_reload_ddf.proto')
 create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='cc cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
 
-Task.simple_task_type('gameobjectdesc', 'protoc --encode=dmGameObjectDDF.PrototypeDesc -I ../proto -I ${DYNAMO_HOME}/ext/include -I ${DYNAMO_HOME}/share/proto ../proto/gameobject_ddf.proto < ${SRC} > ${TGT}',
-                      color='PINK',
-                      before='cc cxx',
-                      shell=True)
+def transform_properties(properties, out_properties):
+    for property in properties:
+        entry = None
+        if property.type == gameobject_ddf_pb2.PROPERTY_TYPE_NUMBER:
+            entry = out_properties.number_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.append(float(property.value))
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_HASH:
+            entry = out_properties.hash_entries.add()
+            entry.index = len(out_properties.hash_values)
+            out_properties.hash_values.append(dlib.dmHashBuffer64(property.value))
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_URL:
+            entry = out_properties.url_entries.add()
+            entry.index = len(out_properties.string_values)
+            out_properties.string_values.append(property.value)
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_VECTOR3:
+            entry = out_properties.vector3_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.extend([float(v.strip()) for v in property.value.split(',')])
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_VECTOR4:
+            entry = out_properties.vector4_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.extend([float(v.strip()) for v in property.value.split(',')])
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_QUAT:
+            entry = out_properties.quat_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.extend([float(v.strip()) for v in property.value.split(',')])
+        else:
+            raise Exception("Invalid type")
+        entry.key = property.id
+        entry.id = dlib.dmHashBuffer64(property.id)
+
+def transform_collection(task, msg):
+    for instance in msg.instances:
+        for comp_props in instance.component_properties:
+            transform_properties(comp_props.properties, comp_props.property_decls)
+    return msg
+
+def compile_collection(task):
+    try:
+        msg = gameobject_ddf_pb2.CollectionDesc()
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+        msg = transform_collection(task, msg)
+
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(msg.SerializeToString())
+
+        return 0
+    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
+        stderr_lock.acquire()
+        try:
+            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+        finally:
+            stderr_lock.release()
+        return 1
+
+task = Task.task_type_from_func('collection',
+                                func    = compile_collection,
+                                color   = 'RED',
+                                after='proto_gen_py',
+                                before='cc cxx')
+
+@extension('.collection')
+def collectionfile(self, node):
+    try:
+        msg = gameobject_ddf_pb2.CollectionDesc()
+        with open(node.abspath(self.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+
+        task = self.create_task('collection')
+        task.set_inputs(node)
+
+        out = node.change_ext('.collectionc')
+        task.set_outputs([out])
+    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
+        stderr_lock.acquire()
+        try:
+            print >>sys.stderr, '%s: %s' % (node.srcpath(self.env), str(e))
+        finally:
+            stderr_lock.release()
+        return 1
+
+def transform_gameobject(task, msg):
+    for component in msg.components:
+        transform_properties(component.properties, component.property_decls)
+    return msg
+
+def compile_go(task):
+    try:
+        msg = gameobject_ddf_pb2.PrototypeDesc()
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+        msg = transform_gameobject(task, msg)
+
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(msg.SerializeToString())
+
+        return 0
+    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
+        stderr_lock.acquire()
+        try:
+            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+        finally:
+            stderr_lock.release()
+        return 1
+
+task = Task.task_type_from_func('gameobject',
+                                func    = compile_go,
+                                color   = 'RED',
+                                after='proto_gen_py',
+                                before='cc cxx')
 
 @extension('.go_pb')
-def go_file(self, node):
-    obj_ext = '.goc'
-    task = self.create_task('gameobjectdesc')
-    task.set_inputs(node)
-    out = node.change_ext(obj_ext)
-    task.set_outputs(out)
+def gofile(self, node):
+    try:
+        import google.protobuf.text_format
+        import gameobject_ddf_pb2
+        msg = gameobject_ddf_pb2.PrototypeDesc()
+        with open(node.abspath(self.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+
+        task = self.create_task('gameobject')
+        task.set_inputs(node)
+
+        out = node.change_ext('.goc')
+        task.set_outputs([out])
+    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
+        stderr_lock.acquire()
+        try:
+            print >>sys.stderr, '%s: %s' % (node.srcpath(self.env), str(e))
+        finally:
+            stderr_lock.release()
+        return 1
 
 from cStringIO import StringIO
 def strip_single_lua_comments(str):
@@ -81,9 +209,7 @@ def scan_lua(str):
     return modules, props
 
 def parse_properties(props):
-    import lua_ddf_pb2
-    import dlib
-    declarations = lua_ddf_pb2.PropertyDeclarations()
+    declarations = properties_ddf_pb2.PropertyDeclarations()
     if props:
         # http://docs.python.org/dev/library/re.html#simulating-scanf
         rp_num = re.compile(r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?")
