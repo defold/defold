@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
@@ -32,5 +33,20 @@ public class LuaScannerTest {
         assertEquals("a/b", modules.get(3));
         assertEquals("a/b/c", modules.get(4));
         assertEquals("a/b/c", modules.get(5));
+    }
+
+    @Test
+    public void testScannerProps() throws Exception {
+        String file = getFile("test_scanner_props.lua");
+        Map<String, String> properties = LuaScanner.scanProperties(file);
+
+        assertEquals(7, properties.size());
+        assertEquals("12", properties.get("number"));
+        assertEquals("hash(\"hash\")", properties.get("hash"));
+        assertEquals("msg.url()", properties.get("url"));
+        assertEquals("vmath.vector3(1, 2, 3)", properties.get("vec3"));
+        assertEquals("vmath.vector4(4, 5, 6, 7)", properties.get("vec4"));
+        assertEquals("vmath.quat(8, 9, 10)", properties.get("quat"));
+        assertEquals("12", properties.get("space_num"));
     }
 }

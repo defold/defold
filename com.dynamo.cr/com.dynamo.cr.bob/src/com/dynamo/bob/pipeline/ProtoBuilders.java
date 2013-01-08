@@ -16,10 +16,13 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.camera.proto.Camera.CameraDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
@@ -37,6 +40,7 @@ import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
 import com.dynamo.physics.proto.Physics.ConvexShape;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.render.proto.Material.MaterialDesc;
@@ -68,6 +72,17 @@ public class ProtoBuilders {
                 InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));
                 BuilderUtil.checkFile(this.project, resource, "prototype", b.getPrototype());
                 b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
+                for (int j = 0; j < b.getComponentPropertiesCount(); ++j) {
+                    ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder(b.getComponentProperties(j));
+                    PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
+                    for (PropertyDesc desc : compPropBuilder.getPropertiesList()) {
+                        if (!PropertiesUtil.transformPropertyDesc(resource, desc, properties)) {
+                            throw new CompileExceptionError(resource, 0, String.format("The property %s.%s.%s has an invalid format: %s", b.getId(), compPropBuilder.getId(), desc.getId(), desc.getValue()));
+                        }
+                    }
+                    compPropBuilder.setPropertyDecls(properties);
+                    b.setComponentProperties(j, compPropBuilder);
+                }
                 messageBuilder.setInstances(i, b);
             }
 

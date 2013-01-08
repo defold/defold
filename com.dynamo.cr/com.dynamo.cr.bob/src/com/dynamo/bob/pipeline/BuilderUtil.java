@@ -22,12 +22,11 @@ public class BuilderUtil {
             throw new CompileExceptionError(owner, 0, message);
         }
         IResource resource = project.getResource(path);
-        File file = new File(resource.getAbsPath());
-        if (!file.exists()) {
+        if (!resource.exists()) {
             String message = BobNLS.bind(Messages.BuilderUtil_MISSING_RESOURCE, field, path);
             throw new CompileExceptionError(owner, 0, message);
         }
-        return file;
+        return new File(resource.getAbsPath());
     }
 
 }

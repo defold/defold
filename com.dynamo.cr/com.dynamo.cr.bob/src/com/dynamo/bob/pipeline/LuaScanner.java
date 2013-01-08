@@ -1,7 +1,9 @@
 package com.dynamo.bob.pipeline;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,6 +17,8 @@ public class LuaScanner {
 
     private static Pattern requirePattern2 = Pattern.compile("require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$",
             Pattern.DOTALL | Pattern.MULTILINE);
+
+    private static Pattern propertyPattern = Pattern.compile("go.property\\(\\s*\"(.*?)\"\\s*,\\s*(.*?)\\)$");
 
     private static String stripSingleLineComments(String str) {
         str = str.replace("\r", "");
@@ -38,7 +42,7 @@ public class LuaScanner {
         return sb.toString();
     }
 
-    public static List<String> scan(String str) {
+    private static String stripComments(String str) {
         str = stripSingleLineComments(str);
         Matcher matcher = multiLineCommentPattern.matcher(str);
 
@@ -51,7 +55,11 @@ public class LuaScanner {
             matcher.appendReplacement(sb, lines.toString());
         }
         matcher.appendTail(sb);
-        String strStripped = sb.toString();
+        return sb.toString();
+    }
+
+    public static List<String> scan(String str) {
+        String strStripped = stripComments(str);
 
         ArrayList<String> modules = new ArrayList<String>();
         String[] lines = strStripped.split("\n");
@@ -66,6 +74,21 @@ public class LuaScanner {
             }
         }
         return modules;
+    }
+
+    public static Map<String, String> scanProperties(String str) {
+        String strStripped = stripComments(str);
+
+        Map<String, String> properties = new HashMap<String, String>();
+        String[] lines = strStripped.split("\n");
+        for (String line : lines) {
+            line = line.trim();
+            Matcher propMatcher = propertyPattern.matcher(line);
+            if (propMatcher.matches()) {
+                properties.put(propMatcher.group(1), propMatcher.group(2).trim());
+            }
+        }
+        return properties;
     }
 
 }

@@ -13,10 +13,13 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
+import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.sound.proto.Sound.SoundDesc;
 import com.google.protobuf.TextFormat;
 
@@ -124,7 +127,7 @@ public class GameObjectBuilder extends Builder<Void> {
             ++i;
         }
 
-        protoBuilder = transformGo(protoBuilder);
+        protoBuilder = transformGo(input, protoBuilder);
         protoBuilder.clearEmbeddedComponents();
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
@@ -152,9 +155,8 @@ public class GameObjectBuilder extends Builder<Void> {
         {".tilemap", ".tilegridc"},
     };
 
-    private PrototypeDesc.Builder transformGo(
-            PrototypeDesc.Builder protoBuilder) {
-
+    private PrototypeDesc.Builder transformGo(IResource resource,
+            PrototypeDesc.Builder protoBuilder) throws CompileExceptionError {
 
         List<ComponentDesc> newList = new ArrayList<ComponentDesc>();
         for (ComponentDesc cd : protoBuilder.getComponentsList()) {
@@ -162,7 +164,16 @@ public class GameObjectBuilder extends Builder<Void> {
             for (String[] fromTo : extensionMapping) {
                 c = BuilderUtil.replaceExt(c, fromTo[0], fromTo[1]);
             }
-            newList.add(ComponentDesc.newBuilder().mergeFrom(cd).setComponent(c).build());
+            PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
+            for (PropertyDesc desc : cd.getPropertiesList()) {
+                if (!PropertiesUtil.transformPropertyDesc(resource, desc, properties)) {
+                    throw new CompileExceptionError(resource, 0, String.format("The property %s.%s has an invalid format: %s", cd.getId(), desc.getId(), desc.getValue()));
+                }
+            }
+            ComponentDesc.Builder compBuilder = ComponentDesc.newBuilder(cd);
+            compBuilder.setComponent(c);
+            compBuilder.setPropertyDecls(properties);
+            newList.add(compBuilder.build());
         }
         protoBuilder.clearComponents();
         protoBuilder.addAllComponents(newList);

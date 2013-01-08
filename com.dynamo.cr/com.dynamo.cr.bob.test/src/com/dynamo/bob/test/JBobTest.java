@@ -8,7 +8,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,8 +24,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
-import com.dynamo.bob.AbstractFileSystem;
-import com.dynamo.bob.AbstractResource;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CommandBuilder;
@@ -38,6 +35,8 @@ import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.test.util.MockResource;
 import com.dynamo.bob.TaskResult;
 
 public class JBobTest {
@@ -191,72 +190,6 @@ public class JBobTest {
             if (task.input(0).getContent().length == 0) {
                 throw new CompileExceptionError(task.input(0), 0, "Failed to build");
             }
-        }
-    }
-
-    public class MockResource extends AbstractResource<MockFileSystem> {
-
-        private byte[] content;
-
-        MockResource(MockFileSystem fileSystem, String path, byte[] content) {
-            super(fileSystem, path);
-            this.content = content;
-        }
-
-        @Override
-        public byte[] getContent() {
-            return content;
-        }
-
-        @Override
-        public void setContent(byte[] content) {
-            if (!isOutput()) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not an output resource", this.toString()));
-            }
-            this.content = Arrays.copyOf(content, content.length);
-        }
-
-        // Only for testing
-        public void forceSetContent(byte[] content) {
-            this.content = Arrays.copyOf(content, content.length);
-        }
-
-        @Override
-        public boolean exists() {
-            return content != null;
-        }
-
-        @Override
-        public void remove() {
-            content = null;
-        }
-
-        @Override
-        public void setContent(InputStream stream) throws IOException {
-            throw new RuntimeException("Not implemented");
-        }
-    }
-
-    public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResource> {
-
-        public void addFile(String name, byte[] content) {
-            name = FilenameUtils.normalize(name, true);
-            resources.put(name, new MockResource(this, name, content));
-        }
-
-        public void addFile(MockResource resource) {
-            this.resources.put(resource.getAbsPath(), resource);
-        }
-
-        @Override
-        public IResource get(String name) {
-            name = FilenameUtils.normalize(name, true);
-            IResource r = resources.get(name);
-            if (r == null) {
-                r = new MockResource(fileSystem, name, null);
-                resources.put(name, (MockResource) r);
-            }
-            return r;
         }
     }
 
