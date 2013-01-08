@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import org.junit.Test;
 
 import com.dynamo.bob.Builder;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.ProtoBuilders.CollectionBuilder;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
@@ -55,5 +56,22 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
             }
         }
+    }
+
+    @Test(expected = CompileExceptionError.class)
+    public void testPropInvalidValue() throws Exception {
+        addFile("/test.go", "");
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("instances {\n");
+        src.append("  id: \"test\"\n");
+        src.append("  prototype: \"/test.go\"\n");
+        src.append("  component_properties {\n");
+        src.append("    id: \"test\"\n");
+        src.append("    properties { id: \"number\" value: \"a\" type: PROPERTY_TYPE_NUMBER }\n");
+        src.append("  }\n");
+        src.append("}\n");
+        @SuppressWarnings("unused")
+        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString());
     }
 }

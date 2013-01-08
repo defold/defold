@@ -1,10 +1,12 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
 import com.dynamo.bob.Builder;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
@@ -48,4 +50,17 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
     }
 
+    @Test
+    public void testPropUnsupportedType() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("\n");
+        src.append("go.property(\"string\", \"\")\n");
+        try {
+            @SuppressWarnings("unused")
+            LuaModule luaModule = (LuaModule)build("/test.script", src.toString());
+            assertTrue(false);
+        } catch (CompileExceptionError e) {
+            assertEquals(2, e.getLineNumber());
+        }
+    }
 }

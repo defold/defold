@@ -52,7 +52,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
-        Map<String, String> properties = LuaScanner.scanProperties(script);
+        Map<String, LuaScanner.PropertyLine> properties = LuaScanner.scanProperties(script);
         PropertyDeclarations propertiesMsg = parseProperties(task.input(0), properties);
         builder.setProperties(propertiesMsg);
         builder.setType(Type.TYPE_TEXT);
@@ -72,16 +72,17 @@ public abstract class LuaBuilder extends Builder<Void> {
     private static Pattern vec4Pattern = Pattern.compile("vmath\\.vector4\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
     private static Pattern quatPattern = Pattern.compile("vmath\\.quat\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
 
-    private PropertyDeclarations parseProperties(IResource resource, Map<String, String> properties) throws CompileExceptionError {
+    private PropertyDeclarations parseProperties(IResource resource, Map<String, LuaScanner.PropertyLine> properties) throws CompileExceptionError {
         PropertyDeclarations.Builder builder = PropertyDeclarations.newBuilder();
         if (!properties.isEmpty()) {
-            for (Map.Entry<String, String> entry : properties.entrySet()) {
-                Matcher numMatcher = numPattern.matcher(entry.getValue());
-                Matcher hashMatcher = hashPattern.matcher(entry.getValue());
-                Matcher urlMatcher = urlPattern.matcher(entry.getValue());
-                Matcher vec3Matcher = vec3Pattern.matcher(entry.getValue());
-                Matcher vec4Matcher = vec4Pattern.matcher(entry.getValue());
-                Matcher quatMatcher = quatPattern.matcher(entry.getValue());
+            for (Map.Entry<String, LuaScanner.PropertyLine> entry : properties.entrySet()) {
+                String value = entry.getValue().value;
+                Matcher numMatcher = numPattern.matcher(value);
+                Matcher hashMatcher = hashPattern.matcher(value);
+                Matcher urlMatcher = urlPattern.matcher(value);
+                Matcher vec3Matcher = vec3Pattern.matcher(value);
+                Matcher vec4Matcher = vec4Pattern.matcher(value);
+                Matcher quatMatcher = quatPattern.matcher(value);
                 PropertyDeclarationEntry.Builder entryBuilder = PropertyDeclarationEntry.newBuilder();
                 entryBuilder.setKey(entry.getKey());
                 entryBuilder.setId(MurmurHash.hash64(entry.getKey()));
@@ -142,8 +143,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     }
                     builder.addQuatEntries(entryBuilder);
                 } else {
-                    // TODO Proper error handling
-                    throw new CompileExceptionError(resource, 0, "Unknown type");
+                    throw new CompileExceptionError(resource, entry.getValue().line, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat");
                 }
             }
         }

@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import org.junit.Test;
 
 import com.dynamo.bob.Builder;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
@@ -47,5 +48,18 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
             PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
             PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         }
+    }
+
+    @Test(expected = CompileExceptionError.class)
+    public void testPropInvalidValue() throws Exception {
+        addFile("/test.script", "");
+        StringBuilder src = new StringBuilder();
+        src.append("components {");
+        src.append("  id: \"script\"\n");
+        src.append("  component: \"/test.script\"\n");
+        src.append("  properties { id: \"number\" value: \"a\" type: PROPERTY_TYPE_NUMBER }\n");
+        src.append("}\n");
+        @SuppressWarnings("unused")
+        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString());
     }
 }

@@ -76,17 +76,29 @@ public class LuaScanner {
         return modules;
     }
 
-    public static Map<String, String> scanProperties(String str) {
+    public static class PropertyLine {
+        public String value;
+        public int line;
+
+        public PropertyLine(String value, int line) {
+            this.value = value;
+            this.line = line;
+        }
+    }
+
+    public static Map<String, PropertyLine> scanProperties(String str) {
         String strStripped = stripComments(str);
 
-        Map<String, String> properties = new HashMap<String, String>();
+        Map<String, PropertyLine> properties = new HashMap<String, PropertyLine>();
         String[] lines = strStripped.split("\n");
+        int l = 1; // 1-based line number
         for (String line : lines) {
             line = line.trim();
             Matcher propMatcher = propertyPattern.matcher(line);
             if (propMatcher.matches()) {
-                properties.put(propMatcher.group(1), propMatcher.group(2).trim());
+                properties.put(propMatcher.group(1), new PropertyLine(propMatcher.group(2).trim(), l));
             }
+            ++l;
         }
         return properties;
     }
