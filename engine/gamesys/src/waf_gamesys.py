@@ -9,6 +9,38 @@ stderr_lock = Lock()
 def configure(conf):
     conf.find_file('meshc.py', var='MESHC', mandatory = True)
 
+def transform_properties(properties, out_properties):
+    for property in properties:
+        entry = None
+        if property.type == gameobject_ddf_pb2.PROPERTY_TYPE_NUMBER:
+            entry = out_properties.number_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.append(float(property.value))
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_HASH:
+            entry = out_properties.hash_entries.add()
+            entry.index = len(out_properties.hash_values)
+            out_properties.hash_values.append(dlib.dmHashBuffer64(property.value))
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_URL:
+            entry = out_properties.url_entries.add()
+            entry.index = len(out_properties.string_values)
+            out_properties.string_values.append(property.value)
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_VECTOR3:
+            entry = out_properties.vector3_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.extend([float(v.strip()) for v in property.value.split(',')])
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_VECTOR4:
+            entry = out_properties.vector4_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.extend([float(v.strip()) for v in property.value.split(',')])
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_QUAT:
+            entry = out_properties.quat_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.extend([float(v.strip()) for v in property.value.split(',')])
+        else:
+            raise Exception("Invalid type")
+        entry.key = property.id
+        entry.id = dlib.dmHashBuffer64(property.id)
+
 def transform_texture_name(task, name):
     name = name.replace('.png', '.texturec')
     name = name.replace('.jpg', '.texturec')
@@ -22,6 +54,8 @@ def transform_tilesource_name(name):
 def transform_collection(task, msg):
     for i in msg.instances:
         i.prototype = i.prototype.replace('.go', '.goc')
+        for comp_props in i.component_properties:
+            transform_properties(comp_props.properties, comp_props.property_decls)
     for c in msg.collection_instances:
         c.collection = c.collection.replace('.collection', '.collectionc')
     return msg
@@ -86,6 +120,7 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.tilesource', '.texturesetc')
         c.component = c.component.replace('.tilegrid', '.tilegridc')
         c.component = c.component.replace('.tilemap', '.tilegridc')
+        transform_properties(c.properties, c.property_decls)
     return msg
 
 def transform_model(task, msg):
