@@ -1,0 +1,15 @@
+go.property("number", 1)
+go.property("hash", hash("hash"))
+go.property("url", msg.url())
+go.property("vec3", vmath.vector3())
+go.property("vec4", vmath.vector4())
+go.property("quat", vmath.quat())
+
+function init(self)
+    assert(self.number == 3)
+    assert(self.hash == hash("hash3"))
+    assert(self.url == msg.url("url3"))
+    assert(self.vec3 == vmath.vector3(11, 12, 13))
+    assert(self.vec4 == vmath.vector4(14, 15, 16, 17))
+    assert(self.quat == vmath.quat(18, 19, 20, 21))
+end

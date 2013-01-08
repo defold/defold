@@ -79,6 +79,43 @@ TEST_F(FactoryTest, FactoryScaleAlongZ)
     ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
 }
 
+TEST_F(FactoryTest, FactoryProperties)
+{
+    lua_State* L = dmGameObject::GetLuaState();
+    lua_newtable(L);
+    lua_pushliteral(L, "number");
+    lua_pushnumber(L, 3);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "hash");
+    dmScript::PushHash(L, dmHashString64("hash3"));
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "url");
+    dmMessage::URL url;
+    url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    url.m_Path = dmHashString64("/url3");
+    url.m_Fragment = 0;
+    dmScript::PushURL(L, url);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "vec3");
+    dmScript::PushVector3(L, Vector3(11, 12, 13));
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "vec4");
+    dmScript::PushVector4(L, Vector4(14, 15, 16, 17));
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "quat");
+    dmScript::PushQuat(L, Quat(18, 19, 20, 21));
+    lua_rawset(L, -3);
+    char buffer[256];
+    uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
+    lua_pop(L, 1);
+    dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), 2.0f);
+    ASSERT_NE((void*)0, instance);
+    id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), 2.0f);
+    ASSERT_NE((void*)0, instance);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

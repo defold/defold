@@ -206,25 +206,6 @@ TEST_F(PropsTest, PropsRelativeURL)
     dmResource::Release(m_Factory, collection);
 }
 
-//TEST_F(PropsTest, PropsFailOverflowDefs)
-//{
-//    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_defs.goc");
-//    ASSERT_EQ((void*) 0, (void*) go);
-//}
-
-//TEST_F(PropsTest, PropsFailOverflowGo)
-//{
-//    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_overflow_go.goc");
-//    ASSERT_EQ((void*) 0, (void*) go);
-//}
-
-//TEST_F(PropsTest, PropsFailOverflowColl)
-//{
-//    dmGameObject::HCollection collection;
-//    dmResource::Result res = dmResource::Get(m_Factory, "/props_fail_overflow_coll.collectionc", (void**)&collection);
-//    ASSERT_NE(dmResource::RESULT_OK, res);
-//}
-
 TEST_F(PropsTest, PropsFailDefInInit)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_def_in_init.goc");
@@ -233,26 +214,6 @@ TEST_F(PropsTest, PropsFailDefInInit)
     ASSERT_FALSE(result);
     dmGameObject::Delete(m_Collection, go);
 }
-
-//TEST_F(PropsTest, PropsFailLuaTableOverflow)
-//{
-//    lua_State* L = luaL_newstate();
-//    const uint32_t original_count = 16;
-//    lua_newtable(L);
-//    for (uint32_t i = 0; i < original_count; ++i)
-//    {
-//        char key[3];
-//        DM_SNPRINTF(key, 3, "%d", i);
-//        lua_pushstring(L, key);
-//        lua_pushnumber(L, i);
-//        lua_settable(L, 1);
-//    }
-//    const uint32_t buffer_size = original_count*2;
-//    uint8_t buffer[buffer_size];
-//    uint32_t actual_size = dmGameObject::LuaTableToProperties(L, 1, buffer, buffer_size);
-//    ASSERT_GT(actual_size, buffer_size);
-//    lua_close(L);
-//}
 
 TEST_F(PropsTest, PropsFailNoUserData)
 {

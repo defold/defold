@@ -15,6 +15,8 @@ namespace dmGameObject
 
     bool CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
     {
+        int top = lua_gettop(L);
+        (void)top;
         if (buffer_size > 0)
         {
             dmArray<PropertyLua> props;
@@ -92,11 +94,12 @@ namespace dmGameObject
                     else
                     {
                         lua_pop(L, 1);
+                        assert(top == lua_gettop(L));
                         return false;
                     }
                 }
             }
-            lua_pop(L, 2);
+            lua_pop(L, 1);
             if (!props.Empty())
             {
                 dmArray<PropertyLua>* p = new dmArray<PropertyLua>();
@@ -104,6 +107,7 @@ namespace dmGameObject
                 *user_data = (uintptr_t)p;
             }
         }
+        assert(top == lua_gettop(L));
         return true;
     }
 

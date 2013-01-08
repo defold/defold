@@ -1,0 +1,10 @@
+components {
+  id: "script"
+  component: "/test_props.scriptc"
+  properties { id: "number" value: "2" type: PROPERTY_TYPE_NUMBER }
+  properties { id: "hash" value: "hash2" type: PROPERTY_TYPE_HASH }
+  properties { id: "url" value: "url" type: PROPERTY_TYPE_URL }
+  properties { id: "vec3" value: "1, 2, 3" type: PROPERTY_TYPE_VECTOR3 }
+  properties { id: "vec4" value: "4, 5, 6, 7" type: PROPERTY_TYPE_VECTOR4 }
+  properties { id: "quat" value: "8, 9, 10, 11" type: PROPERTY_TYPE_QUAT }
+}
