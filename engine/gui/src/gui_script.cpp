@@ -1356,8 +1356,9 @@ namespace dmGui
 
 #undef REGGETSET
 
-    dmhash_t ScriptResolvePathCallback(lua_State* L, const char* path, uint32_t path_size)
+    dmhash_t ScriptResolvePathCallback(uintptr_t resolve_user_data, const char* path, uint32_t path_size)
     {
+        lua_State* L = (lua_State*)resolve_user_data;
         Scene* scene = GetScene(L);
 
         return scene->m_Context->m_ResolvePathCallback(scene, path, path_size);
