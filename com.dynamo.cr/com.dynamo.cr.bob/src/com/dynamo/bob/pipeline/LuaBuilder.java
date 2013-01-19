@@ -3,15 +3,17 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.lua.proto.Lua.LuaModule.Type;
@@ -52,8 +54,8 @@ public abstract class LuaBuilder extends Builder<Void> {
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
-        Map<String, LuaScanner.PropertyLine> properties = LuaScanner.scanProperties(script);
-        PropertyDeclarations propertiesMsg = parseProperties(task.input(0), properties);
+        List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
+        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties);
         builder.setProperties(propertiesMsg);
         builder.setType(Type.TYPE_TEXT);
         builder.setScript(ByteString.copyFrom(scriptBytes));
@@ -64,86 +66,61 @@ public abstract class LuaBuilder extends Builder<Void> {
         task.output(0).setContent(out.toByteArray());
     }
 
-    // http://docs.python.org/dev/library/re.html#simulating-scanf
-    private static Pattern numPattern = Pattern.compile("[-+]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?");
-    private static Pattern hashPattern = Pattern.compile("hash\\(\"(.*?)\"\\)");
-    private static Pattern urlPattern = Pattern.compile("msg\\.url\\((\"(.*?)\")?\\)");
-    private static Pattern vec3Pattern = Pattern.compile("vmath\\.vector3\\(((.*?),(.*?),(.*?)|)\\)");
-    private static Pattern vec4Pattern = Pattern.compile("vmath\\.vector4\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
-    private static Pattern quatPattern = Pattern.compile("vmath\\.quat\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
-
-    private PropertyDeclarations parseProperties(IResource resource, Map<String, LuaScanner.PropertyLine> properties) throws CompileExceptionError {
+    private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties) throws CompileExceptionError {
         PropertyDeclarations.Builder builder = PropertyDeclarations.newBuilder();
         if (!properties.isEmpty()) {
-            for (Map.Entry<String, LuaScanner.PropertyLine> entry : properties.entrySet()) {
-                String value = entry.getValue().value;
-                Matcher numMatcher = numPattern.matcher(value);
-                Matcher hashMatcher = hashPattern.matcher(value);
-                Matcher urlMatcher = urlPattern.matcher(value);
-                Matcher vec3Matcher = vec3Pattern.matcher(value);
-                Matcher vec4Matcher = vec4Pattern.matcher(value);
-                Matcher quatMatcher = quatPattern.matcher(value);
-                PropertyDeclarationEntry.Builder entryBuilder = PropertyDeclarationEntry.newBuilder();
-                entryBuilder.setKey(entry.getKey());
-                entryBuilder.setId(MurmurHash.hash64(entry.getKey()));
-                if (numMatcher.matches()) {
-                    entryBuilder.setIndex(builder.getFloatValuesCount());
-                    builder.addFloatValues(Float.parseFloat(numMatcher.group(0)));
-                    builder.addNumberEntries(entryBuilder);
-                } else if (hashMatcher.matches()) {
-                    entryBuilder.setIndex(builder.getHashValuesCount());
-                    builder.addHashValues(MurmurHash.hash64(hashMatcher.group(1)));
-                    builder.addHashEntries(entryBuilder);
-                } else if (urlMatcher.matches()) {
-                    entryBuilder.setIndex(builder.getStringValuesCount());
-                    String url = urlMatcher.group(2);
-                    if (url == null) {
-                        url = "";
+            for (LuaScanner.Property property : properties) {
+                if (property.status == Status.OK) {
+                    PropertyDeclarationEntry.Builder entryBuilder = PropertyDeclarationEntry.newBuilder();
+                    entryBuilder.setKey(property.name);
+                    entryBuilder.setId(MurmurHash.hash64(property.name));
+                    switch (property.type) {
+                    case PROPERTY_TYPE_NUMBER:
+                        entryBuilder.setIndex(builder.getFloatValuesCount());
+                        builder.addFloatValues(((Double)property.value).floatValue());
+                        builder.addNumberEntries(entryBuilder);
+                        break;
+                    case PROPERTY_TYPE_HASH:
+                        entryBuilder.setIndex(builder.getHashValuesCount());
+                        builder.addHashValues(MurmurHash.hash64((String)property.value));
+                        builder.addHashEntries(entryBuilder);
+                        break;
+                    case PROPERTY_TYPE_URL:
+                        entryBuilder.setIndex(builder.getStringValuesCount());
+                        builder.addStringValues((String)property.value);
+                        builder.addUrlEntries(entryBuilder);
+                        break;
+                    case PROPERTY_TYPE_VECTOR3:
+                        entryBuilder.setIndex(builder.getFloatValuesCount());
+                        Vector3d v3 = (Vector3d)property.value;
+                        builder.addFloatValues((float)v3.getX());
+                        builder.addFloatValues((float)v3.getY());
+                        builder.addFloatValues((float)v3.getZ());
+                        builder.addVector3Entries(entryBuilder);
+                        break;
+                    case PROPERTY_TYPE_VECTOR4:
+                        entryBuilder.setIndex(builder.getFloatValuesCount());
+                        Vector4d v4 = (Vector4d)property.value;
+                        builder.addFloatValues((float)v4.getX());
+                        builder.addFloatValues((float)v4.getY());
+                        builder.addFloatValues((float)v4.getZ());
+                        builder.addFloatValues((float)v4.getW());
+                        builder.addVector4Entries(entryBuilder);
+                        break;
+                    case PROPERTY_TYPE_QUAT:
+                        entryBuilder.setIndex(builder.getFloatValuesCount());
+                        Quat4d q = (Quat4d)property.value;
+                        builder.addFloatValues((float)q.getX());
+                        builder.addFloatValues((float)q.getY());
+                        builder.addFloatValues((float)q.getZ());
+                        builder.addFloatValues((float)q.getW());
+                        builder.addQuatEntries(entryBuilder);
+                        break;
                     }
-                    builder.addStringValues(url);
-                    builder.addUrlEntries(entryBuilder);
-                } else if (vec3Matcher.matches()) {
-                    entryBuilder.setIndex(builder.getFloatValuesCount());
-                    if (vec3Matcher.group(2) != null) {
-                        builder.addFloatValues(Float.parseFloat(vec3Matcher.group(2)));
-                        builder.addFloatValues(Float.parseFloat(vec3Matcher.group(3)));
-                        builder.addFloatValues(Float.parseFloat(vec3Matcher.group(4)));
-                    } else {
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                    }
-                    builder.addVector3Entries(entryBuilder);
-                } else if (vec4Matcher.matches()) {
-                    entryBuilder.setIndex(builder.getFloatValuesCount());
-                    if (vec4Matcher.group(2) != null) {
-                        builder.addFloatValues(Float.parseFloat(vec4Matcher.group(2)));
-                        builder.addFloatValues(Float.parseFloat(vec4Matcher.group(3)));
-                        builder.addFloatValues(Float.parseFloat(vec4Matcher.group(4)));
-                        builder.addFloatValues(Float.parseFloat(vec4Matcher.group(5)));
-                    } else {
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                    }
-                    builder.addVector4Entries(entryBuilder);
-                } else if (quatMatcher.matches()) {
-                    entryBuilder.setIndex(builder.getFloatValuesCount());
-                    if (quatMatcher.group(2) != null) {
-                        builder.addFloatValues(Float.parseFloat(quatMatcher.group(2)));
-                        builder.addFloatValues(Float.parseFloat(quatMatcher.group(3)));
-                        builder.addFloatValues(Float.parseFloat(quatMatcher.group(4)));
-                        builder.addFloatValues(Float.parseFloat(quatMatcher.group(5)));
-                    } else {
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                        builder.addFloatValues(0.0f);
-                    }
-                    builder.addQuatEntries(entryBuilder);
-                } else {
-                    throw new CompileExceptionError(resource, entry.getValue().line, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat");
+                } else if (property.status == Status.INVALID_ARGS) {
+                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4 or vmath.quat.");
+                } else if (property.status == Status.INVALID_VALUE) {
+                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat");
                 }
             }
         }

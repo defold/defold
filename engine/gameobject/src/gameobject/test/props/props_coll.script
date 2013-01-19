@@ -4,6 +4,7 @@ go.property("hash", hash(""))
 go.property("vec3", vmath.vector3())
 go.property("vec4", vmath.vector4())
 go.property("quat", vmath.quat())
+go.property("bool", false)
 
 function init(self)
     assert(self.number == 200)
@@ -15,4 +16,5 @@ function init(self)
     assert(self.vec3 == vmath.vector3(1, 2, 3))
     assert(self.vec4 == vmath.vector4(4, 5, 6, 7))
     assert(self.quat == vmath.quat(8, 9, 10, 11))
+    assert(self.bool)
 end

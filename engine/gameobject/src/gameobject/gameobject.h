@@ -113,6 +113,7 @@ namespace dmGameObject
         PROPERTY_TYPE_VECTOR3 = 3,
         PROPERTY_TYPE_VECTOR4 = 4,
         PROPERTY_TYPE_QUAT = 5,
+        PROPERTY_TYPE_BOOLEAN = 6,
         PROPERTY_TYPE_COUNT
     };
 
@@ -156,6 +157,7 @@ namespace dmGameObject
             dmhash_t m_Hash;
             dmMessage::URL m_URL;
             float m_V4[4];
+            bool m_Bool;
         };
     };
 

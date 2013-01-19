@@ -13,7 +13,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
-import com.dynamo.cr.go.core.script.LuaPropertyParser;
+import com.dynamo.bob.pipeline.LuaScanner;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.INodeType;
@@ -21,7 +21,6 @@ import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
-import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
@@ -49,11 +48,11 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
             componentNode.setRotation(LoaderUtil.toQuat4(componentDesc.getRotation()));
             componentNode.setId(componentDesc.getId());
             componentNode.setComponent(path);
-            Map<String, String> properties = new HashMap<String, String>();
+            Map<String, Object> properties = new HashMap<String, Object>();
             int propertyCount = componentDesc.getPropertiesCount();
             for (int j = 0; j < propertyCount; ++j) {
                 PropertyDesc propDesc = componentDesc.getProperties(j);
-                properties.put(propDesc.getId(), propDesc.getValue());
+                properties.put(propDesc.getId(), GoPropertyUtil.stringToProperty(propDesc.getType(), propDesc.getValue()));
             }
             componentNode.setPrototypeProperties(properties);
             gameObject.addChild(componentNode);
@@ -93,26 +92,16 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                 componentBuilder.setId(component.getId());
                 componentBuilder.setComponent(component.getComponent());
                 // Store properties
-                List<LuaPropertyParser.Property> propertyDefaults = component.getPropertyDefaults();
-                Map<String, String> properties = component.getPrototypeProperties();
-                for (LuaPropertyParser.Property property : propertyDefaults) {
-                    if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
-                        String value = properties.get(property.getName());
+                List<LuaScanner.Property> propertyDefaults = component.getPropertyDefaults();
+                Map<String, Object> properties = component.getPrototypeProperties();
+                for (LuaScanner.Property property : propertyDefaults) {
+                    if (property.status == LuaScanner.Property.Status.OK) {
+                        Object value = properties.get(property.name);
                         if (value != null) {
                             PropertyDesc.Builder propertyBuilder = PropertyDesc.newBuilder();
-                            propertyBuilder.setId(property.getName());
-                            switch(property.getType()) {
-                            case NUMBER:
-                                propertyBuilder.setType(GameObject.PropertyType.PROPERTY_TYPE_NUMBER);
-                                break;
-                            case HASH:
-                                propertyBuilder.setType(GameObject.PropertyType.PROPERTY_TYPE_HASH);
-                                break;
-                            case URL:
-                                propertyBuilder.setType(GameObject.PropertyType.PROPERTY_TYPE_URL);
-                                break;
-                            }
-                            propertyBuilder.setValue(value);
+                            propertyBuilder.setId(property.name);
+                            propertyBuilder.setType(property.type);
+                            propertyBuilder.setValue(GoPropertyUtil.propertyToString(value));
                             componentBuilder.addProperties(propertyBuilder);
                         }
                     }

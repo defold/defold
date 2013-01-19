@@ -13,7 +13,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.SubMonitor;
 
-import com.dynamo.cr.go.core.script.LuaPropertyParser;
+import com.dynamo.bob.pipeline.LuaScanner;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.Node;
@@ -24,7 +24,6 @@ import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
-import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -57,11 +56,11 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             int compPropCount = instanceDesc.getComponentPropertiesCount();
             for (int j = 0; j < compPropCount; ++j) {
                 ComponentPropertyDesc compPropDesc = instanceDesc.getComponentProperties(j);
-                Map<String, String> componentProperties = new HashMap<String, String>();
+                Map<String, Object> componentProperties = new HashMap<String, Object>();
                 int propCount = compPropDesc.getPropertiesCount();
                 for (int k = 0; k < propCount; ++k) {
                     PropertyDesc propDesc = compPropDesc.getProperties(k);
-                    componentProperties.put(propDesc.getId(), propDesc.getValue());
+                    componentProperties.put(propDesc.getId(), GoPropertyUtil.stringToProperty(propDesc.getType(), propDesc.getValue()));
                 }
                 instanceNode.setComponentProperties(compPropDesc.getId(), componentProperties);
             }
@@ -142,28 +141,18 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
         for (Node instanceChild : instance.getChildren()) {
             if (instanceChild instanceof ComponentPropertyNode) {
                 ComponentPropertyNode compNode = (ComponentPropertyNode)instanceChild;
-                List<LuaPropertyParser.Property> defaults = compNode.getPropertyDefaults();
-                Map<String, String> properties = compNode.getComponentProperties();
+                List<LuaScanner.Property> defaults = compNode.getPropertyDefaults();
+                Map<String, Object> properties = compNode.getComponentProperties();
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder();
                 compPropBuilder.setId(compNode.getId());
-                for (LuaPropertyParser.Property property : defaults) {
-                    if (property.getStatus() == LuaPropertyParser.Property.Status.OK) {
-                        String value = properties.get(property.getName());
+                for (LuaScanner.Property property : defaults) {
+                    if (property.status == LuaScanner.Property.Status.OK) {
+                        Object value = properties.get(property.name);
                         if (value != null) {
                             PropertyDesc.Builder propBuilder = PropertyDesc.newBuilder();
-                            propBuilder.setId(property.getName());
-                            switch (property.getType()) {
-                            case NUMBER:
-                                propBuilder.setType(PropertyType.PROPERTY_TYPE_NUMBER);
-                                break;
-                            case HASH:
-                                propBuilder.setType(PropertyType.PROPERTY_TYPE_HASH);
-                                break;
-                            case URL:
-                                propBuilder.setType(PropertyType.PROPERTY_TYPE_URL);
-                                break;
-                            }
-                            propBuilder.setValue(value);
+                            propBuilder.setId(property.name);
+                            propBuilder.setType(property.type);
+                            propBuilder.setValue(GoPropertyUtil.propertyToString(value));
                             compPropBuilder.addProperties(propBuilder);
                         }
                     }

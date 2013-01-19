@@ -453,9 +453,13 @@ namespace dmGameObject
         {
             valid_type = true;
         }
+        else if (lua_isboolean(L, 2))
+        {
+            valid_type = true;
+        }
         if (!valid_type)
         {
-            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, hash, URL, vector3, vector4 or quat.", lua_typename(L, lua_type(L, 2)));
+            return luaL_error(L, "Invalid type (%s) supplied to go.property, must be either a number, boolean, hash, URL, vector3, vector4 or quat.", lua_typename(L, lua_type(L, 2)));
         }
         assert(top == lua_gettop(L));
         return 0;
@@ -813,6 +817,17 @@ bail:
                 return PROPERTY_RESULT_OK;
             }
         }
+        n = defs->m_BoolEntries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const PropertyDeclarationEntry& entry = defs->m_BoolEntries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
+                out_var.m_Bool = defs->m_FloatValues[entry.m_Index] != 0.0f;
+                return PROPERTY_RESULT_OK;
+            }
+        }
         return PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -942,6 +957,18 @@ bail:
             assert(result);
             assert(var.m_Type == PROPERTY_TYPE_QUAT);
             dmScript::PushQuat(L, Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            lua_settable(L, index - 2);
+        }
+        count = declarations->m_BoolEntries.m_Count;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const PropertyDeclarationEntry& entry = declarations->m_BoolEntries[i];
+            lua_pushstring(L, entry.m_Key);
+            bool result = GetProperty(properties, entry.m_Id, var);
+            (void)result;
+            assert(result);
+            assert(var.m_Type == PROPERTY_TYPE_BOOLEAN);
+            lua_pushboolean(L, var.m_Bool);
             lua_settable(L, index - 2);
         }
     }

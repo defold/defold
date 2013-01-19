@@ -31,7 +31,7 @@ public class GameObjectInstanceNode extends InstanceNode {
     @NotEmpty
     private String gameObject = "";
 
-    private Map<String, Map<String, String>> componentProperties;
+    private Map<String, Map<String, Object>> componentProperties;
 
     private transient GameObjectNode gameObjectNode;
 
@@ -42,7 +42,7 @@ public class GameObjectInstanceNode extends InstanceNode {
     public GameObjectInstanceNode(GameObjectNode gameObject) {
         super();
         this.gameObjectNode = gameObject;
-        this.componentProperties = new HashMap<String, Map<String, String>>();
+        this.componentProperties = new HashMap<String, Map<String, Object>>();
         if (this.gameObjectNode != null) {
             this.gameObjectNode.setFlagsRecursively(Flags.LOCKED);
             addChild(this.gameObjectNode);
@@ -74,11 +74,11 @@ public class GameObjectInstanceNode extends InstanceNode {
         }
     }
 
-    public Map<String, String> getComponentProperties(String id) {
+    public Map<String, Object> getComponentProperties(String id) {
         return this.componentProperties.get(id);
     }
 
-    public void setComponentProperties(String id, Map<String, String> properties) {
+    public void setComponentProperties(String id, Map<String, Object> properties) {
         this.componentProperties.put(id, properties);
     }
 
@@ -180,9 +180,9 @@ public class GameObjectInstanceNode extends InstanceNode {
             }
         }
         for (Map.Entry<String, RefComponentNode> entry : refIds.entrySet()) {
-            Map<String, String> properties = getComponentProperties(entry.getKey());
+            Map<String, Object> properties = getComponentProperties(entry.getKey());
             if (properties == null) {
-                properties = new HashMap<String, String>();
+                properties = new HashMap<String, Object>();
                 setComponentProperties(entry.getKey(), properties);
             }
             ComponentPropertyNode node = new ComponentPropertyNode(entry.getValue(), properties);

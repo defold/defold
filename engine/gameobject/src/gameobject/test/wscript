@@ -55,6 +55,10 @@ def transform_properties(properties, out_properties):
             entry = out_properties.quat_entries.add()
             entry.index = len(out_properties.float_values)
             out_properties.float_values.extend([float(v.strip()) for v in property.value.split(',')])
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_BOOLEAN:
+            entry = out_properties.bool_entries.add()
+            entry.index = len(out_properties.float_values)
+            out_properties.float_values.append(float(property.value == "true"))
         else:
             raise Exception("Invalid type")
         entry.key = property.id
@@ -218,6 +222,7 @@ def parse_properties(props):
         rp_vec3 = re.compile(r"vmath\.vector3\(((.*?),(.*?),(.*?)|)\)")
         rp_vec4 = re.compile(r"vmath\.vector4\(((.*?),(.*?),(.*?),(.*?)|)\)")
         rp_quat = re.compile(r"vmath\.quat\(((.*?),(.*?),(.*?),(.*?)|)\)")
+        rp_bool = re.compile(r"(true|false)")
         for k,v in props.items():
             m_num = rp_num.match(v)
             m_hash = rp_hash.match(v)
@@ -225,6 +230,7 @@ def parse_properties(props):
             m_vec3 = rp_vec3.match(v)
             m_vec4 = rp_vec4.match(v)
             m_quat = rp_quat.match(v)
+            m_bool = rp_bool.match(v)
             entry = None
             if m_num:
                 entry = declarations.number_entries.add()
@@ -268,6 +274,12 @@ def parse_properties(props):
                 else:
                     quat = (0, 0, 0, 0)
                 declarations.float_values.extend(quat)
+            elif m_bool:
+                entry = declarations.bool_entries.add()
+                entry.index = len(declarations.float_values)
+                if m_bool.group(0) == 'true': num = 1
+                else: num = 0
+                declarations.float_values.append(num)
             else:
                 # TODO Handle error?
                 print("%s has unknown format: \"%s\"" % (k,v))

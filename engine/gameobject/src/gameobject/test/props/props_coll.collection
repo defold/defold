@@ -10,5 +10,6 @@ instances {
     properties {id: "vec3" value: "1, 2, 3" type: PROPERTY_TYPE_VECTOR3}
     properties {id: "vec4" value: "4, 5, 6, 7" type: PROPERTY_TYPE_VECTOR4}
     properties {id: "quat" value: "8, 9, 10, 11" type: PROPERTY_TYPE_QUAT}
+    properties {id: "bool" value: "true" type: PROPERTY_TYPE_BOOLEAN}
   }
 }

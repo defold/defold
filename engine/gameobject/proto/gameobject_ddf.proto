@@ -17,7 +17,8 @@ enum PropertyType
     PROPERTY_TYPE_VECTOR3 = 3;
     PROPERTY_TYPE_VECTOR4 = 4;
     PROPERTY_TYPE_QUAT = 5;
-    PROPERTY_TYPE_COUNT = 6;
+    PROPERTY_TYPE_BOOLEAN = 6;
+    PROPERTY_TYPE_COUNT = 7;
 }
 
 message PropertyDesc

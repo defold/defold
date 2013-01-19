@@ -16,7 +16,8 @@ Require-Bundle: org.eclipse.core.runtime,
  com.dynamo.cr.properties;bundle-version="1.0.0",
  com.dynamo.cr.editor.ui;bundle-version="1.0.0",
  com.dynamo.cr.sceneed;bundle-version="1.0.0",
- slf4j;bundle-version="1.6.4"
+ slf4j;bundle-version="1.6.4",
+ com.dynamo.cr.bob;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Export-Package: com.dynamo.cr.go.core,
  com.dynamo.cr.go.core.operations,

@@ -19,7 +19,8 @@ namespace dmGameObject
             "URL",
             "vector3",
             "vector4",
-            "quat"
+            "quat",
+            "bool"
     };
 
     PropertySet::PropertySet()

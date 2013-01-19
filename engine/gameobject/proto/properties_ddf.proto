@@ -16,12 +16,13 @@ message PropertyDeclarationEntry
 message PropertyDeclarations
 {
     repeated PropertyDeclarationEntry   number_entries = 1;
-    repeated PropertyDeclarationEntry   hash_entries = 3;
-    repeated PropertyDeclarationEntry   url_entries = 5;
-    repeated PropertyDeclarationEntry   vector3_entries = 7;
-    repeated PropertyDeclarationEntry   vector4_entries = 9;
-    repeated PropertyDeclarationEntry   quat_entries = 11;
-    repeated float                      float_values = 2;
-    repeated uint64                     hash_values = 4;
-    repeated string                     string_values = 6;
+    repeated PropertyDeclarationEntry   hash_entries = 2;
+    repeated PropertyDeclarationEntry   url_entries = 3;
+    repeated PropertyDeclarationEntry   vector3_entries = 4;
+    repeated PropertyDeclarationEntry   vector4_entries = 5;
+    repeated PropertyDeclarationEntry   quat_entries = 6;
+    repeated PropertyDeclarationEntry   bool_entries = 7;
+    repeated float                      float_values = 8;
+    repeated uint64                     hash_values = 9;
+    repeated string                     string_values = 10;
 }

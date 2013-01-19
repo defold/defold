@@ -35,6 +35,10 @@ namespace dmGameObject
                         var.m_Type = PROPERTY_TYPE_NUMBER;
                         var.m_Number = lua_tonumber(L, -1);
                         break;
+                    case LUA_TBOOLEAN:
+                        var.m_Type = PROPERTY_TYPE_BOOLEAN;
+                        var.m_Bool = lua_toboolean(L, -1);
+                        break;
                     case LUA_TUSERDATA:
                         if (dmScript::IsHash(L, -1))
                         {

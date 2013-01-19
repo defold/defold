@@ -7,19 +7,6 @@
 
 namespace dmGameObject
 {
-    struct PropertyVarDDF
-    {
-        dmhash_t m_Id;
-        dmGameObjectDDF::PropertyType m_Type;
-        union
-        {
-            double m_Number;
-            dmhash_t m_Hash;
-            const char* m_URL;
-            float m_V4[4];
-        };
-    };
-
     bool CreatePropertySetUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data)
     {
         uint32_t save_size = 0;
@@ -119,6 +106,11 @@ namespace dmGameObject
                 out_var.m_V4[2] = copy->m_FloatValues[index+2];
                 out_var.m_V4[3] = copy->m_FloatValues[index+3];
                 out_var.m_Type = PROPERTY_TYPE_QUAT;
+            }
+            else if (GetPropertyEntryIndex(id, copy->m_BoolEntries.m_Data, copy->m_BoolEntries.m_Count, &index))
+            {
+                out_var.m_Bool = copy->m_FloatValues[index] != 0;
+                out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
             }
             else
             {
