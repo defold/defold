@@ -128,11 +128,10 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
 
     @Override
     public Object[] getPropertyOptions(String id) {
-        // NOTE: Options is not supported for dynamic properties - yet..
         if (staticIntrospector.hasProperty(id))
             return staticIntrospector.getPropertyOptions(object, world, id);
         else
-            return new Object[0];
+            return dynamicIntrospector.getPropertyOptions(object, world, id);
     }
 }
 

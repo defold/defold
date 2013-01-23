@@ -1,5 +1,6 @@
 package com.dynamo.cr.go.core;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -13,6 +14,7 @@ import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.PropertyUtil;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.gameobject.proto.GameObject.PropertyType;
 
 @SuppressWarnings("serial")
 public class ComponentPropertyNode extends Node {
@@ -103,6 +105,12 @@ public class ComponentPropertyNode extends Node {
         @Override
         public Object[] getPropertyOptions(ComponentPropertyNode obj, String property,
                 ISceneModel world) {
+            LuaScanner.Property defProp = ref.getPropertyDefault(property);
+            if (defProp != null && defProp.type == PropertyType.PROPERTY_TYPE_URL) {
+                Object[] urls = GoPropertyUtil.extractRelativeURLs(ref);
+                Arrays.sort(urls);
+                return urls;
+            }
             return new Object[0];
         }
 

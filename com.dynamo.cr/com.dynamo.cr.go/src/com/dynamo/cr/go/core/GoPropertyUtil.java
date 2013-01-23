@@ -1,5 +1,7 @@
 package com.dynamo.cr.go.core;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.StringTokenizer;
 
 import javax.vecmath.Quat4d;
@@ -15,6 +17,7 @@ import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
 import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector3PropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector4PropertyDesc;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 
@@ -68,15 +71,17 @@ public class GoPropertyUtil {
         return null;
     }
 
-    public static <T, U extends IPropertyObjectWorld> IPropertyDesc<T, U> typeToDesc(PropertyType type, String id, String name, String category, EditorType editorType) {
+    public static <T, U extends IPropertyObjectWorld> IPropertyDesc<T, U> typeToDesc(PropertyType type, String id, String name, String category) {
         IPropertyDesc<T, U> desc = null;
         switch (type) {
         case PROPERTY_TYPE_NUMBER:
-            desc = new DoublePropertyDesc<T, U>(id, name, category, editorType);
+            desc = new DoublePropertyDesc<T, U>(id, name, category, EditorType.DEFAULT);
             break;
         case PROPERTY_TYPE_HASH:
+            desc = new TextPropertyDesc<T, U>(id, name, category, EditorType.DEFAULT);
+            break;
         case PROPERTY_TYPE_URL:
-            desc = new TextPropertyDesc<T, U>(id, name, category, editorType);
+            desc = new TextPropertyDesc<T, U>(id, name, category, EditorType.DROP_DOWN);
             break;
         case PROPERTY_TYPE_VECTOR3:
             desc = new Vector3PropertyDesc<T, U>(id, name, category);
@@ -92,5 +97,48 @@ public class GoPropertyUtil {
             break;
         }
         return desc;
+    }
+
+    private static List<String> extractRelativeURLs(RefComponentNode refNode, Node node, String collectionPath) {
+        List<String> urls = new ArrayList<String>();
+        List<Node> children = node.getChildren();
+        for (Node child : children) {
+            if (child instanceof CollectionInstanceNode) {
+                CollectionInstanceNode ci = (CollectionInstanceNode)child;
+                String path = collectionPath + ci.getId() + "/";
+                for (Node collChild : ci.getChildren()) {
+                    urls.addAll(extractRelativeURLs(refNode, collChild, path));
+                }
+            } else if (child instanceof GameObjectInstanceNode) {
+                GameObjectInstanceNode gi = (GameObjectInstanceNode)child;
+                String path = collectionPath + gi.getId();
+                urls.add(path);
+                urls.addAll(extractRelativeURLs(refNode, gi, collectionPath));
+                for (Node goChild : gi.getChildren()) {
+                    urls.addAll(extractRelativeURLs(refNode, goChild, collectionPath));
+                }
+            } else if (child instanceof ComponentNode) {
+                ComponentNode c = (ComponentNode)child;
+                if (c != refNode) {
+                    String fragment = "#" + c.getId();
+                    if (node == refNode.getParent()) {
+                        urls.add(fragment);
+                    } else {
+                        String path = collectionPath + ((GameObjectInstanceNode)node.getParent()).getId();
+                        urls.add(path + fragment);
+                    }
+                }
+            }
+        }
+        return urls;
+    }
+
+    public static String[] extractRelativeURLs(RefComponentNode componentNode) {
+        Node root = componentNode.getParent();
+        while (root.getParent() != null) {
+            root = root.getParent();
+        }
+        List<String> urls = extractRelativeURLs(componentNode, root, "");
+        return urls.toArray(new String[urls.size()]);
     }
 }

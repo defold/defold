@@ -25,6 +25,8 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.PropertyUtil;
 import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.gameobject.proto.GameObject.PropertyType;
 
 @SuppressWarnings("serial")
 public class RefComponentNode extends ComponentNode {
@@ -220,7 +222,7 @@ public class RefComponentNode extends ComponentNode {
                 for (int j = 1; j < tokenCount; ++j) {
                     name += tokens[j].substring(0, 1).toUpperCase() + tokens[j].substring(1);
                 }
-                descs[i] = GoPropertyUtil.typeToDesc(defProp.type, defProp.name, name, "", EditorType.DEFAULT);
+                descs[i] = GoPropertyUtil.typeToDesc(defProp.type, defProp.name, name, "");
             }
             ++i;
         }
@@ -272,6 +274,20 @@ public class RefComponentNode extends ComponentNode {
         @Override
         public Object[] getPropertyOptions(RefComponentNode obj, String property,
                 ISceneModel world) {
+            for (LuaScanner.Property defProp : propertyDefaults) {
+                if (defProp.name.equals(property)) {
+                    if (defProp.type == PropertyType.PROPERTY_TYPE_URL) {
+                        List<Node> children = getParent().getChildren();
+                        String[] ids = new String[children.size()];
+                        int i = 0;
+                        for (Node child : children) {
+                            ids[i] = "#" + ((ComponentNode)child).getId();
+                            ++i;
+                        }
+                        return ids;
+                    }
+                }
+            }
             return new Object[0];
         }
 

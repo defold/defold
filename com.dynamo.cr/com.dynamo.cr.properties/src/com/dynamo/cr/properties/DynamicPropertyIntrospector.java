@@ -114,5 +114,9 @@ public class DynamicPropertyIntrospector<T, U extends IPropertyObjectWorld> {
         }
     }
 
+    public Object[] getPropertyOptions(T object, U world, Object id) {
+        Object[] options = accessor.getPropertyOptions(object, (String) id, world);
+        return options;
+    }
 }
 
