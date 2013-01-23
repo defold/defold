@@ -890,7 +890,10 @@ public class SyncDialog extends TitleAreaDialog {
             BranchStatus branchStatus = this.syncDialog.getBranchStatus();
             java.util.List<ConflictedResourceStatus> conflictList = new java.util.ArrayList<ConflictedResourceStatus>(branchStatus.getFileStatusCount());
             for (Status status : branchStatus.getFileStatusList()) {
-                if (status.getIndexStatus().equals("U")) {
+                // NOTE: This is broken and doens't handle cases with deleted files
+                // See case 1906 and case 1348
+                if (status.getIndexStatus().equals("U")
+                 || (status.getIndexStatus().equals("A") && status.getWorkingTreeStatus().equals("A"))) {
                     ConflictedResourceStatus conflict = new ConflictedResourceStatus(status);
                     conflictList.add(conflict);
                     conflict.addResolveListener(this);
