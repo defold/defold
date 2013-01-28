@@ -21,7 +21,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException {
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         return defaultTask(input);
     }
 
