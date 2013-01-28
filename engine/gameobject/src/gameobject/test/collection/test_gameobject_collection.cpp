@@ -144,45 +144,21 @@ TEST_F(CollectionTest, CollectionInCollection)
 
         ASSERT_TRUE(dmGameObject::Update(coll, &m_UpdateContext));
 
-#define ASSERT_P3_NEAR(expected, actual)\
-    ASSERT_NEAR(expected.getX(), actual.getX(), 0.001f);\
-    ASSERT_NEAR(expected.getY(), actual.getY(), 0.001f);\
-    ASSERT_NEAR(expected.getZ(), actual.getZ(), 0.001f);
-
-        Point3 sub1_pos(0.0f, 1000.0f, 0.0f);
-        Quat sub1_rot(0.0f, 0.0f, 0.0f, 1.0f);
-        Point3 sub2_pos(0.0f, 1000.0f, 0.0f);
-        Quat sub2_rot(0.0f, 0.0f, -0.7071f, 0.7071f);
-        Point3 parent_pos(0.0f, 20.0f, 0.0f);
-        Quat parent_rot(0.0f, 0.7071f, 0.0f, 0.7071f);
-        Point3 child_pos(0.0f, 10.0f, 0.0f);
-        Quat child_rot(0.0f, 0.0f, 0.0f, 1.0f);
-
         dmhash_t parent_sub1_ident = dmHashString64("/sub1/parent");
         dmGameObject::HInstance parent_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, parent_sub1_ident);
         ASSERT_NE((void*) 0, parent_sub1);
-        ASSERT_P3_NEAR((sub1_pos + rotate(sub1_rot, Vector3(parent_pos))), dmGameObject::GetPosition(parent_sub1));
-        ASSERT_P3_NEAR((sub1_pos + rotate(sub1_rot, Vector3(parent_pos))), dmGameObject::GetWorldPosition(parent_sub1));
 
         dmhash_t child_sub1_ident = dmHashString64("/sub1/child");
         dmGameObject::HInstance child_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, child_sub1_ident);
         ASSERT_NE((void*) 0, child_sub1);
-        ASSERT_P3_NEAR(child_pos, dmGameObject::GetPosition(child_sub1));
-        ASSERT_P3_NEAR((sub1_pos + rotate(sub1_rot, Vector3(parent_pos + rotate(parent_rot, Vector3(child_pos))))), dmGameObject::GetWorldPosition(child_sub1));
 
         dmhash_t parent_sub2_ident = dmHashString64("/sub2/parent");
         dmGameObject::HInstance parent_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, parent_sub2_ident);
         ASSERT_NE((void*) 0, parent_sub2);
-        ASSERT_P3_NEAR((sub2_pos + rotate(sub2_rot, Vector3(parent_pos))), dmGameObject::GetPosition(parent_sub2));
-        ASSERT_P3_NEAR((sub2_pos + rotate(sub2_rot, Vector3(parent_pos))), dmGameObject::GetWorldPosition(parent_sub2));
 
         dmhash_t child_sub2_ident = dmHashString64("/sub2/child");
         dmGameObject::HInstance child_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, child_sub2_ident);
         ASSERT_NE((void*) 0, child_sub2);
-        ASSERT_P3_NEAR(child_pos, dmGameObject::GetPosition(child_sub2));
-        ASSERT_P3_NEAR((sub2_pos + rotate(sub2_rot, Vector3(parent_pos + rotate(parent_rot, Vector3(child_pos))))), dmGameObject::GetWorldPosition(child_sub2));
-
-#undef ASSERT_P3_NEAR
 
         // Relative identifiers
         ASSERT_EQ(dmHashString64("/a"), dmGameObject::GetAbsoluteIdentifier(go01, "a", strlen("a")));

@@ -38,11 +38,6 @@ namespace dmGameObject
     {
         m_ComponentTypeCount = 0;
         m_Mutex = dmMutex::New();
-        m_CurrentIdentifierPath[0] = '\0';
-        // If m_CurrentCollection != 0 => loading sub-collection
-        m_CurrentCollection = 0;
-        // Accumulated position for child collections
-        m_AccumulatedTransform.SetIdentity();
     }
 
     Register::~Register()

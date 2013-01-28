@@ -150,17 +150,9 @@ namespace dmGameObject
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
         dmMutex::Mutex              m_Mutex;
-        // Current identifier path. Used during loading of collections and specifically collections in collections.
-        // Contains the current path and is *protected* by m_Mutex.
-        char                        m_CurrentIdentifierPath[DM_GAMEOBJECT_CURRENT_IDENTIFIER_PATH_MAX];
 
         // All collections. Protected by m_Mutex
         dmArray<HCollection>        m_Collections;
-
-        // Pointer to current collection. Protected by m_Mutex. Related to m_CurrentIdentifierPath above.
-        Collection*                 m_CurrentCollection;
-
-        dmTransform::TransformS1    m_AccumulatedTransform;
 
         Register();
         ~Register();

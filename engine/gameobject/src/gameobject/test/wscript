@@ -68,14 +68,36 @@ def transform_collection(task, msg):
     for instance in msg.instances:
         for comp_props in instance.component_properties:
             transform_properties(comp_props.properties, comp_props.property_decls)
+        instance.id = "/" + instance.id
+
+    return msg
+
+def merge_collections(msg, sub_msg, sub_id):
+    for inst in sub_msg.instances:
+        new_inst = msg.instances.add()
+        new_inst.MergeFrom(inst)
+        new_inst.id = sub_id + "/" + inst.id
+
+def read_collection(path):
+    msg = gameobject_ddf_pb2.CollectionDesc()
+    with open(path, 'rb') as in_f:
+        google.protobuf.text_format.Merge(in_f.read(), msg)
+
+    for coll_inst in msg.collection_instances:
+        sub_msg = read_collection(os.path.dirname(path) + coll_inst.collection)
+        merge_collections(msg, sub_msg, coll_inst.id)
+    msg.collection_instances.__delslice__(0, len(msg.collection_instances))
+
     return msg
 
 def compile_collection(task):
     try:
-        msg = gameobject_ddf_pb2.CollectionDesc()
-        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), msg)
+        src_path = task.inputs[0].srcpath(task.env)
+        msg = read_collection(src_path)
         msg = transform_collection(task, msg)
+        for inst in msg.instances:
+            print(inst.id)
+            print(inst.position)
 
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
@@ -84,7 +106,7 @@ def compile_collection(task):
     except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
         stderr_lock.acquire()
         try:
-            print >>sys.stderr, '%s: %s' % (task.inputs[0].srcpath(task.env), str(e))
+            print >>sys.stderr, '%s: %s' % (src_path, str(e))
         finally:
             stderr_lock.release()
         return 1
@@ -98,10 +120,6 @@ task = Task.task_type_from_func('collection',
 @extension('.collection')
 def collectionfile(self, node):
     try:
-        msg = gameobject_ddf_pb2.CollectionDesc()
-        with open(node.abspath(self.env), 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), msg)
-
         task = self.create_task('collection')
         task.set_inputs(node)
 
