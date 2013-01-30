@@ -31,7 +31,7 @@ instances {
 }
 collection_instances {
   id: "sub1"
-  collection: "/sub.collectionc"
+  collection: "/sub.collection"
   position {
     x: 0.0
     y: 1000.0
@@ -46,7 +46,7 @@ collection_instances {
 }
 collection_instances {
   id: "sub2"
-  collection: "/sub.collectionc"
+  collection: "/sub.collection"
   position {
     x: 0.0
     y: 1000.0

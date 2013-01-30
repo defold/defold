@@ -9,5 +9,5 @@ instances {
 }
 collection_instances {
   id: "sub_coll"
-  collection: "/props_coll.collectionc"
+  collection: "/props_coll.collection"
 }

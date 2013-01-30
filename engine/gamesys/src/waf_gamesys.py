@@ -54,6 +54,7 @@ def transform_tilesource_name(name):
 def transform_collection(task, msg):
     for i in msg.instances:
         i.prototype = i.prototype.replace('.go', '.goc')
+        i.id = "/" + i.id
         for comp_props in i.component_properties:
             transform_properties(comp_props.properties, comp_props.property_decls)
     for c in msg.collection_instances:

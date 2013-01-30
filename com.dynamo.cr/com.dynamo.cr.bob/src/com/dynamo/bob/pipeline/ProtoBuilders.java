@@ -14,6 +14,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.PropertiesUtil;
@@ -65,11 +66,90 @@ public class ProtoBuilders {
     @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
     public static class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
+        private void collectSubCollections(CollectionDesc collection, Set<IResource> subCollections) throws CompileExceptionError, IOException {
+            for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
+                IResource subResource = project.getResource(sub.getCollection());
+                subCollections.add(subResource);
+                CollectionDesc.Builder builder = CollectionDesc.newBuilder();
+                ProtoUtil.merge(subResource, builder);
+                collectSubCollections(builder.build(), subCollections);
+            }
+        }
+
         @Override
-        protected CollectionDesc.Builder transform(IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+            Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+                    .setName(params.name())
+                    .addInput(input)
+                    .addOutput(input.changeExt(params.outExt()));
+            CollectionDesc.Builder builder = CollectionDesc.newBuilder();
+            ProtoUtil.merge(input, builder);
+            Set<IResource> subCollections = new HashSet<IResource>();
+            collectSubCollections(builder.build(), subCollections);
+            for (IResource subCollection : subCollections) {
+                taskBuilder.addInput(subCollection);
+            }
+            return taskBuilder.build();
+        }
+
+        private void mergeSubCollections(CollectionDesc.Builder collectionBuilder) throws IOException, CompileExceptionError {
+            Set<String> childIds = new HashSet<String>();
+            for (CollectionInstanceDesc collInst : collectionBuilder.getCollectionInstancesList()) {
+                IResource collResource = this.project.getResource(collInst.getCollection());
+                CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
+                ProtoUtil.merge(collResource, subCollBuilder);
+                mergeSubCollections(subCollBuilder);
+                // Collect child ids
+                childIds.clear();
+                for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
+                    childIds.addAll(inst.getChildrenList());
+                }
+                Point3d p = MathUtil.ddfToVecmath(collInst.getPosition());
+                Quat4d r = MathUtil.ddfToVecmath(collInst.getRotation());
+                double s = collInst.getScale();
+                String pathPrefix = collInst.getId() + "/";
+                for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
+                    InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
+                    // merge id
+                    instBuilder.setId(pathPrefix + inst.getId());
+                    // merge transform for non-children
+                    if (!childIds.contains(inst.getId())) {
+                        Point3d instP = MathUtil.ddfToVecmath(inst.getPosition());
+                        if (subCollBuilder.getScaleAlongZ() != 0) {
+                            instP.scale(s);
+                        } else {
+                            instP.set(s * instP.getX(), s * instP.getY(), instP.getZ());
+                        }
+                        MathUtil.rotate(r, instP);
+                        instP.add(p);
+                        instBuilder.setPosition(MathUtil.vecmathToDDF(instP));
+                        Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
+                        instR.mul(r, instR);
+                        instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
+                        instBuilder.setScale((float)(s * inst.getScale()));
+                    }
+                    // adjust child ids
+                    for (int i = 0; i < instBuilder.getChildrenCount(); ++i) {
+                        instBuilder.setChildren(i, pathPrefix + instBuilder.getChildren(i));
+                    }
+                    // add merged instance
+                    collectionBuilder.addInstances(instBuilder);
+                }
+            }
+            collectionBuilder.clearCollectionInstances();
+        }
+
+        @Override
+        protected CollectionDesc.Builder transform(IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
+
+            mergeSubCollections(messageBuilder);
 
             for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
                 InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));
+                b.setId("/" + b.getId());
+                for (int j = 0; j < b.getChildrenCount(); ++j) {
+                    b.setChildren(j, "/" + b.getChildren(j));
+                }
                 BuilderUtil.checkFile(this.project, resource, "prototype", b.getPrototype());
                 b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
                 for (int j = 0; j < b.getComponentPropertiesCount(); ++j) {
@@ -86,15 +166,10 @@ public class ProtoBuilders {
                 messageBuilder.setInstances(i, b);
             }
 
-            for (int i = 0; i < messageBuilder.getCollectionInstancesCount(); ++i) {
-                CollectionInstanceDesc.Builder b = CollectionInstanceDesc.newBuilder().mergeFrom(messageBuilder.getCollectionInstances(i));
-                BuilderUtil.checkFile(this.project, resource, "collection", b.getCollection());
-                b.setCollection(BuilderUtil.replaceExt(b.getCollection(), ".collection", ".collectionc"));
-                messageBuilder.setCollectionInstances(i, b);
-            }
-
             return messageBuilder;
         }
+
+
     }
 
     @ProtoParams(messageClass = CollectionProxyDesc.class)

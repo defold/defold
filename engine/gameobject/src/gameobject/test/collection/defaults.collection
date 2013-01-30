@@ -5,5 +5,5 @@ instances {
 }
 collection_instances {
   id: "id"
-  collection: "/defaults_sub.collectionc"
+  collection: "/defaults_sub.collection"
 }

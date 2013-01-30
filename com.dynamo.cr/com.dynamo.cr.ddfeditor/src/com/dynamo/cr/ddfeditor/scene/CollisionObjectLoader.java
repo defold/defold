@@ -87,7 +87,6 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
         return collisionObject;
     }
 
-
     private void buildShape(CollisionShapeNode shapeNode, Builder collisionShapeBuilder) {
         Shape.Builder b = doBuildShape(shapeNode, collisionShapeBuilder);
         b.setPosition(LoaderUtil.toPoint3(shapeNode.getTranslation()));

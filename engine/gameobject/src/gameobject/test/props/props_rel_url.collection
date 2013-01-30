@@ -1,7 +1,7 @@
 name: "main"
 collection_instances {
   id: "sub"
-  collection: "/props_rel_url_sub.collectionc"
+  collection: "/props_rel_url_sub.collection"
 }
 instances {
   id: "go"
