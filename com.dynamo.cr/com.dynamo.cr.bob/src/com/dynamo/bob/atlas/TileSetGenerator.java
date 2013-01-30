@@ -102,8 +102,8 @@ public class TileSetGenerator {
                 texCoords.putFloat(v0);
                 texCoords.putFloat(u1);
                 texCoords.putFloat(v1);
+                ++index;
             }
-            ++index;
         }
 
         List<Animation> animations = tileSet.getAnimationsList();
