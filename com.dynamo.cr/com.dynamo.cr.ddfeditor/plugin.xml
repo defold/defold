@@ -542,6 +542,7 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
       </node-type>
       <node-type
+            display-group="Models"
             id="com.dynamo.cr.ddfeditor.scene.modelNode"
             loader="com.dynamo.cr.ddfeditor.scene.ModelLoader"
             node="com.dynamo.cr.ddfeditor.scene.ModelNode"
@@ -602,6 +603,7 @@
             node="com.dynamo.cr.ddfeditor.scene.CollisionShapeNode">
       </node-type>
       <node-type
+            display-group="Models"
             id="com.dynamo.cr.ddfeditor.scene.meshNode"
             loader="com.dynamo.cr.ddfeditor.scene.MeshLoader"
             node="com.dynamo.cr.ddfeditor.scene.MeshNode"

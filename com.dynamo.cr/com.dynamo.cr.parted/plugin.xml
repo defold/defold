@@ -5,6 +5,7 @@
    <extension
          point="com.dynamo.cr.nodetypes">
       <node-type
+            display-group="ParticleFX"
             id="com.dynamo.cr.parted.particleFX"
             loader="com.dynamo.cr.parted.nodes.ParticleFXLoader"
             node="com.dynamo.cr.parted.nodes.ParticleFXNode"
@@ -28,6 +29,7 @@
          </reference-node-type>
       </node-type>
       <node-type
+            display-group="ParticleFX"
             id="com.dynamo.cr.parted.emitter"
             loader="com.dynamo.cr.parted.nodes.EmitterLoader"
             node="com.dynamo.cr.parted.nodes.EmitterNode"
@@ -51,6 +53,7 @@
             node="com.dynamo.cr.parted.manipulators.EmitterManipulator">
       </node-type>
       <node-type
+            display-group="ParticleFX"
             id="com.dynamo.cr.parted.acceleration"
             loader="com.dynamo.cr.parted.nodes.AccelerationLoader"
             node="com.dynamo.cr.parted.nodes.AccelerationNode"
@@ -58,6 +61,7 @@
             resource-type="com.dynamo.cr.parted.resourcetypes.acceleration">
       </node-type>
       <node-type
+            display-group="ParticleFX"
             id="com.dynamo.cr.parted.drag"
             loader="com.dynamo.cr.parted.nodes.DragLoader"
             node="com.dynamo.cr.parted.nodes.DragNode"
@@ -65,6 +69,7 @@
             resource-type="com.dynamo.cr.parted.resourcetypes.drag">
       </node-type>
       <node-type
+            display-group="ParticleFX"
             id="com.dynamo.cr.parted.radial"
             loader="com.dynamo.cr.parted.nodes.RadialLoader"
             node="com.dynamo.cr.parted.nodes.RadialNode"
@@ -72,6 +77,7 @@
             resource-type="com.dynamo.cr.parted.resourcetypes.radial">
       </node-type>
       <node-type
+            display-group="ParticleFX"
             id="com.dynamo.cr.parted.vortex"
             loader="com.dynamo.cr.parted.nodes.VortexLoader"
             node="com.dynamo.cr.parted.nodes.VortexNode"
