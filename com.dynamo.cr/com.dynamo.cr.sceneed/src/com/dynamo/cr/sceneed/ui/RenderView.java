@@ -108,6 +108,9 @@ IRenderView {
 
     private ScreenRecorder screenRecorder = null;
 
+    private boolean gridShown = true;
+    private boolean outlineShown = true;
+
     @Inject
     public RenderView(INodeTypeRegistry manager) {
         this.nodeTypeRegistry = manager;
@@ -853,6 +856,9 @@ IRenderView {
         if (!node.isVisible()) {
             return;
         }
+        if (!isOutlineShown() && !renderContext.isSelected(node) && (renderContext.getPass() == Pass.OUTLINE || renderContext.getPass() == Pass.ICON_OUTLINE)) {
+            return;
+        }
 
         Class<? extends Node> nodeClass = node.getClass();
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
@@ -948,6 +954,26 @@ IRenderView {
             screenRecorder.stop();
             screenRecorder = null;
         }
+    }
+
+    @Override
+    public boolean isGridShown() {
+        return this.gridShown;
+    }
+
+    @Override
+    public void setGridShown(boolean gridShown) {
+        this.gridShown = gridShown;
+    }
+
+    @Override
+    public boolean isOutlineShown() {
+        return this.outlineShown;
+    }
+
+    @Override
+    public void setOutlineShown(boolean outlineShown) {
+        this.outlineShown = outlineShown;
     }
 
 }

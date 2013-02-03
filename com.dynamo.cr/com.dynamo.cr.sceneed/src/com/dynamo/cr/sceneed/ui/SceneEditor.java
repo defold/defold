@@ -72,7 +72,9 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.SceneGrid;
 import com.dynamo.cr.sceneed.core.SceneModel;
 import com.dynamo.cr.sceneed.core.ScenePresenter;
+import com.dynamo.cr.sceneed.handlers.ShowGridHandler;
 import com.dynamo.cr.sceneed.handlers.ShowGroupHandler;
+import com.dynamo.cr.sceneed.handlers.ShowOutlineHandler;
 import com.dynamo.cr.sceneed.ui.preferences.PreferenceConstants;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
@@ -217,6 +219,8 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             boolean hidden = store.getBoolean(ShowGroupHandler.PREFERENCE_PREFIX + nodeType.getDisplayGroup());
             this.renderView.setNodeTypeVisible(nodeType, !hidden);
         }
+        this.renderView.setGridShown(!store.getBoolean(ShowGridHandler.PREFERENCE_ID));
+        this.renderView.setOutlineShown(!store.getBoolean(ShowOutlineHandler.PREFERENCE_ID));
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
 
@@ -455,6 +459,10 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
                     || property.equals(PreferenceConstants.P_GRID_SIZE)
                     || property.equals(PreferenceConstants.P_GRID_COLOR)) {
                 updateSceneGrid();
+            } else if (property.equals(ShowGridHandler.PREFERENCE_ID)) {
+                this.renderView.setGridShown(!(Boolean)event.getNewValue());
+            } else if (property.equals(ShowOutlineHandler.PREFERENCE_ID)) {
+                this.renderView.setOutlineShown(!(Boolean)event.getNewValue());
             }
             this.renderView.refresh();
         }

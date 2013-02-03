@@ -21,7 +21,7 @@ public class GridRenderer implements INodeRenderer<GridNode> {
 
     @Override
     public void setup(RenderContext renderContext, GridNode node) {
-        if (renderContext.getPass() == Pass.TRANSPARENT) {
+        if (renderContext.getPass() == Pass.TRANSPARENT && renderContext.getRenderView().isGridShown()) {
             renderContext.add(this, node, new Point3d(), null);
         }
     }

@@ -70,6 +70,16 @@
             id="com.dynamo.cr.sceneed.commands.toggleScreenRecord"
             name="Screen Record">
       </command>
+      <command
+            defaultHandler="com.dynamo.cr.sceneed.handlers.ShowOutlineHandler"
+            id="com.dynamo.cr.sceneed.ui.commands.showOutline"
+            name="Outline">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.sceneed.handlers.ShowGridHandler"
+            id="com.dynamo.cr.sceneed.ui.commands.showGrid"
+            name="Grid">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -355,10 +365,23 @@
             <menu
                   id="com.dynamo.cr.sceneed.menus.show"
                   label="Show">
-               <dynamic
-                     class="com.dynamo.cr.sceneed.ui.ShowGroupItems"
-                     id="com.dynamo.cr.sceneed.dynamics.showMenu">
-               </dynamic>
+               <command
+                     commandId="com.dynamo.cr.sceneed.ui.commands.showOutline"
+                     label="Outline"
+                     style="toggle">
+               </command>
+               <command
+                     commandId="com.dynamo.cr.sceneed.ui.commands.showGrid"
+                     label="Grid"
+                     style="toggle">
+               </command>
+               <menu
+                     label="Types">
+                  <dynamic
+                        class="com.dynamo.cr.sceneed.ui.ShowGroupItems"
+                        id="com.dynamo.cr.sceneed.dynamics.showMenu">
+                  </dynamic>
+               </menu>
             </menu>
          </menu>
       </menuContribution>

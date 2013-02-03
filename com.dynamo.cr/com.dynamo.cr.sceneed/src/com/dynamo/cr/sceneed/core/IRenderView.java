@@ -48,4 +48,10 @@ public interface IRenderView  {
 
     SceneGrid getGrid();
     void toggleRecord();
+
+    boolean isGridShown();
+    void setGridShown(boolean gridShown);
+
+    boolean isOutlineShown();
+    void setOutlineShown(boolean outlineShown);
 }
