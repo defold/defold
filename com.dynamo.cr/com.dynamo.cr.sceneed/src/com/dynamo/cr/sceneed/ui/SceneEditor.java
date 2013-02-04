@@ -215,12 +215,13 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
 
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();
         store.addPropertyChangeListener(this);
+        String editorId = getEditorSite().getId();
         for (INodeType nodeType : this.nodeTypeRegistry.getNodeTypes()) {
-            boolean hidden = store.getBoolean(ShowGroupHandler.PREFERENCE_PREFIX + nodeType.getDisplayGroup());
+            boolean hidden = store.getBoolean(ShowGroupHandler.getPreferenceName(editorId, nodeType.getDisplayGroup()));
             this.renderView.setNodeTypeVisible(nodeType, !hidden);
         }
-        this.renderView.setGridShown(!store.getBoolean(ShowGridHandler.PREFERENCE_ID));
-        this.renderView.setOutlineShown(!store.getBoolean(ShowOutlineHandler.PREFERENCE_ID));
+        this.renderView.setGridShown(!store.getBoolean(ShowGridHandler.getPreferenceName(editorId)));
+        this.renderView.setOutlineShown(!store.getBoolean(ShowOutlineHandler.getPreferenceName(editorId)));
 
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
 
@@ -448,8 +449,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
     public void propertyChange(PropertyChangeEvent event) {
         if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
             String property = event.getProperty();
+            String editorId = getEditorSite().getId();
             if (property.startsWith(ShowGroupHandler.PREFERENCE_PREFIX)) {
-                String displayGroup = event.getProperty().substring(ShowGroupHandler.PREFERENCE_PREFIX.length());
+                String displayGroup = ShowGroupHandler.getGroupName(editorId, property);
                 for (INodeType nodeType : this.nodeTypeRegistry.getNodeTypes()) {
                     if (displayGroup.equals(nodeType.getDisplayGroup())) {
                         this.renderView.setNodeTypeVisible(nodeType, !(Boolean)event.getNewValue());
@@ -459,9 +461,9 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
                     || property.equals(PreferenceConstants.P_GRID_SIZE)
                     || property.equals(PreferenceConstants.P_GRID_COLOR)) {
                 updateSceneGrid();
-            } else if (property.equals(ShowGridHandler.PREFERENCE_ID)) {
+            } else if (property.equals(ShowGridHandler.getPreferenceName(editorId))) {
                 this.renderView.setGridShown(!(Boolean)event.getNewValue());
-            } else if (property.equals(ShowOutlineHandler.PREFERENCE_ID)) {
+            } else if (property.startsWith(ShowOutlineHandler.getPreferenceName(editorId))) {
                 this.renderView.setOutlineShown(!(Boolean)event.getNewValue());
             }
             this.renderView.refresh();
