@@ -2,8 +2,6 @@ import os, re, sys
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 import dlib
-import gameobject_ddf_pb2
-import properties_ddf_pb2
 import google.protobuf.text_format
 from threading import Lock
 
@@ -29,6 +27,7 @@ create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.R
 create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='cc cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
 
 def transform_properties(properties, out_properties):
+    import gameobject_ddf_pb2
     for property in properties:
         entry = None
         if property.type == gameobject_ddf_pb2.PROPERTY_TYPE_NUMBER:
@@ -79,6 +78,7 @@ def merge_collections(msg, sub_msg, sub_id):
         new_inst.id = sub_id + "/" + inst.id
 
 def read_collection(path):
+    import gameobject_ddf_pb2
     msg = gameobject_ddf_pb2.CollectionDesc()
     with open(path, 'rb') as in_f:
         google.protobuf.text_format.Merge(in_f.read(), msg)
@@ -95,9 +95,6 @@ def compile_collection(task):
         src_path = task.inputs[0].srcpath(task.env)
         msg = read_collection(src_path)
         msg = transform_collection(task, msg)
-        for inst in msg.instances:
-            print(inst.id)
-            print(inst.position)
 
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
             out_f.write(msg.SerializeToString())
@@ -119,19 +116,11 @@ task = Task.task_type_from_func('collection',
 
 @extension('.collection')
 def collectionfile(self, node):
-    try:
-        task = self.create_task('collection')
-        task.set_inputs(node)
+    task = self.create_task('collection')
+    task.set_inputs(node)
 
-        out = node.change_ext('.collectionc')
-        task.set_outputs([out])
-    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
-        stderr_lock.acquire()
-        try:
-            print >>sys.stderr, '%s: %s' % (node.srcpath(self.env), str(e))
-        finally:
-            stderr_lock.release()
-        return 1
+    out = node.change_ext('.collectionc')
+    task.set_outputs([out])
 
 def transform_gameobject(task, msg):
     for component in msg.components:
@@ -140,6 +129,7 @@ def transform_gameobject(task, msg):
 
 def compile_go(task):
     try:
+        import gameobject_ddf_pb2
         msg = gameobject_ddf_pb2.PrototypeDesc()
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
             google.protobuf.text_format.Merge(in_f.read(), msg)
@@ -165,25 +155,11 @@ task = Task.task_type_from_func('gameobject',
 
 @extension('.go_pb')
 def gofile(self, node):
-    try:
-        import google.protobuf.text_format
-        import gameobject_ddf_pb2
-        msg = gameobject_ddf_pb2.PrototypeDesc()
-        with open(node.abspath(self.env), 'rb') as in_f:
-            google.protobuf.text_format.Merge(in_f.read(), msg)
+    task = self.create_task('gameobject')
+    task.set_inputs(node)
 
-        task = self.create_task('gameobject')
-        task.set_inputs(node)
-
-        out = node.change_ext('.goc')
-        task.set_outputs([out])
-    except (google.protobuf.text_format.ParseError, google.protobuf.message.EncodeError, Exception) as e:
-        stderr_lock.acquire()
-        try:
-            print >>sys.stderr, '%s: %s' % (node.srcpath(self.env), str(e))
-        finally:
-            stderr_lock.release()
-        return 1
+    out = node.change_ext('.goc')
+    task.set_outputs([out])
 
 from cStringIO import StringIO
 def strip_single_lua_comments(str):
@@ -231,6 +207,7 @@ def scan_lua(str):
     return modules, props
 
 def parse_properties(props):
+    import properties_ddf_pb2
     declarations = properties_ddf_pb2.PropertyDeclarations()
     if props:
         # http://docs.python.org/dev/library/re.html#simulating-scanf
