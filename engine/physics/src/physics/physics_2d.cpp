@@ -124,7 +124,7 @@ namespace dmPhysics
                         b2Vec2 rv = fixture_b->GetBody()->GetLinearVelocity() - fixture_a->GetBody()->GetLinearVelocity();
                         FromB2(rv, cp.m_RelativeVelocity, inv_scale);
                         cp.m_Distance = contact->GetManifold()->points[i].distance * inv_scale;
-                        cp.m_AppliedImpulse = impulse->normalImpulses[i] * inv_scale * inv_scale;
+                        cp.m_AppliedImpulse = impulse->normalImpulses[i] * inv_scale;
                         cp.m_MassA = fixture_a->GetBody()->GetMass();
                         cp.m_MassB = fixture_b->GetBody()->GetMass();
                         cp.m_GroupA = fixture_a->GetFilterData(index_a).categoryBits;
@@ -153,7 +153,7 @@ namespace dmPhysics
         ToB2(params.m_Gravity, context->m_Gravity, params.m_Scale);
         context->m_Scale = params.m_Scale;
         context->m_InvScale = 1.0f / params.m_Scale;
-        context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale * params.m_Scale;
+        context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {

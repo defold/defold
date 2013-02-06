@@ -154,7 +154,7 @@ namespace dmPhysics
         context->m_Worlds.SetCapacity(params.m_WorldCount);
         context->m_Scale = params.m_Scale;
         context->m_InvScale = 1.0f / params.m_Scale;
-        context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale * params.m_Scale;
+        context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -349,7 +349,7 @@ namespace dmPhysics
                         const btVector3& normal = pt.m_normalWorldOnB;
                         FromBt(-normal, point.m_Normal, 1.0f); // Don't scale normals
                         point.m_Distance = -pt.getDistance() * inv_scale;
-                        point.m_AppliedImpulse = pt.getAppliedImpulse() * inv_scale * inv_scale;
+                        point.m_AppliedImpulse = pt.getAppliedImpulse() * inv_scale;
                         Vectormath::Aos::Vector3 vel_a(0.0f, 0.0f, 0.0f);
                         if (body_a)
                         {

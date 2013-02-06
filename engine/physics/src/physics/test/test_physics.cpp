@@ -1433,6 +1433,70 @@ TYPED_TEST(PhysicsTest, SphereBoxDeepPenetration)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
 }
 
+bool CollectImpulseContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data)
+{
+    float* applied_impulse = (float*)user_data;
+    *applied_impulse += contact_point.m_AppliedImpulse;
+    return true;
+}
+
+// Checking that applied impulses are scaled correctly
+// The test drops a sphere from a distance and let's it fall under gravity to collide
+// with a static block. Immediately after the contact, the test attempt to freeze the
+// sphere in mid-air using the applied impulse and reversed gravity.
+TYPED_TEST(PhysicsTest, ScaledImpulses)
+{
+    float radius = 0.5f;
+
+    VisualObject vo_a;
+    vo_a.m_Position.setY(10.0f);
+    dmPhysics::CollisionObjectData data_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    data_a.m_Group = 1;
+    data_a.m_Mask = 1;
+    data_a.m_UserData = &vo_a;
+    data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data_a.m_Mass = 1.0f;
+    data_a.m_Restitution = 1.0f;
+    typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shape_a, 1u);
+
+    VisualObject vo_b;
+    dmPhysics::CollisionObjectData data_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(radius, radius, radius));
+    data_b.m_Group = 1;
+    data_b.m_Mask = 1;
+    data_b.m_UserData = &vo_b;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data_b.m_Mass = 0.0f;
+    data_b.m_Restitution = 1.0f;
+    typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
+
+    float applied_impulse = 0.0f;
+
+    TestFixture::m_StepWorldContext.m_CollisionCallback = 0;
+    TestFixture::m_StepWorldContext.m_CollisionUserData = 0;
+    TestFixture::m_StepWorldContext.m_ContactPointCallback = CollectImpulseContactPointCallback;
+    TestFixture::m_StepWorldContext.m_ContactPointUserData = &applied_impulse;
+
+    int steps = 400;
+    for (int i = 0; i < steps && applied_impulse == 0.0f; ++i) {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+    steps = 10;
+    float y = vo_a.m_Position.getY();
+    for (int i = 0; i < steps; ++i) {
+        (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5 / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
+        applied_impulse = 0.0f;
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_NEAR(y, vo_a.m_Position.getY(), 0.00001f);
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
