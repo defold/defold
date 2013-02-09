@@ -151,16 +151,58 @@ namespace dmGameObject
         return i;
     }
 
+    /**
+     * Get instance utility function helper.
+     * The function will use the default "this" instance by default
+     * but if lua_gettop(L) == instance_arg, i.e. an instance reference is specified,
+     * the argument instance_arg will be resolved to an instance. The function
+     * only accepts instances in "this" collection. Otherwise a lua-error will be raised.
+     * @param L lua state
+     * @param instance_arg lua-arg
+     * @return instance handler
+     */
+    static Instance* ResolveInstance(lua_State* L, int instance_arg)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        if (lua_gettop(L) == instance_arg) {
+            dmMessage::URL sender;
+            if (dmScript::GetURL(L, &sender))
+            {
+                if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+                {
+                    luaL_error(L, "function called can only access instances within the same collection.");
+                }
+
+                dmMessage::URL receiver;
+                dmScript::ResolveURL(L, instance_arg, &receiver, &sender);
+                instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+                if (!instance)
+                {
+                    luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
+                    return 0; // Actually never reached
+                }
+            }
+            else
+            {
+                luaL_error(L, "function called is not available from this script-type.");
+                return 0; // Actually never reached
+            }
+        }
+        return instance;
+    }
+
     /*# gets the position of the instance
      * The position is relative the parent (if any). Use <code>go.get_world_position</code> to retrieve the global world position.
      *
      * @name go.get_position
+     * @param [id] optional id of the instance to get the position for. Default is the "self" instance from the calling script (hash|string|url)
      * @return instance position (vector3)
      */
     int Script_GetPosition(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(i->m_Instance)));
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetPosition(instance)));
         return 1;
     }
 
@@ -168,12 +210,13 @@ namespace dmGameObject
      * The rotation is relative to the parent (if any). Use <code>go.get_world_rotation</code> to retrieve the global world position.
      *
      * @name go.get_rotation
+     * @param [id] optional id of the instance to get the rotation for. Default is the "self" instance from the calling script (hash|string|url)
      * @return instance rotation (quaternion)
      */
     int Script_GetRotation(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        dmScript::PushQuat(L, dmGameObject::GetRotation(i->m_Instance));
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushQuat(L, dmGameObject::GetRotation(instance));
         return 1;
     }
 
@@ -181,12 +224,13 @@ namespace dmGameObject
      * The uniform scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
      *
      * @name go.get_scale
+     * @param [id] optional id of the instance to get the scale for. Default is the "self" instance from the calling script (hash|string|url)
      * @return uniform instance scale factor (number)
      */
     int Script_GetScale(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        lua_pushnumber(L, dmGameObject::GetScale(i->m_Instance));
+        Instance* instance = ResolveInstance(L, 1);
+        lua_pushnumber(L, dmGameObject::GetScale(instance));
         return 1;
     }
 
@@ -195,12 +239,13 @@ namespace dmGameObject
      *
      * @name go.set_position
      * @param position position to set (vector3)
+     * @param [id] optional id of the instance to set the position for. Default is the "self" instance from the calling script (hash|string|url)
      */
     int Script_SetPosition(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = ResolveInstance(L, 2);
         Vectormath::Aos::Vector3* v = dmScript::CheckVector3(L, 1);
-        dmGameObject::SetPosition(i->m_Instance, Vectormath::Aos::Point3(*v));
+        dmGameObject::SetPosition(instance, Vectormath::Aos::Point3(*v));
         return 0;
     }
 
@@ -209,12 +254,13 @@ namespace dmGameObject
      *
      * @name go.set_rotation
      * @param rotation rotation to set (quaternion)
+     * @param [id] optional id of the instance to get the rotation for. Default is the "self" instance from the calling script (hash|string|url)
      */
     int Script_SetRotation(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = ResolveInstance(L, 2);
         Vectormath::Aos::Quat* q = dmScript::CheckQuat(L, 1);
-        dmGameObject::SetRotation(i->m_Instance, *q);
+        dmGameObject::SetRotation(instance, *q);
         return 0;
     }
 
@@ -225,16 +271,17 @@ namespace dmGameObject
      *
      * @name go.set_scale
      * @param scale uniform scale factor, must be greater than 0 (number)
+     * @param [id] optional id of the instance to get the scale for. Default is the "self" instance from the calling script (hash|string|url)
      */
     int Script_SetScale(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = ResolveInstance(L, 2);
         lua_Number v = luaL_checknumber(L, 1);
         if (v <= 0.0)
         {
             return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
         }
-        dmGameObject::SetScale(i->m_Instance, (float)v);
+        dmGameObject::SetScale(instance, (float)v);
         return 0;
     }
 
@@ -242,12 +289,13 @@ namespace dmGameObject
      * Use <code>go.get_position</code> to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
+     * @param [id] optional id of the instance to get the world position for. Default is the "self" instance from the calling script (hash|string|url)
      * @return instance world position (vector3)
      */
     int Script_GetWorldPosition(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(i->m_Instance)));
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushVector3(L, Vectormath::Aos::Vector3(dmGameObject::GetWorldPosition(instance)));
         return 1;
     }
 
@@ -255,12 +303,13 @@ namespace dmGameObject
      * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
+     * @param [id] optional id of the instance to get the world rotation for. Default is the "self" instance from the calling script (hash|string|url)
      * @return instance world rotation (quaternion)
      */
     int Script_GetWorldRotation(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(i->m_Instance));
+        Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushQuat(L, dmGameObject::GetWorldRotation(instance));
         return 1;
     }
 
@@ -268,12 +317,13 @@ namespace dmGameObject
      * Use <code>go.get_scale</code> to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale
+     * @param [id] optional id of the instance to get the world scale for. Default is the "self" instance from the calling script (hash|string|url)
      * @return uniform instance world scale factor (number)
      */
     int Script_GetWorldScale(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        lua_pushnumber(L, dmGameObject::GetWorldScale(i->m_Instance));
+        Instance* instance = ResolveInstance(L, 1);
+        lua_pushnumber(L, dmGameObject::GetWorldScale(instance));
         return 1;
     }
 
@@ -322,7 +372,7 @@ namespace dmGameObject
      * NOTE! Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.
      *
      * @name go.delete
-     * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string)
+     * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string|url)
      * @examples
      * <p>
      * This example demonstrates how to delete a game object with the id "my_game_object".
@@ -334,30 +384,8 @@ namespace dmGameObject
      */
     int Script_Delete(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        dmGameObject::HInstance instance = i->m_Instance;
+        dmGameObject::HInstance instance = ResolveInstance(L, 1);
         dmGameObject::HCollection collection = instance->m_Collection;
-        int top = lua_gettop(L);
-        if (top == 1)
-        {
-            dmhash_t id = 0;
-            if (lua_isstring(L, 1))
-            {
-                const char* ident = luaL_checkstring(L, 1);
-                id = GetAbsoluteIdentifier(i->m_Instance, ident, strlen(ident));
-            }
-            else
-            {
-                id = dmScript::CheckHash(L, 1);
-            }
-            instance = GetInstanceFromIdentifier(collection, id);
-
-            if (instance == 0)
-            {
-                luaL_error(L, "Failed to delete GameObject, '%s' not found.", dmHashReverse64(id, 0));
-            }
-
-        }
         dmGameObject::Delete(collection, instance);
         return 0;
     }
