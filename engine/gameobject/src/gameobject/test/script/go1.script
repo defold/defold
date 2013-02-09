@@ -21,23 +21,22 @@ function update(self, dt)
     assert(dt > 0, "no dt in update")
     assert(self.counter == 1)
 
-    local p = go.get_position()
+    local i = 0
+    for k,v in pairs({nil, "my_object01", hash("my_object01"), "collection:my_object01",
+                      msg.url(), msg.url("my_object01"), msg.url("collection:my_object01")}) do
+        i = i + 1
+        -- NOTE: f(nil) is interpreted as f() for non-vargs functions in lua
+        print(v)
+        local p = go.get_position()
+        p.y = 123.0 + i
+        go.set_position(p, v)
+        p = go.get_position(v)
+        assert(p.y == 123.0 + i)
 
-    p.y = 123.0
-    go.set_position(p)
-
-    p = go.get_position()
-    assert(p.y == 123.0)
-
-    p = go.get_position("my_object01")
-    assert(p.y == 123.0)
-
-    p = go.get_position(hash("my_object01"))
-    assert(p.y == 123.0)
-
-    go.set_scale(2)
-    local s = go.get_scale()
-    assert(s == 2)
+        go.set_scale(i, v)
+        local s = go.get_scale(v)
+        assert(s == i)
+    end
 
     msg.post("@system:", "factory", {prototype = "test", pos = vmath.vector3(1, 2, 3)})
 end
