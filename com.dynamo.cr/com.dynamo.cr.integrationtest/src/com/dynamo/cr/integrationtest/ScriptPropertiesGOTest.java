@@ -9,7 +9,6 @@ import java.io.InputStream;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
-import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.junit.Test;
 
@@ -46,13 +45,13 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
 
         // Default value
-        assertEquals("1", getNodeProperty(component, "number"));
+        assertEquals(1.0, getNodeProperty(component, "number"));
         assertEquals("hash", getNodeProperty(component, "hash"));
         assertEquals("", getNodeProperty(component, "url"));
 
         // Set value
-        setNodeProperty(component, "number", "2");
-        assertEquals("2", getNodeProperty(component, "number"));
+        setNodeProperty(component, "number", 2.0);
+        assertEquals(2.0, getNodeProperty(component, "number"));
         setNodeProperty(component, "hash", "hash2");
         assertEquals("hash2", getNodeProperty(component, "hash"));
         setNodeProperty(component, "url", "/url");
@@ -60,20 +59,11 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
 
         // Reset to default
         resetNodeProperty(component, "number");
-        assertEquals("1", getNodeProperty(component, "number"));
+        assertEquals(1.0, getNodeProperty(component, "number"));
         resetNodeProperty(component, "hash");
         assertEquals("hash", getNodeProperty(component, "hash"));
         resetNodeProperty(component, "url");
         assertEquals("", getNodeProperty(component, "url"));
-
-        // Validation
-        assertNodePropertyStatus(component, "number", IStatus.OK, null);
-        setNodeProperty(component, "number", "invalid");
-        assertNodePropertyStatus(component, "number", IStatus.ERROR, null);
-
-        assertNodePropertyStatus(component, "url", IStatus.OK, null);
-        setNodeProperty(component, "url", "invalid");
-        assertNodePropertyStatus(component, "url", IStatus.ERROR, null);
     }
 
     @Test
@@ -83,7 +73,7 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         GameObjectNode gameObject = (GameObjectNode)getModel().getRoot();
         RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
 
-        assertEquals("2", getNodeProperty(component, "number"));
+        assertEquals(2.0, getNodeProperty(component, "number"));
         assertEquals("hash2", getNodeProperty(component, "hash"));
         assertEquals("/url", getNodeProperty(component, "url"));
     }
@@ -96,7 +86,7 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         GameObjectNode gameObject = (GameObjectNode)getModel().getRoot();
         RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
 
-        setNodeProperty(component, "number", "3");
+        setNodeProperty(component, "number", 3.0);
         setNodeProperty(component, "hash", "hash3");
         setNodeProperty(component, "url", "/url2");
 
@@ -108,7 +98,7 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         gameObject = (GameObjectNode)getModel().getRoot();
         component = (RefComponentNode)gameObject.getChildren().get(0);
 
-        assertEquals("3", getNodeProperty(component, "number"));
+        assertEquals(3.0, getNodeProperty(component, "number"));
         assertEquals("hash3", getNodeProperty(component, "hash"));
         assertEquals("/url2", getNodeProperty(component, "url"));
     }
@@ -119,7 +109,7 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
 
         // Default value
-        assertEquals("1", getNodeProperty(component, "number"));
+        assertEquals(1.0, getNodeProperty(component, "number"));
 
         saveScript("/script/props.script", "go.property(\"number2\", 0)");
 
@@ -133,7 +123,7 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         GameObjectNode gameObject = (GameObjectNode)getModel().getRoot();
         RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
 
-        assertEquals("2", getNodeProperty(component, "number"));
+        assertEquals(2.0, getNodeProperty(component, "number"));
 
         // Set to default
         setNodeProperty(component, "number", "1");
@@ -154,7 +144,7 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         component = (RefComponentNode)gameObject.getChildren().get(0);
 
         // Verify new value
-        assertEquals("1", getNodeProperty(component, "number"));
+        assertEquals(1.0, getNodeProperty(component, "number"));
     }
 
     @Test
@@ -164,13 +154,13 @@ public class ScriptPropertiesGOTest extends AbstractSceneTest {
         RefComponentNode component = (RefComponentNode)gameObject.getChildren().get(0);
 
         // Default value
-        assertEquals("1", getNodeProperty(component, "number"));
+        assertEquals(1.0, getNodeProperty(component, "number"));
         assertEquals("hash", getNodeProperty(component, "hash"));
         assertEquals("", getNodeProperty(component, "url"));
 
         // Set value
-        setNodeProperty(component, "number", "2");
-        assertEquals("2", getNodeProperty(component, "number"));
+        setNodeProperty(component, "number", 2.0);
+        assertEquals(2.0, getNodeProperty(component, "number"));
         verifyExcecution();
 
         testCopyPaste(gameObject, component);
