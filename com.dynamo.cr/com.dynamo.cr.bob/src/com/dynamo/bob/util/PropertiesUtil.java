@@ -64,6 +64,11 @@ public class PropertiesUtil {
                 builder.addFloatValues(Float.parseFloat(items.get(3)));
                 builder.addQuatEntries(entryBuilder);
                 break;
+            case PROPERTY_TYPE_BOOLEAN:
+                entryBuilder.setIndex(builder.getFloatValuesCount());
+                builder.addFloatValues(Boolean.parseBoolean(desc.getValue()) ? 1.0f : 0.0f);
+                builder.addBoolEntries(entryBuilder);
+                break;
             default:
                 return false;
             }
