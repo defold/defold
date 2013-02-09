@@ -307,6 +307,12 @@
             id="com.dynamo.cr.tileeditor.commands.addImages"
             name="Add Images">
       </command>
+      <command
+            defaultHandler="com.dynamo.cr.tileeditor.handlers.ShowGridHandler"
+            description="Show/hide the grid in the view"
+            id="com.dynamo.cr.tileeditor.commands.showGrid"
+            name="Show Grid">
+      </command>
    </extension>
    <extension
          point="org.eclipse.ui.bindings">
@@ -638,7 +644,7 @@
             locationURI="menu:org.eclipse.ui.main.menu?after=edit">
          <menu
                id="com.dynamo.cr.tileeditor.menus.TileGrid"
-               label="Tile Grid">
+               label="Tile Map">
             <command
                   commandId="com.dynamo.cr.tileeditor.commands.AddLayer"
                   icon="icons/layer.png"
@@ -647,7 +653,7 @@
             </command>
             <command
                   commandId="com.dynamo.cr.tileeditor.commands.FrameGrid"
-                  label="Frame Tile Grid"
+                  label="Frame Tile Map"
                   style="push">
             </command>
             <command
@@ -664,6 +670,11 @@
                   commandId="com.dynamo.cr.tileeditor.commands.selectEraser"
                   label="Select Eraser"
                   style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.tileeditor.commands.showGrid"
+                  label="Show Grid"
+                  style="toggle">
             </command>
             <visibleWhen
                   checkEnabled="false">
