@@ -48,6 +48,10 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
     };
 
+    uint32_t CalculateCellIndex(uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t column_count, uint32_t row_count);
+
+    uint32_t GetLayerIndex(const TileGridComponent* component, dmhash_t layer_id);
+
     dmGameObject::CreateResult CompTileGridNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompTileGridDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

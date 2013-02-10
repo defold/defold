@@ -172,6 +172,7 @@ namespace dmGameObject
                 if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
                 {
                     luaL_error(L, "function called can only access instances within the same collection.");
+                    return 0; // Actually never reached
                 }
 
                 dmMessage::URL receiver;
@@ -191,6 +192,85 @@ namespace dmGameObject
         }
         return instance;
     }
+
+    static Result GetComponentUserData(HInstance instance, dmhash_t component_id, uint32_t* component_type, uintptr_t* user_data)
+    {
+        // TODO: We should probably not store user-data sparse.
+        // A lot of loops just to find user-data such as the code below
+        assert(instance != 0x0);
+        const dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+        uint32_t n = components.Size();
+        uint32_t component_instance_data = 0;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const Prototype::Component* component = &components[i];
+            if (component->m_Id == component_id)
+            {
+                if (component->m_Type->m_InstanceHasUserData)
+                {
+                    *user_data = instance->m_ComponentInstanceUserData[component_instance_data];
+                }
+                else
+                {
+                    *user_data = 0;
+                }
+                *component_type = component->m_TypeIndex;
+                return RESULT_OK;
+            }
+
+            if (component->m_Type->m_InstanceHasUserData)
+            {
+                component_instance_data++;
+            }
+        }
+
+        return RESULT_COMPONENT_NOT_FOUND;
+    }
+
+    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        dmMessage::URL sender;
+        if (dmScript::GetURL(L, &sender))
+        {
+            if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            {
+                luaL_error(L, "function called can only access instances within the same collection.");
+                return 0; // Actually never reached
+            }
+
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, index, &receiver, &sender);
+            instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            if (!instance)
+            {
+                luaL_error(L, "Instance %s not found", lua_tostring(L, index));
+                return 0; // Actually never reached
+            }
+
+            uint32_t component_type_index;
+            GetComponentUserData(instance, receiver.m_Fragment, &component_type_index, user_data);
+            /*
+             TODO: Not supported yet. See comment in header file.
+             We have also discussed the possibility of "resolved" URL:s with handle to actual data
+             and/or a new component reference concept similar to Nodes in gui-system
+            if (actual_type != component_type)
+            {
+                luaL_error(L, "function to applicable for this component");
+                return 0; // Actually never reached
+            }*/
+        }
+        else
+        {
+            luaL_error(L, "function called is not available from this script-type.");
+            return 0; // Actually never reached
+        }
+
+
+        return instance;
+    }
+
 
     /*# gets the position of the instance
      * The position is relative the parent (if any). Use <code>go.get_world_position</code> to retrieve the global world position.

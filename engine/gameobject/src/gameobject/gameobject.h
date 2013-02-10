@@ -626,6 +626,18 @@ namespace dmGameObject
      */
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
+    // TODO: We should have expected component-type here but currently it's difficult to find
+    // componen-type from lua. See case 1998
+    /**
+     * Get gameobject instance from lua-argument. This function is typically used from lua-bindings
+     * and can only be used from protected lua-calls as luaL_error might be invoked
+     * @param L lua-state
+     * @param index index to argument
+     * @param user_data component user-date output if available
+     * @return instance
+     */
+    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data);
+
     /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance

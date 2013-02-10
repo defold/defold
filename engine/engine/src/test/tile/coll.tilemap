@@ -8,4 +8,9 @@ layers {
         y: 0
         tile: 0
     }
+    cell {
+        x: -2
+        y: -1
+        tile: 0
+    }
 }

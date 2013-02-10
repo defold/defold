@@ -407,6 +407,21 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    uint32_t GetLayerIndex(const TileGridComponent* component, dmhash_t layer_id)
+    {
+        uint32_t layer_count = component->m_Layers.Size();
+        uint32_t layer_index = ~0u;
+        for (uint32_t i = 0; i < layer_count; ++i)
+        {
+            if (layer_id == component->m_Layers[i].m_Id)
+            {
+                layer_index = i;
+                break;
+            }
+        }
+        return layer_index;
+    }
+
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         TileGridComponent* component = (TileGridComponent*) *params.m_UserData;

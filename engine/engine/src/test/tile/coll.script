@@ -1,4 +1,45 @@
 function init(self)
+
+    local res, tile, group
+
+    -- get_bounds
+    x, y, w, h = tilemap.get_bounds("#tilemap")
+    assert(x == -1)
+    assert(y == 0)
+    assert(w == 3)
+    assert(h == 2)
+
+    -- get_tile
+    tile = tilemap.get_tile("#tilemap", "layer", -1, 0)
+    assert(tile == 1)
+    tile = tilemap.get_tile("#tilemap", "layer", 0, 0)
+    assert(tile == 0)
+    tile = tilemap.get_tile("#tilemap", "layer", 1, 0)
+    assert(tile == 0)
+
+    tile = tilemap.get_tile("#tilemap", "layer", -1, 1)
+    assert(tile == 0)
+    tile = tilemap.get_tile("#tilemap", "layer", 0, 1)
+    assert(tile == 0)
+    tile = tilemap.get_tile("#tilemap", "layer", 1, 1)
+    assert(tile == 1)
+
+    -- out of range
+    tile = tilemap.get_tile("#tilemap", "layer", 2, 1)
+    assert(tile == nil)
+
+    -- set_tile
+    -- Ok
+    res = tilemap.set_tile("#tilemap", "layer", 1, 1, 0)
+    assert(res == true)
+    -- out of range
+    res = tilemap.set_tile("#tilemap", "layer", 1, 2, 0)
+    assert(res == false)
+    -- Invalid layer
+    res = tilemap.set_tile("#tilemap", "not_found_layer", 0, 0, 0)
+    assert(res == false)
+
+    -- Set tile out-of-range. Test for previous bug
     msg.post("#tilemap", "set_tile", {layer_id = hash("layer"), position = go.get_position(), dx = 1})
     msg.post("main:/main#script", "done")
 end

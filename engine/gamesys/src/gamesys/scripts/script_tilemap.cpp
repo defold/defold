@@ -1,6 +1,8 @@
 #include "script_tilemap.h"
 
+#include <dlib/log.h>
 #include "tile_ddf.h"
+#include "../components/comp_tilegrid.h"
 
 extern "C"
 {
@@ -125,6 +127,9 @@ namespace dmGameSystem
                 return luaL_error(L, "name must be either a hash or a string");
             }
 
+            // TODO: Why is a separate buffer used here and not a stack-allocated dmGameSystemDDF::ResetConstantTileMap?
+            // dmGameSystemDDF::ResetConstantTileMap contains no members that require "dynamic" memory, i.e. strings
+            // See also TileMap_SetConstant
             const uint32_t buffer_size = 256;
             uint8_t buffer[buffer_size];
             dmGameSystemDDF::ResetConstantTileMap* request = (dmGameSystemDDF::ResetConstantTileMap*)buffer;
@@ -148,10 +153,112 @@ namespace dmGameSystem
         }
     }
 
+    int TileMap_SetTile(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        uintptr_t user_data;
+        dmGameObject::GetInstanceFromLua(L, 1, &user_data);
+        TileGridComponent* component = (TileGridComponent*) user_data;
+        TileGridResource* resource = component->m_TileGridResource;
+
+        const char* layer = luaL_checkstring(L, 2);
+        dmhash_t layer_id = dmHashString64(layer);
+        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        if (layer_index == ~0u)
+        {
+            dmLogError("Could not find layer %s.", (char*)dmHashReverse64(layer_id, 0x0));
+            lua_pushboolean(L, 0);
+            assert(top + 1 == lua_gettop(L));
+            return 1;
+        }
+
+        int x = luaL_checkinteger(L, 3) - 1;
+        int y = luaL_checkinteger(L, 4) - 1;
+        int tile = luaL_checkinteger(L, 5);
+        int32_t cell_x = x - resource->m_MinCellX, cell_y = y - resource->m_MinCellY;
+        if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
+        {
+            dmLogError("Could not set the tile since the supplied tile was out of range.");
+            lua_pushboolean(L, 0);
+            assert(top + 1 == lua_gettop(L));
+            return 1;
+        }
+        uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
+
+        component->m_Cells[cell_index] = (uint16_t) tile;
+        lua_pushboolean(L, 1);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    int TileMap_GetTile(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        uintptr_t user_data;
+        dmGameObject::GetInstanceFromLua(L, 1, &user_data);
+        TileGridComponent* component = (TileGridComponent*) user_data;
+        TileGridResource* resource = component->m_TileGridResource;
+
+        const char* layer = luaL_checkstring(L, 2);
+        dmhash_t layer_id = dmHashString64(layer);
+        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        if (layer_index == ~0u)
+        {
+            dmLogError("Could not find layer %s.", (char*)dmHashReverse64(layer_id, 0x0));
+            lua_pushnil(L);
+            assert(top + 1 == lua_gettop(L));
+            return 1;
+        }
+
+        int x = luaL_checkinteger(L, 3) - 1;
+        int y = luaL_checkinteger(L, 4) - 1;
+        int32_t cell_x = x - resource->m_MinCellX, cell_y = y - resource->m_MinCellY;
+        if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
+        {
+            dmLogError("Could not get the tile since the supplied tile was out of range.");
+            lua_pushnil(L);
+            assert(top + 1 == lua_gettop(L));
+            return 1;
+        }
+        uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
+        uint16_t cell = (component->m_Cells[cell_index] + 1);
+        lua_pushinteger(L,  cell);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    int TileMap_GetBounds(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        uintptr_t user_data;
+        dmGameObject::GetInstanceFromLua(L, 1, &user_data);
+        TileGridComponent* component = (TileGridComponent*) user_data;
+        TileGridResource* resource = component->m_TileGridResource;
+
+        int x = resource->m_MinCellX + 1;
+        int y = resource->m_MinCellY + 1;
+        int w = resource->m_ColumnCount;
+        int h = resource->m_RowCount;
+
+        lua_pushinteger(L, x);
+        lua_pushinteger(L, y);
+        lua_pushinteger(L, w);
+        lua_pushinteger(L, h);
+
+        assert(top + 4 == lua_gettop(L));
+        return 4;
+    }
+
     static const luaL_reg TILEMAP_FUNCTIONS[] =
     {
         {"set_constant",    TileMap_SetConstant},
         {"reset_constant",  TileMap_ResetConstant},
+        {"set_tile",        TileMap_SetTile},
+        {"get_tile",        TileMap_GetTile},
+        {"get_bounds",      TileMap_GetBounds},
         {0, 0}
     };
 
