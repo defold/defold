@@ -116,6 +116,11 @@ public abstract class LuaBuilder extends Builder<Void> {
                         builder.addFloatValues((float)q.getW());
                         builder.addQuatEntries(entryBuilder);
                         break;
+                    case PROPERTY_TYPE_BOOLEAN:
+                        entryBuilder.setIndex(builder.getFloatValuesCount());
+                        builder.addFloatValues(((Boolean)property.value) ? 1.0f : 0.0f);
+                        builder.addBoolEntries(entryBuilder);
+                        break;
                     }
                 } else if (property.status == Status.INVALID_ARGS) {
                     throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4 or vmath.quat.");
