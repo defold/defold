@@ -158,25 +158,26 @@ namespace dmGameObject
      * the argument instance_arg will be resolved to an instance. The function
      * only accepts instances in "this" collection. Otherwise a lua-error will be raised.
      * @param L lua state
-     * @param index index into the lua stack
+     * @param instance_arg lua-arg
      * @return instance handler
      */
-    static Instance* ResolveInstance(lua_State* L, int index)
+    static Instance* ResolveInstance(lua_State* L, int instance_arg)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
-        if (lua_gettop(L) == index)
+        if (lua_gettop(L) == instance_arg)
         {
             dmMessage::URL receiver;
-            dmScript::ResolveURL(L, index, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            dmMessage::URL sender;
+            dmScript::ResolveURL(L, instance_arg, &receiver, &sender);
+            if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
             }
             instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
             if (!instance)
             {
-                luaL_error(L, "Instance %s not found", lua_tostring(L, index));
+                luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
                 return 0; // Actually never reached
             }
         }
@@ -493,7 +494,9 @@ namespace dmGameObject
 
         if (i != 0)
         {
-            *url = i->m_ScriptURL;
+            url->m_Socket = i->m_Instance->m_Collection->m_ComponentSocket;
+            url->m_Path = i->m_Instance->m_Identifier;
+            url->m_Fragment = i->m_Instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
         }
         else
         {
@@ -858,11 +861,6 @@ bail:
         lua_getglobal(L, "__instances__");
 
         ScriptInstance* i = (ScriptInstance *)lua_newuserdata(L, sizeof(ScriptInstance));
-
-        i->m_ScriptURL.m_Socket = instance->m_Collection->m_ComponentSocket;
-        i->m_ScriptURL.m_Path = instance->m_Identifier;
-        i->m_ScriptURL.m_Fragment = instance->m_Prototype->m_Components[component_index].m_Id;
-
         i->m_Script = script;
 
         lua_pushvalue(L, -1);

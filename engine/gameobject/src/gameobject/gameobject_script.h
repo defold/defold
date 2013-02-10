@@ -52,13 +52,12 @@ namespace dmGameObject
 
     struct ScriptInstance
     {
-        dmMessage::URL  m_ScriptURL;
-        HScript         m_Script;
-        Instance*       m_Instance;
-        int             m_InstanceReference;
-        int             m_ScriptDataReference;
-        uint8_t         m_ComponentIndex;
-        HProperties     m_Properties;
+        HScript     m_Script;
+        Instance*   m_Instance;
+        int         m_InstanceReference;
+        int         m_ScriptDataReference;
+        uint8_t     m_ComponentIndex;
+        HProperties m_Properties;
     };
 
     struct ScriptWorld
