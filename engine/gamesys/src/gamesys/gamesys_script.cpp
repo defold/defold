@@ -167,9 +167,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)user_data;
             dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -219,7 +218,7 @@ namespace dmGameSystem
             request->m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + actual_prop_buffer_size);
@@ -263,9 +262,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             const uint32_t buffer_size = 256;
             uint8_t buffer[buffer_size];
@@ -276,7 +274,7 @@ namespace dmGameSystem
             request->m_Flip = (uint32_t)lua_toboolean(L, 2);
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor, buffer, msg_size);
@@ -313,9 +311,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             const uint32_t buffer_size = 256;
             uint8_t buffer[buffer_size];
@@ -326,7 +323,7 @@ namespace dmGameSystem
             request->m_Flip = (uint32_t)lua_toboolean(L, 2);
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetFlipVertical::m_DDFDescriptor, buffer, msg_size);
@@ -368,9 +365,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             dmhash_t name_hash;
             if (lua_isstring(L, 2))
@@ -397,7 +393,7 @@ namespace dmGameSystem
             request->m_Value = *value;
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, buffer, msg_size);
@@ -437,9 +433,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             dmhash_t name_hash;
             if (lua_isstring(L, 2))
@@ -464,7 +459,7 @@ namespace dmGameSystem
             request->m_NameHash = name_hash;
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, buffer, msg_size);
@@ -483,9 +478,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             Vectormath::Aos::Vector3* scale = dmScript::CheckVector3(L, 2);
 
@@ -498,7 +492,7 @@ namespace dmGameSystem
             request->m_Scale = *scale;
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetScale::m_DDFDescriptor, buffer, msg_size);

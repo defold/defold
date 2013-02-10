@@ -40,9 +40,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             dmhash_t name_hash;
             if (lua_isstring(L, 2))
@@ -69,7 +68,7 @@ namespace dmGameSystem
             request->m_Value = *value;
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, buffer, msg_size);
@@ -109,9 +108,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             dmhash_t name_hash;
             if (lua_isstring(L, 2))
@@ -139,7 +137,7 @@ namespace dmGameSystem
             request->m_NameHash = name_hash;
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, buffer, msg_size);

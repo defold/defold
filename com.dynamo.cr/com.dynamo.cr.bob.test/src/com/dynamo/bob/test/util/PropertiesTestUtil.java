@@ -1,6 +1,7 @@
 package com.dynamo.bob.test.util;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
@@ -39,5 +40,9 @@ public class PropertiesTestUtil {
         assertEquals(expectedY, properties.getFloatValues(entry.getIndex()+1), 0);
         assertEquals(expectedZ, properties.getFloatValues(entry.getIndex()+2), 0);
         assertEquals(expectedW, properties.getFloatValues(entry.getIndex()+3), 0);
+    }
+
+    public static void assertBoolean(PropertyDeclarations properties, boolean expected, int index) {
+        assertTrue(expected == (properties.getFloatValues(properties.getBoolEntries(index).getIndex()) != 0.0f));
     }
 }

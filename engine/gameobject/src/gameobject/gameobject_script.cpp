@@ -165,28 +165,18 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
-        if (lua_gettop(L) == instance_arg) {
-            dmMessage::URL sender;
-            if (dmScript::GetURL(L, &sender))
+        if (lua_gettop(L) == instance_arg)
+        {
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
             {
-                if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
-                {
-                    luaL_error(L, "function called can only access instances within the same collection.");
-                    return 0; // Actually never reached
-                }
-
-                dmMessage::URL receiver;
-                dmScript::ResolveURL(L, instance_arg, &receiver, &sender);
-                instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
-                if (!instance)
-                {
-                    luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
-                    return 0; // Actually never reached
-                }
+                luaL_error(L, "function called can only access instances within the same collection.");
             }
-            else
+            instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            if (!instance)
             {
-                luaL_error(L, "function called is not available from this script-type.");
+                luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
                 return 0; // Actually never reached
             }
         }

@@ -77,6 +77,7 @@ Listener {
     private Point2i startActiveCell = null;
     private int activeTile = -1;
     private boolean showPalette;
+    private boolean visibleGrid = false;
     private Cursor defaultCursor;
 
     // Model replication
@@ -301,6 +302,11 @@ Listener {
             }
             requestPaint();
         }
+    }
+
+    public void setVisibleGrid(boolean visibleGrid) {
+        this.visibleGrid = visibleGrid;
+        requestPaint();
     }
 
     // Listener
@@ -574,7 +580,9 @@ Listener {
         renderCells(gl);
 
         // grid (cell-dividing lines)
-        renderGrid(gl);
+        if (visibleGrid) {
+            renderGrid(gl);
+        }
 
         // box for right-click selection
         renderSelectionBox(gl);

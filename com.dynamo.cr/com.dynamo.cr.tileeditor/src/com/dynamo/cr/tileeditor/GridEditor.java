@@ -21,6 +21,9 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
+import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.jface.util.IPropertyChangeListener;
+import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.window.Window;
@@ -61,11 +64,12 @@ import com.dynamo.cr.tileeditor.core.GridPresenter;
 import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.IGridView.Presenter;
 import com.dynamo.cr.tileeditor.core.Layer;
+import com.dynamo.cr.tileeditor.handlers.ShowGridHandler;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 
-public class GridEditor extends AbstractDefoldEditor {
+public class GridEditor extends AbstractDefoldEditor implements IPropertyChangeListener {
 
     public static final int CURSOR_TYPE_PENCIL = 0;
     public static final int CURSOR_TYPE_ERASER = 1;
@@ -187,6 +191,9 @@ public class GridEditor extends AbstractDefoldEditor {
         } catch (Throwable e) {
             throw new PartInitException(e.getMessage(), e);
         }
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        store.addPropertyChangeListener(this);
+        this.renderer.setVisibleGrid(!store.getBoolean(ShowGridHandler.PREFERENCE_NAME));
     }
 
     @Override
@@ -201,6 +208,8 @@ public class GridEditor extends AbstractDefoldEditor {
                 this.cursors[i].dispose();
             }
         }
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        store.removePropertyChangeListener(this);
     }
 
     @Override
@@ -371,6 +380,16 @@ public class GridEditor extends AbstractDefoldEditor {
 
     public Cursor getCursor(int cursorType) {
         return this.cursors[cursorType];
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent event) {
+        if (event.getSource().equals(Activator.getDefault().getPreferenceStore())) {
+            String property = event.getProperty();
+            if (property.equals(ShowGridHandler.PREFERENCE_NAME)) {
+                this.renderer.setVisibleGrid(!(Boolean)event.getNewValue());
+            }
+        }
     }
 
 }
