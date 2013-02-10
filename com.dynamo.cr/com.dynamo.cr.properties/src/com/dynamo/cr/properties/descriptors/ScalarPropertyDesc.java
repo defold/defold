@@ -57,7 +57,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
     public abstract Class<?> getTypeClass();
 
     /**
-     * Widet abstraction classs for Text/Combo-box
+     * Widget abstraction class for Text/Combo-box
      * @author chmu
      */
     private class EditorWidget {
@@ -138,6 +138,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             widget.addListener(SWT.KeyDown, this);
             widget.addListener(SWT.FocusOut, this);
             widget.addListener(SWT.DefaultSelection, this);
+            widget.addListener(SWT.Selection, this);
         }
 
         @Override
@@ -201,6 +202,8 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             } else if (event.type == SWT.DefaultSelection && !value.equals(oldValue)) {
                 updateValue = true;
                 type = Type.INTERMEDIATE;
+            } else if (event.type == SWT.Selection && !value.equals(oldValue)) {
+                updateValue = true;
             }
 
             if (updateValue) {
