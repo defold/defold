@@ -272,9 +272,9 @@ namespace dmScript
      * Attempts to convert the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
      * @param L Lua state
      * @param out_url URL to be written to
-     * @param default_url URL to use for missing fields
+     * @param out_default_url default URL used in the resolve, can be 0x0 (not used)
      */
-    int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* default_url);
+    int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* out_default_url);
 
     /**
      * Returns the user data associated with the script currently operating on the given lua state.

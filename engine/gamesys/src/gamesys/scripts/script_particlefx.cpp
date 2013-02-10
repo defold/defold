@@ -45,9 +45,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             if (top != 1)
             {
@@ -57,7 +56,7 @@ namespace dmGameSystem
             uint32_t msg_size = sizeof(dmGameSystemDDF::PlayParticleFX);
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
@@ -91,9 +90,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             if (top != 1)
             {
@@ -103,7 +101,7 @@ namespace dmGameSystem
             uint32_t msg_size = sizeof(dmGameSystemDDF::StopParticleFX);
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
@@ -163,9 +161,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             dmhash_t emitter_id;
             if (!GetHash(L, 2, &emitter_id))
@@ -188,7 +185,7 @@ namespace dmGameSystem
             request->m_Value = *value;
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);
@@ -229,9 +226,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
         {
             dmhash_t emitter_id;
             if (!GetHash(L, 3, &emitter_id))
@@ -251,7 +247,7 @@ namespace dmGameSystem
             request->m_NameHash = name_hash;
 
             dmMessage::URL receiver;
-
+            dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);

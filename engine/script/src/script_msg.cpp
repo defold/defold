@@ -283,12 +283,9 @@ namespace dmScript
         (void)top;
         dmMessage::URL url;
         dmMessage::ResetURL(url);
-        dmMessage::URL default_url;
-        dmMessage::ResetURL(default_url);
-        GetURL(L, &default_url);
         if (top < 2)
         {
-            ResolveURL(L, 1, &url, &default_url);
+            ResolveURL(L, 1, &url, 0x0);
         }
         else if (top == 3)
         {
@@ -331,6 +328,9 @@ namespace dmScript
                         }
                         else
                         {
+                            dmMessage::URL default_url;
+                            dmMessage::ResetURL(default_url);
+                            GetURL(L, &default_url);
                             url.m_Path = default_url.m_Path;
                         }
                     }
@@ -384,12 +384,8 @@ namespace dmScript
     {
         int top = lua_gettop(L);
 
-        dmMessage::URL sender;
-        dmMessage::ResetURL(sender);
         dmMessage::URL receiver;
-        dmMessage::ResetURL(receiver);
-
-        GetURL(L, &sender);
+        dmMessage::URL sender;
         ResolveURL(L, 1, &receiver, &sender);
 
         dmhash_t message_id;
@@ -595,43 +591,65 @@ namespace dmScript
         return dmMessage::RESULT_OK;
     }
 
-    int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* default_url)
+    int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* out_default_url)
     {
-        if (lua_gettop(L) < index || lua_isnil(L, index))
+        if (dmScript::IsURL(L, index))
         {
-            *out_url = *default_url;
-        }
-        else if (lua_isstring(L, index))
-        {
-            lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
-            ResolvePathCallback callback = (ResolvePathCallback)lua_touserdata(L, -1);
-            lua_pop(L, 1);
-            const char* url = lua_tostring(L, index);
-            dmMessage::Result result = ResolveURL(callback, (uintptr_t)L, url, out_url, default_url);
-            if (result != dmMessage::RESULT_OK)
+            *out_url = *CheckURL(L, index);
+            if (out_default_url != 0x0)
             {
-                switch (result)
-                {
-                case dmMessage::RESULT_MALFORMED_URL:
-                    return luaL_error(L, "Could not send message to '%s' because the address is invalid (should be [socket:][path][#fragment]).", url);
-                case dmMessage::RESULT_INVALID_SOCKET_NAME:
-                    return luaL_error(L, "The socket name in '%s' is invalid.", url);
-                case dmMessage::RESULT_SOCKET_NOT_FOUND:
-                    return luaL_error(L, "The socket in '%s' could not be found.", url);
-                default:
-                    return luaL_error(L, "Error when resolving the URL '%s': %d.", url, result);
-                }
+                dmMessage::ResetURL(*out_default_url);
+                GetURL(L, out_default_url);
             }
-        }
-        else if (IsHash(L, index))
-        {
-            out_url->m_Socket = default_url->m_Socket;
-            out_url->m_Path = CheckHash(L, index);
-            out_url->m_Fragment = 0;
         }
         else
         {
-            *out_url = *CheckURL(L, index);
+            // Fetch default URL from the lua state
+            dmMessage::URL default_url;
+            dmMessage::ResetURL(default_url);
+            GetURL(L, &default_url);
+            if (out_default_url != 0x0)
+            {
+                *out_default_url = default_url;
+            }
+            // Check for the URL representation (nil, string, url, hash) at index
+            if (lua_gettop(L) < index || lua_isnil(L, index))
+            {
+                *out_url = default_url;
+            }
+            else if (lua_isstring(L, index))
+            {
+                lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
+                ResolvePathCallback callback = (ResolvePathCallback)lua_touserdata(L, -1);
+                lua_pop(L, 1);
+                const char* url = lua_tostring(L, index);
+                dmMessage::ResetURL(*out_url);
+                dmMessage::Result result = ResolveURL(callback, (uintptr_t)L, url, out_url, &default_url);
+                if (result != dmMessage::RESULT_OK)
+                {
+                    switch (result)
+                    {
+                    case dmMessage::RESULT_MALFORMED_URL:
+                        return luaL_error(L, "Could not send message to '%s' because the address is invalid (should be [socket:][path][#fragment]).", url);
+                    case dmMessage::RESULT_INVALID_SOCKET_NAME:
+                        return luaL_error(L, "The socket name in '%s' is invalid.", url);
+                    case dmMessage::RESULT_SOCKET_NOT_FOUND:
+                        return luaL_error(L, "The socket in '%s' could not be found.", url);
+                    default:
+                        return luaL_error(L, "Error when resolving the URL '%s': %d.", url, result);
+                    }
+                }
+            }
+            else if (IsHash(L, index))
+            {
+                out_url->m_Socket = default_url.m_Socket;
+                out_url->m_Path = CheckHash(L, index);
+                out_url->m_Fragment = 0;
+            }
+            else
+            {
+                return luaL_typerror(L, index, SCRIPT_TYPE_NAME_URL);
+            }
         }
         return 0;
     }
