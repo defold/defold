@@ -168,9 +168,8 @@ namespace dmGameObject
         if (lua_gettop(L) == instance_arg)
         {
             dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, instance_arg, &receiver, &sender);
-            if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
             }
