@@ -158,8 +158,8 @@ namespace dmGameSystem
      * <pre>
      * go.property("my_value", 0)
      *
-     * function init(self, params)
-     *     -- do something with params.my_value which is now one
+     * function init(self)
+     *     -- do something with self.my_value which is now one
      * end
      * </pre>
      */
