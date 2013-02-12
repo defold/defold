@@ -634,9 +634,10 @@ namespace dmGameObject
      * @param L lua-state
      * @param index index to argument
      * @param user_data component user-date output if available
+     * @param url instance url. ignored if null
      * @return instance
      */
-    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data);
+    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data, dmMessage::URL* url);
 
     /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.

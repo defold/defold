@@ -8,6 +8,11 @@
 
 namespace dmGameSystem
 {
+    // Number of tiles in a region. A region is a subset of a tile-grid.
+    // Tile-grids are divied into regions to reduce the vertex buffer creation cost
+    const uint32_t TILEGRID_REGION_WIDTH = 32;
+    const uint32_t TILEGRID_REGION_HEIGHT = 32;
+
     struct TileGridRegion
     {
         dmRender::RenderObject    m_RenderObject;

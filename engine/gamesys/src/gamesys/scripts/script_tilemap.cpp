@@ -3,6 +3,7 @@
 #include <dlib/log.h>
 #include "tile_ddf.h"
 #include "../components/comp_tilegrid.h"
+#include "../proto/physics_ddf.h"
 
 extern "C"
 {
@@ -156,7 +157,8 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        dmGameObject::GetInstanceFromLua(L, 1, &user_data);
+        dmMessage::URL receiver;
+        dmGameObject::GetInstanceFromLua(L, 1, &user_data, &receiver);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -173,7 +175,12 @@ namespace dmGameSystem
 
         int x = luaL_checkinteger(L, 3) - 1;
         int y = luaL_checkinteger(L, 4) - 1;
-        int tile = luaL_checkinteger(L, 5);
+        /*
+         * NOTE AND BEWARE: Empty tile is encoded as 0xffffffff
+         * That's why tile-index is subtracted by 1
+         * See B2GRIDSHAPE_EMPTY_CELL in b2GridShape.h
+         */
+        uint32_t tile = ((uint16_t) luaL_checkinteger(L, 5)) - 1;
         int32_t cell_x = x - resource->m_MinCellX, cell_y = y - resource->m_MinCellY;
         if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
         {
@@ -183,8 +190,39 @@ namespace dmGameSystem
             return 1;
         }
         uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
+        uint32_t region_x = cell_x / TILEGRID_REGION_WIDTH;
+        uint32_t region_y = cell_y / TILEGRID_REGION_HEIGHT;
+        uint32_t region_index = region_y * component->m_RegionsX + region_x;
+        TileGridRegion* region = &component->m_Regions[region_index];
+        region->m_Dirty = true;
+        component->m_Cells[cell_index] = tile;
 
-        component->m_Cells[cell_index] = (uint16_t) tile;
+        dmMessage::URL sender;
+        if (dmScript::GetURL(L, &sender))
+        {
+            // Broadcast to any collision object components
+            // TODO Filter broadcast to only collision objects
+            dmPhysicsDDF::SetGridShapeHull set_hull_ddf;
+            set_hull_ddf.m_Shape = layer_index;
+            set_hull_ddf.m_Column = cell_x;
+            set_hull_ddf.m_Row = cell_y;
+            set_hull_ddf.m_Hull = tile;
+            dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
+            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
+            uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
+            receiver.m_Fragment = 0;
+            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &set_hull_ddf, data_size);
+            if (result != dmMessage::RESULT_OK)
+            {
+                dmLogError("Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
+            }
+        }
+        else
+        {
+            return luaL_error(L, "tilemap.set_tile is not available from this script-type.");
+        }
+
+
         lua_pushboolean(L, 1);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -195,7 +233,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        dmGameObject::GetInstanceFromLua(L, 1, &user_data);
+        dmGameObject::GetInstanceFromLua(L, 1, &user_data, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -232,7 +270,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        dmGameObject::GetInstanceFromLua(L, 1, &user_data);
+        dmGameObject::GetInstanceFromLua(L, 1, &user_data, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
