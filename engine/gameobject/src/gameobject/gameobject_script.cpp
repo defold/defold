@@ -217,7 +217,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data)
+    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data, dmMessage::URL* url)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
@@ -237,6 +237,11 @@ namespace dmGameObject
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, index));
                 return 0; // Actually never reached
+            }
+
+            if (url)
+            {
+                *url = receiver;
             }
 
             uint32_t component_type_index;
