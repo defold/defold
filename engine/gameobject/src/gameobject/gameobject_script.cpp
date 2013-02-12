@@ -266,8 +266,17 @@ namespace dmGameObject
      * The position is relative the parent (if any). Use <code>go.get_world_position</code> to retrieve the global world position.
      *
      * @name go.get_position
-     * @param [id] optional id of the instance to get the position for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the position for, by default the instance of the calling script (hash|string|url)
      * @return instance position (vector3)
+     * @examples
+     * <p>Get the position of the instance the script is attached to:</p>
+     * <pre>
+     * local p = go.get_position()
+     * </pre>
+     * <p>Get the position of another instance "x":</p>
+     * <pre>
+     * local p = go.get_position("x")
+     * </pre>
      */
     int Script_GetPosition(lua_State* L)
     {
@@ -280,8 +289,17 @@ namespace dmGameObject
      * The rotation is relative to the parent (if any). Use <code>go.get_world_rotation</code> to retrieve the global world position.
      *
      * @name go.get_rotation
-     * @param [id] optional id of the instance to get the rotation for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the rotation for, by default the instance of the calling script (hash|string|url)
      * @return instance rotation (quaternion)
+     * @examples
+     * <p>Get the rotation of the instance the script is attached to:</p>
+     * <pre>
+     * local r = go.get_rotation()
+     * </pre>
+     * <p>Get the rotation of another instance "x":</p>
+     * <pre>
+     * local r = go.get_rotation("x")
+     * </pre>
      */
     int Script_GetRotation(lua_State* L)
     {
@@ -294,8 +312,17 @@ namespace dmGameObject
      * The uniform scale is relative the parent (if any). Use <code>go.get_world_scale</code> to retrieve the global world scale factor.
      *
      * @name go.get_scale
-     * @param [id] optional id of the instance to get the scale for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
      * @return uniform instance scale factor (number)
+     * @examples
+     * <p>Get the scale of the instance the script is attached to:</p>
+     * <pre>
+     * local s = go.get_scale()
+     * </pre>
+     * <p>Get the scale of another instance "x":</p>
+     * <pre>
+     * local s = go.get_scale("x")
+     * </pre>
      */
     int Script_GetScale(lua_State* L)
     {
@@ -309,7 +336,18 @@ namespace dmGameObject
      *
      * @name go.set_position
      * @param position position to set (vector3)
-     * @param [id] optional id of the instance to set the position for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to set the position for, by default the instance of the calling script (hash|string|url)
+     * @examples
+     * <p>Set the position of the instance the script is attached to:</p>
+     * <pre>
+     * local p = ...
+     * go.set_position(p)
+     * </pre>
+     * <p>Set the position of another instance "x":</p>
+     * <pre>
+     * local p = ...
+     * go.set_position(p, "x")
+     * </pre>
      */
     int Script_SetPosition(lua_State* L)
     {
@@ -324,7 +362,18 @@ namespace dmGameObject
      *
      * @name go.set_rotation
      * @param rotation rotation to set (quaternion)
-     * @param [id] optional id of the instance to get the rotation for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the rotation for, by default the instance of the calling script (hash|string|url)
+     * @examples
+     * <p>Set the rotation of the instance the script is attached to:</p>
+     * <pre>
+     * local r = ...
+     * go.set_rotation(r)
+     * </pre>
+     * <p>Set the rotation of another instance "x":</p>
+     * <pre>
+     * local r = ...
+     * go.set_rotation(r, "x")
+     * </pre>
      */
     int Script_SetRotation(lua_State* L)
     {
@@ -341,7 +390,18 @@ namespace dmGameObject
      *
      * @name go.set_scale
      * @param scale uniform scale factor, must be greater than 0 (number)
-     * @param [id] optional id of the instance to get the scale for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the scale for, by default the instance of the calling script (hash|string|url)
+     * @examples
+     * <p>Set the scale of the instance the script is attached to:</p>
+     * <pre>
+     * local s = ...
+     * go.set_scale(s)
+     * </pre>
+     * <p>Set the scale of another instance "x":</p>
+     * <pre>
+     * local s = ...
+     * go.set_scale(s, "x")
+     * </pre>
      */
     int Script_SetScale(lua_State* L)
     {
@@ -359,8 +419,17 @@ namespace dmGameObject
      * Use <code>go.get_position</code> to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
-     * @param [id] optional id of the instance to get the world position for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the world position for, by default the instance of the calling script (hash|string|url)
      * @return instance world position (vector3)
+     * @examples
+     * <p>Get the world position of the instance the script is attached to:</p>
+     * <pre>
+     * local p = go.get_world_position()
+     * </pre>
+     * <p>Get the world position of another instance "x":</p>
+     * <pre>
+     * local p = go.get_world_position("x")
+     * </pre>
      */
     int Script_GetWorldPosition(lua_State* L)
     {
@@ -373,8 +442,17 @@ namespace dmGameObject
      * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
-     * @param [id] optional id of the instance to get the world rotation for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the world rotation for, by default the instance of the calling script (hash|string|url)
      * @return instance world rotation (quaternion)
+     * @examples
+     * <p>Get the world rotation of the instance the script is attached to:</p>
+     * <pre>
+     * local r = go.get_world_rotation()
+     * </pre>
+     * <p>Get the world rotation of another instance "x":</p>
+     * <pre>
+     * local r = go.get_world_rotation("x")
+     * </pre>
      */
     int Script_GetWorldRotation(lua_State* L)
     {
@@ -387,8 +465,17 @@ namespace dmGameObject
      * Use <code>go.get_scale</code> to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale
-     * @param [id] optional id of the instance to get the world scale for. Default is the "self" instance from the calling script (hash|string|url)
+     * @param [id] optional id of the instance to get the world scale for, by default the instance of the calling script (hash|string|url)
      * @return uniform instance world scale factor (number)
+     * @examples
+     * <p>Get the world scale of the instance the script is attached to:</p>
+     * <pre>
+     * local s = go.get_world_scale()
+     * </pre>
+     * <p>Get the world scale of another instance "x":</p>
+     * <pre>
+     * local s = go.get_world_scale("x")
+     * </pre>
      */
     int Script_GetWorldScale(lua_State* L)
     {
@@ -399,7 +486,7 @@ namespace dmGameObject
 
     /*# gets the id of an instance
      * The instance id is a hash of the absolute path.
-     * If <code>path</code> is specified it can either be absolute, or relative to the instance of the calling script.
+     * If <code>path</code> is specified, it can either be absolute or relative to the instance of the calling script.
      * If <code>path</code> is not specified, the id of the instance of the calling script will be returned. See the examples below for more information.
      *
      * @name go.get_id

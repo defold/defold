@@ -143,6 +143,7 @@ message AcquireInputFocus {}
 message ReleaseInputFocus {}
 
 /*# requests the transform from an instance
+ * <div><b>Deprecated</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
  * Send this message to an instance to request its transform (position, rotation, scale).
  * The sending script will receive the answer as a <code>transform_response</code>-message
  * at a later time.
@@ -183,6 +184,7 @@ message ReleaseInputFocus {}
 message RequestTransform {}
 
 /*# reports back the transform of an instance
+ * <div><b>Deprecated</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
  * The response a script receives after it has requested the transform from an instance
  * using the <code>request_transform</code>-message. See the description of that message
  * for a complete example on how to use it.
