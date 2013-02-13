@@ -45,14 +45,10 @@ URLs does not need to be global, which means that you can more freely specify ta
 There is also a browse button which lets you quickly select among the available URLs in your collection.
 
 ((((
-image::images/blog/20130213/props_url.png["URL Editing", align="center"]
+image::images/blog/20130213/bool_and_url_property.png["Property Editing", align="center"]
 ((((
 
 We have also added boolean as a type, which gives you neat check boxes in your game object and collection properties.
-
-((((
-image::images/blog/20130213/props_url.png["Boolean properties", align="center"]
-((((
 
 Improved Visualization Control
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -62,7 +58,7 @@ This applies to all views.
 Moreover, you can select whether to show models and particlefx.
 
 ((((
-image::images/blog/20130213/visualization.png["Scene Editor Visualization", align="center"]
+image::images/blog/20130213/scene_visualization.png["Scene Editor Visualization", align="center"]
 ((((
 
 Physics Impulses
