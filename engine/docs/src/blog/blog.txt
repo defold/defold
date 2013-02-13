@@ -1,5 +1,88 @@
 :max-width: 45em
 
+Transforms and Script Properties (Release 1.2.12)
+-------------------------------------------------
+_February 13, 2013_
+
+Another release (1.2.12) is now out with some useful additions, specifically synchronous game object transform operations and improved script properties.
+Before we go into details, we would like to update you on our current situation.
+
+We have had a fantastic opportunity to work in close collaboration with one of the mobile gaming industry's biggest studios.
+We are both getting valuable insight into how they currently work, as well as important feedback regarding Defold.
+The end result is that we can make sure Defold performs even better.
+The drawback is that this has pushed our plans regarding the public release.
+We apologize for the delays and that they are announced so late.
+We hope that you can appreciate the long term benefits from this, which lead us closer to our goal of making Defold the best platform for 2D game development there is.
+
+Public Release
+~~~~~~~~~~~~~~
+
+Regarding the public release, we have yet to decide how to move forward.
+At the moment, we are planning something similar to how we handled the delayed beta stage - to keep releasing features (like packaging the game for release) without charging more than we currently do.
+We want to make Defold much smoother to use before we go public.
+This unfortunately means that we are not ready to open the doors yet.
+If you are eager to start using Defold at this stage, there are two ways to get access.
+Either you post in our forums and request someone of our very friendly users to invite you, or you make a private post to us including a brief explanation of why you want to use Defold.
+Now, onwards with the new features.
+
+Transforms
+~~~~~~~~~~
+
+We have extended the transform functions (link:/ref/go#go.get_position[go.get_position], link:/ref/go#go.get_world_position[go.get_world_position], link:/ref/go#go.set_position[go.set_position], etc) to take an optional argument specifying which game object it should relate to.
+This means that you can now synchronously both read and write the transforms of other game objects. Here is an example:
+
+[source-code, lua]
+----
+-- get the world position of game object "x"
+local p = go.get_world_position("x")
+----
+
+Script Properties
+~~~~~~~~~~~~~~~~~
+
+We have extended script properties with two new features.
+URLs does not need to be global, which means that you can more freely specify target game objects or components to manipulate.
+There is also a browse button which lets you quickly select among the available URLs in your collection.
+
+((((
+image::images/blog/20130213/props_url.png["URL Editing", align="center"]
+((((
+
+We have also added boolean as a type, which gives you neat check boxes in your game object and collection properties.
+
+((((
+image::images/blog/20130213/props_url.png["Boolean properties", align="center"]
+((((
+
+Improved Visualization Control
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can now select if outlines around objects and the background grid should be shown in the editor.
+This applies to all views.
+Moreover, you can select whether to show models and particlefx.
+
+((((
+image::images/blog/20130213/visualization.png["Scene Editor Visualization", align="center"]
+((((
+
+Physics Impulses
+~~~~~~~~~~~~~~~~
+
+We have found a serious issue where we scaled both the applied impulses reported from contact points as well as the global impulse limit settings twice by the physics scaling.
+This means that if you use either of them in your game, you need to multiply your limits by your scale once.
+We apologize for this error in calculations and have added tests to make sure we don't make the same mistake again.
+
+Other fixes
+~~~~~~~~~~~
+
+* Both atlas and gui files now support jpeg images
+* Fixed bug when synchronizing an added file that someone else already added
+* Gui nodes without a texture were not visible on Windows and Linux
+* The default animation of a sprite was incorrectly visualized in the scene editor
+* Internal optimizations
+
+Take care!
+
 Defold Christmas Gift: Atlas (Release 1.2.11)
 ---------------------------------------------
 _December 20, 2012_
