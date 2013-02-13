@@ -210,10 +210,27 @@ typedef union TString {
 #define getstr(ts)	cast(const char *, (ts) + 1)
 #define svalue(o)       getstr(rawtsvalue(o))
 
-
+// Defold: "Hack" to support 16-bytes aligned user-data
+// We store Vector3, Vector4 etc as user-data. The structs
+// representing these values are aligned to 16 bytes. In newer
+// versions of clang the compiler is smart enough to convert
+// statements like memset(p, 0, sizeof(*v)) to a vector instruction.
+// As vector instructions in general require 16-bytes alignment
+// we must change the default behavior in lua. See L_Umaxalign
+// for alignment in lua
+struct align_16_byte_hack
+{
+#if defined(__GNUC__)
+    char __attribute__ ((aligned (16))) dummy[16];
+#else
+    char __declspec(align(16)) dummy[16];
+#endif
+};
 
 typedef union Udata {
-  L_Umaxalign dummy;  /* ensures maximum alignment for `local' udata */
+    struct align_16_byte_hack dummy;
+    // Defold: Change to align_16_byte_hack. See comment above
+    // L_Umaxalign dummy;  /* ensures maximum alignment for `local' udata */
   struct {
     CommonHeader;
     struct Table *metatable;
@@ -337,7 +354,7 @@ typedef struct Node {
 
 typedef struct Table {
   CommonHeader;
-  lu_byte flags;  /* 1<<p means tagmethod(p) is not present */ 
+  lu_byte flags;  /* 1<<p means tagmethod(p) is not present */
   lu_byte lsizenode;  /* log2 of size of `node' array */
   struct Table *metatable;
   TValue *array;  /* array part */
