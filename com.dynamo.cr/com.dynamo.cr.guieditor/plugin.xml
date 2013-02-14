@@ -246,13 +246,13 @@
             commandId="com.dynamo.cr.guieditor.commands.bringForward"
             contextId="com.dynamo.cr.guieditor.contexts.GuiEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="M1+SHIFT+F">
+            sequence="M1+]">
       </key>
       <key
             commandId="com.dynamo.cr.guieditor.commands.sendBackward"
             contextId="com.dynamo.cr.guieditor.contexts.GuiEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="M1+SHIFT+B">
+            sequence="M1+[">
       </key>
    </extension>
    <extension
