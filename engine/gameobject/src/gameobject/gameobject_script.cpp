@@ -529,9 +529,9 @@ namespace dmGameObject
     }
 
     /*# deletes a game object instance
-     * Use this function to delete a game object identified by its id.
+     * <div>Use this function to delete a game object identified by its id.</div>
      *
-     * NOTE! Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.
+     * <div><b>NOTE!</b> Don't call this function directly or indirectly from a <a href="#final">final</a> call. This will currently result in undefined behaviour.</div>
      *
      * @name go.delete
      * @param [id] optional id of the instance to delete, the instance of the calling script is deleted by default (hash|string|url)
@@ -1181,11 +1181,11 @@ bail:
      */
 
     /*# called when a script component is finalized
-     * This is a callback-function, which is called by the engine when a script component is finalized (destroyed). It can
+     * <div>This is a callback-function, which is called by the engine when a script component is finalized (destroyed). It can
      * be used to e.g. take some last action, report the finalization to other game object instances
-     * or release user input focus (see <code>release_input_focus</code>).
+     * or release user input focus (see <code>release_input_focus</code>).</div>
      *
-     * NOTE! Don't call <a href="#go.delete">go.delete</a> from this function or in any <a href="#on_message">on_message</a> resulting from a message posted from this function. This will currently result in undefined behaviour.
+     * <div><b>NOTE!</b> Don't call <a href="#go.delete">go.delete</a> from this function or in any <a href="#on_message">on_message</a> resulting from a message posted from this function. This will currently result in undefined behaviour.</div>
      *
      * @name final
      * @param self reference to the script state to be used for storing data (script_ref)
