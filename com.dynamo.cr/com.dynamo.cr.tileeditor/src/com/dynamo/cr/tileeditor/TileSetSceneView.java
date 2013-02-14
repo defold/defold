@@ -54,7 +54,12 @@ public class TileSetSceneView extends AbstractSceneView {
 
     @Override
     public void asyncExec(Runnable runnable) {
-        Display.getCurrent().asyncExec(runnable);
+        // TODO This method is only called by the Animator to animate tile source animations
+        // The timer exec below ensures a bounded execution rate, since in this specific case,
+        // this method is only called by the runnable passed in. Fragile but it works for now.
+        // Should be removed and changed to how atlases are animated once the tile source editor is ported to sceneed
+        // https://defold.fogbugz.com/default.asp?439
+        Display.getCurrent().timerExec(15, runnable);
     }
 
     @Override
