@@ -22,8 +22,7 @@ public class StatusLabel extends Composite {
         GridLayout layout = new GridLayout();
         setLayout(layout);
         label = new Label(this, style | SWT.WRAP);
-        GridData gd = new GridData();
-        gd.widthHint = 200;
+        GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
         label.setLayoutData(gd);
 
         errorBackgroundColor = new Color(null, 255, 234, 232);

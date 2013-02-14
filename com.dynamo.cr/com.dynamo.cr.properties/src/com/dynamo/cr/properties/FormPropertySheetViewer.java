@@ -70,7 +70,7 @@ public class FormPropertySheetViewer extends Viewer {
         this.form.setText("Properties"); //$NON-NLS-1$
         form.getBody().setLayout(new GridLayout());
         propertiesComposite = toolkit.createComposite(this.form.getBody());
-        propertiesComposite.setLayoutData(new GridData(GridData.FILL_BOTH));
+        propertiesComposite.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         propertiesComposite.setLayout(stackLayout);
         noSelectionComposite = toolkit.createComposite(this.propertiesComposite);
         noSelectionComposite.setLayout(new GridLayout());
@@ -288,8 +288,7 @@ public class FormPropertySheetViewer extends Viewer {
 
                 StatusLabel statusLabel = new StatusLabel(c, SWT.BORDER);
                 gd = new GridData(GridData.FILL_HORIZONTAL);
-                gd.exclude = true;
-                gd.horizontalSpan = 1;
+                gd.widthHint = 50;
                 statusLabel.setLayoutData(gd);
                 Entry entry = new Entry(label, link, editor, statusLabel, dummyLabel);
                 modelComposite.setData(desc.getId(), entry);
