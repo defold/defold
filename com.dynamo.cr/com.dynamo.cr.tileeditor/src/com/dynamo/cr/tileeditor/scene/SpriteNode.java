@@ -1,5 +1,8 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -24,7 +27,7 @@ public class SpriteNode extends ComponentTypeNode {
     @NotEmpty
     private String tileSource = "";
 
-    @Property
+    @Property(editorType=EditorType.DROP_DOWN)
     @NotEmpty
     private String defaultAnimation = "";
 
@@ -78,6 +81,20 @@ public class SpriteNode extends ComponentTypeNode {
         this.defaultAnimation = defaultAnimation;
         updateStatus();
         updateAABB();
+    }
+
+    public Object[] getDefaultAnimationOptions() {
+        List<Object> animations = new ArrayList<Object>();
+        if (this.textureSetNode != null) {
+            for (Node n : this.textureSetNode.getChildren()) {
+                if (n instanceof AnimationNode) {
+                    animations.add(((AnimationNode)n).getId());
+                } else if (n instanceof AtlasAnimationNode) {
+                    animations.add(((AtlasAnimationNode)n).getId());
+                }
+            }
+        }
+        return animations.toArray();
     }
 
     private void updateAABB() {

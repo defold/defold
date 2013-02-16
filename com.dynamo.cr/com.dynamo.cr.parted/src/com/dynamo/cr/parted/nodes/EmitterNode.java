@@ -29,6 +29,8 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
+import com.dynamo.cr.tileeditor.scene.AnimationNode;
+import com.dynamo.cr.tileeditor.scene.AtlasAnimationNode;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.particle.proto.Particle;
 import com.dynamo.particle.proto.Particle.BlendMode;
@@ -75,7 +77,7 @@ public class EmitterNode extends Node implements Identifiable {
 
     private transient TextureSetNode textureSetNode = null;
 
-    @Property
+    @Property(editorType=EditorType.DROP_DOWN)
     private String animation = "";
 
     @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
@@ -412,6 +414,20 @@ public class EmitterNode extends Node implements Identifiable {
     public void setAnimation(String animation) {
         this.animation = animation;
         reloadSystem(false);
+    }
+
+    public Object[] getAnimationOptions() {
+        List<Object> animations = new ArrayList<Object>();
+        if (this.textureSetNode != null) {
+            for (Node n : this.textureSetNode.getChildren()) {
+                if (n instanceof AnimationNode) {
+                    animations.add(((AnimationNode)n).getId());
+                } else if (n instanceof AtlasAnimationNode) {
+                    animations.add(((AtlasAnimationNode)n).getId());
+                }
+            }
+        }
+        return animations.toArray();
     }
 
     public IStatus validateAnimation() {
