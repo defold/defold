@@ -447,10 +447,11 @@ public class SyncDialog extends TitleAreaDialog {
                                         syncDialog.setState(State.RESOLVE);
                                     }
                                 });
-                            } else {
+                            } else if (branchStatus.getCommitsAhead() == 0) {
                                 done = true;
                             }
-                        } else if (!cancelled && branchStatus.getCommitsAhead() > 0) {
+                        }
+                        if (!cancelled && branchStatus.getCommitsAhead() > 0) {
                             Display.getDefault().asyncExec(new Runnable() {
 
                                 @Override
