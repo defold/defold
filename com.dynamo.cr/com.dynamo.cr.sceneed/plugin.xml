@@ -380,13 +380,14 @@
                      label="Grid"
                      style="toggle">
                </command>
-               <menu
-                     label="Types">
-                  <dynamic
-                        class="com.dynamo.cr.sceneed.ui.ShowGroupItems"
-                        id="com.dynamo.cr.sceneed.dynamics.showMenu">
-                  </dynamic>
-               </menu>
+               <separator
+                     name="com.dynamo.cr.sceneed.showSeparator"
+                     visible="true">
+               </separator>
+               <dynamic
+                     class="com.dynamo.cr.sceneed.ui.ShowGroupItems"
+                     id="com.dynamo.cr.sceneed.dynamics.showMenu">
+               </dynamic>
             </menu>
          </menu>
       </menuContribution>
