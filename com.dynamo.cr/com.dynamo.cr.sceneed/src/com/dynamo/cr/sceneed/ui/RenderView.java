@@ -856,14 +856,17 @@ IRenderView {
         if (!node.isVisible()) {
             return;
         }
-        if (!isOutlineShown() && !renderContext.isSelected(node) && (renderContext.getPass() == Pass.OUTLINE || renderContext.getPass() == Pass.ICON_OUTLINE)) {
-            return;
-        }
 
         Class<? extends Node> nodeClass = node.getClass();
         INodeType nodeType = this.nodeTypeRegistry.getNodeTypeClass(nodeClass);
         boolean abort = false;
-        if (nodeType != null) {
+        // outlines are only render either when the node is selected or outlines are set to be shown
+        boolean outlinePass = (renderContext.getPass() == Pass.OUTLINE || renderContext.getPass() == Pass.ICON_OUTLINE);
+        boolean render = true;
+        if (outlinePass && !renderContext.isSelected(node) && !isOutlineShown()) {
+            render = false;
+        }
+        if (render && nodeType != null) {
             if (!this.hiddenNodeTypes.contains(nodeType)) {
 
                 if (!renderers.containsKey(nodeType)) {
