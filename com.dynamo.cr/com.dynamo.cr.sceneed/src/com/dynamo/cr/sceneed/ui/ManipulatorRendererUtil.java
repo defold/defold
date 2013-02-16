@@ -11,6 +11,7 @@ public class ManipulatorRendererUtil {
     public static final double BASE_LENGTH = 110;
     public static final double BASE_THICKNESS = 1.5;
     public static final double BASE_HEAD_RADIUS = 6.5;
+    public static final double BASE_DIM = 25;
 
     public static double getScaleFactor(Node node,
             IRenderView renderView) {

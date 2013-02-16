@@ -300,6 +300,35 @@ public class RenderUtil {
         gl.glLineWidth(1.0f);
     }
 
+    public static void drawSquare(GL gl, double width, double height)
+    {
+        gl.glLineWidth(1.0f);
+
+        gl.glBegin(GL.GL_LINE_LOOP);
+
+        double xExt = width * 0.5;
+        double yExt = height * 0.5;
+        gl.glVertex3d(-xExt, yExt, 0);
+        gl.glVertex3d(xExt, yExt, 0);
+        gl.glVertex3d(xExt, -yExt, 0);
+        gl.glVertex3d(-xExt, -yExt, 0);
+        gl.glEnd();
+        gl.glLineWidth(1.0f);
+    }
+
+    public static void drawFilledSquare(GL gl, double width, double height)
+    {
+        gl.glBegin(GL.GL_QUADS);
+
+        double xExt = width * 0.5;
+        double yExt = height * 0.5;
+        gl.glVertex3d(-xExt, yExt, 0);
+        gl.glVertex3d(xExt, yExt, 0);
+        gl.glVertex3d(xExt, -yExt, 0);
+        gl.glVertex3d(-xExt, -yExt, 0);
+        gl.glEnd();
+    }
+
     // TODO: parsing preferences every time... performance problem?
     public static float[] parseColor(String preferenceName) {
         IPreferenceStore store = Activator.getDefault().getPreferenceStore();

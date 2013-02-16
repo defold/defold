@@ -240,6 +240,11 @@
             id="com.dynamo.cr.sceneed.ui.scaleManipulator"
             node="com.dynamo.cr.sceneed.ui.ScaleManipulator">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.sceneed.ui.screenPlaneManipulator"
+            node="com.dynamo.cr.sceneed.ui.ScreenPlaneManipulator"
+            renderer="com.dynamo.cr.sceneed.ui.ScreenPlaneManipulatorRenderer">
+      </node-type>
    </extension>
    <extension
          point="com.dynamo.cr.manipulators">

@@ -17,19 +17,22 @@ public class MoveManipulator extends TransformManipulator {
     private AxisManipulator xAxisManipulator;
     private AxisManipulator yAxisManipulator;
     private AxisManipulator zAxisManipulator;
+    private ScreenPlaneManipulator screenPlaneManipulator;
     private Point3d originalTranslation = new Point3d();
 
     public MoveManipulator() {
         xAxisManipulator = new AxisManipulator(this, new float[] {1, 0, 0, 1});
         yAxisManipulator = new AxisManipulator(this, new float[] {0, 1, 0, 1});
-        zAxisManipulator = new AxisManipulator(this, new float[] {0, 0, 1, 1});
-
         yAxisManipulator.setRotation(new Quat4d(0.5, 0.5, 0.5, 0.5));
+        zAxisManipulator = new AxisManipulator(this, new float[] {0, 0, 1, 1});
         zAxisManipulator.setRotation(new Quat4d(-0.5, -0.5, -0.5, 0.5));
+
+        screenPlaneManipulator = new ScreenPlaneManipulator(this, new float[] {0, 1, 1, 1});
 
         addChild(xAxisManipulator);
         addChild(yAxisManipulator);
         addChild(zAxisManipulator);
+        addChild(screenPlaneManipulator);
     }
 
     @Override
