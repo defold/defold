@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.Pair;
+import org.eclipse.core.resources.IFile;
 
 import com.dynamo.bob.atlas.AtlasGenerator;
 import com.dynamo.cr.properties.GreaterEqualThanZero;
@@ -159,5 +160,22 @@ public class AtlasNode extends TextureSetNode {
             }
         }
         return animationIds;
+    }
+
+    @Override
+    public boolean handleReload(IFile file) {
+        boolean reloaded = false;
+        List<String> images = new ArrayList<String>();
+        List<String> ids = new ArrayList<String>();
+        collectImages(this, images, ids);
+        for (String image : images) {
+            IFile imageFile = getModel().getFile(image);
+            if (imageFile.equals(file)) {
+                increaseVersion();
+                reloaded = true;
+                break;
+            }
+        }
+        return reloaded;
     }
 }

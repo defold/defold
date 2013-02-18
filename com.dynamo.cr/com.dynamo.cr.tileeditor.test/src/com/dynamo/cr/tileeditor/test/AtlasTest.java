@@ -3,6 +3,7 @@ package com.dynamo.cr.tileeditor.test;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -151,6 +152,13 @@ public class AtlasTest extends AbstractNodeTest {
 
         undo();
         assertThat(node.getVersion(), is(not(version)));
+    }
+
+    @Test
+    public void testReloadImage() throws Exception {
+        AtlasNode node = load("images: { image: \"/2x5_16_1.png\" }");
+
+        assertTrue(node.handleReload(getFile("/2x5_16_1.png")));
     }
 
 }
