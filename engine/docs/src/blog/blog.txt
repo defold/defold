@@ -1,5 +1,35 @@
 :max-width: 45em
 
+More Fixes (Release 1.2.13)
+---------------------------
+_February 18, 2013_
+
+We have just released 1.2.13, containing more useful fixes!
+Since this release was so close to 1.2.12 and the fact that the next release 1.2.14 is scheduled for this weekend, we chose to wait with the newsletter until that release.
+Below are the fixes, in no specific order.
+
+Fixes
+~~~~~
+
+* Tile source animations can be previewed on Windows/Linux without performance issues and random crashes.
+* New key bindings for bring-forward/send-backward in the Gui editor to avoid collisions with building the project.
+  They are now Ctrl/Cmd+[ and Ctrl/Cmd+], like Photoshop and Illustrator.
+* The property view is properly resized and laid out when status messages appear in it.
+* If you attempt to delete game objects from the final-callbacks in scripts, the log will show fatal error messages since this is currently unsupported.
+  Deleting game objects containing collision objects this way can lead to a crash.
+  This will be properly fixed at a later time.
+* The move manipulator has a square handle for free X-Y movement, similar to Maya.
+* Sprites and emitter nodes (within ParticleFX) has drop-down menus for easier selection of animations.
+* Selected objects are visualized even when outlines are set to not be shown.
+* When synchronizing own and foreign changes, the own changes was not properly pushed.
+  A second synchronize command was demanded for the changes to be pushed.
+* Which object types to show was previously moved to Scene > Show > Types, they have now been merged with the Scene > Show menu again.
+* Sprites with horizontally or vertically flipped animations are properly visualized in the editor.
+* Atlas resources are reloaded when the contained images have been changed.
+* Fixed exceptions when deleting images referenced from atlases.
+
+Enjoy!
+
 Transforms and Script Properties (Release 1.2.12)
 -------------------------------------------------
 _February 13, 2013_

@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/more_fixes_release_1_2_13.html
 /blog/transforms_and_script_properties_release_1_2_12.html
 /blog/defold_christmas_gift_atlas_release_1_2_11.html
 /blog/scaling_things_release_1_2_9.html
