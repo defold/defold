@@ -127,8 +127,8 @@ public class ParticleSystemTest {
                         data.texCoords = texCoords;
                         data.texture = originalTexture;
                         data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
-                        data.startTile = 1;
-                        data.endTile = 1;
+                        data.startTile = 0;
+                        data.endTile = 0;
                         data.fps = 30;
                         data.hFlip = 0;
                         data.vFlip = 0;
