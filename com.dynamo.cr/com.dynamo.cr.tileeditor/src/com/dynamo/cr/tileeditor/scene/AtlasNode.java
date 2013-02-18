@@ -149,4 +149,15 @@ public class AtlasNode extends TextureSetNode {
         return textureHandle;
     }
 
+    @Override
+    public List<String> getAnimationIds() {
+        List<Node> children = getChildren();
+        List<String> animationIds = new ArrayList<String>(children.size());
+        for (Node child : children) {
+            if (child instanceof AtlasAnimationNode) {
+                animationIds.add(((AtlasAnimationNode)child).getId());
+            }
+        }
+        return animationIds;
+    }
 }

@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import java.util.List;
+
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 
@@ -25,4 +27,5 @@ public abstract class TextureSetNode extends Node {
      */
     public abstract TextureHandle getTextureHandle();
 
+    public abstract List<String> getAnimationIds();
 }

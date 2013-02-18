@@ -501,4 +501,16 @@ public class TileSetNode extends TextureSetNode {
     public RuntimeTextureSet getRuntimeTextureSet() {
         return runtimeTextureSet;
     }
+
+    @Override
+    public List<String> getAnimationIds() {
+        List<Node> children = getChildren();
+        List<String> animationIds = new ArrayList<String>(children.size());
+        for (Node child : children) {
+            if (child instanceof AnimationNode) {
+                animationIds.add(((AnimationNode)child).getId());
+            }
+        }
+        return animationIds;
+    }
 }

@@ -29,8 +29,6 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
-import com.dynamo.cr.tileeditor.scene.AnimationNode;
-import com.dynamo.cr.tileeditor.scene.AtlasAnimationNode;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.particle.proto.Particle;
 import com.dynamo.particle.proto.Particle.BlendMode;
@@ -417,17 +415,11 @@ public class EmitterNode extends Node implements Identifiable {
     }
 
     public Object[] getAnimationOptions() {
-        List<Object> animations = new ArrayList<Object>();
         if (this.textureSetNode != null) {
-            for (Node n : this.textureSetNode.getChildren()) {
-                if (n instanceof AnimationNode) {
-                    animations.add(((AnimationNode)n).getId());
-                } else if (n instanceof AtlasAnimationNode) {
-                    animations.add(((AtlasAnimationNode)n).getId());
-                }
-            }
+            return this.textureSetNode.getAnimationIds().toArray();
+        } else {
+            return new Object[0];
         }
-        return animations.toArray();
     }
 
     public IStatus validateAnimation() {

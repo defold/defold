@@ -1,8 +1,5 @@
 package com.dynamo.cr.tileeditor.scene;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -84,17 +81,11 @@ public class SpriteNode extends ComponentTypeNode {
     }
 
     public Object[] getDefaultAnimationOptions() {
-        List<Object> animations = new ArrayList<Object>();
         if (this.textureSetNode != null) {
-            for (Node n : this.textureSetNode.getChildren()) {
-                if (n instanceof AnimationNode) {
-                    animations.add(((AnimationNode)n).getId());
-                } else if (n instanceof AtlasAnimationNode) {
-                    animations.add(((AtlasAnimationNode)n).getId());
-                }
-            }
+            return this.textureSetNode.getAnimationIds().toArray();
+        } else {
+            return new Object[0];
         }
-        return animations.toArray();
     }
 
     private void updateAABB() {
