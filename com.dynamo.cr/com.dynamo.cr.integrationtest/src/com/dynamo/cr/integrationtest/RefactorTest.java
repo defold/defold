@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -39,6 +40,7 @@ import org.osgi.framework.Bundle;
 
 import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
+import com.dynamo.atlas.proto.AtlasProto.AtlasImage;
 import com.dynamo.cr.sceneed.Activator;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
@@ -198,6 +200,31 @@ public class RefactorTest {
         testDelete(builder.clone(), referer, referee, referenceFetcher);
     }
 
+    @SuppressWarnings("unchecked")
+    private <Desc> void testClearDelete(Builder builder, String referer, String referee, ReferenceFetcher<Desc> referenceFetcher) throws IOException, CoreException {
+        Builder postBuilder = builder.clone();
+        Desc preReferer = (Desc) loadMessageFile(referer, builder);
+        for (String s : referenceFetcher.getReferences(preReferer)) {
+            assertEquals(referee, s);
+        }
+
+        IFile refereeFile = project.getFile(referee);
+        assertTrue(refereeFile.exists());
+
+        DeleteResourcesDescriptor descriptor = delete(new IPath[] { refereeFile.getFullPath() });
+        Change undoChange = perform(descriptor);
+
+        Desc postReferer = (Desc) loadMessageFile(referer, postBuilder);
+        assertEquals(0, referenceFetcher.getReferences(postReferer).length);
+
+        perform(undoChange);
+    }
+
+    private <Desc> void testRenameAndClearDelete(Builder builder, String referer, String referee, ReferenceFetcher<Desc> referenceFetcher) throws IOException, CoreException {
+        testRename(builder.clone(), referer, referee, referenceFetcher);
+        testClearDelete(builder.clone(), referer, referee, referenceFetcher);
+    }
+
     /*
      * Tileset
      */
@@ -231,14 +258,19 @@ public class RefactorTest {
     @Test
     public void testImageForAtlas() throws CoreException, IOException {
 
-        testRenameAndDelete(Atlas.newBuilder(), "graphics/atlas.atlas", "/graphics/ball.png", new ReferenceFetcher<Atlas>() {
+        testRenameAndClearDelete(Atlas.newBuilder(), "graphics/atlas.atlas", "/graphics/ball.png", new ReferenceFetcher<Atlas>() {
             @Override
             public String[] getReferences(Atlas atlas) {
-                if (atlas.getImagesCount() == 1) {
-                    return new String[] {atlas.getImages(0).getImage()};
-                } else {
-                    return new String[] {};
+                List<String> images = new ArrayList<String>();
+                for (AtlasImage image : atlas.getImagesList()) {
+                    images.add(image.getImage());
                 }
+                for (AtlasAnimation animation : atlas.getAnimationsList()) {
+                    for (AtlasImage image : animation.getImagesList()) {
+                        images.add(image.getImage());
+                    }
+                }
+                return images.toArray(new String[images.size()]);
             }
         });
     }
