@@ -137,7 +137,11 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         if ( renderData.getPass() == Pass.OUTLINE) {
             gl.glDrawArrays(GL.GL_LINE_LOOP, runtimeTextureSet.getOutlineVertexStart(animation, 0), runtimeTextureSet.getOutlineVertexCount(animation, 0));
         } else {
+            float scaleX = animation.getFlipHorizontal() != 0 ? -1 : 1;
+            float scaleY = animation.getFlipVertical() != 0 ? -1 : 1;
+            gl.glScalef(scaleX, scaleY, 1);
             gl.glDrawArrays(GL.GL_TRIANGLES, runtimeTextureSet.getVertexStart(animation, 0), runtimeTextureSet.getVertexCount(animation, 0));
+            gl.glScalef(scaleX, scaleY, 1);
         }
         this.vertexFormat.disable(gl, shader);
         vertexBuffer.disable(gl);
