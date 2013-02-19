@@ -1,5 +1,30 @@
 :max-width: 45em
 
+Fix for Broken Resolve (Release 1.2.14)
+---------------------------------------
+_February 19, 2013_
+
+Yesterday's release unfortunately brought a new error, which we are very sorry about.
+When synchronizing changes which conflicted with someone else's changes, the synchronize dialog failed to resolve the situation.
+The result was a failure during the Push-stage with the message "Unable to publish files".
+This has now been fixed, in addition we have manually tested and verified an extensive amount of different situations which can occur when synchronizing.
+
+How did this happen?
+~~~~~~~~~~~~~~~~~~~~
+
+We were under pressure to get a lot done and cut corners during the deployment of yesterday's release.
+The introduced error served as a healthy reminder that we can never do this again.
+Our goal is for every release to be better than the previous in every regard - broken features is not ok!
+
+To meet this goal, we have a large amount of automated tests which run each time we introduce changes.
+Additionally, we have a robust procedure in place on how to deploy new releases.
+
+The short term fix is to never stray from the deployment procedure again, no matter the pressure.
+The long term fix is to rewrite the entire Synchronize-dialog, so that it can be automatically tested and ensured to stay robust.
+Being able to safely synchronize changes with each other is a corner stone of Defold, which makes any error here critical.
+
+Apologies for this, we will make better!
+
 More Fixes (Release 1.2.13)
 ---------------------------
 _February 18, 2013_
