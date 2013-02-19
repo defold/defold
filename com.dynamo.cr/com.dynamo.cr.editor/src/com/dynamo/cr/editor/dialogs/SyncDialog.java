@@ -451,7 +451,7 @@ public class SyncDialog extends TitleAreaDialog {
                                 done = true;
                             }
                         }
-                        if (!cancelled && branchStatus.getCommitsAhead() > 0) {
+                        if (!cancelled && branchStatus.getFileStatusCount() == 0 && branchStatus.getCommitsAhead() > 0) {
                             Display.getDefault().asyncExec(new Runnable() {
 
                                 @Override
