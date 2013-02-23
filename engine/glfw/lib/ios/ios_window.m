@@ -56,6 +56,26 @@
  *   See TN2244 for more information
  */
 
+static void LogGLError(GLint err)
+{
+#ifdef GL_ES_VERSION_2_0
+    printf("gl error %d\n", err);
+#else
+    printf("gl error %d: %s\n", err, gluErrorString(err));
+#endif
+}
+
+#define CHECK_GL_ERROR \
+    { \
+        GLint err = glGetError(); \
+        if (err != 0) \
+        { \
+            LogGLError(err); \
+            assert(0); \
+        } \
+    }\
+
+
 /*
 This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView subclass.
 The view content is basically an EAGL surface you render your OpenGL scene into.
@@ -103,6 +123,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
   if (self != nil) {
       [self setSwapInterval: 1];
   }
+    viewRenderbuffer = 0;
+    viewFramebuffer = 0;
+    depthRenderbuffer = 0;
+
   return self;
 }
 
@@ -255,21 +279,30 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         NSLog(@"failed to make complete framebuffer object %x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
         return NO;
     }
-
+    CHECK_GL_ERROR
     return YES;
 }
 
 - (void)destroyFramebuffer
 {
-    glDeleteFramebuffers(1, &viewFramebuffer);
-    viewFramebuffer = 0;
-    glDeleteRenderbuffers(1, &viewRenderbuffer);
-    viewRenderbuffer = 0;
-
-    if(depthRenderbuffer)
+    if (viewFramebuffer)
     {
-        glDeleteRenderbuffers(1, &depthRenderbuffer);
-        depthRenderbuffer = 0;
+        [context renderbufferStorage:GL_RENDERBUFFER fromDrawable: nil];
+        CHECK_GL_ERROR
+
+        glDeleteFramebuffers(1, &viewFramebuffer);
+        CHECK_GL_ERROR
+        viewFramebuffer = 0;
+        glDeleteRenderbuffers(1, &viewRenderbuffer);
+        CHECK_GL_ERROR
+        viewRenderbuffer = 0;
+
+        if(depthRenderbuffer)
+        {
+            glDeleteRenderbuffers(1, &depthRenderbuffer);
+            CHECK_GL_ERROR
+            depthRenderbuffer = 0;
+        }
     }
 }
 
@@ -310,6 +343,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 @implementation ViewController
 
 @synthesize glView;
+
+- (void)dealloc
+{
+    [glView release];
+    [super dealloc];
+}
 
 - (void)viewDidLoad
 {
