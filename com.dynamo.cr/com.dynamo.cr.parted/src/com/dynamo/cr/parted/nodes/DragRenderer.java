@@ -4,6 +4,7 @@ import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.parted.manipulators.ParticleManipulatorUtil;
@@ -12,7 +13,7 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.ui.ManipulatorRendererUtil;
-import com.sun.opengl.util.BufferUtil;
+import com.jogamp.common.nio.Buffers;
 
 public class DragRenderer implements INodeRenderer<DragNode> {
 
@@ -27,7 +28,7 @@ public class DragRenderer implements INodeRenderer<DragNode> {
     private void createVB() {
         int segments = 64;
         int circles = 5;
-        vertexBuffer = BufferUtil.newFloatBuffer(segments * 6 * circles);
+        vertexBuffer = Buffers.newDirectFloatBuffer(segments * 6 * circles);
 
         float rotation = (float) (Math.PI * 4);
         float length = 60;
@@ -57,7 +58,7 @@ public class DragRenderer implements INodeRenderer<DragNode> {
     }
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
     }
 
     @Override
@@ -79,7 +80,7 @@ public class DragRenderer implements INodeRenderer<DragNode> {
     public void render(RenderContext renderContext, DragNode node,
             RenderData<DragNode> renderData) {
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
 
         if (renderData.getUserData() == null) {
             double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
@@ -93,10 +94,10 @@ public class DragRenderer implements INodeRenderer<DragNode> {
 
             gl.glColor4fv(renderContext.selectColor(node, color), 0);
 
-            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
             gl.glVertexPointer(3, GL.GL_FLOAT, 0, vertexBuffer);
             gl.glDrawArrays(GL.GL_LINES, 0, vertexBuffer.limit() / 3);
-            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
 
             gl.glPopMatrix();
         } else if (renderData.getUserData() instanceof Double) {

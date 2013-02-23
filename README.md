@@ -82,3 +82,16 @@ Android debugging
 * Run ndk-gdb from android ndk
 * Debug
 
+OpenGL and jogl
+---------------
+
+Prior to GLCanvas#setCurrent the GLDrawableFactory must be created on OSX. This might be a bug but the following code works:
+
+        GLDrawableFactory factory = GLDrawableFactory.getFactory(GLProfile.getGL2ES1());
+        this.canvas.setCurrent();
+		this.context = factory.createExternalGLContext();
+
+Typically the getFactory and createExternalGLContext are in the same statement. The exception thrown is "Error: current Context (CGL) null, no Context (NS)" and might be related to loading of shared libraries that seems to triggered when the factory is
+created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
+are unknown though.
+

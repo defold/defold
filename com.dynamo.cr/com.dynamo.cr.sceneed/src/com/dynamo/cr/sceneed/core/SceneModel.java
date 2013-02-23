@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IOperationHistoryListener;
@@ -120,13 +122,13 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
         this.history.addOperationHistoryListener(this);
     }
 
-    public void dispose() {
+    public void dispose(GL2 gl) {
         if (this.root != null) {
             this.root.dispose();
         }
         this.history.removeOperationHistoryListener(this);
         for (TextureHandle texture : this.textureCache.values()) {
-            texture.clear();
+            texture.clear(gl);
         }
     }
 

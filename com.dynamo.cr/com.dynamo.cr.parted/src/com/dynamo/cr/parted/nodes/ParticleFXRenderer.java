@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4f;
@@ -24,9 +25,9 @@ import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.cr.sceneed.ui.util.VertexFormat;
 import com.dynamo.cr.sceneed.ui.util.VertexFormat.AttributeFormat;
 import com.dynamo.particle.proto.Particle.BlendMode;
+import com.jogamp.opengl.util.awt.TextRenderer;
+import com.jogamp.opengl.util.texture.Texture;
 import com.sun.jna.Pointer;
-import com.sun.opengl.util.j2d.TextRenderer;
-import com.sun.opengl.util.texture.Texture;
 
 public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
 
@@ -43,7 +44,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     private VertexBufferObject vbo;
 
     private static class Callback implements RenderInstanceCallback {
-        GL gl;
+        GL2 gl;
         ParticleFXNode currentNode;
 
         private void setBlendFactors(BlendMode blendMode, GL gl) {
@@ -78,18 +79,19 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
                 --index;
                 EmitterNode emitter = (EmitterNode)
                         currentNode.getChildren().get(index);
-                t = emitter.getTextureSetNode().getTextureHandle().getTexture();
-                t.bind();
-                t.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_INTERPOLATE);
-                t.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_INTERPOLATE);
-                t.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-                t.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-                t.enable();
+                t = emitter.getTextureSetNode().getTextureHandle().getTexture(gl);
+
+                t.bind(gl);
+                t.setTexParameteri(gl, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_INTERPOLATE);
+                t.setTexParameteri(gl, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_INTERPOLATE);
+                t.setTexParameteri(gl, GL2.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
+                t.setTexParameteri(gl, GL2.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
+                t.enable(gl);
             }
             setBlendFactors(BlendMode.valueOf(blendMode), gl);
             gl.glDrawArrays(GL.GL_TRIANGLES, vertexIndex, vertexCount);
             if (t != null) {
-                t.disable();
+                t.disable(gl);
             }
         }
     }
@@ -105,7 +107,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     }
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
         if (this.shader != null) {
             this.shader.dispose(gl);
         }
@@ -118,7 +120,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     public void setup(RenderContext renderContext, ParticleFXNode node) {
         Pointer context = node.getContext();
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         if (this.shader == null) {
             this.shader = new Shader(gl);
             try {
@@ -161,7 +163,7 @@ public class ParticleFXRenderer implements INodeRenderer<ParticleFXNode> {
     public void render(RenderContext renderContext, ParticleFXNode node,
             RenderData<ParticleFXNode> renderData) {
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         double dt = renderContext.getDt();
 
         if (renderData.getPass() == Pass.OVERLAY) {

@@ -1,18 +1,18 @@
 package com.dynamo.cr.parted.manipulators;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
-import com.sun.opengl.util.j2d.TextRenderer;
+import com.jogamp.opengl.util.awt.TextRenderer;
 
 public class ParticleManipulatorUtil {
 
     public static void drawNumber(RenderContext renderContext, Node node, double value) {
         TextRenderer textRenderer = renderContext.getSmallTextRenderer();
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         gl.glPushMatrix();
         gl.glScaled(1, -1, 1);
         textRenderer.begin3DRendering();

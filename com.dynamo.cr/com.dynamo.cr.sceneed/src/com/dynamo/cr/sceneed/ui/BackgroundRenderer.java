@@ -1,6 +1,6 @@
 package com.dynamo.cr.sceneed.ui;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -15,7 +15,7 @@ public class BackgroundRenderer implements INodeRenderer<BackgroundNode> {
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     @Override
     public void setup(RenderContext renderContext, BackgroundNode node) {
@@ -27,7 +27,7 @@ public class BackgroundRenderer implements INodeRenderer<BackgroundNode> {
     @Override
     public void render(RenderContext renderContext, BackgroundNode node,
             RenderData<BackgroundNode> renderData) {
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         float[] topColor = RenderUtil.parseColor(PreferenceConstants.P_TOP_BKGD_COLOR);
         float[] bottomColor = RenderUtil.parseColor(PreferenceConstants.P_BOTTOM_BKGD_COLOR);
 
@@ -35,7 +35,7 @@ public class BackgroundRenderer implements INodeRenderer<BackgroundNode> {
         float x1 = 1.0f;
         float y0 = -1.0f;
         float y1 = 1.0f;
-        gl.glBegin(GL.GL_QUADS);
+        gl.glBegin(GL2.GL_QUADS);
         gl.glColor3fv(topColor, 0);
         gl.glVertex2f(x0, y1);
         gl.glVertex2f(x1, y1);

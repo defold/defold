@@ -3,7 +3,7 @@ package com.dynamo.cr.parted.nodes;
 import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.parted.manipulators.ParticleManipulatorUtil;
@@ -27,7 +27,7 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
     }
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
     }
 
     @Override
@@ -52,7 +52,7 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
     @Override
     public void render(RenderContext renderContext, VortexNode node, RenderData<VortexNode> renderData) {
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         double factorRecip = 50.0 / factor;
 
@@ -66,17 +66,17 @@ public class VortexRenderer implements INodeRenderer<VortexNode> {
                 gl.glScaled(-1.0, 1.0, 1.0);
             }
             gl.glScaled(factorRecip, factorRecip, 1.0);
-            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-            gl.glVertexPointer(3, GL.GL_FLOAT, 0, spiral);
-            gl.glDrawArrays(GL.GL_LINE_STRIP, 0, spiral.limit() / 3);
-            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
+            gl.glVertexPointer(3, GL2.GL_FLOAT, 0, spiral);
+            gl.glDrawArrays(GL2.GL_LINE_STRIP, 0, spiral.limit() / 3);
+            gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
         } else if (renderData.getUserData() == circle) {
             double r = node.getMaxDistance();
             gl.glScaled(r, r, 1.0);
-            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-            gl.glVertexPointer(3, GL.GL_FLOAT, 0, circle);
-            gl.glDrawArrays(GL.GL_LINES, 0, circle.limit() / 3);
-            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
+            gl.glVertexPointer(3, GL2.GL_FLOAT, 0, circle);
+            gl.glDrawArrays(GL2.GL_LINES, 0, circle.limit() / 3);
+            gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
         } else if (renderData.getUserData() instanceof Double) {
             ParticleManipulatorUtil.drawNumber(renderContext, node, (Double)renderData.getUserData());
         }

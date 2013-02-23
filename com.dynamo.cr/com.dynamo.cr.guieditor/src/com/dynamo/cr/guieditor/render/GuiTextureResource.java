@@ -3,8 +3,8 @@ package com.dynamo.cr.guieditor.render;
 import java.io.ByteArrayInputStream;
 
 import com.dynamo.cr.guieditor.Activator;
-import com.sun.opengl.util.texture.Texture;
-import com.sun.opengl.util.texture.TextureIO;
+import com.jogamp.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.texture.TextureIO;
 
 public class GuiTextureResource {
     private byte[] textureData;

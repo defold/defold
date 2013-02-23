@@ -3,6 +3,7 @@ package com.dynamo.cr.sceneed.ui;
 import java.nio.FloatBuffer;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.glu.GLU;
 import javax.media.opengl.glu.GLUquadric;
 import javax.vecmath.Matrix4d;
@@ -10,14 +11,14 @@ import javax.vecmath.Matrix4d;
 import org.eclipse.jface.preference.IPreferenceStore;
 
 import com.dynamo.cr.sceneed.Activator;
-import com.sun.opengl.util.BufferUtil;
+import com.jogamp.common.nio.Buffers;
 
 public class RenderUtil {
 
     public static FloatBuffer createUnitLineBox() {
         final int lineCount = 3 * 4;
         final int vertexCount = lineCount * 4;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * 3);
 
         // pos x-z
         v.put(-1.0f); v.put( 1.0f); v.put(-1.0f);
@@ -56,7 +57,7 @@ public class RenderUtil {
     public static FloatBuffer createUnitLineSphere(int steps) {
         final int lineCount = steps * 3;
         final int vertexCount = lineCount * 2;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * 3);
         float x0 = 1.0f;
         float z0 = 0.0f;
 
@@ -85,7 +86,7 @@ public class RenderUtil {
     public static FloatBuffer createUnitLineCone(int steps) {
         final int lineCount = steps +  4;
         final int vertexCount = lineCount * 2;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * 3);
         float x0 = 1.0f;
         float z0 = 0.0f;
 
@@ -125,7 +126,7 @@ public class RenderUtil {
         }
         final int quadCount = stacks * slices;
         final int vertexCount = quadCount * 4;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * 3);
         float x0 = 0.0f;
         float z0 = 0.0f;
         for (int slice = 1; slice <= slices; ++slice) {
@@ -157,7 +158,7 @@ public class RenderUtil {
     public static FloatBuffer createUnitBoxQuads() {
         final int quadCount = 6;
         final int vertexCount = quadCount * 4;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * 3);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * 3);
 
         // pos x-y
         v.put(-1.0f); v.put(-1.0f); v.put( 1.0f);
@@ -195,7 +196,7 @@ public class RenderUtil {
 
     static int[] cubeIndices = new int[] { 4, 5, 6, 7, 2, 3, 7, 6, 0, 4, 7, 3, 0, 1, 5, 4, 1, 5, 6, 2, 0, 3, 2, 1 };
 
-    public static void drawCube(GL gl, double x0, double y0, double z0, double x1, double y1, double z1)
+    public static void drawCube(GL2 gl, double x0, double y0, double z0, double x1, double y1, double z1)
     {
         double v[][] = new double[8][3];
         v[0][0] = v[3][0] = v[4][0] = v[7][0] = x0;
@@ -205,7 +206,7 @@ public class RenderUtil {
         v[0][2] = v[1][2] = v[2][2] = v[3][2] = z0;
         v[4][2] = v[5][2] = v[6][2] = v[7][2] = z1;
 
-        gl.glBegin(GL.GL_QUADS);
+        gl.glBegin(GL2.GL_QUADS);
         for (int i = 0; i < cubeIndices.length; i+=4)
         {
             gl.glVertex3dv(v[cubeIndices[i+0]], 0);
@@ -216,7 +217,7 @@ public class RenderUtil {
         gl.glEnd();
     }
 
-    public static void drawCapsule(GL gl, GLU glu, float radius, float height, int slices, int stacks) {
+    public static void drawCapsule(GL2 gl, GLU glu, float radius, float height, int slices, int stacks) {
         GLUquadric quadric = glu.gluNewQuadric();
 
         gl.glPushMatrix();
@@ -237,7 +238,7 @@ public class RenderUtil {
         glu.gluDeleteQuadric(quadric);
     }
 
-    public static void drawArrow(GL gl, double length, double coneLength, double radius, double coneCadius)
+    public static void drawArrow(GL2 gl, double length, double coneLength, double radius, double coneCadius)
     {
         GLU glu = new GLU();
         GLUquadric q =  glu.gluNewQuadric();
@@ -257,7 +258,7 @@ public class RenderUtil {
         glu.gluDeleteQuadric(q);
     }
 
-    public static void drawScaleArrow(GL gl, double length, double radius, double boxExt)
+    public static void drawScaleArrow(GL2 gl, double length, double radius, double boxExt)
     {
         GLU glu = new GLU();
         GLUquadric q =  glu.gluNewQuadric();
@@ -277,7 +278,7 @@ public class RenderUtil {
         glu.gluDeleteQuadric(q);
     }
 
-    public static void drawCircle(GL gl, double radius)
+    public static void drawCircle(GL2 gl, double radius)
     {
         gl.glLineWidth(1.0f);
 
@@ -300,11 +301,11 @@ public class RenderUtil {
         gl.glLineWidth(1.0f);
     }
 
-    public static void drawSquare(GL gl, double width, double height)
+    public static void drawSquare(GL2 gl, double width, double height)
     {
         gl.glLineWidth(1.0f);
 
-        gl.glBegin(GL.GL_LINE_LOOP);
+        gl.glBegin(GL2.GL_LINE_LOOP);
 
         double xExt = width * 0.5;
         double yExt = height * 0.5;
@@ -316,9 +317,9 @@ public class RenderUtil {
         gl.glLineWidth(1.0f);
     }
 
-    public static void drawFilledSquare(GL gl, double width, double height)
+    public static void drawFilledSquare(GL2 gl, double width, double height)
     {
-        gl.glBegin(GL.GL_QUADS);
+        gl.glBegin(GL2.GL_QUADS);
 
         double xExt = width * 0.5;
         double yExt = height * 0.5;
@@ -346,7 +347,7 @@ public class RenderUtil {
         return c;
     }
 
-    public static void loadMatrix(GL gl, Matrix4d transform) {
+    public static void loadMatrix(GL2 gl, Matrix4d transform) {
 
         double[] a = new double[16];
         int i = 0;
@@ -373,7 +374,7 @@ public class RenderUtil {
         gl.glLoadMatrixd(a, 0);
     }
 
-    public static void multMatrix(GL gl, Matrix4d transform) {
+    public static void multMatrix(GL2 gl, Matrix4d transform) {
         double[] a = new double[16];
         int i = 0;
         a[i++] = transform.m00;
@@ -425,7 +426,7 @@ public class RenderUtil {
     }
 
     public static FloatBuffer createDashedCircle(int count) {
-        FloatBuffer v = BufferUtil.newFloatBuffer(count * 3);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(count * 3);
 
         for (int i = 0; i < count; ++i) {
             double x = i / (double) (count);
@@ -443,7 +444,7 @@ public class RenderUtil {
     public static FloatBuffer createSpiral() {
         double totalAngle = 2 * Math.PI * 3.0;
         int segments = 64;
-        FloatBuffer v = BufferUtil.newFloatBuffer(segments * 3);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(segments * 3);
 
         double r0 = 0;
         double r1 = 1.0;

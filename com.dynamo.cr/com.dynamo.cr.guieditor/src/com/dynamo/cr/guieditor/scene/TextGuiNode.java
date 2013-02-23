@@ -22,8 +22,8 @@ import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Builder;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.dynamo.proto.DdfMath.Vector4;
-import com.sun.opengl.util.j2d.TextRenderer;
-import com.sun.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.awt.TextRenderer;
+import com.jogamp.opengl.util.texture.Texture;
 
 public class TextGuiNode extends GuiNode {
 

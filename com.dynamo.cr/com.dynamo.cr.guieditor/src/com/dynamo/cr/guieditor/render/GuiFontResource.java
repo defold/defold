@@ -4,7 +4,7 @@ import java.awt.Font;
 import java.io.ByteArrayInputStream;
 
 import com.dynamo.cr.guieditor.Activator;
-import com.sun.opengl.util.j2d.TextRenderer;
+import com.jogamp.opengl.util.awt.TextRenderer;
 
 public class GuiFontResource {
 

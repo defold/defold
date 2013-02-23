@@ -10,8 +10,10 @@ import java.util.Map;
 
 import javax.inject.Inject;
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
+import javax.media.opengl.GLProfile;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point2f;
@@ -51,9 +53,9 @@ import com.dynamo.cr.tileeditor.core.IGridView;
 import com.dynamo.cr.tileeditor.core.Layer;
 import com.dynamo.cr.tileeditor.core.Layer.Cell;
 import com.dynamo.cr.tileeditor.core.MapBrush;
-import com.sun.opengl.util.BufferUtil;
-import com.sun.opengl.util.texture.Texture;
-import com.sun.opengl.util.texture.TextureIO;
+import com.jogamp.common.nio.Buffers;
+import com.jogamp.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 
 public class GridRenderer implements
 IDisposable,
@@ -70,7 +72,7 @@ Listener {
 
     private GLCanvas canvas;
     private GLContext context;
-    private final IntBuffer viewPort = BufferUtil.newIntBuffer(4);
+    private final IntBuffer viewPort = Buffers.newDirectIntBuffer(4);
     private boolean paintRequested = false;
     private boolean enabled = true;
     private Point2i activeCell = null;
@@ -118,24 +120,26 @@ Listener {
         gd.heightHint = SWT.DEFAULT;
         this.canvas.setLayoutData(gd);
 
+        // See comment in section "OpenGL and jogl" in README.md about
+        // the order below any why the factory must be created before setCurrent
+        GLDrawableFactory factory = GLDrawableFactory.getFactory(GLProfile.getGL2GL3());
         this.canvas.setCurrent();
-
-        this.context = GLDrawableFactory.getFactory().createExternalGLContext();
+		this.context = factory.createExternalGLContext();
 
         this.context.makeCurrent();
-        GL gl = this.context.getGL();
-        gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
+        GL2 gl = this.context.getGL().getGL2();
+        gl.glPolygonMode(GL2.GL_FRONT, GL2.GL_FILL);
 
         BufferedImage backgroundImage = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
         backgroundImage.setRGB(0, 0, 0xff999999);
         backgroundImage.setRGB(1, 0, 0xff666666);
         backgroundImage.setRGB(0, 1, 0xff666666);
         backgroundImage.setRGB(1, 1, 0xff999999);
-        this.backgroundTexture = TextureIO.newTexture(backgroundImage, false);
+        this.backgroundTexture = AWTTextureIO.newTexture(GLProfile.getGL2GL3(), backgroundImage, false);
 
         // if the image is already set, set the corresponding texture
         if (this.tileSetImage != null) {
-            this.tileSetTexture = TextureIO.newTexture(tileSetImage, false);
+            this.tileSetTexture = AWTTextureIO.newTexture(GLProfile.getGL2GL3(), tileSetImage, false);
         }
 
         this.context.release();
@@ -238,15 +242,16 @@ Listener {
             if (this.context != null && this.canvas != null) {
                 this.canvas.setCurrent();
                 this.context.makeCurrent();
+                GL2 gl = this.context.getGL().getGL2();
                 if (this.tileSetTexture != null) {
                     if (tileSetImage != null) {
-                        this.tileSetTexture.updateImage(TextureIO.newTextureData(tileSetImage, false));
+                        this.tileSetTexture.updateImage(gl, AWTTextureIO.newTextureData(GLProfile.getGL2GL3(), tileSetImage, false));
                     } else {
-                        this.tileSetTexture.dispose();
+                        this.tileSetTexture.destroy(gl);
                         this.tileSetTexture = null;
                     }
                 } else {
-                    this.tileSetTexture = TextureIO.newTexture(tileSetImage, false);
+                    this.tileSetTexture = AWTTextureIO.newTexture(GLProfile.getGL2GL3(), tileSetImage, false);
                 }
                 this.context.release();
             }
@@ -524,7 +529,7 @@ Listener {
         if (!this.canvas.isDisposed()) {
             this.canvas.setCurrent();
             this.context.makeCurrent();
-            GL gl = this.context.getGL();
+            GL2 gl = this.context.getGL().getGL2();
             GLU glu = new GLU();
             try {
                 gl.glDepthMask(true);
@@ -547,7 +552,7 @@ Listener {
         }
     }
 
-    private void render(GL gl, GLU glu) {
+    private void render(GL2 gl, GLU glu) {
         if (!isEnabled()) {
             return;
         }
@@ -555,11 +560,11 @@ Listener {
         int viewPortWidth = this.viewPort.get(2);
         int viewPortHeight = this.viewPort.get(3);
 
-        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glLoadIdentity();
         glu.gluOrtho2D(-1.0f, 1.0f, -1.0f, 1.0f);
 
-        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
         gl.glLoadIdentity();
 
         // background
@@ -568,11 +573,11 @@ Listener {
         float recipScale = 1.0f / this.scale;
         float x = 0.5f * viewPortWidth * recipScale;
         float y = 0.5f * viewPortHeight * recipScale;
-        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glLoadIdentity();
         glu.gluOrtho2D(-x, x, -y, y);
 
-        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
         gl.glLoadIdentity();
         gl.glTranslatef(-this.position.getX(), -this.position.getY(), 0.0f);
 
@@ -591,13 +596,13 @@ Listener {
         renderTileSet(gl, glu);
     }
 
-    private void renderBackground(GL gl, int width, int height) {
-        this.backgroundTexture.bind();
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
-        this.backgroundTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT);
-        this.backgroundTexture.enable();
+    private void renderBackground(GL2 gl, int width, int height) {
+        this.backgroundTexture.bind(gl);
+        this.backgroundTexture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+        this.backgroundTexture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+        this.backgroundTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL.GL_REPEAT);
+        this.backgroundTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL.GL_REPEAT);
+        this.backgroundTexture.enable(gl);
         final float recipTileSize = 0.0625f;
         float x0 = -1.0f;
         float x1 = 1.0f;
@@ -609,7 +614,7 @@ Listener {
         float v1 = height * recipTileSize;
         float l = 0.4f;
         gl.glColor3f(l, l, l);
-        gl.glBegin(GL.GL_QUADS);
+        gl.glBegin(GL2.GL_QUADS);
         gl.glTexCoord2f(u0, v0);
         gl.glVertex2f(x0, y0);
         gl.glTexCoord2f(u0, v1);
@@ -619,10 +624,10 @@ Listener {
         gl.glTexCoord2f(u1, v0);
         gl.glVertex2f(x1, y0);
         gl.glEnd();
-        this.backgroundTexture.disable();
+        this.backgroundTexture.disable(gl);
     }
 
-    private void renderCells(GL gl) {
+    private void renderCells(GL2 gl) {
         TileSetUtil.Metrics metrics = calculateMetrics();
         if (metrics == null) {
             return;
@@ -631,12 +636,12 @@ Listener {
         float recipImageWidth = 1.0f / metrics.tileSetWidth;
         float recipImageHeight = 1.0f / metrics.tileSetHeight;
 
-        this.tileSetTexture.bind();
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-        this.tileSetTexture.enable();
+        this.tileSetTexture.bind(gl);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
+        this.tileSetTexture.enable(gl);
 
         gl.glColor3f(1.0f, 1.0f, 1.0f);
 
@@ -685,7 +690,7 @@ Listener {
                 z = layer.getZ();
                 int vertexCount = n * 4;
                 int componentCount = 5;
-                FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+                FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * componentCount);
                 for (Map.Entry<Long, Cell> entry : cells.entrySet()) {
                     int x = Layer.toCellX(entry.getKey());
                     int y = Layer.toCellY(entry.getKey());
@@ -711,15 +716,15 @@ Listener {
                 if (this.selectedLayer != null && !layer.equals(this.selectedLayer)) {
                     gl.glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
                 }
-                gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-                gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+                gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
+                gl.glEnableClientState(GL2.GL_TEXTURE_COORD_ARRAY);
 
-                gl.glInterleavedArrays(GL.GL_T2F_V3F, 0, v);
+                gl.glInterleavedArrays(GL2.GL_T2F_V3F, 0, v);
 
-                gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
+                gl.glDrawArrays(GL2.GL_QUADS, 0, vertexCount);
 
-                gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
-                gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
+                gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
+                gl.glDisableClientState(GL2.GL_TEXTURE_COORD_ARRAY);
                 gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
             }
 
@@ -728,7 +733,7 @@ Listener {
                     if (this.brush != null) {
                         int width = this.brush.getWidth();
                         int height = this.brush.getHeight();
-                        gl.glBegin(GL.GL_QUADS);
+                        gl.glBegin(GL2.GL_QUADS);
                         for (int dx = 0; dx < width; ++dx) {
                             for (int dy = 0; dy < height; ++dy) {
                                 int brushTile = this.brush.getCell(dx, dy).getTile();
@@ -766,11 +771,11 @@ Listener {
 
         gl.glDisable(GL.GL_BLEND);
 
-        this.tileSetTexture.disable();
+        this.tileSetTexture.disable(gl);
 
     }
 
-    private void renderGrid(GL gl) {
+    private void renderGrid(GL2 gl) {
         Point2f min = new Point2f();
         Point2f max = new Point2f();
         Point2i cellMin = new Point2i();
@@ -788,7 +793,7 @@ Listener {
         }
         final float z = 0.0f;
         final int componentCount = 6;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * componentCount);
         for (int i = cellMin.getX(); i < cellMax.getX(); ++i) {
             float[] color = gridColor;
             if (i == 0) {
@@ -810,18 +815,18 @@ Listener {
         }
         v.flip();
 
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
-        gl.glEnableClientState(GL.GL_COLOR_ARRAY);
+        gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
+        gl.glEnableClientState(GL2.GL_COLOR_ARRAY);
 
-        gl.glInterleavedArrays(GL.GL_C3F_V3F, 0, v);
+        gl.glInterleavedArrays(GL2.GL_C3F_V3F, 0, v);
 
         gl.glDrawArrays(GL.GL_LINES, 0, vertexCount);
 
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
-        gl.glDisableClientState(GL.GL_COLOR_ARRAY);
+        gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
+        gl.glDisableClientState(GL2.GL_COLOR_ARRAY);
     }
 
-    private void renderSelectionBox(GL gl) {
+    private void renderSelectionBox(GL2 gl) {
         if (this.selectedLayer != null && this.activeCell != null) {
             float minX = 0.0f;
             float maxX = 0.0f;
@@ -852,7 +857,7 @@ Listener {
         }
     }
 
-    private void renderTileSet(GL gl, GLU glu) {
+    private void renderTileSet(GL2 gl, GLU glu) {
         if (this.tileSetTexture == null || !this.showPalette) {
             return;
         }
@@ -866,11 +871,11 @@ Listener {
         int viewPortWidth = this.viewPort.get(2);
         int viewPortHeight = this.viewPort.get(3);
 
-        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glLoadIdentity();
         glu.gluOrtho2D(0, viewPortWidth, viewPortHeight, 0);
 
-        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
         gl.glLoadIdentity();
         gl.glPushMatrix();
 
@@ -881,7 +886,7 @@ Listener {
 
         gl.glColor4f(0.0f, 0.0f, 0.0f, 0.7f);
 
-        gl.glBegin(GL.GL_QUADS);
+        gl.glBegin(GL2.GL_QUADS);
         gl.glVertex2f(0.0f, 0.0f);
         gl.glVertex2f(viewPortWidth, 0.0f);
         gl.glVertex2f(viewPortWidth, viewPortHeight);
@@ -902,7 +907,7 @@ Listener {
 
         int vertexCount = metrics.tilesPerRow * metrics.tilesPerColumn * 4;
         int componentCount = 5;
-        FloatBuffer v = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+        FloatBuffer v = Buffers.newDirectFloatBuffer(vertexCount * componentCount);
 
         float z = 0.9f;
 
@@ -931,34 +936,34 @@ Listener {
         }
         v.flip();
 
-        this.tileSetTexture.bind();
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-        this.tileSetTexture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-        this.tileSetTexture.enable();
+        this.tileSetTexture.bind(gl);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
+        this.tileSetTexture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
+        this.tileSetTexture.enable(gl);
 
         gl.glEnable(GL.GL_DEPTH_TEST);
         gl.glDepthMask(true);
         gl.glClear(GL.GL_DEPTH_BUFFER_BIT);
 
-        gl.glEnableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glEnableClientState(GL2.GL_TEXTURE_COORD_ARRAY);
+        gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
         gl.glColor3f(1.0f, 1.0f, 1.0f);
 
-        gl.glInterleavedArrays(GL.GL_T2F_V3F, 0, v);
+        gl.glInterleavedArrays(GL2.GL_T2F_V3F, 0, v);
 
-        gl.glDrawArrays(GL.GL_QUADS, 0, vertexCount);
+        gl.glDrawArrays(GL2.GL_QUADS, 0, vertexCount);
 
-        gl.glDisableClientState(GL.GL_TEXTURE_COORD_ARRAY);
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glDisableClientState(GL2.GL_TEXTURE_COORD_ARRAY);
+        gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
 
-        this.tileSetTexture.disable();
+        this.tileSetTexture.disable(gl);
 
         // Grid
         vertexCount = ((metrics.tilesPerColumn + 1) * 2 + (metrics.tilesPerRow + 1) * 2);
         componentCount = 2;
-        FloatBuffer vg = BufferUtil.newFloatBuffer(vertexCount * componentCount);
+        FloatBuffer vg = Buffers.newDirectFloatBuffer(vertexCount * componentCount);
         for (int y = 0; y <= metrics.tilesPerColumn; ++y) {
             float y0 = y * (tileHeight + BORDER_SIZE);
             vg.put(0.0f); vg.put(y0);
@@ -972,15 +977,15 @@ Listener {
         vg.flip();
 
         gl.glDisable(GL.GL_DEPTH_TEST);
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
         gl.glColor3f(0.3f, 0.3f, 0.3f);
-        gl.glInterleavedArrays(GL.GL_V2F, 0, vg);
+        gl.glInterleavedArrays(GL2.GL_V2F, 0, vg);
         gl.glDrawArrays(GL.GL_LINES, 0, vertexCount);
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
 
         // Grid highlights
         if (this.activeTile >= 0 || brushTile >= 0) {
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_LINE);
 
             if (brushTile >= 0) {
                 float w = tileWidth + BORDER_SIZE;
@@ -989,7 +994,7 @@ Listener {
                 float h = tileHeight + BORDER_SIZE;
                 float y0 = (brushTile / metrics.tilesPerRow) * h;
                 float y1 = y0 + h;
-                gl.glBegin(GL.GL_QUADS);
+                gl.glBegin(GL2.GL_QUADS);
                 gl.glColor3f(0.8f, 0.8f, 0.8f);
                 gl.glVertex2f(x0, y0);
                 gl.glVertex2f(x1, y0);
@@ -1004,7 +1009,7 @@ Listener {
                 float h = tileHeight + BORDER_SIZE;
                 float y0 = (this.activeTile / metrics.tilesPerRow) * h;
                 float y1 = y0 + h;
-                gl.glBegin(GL.GL_QUADS);
+                gl.glBegin(GL2.GL_QUADS);
                 gl.glColor3f(1.0f, 1.0f, 1.0f);
                 gl.glVertex2f(x0, y0);
                 gl.glVertex2f(x1, y0);
@@ -1013,7 +1018,7 @@ Listener {
                 gl.glEnd();
             }
 
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
         }
 
         gl.glPopMatrix();

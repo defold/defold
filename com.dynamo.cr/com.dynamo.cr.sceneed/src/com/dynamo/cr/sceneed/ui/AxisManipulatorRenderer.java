@@ -1,6 +1,6 @@
 package com.dynamo.cr.sceneed.ui;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -14,7 +14,7 @@ public class AxisManipulatorRenderer implements INodeRenderer<AxisManipulator> {
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     @Override
     public void setup(RenderContext renderContext, AxisManipulator node) {
@@ -28,7 +28,7 @@ public class AxisManipulatorRenderer implements INodeRenderer<AxisManipulator> {
     public void render(RenderContext renderContext, AxisManipulator node,
             RenderData<AxisManipulator> renderData) {
         float[] color = node.getColor();
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
 
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         gl.glColor4fv(color, 0);

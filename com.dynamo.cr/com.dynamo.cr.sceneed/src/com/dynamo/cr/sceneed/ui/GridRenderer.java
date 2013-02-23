@@ -1,6 +1,7 @@
 package com.dynamo.cr.sceneed.ui;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 
@@ -17,7 +18,7 @@ public class GridRenderer implements INodeRenderer<GridNode> {
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     @Override
     public void setup(RenderContext renderContext, GridNode node) {
@@ -31,7 +32,7 @@ public class GridRenderer implements INodeRenderer<GridNode> {
             RenderData<GridNode> renderData) {
         SceneGrid grid = node.getGrid();
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
 
         double[] gridSizes = new double[2];
         gridSizes[0] = grid.getPrimarySize();
@@ -78,7 +79,7 @@ public class GridRenderer implements INodeRenderer<GridNode> {
         gl.glEnd();
     }
 
-    private void renderGrid(GL gl, int axis, double size, AABB aabb) {
+    private void renderGrid(GL2 gl, int axis, double size, AABB aabb) {
         double[] minValues = new double[4];
         aabb.getMin().get(minValues);
         double[] maxValues = new double[4];

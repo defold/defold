@@ -2,7 +2,7 @@ package com.dynamo.cr.ddfeditor.scene;
 
 import java.net.URL;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
@@ -13,7 +13,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
-import com.sun.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.texture.Texture;
 
 public abstract class IconRenderer<T extends Node> implements INodeRenderer<T> {
 
@@ -25,7 +25,7 @@ public abstract class IconRenderer<T extends Node> implements INodeRenderer<T> {
     }
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
     }
 
     @Override
@@ -50,7 +50,7 @@ public abstract class IconRenderer<T extends Node> implements INodeRenderer<T> {
     public void render(RenderContext renderContext, T node, RenderData<T> renderData) {
         loadIcon(renderContext);
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         Matrix4d m = new Matrix4d();
         node.getWorldTransform(m);
         Vector4d t = new Vector4d();
@@ -62,8 +62,8 @@ public abstract class IconRenderer<T extends Node> implements INodeRenderer<T> {
 
         Pass pass = renderContext.getPass();
         if (icon != null && pass != Pass.ICON_OUTLINE) {
-            icon.bind();
-            icon.enable();
+            icon.bind(gl);
+            icon.enable(gl);
         }
 
         if (pass == Pass.ICON_OUTLINE) {
@@ -74,19 +74,19 @@ public abstract class IconRenderer<T extends Node> implements INodeRenderer<T> {
             gl.glColor4f(1, 1, 1, 1.0f);
         }
 
-        gl.glBegin(GL.GL_QUADS);
-        gl.glTexCoord2f(0, 0);
-        gl.glVertex3d(pt.getX() - 0.5 * iconSize, pt.getY() - 0.5 * iconSize, pt.getZ());
-        gl.glTexCoord2f(1, 0);
-        gl.glVertex3d(pt.getX() + 0.5 * iconSize, pt.getY() - 0.5 * iconSize, pt.getZ());
-        gl.glTexCoord2f(1, 1);
-        gl.glVertex3d(pt.getX() + 0.5 * iconSize, pt.getY() + 0.5 * iconSize, pt.getZ());
+        gl.glBegin(GL2.GL_QUADS);
         gl.glTexCoord2f(0, 1);
+        gl.glVertex3d(pt.getX() - 0.5 * iconSize, pt.getY() - 0.5 * iconSize, pt.getZ());
+        gl.glTexCoord2f(1, 1);
+        gl.glVertex3d(pt.getX() + 0.5 * iconSize, pt.getY() - 0.5 * iconSize, pt.getZ());
+        gl.glTexCoord2f(1, 0);
+        gl.glVertex3d(pt.getX() + 0.5 * iconSize, pt.getY() + 0.5 * iconSize, pt.getZ());
+        gl.glTexCoord2f(0, 0);
         gl.glVertex3d(pt.getX() - 0.5 * iconSize, pt.getY() + 0.5 * iconSize, pt.getZ());
         gl.glEnd();
 
         if (icon != null && pass != Pass.ICON_OUTLINE) {
-            icon.disable();
+            icon.disable(gl);
         }
     }
 

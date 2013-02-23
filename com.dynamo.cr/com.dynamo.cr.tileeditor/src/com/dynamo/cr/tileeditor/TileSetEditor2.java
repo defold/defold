@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
 import javax.inject.Singleton;
+import javax.media.opengl.GLContext;
 
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
@@ -209,7 +210,10 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
     public void dispose() {
         super.dispose();
         if (this.sceneModel != null) {
-            ((SceneModel)this.sceneModel).dispose();
+            GLContext context = this.tileSetRenderer.getContext();
+            context.makeCurrent();
+            ((SceneModel)this.sceneModel).dispose(context.getGL().getGL2());
+            context.release();
         }
         if (this.tileSetRenderer != null) {
             this.tileSetRenderer.dispose();

@@ -15,8 +15,10 @@ import java.util.Set;
 
 import javax.inject.Inject;
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
+import javax.media.opengl.GLProfile;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point2i;
@@ -63,7 +65,7 @@ import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.cr.sceneed.core.SceneGrid;
 import com.dynamo.cr.sceneed.screenrecord.ScreenRecorder;
 import com.dynamo.cr.sceneed.ui.RenderView.SelectResult.Pair;
-import com.sun.opengl.util.j2d.TextRenderer;
+import com.jogamp.opengl.util.awt.TextRenderer;
 
 public class RenderView implements
 MouseListener,
@@ -132,13 +134,15 @@ IRenderView {
         gd.heightHint = SWT.DEFAULT;
         this.canvas.setLayoutData(gd);
 
+        // See comment in section "OpenGL and jogl" in README.md about
+        // the order below any why the factory must be created before setCurrent
+        GLDrawableFactory factory = GLDrawableFactory.getFactory(GLProfile.getGL2ES1());
         this.canvas.setCurrent();
-
-        this.context = GLDrawableFactory.getFactory().createExternalGLContext();
+		this.context = factory.createExternalGLContext();
 
         this.context.makeCurrent();
-        GL gl = this.context.getGL();
-        gl.glPolygonMode(GL.GL_FRONT, GL.GL_FILL);
+        GL2 gl = this.context.getGL().getGL2();
+        gl.glPolygonMode(GL2.GL_FRONT, GL2.GL_FILL);
 
         String fontName = Font.SANS_SERIF;
         Font debugFont = new Font(fontName, Font.BOLD, 12);
@@ -159,7 +163,7 @@ IRenderView {
     public void dispose() {
         if (this.context != null) {
             this.context.makeCurrent();
-            GL gl = this.context.getGL();
+            GL2 gl = this.context.getGL().getGL2();
 
             for (INodeRenderer<Node> r : this.renderers.values()) {
                 if (r != null) {
@@ -448,7 +452,7 @@ IRenderView {
 
         if (width > 0 && height > 0) {
             context.makeCurrent();
-            GL gl = context.getGL();
+            GL2 gl = context.getGL().getGL2();
             GLU glu = new GLU();
 
             for (Pass pass : Pass.getSelectionPasses() ) {
@@ -477,6 +481,7 @@ IRenderView {
                     nodes.add(renderData.getNode());
                 }
             }
+            context.release();
         }
 
         return nodes;
@@ -537,12 +542,12 @@ IRenderView {
         public long minZ = Long.MAX_VALUE;
     }
 
-    private void beginSelect(GL gl, Pass pass, int x, int y, int w, int h) {
+    private void beginSelect(GL2 gl, Pass pass, int x, int y, int w, int h) {
         gl.glSelectBuffer(PICK_BUFFER_SIZE, selectBuffer);
-        gl.glRenderMode(GL.GL_SELECT);
+        gl.glRenderMode(GL2.GL_SELECT);
 
         GLU glu = new GLU();
-        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glLoadIdentity();
 
         if (pass == Pass.SELECTION) {
@@ -559,7 +564,7 @@ IRenderView {
             }
         }
 
-        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
         if (pass == Pass.SELECTION) {
             Matrix4d view = new Matrix4d();
             camera.getViewMatrix(view);
@@ -577,13 +582,13 @@ IRenderView {
         return ( tmp << 32 ) >>> 32;
     }
 
-    public SelectResult endSelect(GL gl)
+    public SelectResult endSelect(GL2 gl)
     {
         long minz;
         minz = Long.MAX_VALUE;
 
         gl.glFlush();
-        int hits = gl.glRenderMode(GL.GL_RENDER);
+        int hits = gl.glRenderMode(GL2.GL_RENDER);
 
         List<SelectResult.Pair> selected = new ArrayList<SelectResult.Pair>();
 
@@ -640,7 +645,7 @@ IRenderView {
         if (!this.canvas.isDisposed()) {
             this.canvas.setCurrent();
             this.context.makeCurrent();
-            GL gl = this.context.getGL();
+            GL2 gl = this.context.getGL().getGL2();
             GLU glu = new GLU();
             try {
                 gl.glDepthMask(true);
@@ -667,7 +672,7 @@ IRenderView {
         }
     }
 
-    private void render(GL gl, GLU glu) {
+    private void render(GL2 gl, GLU glu) {
         if (!isEnabled()) {
             return;
         }
@@ -686,7 +691,7 @@ IRenderView {
         renderer.render(renderContext, node, renderData);
     }
 
-    private RenderContext renderNodes(GL gl, GLU glu, List<Pass> passes, boolean pick) {
+    private RenderContext renderNodes(GL2 gl, GLU glu, List<Pass> passes, boolean pick) {
         double dt = 0;
         if (simulating) {
             dt = 1.0 / 60.0;
@@ -734,54 +739,54 @@ IRenderView {
         return renderContext;
     }
 
-    private void setupPass(GL gl, GLU glu, Pass pass) {
+    private void setupPass(GL2 gl, GLU glu, Pass pass) {
 
         // Default projection
         // TODO: Temp camera
 
         if (!pass.isSelectionPass()) {
-            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glMatrixMode(GL2.GL_PROJECTION);
             Matrix4d projection = new Matrix4d();
             camera.getProjectionMatrix(projection );
             RenderUtil.loadMatrix(gl, projection);
         }
 
-        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
         Matrix4d view = new Matrix4d();
         camera.getViewMatrix(view);
         RenderUtil.loadMatrix(gl, view);
 
         switch (pass) {
         case BACKGROUND:
-            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glMatrixMode(GL2.GL_PROJECTION);
             gl.glLoadIdentity();
             glu.gluOrtho2D(-1, 1, -1, 1);
 
-            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glMatrixMode(GL2.GL_MODELVIEW);
             gl.glLoadIdentity();
 
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
             break;
 
         case OPAQUE:
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glDisable(GL.GL_BLEND);
             gl.glEnable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(true);
             break;
 
         case OUTLINE:
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_LINE);
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
             break;
 
         case TRANSPARENT:
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
             gl.glEnable(GL.GL_DEPTH_TEST);
@@ -789,21 +794,21 @@ IRenderView {
             break;
 
         case MANIPULATOR:
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
             break;
 
         case OVERLAY:
-            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glMatrixMode(GL2.GL_PROJECTION);
             gl.glLoadIdentity();
             glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
 
-            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glMatrixMode(GL2.GL_MODELVIEW);
             gl.glLoadIdentity();
 
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
             gl.glDisable(GL.GL_DEPTH_TEST);
@@ -811,14 +816,14 @@ IRenderView {
             break;
 
         case ICON:
-            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glMatrixMode(GL2.GL_PROJECTION);
             gl.glLoadIdentity();
             glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
 
-            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glMatrixMode(GL2.GL_MODELVIEW);
             gl.glLoadIdentity();
 
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
             gl.glDisable(GL.GL_DEPTH_TEST);
@@ -826,14 +831,14 @@ IRenderView {
             break;
 
         case ICON_OUTLINE:
-            gl.glMatrixMode(GL.GL_PROJECTION);
+            gl.glMatrixMode(GL2.GL_PROJECTION);
             gl.glLoadIdentity();
             glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
 
-            gl.glMatrixMode(GL.GL_MODELVIEW);
+            gl.glMatrixMode(GL2.GL_MODELVIEW);
             gl.glLoadIdentity();
 
-            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE);
+            gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_LINE);
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
@@ -919,9 +924,10 @@ IRenderView {
     }
 
     @Override
-    public void activateGLContext() {
+    public GL2 activateGLContext() {
         this.canvas.setCurrent();
         this.context.makeCurrent();
+        return context.getGL().getGL2();
     }
 
     @Override

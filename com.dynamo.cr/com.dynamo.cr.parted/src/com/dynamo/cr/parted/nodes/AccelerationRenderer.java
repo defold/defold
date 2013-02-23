@@ -2,7 +2,7 @@ package com.dynamo.cr.parted.nodes;
 
 import java.util.EnumSet;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.parted.manipulators.ParticleManipulatorUtil;
@@ -19,7 +19,7 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION, Pass.OVERLAY);
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
     }
 
     @Override
@@ -41,7 +41,7 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
     public void render(RenderContext renderContext, AccelerationNode node,
             RenderData<AccelerationNode> renderData) {
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         float[] color = renderContext.selectColor(node, AccelerationRenderer.color);
         gl.glColor4fv(color, 0);
@@ -69,7 +69,7 @@ public class AccelerationRenderer implements INodeRenderer<AccelerationNode> {
 
     }
 
-    private void drawArrow(GL gl, double factor) {
+    private void drawArrow(GL2 gl, double factor) {
         RenderUtil.drawArrow(gl, 0.6 * ManipulatorRendererUtil.BASE_LENGTH / factor,
                                  1.3 * ManipulatorRendererUtil.BASE_HEAD_RADIUS / factor,
                                  0.2 * ManipulatorRendererUtil.BASE_THICKNESS / factor,

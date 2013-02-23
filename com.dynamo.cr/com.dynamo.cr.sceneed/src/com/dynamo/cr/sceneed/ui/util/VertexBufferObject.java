@@ -4,6 +4,7 @@ import java.nio.Buffer;
 import java.nio.IntBuffer;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 
 public class VertexBufferObject {
     IntBuffer vbo = null;
@@ -42,7 +43,7 @@ public class VertexBufferObject {
         int name = vbo.get(0);
         gl.glBindBuffer(GL.GL_ARRAY_BUFFER, name);
         if (buffer != null) {
-            gl.glBufferData(GL.GL_ARRAY_BUFFER, byteSize, buffer, GL.GL_STREAM_DRAW);
+            gl.glBufferData(GL.GL_ARRAY_BUFFER, byteSize, buffer, GL2.GL_STREAM_DRAW);
             this.buffer = null;
         }
     }

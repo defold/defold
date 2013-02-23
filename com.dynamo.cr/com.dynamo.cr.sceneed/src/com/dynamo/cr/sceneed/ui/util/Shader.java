@@ -6,7 +6,7 @@ import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Vector4f;
 
@@ -22,15 +22,15 @@ public class Shader {
     private int fragmentShader;
     private int program;
 
-    public Shader(GL gl) {
-        this.vertexShader = gl.glCreateShader(GL.GL_VERTEX_SHADER);
-        this.fragmentShader = gl.glCreateShader(GL.GL_FRAGMENT_SHADER);
+    public Shader(GL2 gl) {
+        this.vertexShader = gl.glCreateShader(GL2.GL_VERTEX_SHADER);
+        this.fragmentShader = gl.glCreateShader(GL2.GL_FRAGMENT_SHADER);
         this.program = gl.glCreateProgram();
         this.attribLocations = new HashMap<String, Integer>();
         this.uniformLocations = new HashMap<String, Integer>();
     }
 
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
         if (this.vertexShader != 0) {
             gl.glDeleteShader(this.vertexShader);
         }
@@ -42,13 +42,13 @@ public class Shader {
         }
     }
 
-    private void loadShader(GL gl, int shader, InputStream input) throws IOException {
+    private void loadShader(GL2 gl, int shader, InputStream input) throws IOException {
         String source = IOUtils.toString(input);
         input.close();
         gl.glShaderSource(shader, 1, new String[] {source}, (IntBuffer)null);
     }
 
-    public void load(GL gl, Bundle bundle, String path) throws IOException {
+    public void load(GL2 gl, Bundle bundle, String path) throws IOException {
         loadShader(gl, this.vertexShader, bundle.getEntry(path + ".vp").openStream());
         loadShader(gl, this.fragmentShader, bundle.getEntry(path + ".fp").openStream());
         gl.glCompileShader(this.vertexShader);
@@ -58,15 +58,15 @@ public class Shader {
         gl.glLinkProgram(this.program);
     }
 
-    public void enable(GL gl) {
+    public void enable(GL2 gl) {
         gl.glUseProgram(this.program);
     }
 
-    public void disable(GL gl ) {
+    public void disable(GL2 gl) {
         gl.glUseProgram(0);
     }
 
-    public void setUniforms(GL gl, String uniform, Object value) {
+    public void setUniforms(GL2 gl, String uniform, Object value) {
         int index = getUniformLocation(gl, uniform);
         if (value instanceof Matrix4d) {
             gl.glUniformMatrix4fv(index, 1, false, RenderUtil.matrixToArray((Matrix4d)value), 0);
@@ -87,7 +87,7 @@ public class Shader {
         }
     }
 
-    public int getAttributeLocation(GL gl, String attribute) {
+    public int getAttributeLocation(GL2 gl, String attribute) {
         Integer location = attribLocations.get(attribute);
         if (location == null) {
             location = gl.glGetAttribLocation(this.program, attribute);
@@ -96,7 +96,7 @@ public class Shader {
         return location;
     }
 
-    public int getUniformLocation(GL gl, String uniform) {
+    public int getUniformLocation(GL2 gl, String uniform) {
         Integer location = uniformLocations.get(uniform);
         if (location == null) {
             String name = uniform.toString();

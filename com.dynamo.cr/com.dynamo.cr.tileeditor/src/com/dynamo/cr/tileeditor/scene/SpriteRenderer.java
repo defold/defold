@@ -3,8 +3,8 @@ package com.dynamo.cr.tileeditor.scene;
 import java.io.IOException;
 import java.util.EnumSet;
 
-import javax.media.opengl.DebugGL;
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -17,7 +17,7 @@ import com.dynamo.cr.sceneed.ui.util.VertexFormat;
 import com.dynamo.cr.sceneed.ui.util.VertexFormat.AttributeFormat;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
-import com.sun.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.texture.Texture;
 
 public class SpriteRenderer implements INodeRenderer<SpriteNode> {
 
@@ -34,7 +34,7 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
     }
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
         if (this.spriteShader != null) {
             this.spriteShader.dispose(gl);
         }
@@ -43,7 +43,7 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         }
     }
 
-    private static Shader loadShader(GL gl, String path) {
+    private static Shader loadShader(GL2 gl, String path) {
         Shader shader = new Shader(gl);
         try {
             shader.load(gl, Activator.getDefault().getBundle(), path);
@@ -56,7 +56,7 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
 
     @Override
     public void setup(RenderContext renderContext, SpriteNode node) {
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         if (this.spriteShader == null) {
             this.spriteShader = loadShader(gl, "/content/pos_uv");
         }
@@ -68,7 +68,7 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
             TextureSetNode textureSet = node.getTextureSetNode();
 
             String animation = node.getDefaultAnimation();
-            if (textureSet != null && textureSet.getTextureHandle().getTexture() != null) {
+            if (textureSet != null && textureSet.getTextureHandle().getTexture(gl) != null) {
                 RuntimeTextureSet runtimeTextureSet = node.getTextureSetNode().getRuntimeTextureSet();
                 if (runtimeTextureSet != null && runtimeTextureSet.getAnimation(animation) != null) {
                     renderContext.add(this, node, new Point3d(), null);
@@ -80,8 +80,9 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
     @Override
     public void render(RenderContext renderContext, SpriteNode node,
             RenderData<SpriteNode> renderData) {
+        GL2 gl = renderContext.getGL();
         TextureSetNode textureSet = node.getTextureSetNode();
-        Texture texture = textureSet.getTextureHandle().getTexture();
+        Texture texture = textureSet.getTextureHandle().getTexture(gl);
         String animationId = node.getDefaultAnimation();
 
         RuntimeTextureSet runtimeTextureSet = textureSet.getRuntimeTextureSet();
@@ -94,17 +95,14 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
             vertexBuffer = runtimeTextureSet.getVertexBuffer();
         }
 
-        GL gl = renderContext.getGL();
-        gl = new DebugGL(gl);
-
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
-            texture.bind();
-            texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
-            texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
-            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-            texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-            texture.enable();
+            texture.bind(gl);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
+            texture.enable(gl);
 
             switch (node.getBlendMode()) {
             case BLEND_MODE_ALPHA:
@@ -148,7 +146,7 @@ public class SpriteRenderer implements INodeRenderer<SpriteNode> {
         shader.disable(gl);
 
         if (transparent) {
-            texture.disable();
+            texture.disable(gl);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         }
     }

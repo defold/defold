@@ -3,6 +3,7 @@ package com.dynamo.cr.ddfeditor.scene;
 import java.nio.FloatBuffer;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -19,7 +20,7 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     @Override
     public void setup(RenderContext renderContext, SphereCollisionShapeNode node) {
@@ -33,7 +34,7 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
             SphereCollisionShapeNode node,
             RenderData<SphereCollisionShapeNode> renderData) {
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
         float sr = 0.5f * (float) node.getDiameter();
 
@@ -43,13 +44,13 @@ public class SphereCollisionShapeRenderer extends CollisionShapeRenderer impleme
         FloatBuffer v = (FloatBuffer) renderData.getUserData();
         v.rewind();
 
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
 
         gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
 
-        gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+        gl.glDrawArrays(GL2.GL_QUADS, 0, v.limit() / 3);
 
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
 
         gl.glPopMatrix();
     }

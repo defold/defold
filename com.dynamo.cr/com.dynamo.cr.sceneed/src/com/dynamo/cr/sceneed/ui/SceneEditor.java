@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 
 import javax.inject.Singleton;
+import javax.media.opengl.GL2;
 
 import org.eclipse.core.commands.operations.IOperationHistory;
 import org.eclipse.core.commands.operations.IUndoContext;
@@ -489,14 +490,14 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
         // dispose() above why we does disposal here
         if (part == this) {
             if (this.renderView != null) {
-                this.renderView.activateGLContext();
-                ((SceneModel)this.sceneModel).dispose();
+                GL2 gl2 = this.renderView.activateGLContext();
+                ((SceneModel)this.sceneModel).dispose(gl2);
                 this.renderView.releaseGLContext();
                 this.renderView.dispose();
             } else {
                 // Good luck! :)
                 // Will *probably* work since no rendering took place and there should be no lingering graphics resources
-                ((SceneModel)this.sceneModel).dispose();
+                ((SceneModel)this.sceneModel).dispose(null);
             }
         }
     }

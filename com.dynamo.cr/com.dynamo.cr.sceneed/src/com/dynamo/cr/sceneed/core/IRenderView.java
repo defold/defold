@@ -2,6 +2,7 @@ package com.dynamo.cr.sceneed.core;
 
 import java.util.List;
 
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point2i;
 import javax.vecmath.Point3d;
@@ -41,7 +42,7 @@ public interface IRenderView  {
 
     // TODO This is part of a "quick-fix" to enable disposal of graphics resources inside nodes
     // See SceneEditor#dispose for more info
-    void activateGLContext();
+    GL2 activateGLContext();
     void releaseGLContext();
 
     void setNodeTypeVisible(INodeType nodeType, boolean visible);

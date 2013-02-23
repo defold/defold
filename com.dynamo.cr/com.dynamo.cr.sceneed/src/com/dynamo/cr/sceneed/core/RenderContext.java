@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
@@ -16,10 +16,10 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
 
 import com.dynamo.cr.sceneed.ui.TextureRegistry;
-import com.sun.opengl.util.j2d.TextRenderer;
+import com.jogamp.opengl.util.awt.TextRenderer;
 
 public class RenderContext {
-    private GL gl;
+    private GL2 gl;
     private GLU glu;
     private Pass pass;
     private ArrayList<RenderData<? extends Node>> renderDataList;
@@ -123,7 +123,7 @@ public class RenderContext {
     }
 
     @SuppressWarnings("unchecked")
-    public RenderContext(IRenderView renderView, double dt, GL gl, GLU glu, TextureRegistry textureRegistry, ISelection selection, TextRenderer smallTextRenderer) {
+    public RenderContext(IRenderView renderView, double dt, GL2 gl, GLU glu, TextureRegistry textureRegistry, ISelection selection, TextRenderer smallTextRenderer) {
         this.renderView = renderView;
         this.dt = dt;
         this.gl = gl;
@@ -145,7 +145,7 @@ public class RenderContext {
         return renderView;
     }
 
-    public GL getGL() {
+    public GL2 getGL() {
         return gl;
     }
 

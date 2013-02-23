@@ -4,8 +4,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 
-import com.sun.opengl.util.BufferUtil;
+import com.jogamp.common.nio.Buffers;
 
 public class VertexFormat {
     public static class AttributeFormat {
@@ -36,7 +37,7 @@ public class VertexFormat {
         this.stride = offset;
     }
 
-    public void enable(GL gl, Shader shader) {
+    public void enable(GL2 gl, Shader shader) {
         for (AttributeFormat attributeFormat : this.attributeFormats) {
             int index = shader.getAttributeLocation(gl, attributeFormat.attribute);
             if (index != -1) {
@@ -48,7 +49,7 @@ public class VertexFormat {
         }
     }
 
-    public void disable(GL gl, Shader shader) {
+    public void disable(GL2 gl, Shader shader) {
         for (AttributeFormat attributeFormat : this.attributeFormats) {
             int index = shader.getAttributeLocation(gl, attributeFormat.attribute);
             if (index != -1) {
@@ -61,17 +62,17 @@ public class VertexFormat {
         switch (type) {
         case GL.GL_BYTE:
         case GL.GL_UNSIGNED_BYTE:
-            return BufferUtil.SIZEOF_BYTE;
+            return Buffers.SIZEOF_BYTE;
         case GL.GL_SHORT:
         case GL.GL_UNSIGNED_SHORT:
-            return BufferUtil.SIZEOF_SHORT;
-        case GL.GL_INT:
+            return Buffers.SIZEOF_SHORT;
+        case GL2.GL_INT:
         case GL.GL_UNSIGNED_INT:
-            return BufferUtil.SIZEOF_INT;
+            return Buffers.SIZEOF_INT;
         case GL.GL_FLOAT:
-            return BufferUtil.SIZEOF_FLOAT;
-        case GL.GL_DOUBLE:
-            return BufferUtil.SIZEOF_DOUBLE;
+            return Buffers.SIZEOF_FLOAT;
+        case GL2.GL_DOUBLE:
+            return Buffers.SIZEOF_DOUBLE;
         }
         throw new IllegalArgumentException(String.format("Size of type %d is unknown", type));
     }
