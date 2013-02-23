@@ -157,6 +157,8 @@ public class AtlasNode extends TextureSetNode {
         for (Node child : children) {
             if (child instanceof AtlasAnimationNode) {
                 animationIds.add(((AtlasAnimationNode)child).getId());
+            } else if (child instanceof AtlasImageNode) {
+                animationIds.add(((AtlasImageNode)child).getId());
             }
         }
         return animationIds;
