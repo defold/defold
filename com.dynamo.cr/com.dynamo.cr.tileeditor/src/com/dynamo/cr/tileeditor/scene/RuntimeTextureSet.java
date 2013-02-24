@@ -119,10 +119,12 @@ public class RuntimeTextureSet {
      * @return {@link TextureSetAnimation}
      */
     public TextureSetAnimation getAnimation(Comparable<String> comparable) {
-        List<TextureSetAnimation> animations = getTextureSet().getAnimationsList();
-        for (TextureSetAnimation a : animations) {
-            if (comparable.compareTo(a.getId()) == 0) {
-                return a;
+        if (getTextureSet() != null) {
+            List<TextureSetAnimation> animations = getTextureSet().getAnimationsList();
+            for (TextureSetAnimation a : animations) {
+                if (comparable.compareTo(a.getId()) == 0) {
+                    return a;
+                }
             }
         }
         return null;
