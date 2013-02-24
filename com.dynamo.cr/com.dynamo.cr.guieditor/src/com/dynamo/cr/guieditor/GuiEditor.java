@@ -14,8 +14,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.GLContext;
 import javax.media.opengl.GLDrawableFactory;
+import javax.media.opengl.GLProfile;
 import javax.media.opengl.glu.GLU;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -347,16 +349,18 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         gd.heightHint = SWT.DEFAULT;
         canvas.setLayoutData(gd);
 
-        canvas.setCurrent();
-
-        context = GLDrawableFactory.getFactory().createExternalGLContext();
+        // See comment in section "OpenGL and jogl" in README.md about
+        // the order below any why the factory must be created before setCurrent
+        GLDrawableFactory factory = GLDrawableFactory.getFactory(GLProfile.getGL2GL3());
+        this.canvas.setCurrent();
+		this.context = factory.createExternalGLContext();
 
         context.makeCurrent();
         GL gl = context.getGL();
         gl.glClearDepth(1.0f);
         gl.glEnable(GL.GL_DEPTH_TEST);
         gl.glDepthFunc(GL.GL_LEQUAL);
-        gl.glHint(GL.GL_PERSPECTIVE_CORRECTION_HINT, GL.GL_NICEST);
+        gl.glHint(GL2.GL_PERSPECTIVE_CORRECTION_HINT, GL.GL_NICEST);
 
         context.release();
 
@@ -438,19 +442,19 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         if (!canvas.isDisposed()) {
             canvas.setCurrent();
             context.makeCurrent();
-            GL gl = context.getGL();
+            GL2 gl = context.getGL().getGL2();
             GLU glu = new GLU();
             try {
-                gl.glDisable(GL.GL_LIGHTING);
-                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+                gl.glDisable(GL2.GL_LIGHTING);
+                gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
                 gl.glDisable(GL.GL_DEPTH_TEST);
 
-                gl.glMatrixMode(GL.GL_PROJECTION);
+                gl.glMatrixMode(GL2.GL_PROJECTION);
                 gl.glLoadIdentity();
                 glu.gluOrtho2D(0, viewPort[2], 0, viewPort[3]);
                 gl.glViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3]);
 
-                gl.glMatrixMode(GL.GL_MODELVIEW);
+                gl.glMatrixMode(GL2.GL_MODELVIEW);
                 gl.glLoadIdentity();
                 RGB bg = getScene().getBackgroundColor();
                 gl.glClearColor(bg.red / 255.0f, bg.green / 255.0f, bg.blue / 255.0f, 0.0f);
@@ -467,7 +471,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         }
     }
 
-    private void doDraw(GL gl) {
+    private void doDraw(GL2 gl) {
         Display display = Display.getDefault();
         Transform transform = new Transform(display);
         transform.translate(0, 0);
@@ -479,7 +483,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
         gl.glTranslatef(-horizontal.getSelection(), -(this.height - canvas.getClientArea().height) + vertical.getSelection(), 0);
 
         gl.glColor3f(0.5f, 0.5f, 0.5f);
-        gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL);
+        gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
 
         gl.glDisable(GL.GL_TEXTURE_2D);
         gl.glDisable(GL.GL_BLEND);
@@ -506,9 +510,9 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
     }
 
-    private void drawSelectionBounds(GL gl) {
-        gl.glDisable(GL.GL_TEXTURE_2D);
-        gl.glDisable(GL.GL_BLEND);
+    private void drawSelectionBounds(GL2 gl) {
+        gl.glDisable(GL2.GL_TEXTURE_2D);
+        gl.glDisable(GL2.GL_BLEND);
         gl.glColor3f(0.3f, 0.3f, 0.3f);
         Rectangle2D.Double selectionBounds = selectionProvider.getBounds();
         DrawUtil.drawRectangle(gl, selectionBounds);
@@ -588,7 +592,7 @@ public class GuiEditor extends EditorPart implements IGuiEditor, MouseListener,
 
         if (width > 0 && height > 0) {
             context.makeCurrent();
-            GL gl = context.getGL();
+            GL2 gl = context.getGL().getGL2();
 
             // x and y are center coordinates
             renderer.beginSelect(gl, x + width / 2, y + height / 2, width,

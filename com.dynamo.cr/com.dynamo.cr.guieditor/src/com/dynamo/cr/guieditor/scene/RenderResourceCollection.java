@@ -5,8 +5,8 @@ import java.util.Map;
 
 import com.dynamo.cr.guieditor.render.GuiFontResource;
 import com.dynamo.cr.guieditor.render.GuiTextureResource;
-import com.sun.opengl.util.j2d.TextRenderer;
-import com.sun.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.awt.TextRenderer;
+import com.jogamp.opengl.util.texture.Texture;
 
 public class RenderResourceCollection {
 

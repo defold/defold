@@ -1,6 +1,6 @@
 package com.dynamo.cr.sceneed.ui;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -14,7 +14,7 @@ public class ScreenPlaneManipulatorRenderer implements INodeRenderer<ScreenPlane
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     @Override
     public void setup(RenderContext renderContext, ScreenPlaneManipulator node) {
@@ -28,7 +28,7 @@ public class ScreenPlaneManipulatorRenderer implements INodeRenderer<ScreenPlane
     public void render(RenderContext renderContext, ScreenPlaneManipulator node,
             RenderData<ScreenPlaneManipulator> renderData) {
         float[] color = node.getColor();
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
 
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         double dim = ManipulatorRendererUtil.BASE_DIM / factor;

@@ -1,6 +1,6 @@
 package com.dynamo.cr.sceneed.ui;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point2i;
 import javax.vecmath.Point3d;
 
@@ -16,7 +16,7 @@ public class SelectionBoxRenderer implements INodeRenderer<SelectionBoxNode> {
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     @Override
     public void setup(RenderContext renderContext, SelectionBoxNode node) {
@@ -30,12 +30,12 @@ public class SelectionBoxRenderer implements INodeRenderer<SelectionBoxNode> {
     @Override
     public void render(RenderContext renderContext, SelectionBoxNode node,
             RenderData<SelectionBoxNode> renderData) {
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
 
         float[] color = RenderUtil.parseColor(PreferenceConstants.P_SELECTION_COLOR);
 
         gl.glColor3f(color[0], color[1], color[2]);
-        gl.glBegin(GL.GL_LINE_LOOP);
+        gl.glBegin(GL2.GL_LINE_LOOP);
         final float z = 0.0f;
         Point2i start = node.getStart();
         Point2i current = node.getCurrent();
@@ -49,7 +49,7 @@ public class SelectionBoxRenderer implements INodeRenderer<SelectionBoxNode> {
         gl.glVertex3f(maxX, minY, z);
         gl.glEnd();
 
-        gl.glBegin(GL.GL_QUADS);
+        gl.glBegin(GL2.GL_QUADS);
         gl.glColor4f(color[0], color[1], color[2], 0.2f);
         gl.glVertex3f(minX, minY, z);
         gl.glVertex3f(minX, maxY, z);

@@ -2,8 +2,11 @@ package com.dynamo.cr.sceneed.core;
 
 import java.awt.image.BufferedImage;
 
-import com.sun.opengl.util.texture.Texture;
-import com.sun.opengl.util.texture.TextureIO;
+import javax.media.opengl.GL2;
+import javax.media.opengl.GLProfile;
+
+import com.jogamp.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 
 public class TextureHandle {
     private BufferedImage image;
@@ -15,17 +18,18 @@ public class TextureHandle {
         this.reloadTexture = true;
     }
 
-    public Texture getTexture() {
+    public Texture getTexture(GL2 gl) {
         if (this.reloadTexture) {
             if (this.image != null) {
                 if (this.texture == null) {
-                    this.texture = TextureIO.newTexture(this.image, true);
+                    this.texture = AWTTextureIO.newTexture(GLProfile.getGL2GL3(), this.image, true);
                 } else {
-                    this.texture.updateImage(TextureIO.newTextureData(this.image, true));
+
+                    this.texture.updateImage(gl, AWTTextureIO.newTextureData(GLProfile.getGL2GL3(), this.image, true));
                 }
                 this.image = null;
             } else if (this.texture != null) {
-                this.texture.dispose();
+                this.texture.destroy(gl);
                 this.texture = null;
             }
             this.reloadTexture = false;
@@ -33,10 +37,10 @@ public class TextureHandle {
         return this.texture;
     }
 
-    public void clear() {
+    public void clear(GL2 gl) {
         this.image = null;
         if (this.texture != null) {
-            this.texture.dispose();
+            this.texture.destroy(gl);
             this.texture = null;
         }
     }

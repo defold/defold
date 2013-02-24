@@ -29,9 +29,9 @@ import com.dynamo.particle.proto.Particle.EmitterType;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.particle.proto.Particle.PlayMode;
 import com.dynamo.particle.proto.Particle.SplinePoint;
+import com.jogamp.common.nio.Buffers;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
-import com.sun.opengl.util.BufferUtil;
 
 public class ParticleSystemTest {
 
@@ -110,11 +110,11 @@ public class ParticleSystemTest {
         final Pointer originalTileSource = new Pointer(2);
         ParticleLibrary.Particle_SetTileSource(prototype, 0, originalTileSource);
         final Pointer originalTexture = new Pointer(3);
-        final FloatBuffer texCoords = BufferUtil.newFloatBuffer(4);
+        final FloatBuffer texCoords = Buffers.newDirectFloatBuffer(4);
         texCoords.put(1.0f/255.0f).put(2.0f/255.0f).put(3.0f/255.0f).put(4.0f/255.0f).flip();
         IntByReference outSize = new IntByReference(1234);
         final int vertexBufferSize = ParticleLibrary.Particle_GetVertexBufferSize(MAX_PARTICLE_COUNT);
-        final ByteBuffer vertexBuffer = BufferUtil.newByteBuffer(vertexBufferSize);
+        final ByteBuffer vertexBuffer = Buffers.newDirectByteBuffer(vertexBufferSize);
         final boolean fetchAnim[] = new boolean[] { false };
         ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertexBuffer, vertexBufferSize, outSize,
                 new FetchAnimationCallback() {

@@ -4,6 +4,7 @@ import java.nio.FloatBuffer;
 import java.util.EnumSet;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -20,7 +21,7 @@ public class ModelRenderer implements INodeRenderer<ModelNode> {
     }
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
     }
 
     @Override
@@ -38,13 +39,13 @@ public class ModelRenderer implements INodeRenderer<ModelNode> {
         MeshNode mesh = node.getMeshNode();
         FloatBuffer pos = mesh.getPositions();
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
 
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
-        gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
         gl.glVertexPointer(3, GL.GL_FLOAT, 0, pos);
         gl.glDrawArrays(GL.GL_TRIANGLES, 0, pos.capacity() / 3);
-        gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+        gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
     }
 
 }

@@ -1,5 +1,6 @@
 package com.dynamo.cr.editor;
 
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.equinox.app.IApplication;
 import org.eclipse.equinox.app.IApplicationContext;
@@ -29,6 +30,12 @@ public class Application implements IApplication {
 	        });
             return IApplication.EXIT_OK;
 	    }
+
+        try {
+        	Activator.getDefault().deleteAllCrProjects();
+        } catch (CoreException e ) {
+        	Activator.logException(e);
+        }
 
 		Display display = PlatformUI.createDisplay();
 		try {

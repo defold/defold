@@ -200,6 +200,9 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     @Override
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void start(BundleContext bundleContext) throws Exception {
+        // NOTE: We should probably move parts of the code
+        // here to another method post start. If this method
+        // throws an exception the editor fails to start
         super.start(bundleContext);
         plugin = this;
         Activator.context = bundleContext;
@@ -232,7 +235,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         // TODO This is a hack to make sure noone is using remote branches, which is not currently supported
         store.setValue(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
         updateSocksProxy();
-        deleteAllCrProjects();
 
         // Disable auto-building of projects
         IWorkspace workspace = ResourcesPlugin.getWorkspace();

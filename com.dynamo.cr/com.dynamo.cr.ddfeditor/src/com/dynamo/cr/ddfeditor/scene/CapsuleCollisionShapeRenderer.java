@@ -1,6 +1,6 @@
 package com.dynamo.cr.ddfeditor.scene;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Point3d;
 
@@ -16,7 +16,7 @@ public class CapsuleCollisionShapeRenderer extends CollisionShapeRenderer implem
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     @Override
     public void setup(RenderContext renderContext, CapsuleCollisionShapeNode node) {
@@ -30,7 +30,7 @@ public class CapsuleCollisionShapeRenderer extends CollisionShapeRenderer implem
             CapsuleCollisionShapeNode node,
             RenderData<CapsuleCollisionShapeNode> renderData) {
 
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         GLU glu = renderContext.getGLU();
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
         final int slices = 16;

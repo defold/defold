@@ -35,9 +35,9 @@ import com.dynamo.particle.proto.Particle.ParticleKey;
 import com.dynamo.particle.proto.Particle.SplinePoint;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
+import com.jogamp.common.nio.Buffers;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
-import com.sun.opengl.util.BufferUtil;
 
 public class ParticleFXNode extends ComponentTypeNode {
     public static final int VERTEX_COMPONENT_COUNT = 9;
@@ -329,7 +329,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
         if (maxParticleCount != this.maxParticleCount) {
             this.maxParticleCount = maxParticleCount;
-            this.vertexBuffer = BufferUtil.newByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
+            this.vertexBuffer = Buffers.newDirectByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
         }
 
         boolean running = dt > 0.0;

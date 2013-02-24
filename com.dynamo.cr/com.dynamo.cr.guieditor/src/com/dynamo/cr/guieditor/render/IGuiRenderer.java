@@ -4,16 +4,16 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
-import com.sun.opengl.util.j2d.TextRenderer;
-import com.sun.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.awt.TextRenderer;
+import com.jogamp.opengl.util.texture.Texture;
 
 public interface IGuiRenderer {
 
-    public void begin(GL gl);
+    public void begin(GL2 gl);
 
     public void end();
 
@@ -45,7 +45,7 @@ public interface IGuiRenderer {
      * @param h selection height
      * @param viewPort view-port
      */
-    public void beginSelect(GL gl, int x, int y, int w, int h, int viewPort[]);
+    public void beginSelect(GL2 gl, int x, int y, int w, int h, int viewPort[]);
 
     public SelectResult endSelect();
 

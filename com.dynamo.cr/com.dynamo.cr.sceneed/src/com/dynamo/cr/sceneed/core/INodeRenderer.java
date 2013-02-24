@@ -1,6 +1,6 @@
 package com.dynamo.cr.sceneed.core;
 
-import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 
 
 /**
@@ -13,7 +13,7 @@ import javax.media.opengl.GL;
  * @param <T>
  */
 public interface INodeRenderer<T extends Node> {
-    void dispose(GL gl);
+    void dispose(GL2 gl);
     void setup(RenderContext renderContext, T node);
     void render(RenderContext renderContext, T node, RenderData<T> renderData);
 }

@@ -7,12 +7,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.media.opengl.GLException;
+import javax.media.opengl.GLProfile;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.opengl.util.texture.Texture;
-import com.sun.opengl.util.texture.TextureIO;
+import com.jogamp.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.texture.TextureIO;
+import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 
 /**
  * Texture registry. Currently only used to load classpath-based resource
@@ -36,7 +38,7 @@ public class TextureRegistry {
         image.setRGB(1, 0, 0xffffff);
         image.setRGB(0, 1, 0xffffff);
         image.setRGB(1, 1, 0);
-        defaultTexture = TextureIO.newTexture(image, true);
+        defaultTexture = AWTTextureIO.newTexture(GLProfile.getGL2GL3(), image, true);
         return defaultTexture;
     }
 

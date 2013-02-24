@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -17,8 +18,8 @@ import com.dynamo.cr.sceneed.ui.util.VertexFormat;
 import com.dynamo.cr.sceneed.ui.util.VertexFormat.AttributeFormat;
 import com.dynamo.cr.tileeditor.Activator;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
-import com.sun.opengl.util.j2d.TextRenderer;
-import com.sun.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.awt.TextRenderer;
+import com.jogamp.opengl.util.texture.Texture;
 
 public class AtlasRenderer implements INodeRenderer<AtlasNode> {
 
@@ -33,10 +34,10 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
     }
 
     @Override
-    public void dispose(GL gl) {
+    public void dispose(GL2 gl) {
     }
 
-    private static Shader loadShader(GL gl, String path) {
+    private static Shader loadShader(GL2 gl, String path) {
         Shader shader = new Shader(gl);
         try {
             shader.load(gl, Activator.getDefault().getBundle(), path);
@@ -49,7 +50,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
 
     @Override
     public void setup(RenderContext renderContext, AtlasNode node) {
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         if (this.shader == null) {
             this.shader = loadShader(gl, "/content/pos_uv");
         }
@@ -63,11 +64,11 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
     @Override
     public void render(RenderContext renderContext, AtlasNode node,
             RenderData<AtlasNode> renderData) {
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         AtlasNode atlasNode = (AtlasNode) renderData.getUserData();
         RuntimeTextureSet runtimeTextureSet = atlasNode.getRuntimeTextureSet();
 
-        Texture texture = node.getTextureHandle().getTexture();
+        Texture texture = node.getTextureHandle().getTexture(gl);
 
         if (renderData.getPass() == Pass.OVERLAY) {
             // Special case for background pass. Render simulation time feedback
@@ -106,8 +107,8 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
     }
 
     private void renderAnimation(RuntimeTextureSet runtimeTextureSet,
-            AtlasAnimationNode playBackNode, GL gl, Texture texture) {
-        bindTexture(texture);
+            AtlasAnimationNode playBackNode, GL2 gl, Texture texture) {
+        bindTexture(gl, texture);
         List<Node> children = playBackNode.getChildren();
         int nFrames = children.size();
         if (nFrames == 0 || playBackNode.getFps() <= 0) {
@@ -150,13 +151,13 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
 
             shader.setUniforms(gl, "color", new float[] {1, 1, 1, 1});
             renderTile(gl, runtimeTextureSet, tileToRender, centerX, centerY, scaleX, scaleY);
-            texture.disable();
+            texture.disable(gl);
         }
     }
 
-    private void renderTiles(RuntimeTextureSet runtimeTextureSet, GL gl, float alpha, Texture texture) {
+    private void renderTiles(RuntimeTextureSet runtimeTextureSet, GL2 gl, float alpha, Texture texture) {
         List<TextureSetAnimation> tiles = runtimeTextureSet.getTextureSet().getAnimationsList();
-        bindTexture(texture);
+        bindTexture(gl, texture);
 
         shader.setUniforms(gl, "color", new float[] {1, 1, 1, alpha});
         for (TextureSetAnimation tile : tiles) {
@@ -166,7 +167,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
                            texture.getHeight() * runtimeTextureSet.getCenterY(tile), 1, 1);
             }
         }
-        texture.disable();
+        texture.disable(gl);
 
         shader.setUniforms(gl, "color", new float[] {1, 1, 1, 0.1f * alpha});
         for (TextureSetAnimation tile : tiles) {
@@ -178,7 +179,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         }
     }
 
-    private void renderTile(GL gl, RuntimeTextureSet runtimeTextureSet, TextureSetAnimation tile, float offsetX, float offsetY, float scaleX, float scaleY) {
+    private void renderTile(GL2 gl, RuntimeTextureSet runtimeTextureSet, TextureSetAnimation tile, float offsetX, float offsetY, float scaleX, float scaleY) {
         gl.glTranslatef(offsetX, offsetY, 0);
         gl.glScalef(scaleX, scaleY, 1);
         gl.glDrawArrays(GL.GL_TRIANGLES, runtimeTextureSet.getVertexStart(tile, 0), runtimeTextureSet.getVertexCount(tile, 0));
@@ -186,13 +187,13 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
         gl.glTranslatef(-offsetX, -offsetY, 0);
     }
 
-    private void bindTexture(Texture texture) {
-        texture.bind();
-        texture.setTexParameteri(GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_LINEAR);
-        texture.setTexParameteri(GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
-        texture.setTexParameteri(GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP);
-        texture.setTexParameteri(GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP);
-        texture.enable();
+    private void bindTexture(GL2 gl, Texture texture) {
+        texture.bind(gl);
+        texture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_LINEAR);
+        texture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
+        texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
+        texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
+        texture.enable(gl);
     }
 }
 

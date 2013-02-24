@@ -5,6 +5,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Point3d;
 
@@ -23,7 +24,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
     }
 
     @Override
-    public void dispose(GL gl) { }
+    public void dispose(GL2 gl) { }
 
     private final static float COLOR[] = new float[] { 255.0f / 255.0f, 247.0f / 255.0f, 73.0f/255.0f, 0.4f };
     private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
@@ -41,7 +42,7 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
 
     @Override
     public void render(RenderContext renderContext, CollisionObjectNode node, RenderData<CollisionObjectNode> renderData) {
-        GL gl = renderContext.getGL();
+        GL2 gl = renderContext.getGL();
         GLU glu = renderContext.getGLU();
 
         ConvexShapeNode shapeNode = (ConvexShapeNode) node.getCollisionShapeNode();
@@ -65,8 +66,8 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
         case TYPE_HULL:
             // NOTE: At least something but not beautiful
             List<Float> data = shape.getDataList();
-            gl.glEnable(GL.GL_POINT_SMOOTH);
-            gl.glBegin(GL.GL_POINTS);
+            gl.glEnable(GL2.GL_POINT_SMOOTH);
+            gl.glBegin(GL2.GL_POINTS);
             gl.glPointSize(10.0f);
             int n = (data.size() / 3) * 3;
             for (int i = 0; i < n; i += 3) {
@@ -82,13 +83,13 @@ public class CollisionObjectRenderer implements INodeRenderer<CollisionObjectNod
             FloatBuffer v = (FloatBuffer) renderData.getUserData();
             v.rewind();
 
-            gl.glEnableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
 
             gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
 
-            gl.glDrawArrays(GL.GL_QUADS, 0, v.limit() / 3);
+            gl.glDrawArrays(GL2.GL_QUADS, 0, v.limit() / 3);
 
-            gl.glDisableClientState(GL.GL_VERTEX_ARRAY);
+            gl.glDisableClientState(GL2.GL_VERTEX_ARRAY);
 
             gl.glPopMatrix();
             break;

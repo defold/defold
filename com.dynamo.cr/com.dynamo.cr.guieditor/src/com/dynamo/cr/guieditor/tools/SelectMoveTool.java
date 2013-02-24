@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.vecmath.Vector3d;
 
 import org.eclipse.swt.SWT;
@@ -196,7 +197,7 @@ public class SelectMoveTool {
         }
     }
 
-    public void draw(GL gl) {
+    public void draw(GL2 gl) {
         if (state == State.SELECTING) {
             gl.glPushAttrib(GL.GL_DEPTH_BUFFER_BIT | GL.GL_COLOR_BUFFER_BIT);
             gl.glDisable(GL.GL_DEPTH_TEST);
@@ -209,7 +210,7 @@ public class SelectMoveTool {
             int maxY = Math.max(startY, prevY);
 
             gl.glColor4d(1.0, 1.0, 1.0, 0.2);
-            gl.glBegin(GL.GL_QUADS);
+            gl.glBegin(GL2.GL_QUADS);
             gl.glVertex2d(minX, minY);
             gl.glVertex2d(maxX, minY);
             gl.glVertex2d(maxX, maxY);
@@ -218,7 +219,7 @@ public class SelectMoveTool {
 
             final int border = 1;
             gl.glColor4d(1.0, 1.0, 1.0, 0.2);
-            gl.glBegin(GL.GL_QUADS);
+            gl.glBegin(GL2.GL_QUADS);
             gl.glVertex2d(minX + border, minY + border);
             gl.glVertex2d(maxX - border, minY + border);
             gl.glVertex2d(maxX - border, maxY - border);

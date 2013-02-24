@@ -14,18 +14,19 @@ import java.util.Collections;
 import java.util.List;
 
 import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix4d;
 
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
-import com.sun.opengl.util.j2d.TextRenderer;
-import com.sun.opengl.util.texture.Texture;
+import com.jogamp.opengl.util.awt.TextRenderer;
+import com.jogamp.opengl.util.texture.Texture;
 
 public class GuiRenderer implements IDisposable, IGuiRenderer {
     private ArrayList<RenderCommmand> renderCommands = new ArrayList<GuiRenderer.RenderCommmand>();
-    private GL gl;
+    private GL2 gl;
     private int currentName;
 
     // Picking
@@ -89,8 +90,8 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         public void setupTexture() {
             if (texture != null) {
                 gl.glEnable(GL.GL_TEXTURE_2D);
-                gl.glTexEnvf(GL.GL_TEXTURE_ENV, GL.GL_TEXTURE_ENV_MODE, GL.GL_MODULATE);
-                texture.bind();
+                gl.glTexEnvf(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_MODULATE);
+                texture.bind(gl);
             }
             else {
                 gl.glDisable(GL.GL_TEXTURE_2D);
@@ -128,7 +129,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
             gl.glPopMatrix();
         }
 
-        public abstract void draw(GL gl);
+        public abstract void draw(GL2 gl);
     }
 
     private class TextRenderCommmand extends RenderCommmand {
@@ -145,7 +146,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         }
 
         @Override
-        public void draw(GL gl) {
+        public void draw(GL2 gl) {
             textRenderer.begin3DRendering();
             gl.glColor4d(r, g, b, a);
             pushTransform();
@@ -168,7 +169,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         }
 
         @Override
-        public void draw(GL gl) {
+        public void draw(GL2 gl) {
             if (name != -1)
                 gl.glPushName(name);
 
@@ -176,19 +177,19 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
             setupTexture();
             pushTransform();
 
-            gl.glBegin(GL.GL_QUADS);
+            gl.glBegin(GL2.GL_QUADS);
             gl.glColor4d(r, g, b, a);
 
-            gl.glTexCoord2d(0, 1);
+            gl.glTexCoord2d(0, 0);
             gl.glVertex2d(x0, y0);
 
-            gl.glTexCoord2d(1, 1);
+            gl.glTexCoord2d(1, 0);
             gl.glVertex2d(x1, y0);
 
-            gl.glTexCoord2d(1, 0);
+            gl.glTexCoord2d(1, 1);
             gl.glVertex2d(x1, y1);
 
-            gl.glTexCoord2d(0, 0);
+            gl.glTexCoord2d(0, 1);
             gl.glVertex2d(x0, y1);
             gl.glEnd();
 
@@ -207,7 +208,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#begin(javax.media.opengl.GL)
      */
     @Override
-    public void begin(GL gl) {
+    public void begin(GL2 gl) {
         this.renderCommands.clear();
         this.renderCommands.ensureCapacity(1024);
         this.gl = gl;
@@ -308,19 +309,19 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#beginSelect(javax.media.opengl.GL, int, int, int, int, int[])
      */
     @Override
-    public void beginSelect(GL gl, int x, int y, int w, int h, int viewPort[]) {
+    public void beginSelect(GL2 gl, int x, int y, int w, int h, int viewPort[]) {
         begin(gl);
         gl.glSelectBuffer(MAX_NODES, selectBuffer);
-        gl.glRenderMode(GL.GL_SELECT);
+        gl.glRenderMode(GL2.GL_SELECT);
 
         GLU glu = new GLU();
 
-        gl.glMatrixMode(GL.GL_PROJECTION);
+        gl.glMatrixMode(GL2.GL_PROJECTION);
         gl.glLoadIdentity();
         glu.gluPickMatrix(x, y, w, h, viewPort, 0);
         glu.gluOrtho2D(0, viewPort[2], 0, viewPort[3]);
 
-        gl.glMatrixMode(GL.GL_MODELVIEW);
+        gl.glMatrixMode(GL2.GL_MODELVIEW);
         gl.glLoadIdentity();
 
         gl.glInitNames();
@@ -344,7 +345,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         minz = Long.MAX_VALUE;
 
         gl.glFlush();
-        int hits = gl.glRenderMode(GL.GL_RENDER);
+        int hits = gl.glRenderMode(GL2.GL_RENDER);
 
         List<SelectResult.Pair> selected = new ArrayList<SelectResult.Pair>();
 
