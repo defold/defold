@@ -139,6 +139,7 @@ public class EmitterNode extends Node implements Identifiable {
 
         for (ParticleKey k : particleKeys) {
             ValueSpread vs = new ValueSpread();
+            vs.setHideSpread(true);
             vs.setCurve(new HermiteSpline());
             this.particleProperties.put(k, vs);
         }

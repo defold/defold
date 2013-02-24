@@ -8,6 +8,7 @@ import java.util.Set;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Vector2f;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -35,8 +36,13 @@ import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.model.proto.Model.ModelDesc;
 import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.Emitter.ParticleProperty;
+import com.dynamo.particle.proto.Particle.Emitter.Property;
+import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.particle.proto.Particle.ParticleKey;
+import com.dynamo.particle.proto.Particle.SplinePoint;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.physics.proto.Physics.CollisionShape;
 import com.dynamo.physics.proto.Physics.CollisionShape.Shape;
@@ -393,6 +399,42 @@ public class ProtoBuilders {
                     MathUtil.invTransform(er, r);
                     mb.setRotation(MathUtil.vecmathToDDF(r));
                     emitterBuilder.addModifiers(mb.build());
+                }
+                // Transform angles from degrees to radians for emitter properties
+                Vector2f tangent = new Vector2f();
+                float radDeg = (float)(Math.PI / 180.0);
+                for (int propertyIndex = 0; propertyIndex < emitterBuilder.getPropertiesCount(); ++propertyIndex) {
+                    Property property = emitterBuilder.getProperties(propertyIndex);
+                    if (property.getKey() == EmitterKey.EMITTER_KEY_PARTICLE_ROTATION) {
+                        Property.Builder propBuilder = Property.newBuilder(property);
+                        for (int pointIndex = 0; pointIndex < propBuilder.getPointsCount(); ++pointIndex) {
+                            SplinePoint.Builder pointBuilder = SplinePoint.newBuilder(propBuilder.getPoints(pointIndex));
+                            pointBuilder.setY(pointBuilder.getY() * radDeg);
+                            tangent.set(pointBuilder.getTX(), pointBuilder.getTY() * radDeg);
+                            tangent.normalize();
+                            pointBuilder.setTX(tangent.getX());
+                            pointBuilder.setTY(tangent.getY());
+                            propBuilder.setPoints(pointIndex, pointBuilder);
+                        }
+                        emitterBuilder.setProperties(propertyIndex, propBuilder);
+                    }
+                }
+                // Transform angles from degrees to radians for particle properties
+                for (int propertyIndex = 0; propertyIndex < emitterBuilder.getParticlePropertiesCount(); ++propertyIndex) {
+                    ParticleProperty property = emitterBuilder.getParticleProperties(propertyIndex);
+                    if (property.getKey() == ParticleKey.PARTICLE_KEY_ROTATION) {
+                        ParticleProperty.Builder propBuilder = ParticleProperty.newBuilder(property);
+                        for (int pointIndex = 0; pointIndex < propBuilder.getPointsCount(); ++pointIndex) {
+                            SplinePoint.Builder pointBuilder = SplinePoint.newBuilder(propBuilder.getPoints(pointIndex));
+                            pointBuilder.setY(pointBuilder.getY() * radDeg);
+                            tangent.set(pointBuilder.getTX(), pointBuilder.getTY() * radDeg);
+                            tangent.normalize();
+                            pointBuilder.setTX(tangent.getX());
+                            pointBuilder.setTY(tangent.getY());
+                            propBuilder.setPoints(pointIndex, pointBuilder);
+                        }
+                        emitterBuilder.setParticleProperties(propertyIndex, propBuilder);
+                    }
                 }
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }

@@ -44,7 +44,7 @@ import com.google.inject.Inject;
 
 public class CurvePresenter extends EventManager implements IPresenter, ISelectionProvider {
 
-    private static final double MAX_COS_TANGENT_ANGLE = Math.cos(0.2 / 180.0 * Math.PI);
+    private static final double MAX_COS_TANGENT_ANGLE = Math.cos(0.001 / 180.0 * Math.PI);
 
     @Inject
     private ICurveView view;

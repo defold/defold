@@ -48,7 +48,8 @@ enum EmitterKey
     EMITTER_KEY_PARTICLE_GREEN      = 8 [(displayName) = "Initial Green"];
     EMITTER_KEY_PARTICLE_BLUE       = 9 [(displayName) = "Initial Blue"];
     EMITTER_KEY_PARTICLE_ALPHA      = 10 [(displayName) = "Initial Alpha"];
-    EMITTER_KEY_COUNT               = 11;
+    EMITTER_KEY_PARTICLE_ROTATION   = 11 [(displayName) = "Initial Rotation"];
+    EMITTER_KEY_COUNT               = 12;
 }
 
 enum ParticleKey
@@ -58,7 +59,8 @@ enum ParticleKey
     PARTICLE_KEY_GREEN      = 2 [(displayName) = "Life Green"];
     PARTICLE_KEY_BLUE       = 3 [(displayName) = "Life Blue"];
     PARTICLE_KEY_ALPHA      = 4 [(displayName) = "Life Alpha"];
-    PARTICLE_KEY_COUNT      = 5;
+    PARTICLE_KEY_ROTATION   = 5 [(displayName) = "Life Rotation"];
+    PARTICLE_KEY_COUNT      = 6;
 }
 
 enum ModifierType

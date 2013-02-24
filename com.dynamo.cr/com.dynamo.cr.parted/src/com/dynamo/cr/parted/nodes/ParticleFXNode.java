@@ -6,6 +6,7 @@ import java.util.List;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Vector2f;
 import javax.vecmath.Vector4d;
 
 import org.eclipse.core.runtime.CoreException;
@@ -25,8 +26,13 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.Emitter.ParticleProperty;
+import com.dynamo.particle.proto.Particle.Emitter.Property;
+import com.dynamo.particle.proto.Particle.EmitterKey;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.particle.proto.Particle.ParticleKey;
+import com.dynamo.particle.proto.Particle.SplinePoint;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
 import com.sun.jna.Pointer;
@@ -217,31 +223,67 @@ public class ParticleFXNode extends ComponentTypeNode {
             Message msg;
             try {
                 msg = nodeLoader.buildMessage(model.getLoaderContext(), this, new NullProgressMonitor());
-                // Reconstruct message so all emitters contain the instance modifiers
-                ParticleFX particleFX = (ParticleFX)msg;
-                if (particleFX.getModifiersCount() > 0) {
-                    List<Modifier> modifiers = particleFX.getModifiersList();
-                    ParticleFX.Builder builder = ParticleFX.newBuilder(particleFX);
-                    builder.clearModifiers();
-                    int emitterCount = builder.getEmittersCount();
-                    for (int i = 0; i < emitterCount; ++i) {
-                        Emitter.Builder eb = Emitter.newBuilder(builder.getEmitters(i));
-                        Point3d ep = MathUtil.ddfToVecmath(eb.getPosition());
-                        Quat4d er = MathUtil.ddfToVecmath(eb.getRotation());
-                        for (Modifier modifier : modifiers) {
-                            Modifier.Builder mb = Modifier.newBuilder(modifier);
-                            Point3d p = MathUtil.ddfToVecmath(modifier.getPosition());
-                            Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation());
-                            MathUtil.invTransform(ep, er, p);
-                            mb.setPosition(MathUtil.vecmathToDDF(p));
-                            MathUtil.invTransform(er, r);
-                            mb.setRotation(MathUtil.vecmathToDDF(r));
-                            eb.addModifiers(mb.build());
-                        }
-                        builder.setEmitters(i, eb);
+                // Reconstruct message so:
+                // * all emitters contain the instance modifiers
+                // * rotation properties are expressed in radians and not degrees
+                ParticleFX.Builder builder = ParticleFX.newBuilder((ParticleFX)msg);
+                List<Modifier> modifiers = builder.getModifiersList();
+                builder.clearModifiers();
+                int emitterCount = builder.getEmittersCount();
+                for (int i = 0; i < emitterCount; ++i) {
+                    Emitter.Builder eb = Emitter.newBuilder(builder.getEmitters(i));
+                    Point3d ep = MathUtil.ddfToVecmath(eb.getPosition());
+                    Quat4d er = MathUtil.ddfToVecmath(eb.getRotation());
+                    for (Modifier modifier : modifiers) {
+                        Modifier.Builder mb = Modifier.newBuilder(modifier);
+                        Point3d p = MathUtil.ddfToVecmath(modifier.getPosition());
+                        Quat4d r = MathUtil.ddfToVecmath(modifier.getRotation());
+                        MathUtil.invTransform(ep, er, p);
+                        mb.setPosition(MathUtil.vecmathToDDF(p));
+                        MathUtil.invTransform(er, r);
+                        mb.setRotation(MathUtil.vecmathToDDF(r));
+                        eb.addModifiers(mb.build());
                     }
-                    msg = builder.build();
+                    // Transform angles from degrees to radians for emitter properties
+                    float radDeg = (float)(Math.PI / 180.0);
+                    Vector2f tangent = new Vector2f();
+                    for (int propertyIndex = 0; propertyIndex < eb.getPropertiesCount(); ++propertyIndex) {
+                        Property property = eb.getProperties(propertyIndex);
+                        if (property.getKey() == EmitterKey.EMITTER_KEY_PARTICLE_ROTATION) {
+                            Property.Builder propBuilder = Property.newBuilder(property);
+                            for (int pointIndex = 0; pointIndex < propBuilder.getPointsCount(); ++pointIndex) {
+                                SplinePoint.Builder pointBuilder = SplinePoint.newBuilder(propBuilder.getPoints(pointIndex));
+                                pointBuilder.setY(pointBuilder.getY() * radDeg);
+                                tangent.set(pointBuilder.getTX(), pointBuilder.getTY() * radDeg);
+                                tangent.normalize();
+                                pointBuilder.setTX(tangent.getX());
+                                pointBuilder.setTY(tangent.getY());
+                                propBuilder.setPoints(pointIndex, pointBuilder);
+                            }
+                            eb.setProperties(propertyIndex, propBuilder);
+                        }
+                    }
+                    // Transform angles from degrees to radians for particle properties
+                    for (int propertyIndex = 0; propertyIndex < eb.getParticlePropertiesCount(); ++propertyIndex) {
+                        ParticleProperty property = eb.getParticleProperties(propertyIndex);
+                        if (property.getKey() == ParticleKey.PARTICLE_KEY_ROTATION) {
+                            ParticleProperty.Builder propBuilder = ParticleProperty.newBuilder(property);
+                            for (int pointIndex = 0; pointIndex < propBuilder.getPointsCount(); ++pointIndex) {
+                                SplinePoint.Builder pointBuilder = SplinePoint.newBuilder(propBuilder.getPoints(pointIndex));
+                                pointBuilder.setY(pointBuilder.getY() * radDeg);
+                                tangent.set(pointBuilder.getTX(), pointBuilder.getTY() * radDeg);
+                                tangent.normalize();
+                                pointBuilder.setTX(tangent.getX());
+                                pointBuilder.setTY(tangent.getY());
+                                propBuilder.setPoints(pointIndex, pointBuilder);
+                            }
+                            eb.setParticleProperties(propertyIndex, propBuilder);
+                        }
+                    }
+                    builder.setEmitters(i, eb);
                 }
+                msg = builder.build();
+
                 return msg.toByteArray();
             } catch (IOException e) {
                 logger.error("Particle FX could not be serialized.", e);

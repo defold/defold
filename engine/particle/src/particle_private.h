@@ -41,6 +41,7 @@ namespace dmParticle
         inline void Set##property(type v) { m_##property = v; }\
 
         GET_SET(Position, Point3)
+        GET_SET(SourceRotation, Quat)
         GET_SET(Rotation, Quat)
         GET_SET(Velocity, Vector3)
         GET_SET(TimeLeft, float)
@@ -58,6 +59,7 @@ namespace dmParticle
         /// Position, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
         Point3 m_Position;
         /// Rotation, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
+        Quat m_SourceRotation;
         Quat m_Rotation;
         /// Velocity of the particle
         Vector3 m_Velocity;

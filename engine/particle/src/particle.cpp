@@ -5,6 +5,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
 
@@ -799,7 +800,8 @@ namespace dmParticle
 
         transform = dmTransform::Mul(emitter_transform, transform);
         particle->SetPosition(Point3(transform.GetTranslation()));
-        particle->SetRotation(transform.GetRotation());
+        particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
+        particle->SetRotation(particle->GetSourceRotation());
         particle->SetVelocity(dmTransform::Apply(emitter_transform, velocity) + emitter_velocity);
     }
 
@@ -1052,6 +1054,7 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_GREEN].m_Segments[segment_index], x, properties[PARTICLE_KEY_GREEN])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
 
             Vector4 c = particle->GetSourceColor();
             particle->SetSize(particle->GetSourceSize() * properties[PARTICLE_KEY_SCALE]);
@@ -1059,6 +1062,7 @@ namespace dmParticle
                     dmMath::Clamp(c.getY() * properties[PARTICLE_KEY_GREEN], 0.0f, 1.0f),
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
                     dmMath::Clamp(c.getW() * properties[PARTICLE_KEY_ALPHA], 0.0f, 1.0f)));
+            particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, properties[PARTICLE_KEY_ROTATION]));
         }
     }
 
