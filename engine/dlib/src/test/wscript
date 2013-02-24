@@ -314,3 +314,21 @@ def build(bld):
                                 target = 'test_path')
 
     test_path.install_path = None
+
+    test_trig_lookup = bld.new_task_gen(features = 'cxx cprogram',
+                                source = 'test_trig_lookup.cpp',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_trig_lookup')
+
+    test_trig_lookup.install_path = None
+
+    test_vmath = bld.new_task_gen(features = 'cxx cprogram',
+                                source = 'test_vmath.cpp',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_vmath')
+
+    test_vmath.install_path = None
