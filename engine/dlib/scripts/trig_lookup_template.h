@@ -1,5 +1,5 @@
 // This file was generated with the command:
-// python scripts/gen_trig_lookup.py
+// python scripts/gen_trig_lookup.py --bits={bits}
 
 #ifndef DM_TRIG_LOOKUP_H
 #define DM_TRIG_LOOKUP_H
@@ -8,14 +8,18 @@
 
 /**
  * Collection of functions for trigonometrics using lookup tables.
+ *
+ * The precision is guaranteed to have an error less than 0.001f.
  */
 namespace dmTrigLookup
 {{
-    const uint32_t TABLE_SIZE = {size};
+    /// Contains the cosine of [0,2*pi) mapped into [0, COS_TABLE_SIZE-1]
+    extern const float* COS_TABLE;
+    /// Size of the table
+    const uint32_t COS_TABLE_SIZE = {size};
 
-    const float RATIO = 0.5f * M_1_PI;
-
-    const float COS_TABLE[] = {table};
+    /// Internally used
+    const float _RATIO = 0.5f * M_1_PI;
 
     /**
      * Returns the cosine of the given angle from a lookup table.
@@ -23,11 +27,21 @@ namespace dmTrigLookup
      * @param radians Radians of the angle
      * @return The cosine of the angle
      */
-    float Cos(float radians)
+    inline float Cos(float radians)
     {{
-        float t = radians * RATIO;
-        uint16_t index = (uint16_t)(0xffff & (uint32_t)(t * TABLE_SIZE));
-        return COS_TABLE[index];
+        // t is normalized over the table range
+        float t = radians * _RATIO;
+        // index is mapped to full 16 bit range
+        uint16_t index = (uint16_t)(t * 0x10000);
+        // t is normalized over the table cell range
+        t = (index & {frac_mask}) * {weight};
+        // remap index to actual range
+        index >>= (16 - {bits});
+        // retrieve value and next for interpolation
+        float v0 = COS_TABLE[index & {table_mask}];
+        float v1 = COS_TABLE[(index + 1) & {table_mask}];
+        // linear interpolation
+        return (1.0f - t) * v0 + t * v1;
     }}
 
     /**
@@ -36,7 +50,7 @@ namespace dmTrigLookup
      * @param radians Radians of the angle
      * @return The sine of the angle
      */
-    float Sin(float radians)
+    inline float Sin(float radians)
     {{
         return Cos(radians - M_PI_2);
     }}
