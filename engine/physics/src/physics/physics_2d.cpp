@@ -11,8 +11,6 @@
 
 namespace dmPhysics
 {
-    const float TRANSFORM_EPSILON = 0.000001f;
-
     Context2D::Context2D()
     : m_Worlds()
     , m_DebugCallbacks()
@@ -226,13 +224,14 @@ namespace dmPhysics
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                     Vectormath::Aos::Quat rotation = world_transform.GetRotation();
-                    float diff = Vectormath::Aos::lengthSqr(position - old_position) + Vectormath::Aos::norm(rotation - old_rotation);
-                    if (diff > TRANSFORM_EPSILON)
+                    float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+                    b2Vec2 b2_position;
+                    ToB2(position, b2_position, scale);
+                    body->SetTransform(b2_position, angle);
+                    position = GetWorldPosition2D(context, body);
+                    rotation = GetWorldRotation2D(context, body);
+                    if ((distSqr(old_position, position) > 0.0f || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > 0.0f))
                     {
-                        float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                        b2Vec2 b2_position;
-                        ToB2(position, b2_position, scale);
-                        body->SetTransform(b2_position, angle);
                         body->SetSleepingAllowed(false);
                     }
                     else
@@ -769,16 +768,10 @@ namespace dmPhysics
                 (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-                Vectormath::Aos::Point3 old_position = GetWorldPosition2D(world->m_Context, body);
-                Vectormath::Aos::Quat old_rotation = GetWorldRotation2D(world->m_Context, body);
-                float diff = Vectormath::Aos::lengthSqr(position - old_position) + Vectormath::Aos::norm(rotation - old_rotation);
-                if (diff > TRANSFORM_EPSILON)
-                {
-                    float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                    b2Vec2 b2_position;
-                    ToB2(position, b2_position, world->m_Context->m_Scale);
-                    body->SetTransform(b2_position, angle);
-                }
+                float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+                b2Vec2 b2_position;
+                ToB2(position, b2_position, world->m_Context->m_Scale);
+                body->SetTransform(b2_position, angle);
             }
         }
         body->SetActive(enabled);
