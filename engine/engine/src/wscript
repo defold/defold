@@ -22,7 +22,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DLIB DMGLFW PARTICLE GUI %s ALUT X' % sound_lib,
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X' % sound_lib,
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -34,7 +34,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT DLIB DMGLFW PARTICLE GUI %s ALUT X' % sound_lib,
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA OPENAL SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X' % sound_lib,
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

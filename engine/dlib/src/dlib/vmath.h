@@ -18,7 +18,7 @@ namespace dmVMath
      * @param radians Angle of rotation
      * @return Quaternion describing the rotation
      */
-    Vectormath::Aos::Quat QuatFromAngle(uint32_t axis_index, float radians)
+    inline Vectormath::Aos::Quat QuatFromAngle(uint32_t axis_index, float radians)
     {
         Vectormath::Aos::Quat q(0, 0, 0, 1);
         float half_angle = 0.5f * radians;
