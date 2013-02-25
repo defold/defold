@@ -1,5 +1,30 @@
 :max-width: 45em
 
+Rotating Particles (Release 1.2.15)
+-----------------------------------
+_February 25, 2013_
+
+The most prominent feature in 1.2.15 is the ability for particles to rotate.
+The emitters have now been extended with two new properties.
+_Initial Rotation_ controls how a spawned particle will be initially rotated.
+It can be animated over the lifetime of the emitter and also has support for spread, just like the other emitter properties.
+The second property is _Life Rotation_, which can be animated over the lifetime of the particle.
+Use the latter to make your particles spin.
+
+Other Fixes
+~~~~~~~~~~~
+
+* Images added to the root of an atlas represents a one-frame animation.
+  Now they are also available in the _Animation_ drop-down menus in sprites and emitter nodes.
+* When starting two instances of Defold, the workspace could be corrupted resulting in warnings and the application unable to start.
+  This has now been fixed.
+  If you have a corrupted workspace, you can safely remove the workspace-directory inside your Defold installation and start the editor.
+* Fixed editor crash when previewing a particle fx and the images used in it was deleted.
+* Fixed memory leak in the Defold iOS-app, which made it crash after several restarts.
+* The graphics library (jogl) used in the editor has been upgraded, hopefully providing support for more rare graphics cards and drivers.
+
+Stay tuned for more!
+
 Fix for Broken Resolve (Release 1.2.14)
 ---------------------------------------
 _February 19, 2013_
