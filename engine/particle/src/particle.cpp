@@ -29,6 +29,9 @@ namespace dmParticle
     /// Config key to use for tweaking the total maximum number of particles in a context.
     const char* MAX_PARTICLE_COUNT_KEY          = "particle_fx.max_particle_count";
 
+    /// Used for degree to radian conversion
+    const float DEG_RAD = M_PI / 180.0f;
+
     AnimationData::AnimationData()
     {
         memset(this, 0, sizeof(*this));
@@ -800,7 +803,7 @@ namespace dmParticle
 
         transform = dmTransform::Mul(emitter_transform, transform);
         particle->SetPosition(Point3(transform.GetTranslation()));
-        particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
+        particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
         particle->SetRotation(particle->GetSourceRotation());
         particle->SetVelocity(dmTransform::Apply(emitter_transform, velocity) + emitter_velocity);
     }
@@ -1062,7 +1065,7 @@ namespace dmParticle
                     dmMath::Clamp(c.getY() * properties[PARTICLE_KEY_GREEN], 0.0f, 1.0f),
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
                     dmMath::Clamp(c.getW() * properties[PARTICLE_KEY_ALPHA], 0.0f, 1.0f)));
-            particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, properties[PARTICLE_KEY_ROTATION]));
+            particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
         }
     }
 
