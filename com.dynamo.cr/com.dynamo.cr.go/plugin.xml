@@ -131,6 +131,9 @@
                   <instanceof
                         value="com.dynamo.cr.go.core.CollectionInstanceNode">
                   </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.ComponentPropertyNode">
+                  </instanceof>
                </or>
             </iterate>
          </with>

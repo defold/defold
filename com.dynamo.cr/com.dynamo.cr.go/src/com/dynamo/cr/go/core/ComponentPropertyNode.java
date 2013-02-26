@@ -27,6 +27,10 @@ public class ComponentPropertyNode extends Node {
         this.properties = properties;
     }
 
+    public RefComponentNode getRefComponentNode() {
+        return ref;
+    }
+
     public void setRefComponentNode(RefComponentNode ref) {
         this.ref = ref;
     }
