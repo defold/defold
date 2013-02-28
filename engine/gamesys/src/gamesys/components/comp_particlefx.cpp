@@ -126,6 +126,7 @@ namespace dmGameSystem
             if (c->m_Instance == params.m_Instance)
             {
                 c->m_Instance = 0;
+                dmParticle::RetireInstance(w->m_ParticleContext, c->m_ParticleInstance);
             }
         }
         ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;

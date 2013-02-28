@@ -124,6 +124,8 @@ namespace dmParticle
         /// If the user has been warned that the emitters animation could not be fetched
         uint16_t                m_FetchAnimWarning : 1;
         uint16_t                m_LastPositionSet : 1;
+        /// If this emitter is retiring, if set it means that a looping instance should act like a once instance
+        uint16_t                m_Retiring : 1;
     };
 
     struct Instance

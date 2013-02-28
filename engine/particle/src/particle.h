@@ -212,6 +212,14 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(void, StopInstance, HContext context, HInstance instance);
     /**
+     * Retire the specified instance, which means it will stop spawning particles at the closest convenient time.
+     * In practice this means that looping emitters will continue for the current life cycle and then stop, like a once emitter.
+     * Any spawned particles will still be simulated until they die.
+     * @param context Context in which the instance exists.
+     * @param instance Instance to start, can be invalid.
+     */
+    DM_PARTICLE_PROTO(void, RetireInstance, HContext context, HInstance instance);
+    /**
      * Reset the specified instance, which means its state will be like when first created.
      * Any already living particles will be annihilated.
      * @param context Context in which the instance exists.

@@ -213,11 +213,24 @@ namespace dmParticle
     {
         // TODO: Fix auto-start
         emitter->m_State = EMITTER_STATE_PRESPAWN;
+        emitter->m_Retiring = 0;
     }
 
     static void StopEmitter(Emitter* emitter)
     {
         emitter->m_State = EMITTER_STATE_POSTSPAWN;
+        emitter->m_Retiring = 0;
+    }
+
+    static void RetireEmitter(Emitter* emitter)
+    {
+        emitter->m_Retiring = 1;
+    }
+
+    // Emitters are looping when play mode is looping, except for when retiring
+    static bool IsEmitterLooping(Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf)
+    {
+        return emitter->m_Retiring == 0 && emitter_ddf->m_Mode == PLAY_MODE_LOOP;
     }
 
     static void FastForwardEmitter(Prototype* prototype, Instance* instance, EmitterPrototype* emitter_prototype, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float time)
@@ -340,6 +353,20 @@ namespace dmParticle
         {
             Emitter* emitter = &emitters[emitter_i];
             StopEmitter(emitter);
+        }
+    }
+
+    void RetireInstance(HContext context, HInstance instance)
+    {
+        if (instance == INVALID_INSTANCE) return;
+        Instance* i = GetInstance(context, instance);
+        if (!i) return;
+        dmArray<Emitter>& emitters = i->m_Emitters;
+        uint32_t emitter_count = emitters.Size();
+        for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
+        {
+            Emitter* emitter = &emitters[emitter_i];
+            RetireEmitter(emitter);
         }
     }
 
@@ -602,7 +629,7 @@ namespace dmParticle
         if (emitter->m_State == EMITTER_STATE_SPAWNING)
         {
             // wrap looping emitters when they reach the end
-            if (emitter_ddf->m_Mode == PLAY_MODE_LOOP && emitter->m_Timer >= emitter_ddf->m_Duration)
+            if (IsEmitterLooping(emitter, emitter_ddf) && emitter->m_Timer >= emitter_ddf->m_Duration)
             {
                 emitter->m_Timer -= emitter_ddf->m_Duration;
             }
@@ -638,8 +665,8 @@ namespace dmParticle
                 SpawnParticle(emitter->m_Particles, &emitter->m_Seed, emitter_ddf, emitter_transform, emitter_velocity, emitter_properties, dt);
             }
 
-            if (emitter_ddf->m_Mode == PLAY_MODE_ONCE && emitter->m_Timer >= emitter_ddf->m_Duration)
-                emitter->m_State = EMITTER_STATE_POSTSPAWN;
+            if (!IsEmitterLooping(emitter, emitter_ddf) && emitter->m_Timer >= emitter_ddf->m_Duration)
+                StopEmitter(emitter);
         }
         if (emitter->m_State == EMITTER_STATE_POSTSPAWN)
         {
@@ -1303,7 +1330,7 @@ namespace dmParticle
                     color.setY(0.0f);
                     color.setZ(1.0f);
                 }
-                else if (ddf->m_Mode == dmParticle::PLAY_MODE_ONCE)
+                else if (!IsEmitterLooping(e, ddf))
                 {
                     float t = dmMath::Select(-ddf->m_Duration, 0.0f, e->m_Timer / ddf->m_Duration);
                     color.setY(1.0f - t);

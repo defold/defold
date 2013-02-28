@@ -421,6 +421,42 @@ TEST_F(ParticleTest, LoopDelay)
 }
 
 /**
+ * Verify loop emitters respects retirement
+ */
+TEST_F(ParticleTest, Retire)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("loop.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+        ASSERT_EQ(1u, ParticleCount(e));
+    }
+
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
+    dmParticle::RetireInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(1u, ParticleCount(e));
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(0u, ParticleCount(e));
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
  * Verify reset
  */
 TEST_F(ParticleTest, Reset)
