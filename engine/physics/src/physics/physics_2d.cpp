@@ -210,6 +210,11 @@ namespace dmPhysics
         float dt = step_context.m_DT;
         HContext2D context = world->m_Context;
         float scale = context->m_Scale;
+        // Epsilon defining what transforms are considered noise and not
+        // Values are picked by inspection, rotation should go down after the quat => angle conversion has been fixed
+        // Current value is roughly equivalent to 1 degree
+        const float POS_EPSILON = 0.00005f * scale;
+        const float ROT_EPSILON = 0.0025f;
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
@@ -223,15 +228,17 @@ namespace dmPhysics
                     dmTransform::TransformS1 world_transform;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                    // Ignore z-component
+                    position.setZ(0.0f);
                     Vectormath::Aos::Quat rotation = world_transform.GetRotation();
-                    float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                    b2Vec2 b2_position;
-                    ToB2(position, b2_position, scale);
-                    body->SetTransform(b2_position, angle);
-                    position = GetWorldPosition2D(context, body);
-                    rotation = GetWorldRotation2D(context, body);
-                    if ((distSqr(old_position, position) > 0.0f || lengthSqr(Vectormath::Aos::Vector4(rotation - old_rotation)) > 0.0f))
+                    float dp = distSqr(old_position, position);
+                    float dr = norm(rotation - old_rotation);
+                    if (dp > POS_EPSILON || dr > ROT_EPSILON)
                     {
+                        float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+                        b2Vec2 b2_position;
+                        ToB2(position, b2_position, scale);
+                        body->SetTransform(b2_position, angle);
                         body->SetSleepingAllowed(false);
                     }
                     else
