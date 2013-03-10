@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.vecmath.AxisAngle4d;
@@ -10,36 +11,25 @@ import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 
+import org.apache.commons.lang.StringEscapeUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.ProtoBuilders.CollectionBuilder;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
     private static final double epsilon = 0.000001;
-
-    @Override
-    protected Builder<Void> createBuilder() {
-        return new CollectionBuilder();
-    }
-
-    @Override
-    protected Message parseMessage(byte[] content) throws InvalidProtocolBufferException {
-        return CollectionDesc.parseFrom(content);
-    }
 
     @Test
     public void testProps() throws Exception {
@@ -60,7 +50,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("    properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
         src.append("  }\n");
         src.append("}\n");
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString());
+        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
         for (InstanceDesc instance : collection.getInstancesList()) {
             for (ComponentPropertyDesc compProp : instance.getComponentPropertiesList()) {
                 PropertyDeclarations properties = compProp.getPropertyDecls();
@@ -89,13 +79,30 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("  }\n");
         src.append("}\n");
         @SuppressWarnings("unused")
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString());
+        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
     }
 
     private void addInstance(StringBuilder src, String id, String prototype, Point3d p, Quat4d r, double s, String ... childIds) {
         src.append("instances {\n");
         src.append("  id: \"").append(id).append("\"\n");
         src.append("  prototype: \"").append(prototype).append("\"\n");
+        src.append("  position: { x: ").append(p.getX()).append(" y: ").append(p.getY()).append(" z: ").append(p.getZ()).append(" }\n");
+        src.append("  rotation: { x: ").append(r.getX()).append(" y: ").append(r.getY()).append(" z: ").append(r.getZ()).append(" w: ").append(r.getW()).append(" }\n");
+        src.append("  scale: ").append(s).append("\n");
+        for (String childId : childIds) {
+            src.append("  children: \"").append(childId).append("\"");
+        }
+        src.append("}\n");
+    }
+
+    private void addEmbeddedInstance(StringBuilder src, String id, Map<String, String> components, Point3d p, Quat4d r, double s, String ... childIds) {
+        src.append("embedded_instances {\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        StringBuilder dataBuilder = new StringBuilder();
+        for (Map.Entry<String, String> component : components.entrySet()) {
+            dataBuilder.append("components { id: \"").append(component.getKey()).append("\" component: \"").append(component.getValue()).append("\" }");
+        }
+        src.append("  data: \"").append(StringEscapeUtils.escapeJava(dataBuilder.toString())).append("\"\n");
         src.append("  position: { x: ").append(p.getX()).append(" y: ").append(p.getY()).append(" z: ").append(p.getZ()).append(" }\n");
         src.append("  rotation: { x: ").append(r.getX()).append(" y: ").append(r.getY()).append(" z: ").append(r.getZ()).append(" w: ").append(r.getW()).append(" }\n");
         src.append("  scale: ").append(s).append("\n");
@@ -167,7 +174,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("name: \"main\"\n");
         addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
         addInstance(src, "test", "/test.go", p, r, s);
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString());
+        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
 
         Assert.assertEquals(3, collection.getInstancesCount());
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
@@ -228,7 +235,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
         addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString());
+        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
 
         Assert.assertEquals(2, collection.getInstancesCount());
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
@@ -250,5 +257,52 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(p, inst.getPosition(), epsilon);
         assertEquals(r, inst.getRotation(), epsilon);
         Assert.assertEquals(s, inst.getScale(), epsilon);
+    }
+
+    /**
+     * Test that embedded instances are properly extracted.
+     * Structure:
+     * - sub [collection]
+     *   - child [emb_instance]
+     *   - parent [emb_instance]
+     * go [emb_instance]
+     * @throws Exception
+     */
+    @Test
+    public void testEmbeddedInstances() throws Exception {
+        Point3d p = new Point3d(1.0, 0.0, 0.0);
+        Quat4d r = new Quat4d();
+        r.set(new AxisAngle4d(new Vector3d(0, 1, 0), Math.PI * 0.5));
+        double s = 0.5;
+
+        Map<String, String> components = new HashMap<String, String>();
+
+        StringBuilder subSrc = new StringBuilder();
+        subSrc.append("name: \"sub\"\n");
+        addEmbeddedInstance(subSrc, "child", components, p, r, s);
+        addEmbeddedInstance(subSrc, "parent", components, p, r, s, "child");
+        addFile("/sub.collection", subSrc.toString());
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
+        addEmbeddedInstance(src, "go", components, p, r, s);
+        List<Message> messages = build("/test.collection", src.toString());
+        Assert.assertEquals(4, messages.size());
+
+        CollectionDesc collection = (CollectionDesc)messages.get(0);
+        Assert.assertEquals(3, collection.getInstancesCount());
+        Assert.assertEquals(0, collection.getCollectionInstancesCount());
+        Assert.assertEquals(0, collection.getEmbeddedInstancesCount());
+
+        Map<String, InstanceDesc> instances = new HashMap<String, InstanceDesc>();
+        for (InstanceDesc inst : collection.getInstancesList()) {
+            instances.put(inst.getId(), inst);
+        }
+        assertTrue(instances.containsKey("/sub/parent"));
+        assertTrue(instances.containsKey("/sub/child"));
+        assertTrue(instances.containsKey("/go"));
+
+        PrototypeDesc proto0 = (PrototypeDesc)messages.get(1);
     }
 }

@@ -1,13 +1,16 @@
 package com.dynamo.bob.pipeline;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-import com.dynamo.bob.Builder;
+import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.test.util.MockFileSystem;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 
 public abstract class AbstractProtoBuilderTest {
@@ -18,19 +21,26 @@ public abstract class AbstractProtoBuilderTest {
         this.fileSystem = new MockFileSystem();
         this.fileSystem.setBuildDirectory("");
         this.project = new Project(this.fileSystem);
+
+        ClassLoaderScanner scanner = new TestClassLoaderScanner();
+        project.scan(scanner, "com.dynamo.bob");
+        project.scan(scanner, "com.dynamo.bob.pipeline");
     }
 
-    protected Message build(String file, String source) throws CompileExceptionError, IOException {
+    protected List<Message> build(String file, String source) throws Exception {
         addFile(file, source);
-        Builder<Void> builder = createBuilder();
-        builder.setProject(this.project);
-        Task<Void> task = builder.create(this.fileSystem.get(file));
-        builder.build(task);
-        return parseMessage(task.getOutputs().get(0).getContent());
+        project.setInputs(Collections.singletonList(file));
+        List<TaskResult> results = project.build(new NullProgress(), "build");
+        List<Message> messages = new ArrayList<Message>();
+        for (TaskResult result : results) {
+            if (!result.isOk()) {
+                throw new CompileExceptionError(project.getResource(file), result.getLineNumber(), result.getMessage());
+            }
+            Task<?> task = result.getTask();
+            messages.add(ParseUtil.parse(task.getOutputs().get(0)));
+        }
+        return messages;
     }
-
-    protected abstract Builder<Void> createBuilder();
-    protected abstract Message parseMessage(byte[] content) throws InvalidProtocolBufferException;
 
     protected void addFile(String file, String source) {
         this.fileSystem.addFile(file, source.getBytes());

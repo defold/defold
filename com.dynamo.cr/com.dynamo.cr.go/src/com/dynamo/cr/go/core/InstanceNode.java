@@ -9,7 +9,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 
 @SuppressWarnings("serial")
-public class InstanceNode extends Node implements Identifiable {
+public abstract class InstanceNode extends Node implements Identifiable {
 
     @Property
     @NotEmpty(severity = IStatus.ERROR)
@@ -28,6 +28,11 @@ public class InstanceNode extends Node implements Identifiable {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s", getId());
     }
 
 }

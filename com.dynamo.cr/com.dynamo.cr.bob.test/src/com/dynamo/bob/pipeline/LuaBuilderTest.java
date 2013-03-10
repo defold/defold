@@ -5,26 +5,13 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Message;
 
 public class LuaBuilderTest extends AbstractProtoBuilderTest {
-
-    @Override
-    protected Builder<Void> createBuilder() {
-        return new ScriptBuilders.ScriptBuilder();
-    }
-
-    @Override
-    protected Message parseMessage(byte[] content) throws InvalidProtocolBufferException {
-        return LuaModule.parseFrom(content);
-    }
 
     @Test
     public void testProps() throws Exception {
@@ -39,7 +26,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"bool\", true)\n");
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
-        LuaModule luaModule = (LuaModule)build("/test.script", src.toString());
+        LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
         PropertyDeclarations properties = luaModule.getProperties();
         assertEquals(2, properties.getNumberEntriesCount());
         PropertiesTestUtil.assertNumber(properties, 1, 0);
@@ -59,7 +46,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"string\", \"\")\n");
         try {
             @SuppressWarnings("unused")
-            LuaModule luaModule = (LuaModule)build("/test.script", src.toString());
+            LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
             assertTrue(false);
         } catch (CompileExceptionError e) {
             assertEquals(2, e.getLineNumber());

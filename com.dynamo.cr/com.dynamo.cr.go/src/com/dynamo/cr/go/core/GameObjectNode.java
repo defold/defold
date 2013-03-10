@@ -7,20 +7,44 @@ import java.util.List;
 import com.dynamo.cr.sceneed.core.Node;
 
 @SuppressWarnings("serial")
-public class GameObjectNode extends Node {
+public class GameObjectNode extends GameObjectInstanceNode {
 
-    @Override
-    public void childAdded(Node child) {
-        sortComponents();
+    public boolean isIdVisible() {
+        return getParent() != null;
     }
 
-    public void sortComponents() {
+    public boolean isTranslationVisible() {
+        return getParent() != null && super.isTranslationVisible();
+    }
+
+    public boolean isEulerVisible() {
+        return getParent() != null && super.isEulerVisible();
+    }
+
+    public boolean isScaleVisible() {
+        return getParent() != null && super.isScaleVisible();
+    }
+
+    @Override
+    public void sortChildren() {
         sortChildren(new Comparator<Node>() {
             @Override
             public int compare(Node o1, Node o2) {
-                String id1 = ((ComponentNode)o1).getId();
-                String id2 = ((ComponentNode)o2).getId();
-                return id1.compareTo(id2);
+                if (o1 instanceof GameObjectInstanceNode && o2 instanceof GameObjectInstanceNode) {
+                    String id1 = ((GameObjectInstanceNode)o1).getId();
+                    String id2 = ((GameObjectInstanceNode)o2).getId();
+                    return id1.compareTo(id2);
+                } else if (o1 instanceof ComponentNode && o2 instanceof ComponentNode) {
+                    String id1 = ((ComponentNode)o1).getId();
+                    String id2 = ((ComponentNode)o2).getId();
+                    return id1.compareTo(id2);
+                } else {
+                    if (o1 instanceof ComponentNode) {
+                        return 1;
+                    } else {
+                        return -1;
+                    }
+                }
             }
         });
     }

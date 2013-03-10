@@ -2,27 +2,14 @@ package com.dynamo.bob.pipeline;
 
 import org.junit.Test;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Message;
 
 public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
-
-    @Override
-    protected Builder<Void> createBuilder() {
-        return new GameObjectBuilder();
-    }
-
-    @Override
-    protected Message parseMessage(byte[] content) throws InvalidProtocolBufferException {
-        return PrototypeDesc.parseFrom(content);
-    }
 
     @Test
     public void testProps() throws Exception {
@@ -39,7 +26,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         src.append("  properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n");
         src.append("  properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
         src.append("}\n");
-        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString());
+        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString()).get(0);
         for (ComponentDesc cd : prototype.getComponentsList()) {
             PropertyDeclarations properties = cd.getPropertyDecls();
             PropertiesTestUtil.assertNumber(properties, 1, 0);
@@ -62,6 +49,6 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         src.append("  properties { id: \"number\" value: \"a\" type: PROPERTY_TYPE_NUMBER }\n");
         src.append("}\n");
         @SuppressWarnings("unused")
-        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString());
+        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString()).get(0);
     }
 }

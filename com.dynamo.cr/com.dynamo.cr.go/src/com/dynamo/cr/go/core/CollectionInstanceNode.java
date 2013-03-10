@@ -1,9 +1,7 @@
 package com.dynamo.cr.go.core;
 
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
@@ -41,10 +39,6 @@ public class CollectionInstanceNode extends InstanceNode {
     public void setCollection(String collection) {
         this.collection = collection;
         reloadCollection();
-        if (getId() == null) {
-            IPath p = new Path(collection).removeFileExtension();
-            setId(p.lastSegment());
-        }
     }
 
     public IStatus validateCollection() {

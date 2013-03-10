@@ -14,12 +14,20 @@
    <extension
          point="org.eclipse.ui.commands">
       <command
-            id="com.dynamo.cr.sceneed.ui.commands.add"
+            id="com.dynamo.cr.sceneed.ui.commands.addPrimary"
             name="Add">
       </command>
       <command
-            id="com.dynamo.cr.sceneed.ui.commands.addLink"
-            name="Add Link">
+            id="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
+            name="Add Reference">
+      </command>
+      <command
+            id="com.dynamo.cr.sceneed.ui.commands.addSecondary"
+            name="Add">
+      </command>
+      <command
+            id="com.dynamo.cr.sceneed.ui.commands.addSecondaryReference"
+            name="Add Reference">
       </command>
       <command
             id="com.dynamo.cr.sceneed.ui.commands.enter"
@@ -84,16 +92,28 @@
    <extension
          point="org.eclipse.ui.bindings">
       <key
-            commandId="com.dynamo.cr.sceneed.ui.commands.add"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
             contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="I">
       </key>
       <key
-            commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="SHIFT+I">
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.ui.commands.addSecondary"
             contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
             sequence="O">
+      </key>
+      <key
+            commandId="com.dynamo.cr.sceneed.ui.commands.addSecondaryReference"
+            contextId="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="SHIFT+O">
       </key>
       <key
             commandId="com.dynamo.cr.sceneed.ui.commands.enter"

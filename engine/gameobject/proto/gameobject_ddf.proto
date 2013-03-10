@@ -71,6 +71,16 @@ message InstanceDesc
     optional float          scale       = 7 [default = 1.0];
 }
 
+message EmbeddedInstanceDesc
+{
+    required string id = 1;
+    repeated string children = 2;
+    required string data = 3;
+    optional dmMath.Point3  position    = 4;
+    optional dmMath.Quat    rotation    = 5;
+    optional float          scale       = 6 [default = 1.0];
+}
+
 message CollectionInstanceDesc
 {
     required string         id          = 1;
@@ -86,6 +96,7 @@ message CollectionDesc
     repeated InstanceDesc           instances               = 2;
     repeated CollectionInstanceDesc collection_instances    = 3;
     optional uint32                 scale_along_z           = 4 [default = 0];
+    repeated EmbeddedInstanceDesc   embedded_instances      = 5;
 }
 
 /*# acquires the user input focus

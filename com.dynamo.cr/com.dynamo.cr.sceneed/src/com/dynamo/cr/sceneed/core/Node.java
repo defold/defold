@@ -139,11 +139,11 @@ public abstract class Node implements IAdaptable, Serializable {
         return flags.contains(Flags.TRANSFORMABLE);
     }
 
-    public final boolean isTranslationVisible() {
+    public boolean isTranslationVisible() {
         return isTransformable();
     }
 
-    public final boolean isEulerVisible() {
+    public boolean isEulerVisible() {
         return isTransformable();
     }
 
@@ -151,7 +151,7 @@ public abstract class Node implements IAdaptable, Serializable {
         return flags.contains(Flags.SCALABLE);
     }
 
-    public final boolean isScaleVisible() {
+    public boolean isScaleVisible() {
         return isScalable();
     }
 
@@ -598,6 +598,7 @@ public abstract class Node implements IAdaptable, Serializable {
         for (Node child : children) {
             addChild(child);
         }
+        this.status = Status.OK_STATUS;
         this.childIndex = -1;
         this.flags = (EnumSet<Flags>)in.readObject();
         this.aabb = (AABB)in.readObject();

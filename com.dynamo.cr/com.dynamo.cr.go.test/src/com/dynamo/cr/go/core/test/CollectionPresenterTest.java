@@ -27,16 +27,27 @@ public class CollectionPresenterTest extends AbstractPresenterTest {
         this.presenter = new CollectionPresenter();
     }
 
-    @Test(expected = UnsupportedOperationException.class)
-    public void testAddGameObjectEmptySelection() {
-        when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection());
+    @Test
+    public void testAddEmbedGameObject() throws Exception {
+        CollectionNode collection = new CollectionNode();
+        collection.setModel(this.getModel());
+        when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(collection));
+
         this.presenter.onAddGameObject(this.getPresenterContext(), this.getLoaderContext());
+
+        verify(this.getPresenterContext(), times(1)).executeOperation(any(IUndoableOperation.class));
     }
 
     @Test(expected = UnsupportedOperationException.class)
-    public void testAddGameObjectIllegalSelection() {
+    public void testAddGameObjectFromFileEmptySelection() {
+        when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection());
+        this.presenter.onAddGameObjectFromFile(this.getPresenterContext(), this.getLoaderContext());
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void testAddGameObjectFromFileIllegalSelection() {
         when(this.getPresenterContext().getSelection()).thenReturn(new StructuredSelection(new DummyComponentNode()));
-        this.presenter.onAddGameObject(this.getPresenterContext(), this.getLoaderContext());
+        this.presenter.onAddGameObjectFromFile(this.getPresenterContext(), this.getLoaderContext());
     }
 
     @Test

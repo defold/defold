@@ -34,6 +34,16 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
         if (parent == null) {
             throw new UnsupportedOperationException("No collection in selection.");
         }
+        GameObjectNode instance = new GameObjectNode();
+        presenterContext.executeOperation(new AddInstanceOperation(parent, instance, presenterContext));
+    }
+
+    public void onAddGameObjectFromFile(IPresenterContext presenterContext, ILoaderContext loaderContext) {
+        // Find selected collection
+        CollectionNode parent = findCollectionFromSelection(presenterContext.getSelection());
+        if (parent == null) {
+            throw new UnsupportedOperationException("No collection in selection.");
+        }
         String file = presenterContext.selectFile(Messages.CollectionPresenter_ADD_GAME_OBJECT, new String[] {"go"});
         if (file != null) {
             GameObjectNode gameObject = null;
@@ -44,7 +54,7 @@ public class CollectionPresenter implements ISceneView.INodePresenter<Collection
                 logger.error("Error occurred while adding game-object", e);
                 return;
             }
-            GameObjectInstanceNode instance = new GameObjectInstanceNode(gameObject);
+            RefGameObjectInstanceNode instance = new RefGameObjectInstanceNode(gameObject);
             instance.setGameObject(file);
             presenterContext.executeOperation(new AddInstanceOperation(parent, instance, presenterContext));
         }

@@ -26,7 +26,7 @@ public class ComponentNode extends Node implements Identifiable {
     public void setId(String id) {
         this.id = id;
         if (getParent() != null) {
-            ((GameObjectNode)getParent()).sortComponents();
+            ((GameObjectNode)getParent()).sortChildren();
         }
     }
 

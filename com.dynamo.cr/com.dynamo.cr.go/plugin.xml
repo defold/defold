@@ -12,6 +12,12 @@
          <reference-node-type
                node-type="com.dynamo.cr.go.core.nodes.component">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.go.core.nodes.refGameObjectInstance">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.go.core.nodes.gameObject">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.go.core.nodes.collection"
@@ -32,10 +38,13 @@
             node="com.dynamo.cr.go.core.ComponentNode">
       </node-type>
       <node-type
-            id="com.dynamo.cr.go.core.nodes.gameObjectInstance"
-            node="com.dynamo.cr.go.core.GameObjectInstanceNode">
+            id="com.dynamo.cr.go.core.nodes.refGameObjectInstance"
+            node="com.dynamo.cr.go.core.RefGameObjectInstanceNode">
          <reference-node-type
-               node-type="com.dynamo.cr.go.core.nodes.gameObjectInstance">
+               node-type="com.dynamo.cr.go.core.nodes.refGameObjectInstance">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.go.core.nodes.gameObject">
          </reference-node-type>
       </node-type>
    </extension>
@@ -176,7 +185,7 @@
          point="org.eclipse.ui.handlers">
       <handler
             class="com.dynamo.cr.go.ui.handlers.AddComponentHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.add">
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary">
          <activeWhen>
             <and>
                <reference
@@ -190,7 +199,7 @@
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.AddComponentFromFileHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference">
          <activeWhen>
             <and>
                <reference
@@ -217,8 +226,8 @@
          </activeWhen>
       </handler>
       <handler
-            class="com.dynamo.cr.go.ui.handlers.AddGameObjectHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.add">
+            class="com.dynamo.cr.go.ui.handlers.AddGameObjectFromFileHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference">
          <activeWhen>
             <and>
                <reference
@@ -232,7 +241,21 @@
       </handler>
       <handler
             class="com.dynamo.cr.go.ui.handlers.AddCollectionHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
+            commandId="com.dynamo.cr.sceneed.ui.commands.addSecondaryReference">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.go.ui.handlers.AddGameObjectHandler"
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary">
          <activeWhen>
             <and>
                <reference
@@ -251,7 +274,7 @@
             allPopups="false"
             locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
          <command
-               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
                label="Add Component"
                style="push">
             <visibleWhen
@@ -262,7 +285,7 @@
             </visibleWhen>
          </command>
          <command
-               commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+               commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
                label="Add Component From File"
                style="push">
             <visibleWhen
@@ -273,7 +296,7 @@
             </visibleWhen>
          </command>
          <command
-               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
                label="Add Game Object"
                style="push">
             <visibleWhen
@@ -284,8 +307,19 @@
             </visibleWhen>
          </command>
          <command
-               commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
-               label="Add Collection"
+               commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
+               label="Add Game Object File"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <reference
+                     definitionId="com.dynamo.cr.go.core.definitions.collectionSelected">
+               </reference>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.sceneed.ui.commands.addSecondaryReference"
+               label="Add Collection From File"
                style="push">
             <visibleWhen
                   checkEnabled="false">
@@ -301,12 +335,12 @@
          <menu
                label="Game Object">
             <command
-                  commandId="com.dynamo.cr.sceneed.ui.commands.add"
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
                   label="Add Component"
                   style="push">
             </command>
             <command
-                  commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
                   label="Add Component From File"
                   style="push">
             </command>
@@ -322,13 +356,18 @@
          <menu
                label="Collection">
             <command
-                  commandId="com.dynamo.cr.sceneed.ui.commands.add"
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
                   label="Add Game Object"
                   style="push">
             </command>
             <command
-                  commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
-                  label="Add Collection"
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addPrimaryReference"
+                  label="Add Game Object From File"
+                  style="push">
+            </command>
+            <command
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addSecondaryReference"
+                  label="Add Collection From File"
                   style="push">
             </command>
             <visibleWhen

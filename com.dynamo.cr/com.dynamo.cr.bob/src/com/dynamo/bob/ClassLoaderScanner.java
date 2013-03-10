@@ -40,6 +40,10 @@ public class ClassLoaderScanner implements IClassScanner {
         }
     }
 
+    protected URL resolveURL(URL url) throws IOException {
+        return url;
+    }
+
     @Override
     public Set<String> scan(String pkg) {
         Set<String> classes = new HashSet<String>();
@@ -48,7 +52,7 @@ public class ClassLoaderScanner implements IClassScanner {
         try {
             Enumeration<URL> e = classLoader.getResources(pkg.replace(".", "/"));
             while (e.hasMoreElements()) {
-                URL url = e.nextElement();
+                URL url = resolveURL(e.nextElement());
                 String proto = url.getProtocol();
                 if (proto.equals("file")) {
                     File dir = new File(url.getFile());

@@ -5,6 +5,8 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,7 +31,10 @@ import com.dynamo.cr.go.core.GameObjectLoader;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.InstanceNode;
 import com.dynamo.cr.go.core.Messages;
+import com.dynamo.cr.go.core.RefGameObjectInstanceNode;
 import com.dynamo.cr.go.core.operations.AddInstanceOperation;
+import com.dynamo.cr.sceneed.core.INodeLoader;
+import com.dynamo.cr.sceneed.core.INodeType;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.RemoveChildrenOperation;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
@@ -63,9 +68,14 @@ public class CollectionNodeTest extends AbstractNodeTest {
         verifySelection();
     }
 
-    private void addGameObject() throws Exception {
+    private void addEmbedGameObject() throws Exception {
+        GameObjectNode instance = new GameObjectNode();
+        addInstance(instance);
+    }
+
+    private void addRefGameObject() throws Exception {
         GameObjectNode gameObject = this.gameObjectLoader.load(getLoaderContext(), getFile("/test.go").getContents());
-        GameObjectInstanceNode instance = new GameObjectInstanceNode(gameObject);
+        RefGameObjectInstanceNode instance = new RefGameObjectInstanceNode(gameObject);
         instance.setGameObject("/test.go");
         addInstance(instance);
     }
@@ -114,7 +124,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
 
     @Test
     public void testAddGameObject() throws Exception {
-        addGameObject();
+        addRefGameObject();
 
         assertOneInstance();
 
@@ -153,7 +163,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
             }
         }).when(getPresenterContext()).getCameraFocusPoint(any(Point3d.class));
 
-        addGameObject();
+        addRefGameObject();
         assertThat(instance(0).getTranslation().getX(), is(1.0));
         addCollection();
         assertThat(instance(1).getTranslation().getX(), is(1.0));
@@ -161,7 +171,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
 
     @Test
     public void testRemoveGameObject() throws Exception {
-        addGameObject();
+        addRefGameObject();
 
         InstanceNode instance = instance(0);
 
@@ -201,7 +211,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
 
     @Test
     public void testSetId() throws Exception {
-        addGameObject();
+        addRefGameObject();
 
         InstanceNode instance = instance(0);
 
@@ -220,24 +230,33 @@ public class CollectionNodeTest extends AbstractNodeTest {
 
     @Test
     public void testBuildMessage() throws Exception {
+        INodeType testNodeType = mock(INodeType.class);
+        // Not a nice cast, but ok since this is merely a test
+        when(testNodeType.getLoader()).thenReturn((INodeLoader<Node>)(Object)new GameObjectLoader());
+
+        when(getNodeTypeRegistry().getNodeTypeClass(GameObjectNode.class)).thenReturn(testNodeType);
+
         addCollection();
 
-        addGameObject();
+        addEmbedGameObject();
+        addRefGameObject();
 
         CollectionDesc ddf = (CollectionDesc)this.loader.buildMessage(getLoaderContext(), this.collectionNode, null);
 
         assertThat(ddf.getCollectionInstancesCount(), is(1));
         assertThat(ddf.getInstancesCount(), is(1));
+        assertThat(ddf.getEmbeddedInstancesCount(), is(1));
         assertThat(ddf.getCollectionInstances(0).getId(), is(instance(0).getId()));
-        assertThat(ddf.getInstances(0).getId(), is(instance(1).getId()));
+        assertThat(ddf.getInstances(0).getId(), is(instance(2).getId()));
+        assertThat(ddf.getEmbeddedInstances(0).getId(), is(instance(1).getId()));
     }
 
     @Test
     public void testUniqueId() throws Exception {
-        addGameObject();
+        addRefGameObject();
         assertThat(instance(0).getId(), is("test"));
 
-        addGameObject();
+        addRefGameObject();
         assertThat(instance(1).getId(), is("test1"));
 
         addCollection();
@@ -260,7 +279,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
 
     @Test
     public void testInstanceMessages() throws Exception {
-        addGameObject();
+        addRefGameObject();
 
         InstanceNode instance = instance(0);
 
@@ -272,7 +291,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
         setNodeProperty(instance, "id", "test");
         assertNodePropertyStatus(instance, "id", IStatus.OK, null);
 
-        addGameObject();
+        addRefGameObject();
 
         setNodeProperty(instance(1), "id", "test");
         assertNodePropertyStatus(instance(1), "id", IStatus.ERROR, NLS.bind(Messages.InstanceNode_id_DUPLICATE, "test"));
@@ -281,7 +300,7 @@ public class CollectionNodeTest extends AbstractNodeTest {
     @Test
     public void testGameObjectMessages() throws Exception {
 
-        addGameObject();
+        addRefGameObject();
 
         GameObjectNode gameObject = new GameObjectNode();
         gameObject.addChild(new DummyComponentNode());

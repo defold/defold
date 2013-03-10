@@ -15,9 +15,9 @@ import com.dynamo.cr.ddfeditor.scene.ModelNode;
 import com.dynamo.cr.ddfeditor.scene.SphereCollisionShapeNode;
 import com.dynamo.cr.go.core.CollectionNode;
 import com.dynamo.cr.go.core.ComponentNode;
-import com.dynamo.cr.go.core.GameObjectInstanceNode;
 import com.dynamo.cr.go.core.GameObjectNode;
 import com.dynamo.cr.go.core.RefComponentNode;
+import com.dynamo.cr.go.core.RefGameObjectInstanceNode;
 import com.dynamo.cr.go.core.operations.AddComponentOperation;
 import com.dynamo.cr.go.core.operations.AddInstanceOperation;
 import com.dynamo.cr.luaeditor.scene.ScriptNode;
@@ -52,10 +52,18 @@ import com.dynamo.proto.DdfMath.Quat;
 public class CopyPasteTest extends AbstractSceneTest {
 
     @Test
-    public void testGameObjectInstance() throws Exception {
+    public void testRefGameObjectInstance() throws Exception {
         CollectionNode collection = new CollectionNode();
-        GameObjectInstanceNode instance = new GameObjectInstanceNode();
+        RefGameObjectInstanceNode instance = new RefGameObjectInstanceNode();
         instance.setGameObject("/game_object/test.go");
+
+        testCopyPaste(collection, instance, new AddInstanceOperation(collection, instance, getPresenterContext()));
+    }
+
+    @Test
+    public void testEmbedGameObjectInstance() throws Exception {
+        CollectionNode collection = new CollectionNode();
+        GameObjectNode instance = new GameObjectNode();
 
         testCopyPaste(collection, instance, new AddInstanceOperation(collection, instance, getPresenterContext()));
     }

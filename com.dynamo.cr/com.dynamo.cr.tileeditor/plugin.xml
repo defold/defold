@@ -706,7 +706,7 @@
             allPopups="false"
             locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
          <command
-               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
                label="Add Collision Group"
                style="push">
             <visibleWhen
@@ -722,7 +722,7 @@
             </visibleWhen>
          </command>
          <command
-               commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+               commandId="com.dynamo.cr.sceneed.ui.commands.addSecondary"
                label="Add Animation"
                style="push">
             <visibleWhen
@@ -757,7 +757,7 @@
          <menu
                label="Tile Set">
             <command
-                  commandId="com.dynamo.cr.sceneed.ui.commands.add"
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
                   label="Add Collision Group"
                   style="push">
             </command>
@@ -783,7 +783,7 @@
                </or>
             </visibleWhen>
             <command
-                  commandId="com.dynamo.cr.sceneed.ui.commands.addLink"
+                  commandId="com.dynamo.cr.sceneed.ui.commands.addSecondary"
                   label="Add Animation"
                   style="push">
             </command>
@@ -1051,7 +1051,7 @@
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.handlers.AddCollisionGroupHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.add">
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary">
          <activeWhen>
             <and>
                <reference
@@ -1086,7 +1086,7 @@
       </handler>
       <handler
             class="com.dynamo.cr.tileeditor.handlers.AddAnimationHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.addLink">
+            commandId="com.dynamo.cr.sceneed.ui.commands.addSecondary">
          <activeWhen>
             <and>
                <reference

@@ -99,7 +99,7 @@ public class GoPropertyUtil {
         return desc;
     }
 
-    private static List<String> extractRelativeURLs(RefComponentNode refNode, Node node, String collectionPath) {
+    private static List<String> extractRelativeURLs(RefComponentNode refNode, Node node, String collectionPath, String instanceId) {
         List<String> urls = new ArrayList<String>();
         List<Node> children = node.getChildren();
         for (Node child : children) {
@@ -107,16 +107,19 @@ public class GoPropertyUtil {
                 CollectionInstanceNode ci = (CollectionInstanceNode)child;
                 String path = collectionPath + ci.getId() + "/";
                 for (Node collChild : ci.getChildren()) {
-                    urls.addAll(extractRelativeURLs(refNode, collChild, path));
+                    urls.addAll(extractRelativeURLs(refNode, collChild, path, instanceId));
                 }
             } else if (child instanceof GameObjectInstanceNode) {
                 GameObjectInstanceNode gi = (GameObjectInstanceNode)child;
-                String path = collectionPath + gi.getId();
-                urls.add(path);
-                urls.addAll(extractRelativeURLs(refNode, gi, collectionPath));
-                for (Node goChild : gi.getChildren()) {
-                    urls.addAll(extractRelativeURLs(refNode, goChild, collectionPath));
+                String id = gi.getId();
+                if (id == null) {
+                    id = instanceId;
                 }
+                if (child instanceof GameObjectNode) {
+                    String path = collectionPath + id;
+                    urls.add(path);
+                }
+                urls.addAll(extractRelativeURLs(refNode, gi, collectionPath, id));
             } else if (child instanceof ComponentNode) {
                 ComponentNode c = (ComponentNode)child;
                 if (c != refNode) {
@@ -124,7 +127,7 @@ public class GoPropertyUtil {
                     if (node == refNode.getParent()) {
                         urls.add(fragment);
                     } else {
-                        String path = collectionPath + ((GameObjectInstanceNode)node.getParent()).getId();
+                        String path = collectionPath + instanceId;
                         urls.add(path + fragment);
                     }
                 }
@@ -138,7 +141,7 @@ public class GoPropertyUtil {
         while (root.getParent() != null) {
             root = root.getParent();
         }
-        List<String> urls = extractRelativeURLs(componentNode, root, "");
+        List<String> urls = extractRelativeURLs(componentNode, root, "", null);
         return urls.toArray(new String[urls.size()]);
     }
 }

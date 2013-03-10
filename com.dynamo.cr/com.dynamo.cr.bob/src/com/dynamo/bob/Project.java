@@ -29,7 +29,7 @@ public class Project {
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
-    private ArrayList<Task<?>> tasks;
+    private ArrayList<Task<?>> newTasks;
     private State state;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
@@ -122,7 +122,7 @@ public class Project {
     public Task<?> buildResource(IResource input) throws CompileExceptionError {
         Task<?> task = doCreateTask(input.getPath());
         if (task != null) {
-            tasks.add(task);
+            newTasks.add(task);
         }
         return task;
     }
@@ -146,13 +146,13 @@ public class Project {
     }
 
     private void createTasks() throws CompileExceptionError {
-        tasks = new ArrayList<Task<?>>();
+        newTasks = new ArrayList<Task<?>>();
         List<String> sortedInputs = sortInputs();
 
         for (String input : sortedInputs) {
             Task<?> task = doCreateTask(input);
             if (task != null) {
-                tasks.add(task);
+                newTasks.add(task);
             }
         }
     }
@@ -190,13 +190,13 @@ public class Project {
         for (String command : commands) {
             if (command.equals("build")) {
                 IProgress m = monitor.subProgress(99);
-                m.beginTask("Building...", tasks.size());
+                m.beginTask("Building...", newTasks.size());
                 result = runTasks(m);
                 m.done();
             } else if (command.equals("clean")) {
                 IProgress m = monitor.subProgress(1);
-                m.beginTask("Cleaning...", tasks.size());
-                for (Task<?> t : tasks) {
+                m.beginTask("Cleaning...", newTasks.size());
+                for (Task<?> t : newTasks) {
                     List<IResource> outputs = t.getOutputs();
                     for (IResource r : outputs) {
                         r.remove();
@@ -206,7 +206,7 @@ public class Project {
                 m.done();
             } else if (command.equals("distclean")) {
                 IProgress m = monitor.subProgress(1);
-                m.beginTask("Cleaning...", tasks.size());
+                m.beginTask("Cleaning...", newTasks.size());
                 FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                 m.worked(1);
                 m.done();
@@ -226,12 +226,6 @@ public class Project {
         // the set also contains failed tasks
         Set<Task> completedTasks = new HashSet<Task>();
 
-        // set of *all* possible output files
-        Set<IResource> allOutputs = new HashSet<IResource>();
-        for (Task<?> task : tasks) {
-            allOutputs.addAll(task.getOutputs());
-        }
-
         // the set of all output files generated
         // in this or previous session
         Set<IResource> completedOutputs = new HashSet<IResource>();
@@ -243,6 +237,14 @@ public class Project {
         // is waiting for task(s) generating input to this task
         // TODO: verify that this scheme really is sound
         int completedCount = 0;
+
+        List<Task<?>> tasks = new ArrayList<Task<?>>(newTasks);
+        // set of *all* possible output files
+        Set<IResource> allOutputs = new HashSet<IResource>();
+        for (Task<?> task : newTasks) {
+            allOutputs.addAll(task.getOutputs());
+        }
+        newTasks.clear();
 
 run:
         while (completedCount < tasks.size()) {
@@ -350,6 +352,12 @@ run:
                     }
                 }
             }
+            // set of *all* possible output files
+            for (Task<?> task : newTasks) {
+                allOutputs.addAll(task.getOutputs());
+            }
+            tasks.addAll(newTasks);
+            newTasks.clear();
         }
         return result;
     }
@@ -455,7 +463,7 @@ run:
     }
 
     public List<Task<?>> getTasks() {
-        return Collections.unmodifiableList(this.tasks);
+        return Collections.unmodifiableList(this.newTasks);
     }
 
 }

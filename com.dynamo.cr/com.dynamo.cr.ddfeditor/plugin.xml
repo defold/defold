@@ -614,7 +614,7 @@
          point="org.eclipse.ui.handlers">
       <handler
             class="com.dynamo.cr.ddfeditor.ui.handlers.AddShapeHandler"
-            commandId="com.dynamo.cr.sceneed.ui.commands.add">
+            commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary">
          <activeWhen>
             <and>
                <reference
@@ -678,7 +678,7 @@
             allPopups="false"
             locationURI="popup:com.dynamo.cr.sceneed.menus.sceneOutlineContext?before=com.dynamo.cr.sceneed.genericSeparator">
          <command
-               commandId="com.dynamo.cr.sceneed.ui.commands.add"
+               commandId="com.dynamo.cr.sceneed.ui.commands.addPrimary"
                label="Add Shape"
                style="push">
             <visibleWhen

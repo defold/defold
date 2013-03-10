@@ -1,5 +1,7 @@
 package com.dynamo.cr.go.core;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -8,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Vector;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -16,12 +19,16 @@ import org.eclipse.core.runtime.SubMonitor;
 import com.dynamo.bob.pipeline.LuaScanner;
 import com.dynamo.cr.sceneed.core.ILoaderContext;
 import com.dynamo.cr.sceneed.core.INodeLoader;
+import com.dynamo.cr.sceneed.core.INodeType;
+import com.dynamo.cr.sceneed.core.INodeTypeRegistry;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc.Builder;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
+import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.google.protobuf.Message;
@@ -45,7 +52,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             InstanceDesc instanceDesc = desc.getInstances(i);
             String path = instanceDesc.getPrototype();
             GameObjectNode gameObjectNode = (GameObjectNode)context.loadNode(path);
-            GameObjectInstanceNode instanceNode = new GameObjectInstanceNode(gameObjectNode);
+            RefGameObjectInstanceNode instanceNode = new RefGameObjectInstanceNode(gameObjectNode);
             instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
             instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
             instanceNode.setScale(instanceDesc.getScale());
@@ -65,8 +72,31 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 instanceNode.setComponentProperties(compPropDesc.getId(), componentProperties);
             }
         }
+        n = desc.getEmbeddedInstancesCount();
+        for (int i = 0; i < n; ++i) {
+            EmbeddedInstanceDesc instanceDesc = desc.getEmbeddedInstances(i);
+            GameObjectNode instanceNode = (GameObjectNode)context.loadNode("go", new ByteArrayInputStream(instanceDesc.getData().getBytes()));
+            instanceNode.setTranslation(LoaderUtil.toPoint3d(instanceDesc.getPosition()));
+            instanceNode.setRotation(LoaderUtil.toQuat4(instanceDesc.getRotation()));
+            instanceNode.setScale(instanceDesc.getScale());
+            instanceNode.setId(instanceDesc.getId());
+            idToInstance.put(instanceDesc.getId(), instanceNode);
+            remainingInstances.add(instanceNode);
+        }
+        n = desc.getInstancesCount();
         for (int i = 0; i < n; ++i) {
             InstanceDesc instanceDesc = desc.getInstances(i);
+            Node parent = idToInstance.get(instanceDesc.getId());
+            List<String> children = instanceDesc.getChildrenList();
+            for (String childId : children) {
+                Node child = idToInstance.get(childId);
+                parent.addChild(child);
+                remainingInstances.remove(child);
+            }
+        }
+        n = desc.getEmbeddedInstancesCount();
+        for (int i = 0; i < n; ++i) {
+            EmbeddedInstanceDesc instanceDesc = desc.getEmbeddedInstances(i);
             Node parent = idToInstance.get(instanceDesc.getId());
             List<String> children = instanceDesc.getChildrenList();
             for (String childId : children) {
@@ -100,15 +130,15 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
         Builder builder = CollectionDesc.newBuilder();
         builder.setName(collection.getName());
         builder.setScaleAlongZ(collection.isScaleAlongZ() ? 1 : 0);
-        buildInstances(collection, builder, monitor);
+        buildInstances(context, collection, builder, monitor);
         return builder.build();
     }
 
-    private void buildInstances(Node node, CollectionDesc.Builder builder, IProgressMonitor monitor) {
+    private void buildInstances(ILoaderContext context, Node node, CollectionDesc.Builder builder, IProgressMonitor monitor) throws IOException, CoreException {
         SubMonitor progress = SubMonitor.convert(monitor, node.getChildren().size());
         for (Node child : node.getChildren()) {
-            if (child instanceof GameObjectInstanceNode) {
-                GameObjectInstanceNode instance = (GameObjectInstanceNode)child;
+            if (child instanceof RefGameObjectInstanceNode) {
+                RefGameObjectInstanceNode instance = (RefGameObjectInstanceNode)child;
                 InstanceDesc.Builder instanceBuilder = InstanceDesc.newBuilder();
                 instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
                 instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
@@ -117,12 +147,41 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 instanceBuilder.setPrototype(instance.getGameObject());
                 for (Node grandChild : child.getChildren()) {
                     if (grandChild instanceof GameObjectInstanceNode) {
-                        instanceBuilder.addChildren(((GameObjectInstanceNode)grandChild).getId());
+                        GameObjectInstanceNode goi = (GameObjectInstanceNode)grandChild;
+                        // The internal GameObjectNode in a ref instance does not have an id
+                        if (goi.getId() != null) {
+                            instanceBuilder.addChildren(goi.getId());
+                        }
                     }
                 }
-                buildProperties(instance, instanceBuilder);
+                instanceBuilder.addAllComponentProperties(buildProperties(instance));
                 builder.addInstances(instanceBuilder);
-                buildInstances(child, builder, monitor);
+                buildInstances(context, child, builder, monitor);
+            } else if (child instanceof GameObjectNode) {
+                GameObjectNode instance = (GameObjectNode)child;
+                if (instance.getId() != null) {
+                    EmbeddedInstanceDesc.Builder instanceBuilder = EmbeddedInstanceDesc.newBuilder();
+                    instanceBuilder.setPosition(LoaderUtil.toPoint3(instance.getTranslation()));
+                    instanceBuilder.setRotation(LoaderUtil.toQuat(instance.getRotation()));
+                    instanceBuilder.setScale((float)instance.getScale());
+                    instanceBuilder.setId(instance.getId());
+                    ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+                    SubMonitor partProgress = progress.newChild(1).setWorkRemaining(2);
+                    INodeTypeRegistry registry = context.getNodeTypeRegistry();
+                    INodeType nodeType = registry.getNodeTypeClass(GameObjectNode.class);
+                    INodeLoader<Node> loader = nodeType.getLoader();
+                    Message message = loader.buildMessage(context, instance, partProgress.newChild(1));
+                    SceneUtil.saveMessage(message, byteStream, partProgress.newChild(1));
+                    instanceBuilder.setData(byteStream.toString());
+                    for (Node grandChild : child.getChildren()) {
+                        if (grandChild instanceof GameObjectInstanceNode) {
+                            GameObjectInstanceNode goi = (GameObjectInstanceNode)grandChild;
+                            instanceBuilder.addChildren(goi.getId());
+                        }
+                    }
+                    builder.addEmbeddedInstances(instanceBuilder);
+                    buildInstances(context, child, builder, monitor);
+                }
             } else if (child instanceof CollectionInstanceNode) {
                 CollectionInstanceNode instance = (CollectionInstanceNode)child;
                 CollectionInstanceDesc.Builder instanceBuilder = CollectionInstanceDesc.newBuilder();
@@ -137,7 +196,8 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
         }
     }
 
-    private void buildProperties(GameObjectInstanceNode instance, InstanceDesc.Builder instanceBuilder) {
+    private Iterable<ComponentPropertyDesc> buildProperties(RefGameObjectInstanceNode instance) {
+        Vector<ComponentPropertyDesc> componentProperties = new Vector<ComponentPropertyDesc>();
         for (Node instanceChild : instance.getChildren()) {
             if (instanceChild instanceof ComponentPropertyNode) {
                 ComponentPropertyNode compNode = (ComponentPropertyNode)instanceChild;
@@ -158,9 +218,10 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                     }
                 }
                 if (compPropBuilder.getPropertiesCount() > 0) {
-                    instanceBuilder.addComponentProperties(compPropBuilder);
+                    componentProperties.add(compPropBuilder.build());
                 }
             }
         }
+        return componentProperties;
     }
 }
