@@ -487,11 +487,87 @@ IRenderView {
         return nodes;
     }
 
+    private Node stepSelectionUp(Node node) {
+        return node.getParent();
+    }
+
+    private Node stepSelectionDown(Node node) {
+        for (Node child : node.getChildren()) {
+            if (child.isEditable()) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    private Node stepSelectionLeft(Node node) {
+        Node parent = node.getParent();
+        if (parent != null) {
+            List<Node> children = parent.getChildren();
+            int index = children.indexOf(node);
+            int size = children.size();
+            for (int i = 1; i < size; ++i) {
+                Node child = children.get((index - i + size) % size);
+                if (child.isEditable()) {
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Node stepSelectionRight(Node node) {
+        Node parent = node.getParent();
+        if (parent != null) {
+            List<Node> children = parent.getChildren();
+            int index = children.indexOf(node);
+            int size = children.size();
+            for (int i = 1; i < size; ++i) {
+                Node child = children.get((index + i) % size);
+                if (child.isEditable()) {
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void handleStepSelection(KeyEvent e) {
+        if ((e.stateMask & SWT.MODIFIER_MASK) == 0
+                && (e.keyCode == SWT.ARROW_UP
+                    || e.keyCode == SWT.ARROW_DOWN
+                    || e.keyCode == SWT.ARROW_LEFT
+                    || e.keyCode == SWT.ARROW_RIGHT)) {
+            // Only single selection supported so far
+            if (this.selection.size() == 1) {
+                Object selected = this.selection.getFirstElement();
+                if (selected instanceof Node) {
+                    Node node = (Node)selected;
+                    Node newNode = null;
+                    if (e.keyCode == SWT.ARROW_UP) {
+                        newNode = stepSelectionUp(node);
+                    } else if (e.keyCode == SWT.ARROW_DOWN) {
+                        newNode = stepSelectionDown(node);
+                    } else if (e.keyCode == SWT.ARROW_LEFT) {
+                        newNode = stepSelectionLeft(node);
+                    } else if (e.keyCode == SWT.ARROW_RIGHT) {
+                        newNode = stepSelectionRight(node);
+                    }
+                    if (newNode != null) {
+                        setSelection(new StructuredSelection(newNode));
+                    }
+                }
+            }
+        }
+    }
+
     @Override
     public void keyPressed(KeyEvent e) {
         if (this.focusController != null) {
             this.focusController.keyPressed(e);
             requestPaint();
+        } else {
+            handleStepSelection(e);
         }
     }
 
