@@ -79,7 +79,7 @@ Test3D::Test3D()
 , m_NewWorldFunc(dmPhysics::NewWorld3D)
 , m_DeleteWorldFunc(dmPhysics::DeleteWorld3D)
 , m_StepWorldFunc(dmPhysics::StepWorld3D)
-, m_DrawDebugFunc(dmPhysics::DrawDebug3D)
+, m_SetDrawDebugFunc(dmPhysics::SetDrawDebug3D)
 , m_NewBoxShapeFunc(dmPhysics::NewBoxShape3D)
 , m_NewSphereShapeFunc(dmPhysics::NewSphereShape3D)
 , m_NewCapsuleShapeFunc(dmPhysics::NewCapsuleShape3D)
@@ -125,7 +125,7 @@ Test2D::Test2D()
 , m_NewWorldFunc(dmPhysics::NewWorld2D)
 , m_DeleteWorldFunc(dmPhysics::DeleteWorld2D)
 , m_StepWorldFunc(dmPhysics::StepWorld2D)
-, m_DrawDebugFunc(dmPhysics::DrawDebug2D)
+, m_SetDrawDebugFunc(dmPhysics::SetDrawDebug2D)
 , m_NewBoxShapeFunc(dmPhysics::NewBoxShape2D)
 , m_NewSphereShapeFunc(dmPhysics::NewCircleShape2D)
 , m_NewCapsuleShapeFunc(0x0)
@@ -1232,11 +1232,20 @@ TYPED_TEST(PhysicsTest, DrawDebug)
     typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
     typename TypeParam::CollisionObjectType co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
+    drew = false;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     ASSERT_FALSE(drew);
 
-    (*TestFixture::m_Test.m_DrawDebugFunc)(TestFixture::m_World);
-
+    drew = false;
+    (*TestFixture::m_Test.m_SetDrawDebugFunc)(TestFixture::m_World, true);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     ASSERT_TRUE(drew);
+
+    drew = false;
+    (*TestFixture::m_Test.m_SetDrawDebugFunc)(TestFixture::m_World, false);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_FALSE(drew);
+
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);

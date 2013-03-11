@@ -203,9 +203,25 @@ namespace dmPhysics
         delete world;
     }
 
-    void DrawDebug3D(HWorld3D world)
+    void SetDrawDebug3D(HWorld3D world, bool draw_debug)
     {
-        world->m_DynamicsWorld->debugDrawWorld();
+        int debug_mode = 0;
+        if (draw_debug)
+        {
+            debug_mode = btIDebugDraw::DBG_NoDebug
+                | btIDebugDraw::DBG_DrawWireframe
+                | btIDebugDraw::DBG_DrawAabb
+                | btIDebugDraw::DBG_DrawFeaturesText
+                | btIDebugDraw::DBG_DrawContactPoints
+                | btIDebugDraw::DBG_DrawText
+                | btIDebugDraw::DBG_ProfileTimings
+                | btIDebugDraw::DBG_EnableSatComparison
+                | btIDebugDraw::DBG_EnableCCD
+                | btIDebugDraw::DBG_DrawConstraints
+                | btIDebugDraw::DBG_DrawConstraintLimits;
+        }
+
+        world->m_DebugDraw.setDebugMode(debug_mode);
     }
 
     void StepWorld3D(HWorld3D world, const StepWorldContext& context)
@@ -392,6 +408,7 @@ namespace dmPhysics
                 }
             }
         }
+        world->m_DynamicsWorld->debugDrawWorld();
     }
 
     HCollisionShape3D NewSphereShape3D(HContext3D context, float radius)

@@ -31,7 +31,6 @@ namespace dmPhysics
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     {
-        m_DebugDraw.SetFlags(b2Draw::e_jointBit | b2Draw::e_pairBit | b2Draw::e_shapeBit);
         m_RayCastRequests.SetCapacity(64);
     }
 
@@ -311,11 +310,18 @@ namespace dmPhysics
                 }
             }
         }
+        world->m_World.DrawDebugData();
     }
 
-    void DrawDebug2D(HWorld2D world)
+    void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        world->m_World.DrawDebugData();
+        int flags = 0;
+        if (draw_debug)
+        {
+            flags = b2Draw::e_jointBit | b2Draw::e_pairBit | b2Draw::e_shapeBit;
+        }
+
+        world->m_DebugDraw.SetFlags(flags);
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)

@@ -10,17 +10,6 @@ namespace dmPhysics
     : m_Callbacks(callbacks)
     , m_DebugMode(0)
     {
-        m_DebugMode = DBG_NoDebug
-                | DBG_DrawWireframe
-                | DBG_DrawAabb
-                | DBG_DrawFeaturesText
-                | DBG_DrawContactPoints
-                | DBG_DrawText
-                | DBG_ProfileTimings
-                | DBG_EnableSatComparison
-                | DBG_EnableCCD
-                | DBG_DrawConstraints
-                | DBG_DrawConstraintLimits;
     }
 
     DebugDraw3D::~DebugDraw3D()

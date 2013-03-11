@@ -73,7 +73,7 @@ struct Funcs
     typedef void (*StepWorldFunc)(typename T::WorldType world, const dmPhysics::StepWorldContext& context);
     typedef void (*SetCollisionCallbackFunc)(typename T::WorldType world, dmPhysics::CollisionCallback callback, void* user_data);
     typedef void (*SetContactPointCallbackFunc)(typename T::WorldType world, dmPhysics::ContactPointCallback callback, void* user_data);
-    typedef void (*DrawDebugFunc)(typename T::WorldType world);
+    typedef void (*SetDrawDebugFunc)(typename T::WorldType world, bool);
     typedef typename T::CollisionShapeType (*NewBoxShapeFunc)(typename T::ContextType context, const Vectormath::Aos::Vector3& half_extents);
     typedef typename T::CollisionShapeType (*NewSphereShapeFunc)(typename T::ContextType context, float radius);
     typedef typename T::CollisionShapeType (*NewCapsuleShapeFunc)(typename T::ContextType context, float radius, float height);
@@ -116,7 +116,7 @@ struct Test3D
     Funcs<Test3D>::StepWorldFunc                    m_StepWorldFunc;
     Funcs<Test3D>::SetCollisionCallbackFunc         m_SetCollisionCallbackFunc;
     Funcs<Test3D>::SetContactPointCallbackFunc      m_SetContactPointCallbackFunc;
-    Funcs<Test3D>::DrawDebugFunc                    m_DrawDebugFunc;
+    Funcs<Test3D>::SetDrawDebugFunc                 m_SetDrawDebugFunc;
     Funcs<Test3D>::NewBoxShapeFunc                  m_NewBoxShapeFunc;
     Funcs<Test3D>::NewSphereShapeFunc               m_NewSphereShapeFunc;
     Funcs<Test3D>::NewCapsuleShapeFunc              m_NewCapsuleShapeFunc;
@@ -162,7 +162,7 @@ struct Test2D
     Funcs<Test2D>::NewWorldFunc                     m_NewWorldFunc;
     Funcs<Test2D>::DeleteWorldFunc                  m_DeleteWorldFunc;
     Funcs<Test2D>::StepWorldFunc                    m_StepWorldFunc;
-    Funcs<Test2D>::DrawDebugFunc                    m_DrawDebugFunc;
+    Funcs<Test2D>::SetDrawDebugFunc                 m_SetDrawDebugFunc;
     Funcs<Test2D>::NewBoxShapeFunc                  m_NewBoxShapeFunc;
     Funcs<Test2D>::NewSphereShapeFunc               m_NewSphereShapeFunc;
     Funcs<Test2D>::NewCapsuleShapeFunc              m_NewCapsuleShapeFunc;

@@ -287,18 +287,18 @@ namespace dmPhysics
     void StepWorld2D(HWorld2D world, const StepWorldContext& context);
 
     /**
-     * Draws the 3D world using the callback function registered through SetDebugCallbacks.
-     *
+     * Enable/disable debug-draw
      * @param world Physics world
+     * @param draw_debug enable/disable
      */
-    void DrawDebug3D(HWorld3D world);
+    void SetDrawDebug3D(HWorld3D world, bool draw_debug);
 
     /**
-     * Draws the 2D world using the callback function registered through SetDebugCallbacks.
-     *
+     * Enable/disable debug-draw
      * @param world Physics world
+     * @param draw_debug enable/disable
      */
-    void DrawDebug2D(HWorld2D world);
+    void SetDrawDebug2D(HWorld2D world, bool draw_debug);
 
     /**
      * Create a new 3D sphere shape.
