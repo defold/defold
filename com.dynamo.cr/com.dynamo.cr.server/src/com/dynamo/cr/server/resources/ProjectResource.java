@@ -418,7 +418,7 @@ public class ProjectResource extends BaseResource {
     public BranchStatus getBranchStatus(@PathParam("project") String project,
                                         @PathParam("user") String user,
                                         @PathParam("branch") String branch) throws IOException, ServerException, BranchRepositoryException {
-        BranchStatus ret = branchRepository.getBranchStatus(project, user, branch);
+        BranchStatus ret = branchRepository.getBranchStatus(project, user, branch, true);
         return ret;
     }
 

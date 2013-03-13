@@ -106,7 +106,7 @@ public class MockBranchClient implements IBranchClient {
     }
 
     @Override
-    public BranchStatus getBranchStatus() throws RepositoryException {
+    public BranchStatus getBranchStatus(boolean fetch) throws RepositoryException {
         throw new RuntimeException("Not impl.");
     }
 

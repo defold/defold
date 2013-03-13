@@ -196,13 +196,13 @@ public class CGit implements IGit {
     }
 
     @Override
-    public GitStatus getStatus(String directory) throws IOException {
+    public GitStatus getStatus(String directory, boolean fetch) throws IOException {
         CommandUtil.Result r = execGitCommand(directory, "git", "status", "--porcelain");
         checkResult(r);
 
         GitStatus status = parseStatus(r.stdOut.toString());
-        status.commitsAhead = commitsAhead(directory);
-        status.commitsBehind = commitsBehind(directory);
+        status.commitsAhead = commitsAhead(directory, fetch);
+        status.commitsBehind = commitsBehind(directory, fetch);
 
         File merge_head = new File(directory, ".git/MERGE_HEAD");
 
@@ -345,10 +345,12 @@ public class CGit implements IGit {
     }
 
     @Override
-    public int commitsAhead(String directory) throws IOException {
+    public int commitsAhead(String directory, boolean fetch) throws IOException {
         CommandUtil.Result r;
-        r = execGitCommand(directory, "git", "fetch");
-        checkResult(r);
+        if (fetch) {
+            r = execGitCommand(directory, "git", "fetch");
+            checkResult(r);
+        }
 
         r = execGitCommand(directory, "git", "log", "--oneline", "origin/master..");
         checkResult(r);
@@ -357,10 +359,12 @@ public class CGit implements IGit {
     }
 
     @Override
-    public int commitsBehind(String directory) throws IOException {
+    public int commitsBehind(String directory, boolean fetch) throws IOException {
         CommandUtil.Result r;
-        r = execGitCommand(directory, "git", "fetch");
-        checkResult(r);
+        if (fetch) {
+            r = execGitCommand(directory, "git", "fetch");
+            checkResult(r);
+        }
 
         r = execGitCommand(directory, "git", "log", "--oneline", "..origin/master");
         checkResult(r);

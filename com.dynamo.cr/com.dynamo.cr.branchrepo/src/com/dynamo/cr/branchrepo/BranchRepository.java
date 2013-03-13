@@ -309,7 +309,7 @@ public abstract class BranchRepository {
         long userId = Long.parseLong(user);
         String branch_path = String.format("%s/%s/%d/%s", branchRoot, project, userId, branch);
         IGit git = getGit();
-        GitStatus status = git.getStatus(branch_path);
+        GitStatus status = git.getStatus(branch_path, false);
         String localPath = path.substring(1);
         GitStatus.Entry entry = null;
         for (GitStatus.Entry f : status.files) {
@@ -390,13 +390,13 @@ public abstract class BranchRepository {
         }
     }
 
-    public BranchStatus getBranchStatus(String project, String user, String branch) throws IOException, BranchRepositoryException {
+    public BranchStatus getBranchStatus(String project, String user, String branch, boolean fetch) throws IOException, BranchRepositoryException {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
 
         IGit git = getGit();
         GitState state = git.getState(p);
-        GitStatus status = git.getStatus(p);
+        GitStatus status = git.getStatus(p, fetch);
 
         Protocol.BranchStatus.State s;
         if (state == GitState.CLEAN)
@@ -430,7 +430,7 @@ public abstract class BranchRepository {
         ensureProjectBranch(project, user, branch);
         String p = String.format("%s/%s/%s/%s", branchRoot, project, user, branch);
         IGit git = getGit();
-        GitStatus status = git.getStatus(p);
+        GitStatus status = git.getStatus(p, false);
 
         for (Entry f : status.files) {
             char ws = f.workingTreeStatus;

@@ -420,9 +420,9 @@ public class ProjectResourceTest extends AbstractResourceTest {
         ownerProjectClient.createBranch("branch1");
         BranchStatus branch_status;
 
-        branch_status = ownerProjectClient.getBranchStatus("branch1");
+        branch_status = ownerProjectClient.getBranchStatus("branch1", true);
         assertEquals("branch1", branch_status.getName());
-        branch_status = ownerBranchClient.getBranchStatus();
+        branch_status = ownerBranchClient.getBranchStatus(true);
         assertEquals("branch1", branch_status.getName());
 
         BranchList list = ownerProjectClient.getBranchList();
@@ -450,12 +450,12 @@ public class ProjectResourceTest extends AbstractResourceTest {
         ownerBranchClient.mkdir("/content/foo");
         ownerBranchClient.mkdir("/content/foo");
 
-        BranchStatus branch = ownerBranchClient.getBranchStatus();
+        BranchStatus branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         ownerBranchClient.putResourceData("/content/foo/bar.txt", "bar data".getBytes());
 
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         assertEquals("bar data", new String(ownerBranchClient.getResourceData("/content/foo/bar.txt", "")));
@@ -474,16 +474,16 @@ public class ProjectResourceTest extends AbstractResourceTest {
         ownerBranchClient.revertResource("/content/foo/bar.txt");
         assertEquals("bar data", new String(ownerBranchClient.getResourceData("/content/foo/bar.txt", "")));
 
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         ownerBranchClient.deleteResource("/content/foo/bar.txt");
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         ownerBranchClient.commit("message...");
 
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
     }
 
@@ -512,7 +512,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         }
 
         ownerBranchClient.putResourceData("/content/foo.txt", "foo".getBytes());
-        assertEquals(Protocol.BranchStatus.State.DIRTY, ownerBranchClient.getBranchStatus().getBranchState());
+        assertEquals(Protocol.BranchStatus.State.DIRTY, ownerBranchClient.getBranchStatus(true).getBranchState());
         assertEquals("foo", new String(ownerBranchClient.getResourceData("/content/foo.txt", "")));
         try {
             ownerBranchClient.getResourceData("/content/foo.txt", "does_not_exist");
@@ -521,7 +521,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
             assertEquals(404, e.getStatusCode());
         } finally {
             ownerBranchClient.deleteResource("/content/foo.txt");
-            assertEquals(Protocol.BranchStatus.State.CLEAN, ownerBranchClient.getBranchStatus().getBranchState());
+            assertEquals(Protocol.BranchStatus.State.CLEAN, ownerBranchClient.getBranchStatus(true).getBranchState());
         }
 
         try {
@@ -620,7 +620,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         ownerProjectClient.createBranch("branch1");
 
         // Check that branch is clean
-        BranchStatus branch = ownerBranchClient.getBranchStatus();
+        BranchStatus branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         byte[] old_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
@@ -629,14 +629,14 @@ public class ProjectResourceTest extends AbstractResourceTest {
         ownerBranchClient.putResourceData("/content/file1.txt", "new file1 data".getBytes());
 
         // Check that branch is dirty
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Update resource again with original data
         ownerBranchClient.putResourceData("/content/file1.txt", old_data);
 
         // Assert clean state
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Update resource again
@@ -644,61 +644,61 @@ public class ProjectResourceTest extends AbstractResourceTest {
         // Revert changes
         ownerBranchClient.revertResource("/content/file1.txt");
         // Assert clean state
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Create a new resource, delete later
         ownerBranchClient.putResourceData("/content/new_file.txt", "new file data".getBytes());
 
         // Check that branch is dirty
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Delete new resource
         ownerBranchClient.deleteResource("/content/new_file.txt");
         // Assert clean state
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Create a new resource, revert later
         ownerBranchClient.putResourceData("/content/new_file.txt", "new file data".getBytes());
 
         // Check that branch is dirty
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Rename file
         ownerBranchClient.renameResource("/content/new_file.txt", "/content/new_file2.txt");
-        assertEquals(1, ownerBranchClient.getBranchStatus().getFileStatusList().size());
+        assertEquals(1, ownerBranchClient.getBranchStatus(true).getFileStatusList().size());
 
         // Revert new resource
         ownerBranchClient.revertResource("/content/new_file2.txt");
         // Assert clean state
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Create a new resource, revert later
         ownerBranchClient.putResourceData("/content/new_file.txt", "new file data".getBytes());
 
         // Check that branch is dirty
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
 
         // Rename file
         ownerBranchClient.renameResource("/content", "/content2");
         // Check that branch is dirty
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.DIRTY, branch.getBranchState());
         // 4 files under /content
-        assertEquals(4, ownerBranchClient.getBranchStatus().getFileStatusList().size());
+        assertEquals(4, ownerBranchClient.getBranchStatus(true).getFileStatusList().size());
 
         // Rename back
         ownerBranchClient.renameResource("/content2", "/content");
         // Revert new resource
         ownerBranchClient.revertResource("/content/new_file.txt");
         // Assert clean state
-        branch = ownerBranchClient.getBranchStatus();
-        for (Status s : ownerBranchClient.getBranchStatus().getFileStatusList()) {
+        branch = ownerBranchClient.getBranchStatus(true);
+        for (Status s : ownerBranchClient.getBranchStatus(true).getFileStatusList()) {
             System.out.println(String.format("%s %s", s.getIndexStatus(), s.getName()));
         }
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
@@ -720,7 +720,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         // Check clean
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.CLEAN, branch.getBranchState());
 
         byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
@@ -748,7 +748,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals("U", branch.getFileStatus(0).getIndexStatus());
 
         // Check merge state
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
         byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
@@ -796,7 +796,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals("U", branch.getFileStatus(0).getIndexStatus());
 
         // Check merge state
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
         byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");
@@ -839,7 +839,7 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
         // Check merge state
-        branch = ownerBranchClient.getBranchStatus();
+        branch = ownerBranchClient.getBranchStatus(true);
         assertEquals(Protocol.BranchStatus.State.MERGE, branch.getBranchState());
 
         byte[] new_data = ownerBranchClient.getResourceData("/content/file1.txt", "");

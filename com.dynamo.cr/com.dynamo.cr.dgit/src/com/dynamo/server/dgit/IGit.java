@@ -49,10 +49,11 @@ public interface IGit {
      * does not differ. This behaviour is required for graphical merge tools. Modified and deleted
      * files are supported.
      * @param directory Directory
+     * @param fetch true to fetch from remote
      * @return GitStatus
      * @throws IOException
      */
-    GitStatus getStatus(String directory) throws IOException;
+    GitStatus getStatus(String directory, boolean fetch) throws IOException;
 
     /**
      * Commit all. (git commit -a -m message)
@@ -106,18 +107,20 @@ public interface IGit {
     /**
      * Number of commits ahead origin/master
      * @param directory Directory
+     * @param fetch true to fetch from remote
      * @return Number of commits ahead of origin/master
      * @throws IOException
      */
-    int commitsAhead(String directory) throws IOException;
+    int commitsAhead(String directory, boolean fetch) throws IOException;
 
     /**
      * Number of commits behind origin/master
      * @param directory Directory
+     * @param fetch true to fetch from remote
      * @return Number of commits ahead of origin/master
      * @throws IOException
      */
-    int commitsBehind(String directory) throws IOException;
+    int commitsBehind(String directory, boolean fetch) throws IOException;
 
     /**
      * Remove file

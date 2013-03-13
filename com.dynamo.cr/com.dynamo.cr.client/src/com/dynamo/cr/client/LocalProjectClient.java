@@ -86,10 +86,10 @@ public class LocalProjectClient implements IProjectClient {
     }
 
     @Override
-    public BranchStatus getBranchStatus(String branch)
+    public BranchStatus getBranchStatus(String branch, boolean fetch)
             throws RepositoryException {
         try {
-            return branchRepository.getBranchStatus(project, user, branch);
+            return branchRepository.getBranchStatus(project, user, branch, fetch);
         } catch (Exception e) {
             throw new RepositoryException("Unable to fetch branch status", e);
         }

@@ -28,7 +28,7 @@ public class BranchClient extends BaseClient implements IBranchClient {
     }
 
     @Override
-    public BranchStatus getBranchStatus() throws RepositoryException {
+    public BranchStatus getBranchStatus(boolean fetch) throws RepositoryException {
         return wrapGet("", BranchStatus.class);
     }
 
