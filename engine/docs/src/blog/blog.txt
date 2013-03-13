@@ -22,7 +22,7 @@ To facilitate selection, you can now select different objects with the arrow-key
 Other fixes
 ~~~~~~~~~~~
 
-* We now have initial beta support for Windows 8
+* We now have initial beta support for Windows 8. You need to run the application in Windows 7 compatibility mode though.
 * Fix for the periodic lag happening on Windows, typically when booting the game or reloading resources
 * Texture problem occurring on OSX with AMD
 * Looping particle systems are automatically stopped when the containing game object is deleted

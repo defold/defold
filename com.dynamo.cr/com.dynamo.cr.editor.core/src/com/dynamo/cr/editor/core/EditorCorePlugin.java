@@ -22,8 +22,8 @@ public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
     // NOTE: Currently hard-coded. Non-trivial to find the product number :-(
 	// The version-number is updated
 	// with build-script (bump command)
-    public static final String VERSION = "1.2.15";
-    public static final String VERSION_SHA1 = "db4099e";
+    public static final String VERSION = "1.2.16";
+    public static final String VERSION_SHA1 = "0c568a2";
 
     private static BundleContext context;
     private static EditorCorePlugin plugin;
