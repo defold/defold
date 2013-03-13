@@ -141,6 +141,9 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
      * - sub [collection]
      *   - sub_sub [collection]
      *     - test [instance]
+     *       - test_child [instance]
+     *     - test_embed [embedded instance]
+     *       - test_embed_child [embedded instance]
      *   - test [instance]
      * - test [instance]
      * All instances have the local transform:
@@ -161,7 +164,10 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         StringBuilder subSubSrc = new StringBuilder();
         subSubSrc.append("name: \"sub_sub\"\n");
-        addInstance(subSubSrc, "test", "/test.go", p, r, s);
+        addInstance(subSubSrc, "test_child", "/test.go", p, r, s);
+        addInstance(subSubSrc, "test", "/test.go", p, r, s, "test_child");
+        addEmbeddedInstance(subSubSrc, "test_embed_child", new HashMap<String, String>(), p, r, s);
+        addEmbeddedInstance(subSubSrc, "test_embed", new HashMap<String, String>(), p, r, s, "test_embed_child");
         addFile("/sub_sub.collection", subSubSrc.toString());
 
         StringBuilder subSrc = new StringBuilder();
@@ -176,7 +182,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addInstance(src, "test", "/test.go", p, r, s);
         CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
 
-        Assert.assertEquals(3, collection.getInstancesCount());
+        Assert.assertEquals(6, collection.getInstancesCount());
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
 
         Map<String, InstanceDesc> instances = new HashMap<String, InstanceDesc>();
@@ -186,6 +192,9 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(instances.containsKey("/test"));
         assertTrue(instances.containsKey("/sub/test"));
         assertTrue(instances.containsKey("/sub/sub_sub/test"));
+        assertTrue(instances.containsKey("/sub/sub_sub/test_child"));
+        assertTrue(instances.containsKey("/sub/sub_sub/test_embed"));
+        assertTrue(instances.containsKey("/sub/sub_sub/test_embed_child"));
 
         InstanceDesc inst = instances.get("/test");
         assertEquals(new Point3d(1, 0, 0), inst.getPosition(), epsilon);
@@ -202,6 +211,22 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(new Point3d(0.5, 0, -0.5), inst.getPosition(), epsilon);
         assertEquals(new Quat4d(0, sq2, 0, -sq2), inst.getRotation(), epsilon);
         Assert.assertEquals(0.125, inst.getScale(), epsilon);
+
+        inst = instances.get("/sub/sub_sub/test_child");
+        assertEquals(new Point3d(1, 0, 0), inst.getPosition(), epsilon);
+        assertEquals(new Quat4d(0, sq2, 0, sq2), inst.getRotation(), epsilon);
+        Assert.assertEquals(0.5, inst.getScale(), epsilon);
+
+        inst = instances.get("/sub/sub_sub/test_embed");
+        assertEquals(new Point3d(0.5, 0, -0.5), inst.getPosition(), epsilon);
+        assertEquals(new Quat4d(0, sq2, 0, -sq2), inst.getRotation(), epsilon);
+        Assert.assertEquals(0.125, inst.getScale(), epsilon);
+
+        inst = instances.get("/sub/sub_sub/test_embed_child");
+        assertEquals(new Point3d(1, 0, 0), inst.getPosition(), epsilon);
+        assertEquals(new Quat4d(0, sq2, 0, sq2), inst.getRotation(), epsilon);
+        Assert.assertEquals(0.5, inst.getScale(), epsilon);
+
     }
 
     /**
@@ -257,6 +282,106 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(p, inst.getPosition(), epsilon);
         assertEquals(r, inst.getRotation(), epsilon);
         Assert.assertEquals(s, inst.getScale(), epsilon);
+    }
+
+    /**
+     * Test that a collection is flattened properly w.r.t. properties.
+     * Structure:
+     * - sub [collection]
+     *   - go [instance]
+     * The sub instance overrides properties defined in sub.collection.
+     * @throws Exception
+     */
+    @Test
+    public void testCollectionFlatteningProperties() throws Exception {
+        addFile("/test.go", "");
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"sub\"\n");
+        src.append("instances {\n");
+        src.append("  id: \"go\"\n");
+        src.append("  prototype: \"/test.go\"\n");
+        src.append("  component_properties {\n");
+        src.append("    id: \"test\"\n");
+        src.append("    properties { id: \"number\" value: \"1\" type: PROPERTY_TYPE_NUMBER }\n");
+        src.append("  }\n");
+        src.append("}\n");
+        addFile("/sub.collection", src.toString());
+
+        src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("collection_instances {\n");
+        src.append("  id: \"sub\"\n");
+        src.append("  collection: \"/sub.collection\"\n");
+        src.append("  instance_properties: {\n");
+        src.append("    id: \"go\"\n");
+        src.append("    properties {\n");
+        src.append("      id: \"test\"\n");
+        src.append("      properties { id: \"number\" value: \"2\" type: PROPERTY_TYPE_NUMBER }\n");
+        src.append("    }\n");
+        src.append("  }\n");
+        src.append("}\n");
+
+        List<Message> messages = build("/test.collection", src.toString());
+        Assert.assertEquals(1, messages.size());
+
+        CollectionDesc collection = (CollectionDesc)messages.get(0);
+        Assert.assertEquals(1, collection.getInstancesCount());
+        Assert.assertEquals(0, collection.getCollectionInstancesCount());
+
+        InstanceDesc instance = collection.getInstances(0);
+        Assert.assertTrue(instance.getComponentProperties(0).getProperties(0).getValue().equals("2"));
+    }
+
+    /**
+     * Test that a collection is flattened properly w.r.t. sub properties of embedded game objects.
+     * Structure:
+     * - sub [collection]
+     *   - sub_sub [collection]
+     *     - go [embedded instance]
+     * The sub instance overrides properties defined in sub.collection.
+     * @throws Exception
+     */
+    @Test
+    public void testCollectionFlatteningSubProperties() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"sub_sub\"\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"go\"\n");
+        src.append("  data: \"\"\n");
+        src.append("}\n");
+        addFile("/sub_sub.collection", src.toString());
+
+        src = new StringBuilder();
+        src.append("name: \"sub\"\n");
+        src.append("collection_instances {\n");
+        src.append("  id: \"sub_sub\"\n");
+        src.append("  collection: \"/sub_sub.collection\"\n");
+        src.append("  instance_properties: {\n");
+        src.append("    id: \"go\"\n");
+        src.append("    properties {\n");
+        src.append("      id: \"test\"\n");
+        src.append("      properties { id: \"number\" value: \"2\" type: PROPERTY_TYPE_NUMBER }\n");
+        src.append("    }\n");
+        src.append("  }\n");
+        src.append("}\n");
+        addFile("/sub.collection", src.toString());
+
+        src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("collection_instances {\n");
+        src.append("  id: \"sub\"\n");
+        src.append("  collection: \"/sub.collection\"\n");
+        src.append("}\n");
+
+        List<Message> messages = build("/test.collection", src.toString());
+        Assert.assertEquals(2, messages.size());
+
+        CollectionDesc collection = (CollectionDesc)messages.get(0);
+        Assert.assertEquals(1, collection.getInstancesCount());
+        Assert.assertEquals(0, collection.getCollectionInstancesCount());
+
+        InstanceDesc instance = collection.getInstances(0);
+        Assert.assertTrue(instance.getComponentProperties(0).getProperties(0).getValue().equals("2"));
     }
 
     /**

@@ -553,7 +553,7 @@ public abstract class Node implements IAdaptable, Serializable {
      * @param file
      * @return True if anything was reloaded
      */
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         return false;
     }
 

@@ -41,7 +41,7 @@ public class DummyNode extends Node {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         return file.exists();
     }
 

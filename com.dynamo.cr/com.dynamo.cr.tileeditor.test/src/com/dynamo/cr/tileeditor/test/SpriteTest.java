@@ -98,14 +98,14 @@ public class SpriteTest extends AbstractNodeTest {
     public void testReloadTileSet() throws Exception {
         create();
 
-        assertTrue(this.spriteNode.handleReload(getFile("/test.tileset2")));
+        assertTrue(this.spriteNode.handleReload(getFile("/test.tileset2"), false));
     }
 
     @Test
     public void testReloadTileSetImage() throws Exception {
         create();
 
-        assertTrue(this.spriteNode.handleReload(getFile("/2x5_16_1.png")));
+        assertTrue(this.spriteNode.handleReload(getFile("/2x5_16_1.png"), false));
     }
 
     @Test

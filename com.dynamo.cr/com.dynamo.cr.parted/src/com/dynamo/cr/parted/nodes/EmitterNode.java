@@ -578,7 +578,7 @@ public class EmitterNode extends Node implements Identifiable {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
         if (!this.tileSource.isEmpty()) {
             IFile tileSetFile = getModel().getFile(this.tileSource);
@@ -589,7 +589,7 @@ public class EmitterNode extends Node implements Identifiable {
                 }
             }
             if (this.textureSetNode != null) {
-                if (this.textureSetNode.handleReload(file)) {
+                if (this.textureSetNode.handleReload(file, childWasReloaded)) {
                     reloaded = true;
                     reloadSystem(false);
                 }

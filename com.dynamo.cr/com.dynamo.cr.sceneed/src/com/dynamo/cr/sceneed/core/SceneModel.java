@@ -304,7 +304,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
                     reloaded = true;
                 }
             }
-            if (node.handleReload(file)) {
+            if (node.handleReload(file, reloaded)) {
                 reloaded = true;
             }
             return reloaded;

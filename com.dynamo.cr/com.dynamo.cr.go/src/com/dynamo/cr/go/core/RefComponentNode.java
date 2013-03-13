@@ -115,7 +115,7 @@ public class RefComponentNode extends ComponentNode {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         IFile componentFile = getModel().getFile(this.component);
         if (componentFile.exists() && componentFile.equals(file)) {
             if (reloadType()) {

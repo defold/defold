@@ -143,6 +143,12 @@
                   <instanceof
                         value="com.dynamo.cr.go.core.ComponentPropertyNode">
                   </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.CollectionPropertyNode">
+                  </instanceof>
+                  <instanceof
+                        value="com.dynamo.cr.go.core.GameObjectPropertyNode">
+                  </instanceof>
                </or>
             </iterate>
          </with>

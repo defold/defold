@@ -1,6 +1,8 @@
 package com.dynamo.cr.integrationtest;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -12,9 +14,12 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
 import org.junit.Test;
 
+import com.dynamo.cr.go.core.CollectionInstanceNode;
 import com.dynamo.cr.go.core.CollectionNode;
+import com.dynamo.cr.go.core.CollectionPropertyNode;
 import com.dynamo.cr.go.core.ComponentPropertyNode;
 import com.dynamo.cr.go.core.GameObjectInstanceNode;
+import com.dynamo.cr.go.core.GameObjectPropertyNode;
 
 public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
 
@@ -25,7 +30,7 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
         getPresenter().onLoad("collection", new ByteArrayInputStream("name: \"main\" instances { id: \"go\" prototype: \"/game_object/props.go\"}".getBytes()));
     }
 
-    private void saveScript(String path, String content) throws IOException, CoreException {
+    private void saveFile(String path, String content) throws IOException, CoreException {
         IFile file = getContentRoot().getFile(new Path(path));
         InputStream stream = new ByteArrayInputStream(content.getBytes());
         if (!file.exists()) {
@@ -81,6 +86,84 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
     }
 
     @Test
+    public void testLoadSub() throws Exception {
+        getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/sub_props.collection")).getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(4.0, getNodeProperty(component, "number"));
+        assertEquals("hash4", getNodeProperty(component, "hash"));
+        assertEquals("/url3", getNodeProperty(component, "url"));
+    }
+
+    @Test
+    public void testLoadSubSub() throws Exception {
+        getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/sub_sub_props.collection")).getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        CollectionPropertyNode collectionProperty = (CollectionPropertyNode)collectionInstance.getChildren().get(1);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionProperty.getChildren().get(0);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(5.0, getNodeProperty(component, "number"));
+        assertEquals("hash5", getNodeProperty(component, "hash"));
+        assertEquals("/url4", getNodeProperty(component, "url"));
+    }
+
+    @Test
+    public void testLoadSubEmbed() throws Exception {
+        getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/sub_embed.collection")).getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(3.0, getNodeProperty(component, "number"));
+        assertEquals("hash3", getNodeProperty(component, "hash"));
+        assertEquals("/url2", getNodeProperty(component, "url"));
+    }
+
+    @Test
+    public void testLoadSubDefaults() throws Exception {
+        getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/sub_defaults.collection")).getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(3.0, getNodeProperty(component, "number"));
+        assertEquals("hash3", getNodeProperty(component, "hash"));
+        assertEquals("/url2", getNodeProperty(component, "url"));
+        assertFalse(isNodePropertyOverridden(component, "number"));
+        assertFalse(isNodePropertyOverridden(component, "hash"));
+        assertFalse(isNodePropertyOverridden(component, "url"));
+    }
+
+    @Test
+    public void testLoadSubSubDefaults() throws Exception {
+        getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/sub_sub_defaults.collection")).getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        CollectionPropertyNode collectionProperty = (CollectionPropertyNode)collectionInstance.getChildren().get(1);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionProperty.getChildren().get(0);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(4.0, getNodeProperty(component, "number"));
+        assertEquals("hash4", getNodeProperty(component, "hash"));
+        assertEquals("/url3", getNodeProperty(component, "url"));
+        assertFalse(isNodePropertyOverridden(component, "number"));
+        assertFalse(isNodePropertyOverridden(component, "hash"));
+        assertFalse(isNodePropertyOverridden(component, "url"));
+    }
+
+    @Test
     public void testSave() throws Exception {
         IFile collectionFile = (IFile)getContentRoot().findMember("/collection/props.collection");
         getPresenter().onLoad("collection", collectionFile.getContents());
@@ -107,6 +190,66 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
         assertEquals("/url3", getNodeProperty(component, "url"));
     }
 
+    @Test
+    public void testSaveSub() throws Exception {
+        IFile collectionFile = (IFile)getContentRoot().findMember("/collection/sub_props.collection");
+        getPresenter().onLoad("collection", collectionFile.getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        setNodeProperty(component, "number", "5");
+        setNodeProperty(component, "hash", "hash5");
+        setNodeProperty(component, "url", "/url4");
+
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        getPresenter().onSave(stream, null);
+        collectionFile.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
+
+        getPresenter().onLoad("collection", collectionFile.getContents());
+        collection = (CollectionNode)getModel().getRoot();
+        collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(5.0, getNodeProperty(component, "number"));
+        assertEquals("hash5", getNodeProperty(component, "hash"));
+        assertEquals("/url4", getNodeProperty(component, "url"));
+    }
+
+    @Test
+    public void testSaveSubSub() throws Exception {
+        IFile collectionFile = (IFile)getContentRoot().findMember("/collection/sub_sub_props.collection");
+        getPresenter().onLoad("collection", collectionFile.getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        CollectionPropertyNode collectionProperty = (CollectionPropertyNode)collectionInstance.getChildren().get(1);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionProperty.getChildren().get(0);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        setNodeProperty(component, "number", "6");
+        setNodeProperty(component, "hash", "hash6");
+        setNodeProperty(component, "url", "/url5");
+
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        getPresenter().onSave(stream, null);
+        collectionFile.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
+
+        getPresenter().onLoad("collection", collectionFile.getContents());
+        collection = (CollectionNode)getModel().getRoot();
+        collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        collectionProperty = (CollectionPropertyNode)collectionInstance.getChildren().get(1);
+        gameObject = (GameObjectPropertyNode)collectionProperty.getChildren().get(0);
+        component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(6.0, getNodeProperty(component, "number"));
+        assertEquals("hash6", getNodeProperty(component, "hash"));
+        assertEquals("/url5", getNodeProperty(component, "url"));
+    }
+
     @Test(expected = RuntimeException.class)
     public void testReload() throws Exception {
         CollectionNode collection = (CollectionNode)getModel().getRoot();
@@ -116,7 +259,61 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
         // Default value
         assertEquals(2.0, getNodeProperty(component, "number"));
 
-        saveScript("/script/props.script", "go.property(\"number2\", 0)");
+        saveFile("/script/props.script", "go.property(\"number2\", 0)");
+
+        getNodeProperty(component, "number");
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testReloadSub() throws Exception {
+        IFile collectionFile = (IFile)getContentRoot().findMember("/collection/sub_props.collection");
+        getPresenter().onLoad("collection", collectionFile.getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(4.0, getNodeProperty(component, "number"));
+
+        saveFile("/script/props.script", "go.property(\"number2\", 0)");
+
+        getNodeProperty(component, "number");
+    }
+
+    @Test
+    public void testReloadSubStructure() throws Exception {
+        IFile collectionFile = (IFile)getContentRoot().findMember("/collection/sub_props.collection");
+        getPresenter().onLoad("collection", collectionFile.getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(4.0, getNodeProperty(component, "number"));
+
+        saveFile("/game_object/props.go", "");
+
+        collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        gameObject = (GameObjectPropertyNode)collectionInstance.getChildren().get(1);
+        assertTrue(gameObject.getChildren().isEmpty());
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testReloadSubSub() throws Exception {
+        IFile collectionFile = (IFile)getContentRoot().findMember("/collection/sub_sub_props.collection");
+        getPresenter().onLoad("collection", collectionFile.getContents());
+
+        CollectionNode collection = (CollectionNode)getModel().getRoot();
+        CollectionInstanceNode collectionInstance = (CollectionInstanceNode)collection.getChildren().get(0);
+        CollectionPropertyNode collectionProperty = (CollectionPropertyNode)collectionInstance.getChildren().get(1);
+        GameObjectPropertyNode gameObject = (GameObjectPropertyNode)collectionProperty.getChildren().get(0);
+        ComponentPropertyNode component = (ComponentPropertyNode)gameObject.getChildren().get(0);
+
+        assertEquals(5.0, getNodeProperty(component, "number"));
+
+        saveFile("/script/props.script", "go.property(\"number2\", 0)");
 
         getNodeProperty(component, "number");
     }
@@ -141,7 +338,7 @@ public class ScriptPropertiesCollectionTest extends AbstractSceneTest {
         collectionFile.setContents(new ByteArrayInputStream(stream.toByteArray()), false, true, null);
 
         // Change script to new value
-        saveScript("/script/props.script", "go.property(\"number\", 3)");
+        saveFile("/script/props.script", "go.property(\"number\", 3)");
 
         // Load file again
         getPresenter().onLoad("collection", ((IFile)getContentRoot().findMember("/collection/empty_props_go.collection")).getContents());

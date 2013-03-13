@@ -30,6 +30,7 @@ import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
@@ -119,6 +120,17 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             instanceNode.setScale(instanceDesc.getScale());
             instanceNode.setId(instanceDesc.getId());
             instanceNode.setCollection(path);
+            for (InstancePropertyDesc instancePropDesc : instanceDesc.getInstancePropertiesList()) {
+                for (ComponentPropertyDesc compPropDesc : instancePropDesc.getPropertiesList()) {
+                    Map<String, Object> componentProperties = new HashMap<String, Object>();
+                    int propCount = compPropDesc.getPropertiesCount();
+                    for (int k = 0; k < propCount; ++k) {
+                        PropertyDesc propDesc = compPropDesc.getProperties(k);
+                        componentProperties.put(propDesc.getId(), GoPropertyUtil.stringToProperty(propDesc.getType(), propDesc.getValue()));
+                    }
+                    instanceNode.setInstanceProperties(instancePropDesc.getId(), compPropDesc.getId(), componentProperties);
+                }
+            }
             node.addChild(instanceNode);
         }
         return node;
@@ -154,7 +166,7 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                         }
                     }
                 }
-                instanceBuilder.addAllComponentProperties(buildProperties(instance));
+                instanceBuilder.addAllComponentProperties(buildComponentProperties(instance));
                 builder.addInstances(instanceBuilder);
                 buildInstances(context, child, builder, monitor);
             } else if (child instanceof GameObjectNode) {
@@ -190,13 +202,14 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                 instanceBuilder.setScale((float)instance.getScale());
                 instanceBuilder.setId(instance.getId());
                 instanceBuilder.setCollection(instance.getCollection());
+                instanceBuilder.addAllInstanceProperties(buildInstanceProperties(instance));
                 builder.addCollectionInstances(instanceBuilder);
             }
             progress.worked(1);
         }
     }
 
-    private Iterable<ComponentPropertyDesc> buildProperties(RefGameObjectInstanceNode instance) {
+    private Iterable<ComponentPropertyDesc> buildComponentProperties(RefGameObjectInstanceNode instance) {
         Vector<ComponentPropertyDesc> componentProperties = new Vector<ComponentPropertyDesc>();
         for (Node instanceChild : instance.getChildren()) {
             if (instanceChild instanceof ComponentPropertyNode) {
@@ -223,5 +236,61 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
             }
         }
         return componentProperties;
+    }
+
+    private Iterable<InstancePropertyDesc> buildInstanceProperties(CollectionInstanceNode instance) {
+        Vector<InstancePropertyDesc> instanceProperties = new Vector<InstancePropertyDesc>();
+        for (Node instanceChild : instance.getChildren()) {
+            if (instanceChild instanceof PropertyNode<?>) {
+                buildInstanceProperties("", (PropertyNode<?>)instanceChild, instanceProperties);
+            }
+        }
+        return instanceProperties;
+    }
+
+    private void buildInstanceProperties(String path, PropertyNode<?> node, Vector<InstancePropertyDesc> outInstanceProperties) {
+        if (node instanceof CollectionPropertyNode) {
+            CollectionPropertyNode collectionProp = (CollectionPropertyNode)node;
+            String currentPath = path + collectionProp.getId() + "/";
+            for (Node child : node.getChildren()) {
+                if (child instanceof PropertyNode<?>) {
+                    buildInstanceProperties(currentPath, (PropertyNode<?>)child, outInstanceProperties);
+                }
+            }
+        } else if (node instanceof GameObjectPropertyNode) {
+            GameObjectPropertyNode goProp = (GameObjectPropertyNode)node;
+            String currentPath = path + goProp.getId();
+            InstancePropertyDesc.Builder instanceBuilder = InstancePropertyDesc.newBuilder();
+            instanceBuilder.setId(currentPath);
+            for (Node child : node.getChildren()) {
+                if (child instanceof ComponentPropertyNode) {
+                    ComponentPropertyNode compNode = (ComponentPropertyNode)child;
+                    List<LuaScanner.Property> defaults = compNode.getPropertyDefaults();
+                    Map<String, Object> properties = compNode.getComponentProperties();
+                    ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder();
+                    compPropBuilder.setId(compNode.getId());
+                    for (LuaScanner.Property property : defaults) {
+                        if (property.status == LuaScanner.Property.Status.OK) {
+                            Object value = properties.get(property.name);
+                            if (value != null) {
+                                PropertyDesc.Builder propBuilder = PropertyDesc.newBuilder();
+                                propBuilder.setId(property.name);
+                                propBuilder.setType(property.type);
+                                propBuilder.setValue(GoPropertyUtil.propertyToString(value));
+                                compPropBuilder.addProperties(propBuilder);
+                            }
+                        }
+                    }
+                    if (compPropBuilder.getPropertiesCount() > 0) {
+                        instanceBuilder.addProperties(compPropBuilder);
+                    }
+                } else if (child instanceof PropertyNode<?>) {
+                    buildInstanceProperties(path, (PropertyNode<?>)child, outInstanceProperties);
+                }
+            }
+            if (instanceBuilder.getPropertiesCount() > 0) {
+                outInstanceProperties.add(instanceBuilder.build());
+            }
+        }
     }
 }

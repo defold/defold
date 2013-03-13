@@ -1,7 +1,11 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.vecmath.Point3d;
@@ -22,6 +26,7 @@ import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 
@@ -75,8 +80,49 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return taskBuilder.build();
     }
 
+    private Map<String, Map<String, PropertyDesc>> toMap(List<ComponentPropertyDesc> compProps) {
+        Map<String, Map<String, PropertyDesc>> compMap = new HashMap<String, Map<String, PropertyDesc>>();
+        for (ComponentPropertyDesc compProp : compProps) {
+            if (!compMap.containsKey(compProp.getId())) {
+                compMap.put(compProp.getId(), new HashMap<String, PropertyDesc>());
+            }
+            Map<String, PropertyDesc> propMap = compMap.get(compProp.getId());
+            List<PropertyDesc> props = compProp.getPropertiesList();
+            for (PropertyDesc prop : props) {
+                propMap.put(prop.getId(), prop);
+            }
+        }
+        return compMap;
+    }
+
+    private List<ComponentPropertyDesc> toList(Map<String, Map<String, PropertyDesc>> map) {
+        List<ComponentPropertyDesc> result = new ArrayList<ComponentPropertyDesc>();
+        for (Map.Entry<String, Map<String, PropertyDesc>> compEntry : map.entrySet()) {
+            ComponentPropertyDesc.Builder builder = ComponentPropertyDesc.newBuilder();
+            builder.setId(compEntry.getKey());
+            builder.addAllProperties(compEntry.getValue().values());
+            result.add(builder.build());
+        }
+        return result;
+    }
+
+    private List<ComponentPropertyDesc> mergeComponentProperties(List<ComponentPropertyDesc> sourceProps, List<ComponentPropertyDesc> overrideProps) {
+        Map<String, Map<String, PropertyDesc>> sourceMap = toMap(sourceProps);
+        Map<String, Map<String, PropertyDesc>> overrideMap = toMap(overrideProps);
+        for (Map.Entry<String, Map<String, PropertyDesc>> entry : overrideMap.entrySet()) {
+            Map<String, PropertyDesc> propMap = sourceMap.get(entry.getKey());
+            if (propMap != null) {
+                propMap.putAll(entry.getValue());
+            } else {
+                sourceMap.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return toList(sourceMap);
+    }
+
     private void mergeSubCollections(IResource owner, CollectionDesc.Builder collectionBuilder) throws IOException, CompileExceptionError {
         Set<String> childIds = new HashSet<String>();
+        Map<String, List<ComponentPropertyDesc>> properties = new HashMap<String, List<ComponentPropertyDesc>>();
         for (CollectionInstanceDesc collInst : collectionBuilder.getCollectionInstancesList()) {
             IResource collResource = this.project.getResource(collInst.getCollection());
             CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
@@ -87,15 +133,31 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
                 childIds.addAll(inst.getChildrenList());
             }
+            for (EmbeddedInstanceDesc inst : subCollBuilder.getEmbeddedInstancesList()) {
+                childIds.addAll(inst.getChildrenList());
+            }
+            String pathPrefix = collInst.getId() + "/";
+            // Collect instance properties
+            properties.clear();
+            for (InstancePropertyDesc instProps : collInst.getInstancePropertiesList()) {
+                properties.put(pathPrefix + instProps.getId(), instProps.getPropertiesList());
+            }
             Point3d p = MathUtil.ddfToVecmath(collInst.getPosition());
             Quat4d r = MathUtil.ddfToVecmath(collInst.getRotation());
             double s = collInst.getScale();
-            String pathPrefix = collInst.getId() + "/";
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
                 InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
                 BuilderUtil.checkFile(this.project, owner, "prototype", inst.getPrototype());
                 // merge id
+                String id = pathPrefix + inst.getId();
                 instBuilder.setId(pathPrefix + inst.getId());
+                // merge component properties
+                if (properties.containsKey(id)) {
+                    List<ComponentPropertyDesc> overrideProperties = properties.get(id);
+                    List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
+                    instBuilder.clearComponentProperties();
+                    instBuilder.addAllComponentProperties(mergeComponentProperties(sourceProperties, overrideProperties));
+                }
                 // merge transform for non-children
                 if (!childIds.contains(inst.getId())) {
                     Point3d instP = MathUtil.ddfToVecmath(inst.getPosition());
@@ -122,7 +184,15 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             for (EmbeddedInstanceDesc inst : subCollBuilder.getEmbeddedInstancesList()) {
                 EmbeddedInstanceDesc.Builder instBuilder = EmbeddedInstanceDesc.newBuilder(inst);
                 // merge id
-                instBuilder.setId(pathPrefix + inst.getId());
+                String id = pathPrefix + inst.getId();
+                instBuilder.setId(id);
+                // merge component properties
+                if (properties.containsKey(id)) {
+                    List<ComponentPropertyDesc> overrideProperties = properties.get(id);
+                    List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
+                    instBuilder.clearComponentProperties();
+                    instBuilder.addAllComponentProperties(mergeComponentProperties(sourceProperties, overrideProperties));
+                }
                 // merge transform for non-children
                 if (!childIds.contains(inst.getId())) {
                     Point3d instP = MathUtil.ddfToVecmath(inst.getPosition());
@@ -176,7 +246,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addAllChildren(desc.getChildrenList())
                 .setPosition(desc.getPosition())
                 .setRotation(desc.getRotation())
-                .setScale(desc.getScale());
+                .setScale(desc.getScale())
+                .addAllComponentProperties(desc.getComponentPropertiesList());
 
             messageBuilder.addInstances(instBuilder);
             ++embedIndex;

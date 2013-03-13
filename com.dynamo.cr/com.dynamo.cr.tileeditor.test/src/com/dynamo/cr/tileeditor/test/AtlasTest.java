@@ -158,7 +158,7 @@ public class AtlasTest extends AbstractNodeTest {
     public void testReloadImage() throws Exception {
         AtlasNode node = load("images: { image: \"/2x5_16_1.png\" }");
 
-        assertTrue(node.handleReload(getFile("/2x5_16_1.png")));
+        assertTrue(node.handleReload(getFile("/2x5_16_1.png"), false));
     }
 
 }

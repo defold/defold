@@ -78,7 +78,14 @@ message EmbeddedInstanceDesc
     required string data = 3;
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
-    optional float          scale       = 6 [default = 1.0];
+    repeated ComponentPropertyDesc component_properties = 6;
+    optional float          scale       = 7 [default = 1.0];
+}
+
+message InstancePropertyDesc
+{
+    required string id = 1;
+    repeated ComponentPropertyDesc properties = 2;
 }
 
 message CollectionInstanceDesc
@@ -88,6 +95,7 @@ message CollectionInstanceDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     optional float          scale       = 5 [default = 1.0];
+    repeated InstancePropertyDesc instance_properties = 6;
 }
 
 message CollectionDesc

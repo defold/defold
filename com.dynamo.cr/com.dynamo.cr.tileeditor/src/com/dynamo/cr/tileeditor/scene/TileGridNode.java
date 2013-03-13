@@ -132,7 +132,7 @@ public class TileGridNode extends ComponentTypeNode {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
         if (!this.tileSource.isEmpty()) {
             IFile tileSetFile = getModel().getFile(this.tileSource);
@@ -143,7 +143,7 @@ public class TileGridNode extends ComponentTypeNode {
             }
         }
         if (this.tileSetNode != null) {
-            if (this.tileSetNode.handleReload(file)) {
+            if (this.tileSetNode.handleReload(file, childWasReloaded)) {
                 updateStatus();
                 updateVertexData();
                 reloaded = true;

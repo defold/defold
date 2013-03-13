@@ -165,7 +165,7 @@ public class AtlasNode extends TextureSetNode {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
         List<String> images = new ArrayList<String>();
         List<String> ids = new ArrayList<String>();

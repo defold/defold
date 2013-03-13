@@ -36,7 +36,7 @@ public class CollisionObjectNode extends ComponentTypeNode {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         if (!this.collisionShape.isEmpty()) {
             IFile shapeFile = getModel().getFile(this.collisionShape);
             if (shapeFile.exists() && shapeFile.equals(file)) {

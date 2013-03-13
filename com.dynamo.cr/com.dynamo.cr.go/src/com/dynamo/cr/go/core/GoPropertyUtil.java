@@ -138,7 +138,7 @@ public class GoPropertyUtil {
 
     public static String[] extractRelativeURLs(RefComponentNode componentNode) {
         Node root = componentNode.getParent();
-        while (root.getParent() != null) {
+        while (!(root instanceof CollectionNode) && root.getParent() != null) {
             root = root.getParent();
         }
         List<String> urls = extractRelativeURLs(componentNode, root, "", null);

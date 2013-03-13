@@ -401,7 +401,7 @@ public class TileSetNode extends TextureSetNode {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
         if (image != null && image.length() > 0) {
             IFile imgFile = getModel().getFile(image);

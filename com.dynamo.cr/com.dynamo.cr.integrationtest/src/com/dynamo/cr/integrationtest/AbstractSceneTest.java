@@ -218,6 +218,12 @@ public abstract class AbstractSceneTest {
         this.model.executeOperation(propertyModel.resetPropertyValue(id));
     }
 
+    protected boolean isNodePropertyOverridden(Node node, Object id) throws ExecutionException {
+        @SuppressWarnings("unchecked")
+        IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);
+        return propertyModel.isPropertyOverridden(id);
+    }
+
     @SuppressWarnings("unchecked")
     protected IStatus getNodePropertyStatus(Node node, Object id) {
         IPropertyModel<? extends Node, ISceneModel> propertyModel = (IPropertyModel<? extends Node, ISceneModel>)node.getAdapter(IPropertyModel.class);

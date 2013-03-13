@@ -43,6 +43,8 @@ public class GoPropertyUtilTest {
      * - go3#script4
      * - go4
      * - go4#script5
+     * Relative sub_coll/go1#script1, the returned URLs should be:
+     * - go1
      */
     @Test
     public void testExtractRelativePaths() {
@@ -101,5 +103,11 @@ public class GoPropertyUtilTest {
         assertTrue(urlSet.contains("go3#script4"));
         assertTrue(urlSet.contains("go4"));
         assertTrue(urlSet.contains("go4#script5"));
+
+        urls = GoPropertyUtil.extractRelativeURLs(script1);
+        urlSet = new HashSet<String>();
+        urlSet.addAll(Arrays.asList(urls));
+        assertEquals(1, urls.length);
+        assertTrue(urlSet.contains("go1"));
     }
 }

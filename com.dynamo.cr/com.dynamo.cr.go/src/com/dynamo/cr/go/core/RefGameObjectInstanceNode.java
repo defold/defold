@@ -53,9 +53,10 @@ public class RefGameObjectInstanceNode extends GameObjectInstanceNode {
         if (model != null) {
             if (this.gameObjectNode == null) {
                 reloadGameObject();
+            } else {
+                reloadComponentPropertyNodes();
             }
         }
-        reloadComponentPropertyNodes();
     }
 
     public String getGameObject() {
@@ -128,7 +129,7 @@ public class RefGameObjectInstanceNode extends GameObjectInstanceNode {
     }
 
     @Override
-    public boolean handleReload(IFile file) {
+    public boolean handleReload(IFile file, boolean childWasReloaded) {
         IFile gameObjectFile = getModel().getFile(this.gameObject);
         if (gameObjectFile.exists() && gameObjectFile.equals(file)) {
             if (reloadGameObject()) {
@@ -136,7 +137,7 @@ public class RefGameObjectInstanceNode extends GameObjectInstanceNode {
             }
         }
         if (this.gameObjectNode != null) {
-            return this.gameObjectNode.handleReload(file);
+            return this.gameObjectNode.handleReload(file, childWasReloaded);
         }
         return false;
     }
@@ -168,7 +169,7 @@ public class RefGameObjectInstanceNode extends GameObjectInstanceNode {
                 ComponentPropertyNode compProp = (ComponentPropertyNode)node;
                 RefComponentNode ref = refIds.get(compProp.getId());
                 if (ref != null) {
-                    compProp.setRefComponentNode(ref);
+                    compProp.setNode(ref);
                     refIds.remove(compProp.getId());
                 } else {
                     removeChild(node);

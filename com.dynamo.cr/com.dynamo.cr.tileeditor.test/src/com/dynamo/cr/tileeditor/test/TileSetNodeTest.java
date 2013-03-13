@@ -332,7 +332,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
 
         // Simulate reload
         IFile tileSetFile = copyFile(tileSetHalfPath, tileSetPath);
-        boolean result = this.node.handleReload(tileSetFile);
+        boolean result = this.node.handleReload(tileSetFile, false);
         assertTrue(result);
 
         List<ConvexHull> postHulls = this.node.getConvexHulls();
