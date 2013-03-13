@@ -84,7 +84,7 @@ public class GitStatusTest {
         writeFile(this.repoA, file, "A");
         GitState state = this.git.getState(this.repoA);
         assertThat(state, is(GitState.DIRTY));
-        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus status = this.git.getStatus(this.repoA, true);
         assertStatus(status, file, '?', '?');
     }
 
@@ -95,7 +95,7 @@ public class GitStatusTest {
         this.git.add(this.repoA, file);
         GitState state = this.git.getState(this.repoA);
         assertThat(state, is(GitState.DIRTY));
-        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus status = this.git.getStatus(this.repoA, true);
         assertThat(status.commitsAhead, is(0));
         assertThat(status.commitsBehind, is(0));
         assertStatus(status, file, 'A', ' ');
@@ -108,7 +108,7 @@ public class GitStatusTest {
         this.git.add(this.repoA, file);
         GitState state = this.git.getState(this.repoA);
         assertThat(state, is(GitState.DIRTY));
-        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus status = this.git.getStatus(this.repoA, true);
         assertThat(status.commitsAhead, is(0));
         assertThat(status.commitsBehind, is(0));
         assertStatus(status, file, 'A', ' ');
@@ -124,7 +124,7 @@ public class GitStatusTest {
         this.git.rm(this.repoA, file1, false, false);
         writeFile(this.repoA, file2, "A");
         this.git.add(this.repoA, file2);
-        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus status = this.git.getStatus(this.repoA, true);
         GitStatus.Entry entry = status.files.get(0);
         assertThat(entry.file, is(file2));
         assertThat(entry.original, is(file1));
@@ -142,7 +142,7 @@ public class GitStatusTest {
         this.git.rm(this.repoA, file1, false, false);
         writeFile(this.repoA, file2, "A");
         this.git.add(this.repoA, file2);
-        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus status = this.git.getStatus(this.repoA, true);
         GitStatus.Entry entry = status.files.get(0);
         assertThat(entry.file, is(file2));
         assertThat(entry.original, is(file1));
@@ -156,7 +156,7 @@ public class GitStatusTest {
         writeFile(this.repoA, file, "A");
         GitState state = this.git.getState(this.repoA);
         assertThat(state, is(GitState.DIRTY));
-        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus status = this.git.getStatus(this.repoA, true);
         assertStatus(status, file, ' ', 'M');
     }
 
@@ -167,7 +167,7 @@ public class GitStatusTest {
         f.delete();
         GitState state = this.git.getState(this.repoA);
         assertThat(state, is(GitState.DIRTY));
-        GitStatus status = this.git.getStatus(this.repoA);
+        GitStatus status = this.git.getStatus(this.repoA, true);
         assertStatus(status, file, ' ', 'D');
     }
 

@@ -70,7 +70,7 @@ public class ChangedFilesView extends ViewPart implements SelectionListener, IBr
         IBranchClient branchClient = Activator.getDefault().getBranchClient();
         if (branchClient != null) {
             try {
-                BranchStatus branchStatus = branchClient.getBranchStatus();
+                BranchStatus branchStatus = branchClient.getBranchStatus(false);
                 updateTable(branchStatus);
             } catch (RepositoryException e) {
                 Activator.logException(e);

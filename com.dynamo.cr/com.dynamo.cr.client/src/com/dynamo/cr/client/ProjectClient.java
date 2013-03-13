@@ -39,7 +39,7 @@ public class ProjectClient extends BaseClient implements IProjectClient {
     }
 
     @Override
-    public BranchStatus getBranchStatus(String branch) throws RepositoryException {
+    public BranchStatus getBranchStatus(String branch, boolean fetch) throws RepositoryException {
         return wrapGet(String.format("/branches/%s", branch), BranchStatus.class);
     }
 

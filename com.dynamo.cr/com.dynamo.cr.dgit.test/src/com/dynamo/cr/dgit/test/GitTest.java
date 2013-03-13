@@ -136,7 +136,7 @@ public class GitTest {
     public void status() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
@@ -145,7 +145,7 @@ public class GitTest {
 
         git.mv(repo.getPath(), "rename.cpp", "rename2.cpp", true);
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(2, status.files.size());
 
         assertEquals("main.cpp", status.files.get(0).file);
@@ -160,14 +160,14 @@ public class GitTest {
     public void newFile() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         FileWriter fw = new FileWriter(new File(repo, "new_file.txt"));
         fw.write("testing\n");
         fw.close();
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(1, status.files.size());
 
         Entry e = status.files.get(0);
@@ -180,7 +180,7 @@ public class GitTest {
     public void renameEmpty() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         File newDir = new File(repo, "new_dir");
@@ -196,7 +196,7 @@ public class GitTest {
         assertFalse(newDir.exists());
         assertTrue(newDirPrim.exists());
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
     }
 
@@ -204,7 +204,7 @@ public class GitTest {
     public void changeNewAndStagedFile() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         FileWriter fw = new FileWriter(new File(repo, "new_file.txt"));
@@ -219,7 +219,7 @@ public class GitTest {
         fw.write("some appended content\n");
         fw.close();
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(1, status.files.size());
 
         Entry e = status.files.get(0);
@@ -232,7 +232,7 @@ public class GitTest {
     public void renameRevertDirectoryDirectory1() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         new File(repo, "dir").mkdir();
@@ -254,7 +254,7 @@ public class GitTest {
         git.checkout(repo.getPath(), "dir/new_file.txt", false);
         git.commitAll(repo.getPath(), "commit2");
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         String content = readEntireFile(new File(repo, "dir/new_file.txt"));
@@ -265,7 +265,7 @@ public class GitTest {
     public void renameRevertDirectoryDirectory2() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         new File(repo, "dir").mkdir();
@@ -286,7 +286,7 @@ public class GitTest {
         git.mv(repo.getPath(), "dir2", "dir", false);
         git.commitAll(repo.getPath(), "commit2");
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         String content = readEntireFile(new File(repo, "dir/new_file.txt"));
@@ -297,7 +297,7 @@ public class GitTest {
     public void unstageDeleted() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         new File(repo, "dir").mkdir();
@@ -314,7 +314,7 @@ public class GitTest {
         git.rm(repo.getPath(), "dir/new_file.txt", false, false);
         new File(repo.getPath(), "dir").delete();
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(1, status.files.size());
         Entry e = status.files.get(0);
         assertEquals("dir/new_file.txt", e.file);
@@ -324,7 +324,7 @@ public class GitTest {
         git.reset(repo.getPath(), GitResetMode.MIXED, "dir/new_file.txt", "HEAD");
         git.checkout(repo.getPath(), "dir/new_file.txt", false);
 
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         String content = readEntireFile(new File(repo, "dir/new_file.txt"));
@@ -467,23 +467,23 @@ public class GitTest {
     public void resolveYours() throws IOException {
         File repo = cloneInitial();
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
         fw.close();
         git.commitAll(repo.getPath(), "test commit");
 
-        assertEquals(1, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
-        GitStatus status = git.getStatus(repo.getPath());
+        assertEquals(1, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
+        GitStatus status = git.getStatus(repo.getPath(), true);
         // Check this again. Test added due to bug.
         assertEquals(1, status.commitsAhead);
         assertEquals(1, status.commitsBehind);
@@ -493,20 +493,20 @@ public class GitTest {
 
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.MERGE, state);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('U', status.files.get(0).indexStatus);
         assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('M', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
 
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
@@ -518,41 +518,41 @@ public class GitTest {
     public void resolveYoursTheirsDeleted() throws IOException {
         File repo = cloneInitial();
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         RepoUtil.deleteSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
         fw.close();
         git.commitAll(repo.getPath(), "test commit");
 
-        assertEquals(1, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(1, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         boolean r = git.pull(repo.getPath());
         assertEquals(false, r);
 
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.MERGE, state);
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals('U', status.files.get(0).indexStatus);
         assertEquals('D', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('M', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
@@ -563,39 +563,39 @@ public class GitTest {
     public void resolveYoursYoursDeleted() throws IOException {
         File repo = cloneInitial();
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         git.rm(repo.getPath(), "main.cpp", false, false);
         git.commitAll(repo.getPath(), "test commit");
 
-        assertEquals(1, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(1, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         boolean r = git.pull(repo.getPath());
         assertEquals(false, r);
 
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.MERGE, state);
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals('D', status.files.get(0).indexStatus);
         assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('D', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
@@ -622,17 +622,17 @@ public class GitTest {
 
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.MERGE, state);
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals('U', status.files.get(0).indexStatus);
         assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('M', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
 
         git.commit(repo.getPath(), "test commit 2");
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals(0, status.files.size());
 
         git.push(repo.getPath());
@@ -649,41 +649,41 @@ public class GitTest {
     public void resolveTheirsTheirsDeleted() throws IOException {
         File repo = cloneInitial();
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         RepoUtil.deleteSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         FileWriter fw = new FileWriter(new File(repo, "main.cpp"));
         fw.write("testing\n");
         fw.close();
         git.commitAll(repo.getPath(), "test commit");
 
-        assertEquals(1, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(1, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         boolean r = git.pull(repo.getPath());
         assertEquals(false, r);
 
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.MERGE, state);
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals('U', status.files.get(0).indexStatus);
         assertEquals('D', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('D', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
@@ -695,39 +695,39 @@ public class GitTest {
     public void resolveTheirsYoursDeleted() throws IOException {
         File repo = cloneInitial();
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         RepoUtil.addSourceCommit(git);
         assertEquals(-1, readEntireFile(new File(repo, "main.cpp")).indexOf("testing"));
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         git.rm(repo.getPath(), "main.cpp", false, false);
         git.commitAll(repo.getPath(), "test commit");
 
-        assertEquals(1, git.commitsAhead(repo.getPath()));
-        assertEquals(1, git.commitsBehind(repo.getPath()));
+        assertEquals(1, git.commitsAhead(repo.getPath(), true));
+        assertEquals(1, git.commitsBehind(repo.getPath(), true));
 
         boolean r = git.pull(repo.getPath());
         assertEquals(false, r);
 
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.MERGE, state);
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals('D', status.files.get(0).indexStatus);
         assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('A', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
         git.push(repo.getPath());
 
-        assertEquals(0, git.commitsAhead(repo.getPath()));
-        assertEquals(0, git.commitsBehind(repo.getPath()));
+        assertEquals(0, git.commitsAhead(repo.getPath(), true));
+        assertEquals(0, git.commitsBehind(repo.getPath(), true));
 
         state = git.getState(repo.getPath());
         assertEquals(GitState.CLEAN, state);
@@ -757,16 +757,16 @@ public class GitTest {
 
         GitState state = git.getState(repo.getPath());
         assertEquals(GitState.MERGE, state);
-        GitStatus status = git.getStatus(repo.getPath());
+        GitStatus status = git.getStatus(repo.getPath(), true);
         assertEquals('U', status.files.get(0).indexStatus);
         assertEquals('U', status.files.get(0).workingTreeStatus);
 
         git.resolve(repo.getPath(), "main.cpp", GitStage.YOURS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('M', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.resolve(repo.getPath(), "main.cpp", GitStage.THEIRS);
-        status = git.getStatus(repo.getPath());
+        status = git.getStatus(repo.getPath(), true);
         assertEquals('M', status.files.get(0).indexStatus);
         assertEquals(' ', status.files.get(0).workingTreeStatus);
         git.commit(repo.getPath(), "test commit 2");
@@ -818,7 +818,7 @@ public class GitTest {
     public void reset() throws IOException {
         File repo = cloneInitial();
 
-        GitStatus initStatus = git.getStatus(repo.getPath());
+        GitStatus initStatus = git.getStatus(repo.getPath(), true);
         assertEquals(0, initStatus.files.size());
 
         String file = "main.cpp";
@@ -830,7 +830,7 @@ public class GitTest {
 
         git.add(repo.getPath(), file);
 
-        GitStatus preStatus = git.getStatus(repo.getPath());
+        GitStatus preStatus = git.getStatus(repo.getPath(), true);
         assertEquals(1, preStatus.files.size());
         assertEquals(file, preStatus.files.get(0).file);
         assertEquals('M', preStatus.files.get(0).indexStatus);
@@ -844,12 +844,12 @@ public class GitTest {
         Log postLog = git.log(repo.getPath(), 5);
         assertEquals(2, postLog.getCommitsCount());
 
-        GitStatus postStatus = git.getStatus(repo.getPath());
+        GitStatus postStatus = git.getStatus(repo.getPath(), true);
         assertEquals(0, postStatus.files.size());
 
         git.reset(repo.getPath(), GitResetMode.SOFT, null, preId);
 
-        preStatus = git.getStatus(repo.getPath());
+        preStatus = git.getStatus(repo.getPath(), true);
         assertEquals(1, preStatus.files.size());
         assertEquals(file, preStatus.files.get(0).file);
         assertEquals('M', preStatus.files.get(0).indexStatus);
@@ -862,12 +862,12 @@ public class GitTest {
         postLog = git.log(repo.getPath(), 5);
         assertEquals(2, postLog.getCommitsCount());
 
-        postStatus = git.getStatus(repo.getPath());
+        postStatus = git.getStatus(repo.getPath(), true);
         assertEquals(0, postStatus.files.size());
 
         git.reset(repo.getPath(), GitResetMode.HARD, null, preId);
 
-        initStatus = git.getStatus(repo.getPath());
+        initStatus = git.getStatus(repo.getPath(), true);
         assertEquals(0, initStatus.files.size());
 
         preLog = git.log(repo.getPath(), 5);

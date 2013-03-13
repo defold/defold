@@ -99,8 +99,8 @@ public class CachingBranchClient implements IBranchClient {
     }
 
     @Override
-    public BranchStatus getBranchStatus() throws RepositoryException {
-        return client.getBranchStatus();
+    public BranchStatus getBranchStatus(boolean fetch) throws RepositoryException {
+        return client.getBranchStatus(fetch);
     }
 
     @Override

@@ -18,7 +18,7 @@ public interface IProjectClient extends IClient {
     public BranchList getBranchList()
             throws RepositoryException;
 
-    public BranchStatus getBranchStatus(String branch)
+    public BranchStatus getBranchStatus(String branch, boolean fetch)
             throws RepositoryException;
 
     public void createBranch(String branch)

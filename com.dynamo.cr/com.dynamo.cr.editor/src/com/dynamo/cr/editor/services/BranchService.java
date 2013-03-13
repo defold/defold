@@ -66,7 +66,7 @@ public class BranchService implements IBranchService {
             return;
         }
 
-        BranchStatus branchStatus = client.getBranchStatus();
+        BranchStatus branchStatus = client.getBranchStatus(false);
 
         boolean autoStage = false;
         for (BranchStatus.Status status : branchStatus.getFileStatusList()) {
@@ -79,7 +79,7 @@ public class BranchService implements IBranchService {
         }
         if (autoStage) {
             client.autoStage();
-            branchStatus = client.getBranchStatus();
+            branchStatus = client.getBranchStatus(false);
         }
 
         for (BranchStatus.Status status : branchStatus.getFileStatusList()) {

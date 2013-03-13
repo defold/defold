@@ -228,7 +228,7 @@ public class JGit implements IGit, TransportConfigCallback {
     }
 
     @Override
-    public GitStatus getStatus(String directory) throws IOException {
+    public GitStatus getStatus(String directory, boolean fetch) throws IOException {
         /*
          * NOTE:
          * This method is.. strange..
@@ -365,8 +365,8 @@ public class JGit implements IGit, TransportConfigCallback {
         }
 
         GitStatus gitStatus = new GitStatus(0, 0);
-        gitStatus.commitsAhead = commitsAhead(directory);
-        gitStatus.commitsBehind = commitsBehind(directory);
+        gitStatus.commitsAhead = commitsAhead(directory, fetch);
+        gitStatus.commitsBehind = commitsBehind(directory, fetch);
 
         for (String file : statusMap.keySet()) {
             Entry entry = statusMap.get(file);
@@ -499,7 +499,7 @@ public class JGit implements IGit, TransportConfigCallback {
         builder.commit();
         locked.unlock();
 
-        GitStatus gitStatus = getStatus(directory);
+        GitStatus gitStatus = getStatus(directory, true);
         Entry entry = null;
         for (Entry e : gitStatus.files) {
             if (e.file.equals(file)) {
@@ -592,9 +592,11 @@ public class JGit implements IGit, TransportConfigCallback {
     }
 
     @Override
-    public int commitsAhead(String directory) throws IOException {
+    public int commitsAhead(String directory, boolean fetch) throws IOException {
         Git git = getGit(directory);
-        wrapCall(git.fetch().setTransportConfigCallback(this));
+        if (fetch) {
+            wrapCall(git.fetch().setTransportConfigCallback(this));
+        }
 
         ObjectId head = git.getRepository().resolve(Constants.HEAD);
         ObjectId originMaster = git.getRepository().resolve("origin/master");
@@ -612,9 +614,11 @@ public class JGit implements IGit, TransportConfigCallback {
     }
 
     @Override
-    public int commitsBehind(String directory) throws IOException {
+    public int commitsBehind(String directory, boolean fetch) throws IOException {
         Git git = getGit(directory);
-        wrapCall(git.fetch().setTransportConfigCallback(this));
+        if (fetch) {
+            wrapCall(git.fetch().setTransportConfigCallback(this));
+        }
 
         ObjectId head = git.getRepository().resolve(Constants.HEAD);
         ObjectId originMaster = git.getRepository().resolve("origin/master");

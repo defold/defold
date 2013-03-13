@@ -21,7 +21,7 @@ public interface IBranchClient extends IClient {
     public ResourceInfo getResourceInfo(String path)
             throws RepositoryException;
 
-    public BranchStatus getBranchStatus() throws RepositoryException;
+    public BranchStatus getBranchStatus(boolean fetch) throws RepositoryException;
 
     public void autoStage() throws RepositoryException;
 

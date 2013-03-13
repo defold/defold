@@ -100,9 +100,9 @@ public class LocalBranchClient implements IBranchClient {
     }
 
     @Override
-    public BranchStatus getBranchStatus() throws RepositoryException {
+    public BranchStatus getBranchStatus(boolean fetch) throws RepositoryException {
         try {
-            return branchRepository.getBranchStatus(project, user, branch);
+            return branchRepository.getBranchStatus(project, user, branch, fetch);
         } catch (Exception e) {
             throw new RepositoryException("Unable to get branch status", e);
         }
@@ -169,7 +169,7 @@ public class LocalBranchClient implements IBranchClient {
     public BranchStatus update() throws RepositoryException {
         try {
             branchRepository.updateBranch(project, user, branch);
-            return branchRepository.getBranchStatus(project, user, branch);
+            return branchRepository.getBranchStatus(project, user, branch, true);
         } catch (Exception e) {
             throw new RepositoryException(String.format("Unable to update branch '%s'", branch), e);
         }

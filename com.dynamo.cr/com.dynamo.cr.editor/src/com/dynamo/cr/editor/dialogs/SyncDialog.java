@@ -155,7 +155,7 @@ public class SyncDialog extends TitleAreaDialog {
 
     public BranchStatus updateBranchStatus() throws RepositoryException {
         IBranchClient branchClient = Activator.getDefault().getBranchClient();
-        this.branchStatus = branchClient.getBranchStatus();
+        this.branchStatus = branchClient.getBranchStatus(true);
         return this.branchStatus;
     }
 
@@ -943,7 +943,7 @@ public class SyncDialog extends TitleAreaDialog {
                             branchClient.commitMerge(message.toString());
                         }
                         if (!cancelled) {
-                            final BranchStatus status = branchClient.getBranchStatus();
+                            final BranchStatus status = branchClient.getBranchStatus(true);
                             Display.getDefault().asyncExec(new Runnable() {
 
                                 @Override

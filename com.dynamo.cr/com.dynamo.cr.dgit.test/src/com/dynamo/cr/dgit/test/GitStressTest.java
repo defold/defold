@@ -117,10 +117,10 @@ public class GitStressTest {
                 stage();
                 commit();
             }
-            GitStatus status = this.git.getStatus(this.repo);
+            GitStatus status = this.git.getStatus(this.repo, true);
             while (status.commitsBehind > 0) {
                 pullAndResolve();
-                status = this.git.getStatus(this.repo);
+                status = this.git.getStatus(this.repo, true);
             }
             if (status.commitsAhead > 0) {
                 while (true) {
@@ -148,7 +148,7 @@ public class GitStressTest {
 
         private void stage() throws IOException {
             // TODO see saveData
-            GitStatus status = this.git.getStatus(this.repo);
+            GitStatus status = this.git.getStatus(this.repo, true);
             for (GitStatus.Entry entry : status.files) {
                 char w = entry.workingTreeStatus;
                 if (w == 'D') {
@@ -160,7 +160,7 @@ public class GitStressTest {
         }
 
         private void resolve() throws IOException {
-            GitStatus status = this.git.getStatus(this.repo);
+            GitStatus status = this.git.getStatus(this.repo, true);
             for (GitStatus.Entry entry : status.files) {
                 int i = this.rand.nextInt(2);
                 if (i == 0) {
