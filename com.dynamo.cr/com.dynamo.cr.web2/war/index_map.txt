@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/in_place_game_objects_release_1_2_16.html
 /blog/rotating_particles_release_1_2_15.html
 /blog/fix_for_broken_resolve_release_1_2_14.html
 /blog/more_fixes_release_1_2_13.html

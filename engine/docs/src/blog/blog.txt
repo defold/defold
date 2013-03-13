@@ -1,5 +1,34 @@
 :max-width: 45em
 
+In-place Game Objects (Release 1.2.16)
+--------------------------------------
+_March 13, 2013_
+
+We have just released 1.2.16 which features in-place game objects, support for Windows 8 and other nice fixes.
+Let's start with the game objects.
+
+In-place Game Objects
+~~~~~~~~~~~~~~~~~~~~~
+
+We have added the feature to add game objects to collections in-place, meaning that a separate .go file is not necessary.
+This makes prototyping a lot smoother.
+The shortcut keys to add game objects have hence changed, we now have *I* for adding game objects in-place and *Shift+I* to add them as a reference.
+Similarly adding collection references (sub collections) has been changed to *Shift+O*.
+
+We have also exposed link:/doc/script_properties[script properties] in sub collections, so it's even easier to reuse your scripts.
+This is a very powerful feature, so make sure you check it out.
+To facilitate selection, you can now select different objects with the arrow-keys, similar to how Maya works.
+
+Other fixes
+~~~~~~~~~~~
+
+* We now have initial beta support for Windows 8
+* Fix for the periodic lag happening on Windows, typically when booting the game or reloading resources
+* Texture problem occurring on OSX with AMD
+* Looping particle systems are automatically stopped when the containing game object is deleted
+* All nodes that references a file can now be double-clicked in the Outline view to open the related file
+* Optimization when having plenty of kinematic collision objects
+
 Rotating Particles (Release 1.2.15)
 -----------------------------------
 _February 25, 2013_
