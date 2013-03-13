@@ -677,13 +677,10 @@ namespace dmGameSystem
         {
             g_ContactOverflowWarning = false;
         }
-        if (physics_context->m_Debug)
-        {
-            if (physics_context->m_3D)
-                dmPhysics::DrawDebug3D(world->m_World3D);
-            else
-                dmPhysics::DrawDebug2D(world->m_World2D);
-        }
+        if (physics_context->m_3D)
+            dmPhysics::SetDrawDebug3D(world->m_World3D, physics_context->m_Debug);
+        else
+            dmPhysics::SetDrawDebug2D(world->m_World2D, physics_context->m_Debug);
         return result;
     }
 
