@@ -1,6 +1,7 @@
 package com.dynamo.cr.properties.descriptors;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.eclipse.core.commands.operations.IUndoableOperation;
@@ -112,7 +113,13 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                     for (Object o : models[0].getPropertyOptions(getId())) {
                         lst.add(o.toString());
                     }
-                    combo.setItems(lst.toArray(new String[lst.size()]));
+                    String[] newValues = lst.toArray(new String[lst.size()]);
+                    String[] values = combo.getItems();
+
+                    // Updating the combo is expensive on GTK (at least) so check if necessary first
+                    if (!Arrays.equals(newValues, values)) {
+                        combo.setItems(newValues);
+                    }
                 } else {
                     combo.setItems(new String[] {});
                 }
