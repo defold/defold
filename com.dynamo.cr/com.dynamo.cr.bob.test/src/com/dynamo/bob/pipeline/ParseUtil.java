@@ -10,6 +10,7 @@ import com.dynamo.bob.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 
@@ -38,6 +39,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return PrototypeDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("spritec", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return SpriteDesc.parseFrom(content);
             }
         });
     }

@@ -25,6 +25,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.google.protobuf.Message;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
@@ -429,5 +430,44 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(instances.containsKey("/go"));
 
         PrototypeDesc proto0 = (PrototypeDesc)messages.get(1);
+    }
+
+    /**
+     * Test that embedded instance with embedded components are properly built.
+     * Structure:
+     * - go [emb_instance]
+     *   - sprite [emb_component]
+     * @throws Exception
+     */
+    @Test
+    public void testEmbeddedInstanceEmbeddedComponent() throws Exception {
+        addFile("/test.atlas", "");
+
+        StringBuilder spriteSrc = new StringBuilder();
+        spriteSrc.append("tile_set: \"/test.atlas\"\n");
+        spriteSrc.append("default_animation: \"\"\n");
+
+        StringBuilder goSrc = new StringBuilder();
+        goSrc.append("embedded_components {\n");
+        goSrc.append("  id: \"sprite\"\n");
+        goSrc.append("  type: \"sprite\"\n");
+        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
+        goSrc.append("}\n");
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"go\"\n");
+        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
+        src.append("}\n");
+
+        List<Message> messages = build("/test.collection", src.toString());
+        Assert.assertEquals(3, messages.size());
+
+        CollectionDesc collection = (CollectionDesc)messages.get(0);
+        Assert.assertEquals(1, collection.getInstancesCount());
+        PrototypeDesc go = (PrototypeDesc)messages.get(1);
+        Assert.assertEquals(1, go.getComponentsCount());
+        SpriteDesc sprite = (SpriteDesc)messages.get(2);
     }
 }
