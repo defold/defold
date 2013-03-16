@@ -152,56 +152,56 @@ static void LogFrameBufferError(GLenum status)
     {
 #ifdef GL_FRAMEBUFFER_UNDEFINED
         case GL_FRAMEBUFFER_UNDEFINED:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_UNDEFINED, "GL_FRAMEBUFFER_UNDEFINED");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_UNDEFINED, "GL_FRAMEBUFFER_UNDEFINED");
             break;
 #endif
         case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
             break;
         case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT, "GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
             break;
 // glDrawBuffer() not available in ES 2.0
 #ifdef GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER
         case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER");
             break;
 #endif
 
 // glReadBuffer() not available in ES 2.0
 #ifdef GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER
         case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER, "GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER");
             break;
 #endif
 
         case GL_FRAMEBUFFER_UNSUPPORTED:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_UNSUPPORTED, "GL_FRAMEBUFFER_UNSUPPORTED");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_UNSUPPORTED, "GL_FRAMEBUFFER_UNSUPPORTED");
             break;
 
 #ifdef GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE
         case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE");
             break;
 #endif
 
 #ifdef GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE
         case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE, "GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_APPLE");
             break;
 #endif
 
 
 #ifdef GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT
         case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT, "GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS_EXT");
             break;
 #endif
 
 
 #ifdef GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS
         case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS:
-            dmLogError("gl error %d: %sn", GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS, "GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS");
+            dmLogError("gl error %d: %s", GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS, "GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS");
             break;
 #endif
 
@@ -217,6 +217,7 @@ static void LogFrameBufferError(GLenum status)
         if (status != GL_FRAMEBUFFER_COMPLETE) \
         { \
             LogFrameBufferError(status);\
+            assert(false);\
         } \
     } \
 
@@ -1078,10 +1079,9 @@ static void LogFrameBufferError(GLenum status)
 #endif
         }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		CHECK_GL_FRAMEBUFFER_ERROR
+		glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR
-
-        CHECK_GL_FRAMEBUFFER_ERROR
 
         return rt;
     }
@@ -1107,7 +1107,7 @@ static void LogFrameBufferError(GLenum status)
 
     void DisableRenderTarget(HContext context, HRenderTarget render_target)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR
         CHECK_GL_FRAMEBUFFER_ERROR
     }
@@ -1290,7 +1290,14 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_DEPTH:
             gl_format = GL_DEPTH_COMPONENT;
             internal_format = GL_DEPTH_COMPONENT;
+// TODO: Depth precision should be configurable from render.render_target
+// Note that GL_FLOAT isn't supported on current iOS devices
+// See case 2064
+#ifdef GL_ES_VERSION_2_0
+            gl_type = GL_UNSIGNED_INT;
+#else
             gl_type = GL_FLOAT;
+#endif
             break;
         default:
             assert(0);
@@ -1322,6 +1329,9 @@ static void LogFrameBufferError(GLenum status)
             assert(0);
             break;
         }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        CHECK_GL_ERROR
     }
 
     uint16_t GetTextureWidth(HTexture texture)

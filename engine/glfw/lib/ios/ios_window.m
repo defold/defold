@@ -262,6 +262,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     _glfwWin.width = backingWidth;
     _glfwWin.height = backingHeight;
+    _glfwWin.frameBuffer = viewFramebuffer;
 
     if (_glfwWin.windowSizeCallback)
     {
@@ -580,6 +581,11 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
 void _glfwPlatformCloseWindow( void )
 {
+}
+
+int _glfwPlatformGetDefaultFramebuffer( )
+{
+    return _glfwWin.frameBuffer;
 }
 
 //========================================================================

@@ -1008,6 +1008,11 @@ void _glfwPlatformCloseWindow( void )
     }
 }
 
+int _glfwPlatformGetDefaultFramebuffer( )
+{
+    return 0;
+}
+
 //========================================================================
 // Set the window title
 //========================================================================

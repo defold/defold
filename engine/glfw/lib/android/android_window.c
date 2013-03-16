@@ -158,6 +158,11 @@ void _glfwPlatformCloseWindow( void )
     _glfwWin.surface = EGL_NO_SURFACE;
 }
 
+int _glfwPlatformGetDefaultFramebuffer( )
+{
+    return 0;
+}
+
 //========================================================================
 // Set the window title
 //========================================================================
