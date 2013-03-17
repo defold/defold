@@ -142,7 +142,7 @@ public class ColladaUtil {
 
                 float u, v;
 
-                if (normals == null) {
+                if (normals == null || texcoords == null) {
                     u  = v  = 0;
                 } else {
                     idx = i * stride * 3 + texcoord_input.offset;

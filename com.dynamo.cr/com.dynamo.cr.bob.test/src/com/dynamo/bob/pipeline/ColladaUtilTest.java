@@ -42,6 +42,38 @@ public class ColladaUtilTest {
         assertUV(uvs, 5, 1, 1);
     }
 
+    @Test
+    public void testBlenderPolylistQuad() throws Exception {
+        Mesh mesh = ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"));
+
+        FloatBuffer pos = mesh.getPositions();
+        FloatBuffer nrm = mesh.getNormals();
+        FloatBuffer uvs = mesh.getTexcoord0();
+        assertThat(2 * 3 * 3, is(pos.capacity()));
+        assertThat(2 * 3 * 3, is(nrm.capacity()));
+
+        assertVtx(pos, 0, -100, -100);
+        assertVtx(pos, 1, 100, -100);
+        assertVtx(pos, 2, 100, 100);
+        assertVtx(pos, 3, -100, -100);
+        assertVtx(pos, 4, 100, 100);
+        assertVtx(pos, 5, -100, 100);
+
+        assertNrm(nrm, 0, 0, 0, 1);
+        assertNrm(nrm, 1, 0, 0, 1);
+        assertNrm(nrm, 2, 0, 0, 1);
+        assertNrm(nrm, 3, 0, 0, 1);
+        assertNrm(nrm, 4, 0, 0, 1);
+        assertNrm(nrm, 5, 0, 0, 1);
+
+        assertUV(uvs, 0, 0, 0);
+        assertUV(uvs, 1, 0, 0);
+        assertUV(uvs, 2, 0, 0);
+        assertUV(uvs, 3, 0, 0);
+        assertUV(uvs, 4, 0, 0);
+        assertUV(uvs, 5, 0, 0);
+    }
+
     private void assertVtx(FloatBuffer pos, int i, double xe, double ye) {
         float x = 100 * pos.get(i * 3 + 0);
         float y = 100 * pos.get(i * 3 + 1);

@@ -30,6 +30,7 @@
 package org.jagatoo.loaders.models.collada.stax;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.Location;
@@ -66,16 +67,16 @@ public class XMLTriangles
     public ArrayList< XMLInput > inputs = new ArrayList< XMLInput >();
     public int[] p = null;
 
-    public void parse( XMLStreamReader parser ) throws XMLStreamException
+    public void parse( XMLStreamReader parser, boolean polyList ) throws XMLStreamException
     {
-        doParsing( parser );
+        doParsing( parser, polyList );
 
         Location loc = parser.getLocation();
         if ( count == -1 )
             JAGTLog.exception( loc.getLineNumber(), ":", loc.getColumnNumber(), " ", this.getClass().getSimpleName(), ": missing count attribute." );
     }
 
-    private void doParsing( XMLStreamReader parser ) throws XMLStreamException
+    private void doParsing( XMLStreamReader parser, boolean polyList ) throws XMLStreamException
     {
         for ( int i = 0; i < parser.getAttributeCount(); i++ )
         {
@@ -96,7 +97,9 @@ public class XMLTriangles
 
         // DYNAMO: Buffering fix
         boolean parsing_triangles = false;
+        boolean parsing_vcount = false;
         StringBuffer triangles_buffer = new StringBuffer();
+        StringBuffer vcount_buffer = new StringBuffer();
         for ( int event = parser.next(); event != XMLStreamConstants.END_DOCUMENT; event = parser.next() )
         {
             switch ( event )
@@ -109,15 +112,21 @@ public class XMLTriangles
                         input.parse( parser );
                         inputs.add( input );
                         parsing_triangles = false;
+                        parsing_vcount = false;
                     }
                     else if ( parser.getLocalName().equals( "p" ) )
                     {
                         //triangles_buffer.append(StAXHelper.parseText( parser ));
                         parsing_triangles = true;
                     }
+                    else if ( parser.getLocalName().equals( "vcount" ) )
+                    {
+                        parsing_vcount = true;
+                    }
                     else
                     {
                         parsing_triangles = false;
+                        parsing_vcount = false;
                         JAGTLog.exception( "Unsupported ", this.getClass().getSimpleName(), " Start tag: ", parser.getLocalName() );
                     }
                     break;
@@ -126,6 +135,8 @@ public class XMLTriangles
                 {
                     if (parsing_triangles)
                         triangles_buffer.append(parser.getText());
+                    else if (parsing_vcount)
+                        vcount_buffer.append(parser.getText());
                     break;
                 }
 
@@ -134,6 +145,44 @@ public class XMLTriangles
                     if ( parser.getLocalName().equals( "triangles" ) )
                     {
                         p = XMLIntArray.toArray(triangles_buffer.toString());
+                        return;
+                    }
+                    else if ( parser.getLocalName().equals( "polylist" ) )
+                    {
+                        p = XMLIntArray.toArray(triangles_buffer.toString());
+                        int[] vcount = XMLIntArray.toArray(vcount_buffer.toString());
+                        int totalVertexCount = 0;
+                        for (int vc : vcount) {
+                            totalVertexCount += vc;
+                        }
+                        int elementsPerVertex = p.length / totalVertexCount;
+
+                        List<Integer> trianglesP = new ArrayList<Integer>(1024);
+
+                        int base = 0;
+                        for (int vc : vcount) {
+                            for (int j = 0; j < vc - 2; ++j) {
+                                for (int i = 0; i < elementsPerVertex; ++i) {
+                                    trianglesP.add(p[base + 0 * elementsPerVertex + i]);
+                                }
+                                for (int i = 0; i < elementsPerVertex; ++i) {
+                                    trianglesP.add(p[base + (j + 1) * elementsPerVertex + i]);
+                                }
+                                for (int i = 0; i < elementsPerVertex; ++i) {
+                                    trianglesP.add(p[base + (j + 2) * elementsPerVertex + i]);
+                                }
+                            }
+                            base += vc * elementsPerVertex;
+                        }
+
+                        int[] pPrim = new int[trianglesP.size()];
+                        for (int i = 0; i < pPrim.length; i++) {
+                            pPrim[i] = trianglesP.get(i);
+                        }
+
+                        count = pPrim.length / (3 * elementsPerVertex);
+
+                        p = pPrim;
                         return;
                     }
                     break;
