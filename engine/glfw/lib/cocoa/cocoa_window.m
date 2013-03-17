@@ -695,6 +695,11 @@ void _glfwPlatformCloseWindow( void )
     // TODO: Probably more cleanup
 }
 
+int _glfwPlatformGetDefaultFramebuffer( )
+{
+    return 0;
+}
+
 //========================================================================
 // Set the window title
 //========================================================================
