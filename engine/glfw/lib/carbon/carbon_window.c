@@ -1291,3 +1291,8 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
 	return 0;
 }
+
+int _glfwPlatformGetDefaultFramebuffer( )
+{
+    return 0;
+}
