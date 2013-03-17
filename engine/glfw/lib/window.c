@@ -686,6 +686,10 @@ GLFWAPI void GLFWAPIENTRY glfwCloseWindow( void )
     memset( &_glfwWin, 0, sizeof(_glfwWin) );
 }
 
+GLFWAPI int GLFWAPIENTRY glfwGetDefaultFramebuffer( void )
+{
+    return _glfwPlatformGetDefaultFramebuffer();
+}
 
 //========================================================================
 // Set the window title

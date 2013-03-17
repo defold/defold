@@ -132,6 +132,7 @@ struct _GLFWwin_struct {
     id        delegate;
     id        view;
     unsigned int modifierFlags;
+    int       frameBuffer;
 
     // Misc
     jmp_buf   bailEventLoopBuf;
