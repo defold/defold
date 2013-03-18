@@ -1,5 +1,14 @@
 :max-width: 45em
 
+Tiny graphics update (Release 1.2.17)
+-------------------------------------
+_March 18, 2013_
+
+Release 1.2.17 is out with two smaller graphics fixes:
+
+* We now support Collada-models exported from Blender.
+* Offscreen render targets can now be used on iOS devices.
+
 In-place Game Objects (Release 1.2.16)
 --------------------------------------
 _March 13, 2013_
