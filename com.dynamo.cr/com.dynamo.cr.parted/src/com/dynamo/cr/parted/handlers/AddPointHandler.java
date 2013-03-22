@@ -22,7 +22,7 @@ import com.dynamo.cr.parted.views.ParticleFXCurveEditorPage;
 
 public class AddPointHandler extends AbstractHandler implements IElementUpdater {
 
-    public static final String COMMAND_ID = "com.dynamo.cr.sceneed.ui.commands.add";
+    public static final String COMMAND_ID = "com.dynamo.cr.sceneed.ui.commands.addPrimary";
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
