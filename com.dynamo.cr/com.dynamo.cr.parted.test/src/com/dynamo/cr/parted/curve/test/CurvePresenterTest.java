@@ -145,6 +145,10 @@ public class CurvePresenterTest {
         select(points);
     }
 
+    private void selectNone() {
+        select(new int[][] {});
+    }
+
     private void hideCurve(int curveIndex) {
         when(this.curveProvider.isEnabled(curveIndex)).thenReturn(false);
     }
@@ -464,6 +468,24 @@ public class CurvePresenterTest {
 
     @Test
     public void testSelectionOverlayedPoints() {
+        // Move first point on top of first point of second curve
+        select(new int[][] {{0, 0}});
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        this.presenter.onDrag(new Point2d(0.0, 1.5));
+        this.presenter.onEndDrag();
+
+        // deselect
+        selectNone();
+
+        // Click first point of second curve
+        this.presenter.onStartDrag(new Point2d(0.0, 1.5), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        this.presenter.onEndDrag();
+
+        verifySelection(new int[][] {{0, 0}});
+    }
+
+    @Test
+    public void testSelectionOverlayedPointsSelectedCurve() {
         // Move first point on top of first point of second curve
         select(new int[][] {{0, 0}});
         this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);

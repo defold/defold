@@ -495,7 +495,8 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
                 }
             }
             if (!foundPoint) {
-                setSelection(select(points));
+                // Select the first of the hit points
+                setSelection(select(new int[][] {points[0]}));
             }
             startMoveSelection();
         } else {
