@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -267,10 +268,12 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
         history.addOperationHistoryListener(this);
         curveEditor = new CurveViewer(composite, SWT.NONE, JFaceResources.getColorRegistry());
         curveEditor.setLayoutData(new GridData(GridData.FILL_BOTH));
-        curveEditor.setProvider(new Provider());
+        ICurveProvider provider = new Provider();
+        curveEditor.setProvider(provider);
         curveEditor.setContentProvider(new ArrayContentProvider());
         curveEditor.setColorProvider(new ColorProvider());
         curveEditor.setPresenter(this.presenter);
+        this.presenter.setCurveProvider(provider);
         // Pop-up context menu
         MenuManager menuManager = new MenuManager();
         menuManager.add(new Separator(IWorkbenchActionConstants.MB_ADDITIONS));
@@ -422,6 +425,27 @@ public class ParticleFXCurveEditorPage implements ICurveView, IPageBookViewPage,
             hidden.remove(element);
         } else {
             hidden.add(element);
+            // deselect
+            int index = -1;
+            for (int i = 0; i < this.input.length; ++i) {
+                if (this.input[i].equals(element)) {
+                    index = i;
+                    break;
+                }
+            }
+            ISelection selection = this.presenter.getSelection();
+            if (selection instanceof ITreeSelection) {
+                ITreeSelection tree = (ITreeSelection)selection;
+                List<TreePath> paths = new ArrayList<TreePath>(Arrays.asList(tree.getPaths()));
+                Iterator<TreePath> pathIt = paths.iterator();
+                while (pathIt.hasNext()) {
+                    if (pathIt.next().getFirstSegment().equals(index)) {
+                        pathIt.remove();
+                    }
+                }
+                tree = new TreeSelection(paths.toArray(new TreePath[paths.size()]));
+                this.presenter.setSelection(tree);
+            }
         }
         this.curveEditor.redraw();
     }

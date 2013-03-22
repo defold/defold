@@ -5,7 +5,9 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +32,7 @@ import org.junit.Test;
 import com.dynamo.cr.editor.core.operations.MergeableDelegatingOperationHistory;
 import com.dynamo.cr.parted.curve.CurvePresenter;
 import com.dynamo.cr.parted.curve.HermiteSpline;
+import com.dynamo.cr.parted.curve.ICurveProvider;
 import com.dynamo.cr.parted.curve.ICurveView;
 import com.dynamo.cr.parted.curve.SplinePoint;
 import com.dynamo.cr.parted.operations.InsertPointOperation;
@@ -69,6 +72,7 @@ public class CurvePresenterTest {
     }
 
     private ICurveView view;
+    private ICurveProvider curveProvider;
     private CurvePresenter presenter;
     private DummyNode node;
     private IPropertyModel<Node, IPropertyObjectWorld> model;
@@ -92,6 +96,8 @@ public class CurvePresenterTest {
     @Before
     public void setup() {
         this.view = mock(ICurveView.class);
+        this.curveProvider = mock(ICurveProvider.class);
+        when(this.curveProvider.isEnabled(anyInt())).thenReturn(true);
         this.history = new MergeableDelegatingOperationHistory(new DefaultOperationHistory());
         this.undoContext = new UndoContext();
         this.historyListener = new HistoryListener();
@@ -100,6 +106,7 @@ public class CurvePresenterTest {
         Injector injector = Guice.createInjector(new Module());
 
         this.presenter = (CurvePresenter)injector.getInstance(ICurveView.IPresenter.class);
+        this.presenter.setCurveProvider(this.curveProvider);
         this.node = new DummyNode();
         this.model = (IPropertyModel<Node, IPropertyObjectWorld>)this.node.getAdapter(IPropertyModel.class);
         this.presenter.setModel(model);
@@ -136,6 +143,10 @@ public class CurvePresenterTest {
             points[i] = new int[] {curveIndex, i};
         }
         select(points);
+    }
+
+    private void hideCurve(int curveIndex) {
+        when(this.curveProvider.isEnabled(curveIndex)).thenReturn(false);
     }
 
     private void verifyCommandDone(Class<? extends IUndoableOperation> operationClass) {
@@ -388,6 +399,15 @@ public class CurvePresenterTest {
     }
 
     @Test
+    public void testSelectClickHidden() {
+        hideCurve(0);
+        this.presenter.onStartDrag(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifyNoSelection();
+        this.presenter.onEndDrag();
+        verifyNoSelection();
+    }
+
+    @Test
     public void testSelectClickSecond() {
         this.presenter.onStartDrag(new Point2d(0.0, 1.5), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifySelection(new int[][] {{1, 0}});
@@ -406,6 +426,17 @@ public class CurvePresenterTest {
     }
 
     @Test
+    public void testSelectBoxHidden() {
+        hideCurve(0);
+        this.presenter.onStartDrag(new Point2d(-1.0, -1.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
+        verifyNoSelection();
+        this.presenter.onDrag(new Point2d(1.0, 1.0));
+        verifyNoSelection();
+        this.presenter.onEndDrag();
+        verifyNoSelection();
+    }
+
+    @Test
     public void testEmptySelection() {
         this.presenter.onStartDrag(new Point2d(0.0, 1.0), SCREEN_SCALE, SCREEN_DRAG_PADDING, SCREEN_HIT_PADDING, SCREEN_TANGENT_LENGTH);
         verifyNoSelection();
@@ -421,6 +452,14 @@ public class CurvePresenterTest {
         verifyCommandDone(InsertPointOperation.class);
         this.presenter.onSelectAll();
         verifySelection(new int[][] {{0, 0}, {0, 1}, {0, 2}, {1, 0}, {1, 1}});
+    }
+
+    @Test
+    public void testSelectAllHidden() {
+        hideCurve(0);
+        hideCurve(1);
+        this.presenter.onSelectAll();
+        verifyNoSelection();
     }
 
     @Test
@@ -487,9 +526,23 @@ public class CurvePresenterTest {
     }
 
     @Test
+    public void testPickPointHidden() {
+        hideCurve(0);
+        this.presenter.onPickSelect(new Point2d(0.0, 0.0), SCREEN_SCALE, SCREEN_HIT_PADDING);
+        verifyNoSelection();
+    }
+
+    @Test
     public void testPickCurve() {
         selectCurveAllPoints(1);
         this.presenter.onPickSelect(new Point2d(0.2, 0.2), SCREEN_SCALE, SCREEN_HIT_PADDING);
         verifySelection(new int[][] {{0}});
+    }
+
+    @Test
+    public void testPickCurveHidden() {
+        hideCurve(0);
+        this.presenter.onPickSelect(new Point2d(0.2, 0.2), SCREEN_SCALE, SCREEN_HIT_PADDING);
+        verifyNoSelection();
     }
 }

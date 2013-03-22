@@ -59,6 +59,7 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] input = new IPropertyDesc[0];
     @SuppressWarnings("unchecked")
     private IPropertyDesc<Node, ? extends IPropertyObjectWorld>[] oldInput = new IPropertyDesc[0];
+    ICurveProvider curveProvider = null;
 
     private enum DragMode {
         SELECT,
@@ -67,7 +68,6 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
     };
     private DragMode dragMode = DragMode.SELECT;
     private List<Point2d> originalPositions = new ArrayList<Point2d>();
-    private ISelection originalSelection = new TreeSelection();
     private ISelection selection = new TreeSelection();
     private Point2d dragStart = new Point2d();
     private Vector2d minDragExtents = new Vector2d();
@@ -79,6 +79,10 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
         this.oldPropertyModel = this.propertyModel;
         this.propertyModel = model;
         updateInput();
+    }
+
+    public void setCurveProvider(ICurveProvider curveProvider) {
+        this.curveProvider = curveProvider;
     }
 
     @Override
@@ -235,6 +239,9 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
         List<int[]> points = new ArrayList<int[]>();
         // Select points
         for (int i = 0; i < this.input.length; ++i) {
+            if (!this.curveProvider.isEnabled(i)) {
+                continue;
+            }
             HermiteSpline spline = getCurve(i);
             for (int j = 0; j < spline.getCount(); ++j) {
                 SplinePoint point = spline.getPoint(j);
@@ -256,6 +263,9 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
         int closestIndex = -1;
         double closestDistance = Double.MAX_VALUE;
         for (int i = 0; i < this.input.length; ++i) {
+            if (!this.curveProvider.isEnabled(i)) {
+                continue;
+            }
             HermiteSpline spline = getCurve(i);
             Point2d p0 = new Point2d(min.getX(), spline.getY(min.getX()));
             Point2d p1 = new Point2d(max.getX(), spline.getY(max.getX()));
@@ -417,7 +427,6 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
         invScreenScale.absolute();
         this.dragStart.set(start);
         this.dragMode = DragMode.SELECT;
-        this.originalSelection = this.selection;
         this.minDragExtents.scale(screenDragPadding, invScreenScale);
         this.hitBoxExtents.scale(screenHitPadding, invScreenScale);
         this.dragging = false;
@@ -608,7 +617,6 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
                 this.view.setSelectionBox(new Point2d(), new Point2d());
                 break;
             }
-            this.originalSelection = null;
         }
         this.view.refresh();
     }
@@ -618,6 +626,9 @@ public class CurvePresenter extends EventManager implements IPresenter, ISelecti
         List<int[]> points = new ArrayList<int[]>();
         int curveCount = this.input.length;
         for (int i = 0; i < curveCount; ++i) {
+            if (!this.curveProvider.isEnabled(i)) {
+                continue;
+            }
             HermiteSpline spline = getCurve(i);
             int pointCount = spline.getCount();
             for (int j = 0; j < pointCount; ++j) {
