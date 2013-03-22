@@ -341,7 +341,7 @@ public class CurveViewer extends Canvas implements PaintListener,
             int x = (int) toScreenX(p.getX());
             int y = (int) toScreenY(p.getY());
             // Draw tangent
-            if (selectedCurve) {
+            if (selected) {
                 Vector2d screenTangent = new Vector2d(p.getTx() * getPlotWidth(), p.getTy() * -zoomY);
                 screenTangent.normalize();
                 screenTangent.scale(SCREEN_TANGENT_LENGTH);
