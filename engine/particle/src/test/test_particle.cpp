@@ -166,16 +166,18 @@ struct RenderData
 {
     void* m_Material;
     void* m_Texture;
+    Vectormath::Aos::Matrix4 m_WorldTransform;
     dmParticleDDF::BlendMode m_BlendMode;
     uint32_t m_VertexIndex;
     uint32_t m_VertexCount;
 };
 
-void RenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
+void RenderInstanceCallback(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
 {
     RenderData* data = (RenderData*)usercontext;
     data->m_Material = material;
     data->m_Texture = texture;
+    data->m_WorldTransform = world;
     data->m_BlendMode = blendMode;
     data->m_VertexIndex = vertex_index;
     data->m_VertexCount = vertex_count;
@@ -212,7 +214,7 @@ dmParticle::FetchAnimationResult FailFetchAnimationCallback(void* tile_source, d
     return dmParticle::FETCH_ANIMATION_NOT_FOUND;
 }
 
-void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
+void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
 {
     // Trash data to verify that this function is not called
     RenderData* data = (RenderData*)usercontext;
@@ -1421,7 +1423,7 @@ TEST_F(ParticleTest, case1544)
     ASSERT_TRUE(LoadPrototype("modifier_crash.particlefxc", &m_Prototype));
 }
 
-void RenderConstantRenderInstanceCallback(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
+void RenderConstantRenderInstanceCallback(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
 {
     std::map<dmhash_t, Vector4>* render_constants = (std::map<dmhash_t, Vector4>*)usercontext;
     for (uint32_t i = 0; i < constant_count; ++i)

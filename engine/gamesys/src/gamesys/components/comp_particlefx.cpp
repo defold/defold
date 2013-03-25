@@ -135,7 +135,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    void RenderInstanceCallback(void* render_context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
+    void RenderInstanceCallback(void* render_context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
@@ -363,7 +363,7 @@ namespace dmGameSystem
         }
     }
 
-    void RenderInstanceCallback(void* context, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
+    void RenderInstanceCallback(void* context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
     {
         // TODO currently one render object per emitter, should be batched better
         // https://defold.fogbugz.com/default.asp?1815
@@ -379,6 +379,7 @@ namespace dmGameSystem
             ro.m_VertexDeclaration = world->m_VertexDeclaration;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro.m_CalculateDepthKey = 1;
+            ro.m_WorldTransform = world_transform;
             ro.m_SetBlendFactors = 1;
             SetBlendFactors(&ro, blend_mode);
             SetRenderConstants(&ro, constants, constant_count);

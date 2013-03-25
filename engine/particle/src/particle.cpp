@@ -1282,7 +1282,9 @@ namespace dmParticle
         }
     }
 
-    void Render(HContext context, void* usercontext, RenderInstanceCallback render_emitter_callback)
+    void RenderEmitter(Instance* instance, uint32_t emitter_index, void* usercontext, RenderEmitterCallback render_emitter_callback);
+
+    void Render(HContext context, void* usercontext, RenderEmitterCallback render_emitter_callback)
     {
         DM_PROFILE(Particle, "Render");
 
@@ -1299,11 +1301,7 @@ namespace dmParticle
                 uint32_t emitter_count = instance->m_Emitters.Size();
                 for (uint32_t j = 0; j < emitter_count; ++j)
                 {
-                    Emitter* emitter = &instance->m_Emitters[j];
-                    if (!emitter || emitter->m_VertexCount == 0) continue;
-
-                    dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[j];
-                    render_emitter_callback(usercontext, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
+                    RenderEmitter(instance, j, usercontext, render_emitter_callback);
                 }
             }
         }
@@ -1549,6 +1547,39 @@ namespace dmParticle
         return prototype->m_Emitters.Size();
     }
 
+    void RenderEmitter(HContext context, HInstance instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_instance_callback)
+    {
+        Instance* inst = GetInstance(context, instance);
+        if (inst != 0x0 && emitter_index < inst->m_Emitters.Size())
+        {
+            RenderEmitter(GetInstance(context, instance), emitter_index, user_context, render_instance_callback);
+        }
+        else if (inst == 0x0)
+        {
+            dmLogError("The particlefx instance could not be found when rendering.");
+        }
+        else
+        {
+            dmLogError("The particlefx emitter could not be found when rendering.");
+        }
+    }
+
+    void RenderEmitter(Instance* instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_emitter_callback)
+    {
+        Emitter* emitter = &instance->m_Emitters[emitter_index];
+        if (!emitter || emitter->m_VertexCount == 0) return;
+
+        dmParticleDDF::Emitter* ddf = &instance->m_Prototype->m_DDF->m_Emitters[emitter_index];
+        dmTransform::TransformS1 transform(Vector3(ddf->m_Position), ddf->m_Rotation, 1.0f);
+        if (instance->m_ScaleAlongZ)
+            transform = dmTransform::Mul(instance->m_WorldTransform, transform);
+        else
+            transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, transform);
+        Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
+        dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[emitter_index];
+        render_emitter_callback(user_context, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, world, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
+    }
+
     const char* GetMaterialPath(HPrototype prototype, uint32_t emitter_index)
     {
         return prototype->m_DDF->m_Emitters[emitter_index].m_Material;
@@ -1714,13 +1745,14 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HContext, HInstance);
     DM_PARTICLE_TRAMPOLINE6(void, Update, HContext, float, void*, uint32_t, uint32_t*, FetchAnimationCallback);
-    DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderInstanceCallback);
+    DM_PARTICLE_TRAMPOLINE3(void, Render, HContext, void*, RenderEmitterCallback);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DeletePrototype, HPrototype);
     DM_PARTICLE_TRAMPOLINE3(bool, ReloadPrototype, HPrototype, const void*, uint32_t);
 
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetEmitterCount, HPrototype);
+    DM_PARTICLE_TRAMPOLINE5(void, RenderEmitter, HContext, HInstance, uint32_t, void*, RenderEmitterCallback);
     DM_PARTICLE_TRAMPOLINE2(const char*, GetMaterialPath, HPrototype, uint32_t);
     DM_PARTICLE_TRAMPOLINE2(const char*, GetTileSourcePath, HPrototype, uint32_t);
     DM_PARTICLE_TRAMPOLINE2(void*, GetMaterial, HPrototype, uint32_t);

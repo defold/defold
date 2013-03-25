@@ -3,6 +3,8 @@ package com.dynamo.cr.parted;
 import java.nio.Buffer;
 import java.nio.FloatBuffer;
 
+import javax.vecmath.Matrix4d;
+
 import com.sun.jna.Callback;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
@@ -15,7 +17,7 @@ public class ParticleLibrary {
     }
 
     public interface RenderInstanceCallback extends Callback {
-        void invoke(Pointer userContext, Pointer material, Pointer texture, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount);
+        void invoke(Pointer userContext, Pointer material, Pointer texture, Matrix4 worldTransform, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount);
     }
 
     public interface FetchAnimationCallback extends Callback {
@@ -60,7 +62,7 @@ public class ParticleLibrary {
             int vertexBufferSize,
             IntByReference outVertexBufferSize, FetchAnimationCallback callback);
 
-    public static native void Particle_Render(Pointer context, Pointer userContext, RenderInstanceCallback callback);
+    public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
     public static native void Particle_SetMaterial(Pointer prototype, int emitterIndex, Pointer material);
 
@@ -132,6 +134,53 @@ public class ParticleLibrary {
         public float y;
         public float z;
         public float w;
+    }
+
+    public static class Matrix4 extends Structure {
+        public Matrix4() {
+        }
+
+        public Matrix4(Pointer position) {
+            super(position);
+        }
+
+        public Matrix4d toMatrix() {
+            Matrix4d m = new Matrix4d();
+            m.m00 = m00;
+            m.m10 = m10;
+            m.m20 = m20;
+            m.m30 = m30;
+            m.m01 = m01;
+            m.m11 = m11;
+            m.m21 = m21;
+            m.m31 = m31;
+            m.m02 = m02;
+            m.m12 = m12;
+            m.m22 = m22;
+            m.m32 = m32;
+            m.m03 = m03;
+            m.m13 = m13;
+            m.m23 = m23;
+            m.m33 = m33;
+            return m;
+        }
+
+        public double m00;
+        public double m10;
+        public double m20;
+        public double m30;
+        public double m01;
+        public double m11;
+        public double m21;
+        public double m31;
+        public double m02;
+        public double m12;
+        public double m22;
+        public double m32;
+        public double m03;
+        public double m13;
+        public double m23;
+        public double m33;
     }
 
     public static interface AnimPlayback {

@@ -55,9 +55,9 @@ namespace dmParticle
     };
 
     /**
-     * Callback to handle rendering of instances
+     * Callback to handle rendering of emitters
      */
-    typedef void (*RenderInstanceCallback)(void* usercontext, void* material, void* texture, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, RenderConstant* constants, uint32_t constant_count);
+    typedef void (*RenderEmitterCallback)(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, RenderConstant* constants, uint32_t constant_count);
     /**
      * Callback to handle rendering of lines for debug purposes
      */
@@ -274,8 +274,9 @@ namespace dmParticle
     /**
      * Render the instances within the specified context.
      * @param context Context of the instances to render.
+     * @see RenderEmitter
      */
-    DM_PARTICLE_PROTO(void, Render, HContext context, void* user_context, RenderInstanceCallback render_instance_callback);
+    DM_PARTICLE_PROTO(void, Render, HContext context, void* user_context, RenderEmitterCallback render_instance_callback);
     /**
      * Debug render the status of the instances within the specified context.
      * @param context Context of the instances to render.
@@ -309,6 +310,16 @@ namespace dmParticle
      * @param prototype Prototype
      */
     DM_PARTICLE_PROTO(uint32_t, GetEmitterCount, HPrototype prototype);
+    /**
+     * Render the specified emitter
+     * @param context Context of the emitter to render.
+     * @param instance Instance of the emitter to render.
+     * @param emitter_index Index of the emitter to render.
+     * @param user_context Context to pass to the callback.
+     * @param render_instance_callback Callback function that will be called with emitter data for actual rendering
+     * @see Render
+     */
+    DM_PARTICLE_PROTO(void, RenderEmitter, HContext context, HInstance instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_instance_callback);
     /**
      * Retrieve material path from the emitter in the supplied prototype
      * @param prototype Prototype

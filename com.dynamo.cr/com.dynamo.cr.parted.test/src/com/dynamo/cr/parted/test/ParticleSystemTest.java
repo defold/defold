@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
+import javax.vecmath.Matrix4f;
+import javax.vecmath.Vector3f;
+
 import org.eclipse.swt.widgets.Display;
 import org.junit.After;
 import org.junit.Before;
@@ -17,6 +20,7 @@ import com.dynamo.cr.parted.ParticleLibrary;
 import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.InstanceStats;
+import com.dynamo.cr.parted.ParticleLibrary.Matrix4;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Stats;
@@ -81,8 +85,8 @@ public class ParticleSystemTest {
         Emitter.Builder eb = Emitter.newBuilder()
                 .setMode(PlayMode.PLAY_MODE_ONCE)
                 .setSpace(EmissionSpace.EMISSION_SPACE_WORLD)
-                .setPosition(com.dynamo.proto.DdfMath.Point3.newBuilder().build())
-                .setRotation(com.dynamo.proto.DdfMath.Quat.newBuilder().build())
+                .setPosition(com.dynamo.proto.DdfMath.Point3.newBuilder().setX(1).setY(2).setZ(3).build())
+                .setRotation(com.dynamo.proto.DdfMath.Quat.newBuilder().setW(1).build())
                 .setTileSource("foo")
                 .setAnimation("anim")
                 .setMaterial("test")
@@ -150,9 +154,9 @@ public class ParticleSystemTest {
         };
         for (int i = 0; i < PARTICLE_VERTEX_COUNT; ++i) {
             // p
-            assertTrue(1.0f == vertexBuffer.getFloat());
             assertTrue(2.0f == vertexBuffer.getFloat());
-            assertTrue(3.0f == vertexBuffer.getFloat());
+            assertTrue(4.0f == vertexBuffer.getFloat());
+            assertTrue(6.0f == vertexBuffer.getFloat());
             // rgba
             assertTrue(0 == vertexBuffer.get());
             assertTrue(0 == vertexBuffer.get());
@@ -176,12 +180,18 @@ public class ParticleSystemTest {
         assertEquals(1.0f / 60.0f, instanceStats.time, 0.0001f);
 
         final boolean rendered[] = new boolean[] { false };
-        ParticleLibrary.Particle_Render(context, new Pointer(1122), new RenderInstanceCallback() {
+        ParticleLibrary.Particle_RenderEmitter(context, instance, 0, new Pointer(1122), new RenderInstanceCallback() {
             @Override
             public void invoke(Pointer userContext, Pointer material,
-                    Pointer texture, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount) {
+                    Pointer texture, Matrix4 world, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount) {
                 assertTrue(material.equals(originalMaterial));
                 assertTrue(texture.equals(originalTexture));
+                Matrix4f worldTransform = world.toMatrix();
+                Vector3f translation = new Vector3f();
+                worldTransform.get(translation);
+                assertEquals(2, translation.x, 0);
+                assertEquals(4, translation.y, 0);
+                assertEquals(6, translation.z, 0);
                 assertEquals(new Pointer(1122), userContext);
                 assertEquals(BlendMode.BLEND_MODE_MULT, BlendMode.valueOf(blendMode));
                 rendered[0] = true;
