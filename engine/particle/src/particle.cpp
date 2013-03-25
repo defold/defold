@@ -656,10 +656,10 @@ namespace dmParticle
             }
             for (uint32_t i = 0; i < count; ++i)
             {
-                // Apply spread per particle
-                float r = dmMath::Rand11(&emitter->m_Seed);
                 for (uint32_t i = 0; i < EMITTER_KEY_COUNT; ++i)
                 {
+                    // Apply spread per particle
+                    float r = dmMath::Rand11(&emitter->m_Seed);
                     emitter_properties[i] = original_emitter_properties[i] + r * emitter_prototype->m_Properties[i].m_Spread;
                 }
                 SpawnParticle(emitter->m_Particles, &emitter->m_Seed, emitter_ddf, emitter_transform, emitter_velocity, emitter_properties, dt);
