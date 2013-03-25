@@ -8,8 +8,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Vector3f;
+import javax.vecmath.Matrix4d;
+import javax.vecmath.Vector3d;
 
 import org.eclipse.swt.widgets.Display;
 import org.junit.After;
@@ -186,8 +186,8 @@ public class ParticleSystemTest {
                     Pointer texture, Matrix4 world, int blendMode, int vertexIndex, int vertexCount, Pointer constants, int constantCount) {
                 assertTrue(material.equals(originalMaterial));
                 assertTrue(texture.equals(originalTexture));
-                Matrix4f worldTransform = world.toMatrix();
-                Vector3f translation = new Vector3f();
+                Matrix4d worldTransform = world.toMatrix();
+                Vector3d translation = new Vector3d();
                 worldTransform.get(translation);
                 assertEquals(2, translation.x, 0);
                 assertEquals(4, translation.y, 0);

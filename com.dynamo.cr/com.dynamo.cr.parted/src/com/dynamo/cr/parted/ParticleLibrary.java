@@ -165,22 +165,22 @@ public class ParticleLibrary {
             return m;
         }
 
-        public double m00;
-        public double m10;
-        public double m20;
-        public double m30;
-        public double m01;
-        public double m11;
-        public double m21;
-        public double m31;
-        public double m02;
-        public double m12;
-        public double m22;
-        public double m32;
-        public double m03;
-        public double m13;
-        public double m23;
-        public double m33;
+        public float m00;
+        public float m10;
+        public float m20;
+        public float m30;
+        public float m01;
+        public float m11;
+        public float m21;
+        public float m31;
+        public float m02;
+        public float m12;
+        public float m22;
+        public float m32;
+        public float m03;
+        public float m13;
+        public float m23;
+        public float m33;
     }
 
     public static interface AnimPlayback {
