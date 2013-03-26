@@ -73,13 +73,14 @@ public class LuaScannerTest {
     public void testProps() throws Exception {
         List<Property> properties = scanProperties("test_props.lua");
 
-        assertEquals(6, properties.size());
+        assertEquals(7, properties.size());
         assertProperty(properties, "prop1", new Double(0), 10);
         assertProperty(properties, "prop2", new Double(0), 13);
         assertProperty(properties, "prop3", new Double(0), 14);
-        assertEquals(Status.INVALID_ARGS, properties.get(3).status);
-        assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 17);
-        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 18);
+        assertProperty(properties, "prop4", new Double(0), 15);
+        assertEquals(Status.INVALID_ARGS, properties.get(4).status);
+        assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 18);
+        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 19);
     }
 
     @Test

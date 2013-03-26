@@ -13,6 +13,7 @@ go.property("prop1", 0)
 
   go.property( "prop2" ,  0 )  
 go.property('prop3',  0 )  
+go.property('prop4', 0) -- trailing comment
 
 go.property(invalid_string, 2)
 go.property("three_args", 1, 2)
