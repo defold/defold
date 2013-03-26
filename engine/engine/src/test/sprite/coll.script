@@ -1,0 +1,10 @@
+function init(self)
+    self.sprite = msg.url("#sprite")
+    msg.post(self.sprite, "play_animation", {id = hash("anim")})
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("animation_done") and sender == self.sprite then
+        msg.post("main:/main#script", "done")
+    end
+end

@@ -12,6 +12,11 @@ embedded_components {
   data: "collection: \"/loading/test_loading.collection\"\n"
 }
 embedded_components {
+  id: "sprite_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/sprite/test_sprite.collection\"\n"
+}
+embedded_components {
   id: "gui_proxy"
   type: "collectionproxy"
   data: "collection: \"/gui/test_gui.collection\"\n"

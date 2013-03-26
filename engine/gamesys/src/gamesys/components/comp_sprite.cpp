@@ -56,6 +56,7 @@ namespace dmGameSystem
         float                       m_FrameTimer;
         dmhash_t                    m_CurrentAnimation;
         uint16_t                    m_CurrentTile;
+        uint8_t                     m_ComponentIndex;
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_PlayBackwards : 1;
         uint8_t                     m_Playing : 1;
@@ -189,6 +190,7 @@ namespace dmGameSystem
         component->m_Resource = (SpriteResource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
+        component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
         ReHash(component);
@@ -533,18 +535,29 @@ namespace dmGameSystem
                     message.m_CurrentTile = component->m_CurrentTile + 1;
                     dmMessage::URL receiver;
                     receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
-                    if (dmMessage::IsSocketValid(receiver.m_Socket))
+                    dmMessage::URL sender;
+                    sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
+                    if (dmMessage::IsSocketValid(receiver.m_Socket) && dmMessage::IsSocketValid(sender.m_Socket))
                     {
-                        receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
-                        receiver.m_Fragment = component->m_ListenerComponent;
-                        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
-                        uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
-                        dmMessage::Result result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &message, data_size);
-                        component->m_ListenerInstance = 0x0;
-                        component->m_ListenerComponent = 0xff;
-                        if (result != dmMessage::RESULT_OK)
+                        dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
+                        if (go_result == dmGameObject::RESULT_OK)
                         {
-                            dmLogError("Could not send animation_done to listener.");
+                            receiver.m_Path = dmGameObject::GetIdentifier(component->m_ListenerInstance);
+                            receiver.m_Fragment = component->m_ListenerComponent;
+                            sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
+                            uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
+                            uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
+                            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                            component->m_ListenerInstance = 0x0;
+                            component->m_ListenerComponent = 0xff;
+                            if (result != dmMessage::RESULT_OK)
+                            {
+                                dmLogError("Could not send animation_done to listener.");
+                            }
+                        }
+                        else
+                        {
+                            dmLogError("Could not send animation_done to listener because of incomplete component.");
                         }
                     }
                     else

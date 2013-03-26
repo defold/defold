@@ -1,0 +1,5 @@
+name: "test_sprite"
+instances {
+  id: "coll"
+  prototype: "/sprite/coll.go"
+}
