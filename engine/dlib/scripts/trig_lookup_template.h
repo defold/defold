@@ -18,9 +18,6 @@ namespace dmTrigLookup
     /// Size of the table
     const uint32_t COS_TABLE_SIZE = {size};
 
-    /// Internally used
-    const float _RATIO = 0.5f * M_1_PI;
-
     /**
      * Returns the cosine of the given angle from a lookup table.
      *
@@ -29,12 +26,10 @@ namespace dmTrigLookup
      */
     inline float Cos(float radians)
     {{
-        // t is normalized over the table range
-        float t = radians * _RATIO;
         // index is mapped to full 16 bit range
-        uint16_t index = (uint16_t)(t * 0x10000);
+        uint16_t index = (uint16_t)(radians * (0x8000 * M_1_PI));
         // t is normalized over the table cell range
-        t = (index & {frac_mask}) * {weight};
+        float t = (index & {frac_mask}) * {weight}f;
         // remap index to actual range
         index >>= (16 - {bits});
         // retrieve value and next for interpolation
