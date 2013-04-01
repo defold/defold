@@ -27,13 +27,13 @@ namespace dmTrigLookup
     inline float Cos(float radians)
     {{
         // index is mapped to full 16 bit range
-        uint16_t index = (uint16_t)(radians * (0x8000 * M_1_PI));
+        uint16_t index = (uint16_t)(0xffff & (int32_t)(radians * (0x8000 * M_1_PI)));
         // t is normalized over the table cell range
         float t = (index & {frac_mask}) * {weight}f;
         // remap index to actual range
-        index >>= (16 - {bits});
+        index = {table_mask} & (index >> (16 - {bits}));
         // retrieve value and next for interpolation
-        float v0 = COS_TABLE[index & {table_mask}];
+        float v0 = COS_TABLE[index];
         float v1 = COS_TABLE[(index + 1) & {table_mask}];
         // linear interpolation
         return (1.0f - t) * v0 + t * v1;
