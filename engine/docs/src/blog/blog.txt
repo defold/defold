@@ -1,5 +1,30 @@
 :max-width: 45em
 
+ParticleFX Fixes (Release 1.2.18)
+---------------------------------
+_April 2, 2013_
+
+Release 1.2.18 features ParticleFX fixes as well as some other minor fixes.
+
+ParticleFX
+~~~~~~~~~~
+
+* Particles are depth-sorted according to the transform of their emitters
+* Spawned particles have individually randomized properties
+* Hidden curves in the curve view can not be edited
+* The context menu in the curve view is properly updated
+* When clicking multiple points, only one is selected
+* Fixed overflow issue on iOS for rotating particles
+
+Other Fixes
+~~~~~~~~~~~
+
+* Script property declarations can have trailing comments again:
+  +go.property("health", 100) -- a comment here is now ok+
+* The sender parameter in the on_message-callback was not set when receiving animation_done messages from sprite components
+
+Enjoy!
+
 Tiny graphics update (Release 1.2.17)
 -------------------------------------
 _March 18, 2013_
