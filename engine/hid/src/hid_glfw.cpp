@@ -134,8 +134,23 @@ namespace dmHID
 
         if (!context->m_IgnoreTouchDevice)
         {
-            // TODO: Add touch device here
-            context->m_TouchDeviceConnected = 0;
+            GLFWTouch glfw_touch[dmHID::MAX_TOUCH_COUNT];
+            int n_touch;
+            if (glfwGetTouch(glfw_touch, dmHID::MAX_TOUCH_COUNT, &n_touch))
+            {
+                context->m_TouchDeviceConnected = 1;
+                TouchDevicePacket* packet = &context->m_TouchDevicePacket;
+                packet->m_TouchCount = n_touch;
+                for (int i = 0; i < n_touch; ++i)
+                {
+                    packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
+                    packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
+                    packet->m_Touches[i].m_X = glfw_touch[i].X;
+                    packet->m_Touches[i].m_Y = glfw_touch[i].Y;
+                    packet->m_Touches[i].m_DX = glfw_touch[i].DX;
+                    packet->m_Touches[i].m_DY = glfw_touch[i].DY;
+                }
+            }
         }
         if (!context->m_IgnoreAcceleration)
         {

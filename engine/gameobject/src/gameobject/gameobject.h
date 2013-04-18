@@ -10,6 +10,8 @@
 
 #include <ddf/ddf.h>
 
+#include <hid/hid.h>
+
 #include <script/script.h>
 
 #include <resource/resource.h>
@@ -137,6 +139,10 @@ namespace dmGameObject
         /// Cursor dy since last frame, in virtual screen space
         float m_DY;
         float m_AccX, m_AccY, m_AccZ;
+        /// Touch data
+        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
+        /// Number of m_Touch
+        int32_t  m_TouchCount;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update

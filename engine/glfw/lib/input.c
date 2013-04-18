@@ -267,8 +267,43 @@ GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun )
     }
 }
 
+//========================================================================
+// Set callback function for touch
+//========================================================================
+
+GLFWAPI void GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return;
+    }
+
+    // Set callback function
+    _glfwWin.touchCallback = cbfun;
+
+    if( cbfun )
+    {
+        cbfun( _glfwInput.Touch, _glfwInput.TouchCount );
+    }
+}
+
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
 {
 	return _glfwPlatformGetAcceleration(x, y, z);
+}
+
+GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count)
+{
+    int n = _glfwInput.TouchCount;
+    if (count < n)
+        n = count;
+
+    *out_count = n;
+
+    for (int i = 0; i < n; ++i) {
+        touch[i] = _glfwInput.Touch[i];
+    }
+
+    return 1;
 }
 

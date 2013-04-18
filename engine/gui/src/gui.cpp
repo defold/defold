@@ -459,6 +459,51 @@ namespace dmGui
                         lua_rawset(L, -3);
                     }
 
+                    if (ia->m_TouchCount > 0)
+                    {
+                        int tc = ia->m_TouchCount;
+                        lua_pushliteral(L, "touch");
+                        lua_createtable(L, tc, 0);
+                        for (int i = 0; i < tc; ++i)
+                        {
+                            const dmHID::Touch& t = ia->m_Touch[i];
+
+                            lua_pushinteger(L, (lua_Integer) (i+1));
+                            lua_createtable(L, 0, 6);
+
+                            lua_pushliteral(L, "tap_count");
+                            lua_pushinteger(L, (lua_Integer) t.m_TapCount);
+                            lua_settable(L, -3);
+
+                            lua_pushliteral(L, "pressed");
+                            lua_pushboolean(L, t.m_Phase == dmHID::PHASE_BEGAN);
+                            lua_settable(L, -3);
+
+                            lua_pushliteral(L, "released");
+                            lua_pushboolean(L, t.m_Phase == dmHID::PHASE_ENDED || t.m_Phase == dmHID::PHASE_CANCELLED);
+                            lua_settable(L, -3);
+
+                            lua_pushliteral(L, "x");
+                            lua_pushinteger(L, (lua_Integer) t.m_X);
+                            lua_settable(L, -3);
+
+                            lua_pushliteral(L, "y");
+                            lua_pushinteger(L, (lua_Integer) t.m_Y);
+                            lua_settable(L, -3);
+
+                            lua_pushliteral(L, "dx");
+                            lua_pushinteger(L, (lua_Integer) t.m_DX);
+                            lua_settable(L, -3);
+
+                            lua_pushliteral(L, "dy");
+                            lua_pushinteger(L, (lua_Integer) t.m_DY);
+                            lua_settable(L, -3);
+
+                            lua_settable(L, -3);
+                        }
+                        lua_settable(L, -3);
+                    }
+
                     arg_count += 2;
                 }
                 break;

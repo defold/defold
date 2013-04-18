@@ -6,6 +6,7 @@
 #include <ddf/ddf.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <hid/hid.h>
 
 #include <script/script.h>
 
@@ -203,6 +204,10 @@ namespace dmGui
         float m_DX;
         /// Cursor dy since last frame, in virtual screen space
         float m_DY;
+        /// Touch data
+        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
+        /// Number of m_Touch
+        int32_t  m_TouchCount;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update

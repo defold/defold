@@ -380,6 +380,12 @@ extern "C" {
 /* Time spans longer than this (seconds) are considered to be infinity */
 #define GLFW_INFINITY 100000.0
 
+#define GLFW_MAX_TOUCH (11)
+#define GLFW_PHASE_BEGAN (0)
+#define GLFW_PHASE_MOVED (1)
+#define GLFW_PHASE_STATIONARY (2)
+#define GLFW_PHASE_ENDED (3)
+#define GLFW_PHASE_CANCELLED (4)
 
 /*************************************************************************
  * Typedefs
@@ -398,6 +404,16 @@ typedef struct {
     int BytesPerPixel;
     unsigned char *Data;
 } GLFWimage;
+
+typedef struct {
+    int TapCount;
+    int Phase;
+    int X;
+    int Y;
+    int DX;
+    int DY;
+    void* Reference;
+} GLFWTouch;
 
 /* Thread ID */
 typedef int GLFWthread;
@@ -418,6 +434,7 @@ typedef void (GLFWCALL * GLFWmousewheelfun)(int);
 typedef void (GLFWCALL * GLFWkeyfun)(int,int);
 typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
+typedef void (GLFWCALL * GLFWtouchfun)(GLFWTouch*,int);
 
 
 /*************************************************************************
@@ -465,6 +482,8 @@ GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );
+GLFWAPI void GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count);
 
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z);
 

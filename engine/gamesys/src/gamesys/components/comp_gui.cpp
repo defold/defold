@@ -451,6 +451,13 @@ namespace dmGameSystem
             gui_input_action.m_Y = params.m_InputAction->m_Y;
             gui_input_action.m_DX = params.m_InputAction->m_DX;
             gui_input_action.m_DY = params.m_InputAction->m_DY;
+
+            gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
+            int tc = params.m_InputAction->m_TouchCount;
+            for (int i = 0; i < tc; ++i) {
+                gui_input_action.m_Touch[i] = params.m_InputAction->m_Touch[i];
+            }
+
             bool consumed;
             dmGui::Result gui_result = dmGui::DispatchInput(scene, &gui_input_action, 1, &consumed);
             if (gui_result != dmGui::RESULT_OK)

@@ -29,7 +29,7 @@ public class InputBindingEditSupport implements IResourceTypeEditSupport {
             return MouseTrigger.newBuilder().setAction("unnamed").setInput(Mouse.MOUSE_BUTTON_1).build();
         }
         else if (descriptor.getFullName().equals(TouchTrigger.getDescriptor().getFullName())) {
-            return TouchTrigger.newBuilder().setAction("unnamed").setInput(Touch.TOUCH_1).build();
+            return TouchTrigger.newBuilder().setAction("unnamed").setInput(Touch.TOUCH_MULTI).build();
         }
         return null;
     }

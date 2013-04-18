@@ -630,6 +630,19 @@ bail:
         input_action.m_AccX = action->m_AccX;
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
+
+        input_action.m_TouchCount = action->m_TouchCount;
+        int tc = action->m_TouchCount;
+        for (int i = 0; i < tc; ++i) {
+            dmHID::Touch& a = action->m_Touch[i];
+            dmHID::Touch& ia = input_action.m_Touch[i];
+            ia = action->m_Touch[i];
+            ia.m_X = (a.m_Y + 0.5f) * width_ratio;
+            ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
+            ia.m_DX = a.m_DX * width_ratio;
+            ia.m_DY = -a.m_DY * height_ratio;
+        }
+
         input_buffer->Push(input_action);
     }
 

@@ -146,6 +146,7 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
+    GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
 
@@ -227,6 +228,8 @@ GLFWGLOBAL struct {
     int      StickyMouseButtons;
     int      KeyRepeat;
 
+    GLFWTouch Touch[GLFW_MAX_TOUCH];
+    int  TouchCount;
 // ========= PLATFORM SPECIFIC PART ======================================
 
     UInt32 Modifiers;

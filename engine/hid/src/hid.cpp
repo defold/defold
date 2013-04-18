@@ -228,6 +228,7 @@ namespace dmHID
         }
     }
 
+    // NOTE: A bit contrived function only used for unit-tests. See AddTouchPosition
     bool GetTouchPosition(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y)
     {
         if (packet != 0x0
@@ -236,15 +237,17 @@ namespace dmHID
         {
             if (touch_index < packet->m_TouchCount)
             {
-                int32_t* position = packet->m_Touches[touch_index];
-                *x = position[0];
-                *y = position[1];
+                const Touch& t = packet->m_Touches[touch_index];
+                *x = t.m_X;
+                *y = t.m_Y;
                 return true;
             }
         }
         return false;
     }
 
+    // NOTE: A bit contrived function only used for unit-tests
+    // We should perhaps include additional relevant touch-arguments
     void AddTouchPosition(HContext context, int32_t x, int32_t y)
     {
         if (context->m_TouchDeviceConnected)
@@ -252,9 +255,9 @@ namespace dmHID
             TouchDevicePacket& packet = context->m_TouchDevicePacket;
             if (packet.m_TouchCount < MAX_TOUCH_COUNT)
             {
-                int32_t* position = packet.m_Touches[packet.m_TouchCount++];
-                position[0] = x;
-                position[1] = y;
+                Touch& t = packet.m_Touches[packet.m_TouchCount++];
+                t.m_X = x;
+                t.m_Y = y;
             }
         }
     }
