@@ -14,6 +14,30 @@ namespace dmPhysics
 {
     using namespace Vectormath::Aos;
 
+    /*
+     * NOTE
+     * This struct has the sole purpose of wrapping a collision object along with its collision group/mask.
+     * The reason is that the way we do enabling/disabling (by adding/removing from the world)
+     * looses the group/mask (bullet stores them in the broadphase-handle).
+     * The first attempt was to use the collision flags ACTIVE_TAG vs DISABLE_SIMULATION, but that does not
+     * work for static bodies and ghost objects (=triggers).
+     * See: https://defold.fogbugz.com/default.asp?2085
+     */
+    struct CollisionObject3D
+    {
+        btCollisionObject* m_CollisionObject;
+        short m_CollisionGroup;
+        short m_CollisionMask;
+    };
+
+    static Vectormath::Aos::Point3 GetWorldPosition(HContext3D context, btCollisionObject* collision_object);
+    static Vectormath::Aos::Quat GetWorldRotation(HContext3D context, btCollisionObject* collision_object);
+
+    static btCollisionObject* GetCollisionObject(HCollisionObject3D co)
+    {
+        return ((CollisionObject3D*)co)->m_CollisionObject;
+    }
+
     class MotionState : public btMotionState
     {
     public:
@@ -77,6 +101,8 @@ namespace dmPhysics
     , m_Socket(0)
     , m_Scale(1.0f)
     , m_InvScale(1.0f)
+    , m_ContactImpulseLimit(0.0f)
+    , m_TriggerEnterLimit(0.0f)
     {
 
     }
@@ -107,6 +133,7 @@ namespace dmPhysics
         m_SetWorldTransform = params.m_SetWorldTransformCallback;
 
         m_RayCastRequests.SetCapacity(128);
+        OverlapCacheInit(&m_TriggerOverlaps);
     }
 
     World3D::~World3D()
@@ -155,6 +182,7 @@ namespace dmPhysics
         context->m_Scale = params.m_Scale;
         context->m_InvScale = 1.0f / params.m_Scale;
         context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
+        context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -224,34 +252,43 @@ namespace dmPhysics
         world->m_DebugDraw.setDebugMode(debug_mode);
     }
 
-    void StepWorld3D(HWorld3D world, const StepWorldContext& context)
+    static void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context);
+
+    void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
-        float dt = context.m_DT;
+        float dt = step_context.m_DT;
+        HContext3D context = world->m_Context;
+        float scale = context->m_Scale;
+        // Epsilon defining what transforms are considered noise and not
+        // Values are picked by inspection, rotation should go down after the quat => angle conversion has been fixed
+        // Current value is roughly equivalent to 1 degree
+        const float POS_EPSILON = 0.00005f * scale;
+        const float ROT_EPSILON = 0.0025f;
         // Update all trigger transforms before physics world step
         if (world->m_GetWorldTransform != 0x0)
         {
             DM_PROFILE(Physics, "UpdateTriggers");
             int collision_object_count = world->m_DynamicsWorld->getNumCollisionObjects();
-            HContext3D context = world->m_Context;
-            float scale = context->m_Scale;
             btCollisionObjectArray& collision_objects = world->m_DynamicsWorld->getCollisionObjectArray();
             for (int i = 0; i < collision_object_count; ++i)
             {
                 btCollisionObject* collision_object = collision_objects[i];
                 if (collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT || collision_object->isKinematicObject())
                 {
-                    Point3 old_position = GetWorldPosition3D(context, collision_object);
-                    Quat old_rotation = GetWorldRotation3D(context, collision_object);
+                    Point3 old_position = GetWorldPosition(context, collision_object);
+                    Quat old_rotation = GetWorldRotation(context, collision_object);
                     dmTransform::TransformS1 world_transform;
                     (*world->m_GetWorldTransform)(collision_object->getUserPointer(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                     Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-                    btVector3 bt_pos;
-                    ToBt(position, bt_pos, scale);
-                    btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
-                    collision_object->setWorldTransform(world_t);
-                    if ((distSqr(old_position, position) > 0.0f || lengthSqr(Vector4(rotation - old_rotation)) > 0.0f))
+                    float dp = distSqr(old_position, position);
+                    float dr = norm(rotation - old_rotation);
+                    if (dp > POS_EPSILON || dr > ROT_EPSILON)
                     {
+                        btVector3 bt_pos;
+                        ToBt(position, bt_pos, scale);
+                        btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
+                        collision_object->setWorldTransform(world_t);
                         collision_object->activate(true);
                     }
                 }
@@ -273,7 +310,7 @@ namespace dmPhysics
             for (uint32_t i = 0; i < size; ++i)
             {
                 const RayCastRequest& request = world->m_RayCastRequests[i];
-                if (context.m_RayCastCallback == 0x0)
+                if (step_context.m_RayCastCallback == 0x0)
                 {
                     dmLogWarning("Ray cast requested without any response callback, skipped.");
                     continue;
@@ -296,7 +333,7 @@ namespace dmPhysics
                     response.m_CollisionObjectUserData = result_callback.m_collisionObject->getUserPointer();
                     response.m_CollisionObjectGroup = result_callback.m_collisionObject->getBroadphaseHandle()->m_collisionFilterGroup;
                 }
-                context.m_RayCastCallback(response, request, context.m_RayCastUserData);
+                step_context.m_RayCastCallback(response, request, step_context.m_RayCastUserData);
             }
             world->m_RayCastRequests.SetSize(0);
         }
@@ -305,15 +342,15 @@ namespace dmPhysics
         bool requests_collision_callbacks = true;
         bool requests_contact_callbacks = true;
 
-        CollisionCallback collision_callback = context.m_CollisionCallback;
-        ContactPointCallback contact_point_callback = context.m_ContactPointCallback;
+        CollisionCallback collision_callback = step_context.m_CollisionCallback;
+        ContactPointCallback contact_point_callback = step_context.m_ContactPointCallback;
         btDispatcher* dispatcher = world->m_DynamicsWorld->getDispatcher();
         float contact_impulse_limit = world->m_Context->m_ContactImpulseLimit;
         if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
             DM_PROFILE(Physics, "CollisionCallbacks");
             int num_manifolds = dispatcher->getNumManifolds();
-            for (int i = 0; i < num_manifolds; ++i)
+            for (int i = 0; i < num_manifolds && (requests_collision_callbacks || requests_contact_callbacks); ++i)
             {
                 btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
                 btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
@@ -332,13 +369,11 @@ namespace dmPhysics
                 }
                 // early out if the impulse is too small to be reported
                 if (max_impulse < contact_impulse_limit)
-                    return;
+                    continue;
 
                 if (collision_callback != 0x0 && requests_collision_callbacks)
                 {
-                    requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, context.m_CollisionUserData);
-                    if (!requests_collision_callbacks && !requests_contact_callbacks)
-                        return;
+                    requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, step_context.m_CollisionUserData);
                 }
 
                 if (contact_point_callback != 0x0)
@@ -379,36 +414,57 @@ namespace dmPhysics
                             FromBt(v, vel_b, inv_scale);
                         }
                         point.m_RelativeVelocity = vel_a - vel_b;
-                        requests_contact_callbacks = contact_point_callback(point, context.m_ContactPointUserData);
-                        if (!requests_collision_callbacks && !requests_contact_callbacks)
-                            return;
-                    }
-                }
-            }
-            // check ghosts
-            if (collision_callback != 0x0 && requests_collision_callbacks)
-            {
-                int num_collision_objects = world->m_DynamicsWorld->getNumCollisionObjects();
-                btCollisionObjectArray& collision_objects = world->m_DynamicsWorld->getCollisionObjectArray();
-                for (int i = 0; i < num_collision_objects; ++i)
-                {
-                    btCollisionObject* collision_object = collision_objects[i];
-                    btGhostObject* ghost_object = btGhostObject::upcast(collision_object);
-                    if (ghost_object != 0x0)
-                    {
-                        int num_overlaps = ghost_object->getNumOverlappingObjects();
-                        for (int j = 0; j < num_overlaps; ++j)
-                        {
-                            btCollisionObject* collidee = ghost_object->getOverlappingObject(j);
-                            requests_collision_callbacks = collision_callback(ghost_object->getUserPointer(), ghost_object->getBroadphaseHandle()->m_collisionFilterGroup, collidee->getUserPointer(), collidee->getBroadphaseHandle()->m_collisionFilterGroup, context.m_CollisionUserData);
-                            if (!requests_collision_callbacks)
-                                return;
-                        }
+                        requests_contact_callbacks = contact_point_callback(point, step_context.m_ContactPointUserData);
                     }
                 }
             }
         }
+        UpdateOverlapCache(&world->m_TriggerOverlaps, context, dispatcher, step_context);
         world->m_DynamicsWorld->debugDrawWorld();
+    }
+
+    void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context)
+    {
+        DM_PROFILE(Physics, "TriggerCallbacks");
+        OverlapCacheReset(cache);
+        OverlapCacheAddData add_data;
+        add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
+        add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
+        int num_manifolds = dispatcher->getNumManifolds();
+        for (int i = 0; i < num_manifolds; ++i)
+        {
+            btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
+            btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
+            btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
+
+            if (!object_a->isActive() || !object_b->isActive())
+                continue;
+
+            if (btGhostObject::upcast(object_a) != 0x0 || btGhostObject::upcast(object_b) != 0x0)
+            {
+                float max_distance = 0.0f;
+                int contact_count = contact_manifold->getNumContacts();
+                for (int j = 0; j < contact_count; ++j)
+                {
+                    const btManifoldPoint& point = contact_manifold->getContactPoint(j);
+                    max_distance = dmMath::Max(max_distance, point.getDistance());
+                }
+                if (max_distance >= context->m_TriggerEnterLimit)
+                {
+                    float* f = object_a->getWorldTransform().getOrigin().m_floats;
+                    f = object_b->getWorldTransform().getOrigin().m_floats;
+                    add_data.m_ObjectA = object_a;
+                    add_data.m_UserDataA = object_a->getUserPointer();
+                    add_data.m_ObjectB = object_b;
+                    add_data.m_UserDataB = object_b->getUserPointer();
+                    OverlapCacheAdd(cache, add_data);
+                }
+            }
+        }
+        OverlapCachePruneData prune_data;
+        prune_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
+        prune_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
+        OverlapCachePrune(cache, prune_data);
     }
 
     HCollisionShape3D NewSphereShape3D(HContext3D context, float radius)
@@ -520,7 +576,6 @@ namespace dmPhysics
             switch (data.m_Type)
             {
             case COLLISION_OBJECT_TYPE_KINEMATIC:
-                // bodies are constructed as static by default in bullet so clear that flag (btCollisionObject.cpp:28)
                 body->setCollisionFlags(btCollisionObject::CF_KINEMATIC_OBJECT);
                 break;
             case COLLISION_OBJECT_TYPE_STATIC:
@@ -530,9 +585,7 @@ namespace dmPhysics
                 break;
             }
 
-            world->m_DynamicsWorld->addRigidBody(body);
-            body->getBroadphaseHandle()->m_collisionFilterGroup = data.m_Group;
-            body->getBroadphaseHandle()->m_collisionFilterMask = data.m_Mask;
+            world->m_DynamicsWorld->addRigidBody(body, data.m_Group, data.m_Mask);
 
             collision_object = body;
         }
@@ -560,12 +613,18 @@ namespace dmPhysics
             world->m_DynamicsWorld->addCollisionObject(collision_object, data.m_Group, data.m_Mask);
         }
         collision_object->setUserPointer(data.m_UserData);
-        return collision_object;
+        CollisionObject3D* co = new CollisionObject3D();
+        co->m_CollisionObject = collision_object;
+        co->m_CollisionGroup = data.m_Group;
+        co->m_CollisionMask = data.m_Mask;
+        return co;
     }
 
     void DeleteCollisionObject3D(HWorld3D world, HCollisionObject3D collision_object)
     {
-        btCollisionObject* bt_co = (btCollisionObject*)collision_object;
+        CollisionObject3D* co = (CollisionObject3D*)collision_object;
+        OverlapCacheRemove(&world->m_TriggerOverlaps, co->m_CollisionObject);
+        btCollisionObject* bt_co = co->m_CollisionObject;
         if (bt_co == 0x0)
             return;
         btCollisionShape* shape = bt_co->getCollisionShape();
@@ -578,12 +637,13 @@ namespace dmPhysics
             delete rigid_body->getMotionState();
 
         world->m_DynamicsWorld->removeCollisionObject(bt_co);
-        delete (btCollisionObject*)collision_object;
+        delete bt_co;
+        delete co;
     }
 
     uint32_t GetCollisionShapes3D(HCollisionObject3D collision_object, HCollisionShape3D* out_buffer, uint32_t buffer_size)
     {
-        btCollisionShape* shape = ((btCollisionObject*)collision_object)->getCollisionShape();
+        btCollisionShape* shape = GetCollisionObject(collision_object)->getCollisionShape();
         uint32_t n = 1;
         if (shape->isCompound())
         {
@@ -603,17 +663,17 @@ namespace dmPhysics
 
     void SetCollisionObjectUserData3D(HCollisionObject3D collision_object, void* user_data)
     {
-        ((btCollisionObject*)collision_object)->setUserPointer(user_data);
+        GetCollisionObject(collision_object)->setUserPointer(user_data);
     }
 
     void* GetCollisionObjectUserData3D(HCollisionObject3D collision_object)
     {
-        return ((btCollisionObject*)collision_object)->getUserPointer();
+        return GetCollisionObject(collision_object)->getUserPointer();
     }
 
     void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const Vector3& force, const Point3& position)
     {
-        btCollisionObject* bt_co = (btCollisionObject*)collision_object;
+        btCollisionObject* bt_co = GetCollisionObject(collision_object);
         btRigidBody* rigid_body = btRigidBody::upcast(bt_co);
         if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
         {
@@ -629,7 +689,7 @@ namespace dmPhysics
 
     Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        btRigidBody* rigid_body = btRigidBody::upcast((btCollisionObject*)collision_object);
+        btRigidBody* rigid_body = btRigidBody::upcast(GetCollisionObject(collision_object));
         if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
         {
             const btVector3& bt_total_force = rigid_body->getTotalForce();
@@ -643,24 +703,34 @@ namespace dmPhysics
         }
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object)
+    static Vectormath::Aos::Point3 GetWorldPosition(HContext3D context, btCollisionObject* collision_object)
     {
-        const btVector3& bt_position = ((btCollisionObject*)collision_object)->getWorldTransform().getOrigin();
+        const btVector3& bt_position = collision_object->getWorldTransform().getOrigin();
         Vectormath::Aos::Point3 position;
         FromBt(bt_position, position, context->m_InvScale);
         return position;
     }
 
+    Vectormath::Aos::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object)
+    {
+        return GetWorldPosition(context, GetCollisionObject(collision_object));
+    }
+
+    static Vectormath::Aos::Quat GetWorldRotation(HContext3D context, btCollisionObject* collision_object)
+    {
+        btQuaternion rotation = collision_object->getWorldTransform().getRotation();
+        return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+    }
+
     Vectormath::Aos::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object)
     {
-        btQuaternion rotation = ((btCollisionObject*)collision_object)->getWorldTransform().getRotation();
-        return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+        return GetWorldRotation(context, GetCollisionObject(collision_object));
     }
 
     Vectormath::Aos::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object)
     {
         Vectormath::Aos::Vector3 linear_velocity(0.0f, 0.0f, 0.0f);
-        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
         if (body != 0x0)
         {
             const btVector3& v = body->getLinearVelocity();
@@ -672,7 +742,7 @@ namespace dmPhysics
     Vectormath::Aos::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object)
     {
         Vectormath::Aos::Vector3 angular_velocity(0.0f, 0.0f, 0.0f);
-        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
+        btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
         if (body != 0x0)
         {
             const btVector3& v = body->getAngularVelocity();
@@ -683,8 +753,8 @@ namespace dmPhysics
 
     bool IsEnabled3D(HCollisionObject3D collision_object)
     {
-        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
-        return body->isInWorld();
+        btCollisionObject* co = GetCollisionObject(collision_object);
+        return co->isInWorld();
     }
 
     void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)
@@ -694,36 +764,53 @@ namespace dmPhysics
         // avoid multiple adds/removes
         if (prev_enabled == enabled)
             return;
-        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
+        CollisionObject3D* co = (CollisionObject3D*)collision_object;
+        btCollisionObject* bt_co = co->m_CollisionObject;
         if (enabled)
         {
-            // Reset state
-            body->clearForces();
-            body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
-            body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
-            if (world->m_GetWorldTransform != 0x0)
+            btRigidBody* body = btRigidBody::upcast(bt_co);
+            if (body != 0x0)
             {
-                dmTransform::TransformS1 world_transform;
-                world->m_GetWorldTransform(body->getUserPointer(), world_transform);
-                Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
-                Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-                btVector3 bt_position;
-                ToBt(position, bt_position, world->m_Context->m_Scale);
-                btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_position);
-                body->setWorldTransform(world_t);
+                // Reset state
+                body->clearForces();
+                body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
+                body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+                if (world->m_GetWorldTransform != 0x0)
+                {
+                    dmTransform::TransformS1 world_transform;
+                    world->m_GetWorldTransform(body->getUserPointer(), world_transform);
+                    Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                    Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
+                    btVector3 bt_position;
+                    ToBt(position, bt_position, world->m_Context->m_Scale);
+                    btTransform world_t(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_position);
+                    body->setWorldTransform(world_t);
+                }
+                world->m_DynamicsWorld->addRigidBody(body, co->m_CollisionGroup, co->m_CollisionMask);
             }
-            world->m_DynamicsWorld->addRigidBody(body);
+            else
+            {
+                world->m_DynamicsWorld->addCollisionObject(bt_co, co->m_CollisionGroup, co->m_CollisionMask);
+            }
         }
         else
         {
-            world->m_DynamicsWorld->removeRigidBody(body);
+            btRigidBody* body = btRigidBody::upcast(bt_co);
+            if (body != 0x0)
+            {
+                world->m_DynamicsWorld->removeRigidBody(body);
+            }
+            else
+            {
+                world->m_DynamicsWorld->removeCollisionObject(bt_co);
+            }
         }
     }
 
     bool IsSleeping3D(HCollisionObject3D collision_object)
     {
-        btRigidBody* body = btRigidBody::upcast((btCollisionObject*)collision_object);
-        return body->getActivationState() == ISLAND_SLEEPING;
+        btCollisionObject* co = GetCollisionObject(collision_object);
+        return co->getActivationState() == ISLAND_SLEEPING;
     }
 
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)

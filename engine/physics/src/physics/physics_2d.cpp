@@ -18,12 +18,15 @@ namespace dmPhysics
     , m_Socket(0)
     , m_Scale(1.0f)
     , m_InvScale(1.0f)
+    , m_ContactImpulseLimit(0.0f)
+    , m_TriggerEnterLimit(0.0f)
     {
 
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
-    : m_Context(context)
+    : m_TriggerOverlaps()
+    , m_Context(context)
     , m_World(context->m_Gravity)
     , m_RayCastRequests()
     , m_DebugDraw(&context->m_DebugCallbacks)
@@ -32,6 +35,7 @@ namespace dmPhysics
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     {
         m_RayCastRequests.SetCapacity(64);
+        OverlapCacheInit(&m_TriggerOverlaps);
     }
 
     ProcessRayCastResultCallback2D::ProcessRayCastResultCallback2D()
@@ -153,6 +157,7 @@ namespace dmPhysics
         context->m_Scale = params.m_Scale;
         context->m_InvScale = 1.0f / params.m_Scale;
         context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
+        context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -203,6 +208,8 @@ namespace dmPhysics
                 context->m_Worlds.EraseSwap(i);
         delete world;
     }
+
+    static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
@@ -297,11 +304,10 @@ namespace dmPhysics
             {
                 b2Fixture* fixture_a = contact->GetFixtureA();
                 b2Fixture* fixture_b = contact->GetFixtureB();
-                int32_t index_a = contact->GetChildIndexA();
-                int32_t index_b = contact->GetChildIndexB();
-
                 if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
                 {
+                    int32_t index_a = contact->GetChildIndexA();
+                    int32_t index_b = contact->GetChildIndexB();
                     step_context.m_CollisionCallback(fixture_a->GetUserData(),
                                                 fixture_a->GetFilterData(index_a).categoryBits,
                                                 fixture_b->GetUserData(),
@@ -310,7 +316,46 @@ namespace dmPhysics
                 }
             }
         }
+        UpdateOverlapCache(&world->m_TriggerOverlaps, context, world->m_World.GetContactList(), step_context);
+
         world->m_World.DrawDebugData();
+    }
+
+    void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context)
+    {
+        DM_PROFILE(Physics, "TriggerCallbacks");
+        OverlapCacheReset(cache);
+        OverlapCacheAddData add_data;
+        add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
+        add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
+        for (b2Contact* contact = contact_list; contact; contact = contact->GetNext())
+        {
+            b2Fixture* fixture_a = contact->GetFixtureA();
+            b2Fixture* fixture_b = contact->GetFixtureB();
+            if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
+            {
+                float max_distance = 0.0f;
+                b2Manifold* manifold = contact->GetManifold();
+                for (int32 i = 0; i < manifold->pointCount; ++i)
+                {
+                    max_distance = dmMath::Max(max_distance, manifold->points[i].distance);
+                }
+                if (max_distance >= context->m_TriggerEnterLimit)
+                {
+                    b2Body* body_a = fixture_a->GetBody();
+                    b2Body* body_b = fixture_b->GetBody();
+                    add_data.m_ObjectA = body_a;
+                    add_data.m_UserDataA = body_a->GetUserData();
+                    add_data.m_ObjectB = body_b;
+                    add_data.m_UserDataB = body_b->GetUserData();
+                    OverlapCacheAdd(cache, add_data);
+                }
+            }
+        }
+        OverlapCachePruneData prune_data;
+        prune_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
+        prune_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
+        OverlapCachePrune(cache, prune_data);
     }
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
@@ -674,6 +719,7 @@ namespace dmPhysics
         // DestroyBody() should be enough in general but we have to run over all fixtures in order to free allocated shapes
         // See comment above about shapes and transforms
 
+        OverlapCacheRemove(&world->m_TriggerOverlaps, collision_object);
         b2Body* body = (b2Body*)collision_object;
         b2Fixture* fixture = body->GetFixtureList();
         while (fixture)
@@ -770,6 +816,7 @@ namespace dmPhysics
         if (prev_enabled == enabled)
             return;
         b2Body* body = ((b2Body*)collision_object);
+        body->SetActive(enabled);
         if (enabled)
         {
             // Reset state
@@ -787,7 +834,6 @@ namespace dmPhysics
                 body->SetTransform(b2_position, angle);
             }
         }
-        body->SetActive(enabled);
     }
 
     bool IsSleeping2D(HCollisionObject2D collision_object)

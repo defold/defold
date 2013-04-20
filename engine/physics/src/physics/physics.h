@@ -128,6 +128,24 @@ namespace dmPhysics
      */
     typedef bool (*ContactPointCallback)(const ContactPoint& contact_point, void* user_data);
 
+    struct TriggerEnter
+    {
+        /// User data of the first object
+        void* m_UserDataA;
+        /// User data of the second object
+        void* m_UserDataB;
+    };
+    typedef void (*TriggerEnteredCallback)(const TriggerEnter& trigger_enter, void* user_data);
+
+    struct TriggerExit
+    {
+        /// User data of the first object
+        void* m_UserDataA;
+        /// User data of the second object
+        void* m_UserDataB;
+    };
+    typedef void (*TriggerExitedCallback)(const TriggerExit& trigger_exit, void* user_data);
+
     struct RayCastRequest;
     struct RayCastResponse;
 
@@ -154,6 +172,8 @@ namespace dmPhysics
         float m_Scale;
         /// Contacts with impulses below this limit will not be reported through callbacks
         float m_ContactImpulseLimit;
+        /// Contacts with penetration depths below this limit will not be considered inside a trigger
+        float m_TriggerEnterLimit;
     };
 
     /**
@@ -268,6 +288,14 @@ namespace dmPhysics
         RayCastCallback         m_RayCastCallback;
         /// Ray cast callback user data
         void*                   m_RayCastUserData;
+        /// Trigger entered callback
+        TriggerEnteredCallback  m_TriggerEnteredCallback;
+        /// Trigger entered callback user data
+        void*                   m_TriggerEnteredUserData;
+        /// Trigger exited callback
+        TriggerExitedCallback   m_TriggerExitedCallback;
+        /// Trigger exited callback
+        void*                   m_TriggerExitedUserData;
     };
 
     /**

@@ -2,8 +2,10 @@
 #define PHYSICS_2D_H
 
 #include <dlib/array.h>
+#include <dlib/hashtable.h>
 
 #include "physics.h"
+#include "physics_private.h"
 #include "debug_draw_2d.h"
 
 namespace dmPhysics
@@ -27,6 +29,7 @@ namespace dmPhysics
     {
         World2D(HContext2D context, const NewWorldParams& params);
 
+        OverlapCache                m_TriggerOverlaps;
         HContext2D                  m_Context;
         b2World                     m_World;
         dmArray<RayCastRequest>     m_RayCastRequests;
@@ -47,6 +50,7 @@ namespace dmPhysics
         float                       m_Scale;
         float                       m_InvScale;
         float                       m_ContactImpulseLimit;
+        float                       m_TriggerEnterLimit;
     };
 
     class ProcessRayCastResultCallback2D : public b2RayCastCallback

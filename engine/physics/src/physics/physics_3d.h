@@ -4,6 +4,7 @@
 #include <dlib/array.h>
 
 #include "physics.h"
+#include "physics_private.h"
 #include "debug_draw_3d.h"
 
 namespace dmPhysics
@@ -13,6 +14,7 @@ namespace dmPhysics
         World3D(HContext3D context, const NewWorldParams& params);
         ~World3D();
 
+        OverlapCache                            m_TriggerOverlaps;
         dmArray<RayCastRequest>                 m_RayCastRequests;
         DebugDraw3D                             m_DebugDraw;
         HContext3D                              m_Context;
@@ -36,6 +38,7 @@ namespace dmPhysics
         float                       m_Scale;
         float                       m_InvScale;
         float                       m_ContactImpulseLimit;
+        float                       m_TriggerEnterLimit;
     };
 
     inline void ToBt(const Vectormath::Aos::Point3& p0, btVector3& p1, float scale)

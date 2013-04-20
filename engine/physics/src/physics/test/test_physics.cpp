@@ -802,6 +802,88 @@ TYPED_TEST(PhysicsTest, EnableDisable)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
+/**
+ * Tests that all different types of collision objects have an expected collision response when enabled/disable.
+ */
+TYPED_TEST(PhysicsTest, EnableDisableCollisions)
+{
+    float radius = 0.5f;
+
+    struct CollisionPair
+    {
+        dmPhysics::CollisionObjectType  m_TypeA;
+        dmPhysics::CollisionObjectType  m_TypeB;
+    };
+
+    // Tests everything except trigger => trigger and static => static
+    CollisionPair pairs[] =
+    {
+            {dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER, dmPhysics::COLLISION_OBJECT_TYPE_STATIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER},
+            {dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC, dmPhysics::COLLISION_OBJECT_TYPE_STATIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER},
+            {dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, dmPhysics::COLLISION_OBJECT_TYPE_STATIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_STATIC, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_STATIC, dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC},
+            {dmPhysics::COLLISION_OBJECT_TYPE_STATIC, dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER}
+    };
+    uint32_t count = sizeof(pairs)/sizeof(CollisionPair);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        CollisionPair& pair = pairs[i];
+        VisualObject vo_a;
+        dmPhysics::CollisionObjectData data_a;
+        data_a.m_Group = 1;
+        data_a.m_Mask = 2;
+        data_a.m_Type = pair.m_TypeA;
+        if (pair.m_TypeA == dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC)
+            data_a.m_Mass = 1.0f;
+        else
+            data_a.m_Mass = 0.0f;
+        data_a.m_UserData = &vo_a;
+        typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+        typename TypeParam::CollisionObjectType co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shape_a, 1u);
+
+        VisualObject vo_b;
+        vo_b.m_Position.setX(0.5f);
+        dmPhysics::CollisionObjectData data_b;
+        data_b.m_Group = 2;
+        data_b.m_Mask = 1;
+        data_b.m_Type = pair.m_TypeB;
+        if (pair.m_TypeB == dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC)
+            data_b.m_Mass = 1.0f;
+        else
+            data_b.m_Mass = 0.0f;
+        data_b.m_UserData = &vo_b;
+        typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+        typename TypeParam::CollisionObjectType co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
+
+        TestFixture::m_CollisionCount = 0;
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_EQ(1, TestFixture::m_CollisionCount);
+
+        TestFixture::m_CollisionCount = 0;
+        (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, co_a, false);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_EQ(0, TestFixture::m_CollisionCount);
+
+        (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, co_a, true);
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_EQ(1, TestFixture::m_CollisionCount);
+
+        (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co_a);
+        (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+        (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co_b);
+        (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+    }
+}
+
 struct RayCastResult
 {
     dmPhysics::RayCastResponse m_Response;
@@ -1504,6 +1586,273 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+void TriggerEntered(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
+{
+    int32_t* count = (int32_t*)user_data;
+    *count += 1;
+}
+
+void TriggerExited(const dmPhysics::TriggerExit& trigger_exit, void* user_data)
+{
+    int32_t* count = (int32_t*)user_data;
+    *count -= 1;
+}
+
+// Verify that enter/exit callbacks are used correctly for a single object that interacts with a trigger.
+TYPED_TEST(PhysicsTest, TriggerEnterExit)
+{
+    float radius = 0.5f;
+
+    VisualObject vo_a;
+    vo_a.m_Position.setX(10.0f);
+    dmPhysics::CollisionObjectData data_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    data_a.m_Group = 1;
+    data_a.m_Mask = 1;
+    data_a.m_UserData = &vo_a;
+    data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data_a.m_Mass = 0.0f;
+    data_a.m_Restitution = 1.0f;
+    typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shape_a, 1u);
+
+    VisualObject vo_b;
+    dmPhysics::CollisionObjectData data_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    data_b.m_Group = 1;
+    data_b.m_Mask = 1;
+    data_b.m_UserData = &vo_b;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    data_b.m_Mass = 0.0f;
+    data_b.m_Restitution = 1.0f;
+    typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
+
+    int32_t count = 0;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_EQ(0, count);
+
+    // Move kinematic inside, assert entry
+    vo_a.m_Position.setX(1.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, count);
+
+    // Move kinematic inside, assert no second entry
+    vo_a.m_Position.setX(0.5f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, count);
+
+    // Move kinematic outside, assert exit
+    vo_a.m_Position.setX(10.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0, count);
+
+    // Move kinematic inside, assert entry
+    vo_a.m_Position.setX(1.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, count);
+
+    // Disable kinematic, assert exit
+    (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co_a, false);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0, count);
+
+    // Enable kinematic, assert entry
+    (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co_a, true);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, count);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+// Verify that enter/exit callbacks are used correctly when objects are deleted inside a trigger.
+TYPED_TEST(PhysicsTest, TriggerEnterExitDelete)
+{
+    float radius = 0.5f;
+
+    VisualObject vo_b;
+    dmPhysics::CollisionObjectData data_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    data_b.m_Group = 1;
+    data_b.m_Mask = 1;
+    data_b.m_UserData = &vo_b;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    data_b.m_Mass = 0.0f;
+    data_b.m_Restitution = 1.0f;
+    typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
+
+    int32_t count = 0;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+
+    uint32_t it_count = 17;
+
+    for (uint32_t i = 0; i < it_count; ++i)
+    {
+        VisualObject vo_a;
+        vo_a.m_Position.setX(1.0f);
+        dmPhysics::CollisionObjectData data_a;
+        typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+        data_a.m_Group = 1;
+        data_a.m_Mask = 1;
+        data_a.m_UserData = &vo_a;
+        data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+        data_a.m_Mass = 0.0f;
+        data_a.m_Restitution = 1.0f;
+        typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shape_a, 1u);
+
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+        // Deletions are not reported as exits
+        ASSERT_EQ((int32_t)(i+1), count);
+
+        (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
+        (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+// Verify that there is no overflow when more objects interacts with a trigger than is supported (16).
+TYPED_TEST(PhysicsTest, TriggerEnterExitOverflow)
+{
+    float radius = 0.5f;
+
+    VisualObject vo_b;
+    dmPhysics::CollisionObjectData data_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+    data_b.m_Group = 1;
+    data_b.m_Mask = 1;
+    data_b.m_UserData = &vo_b;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+    data_b.m_Mass = 0.0f;
+    data_b.m_Restitution = 1.0f;
+    typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
+
+    int32_t count = 0;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+
+    const uint32_t it_count = 17; // max overlaps is currently set to 16
+
+    typename TypeParam::CollisionObjectType bodies[it_count];
+    typename TypeParam::CollisionShapeType shapes[it_count];
+
+    for (uint32_t i = 0; i < it_count; ++i)
+    {
+        VisualObject vo_a;
+        vo_a.m_Position.setX(1.0f);
+        dmPhysics::CollisionObjectData data_a;
+        typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+        shapes[i] = shape_a;
+        data_a.m_Group = 1;
+        data_a.m_Mask = 1;
+        data_a.m_UserData = &vo_a;
+        data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+        data_a.m_Mass = 0.0f;
+        data_a.m_Restitution = 1.0f;
+        typename TypeParam::CollisionObjectType box_co_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shape_a, 1u);
+        bodies[i] = box_co_a;
+    }
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_EQ((int32_t)(it_count - 1), count);
+
+    for (uint32_t i = 0; i < it_count; ++i)
+    {
+        (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, bodies[i]);
+        (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shapes[i]);
+    }
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+// Verify that the cache is properly expanded when there are more trigger-interaction pairs than supported.
+TYPED_TEST(PhysicsTest, TriggerEnterExitExpansion)
+{
+    float radius = 0.4f;
+
+    const uint32_t x_dim = 10;
+    const uint32_t y_dim = 10;
+    const uint32_t obj_count = x_dim * y_dim;
+
+    typename TypeParam::CollisionShapeType trigger_shapes[obj_count];
+    typename TypeParam::CollisionObjectType trigger_bodies[obj_count];
+    VisualObject trigger_vos[obj_count];
+    typename TypeParam::CollisionShapeType shapes[obj_count];
+    typename TypeParam::CollisionObjectType bodies[obj_count];
+    VisualObject vos[obj_count];
+
+    for (uint32_t x = 0; x < x_dim; ++x)
+    {
+        for (uint32_t y = 0; y < y_dim; ++y)
+        {
+            uint32_t i = y + x * y_dim;
+            VisualObject vo_b;
+            vo_b.m_Position.setX(x);
+            vo_b.m_Position.setY(y);
+            trigger_vos[i] = vo_b;
+            dmPhysics::CollisionObjectData data_b;
+            trigger_shapes[i] = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+            data_b.m_Group = 1;
+            data_b.m_Mask = 1;
+            data_b.m_UserData = &trigger_vos[i];
+            data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER;
+            data_b.m_Mass = 0.0f;
+            data_b.m_Restitution = 1.0f;
+            trigger_bodies[i] = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &trigger_shapes[i], 1u);
+
+            VisualObject vo_a;
+            vo_a.m_Position.setX(x + 0.5f);
+            vo_a.m_Position.setY(y + 0.5f);
+            vos[i] = vo_a;
+            dmPhysics::CollisionObjectData data_a;
+            shapes[i] = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
+            data_a.m_Group = 1;
+            data_a.m_Mask = 1;
+            data_a.m_UserData = &vos[i];
+            data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+            data_a.m_Mass = 0.0f;
+            data_a.m_Restitution = 1.0f;
+            bodies[i] = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_a, &shapes[i], 1u);
+        }
+    }
+
+    int32_t count = 0;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    // 64 is initial capacity of overlaps
+    //ASSERT_LT(64, count);
+    ASSERT_EQ(361, count);
+
+    for (uint32_t i = 0; i < obj_count; ++i)
+    {
+        (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, bodies[i]);
+        (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shapes[i]);
+        (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, trigger_bodies[i]);
+        (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(trigger_shapes[i]);
+    }
 }
 
 int main(int argc, char **argv)

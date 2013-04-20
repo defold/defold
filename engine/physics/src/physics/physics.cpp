@@ -1,4 +1,5 @@
 #include "physics.h"
+#include "physics_private.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -18,6 +19,7 @@ namespace dmPhysics
     , m_WorldCount(4)
     , m_Scale(1.0f)
     , m_ContactImpulseLimit(0.0f)
+    , m_TriggerEnterLimit(0.0f)
     {
 
     }
@@ -81,5 +83,230 @@ namespace dmPhysics
     , m_DebugScale(1.0f)
     {
 
+    }
+
+    /**
+     * Adds the overlap of an object to a specific entry.
+     * Returns whether the overlap was added (might be out of space).
+     */
+    static bool AddOverlap(OverlapEntry* entry, void* object, bool* out_found)
+    {
+        bool found = false;
+        for (uint32_t i = 0; i < entry->m_OverlapCount; ++i)
+        {
+            Overlap& overlap = entry->m_Overlaps[i];
+            if (overlap.m_Object == object)
+            {
+                ++overlap.m_Count;
+                found = true;
+                break;
+            }
+        }
+        if (out_found != 0x0)
+            *out_found = found;
+        if (!found)
+        {
+            if (entry->m_OverlapCount == MAX_OVERLAP_COUNT)
+            {
+                dmLogError("Trigger overlap capacity reached, overlap will not be stored for enter/exit callbacks.");
+                return false;
+            }
+            else
+            {
+                Overlap& overlap = entry->m_Overlaps[entry->m_OverlapCount++];
+                overlap.m_Object = object;
+                overlap.m_Count = 1;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Remove the overlap of an object from an entry.
+     */
+    static void RemoveOverlap(OverlapEntry* entry, void* object)
+    {
+        uint32_t count = entry->m_OverlapCount;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Overlap& overlap = entry->m_Overlaps[i];
+            if (overlap.m_Object == object)
+            {
+                overlap = entry->m_Overlaps[count-1];
+                --entry->m_OverlapCount;
+                return;
+            }
+        }
+    }
+
+    /**
+     * Add the entry of two overlapping objects to the cache.
+     * Automatically creates the overlap, but is not symmetric.
+     */
+    static void AddEntry(OverlapCache* cache, void* object_a, void* object_b)
+    {
+        // Check if the cache needs to be expanded
+        uint32_t size = cache->Size();
+        uint32_t capacity = cache->Capacity();
+        // Expand when 80% full
+        if (size > 3 * capacity / 4)
+        {
+            capacity += CACHE_EXPANSION;
+            cache->SetCapacity(3 * capacity / 4, capacity);
+        }
+        OverlapEntry entry;
+        memset(&entry, 0, sizeof(entry));
+        // Add overlap to the entry
+        AddOverlap(&entry, object_b, 0x0);
+        // Add the entry
+        cache->Put((uintptr_t)object_a, entry);
+    }
+
+    void OverlapCacheInit(OverlapCache* cache)
+    {
+        cache->SetCapacity(3 * CACHE_INITIAL_CAPACITY / 4, CACHE_INITIAL_CAPACITY);
+    }
+
+    /**
+     * Sets an overlap to have 0 count, used to iterate the hash table from reset.
+     */
+    static void ResetOverlap(void* context, const uintptr_t* key, OverlapEntry* value)
+    {
+        uint32_t count = value->m_OverlapCount;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            value->m_Overlaps[i].m_Count = 0;
+        }
+    }
+
+    void OverlapCacheReset(OverlapCache* cache)
+    {
+        cache->Iterate(ResetOverlap, (void*)0x0);
+    }
+
+    OverlapCacheAddData::OverlapCacheAddData()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
+    void OverlapCacheAdd(OverlapCache* cache, const OverlapCacheAddData& data)
+    {
+        bool found = false;
+        OverlapEntry* entry_a = cache->Get((uintptr_t)data.m_ObjectA);
+        if (entry_a != 0x0)
+        {
+            if (!AddOverlap(entry_a, data.m_ObjectB, &found))
+            {
+                // The overlap could not be added to entry_a, bail out
+                return;
+            }
+        }
+        OverlapEntry* entry_b = cache->Get((uintptr_t)data.m_ObjectB);
+        if (entry_b != 0x0)
+        {
+            if (!AddOverlap(entry_b, data.m_ObjectA, &found))
+            {
+                // No space in entry_b, clean up entry_a
+                if (entry_a != 0x0)
+                    RemoveOverlap(entry_a, data.m_ObjectB);
+                // Bail out
+                return;
+            }
+        }
+        // Add entries for previously unrecorded objects
+        if (entry_a == 0x0)
+            AddEntry(cache, data.m_ObjectA, data.m_ObjectB);
+        if (entry_b == 0x0)
+            AddEntry(cache, data.m_ObjectB, data.m_ObjectA);
+        // Callback for newly added overlaps
+        if (!found && data.m_TriggerEnteredCallback != 0x0)
+        {
+            TriggerEnter enter;
+            enter.m_UserDataA = data.m_UserDataA;
+            enter.m_UserDataB = data.m_UserDataB;
+            data.m_TriggerEnteredCallback(enter, data.m_TriggerEnteredUserData);
+        }
+    }
+
+    void OverlapCacheRemove(OverlapCache* cache, void* object)
+    {
+        OverlapEntry* entry = cache->Get((uintptr_t)object);
+        if (entry != 0x0)
+        {
+            // Remove back-references to the object from others
+            for (uint32_t i = 0; i < entry->m_OverlapCount; ++i)
+            {
+                Overlap& overlap = entry->m_Overlaps[i];
+                OverlapEntry* entry2 = cache->Get((uintptr_t)overlap.m_Object);
+                if (entry2 != 0x0)
+                {
+                    RemoveOverlap(entry2, object);
+                }
+            }
+            // Remove the object from the cache
+            cache->Erase((uintptr_t)object);
+        }
+    }
+
+    /**
+     * Context when iterating entries to prune them
+     */
+    struct PruneContext
+    {
+        TriggerExitedCallback m_Callback;
+        void* m_UserData;
+        OverlapCache* m_Cache;
+    };
+
+    /**
+     * Prunes an entry, used to iterate the cache when pruning.
+     */
+    static void PruneOverlap(PruneContext* context, const uintptr_t* key, OverlapEntry* value)
+    {
+        TriggerExitedCallback callback = context->m_Callback;
+        void* user_data = context->m_UserData;
+        OverlapCache* cache = context->m_Cache;
+        void* object_a = (void*)*key;
+        uint32_t i = 0;
+        // Iterate overlaps
+        while (i < value->m_OverlapCount)
+        {
+            Overlap& overlap = value->m_Overlaps[i];
+            // Condition to prune: no registered contacts
+            if (overlap.m_Count == 0)
+            {
+                // Trigger exit callback
+                if (callback != 0x0)
+                {
+                    TriggerExit data;
+                    data.m_UserDataA = object_a;
+                    data.m_UserDataB = overlap.m_Object;
+                    callback(data, user_data);
+                }
+                OverlapEntry* entry = cache->Get((uintptr_t)overlap.m_Object);
+                RemoveOverlap(entry, object_a);
+
+                overlap = value->m_Overlaps[value->m_OverlapCount-1];
+                --value->m_OverlapCount;
+            }
+            else
+            {
+                ++i;
+            }
+        }
+    }
+
+    OverlapCachePruneData::OverlapCachePruneData()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
+    void OverlapCachePrune(OverlapCache* cache, const OverlapCachePruneData& data)
+    {
+        PruneContext context;
+        context.m_Callback = data.m_TriggerExitedCallback;
+        context.m_UserData = data.m_TriggerExitedUserData;
+        context.m_Cache = cache;
+        cache->Iterate(PruneOverlap, &context);
     }
 }
