@@ -7,6 +7,10 @@ components {
   component: "/attacker_target/attacker.collisionobject"
 }
 components {
+  id: "co_trigger"
+  component: "/attacker_target/attacker_trigger.collisionobject"
+}
+components {
   id: "shot"
   component: "/attacker_target/shot.sound"
 }

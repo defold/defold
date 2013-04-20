@@ -1,0 +1,7 @@
+collision_shape: "/attacker_target/trigger.convexshape"
+type: COLLISION_OBJECT_TYPE_TRIGGER
+mass: 0.0
+friction: 0.0
+restitution: 0.0
+group: "attacker"
+mask: "target"

@@ -206,6 +206,45 @@ message ContactPointResponse
     required uint64         group                   = 11;
 }
 
+/*# reports interaction (enter/exit) between a trigger collision object and another collision object
+ * <p>
+ * This message is broadcasted to every component of an instance that has a collision object, when the collision
+ * object interacts with another collision object and one of them is a trigger.
+ * For a script to take action when such an interaction happens, it
+ * should check for this message in its <code>on_message</code> callback function.
+ * </p>
+ * <p>
+ * This message only reports that an interaction actually happened and will only be sent once per colliding pair and frame.
+ * To retrieve more detailed information, check for the <code>contact_point_response</code> instead.
+ * </p>
+ *
+ * @message
+ * @name trigger_response
+ * @param other_id the id of the instance the collision object collided with (hash)
+ * @param enter if the interaction was an entry or not (exit)
+ * @examples
+ * <p>
+ * How to take action when a trigger interaction occurs:
+ * </p>
+ * <pre>
+ * function on_message(self, message_id, message, sender)
+ *     -- check for the message
+ *     if message_id == hash("trigger_response") then
+ *         if message.enter then
+ *             -- take action for entry
+ *         else
+ *             -- take action for exit
+ *         end
+ *     end
+ * end
+ * </pre>
+ */
+message TriggerResponse
+{
+    required uint64 other_id                = 1;
+    required uint32 enter                   = 2;
+}
+
 message RequestRayCast
 {
     required dmMath.Point3  from = 1;

@@ -343,6 +343,32 @@ namespace dmGameSystem
         uint32_t m_Count;
     };
 
+    template <class DDFMessage>
+    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint8_t component_index)
+    {
+        dmhash_t message_id = DDFMessage::m_DDFDescriptor->m_NameHash;
+        uintptr_t descriptor = (uintptr_t)DDFMessage::m_DDFDescriptor;
+        uint32_t data_size = sizeof(DDFMessage);
+        dmMessage::URL sender;
+        dmMessage::ResetURL(sender);
+        dmMessage::URL receiver;
+        dmMessage::ResetURL(receiver);
+        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
+        receiver.m_Path = instance_id;
+        // sender is the same as receiver, but with the specific collision object as fragment
+        sender = receiver;
+        dmGameObject::Result r = dmGameObject::GetComponentId(instance, component_index, &sender.m_Fragment);
+        if (r != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Could not retrieve sender component when reporting %s: %d", DDFMessage::m_DDFDescriptor->m_Name, r);
+        }
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, ddf, data_size);
+        if (result != dmMessage::RESULT_OK)
+        {
+            dmLogError("Could not send %s to component: %d", DDFMessage::m_DDFDescriptor->m_Name, result);
+        }
+    }
+
     bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
@@ -356,52 +382,20 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
-            dmhash_t message_id = dmPhysicsDDF::CollisionResponse::m_DDFDescriptor->m_NameHash;
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::CollisionResponse::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::CollisionResponse);
+
             dmPhysicsDDF::CollisionResponse ddf;
-            dmMessage::URL sender;
-            dmMessage::ResetURL(sender);
-            dmMessage::URL receiver;
-            dmMessage::ResetURL(receiver);
 
             // Broadcast to A components
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
-            receiver.m_Path = instance_a_id;
-            // sender is the same as receiver, but with the specific collision object as fragment
-            sender = receiver;
-            dmGameObject::Result r = dmGameObject::GetComponentId(instance_a, component_a->m_ComponentIndex, &sender.m_Fragment);
-            if (r != dmGameObject::RESULT_OK)
-            {
-                dmLogError("Could not retrieve sender component when reporting collisions: %d", r);
-            }
-            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
-            if (result != dmMessage::RESULT_OK)
-            {
-                dmLogError("Could not send collision callback to component: %d", result);
-            }
+            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_a);
-            ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
+            ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
-            receiver.m_Path = instance_b_id;
-            // sender is the same as receiver, but with the specific collision object as fragment
-            sender = receiver;
-            r = dmGameObject::GetComponentId(instance_b, component_b->m_ComponentIndex, &sender.m_Fragment);
-            if (r != dmGameObject::RESULT_OK)
-            {
-                dmLogError("Could not retrieve sender component when reporting collisions: %d", result);
-            }
-            result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
-            if (result != dmMessage::RESULT_OK)
-            {
-                dmLogError("Could not send collision callback to component: %d", result);
-            }
+            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
             return true;
         }
@@ -429,14 +423,6 @@ namespace dmGameSystem
             float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
             float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
 
-            dmhash_t message_id = dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor->m_NameHash;
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::ContactPointResponse::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::ContactPointResponse);
-            dmMessage::URL sender;
-            dmMessage::ResetURL(sender);
-            dmMessage::URL receiver;
-            dmMessage::ResetURL(receiver);
-
             // Broadcast to A components
             ddf.m_Position = contact_point.m_PositionA;
             ddf.m_Normal = -contact_point.m_Normal;
@@ -445,23 +431,10 @@ namespace dmGameSystem
             ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
             ddf.m_Mass = mass_a;
             ddf.m_OtherMass = mass_b;
-            ddf.m_OtherId = dmGameObject::GetIdentifier(instance_b);
+            ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_a));
-            receiver.m_Path = instance_a_id;
-            // sender is the same as receiver, but with the specific collision object as fragment
-            sender = receiver;
-            dmGameObject::Result r = dmGameObject::GetComponentId(instance_a, component_a->m_ComponentIndex, &sender.m_Fragment);
-            if (r != dmGameObject::RESULT_OK)
-            {
-                dmLogError("Could not retrieve sender component when reporting collisions: %d", r);
-            }
-            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
-            if (result != dmMessage::RESULT_OK)
-            {
-                dmLogError("Could not send collision callback to component: %d", result);
-            }
+            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
             ddf.m_Position = contact_point.m_PositionB;
@@ -471,23 +444,10 @@ namespace dmGameSystem
             ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
             ddf.m_Mass = mass_b;
             ddf.m_OtherMass = mass_a;
-            ddf.m_OtherId = dmGameObject::GetIdentifier(instance_a);
+            ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance_b));
-            receiver.m_Path = instance_b_id;
-            // sender is the same as receiver, but with the specific collision object as fragment
-            sender = receiver;
-            r = dmGameObject::GetComponentId(instance_b, component_b->m_ComponentIndex, &sender.m_Fragment);
-            if (r != dmGameObject::RESULT_OK)
-            {
-                dmLogError("Could not retrieve sender component when reporting collisions: %d", r);
-            }
-            result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &ddf, data_size);
-            if (result != dmMessage::RESULT_OK)
-            {
-                dmLogError("Could not send collision callback to component: %d", result);
-            }
+            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
             return true;
         }
@@ -499,6 +459,48 @@ namespace dmGameSystem
 
     static bool g_CollisionOverflowWarning = false;
     static bool g_ContactOverflowWarning = false;
+
+    void TriggerEnteredCallback(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
+    {
+        CollisionComponent* component_a = (CollisionComponent*)trigger_enter.m_UserDataA;
+        CollisionComponent* component_b = (CollisionComponent*)trigger_enter.m_UserDataB;
+        dmGameObject::HInstance instance_a = component_a->m_Instance;
+        dmGameObject::HInstance instance_b = component_b->m_Instance;
+        dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
+        dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+
+        dmPhysicsDDF::TriggerResponse ddf;
+        ddf.m_Enter = 1;
+
+        // Broadcast to A components
+        ddf.m_OtherId = instance_b_id;
+        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+
+        // Broadcast to B components
+        ddf.m_OtherId = instance_a_id;
+        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+    }
+
+    void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data)
+    {
+        CollisionComponent* component_a = (CollisionComponent*)trigger_exit.m_UserDataA;
+        CollisionComponent* component_b = (CollisionComponent*)trigger_exit.m_UserDataB;
+        dmGameObject::HInstance instance_a = component_a->m_Instance;
+        dmGameObject::HInstance instance_b = component_b->m_Instance;
+        dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
+        dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+
+        dmPhysicsDDF::TriggerResponse ddf;
+        ddf.m_Enter = 0;
+
+        // Broadcast to A components
+        ddf.m_OtherId = instance_b_id;
+        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
+
+        // Broadcast to B components
+        ddf.m_OtherId = instance_a_id;
+        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
+    }
 
     struct RayCastUserData
     {
@@ -642,6 +644,8 @@ namespace dmGameSystem
         step_world_context.m_CollisionUserData = &collision_user_data;
         step_world_context.m_ContactPointCallback = ContactPointCallback;
         step_world_context.m_ContactPointUserData = &contact_user_data;
+        step_world_context.m_TriggerEnteredCallback = TriggerEnteredCallback;
+        step_world_context.m_TriggerExitedCallback = TriggerExitedCallback;
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 

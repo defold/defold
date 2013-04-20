@@ -1,5 +1,4 @@
 function update(self)
-    msg.post("target", "request_transform")
     if self.target_pos then
         local pos = go.get_position()
         local dir = vmath.normalize(self.target_pos - pos)
@@ -9,9 +8,11 @@ function update(self)
 end
 
 function on_message(self, message_id, message, sender)
-    if message_id == hash("transform_response") then
-        assert(sender.path == go.get_id("target"), "invalid id in transform response")
-        self.target_pos = message.position
+    if message_id == hash("trigger_response") then
+        assert(sender.path == go.get_id(), "invalid id in trigger response")
+        if message.enter then
+            self.target_pos = go.get_world_position(message.other_id)
+        end
     elseif message_id == hash("target_dead") then
         msg.post("main:/main#script", "done")
     end
