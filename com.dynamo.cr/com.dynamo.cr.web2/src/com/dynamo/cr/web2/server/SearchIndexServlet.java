@@ -22,10 +22,10 @@ import javax.servlet.http.HttpServletResponse;
 
 import com.google.appengine.api.search.Document;
 import com.google.appengine.api.search.Field;
+import com.google.appengine.api.search.GetRequest;
+import com.google.appengine.api.search.GetResponse;
 import com.google.appengine.api.search.Index;
 import com.google.appengine.api.search.IndexSpec;
-import com.google.appengine.api.search.ListRequest;
-import com.google.appengine.api.search.ListResponse;
 import com.google.appengine.api.search.SearchServiceFactory;
 import com.google.appengine.api.taskqueue.Queue;
 import com.google.appengine.api.taskqueue.QueueFactory;
@@ -63,8 +63,8 @@ public class SearchIndexServlet extends HttpServlet {
         Set<String> toIndex = new HashSet<String>(Arrays.asList(indexMapString.split("\n")));
 
         // Clear stale documents
-        ListRequest request = ListRequest.newBuilder().setReturningIdsOnly(true).build();
-        ListResponse<Document> response = searchIndex.listDocuments(request);
+        GetRequest request = GetRequest.newBuilder().setReturningIdsOnly(true).build();
+        GetResponse<Document> response = searchIndex.getRange(request);
 
         Set<String> currentIndex = new HashSet<String>();
         for (Document document : response) {
@@ -73,7 +73,7 @@ public class SearchIndexServlet extends HttpServlet {
         Set<String> toRemove = new HashSet<String>();
         toRemove.addAll(currentIndex);
         toRemove.removeAll(toIndex);
-        searchIndex.remove(toRemove);
+        searchIndex.delete(toRemove);
 
         // Actual indexing
         for (String docPath : toIndex) {
@@ -98,11 +98,12 @@ public class SearchIndexServlet extends HttpServlet {
                                     .setText(title))
                     .addField(
                             Field.newBuilder().setName("published")
-                                    .setDate(Field.date(new Date())));
+                                    .setDate(new Date()));
+
             Document doc = docBuilder.build();
             logger.info("Adding document: " + docPath);
             try {
-                searchIndex.add(doc);
+                searchIndex.put(doc);
             } catch (RuntimeException e) {
                 logger.log(Level.SEVERE, "Failed to add " + doc, e);
             }

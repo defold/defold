@@ -53,6 +53,8 @@ the correct order to use.
 iOS Debugging
 -------------
 
+* Make sure that you build with **--disable-ccache**. Otherwise lldb can't set breakpoints (all pending). The
+  reason is currently unknown. The --disable-ccache option is available in waf and in build.py.
 * Create a new empty iOS project (Other/Empty)
 * Create a new scheme with Project>New Scheme...
 * Select executable (dmengine.app)

@@ -176,7 +176,7 @@ namespace dmInput
             binding->m_GamepadBinding = 0x0;
         }
         // TODO: use touch triggers, https://defold.fogbugz.com/default.asp?1253
-        uint32_t touch_count = 0; //ddf->m_TouchTrigger.m_Count;
+        uint32_t touch_count = ddf->m_TouchTrigger.m_Count;
         if (touch_count > 0)
         {
             if (binding->m_TouchDeviceBinding == 0x0)
@@ -191,13 +191,12 @@ namespace dmInput
             binding->m_TouchDeviceBinding->m_Triggers.SetCapacity(touch_count);
             for (uint32_t i = 0; i < touch_count; ++i)
             {
-                // TODO: reveal this again, https://defold.fogbugz.com/default.asp?1253
-//                const dmInputDDF::TouchTrigger& ddf_trigger = ddf->m_TouchTrigger[i];
-//                dmInput::TouchTrigger trigger;
-//                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
-//                trigger.m_Input = ddf_trigger.m_Input;
-//                binding->m_TouchDeviceBinding->m_Triggers.Push(trigger);
-//                binding->m_Actions.Put(trigger.m_ActionId, action);
+                const dmInputDDF::TouchTrigger& ddf_trigger = ddf->m_TouchTrigger[i];
+                dmInput::TouchTrigger trigger;
+                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
+                trigger.m_Input = ddf_trigger.m_Input;
+                binding->m_TouchDeviceBinding->m_Triggers.Push(trigger);
+                binding->m_Actions.Put(trigger.m_ActionId, action);
             }
             // Mouse move action
             binding->m_Actions.Put(0, action);
@@ -287,6 +286,7 @@ namespace dmInput
         action->m_Value = 0.0f;
         action->m_PositionSet = 0;
         action->m_AccelerationSet = 0;
+        action->m_TouchCount = 0;
     }
 
     struct UpdateContext
@@ -517,31 +517,28 @@ namespace dmInput
                     {
                         // TODO: Given the packet and prev_packet we could re-map the trigger inputs such that the summed deltas
                         // was minimized, giving continuous strokes of input
-                        int32_t x, y;
-                        bool has_current = dmHID::GetTouchPosition(packet, trigger.m_Input, &x, &y);
-                        int32_t x0, y0;
-                        bool has_prev = dmHID::GetTouchPosition(prev_packet, trigger.m_Input, &x0, &y0);
-                        float v = has_current ? 1.0f : 0.0f;
-                        if (has_current)
-                        {
-                            action->m_PositionSet = true;
-                            action->m_X = x;
-                            action->m_Y = y;
-                            if (has_prev)
+
+                        int32_t tn = packet->m_TouchCount;
+                        // NOTE: We assume dmHID::MAX_TOUCH_COUNT for both source and destination here
+                        assert(tn <= (int32_t) (sizeof(action->m_Touch) / sizeof(action->m_Touch[0])));
+                        action->m_Value = 0;
+                        for (int j = 0; j < tn; ++j) {
+                            action->m_Touch[j] = packet->m_Touches[j];
+                            dmHID::Phase p = packet->m_Touches[j].m_Phase;
+                            if (j == 0)
                             {
-                                action->m_DX = x - x0;
-                                action->m_DY = y - y0;
+                                action->m_X = action->m_Touch[j].m_X;
+                                action->m_Y = action->m_Touch[j].m_Y;
+                                action->m_DX = action->m_Touch[j].m_DX;
+                                action->m_DY = action->m_Touch[j].m_DY;
+                                action->m_PositionSet = 1;
                             }
-                            else
+                            if (p == dmHID::PHASE_BEGAN || p == dmHID::PHASE_MOVED || p == dmHID::PHASE_STATIONARY)
                             {
-                                action->m_DX = 0;
-                                action->m_DY = 0;
+                                action->m_Value = 1.0;
                             }
                         }
-                        if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
-                        {
-                            action->m_Value = 1.0f;
-                        }
+                        action->m_TouchCount = packet->m_TouchCount;
                     }
                 }
                 *prev_packet = *packet;

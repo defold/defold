@@ -21,6 +21,8 @@ namespace dmInput
         float m_AccX;
         float m_AccY;
         float m_AccZ;
+        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
+        int32_t      m_TouchCount;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;

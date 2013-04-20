@@ -27,6 +27,7 @@ class Configuration(object):
                  eclipse_home = None,
                  skip_tests = False,
                  skip_codesign = False,
+                 disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
                  set_version = None,
@@ -44,6 +45,7 @@ class Configuration(object):
         self.target_platform = target_platform
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
+        self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
         self.set_version = set_version
@@ -178,6 +180,8 @@ class Configuration(object):
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
+        disable_ccache = '--disable-ccache' if self.disable_ccache else ''
+
         eclipse = '--eclipse' if self.eclipse else ''
 
         if self.target_platform.startswith('x86_64'):
@@ -190,7 +194,7 @@ class Configuration(object):
         if self.is_cross_platform():
             self._log('Building dlib for host platform')
             cwd = join(self.defold_root, 'engine/dlib')
-            cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, eclipse)
+            cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
 
         self._log('Building bob')
@@ -202,7 +206,7 @@ class Configuration(object):
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, eclipse)
+            cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
 
     def build_docs(self):
@@ -433,6 +437,11 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'skip code signing. Default is false')
 
+    parser.add_option('--disable-ccache', dest='disable_ccache',
+                      action = 'store_true',
+                      default = False,
+                      help = 'force disable of ccache. Default is false')
+
     parser.add_option('--no-colors', dest='no_colors',
                       action = 'store_true',
                       default = False,
@@ -466,6 +475,7 @@ Multiple commands can be specified'''
                           eclipse_home = options.eclipse_home,
                           skip_tests = options.skip_tests,
                           skip_codesign = options.skip_codesign,
+                          disable_ccache = options.disable_ccache,
                           no_colors = options.no_colors,
                           archive_path = options.archive_path,
                           set_version = options.set_version,
@@ -484,6 +494,7 @@ Multiple commands can be specified'''
                       eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
+                      disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
                       set_version = options.set_version,

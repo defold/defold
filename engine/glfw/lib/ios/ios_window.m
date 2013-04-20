@@ -132,6 +132,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (id)initWithFrame:(CGRect)frame
 {
+    self.multipleTouchEnabled = YES;
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _glfwWin.view = self;
     if ((self = [super initWithFrame:frame]))
@@ -200,14 +201,90 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     countDown = swapInterval;
 }
 
+- (void) fill: (GLFWTouch*) glfwt withTouch: (UITouch*) t
+{
+    CGPoint touchLocation = [t locationInView:self];
+    CGPoint prevTouchLocation = [t previousLocationInView:self];
+    CGFloat scaleFactor = self.contentScaleFactor;
+
+    int x = touchLocation.x * scaleFactor;
+    int y = touchLocation.y * scaleFactor;
+    int px = prevTouchLocation.x * scaleFactor;
+    int py = prevTouchLocation.y * scaleFactor;
+
+    glfwt->TapCount = t.tapCount;
+    glfwt->Phase = t.phase;
+    glfwt->X = x;
+    glfwt->Y = y;
+    glfwt->DX = x - px;
+    glfwt->DY = y - py;
+    // Store reference to for later for ordering comparison
+    glfwt->Reference = t;
+}
+
+- (int) fillTouch: (UIEvent*) event
+{
+    NSSet *touches = [event allTouches];
+
+    int touchCount = 0;
+
+    // Keep order by first resuing previous elements
+    for (int i = 0; i < _glfwInput.TouchCount; i++)
+    {
+        GLFWTouch* glfwt = &_glfwInput.Touch[i];
+
+        // NOTE: Tried first with [touchces contains] but got spurious crashes
+        int found = 0;
+        for (UITouch *t in touches)
+        {
+            if (t == glfwt->Reference)
+            {
+                [self fill: glfwt withTouch: t];
+                found = 1;
+            }
+        }
+
+        if (!found)
+            break;
+
+        touchCount++;
+    }
+
+    for (UITouch *t in touches)
+    {
+         if (touchCount >= GLFW_MAX_TOUCH)
+             break;
+
+         int found = 0;
+         // Check if already processed in the initial loop
+         for (int i = 0; i < touchCount; i++)
+         {
+             GLFWTouch* glfwt = &_glfwInput.Touch[i];
+             if (t == (UITouch*) glfwt->Reference)
+             {
+                 found = 1;
+             }
+         }
+         if (found)
+             continue;
+
+         GLFWTouch* glfwt = &_glfwInput.Touch[touchCount];
+         [self fill: glfwt withTouch: t];
+         touchCount++;
+    }
+    return touchCount;
+}
+
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    UITouch *touch = [touches anyObject];
-    CGPoint touchLocation = [touch locationInView:self];
+    _glfwInput.TouchCount = [self fillTouch: event];
+    if( _glfwWin.touchCallback )
+    {
+        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
+    }
 
-    CGFloat scaleFactor = self.contentScaleFactor;
-    _glfwInput.MousePosX = touchLocation.x * scaleFactor;
-    _glfwInput.MousePosY = touchLocation.y * scaleFactor;
+    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
+    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
 
     if( _glfwWin.mousePosCallback )
     {
@@ -217,25 +294,44 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    UITouch *touch = [touches anyObject];
-    CGPoint touchLocation = [touch locationInView:self];
+    _glfwInput.TouchCount = [self fillTouch: event];
+    if( _glfwWin.touchCallback )
+    {
+        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
+    }
 
-    CGFloat scaleFactor = self.contentScaleFactor;
-    _glfwInput.MousePosX = touchLocation.x * scaleFactor;
-    _glfwInput.MousePosY = touchLocation.y * scaleFactor;
-
+    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
+    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
 }
 
 - (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    UITouch *touch = [touches anyObject];
-    CGPoint touchLocation = [touch locationInView:self];
+    _glfwInput.TouchCount = [self fillTouch: event];
+    if( _glfwWin.touchCallback )
+    {
+        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
+    }
 
-    CGFloat scaleFactor = self.contentScaleFactor;
-    _glfwInput.MousePosX = touchLocation.x * scaleFactor;
-    _glfwInput.MousePosY = touchLocation.y * scaleFactor;
+    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
+    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
 
+    if (_glfwInput.TouchCount == 1)
+    {
+        // Send release for last finger
+        _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+    }
+}
+
+- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
+{
+    _glfwInput.TouchCount = [self fillTouch: event];
+    if( _glfwWin.touchCallback )
+    {
+        _glfwWin.touchCallback(_glfwInput.Touch, _glfwInput.TouchCount);
+    }
+    _glfwInput.MousePosX = _glfwInput.Touch[0].X;
+    _glfwInput.MousePosY = _glfwInput.Touch[0].Y;
     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
 }
 

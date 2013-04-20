@@ -3,3 +3,5 @@ mouse_trigger { input: MOUSE_BUTTON_LEFT action: "MOUSE_CLICK" }
 gamepad_trigger { input: GAMEPAD_LSTICK_UP action: "GAMEPAD_LSTICK_UP" }
 gamepad_trigger { input: GAMEPAD_RSTICK_UP action: "GAMEPAD_RSTICK_UP" }
 gamepad_trigger { input: GAMEPAD_RSTICK_DOWN action: "GAMEPAD_RSTICK_DOWN" }
+touch_trigger { input: TOUCH_MULTI action: "TOUCH_1" }
+touch_trigger { input: TOUCH_MULTI action: "TOUCH_2" }

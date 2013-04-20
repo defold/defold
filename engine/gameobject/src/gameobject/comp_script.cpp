@@ -371,6 +371,51 @@ namespace dmGameObject
                 lua_settable(L, action_table);
             }
 
+            if (params.m_InputAction->m_TouchCount > 0)
+            {
+                int tc = params.m_InputAction->m_TouchCount;
+                lua_pushliteral(L, "touch");
+                lua_createtable(L, tc, 0);
+                for (int i = 0; i < tc; ++i)
+                {
+                    const dmHID::Touch& t = params.m_InputAction->m_Touch[i];
+
+                    lua_pushinteger(L, (lua_Integer) (i+1));
+                    lua_createtable(L, 0, 6);
+
+                    lua_pushliteral(L, "tap_count");
+                    lua_pushinteger(L, (lua_Integer) t.m_TapCount);
+                    lua_settable(L, -3);
+
+                    lua_pushliteral(L, "pressed");
+                    lua_pushboolean(L, t.m_Phase == dmHID::PHASE_BEGAN);
+                    lua_settable(L, -3);
+
+                    lua_pushliteral(L, "released");
+                    lua_pushboolean(L, t.m_Phase == dmHID::PHASE_ENDED || t.m_Phase == dmHID::PHASE_CANCELLED);
+                    lua_settable(L, -3);
+
+                    lua_pushliteral(L, "x");
+                    lua_pushinteger(L, (lua_Integer) t.m_X);
+                    lua_settable(L, -3);
+
+                    lua_pushliteral(L, "y");
+                    lua_pushinteger(L, (lua_Integer) t.m_Y);
+                    lua_settable(L, -3);
+
+                    lua_pushliteral(L, "dx");
+                    lua_pushinteger(L, (lua_Integer) t.m_DX);
+                    lua_settable(L, -3);
+
+                    lua_pushliteral(L, "dy");
+                    lua_pushinteger(L, (lua_Integer) t.m_DY);
+                    lua_settable(L, -3);
+
+                    lua_settable(L, -3);
+                }
+                lua_settable(L, -3);
+            }
+
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);

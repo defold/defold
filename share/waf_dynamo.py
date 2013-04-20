@@ -1,5 +1,5 @@
 import os, sys, subprocess, shutil, re, stat
-import Build, Options, Utils, Task
+import Build, Options, Utils, Task, Logs
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
@@ -75,7 +75,7 @@ def default_flags(self):
             pass
     elif platform == "armv7-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv7', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv7', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     elif platform == 'armv7-android':
 
@@ -722,13 +722,16 @@ def detect(conf):
     conf.check_tool('compiler_cxx')
 
     if conf.env['CCACHE'] and not 'win32' == platform:
-        # Prepend gcc/g++ with CCACHE
-        for t in ['CC', 'CXX']:
-            c = conf.env[t]
-            if type(c) == list:
-                conf.env[t] = [conf.env.CCACHE] + c
-            else:
-                conf.env[t] = [conf.env.CCACHE, c]
+        if not Options.options.disable_ccache:
+            # Prepend gcc/g++ with CCACHE
+            for t in ['CC', 'CXX']:
+                c = conf.env[t]
+                if type(c) == list:
+                    conf.env[t] = [conf.env.CCACHE] + c
+                else:
+                    conf.env[t] = [conf.env.CCACHE, c]
+        else:
+            Logs.info('ccache disabled')
 
     if platform == build_platform:
         # Host libraries are installed to $PREFIX/lib
@@ -771,3 +774,5 @@ def set_options(opt):
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
+    opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
+

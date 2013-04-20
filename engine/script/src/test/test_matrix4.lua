@@ -100,3 +100,36 @@ assert(m2.m00 == 2, "mul by num")
 assert(m2.m11 == 4, "mul by num")
 assert(m2.m22 == 6, "mul by num")
 assert(m2.m33 == 8, "mul by num")
+
+
+--inverse
+m = vmath.matrix4()
+m.c0 = vmath.vector4(0,0,1,0)
+m.c1 = vmath.vector4(1,0,0,0)
+m.c2 = vmath.vector4(0,1,0,0)
+m.c3 = vmath.vector4(0,0,0,1)
+mi = vmath.matrix4_ortho_inv(m)
+assert(mi.c0.x == 0)
+assert(mi.c0.y == 1)
+assert(mi.c0.z == 0)
+
+assert(mi.c1.x == 0)
+assert(mi.c1.y == 0)
+assert(mi.c1.z == 1)
+
+assert(mi.c2.x == 1)
+assert(mi.c2.y == 0)
+assert(mi.c2.z == 0)
+
+mi = vmath.matrix4_inv(m)
+assert(mi.c0.x == 0)
+assert(mi.c0.y == 1)
+assert(mi.c0.z == 0)
+
+assert(mi.c1.x == 0)
+assert(mi.c1.y == 0)
+assert(mi.c1.z == 1)
+
+assert(mi.c2.x == 1)
+assert(mi.c2.y == 0)
+assert(mi.c2.z == 0)

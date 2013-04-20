@@ -218,17 +218,8 @@ message GamepadMaps
 
 enum Touch
 {
-    TOUCH_1 = 0;
-    TOUCH_2 = 1;
-    TOUCH_3 = 2;
-    TOUCH_4 = 3;
-    TOUCH_5 = 4;
-    TOUCH_6 = 5;
-    TOUCH_7 = 6;
-    TOUCH_8 = 7;
-    TOUCH_9 = 8;
-    TOUCH_10 = 9;
-    TOUCH_11 = 10;
+    TOUCH_MULTI = 0;
+    MAX_TOUCH_COUNT = 1;
 }
 
 message KeyTrigger
@@ -260,6 +251,5 @@ message InputBinding
     repeated KeyTrigger key_trigger = 1;
     repeated MouseTrigger mouse_trigger = 2;
     repeated GamepadTrigger gamepad_trigger = 3;
-    // TODO: reveal this again, https://defold.fogbugz.com/default.asp?1253
-    // repeated TouchTrigger touch_trigger = 4;
+    repeated TouchTrigger touch_trigger = 4;
 }

@@ -125,6 +125,11 @@ void _glfwClearInput( void )
     _glfwInput.StickyKeys = GL_FALSE;
     _glfwInput.StickyMouseButtons = GL_FALSE;
 
+    for (int i = 0; i < GLFW_MAX_TOUCH; ++i) {
+        memset(&_glfwInput.Touch[i], 0, sizeof(_glfwInput.Touch[i]));
+    }
+    _glfwInput.TouchCount = 0;
+
     // The default is to disable key repeat
     _glfwInput.KeyRepeat = GL_FALSE;
 }
@@ -519,6 +524,7 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     _glfwWin.mousePosCallback      = NULL;
     _glfwWin.mouseButtonCallback   = NULL;
     _glfwWin.mouseWheelCallback    = NULL;
+    _glfwWin.touchCallback         = NULL;
 
     // Check width & height
     if( width > 0 && height <= 0 )

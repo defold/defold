@@ -325,117 +325,112 @@ TEST_F(InputTest, Gamepad)
     dmInput::DeleteBinding(binding);
 }
 
-// TODO: reveal this again, https://defold.fogbugz.com/default.asp?1253
-//TEST_F(InputTest, Touch)
-//{
-//    // Create new contexts to avoid mouse interference
-//    dmHID::NewContextParams hid_params;
-//    hid_params.m_IgnoreMouse = true;
-//    dmHID::HContext hid_context = dmHID::NewContext(hid_params);
-//    ASSERT_TRUE(dmHID::Init(hid_context));
-//    dmInput::NewContextParams input_params;
-//    input_params.m_HidContext = hid_context;
-//    input_params.m_RepeatDelay = 0.5f;
-//    input_params.m_RepeatInterval = 0.2f;
-//    dmInput::HContext context = dmInput::NewContext(input_params);
-//
-//    dmInput::HBinding binding = dmInput::NewBinding(context);
-//    dmInput::SetBinding(binding, m_TestDDF);
-//
-//    dmHID::Update(hid_context);
-//    dmInput::UpdateBinding(binding, m_DT);
-//
-//    dmhash_t touch_1_id = dmHashString64("TOUCH_1");
-//    dmhash_t touch_2_id = dmHashString64("TOUCH_2");
-//
-//    const dmInput::Action* action = dmInput::GetAction(binding, touch_1_id);
-//    ASSERT_NE((void*)0, (void*)action);
-//    ASSERT_EQ(0.0f, action->m_Value);
-//    ASSERT_FALSE(action->m_PositionSet);
-//    action = dmInput::GetAction(binding, touch_2_id);
-//    ASSERT_NE((void*)0, (void*)action);
-//    ASSERT_EQ(0.0f, action->m_Value);
-//    ASSERT_FALSE(action->m_PositionSet);
-//
-//    dmHID::AddTouchPosition(hid_context, 0, 1);
-//    dmHID::AddTouchPosition(hid_context, 2, 3);
-//
-//    dmHID::Update(hid_context);
-//    dmInput::UpdateBinding(binding, m_DT);
-//
-//    action = dmInput::GetAction(binding, touch_1_id);
-//    ASSERT_EQ(1.0f, action->m_Value);
-//    ASSERT_TRUE(action->m_Pressed);
-//    ASSERT_FALSE(action->m_Released);
-//    ASSERT_TRUE(action->m_Repeated);
-//    ASSERT_TRUE(action->m_PositionSet);
-//    ASSERT_EQ(0, action->m_X);
-//    ASSERT_EQ(1, action->m_Y);
-//    ASSERT_EQ(0, action->m_DX);
-//    ASSERT_EQ(0, action->m_DY);
-//
-//    action = dmInput::GetAction(binding, touch_2_id);
-//    ASSERT_EQ(1.0f, action->m_Value);
-//    ASSERT_TRUE(action->m_Pressed);
-//    ASSERT_FALSE(action->m_Released);
-//    ASSERT_TRUE(action->m_Repeated);
-//    ASSERT_TRUE(action->m_PositionSet);
-//    ASSERT_EQ(2, action->m_X);
-//    ASSERT_EQ(3, action->m_Y);
-//    ASSERT_EQ(0, action->m_DX);
-//    ASSERT_EQ(0, action->m_DY);
-//
-//    dmHID::ClearTouchPositions(hid_context);
-//    dmHID::AddTouchPosition(hid_context, 4, 5);
-//    dmHID::AddTouchPosition(hid_context, 6, 7);
-//
-//    dmHID::Update(hid_context);
-//    dmInput::UpdateBinding(binding, m_DT);
-//
-//    action = dmInput::GetAction(binding, touch_1_id);
-//    ASSERT_EQ(1.0f, action->m_Value);
-//    ASSERT_FALSE(action->m_Pressed);
-//    ASSERT_FALSE(action->m_Released);
-//    ASSERT_TRUE(action->m_PositionSet);
-//    ASSERT_EQ(4, action->m_X);
-//    ASSERT_EQ(5, action->m_Y);
-//    ASSERT_EQ(4, action->m_DX);
-//    ASSERT_EQ(4, action->m_DY);
-//
-//    action = dmInput::GetAction(binding, touch_2_id);
-//    ASSERT_EQ(1.0f, action->m_Value);
-//    ASSERT_FALSE(action->m_Pressed);
-//    ASSERT_FALSE(action->m_Released);
-//    ASSERT_TRUE(action->m_PositionSet);
-//    ASSERT_EQ(6, action->m_X);
-//    ASSERT_EQ(7, action->m_Y);
-//    ASSERT_EQ(4, action->m_DX);
-//    ASSERT_EQ(4, action->m_DY);
-//
-//    dmHID::ClearTouchPositions(hid_context);
-//
-//    dmHID::Update(hid_context);
-//    dmInput::UpdateBinding(binding, m_DT);
-//
-//    action = dmInput::GetAction(binding, touch_1_id);
-//    ASSERT_EQ(0.0f, action->m_Value);
-//    ASSERT_FALSE(action->m_Pressed);
-//    ASSERT_TRUE(action->m_Released);
-//    ASSERT_FALSE(action->m_PositionSet);
-//
-//    action = dmInput::GetAction(binding, touch_2_id);
-//    ASSERT_EQ(0.0f, action->m_Value);
-//    ASSERT_FALSE(action->m_Pressed);
-//    ASSERT_TRUE(action->m_Released);
-//    ASSERT_FALSE(action->m_PositionSet);
-//
-//    dmInput::DeleteBinding(binding);
-//
-//    // Destroy contexts
-//    dmInput::DeleteContext(context);
-//    dmHID::Final(hid_context);
-//    dmHID::DeleteContext(hid_context);
-//}
+TEST_F(InputTest, Touch)
+{
+    // Create new contexts to avoid mouse interference
+    dmHID::NewContextParams hid_params;
+    hid_params.m_IgnoreMouse = true;
+    dmHID::HContext hid_context = dmHID::NewContext(hid_params);
+    ASSERT_TRUE(dmHID::Init(hid_context));
+    dmInput::NewContextParams input_params;
+    input_params.m_HidContext = hid_context;
+    input_params.m_RepeatDelay = 0.5f;
+    input_params.m_RepeatInterval = 0.2f;
+    dmInput::HContext context = dmInput::NewContext(input_params);
+
+    dmInput::HBinding binding = dmInput::NewBinding(context);
+    dmInput::SetBinding(binding, m_TestDDF);
+
+    dmHID::Update(hid_context);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    dmhash_t touch_1_id = dmHashString64("TOUCH_1");
+    dmhash_t touch_2_id = dmHashString64("TOUCH_2");
+
+    const dmInput::Action* action = dmInput::GetAction(binding, touch_1_id);
+    ASSERT_NE((void*)0, (void*)action);
+    ASSERT_EQ(0.0f, action->m_Value);
+    ASSERT_FALSE(action->m_PositionSet);
+    action = dmInput::GetAction(binding, touch_2_id);
+    ASSERT_NE((void*)0, (void*)action);
+    ASSERT_EQ(0.0f, action->m_Value);
+    ASSERT_FALSE(action->m_PositionSet);
+
+    dmHID::AddTouchPosition(hid_context, 0, 1);
+    dmHID::AddTouchPosition(hid_context, 2, 3);
+
+    dmHID::Update(hid_context);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    action = dmInput::GetAction(binding, touch_1_id);
+    ASSERT_EQ(1.0f, action->m_Value);
+    ASSERT_TRUE(action->m_Pressed);
+    ASSERT_FALSE(action->m_Released);
+    ASSERT_TRUE(action->m_Repeated);
+    ASSERT_TRUE(action->m_PositionSet);
+    ASSERT_EQ(0, action->m_X);
+    ASSERT_EQ(1, action->m_Y);
+    ASSERT_EQ(0, action->m_DX);
+    ASSERT_EQ(0, action->m_DY);
+    ASSERT_EQ(0, action->m_Touch[0].m_X);
+    ASSERT_EQ(1, action->m_Touch[0].m_Y);
+
+    action = dmInput::GetAction(binding, touch_2_id);
+    ASSERT_EQ(1.0f, action->m_Value);
+    ASSERT_TRUE(action->m_Pressed);
+    ASSERT_FALSE(action->m_Released);
+    ASSERT_TRUE(action->m_Repeated);
+    ASSERT_TRUE(action->m_PositionSet);
+    ASSERT_EQ(2, action->m_Touch[1].m_X);
+    ASSERT_EQ(3, action->m_Touch[1].m_Y);
+
+    dmHID::ClearTouchPositions(hid_context);
+    dmHID::AddTouchPosition(hid_context, 4, 5);
+    dmHID::AddTouchPosition(hid_context, 6, 7);
+
+    dmHID::Update(hid_context);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    action = dmInput::GetAction(binding, touch_1_id);
+    ASSERT_EQ(1.0f, action->m_Value);
+    ASSERT_FALSE(action->m_Pressed);
+    ASSERT_FALSE(action->m_Released);
+    ASSERT_TRUE(action->m_PositionSet);
+    ASSERT_EQ(4, action->m_Touch[0].m_X);
+    ASSERT_EQ(5, action->m_Touch[0].m_Y);
+
+    action = dmInput::GetAction(binding, touch_2_id);
+    ASSERT_EQ(1.0f, action->m_Value);
+    ASSERT_FALSE(action->m_Pressed);
+    ASSERT_FALSE(action->m_Released);
+    ASSERT_TRUE(action->m_PositionSet);
+    ASSERT_EQ(6, action->m_Touch[1].m_X);
+    ASSERT_EQ(7, action->m_Touch[1].m_Y);
+
+    dmHID::ClearTouchPositions(hid_context);
+
+    dmHID::Update(hid_context);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    action = dmInput::GetAction(binding, touch_1_id);
+    ASSERT_EQ(0.0f, action->m_Value);
+    ASSERT_FALSE(action->m_Pressed);
+    ASSERT_TRUE(action->m_Released);
+    ASSERT_FALSE(action->m_PositionSet);
+
+    action = dmInput::GetAction(binding, touch_2_id);
+    ASSERT_EQ(0.0f, action->m_Value);
+    ASSERT_FALSE(action->m_Pressed);
+    ASSERT_TRUE(action->m_Released);
+    ASSERT_FALSE(action->m_PositionSet);
+
+    dmInput::DeleteBinding(binding);
+
+    // Destroy contexts
+    dmInput::DeleteContext(context);
+    dmHID::Final(hid_context);
+    dmHID::DeleteContext(hid_context);
+}
 
 void ActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
 {

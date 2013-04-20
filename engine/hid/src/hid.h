@@ -177,6 +177,16 @@ namespace dmHID
         MAX_MOUSE_BUTTON_COUNT = HID_MOUSE_BUTTON_8 + 1
     };
 
+    enum Phase
+    {
+        // NOTE: By convention the enumeration corresponds to iOS values
+        PHASE_BEGAN,
+        PHASE_MOVED,
+        PHASE_STATIONARY,
+        PHASE_ENDED,
+        PHASE_CANCELLED,
+    };
+
     struct KeyboardPacket
     {
         uint32_t m_Keys[MAX_KEY_COUNT / 32 + 1];
@@ -195,9 +205,31 @@ namespace dmHID
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
     };
 
+    /**
+     * Data for a single touch, e.g. finger
+     */
+    struct Touch
+    {
+        /// Single-click, double, etc
+        int32_t m_TapCount;
+        /// Begin, end, etc
+        Phase   m_Phase;
+        /// Current x
+        int32_t m_X;
+        /// Current y
+        int32_t m_Y;
+        /// dx
+        int32_t m_DX;
+        /// dy
+        int32_t m_DY;
+    };
+
+    /**
+     * Data for the current touch-state
+     */
     struct TouchDevicePacket
     {
-        int32_t m_Touches[MAX_TOUCH_COUNT][2];
+        Touch    m_Touches[MAX_TOUCH_COUNT];
         uint32_t m_TouchCount;
     };
 
