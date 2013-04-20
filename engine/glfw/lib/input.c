@@ -294,13 +294,14 @@ GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
 
 GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count)
 {
+    int i;
     int n = _glfwInput.TouchCount;
     if (count < n)
         n = count;
 
     *out_count = n;
 
-    for (int i = 0; i < n; ++i) {
+    for (i = 0; i < n; ++i) {
         touch[i] = _glfwInput.Touch[i];
     }
 

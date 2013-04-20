@@ -125,7 +125,7 @@ void _glfwClearInput( void )
     _glfwInput.StickyKeys = GL_FALSE;
     _glfwInput.StickyMouseButtons = GL_FALSE;
 
-    for (int i = 0; i < GLFW_MAX_TOUCH; ++i) {
+    for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
         memset(&_glfwInput.Touch[i], 0, sizeof(_glfwInput.Touch[i]));
     }
     _glfwInput.TouchCount = 0;
