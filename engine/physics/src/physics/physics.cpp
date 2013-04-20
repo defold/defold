@@ -143,7 +143,7 @@ namespace dmPhysics
      * Add the entry of two overlapping objects to the cache.
      * Automatically creates the overlap, but is not symmetric.
      */
-    static void AddEntry(OverlapCache* cache, void* object_a, void* object_b)
+    static void AddEntry(OverlapCache* cache, void* object_a, void* user_data_a, void* object_b)
     {
         // Check if the cache needs to be expanded
         uint32_t size = cache->Size();
@@ -156,6 +156,7 @@ namespace dmPhysics
         }
         OverlapEntry entry;
         memset(&entry, 0, sizeof(entry));
+        entry.m_UserData = user_data_a;
         // Add overlap to the entry
         AddOverlap(&entry, object_b, 0x0);
         // Add the entry
@@ -215,9 +216,9 @@ namespace dmPhysics
         }
         // Add entries for previously unrecorded objects
         if (entry_a == 0x0)
-            AddEntry(cache, data.m_ObjectA, data.m_ObjectB);
+            AddEntry(cache, data.m_ObjectA, data.m_UserDataA, data.m_ObjectB);
         if (entry_b == 0x0)
-            AddEntry(cache, data.m_ObjectB, data.m_ObjectA);
+            AddEntry(cache, data.m_ObjectB, data.m_UserDataB, data.m_ObjectA);
         // Callback for newly added overlaps
         if (!found && data.m_TriggerEnteredCallback != 0x0)
         {
@@ -275,15 +276,15 @@ namespace dmPhysics
             // Condition to prune: no registered contacts
             if (overlap.m_Count == 0)
             {
+                OverlapEntry* entry = cache->Get((uintptr_t)overlap.m_Object);
                 // Trigger exit callback
                 if (callback != 0x0)
                 {
                     TriggerExit data;
-                    data.m_UserDataA = object_a;
-                    data.m_UserDataB = overlap.m_Object;
+                    data.m_UserDataA = value->m_UserData;
+                    data.m_UserDataB = entry->m_UserData;
                     callback(data, user_data);
                 }
-                OverlapEntry* entry = cache->Get((uintptr_t)overlap.m_Object);
                 RemoveOverlap(entry, object_a);
 
                 overlap = value->m_Overlaps[value->m_OverlapCount-1];

@@ -13,6 +13,8 @@ function on_message(self, message_id, message, sender)
         if message.enter then
             self.target_pos = go.get_world_position(message.other_id)
         end
+        -- provoke exit too
+        msg.post("#co_trigger", "disable")
     elseif message_id == hash("target_dead") then
         msg.post("main:/main#script", "done")
     end

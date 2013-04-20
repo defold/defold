@@ -37,6 +37,7 @@ namespace dmPhysics
      */
     struct OverlapEntry
     {
+        void* m_UserData;
         Overlap m_Overlaps[MAX_OVERLAP_COUNT];
         uint32_t m_OverlapCount;
     };

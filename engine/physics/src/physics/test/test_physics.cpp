@@ -1588,16 +1588,27 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
 }
 
+struct TriggerUserData
+{
+    int32_t m_Count;
+    void* m_UserDataA;
+    void* m_UserDataB;
+};
+
 void TriggerEntered(const dmPhysics::TriggerEnter& trigger_enter, void* user_data)
 {
-    int32_t* count = (int32_t*)user_data;
-    *count += 1;
+    TriggerUserData* ud = (TriggerUserData*)user_data;
+    ud->m_Count += 1;
+    ud->m_UserDataA = trigger_enter.m_UserDataA;
+    ud->m_UserDataB = trigger_enter.m_UserDataB;
 }
 
 void TriggerExited(const dmPhysics::TriggerExit& trigger_exit, void* user_data)
 {
-    int32_t* count = (int32_t*)user_data;
-    *count -= 1;
+    TriggerUserData* ud = (TriggerUserData*)user_data;
+    ud->m_Count -= 1;
+    ud->m_UserDataA = trigger_exit.m_UserDataA;
+    ud->m_UserDataB = trigger_exit.m_UserDataB;
 }
 
 // Verify that enter/exit callbacks are used correctly for a single object that interacts with a trigger.
@@ -1628,45 +1639,49 @@ TYPED_TEST(PhysicsTest, TriggerEnterExit)
     data_b.m_Restitution = 1.0f;
     typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
 
-    int32_t count = 0;
+    TriggerUserData ud = {0, 0, 0};
     TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
-    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &ud;
     TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
-    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &ud;
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-    ASSERT_EQ(0, count);
+    ASSERT_EQ(0, ud.m_Count);
 
     // Move kinematic inside, assert entry
     vo_a.m_Position.setX(1.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1, count);
+    ASSERT_EQ(1, ud.m_Count);
+    // We don't know the order of objects in the callback, test that either is valid
+    ASSERT_TRUE((ud.m_UserDataA == &vo_a && ud.m_UserDataB == &vo_b) || (ud.m_UserDataA == &vo_b && ud.m_UserDataB == &vo_a));
 
     // Move kinematic inside, assert no second entry
     vo_a.m_Position.setX(0.5f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1, count);
+    ASSERT_EQ(1, ud.m_Count);
 
     // Move kinematic outside, assert exit
     vo_a.m_Position.setX(10.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(0, count);
+    ASSERT_EQ(0, ud.m_Count);
+    // We don't know the order of objects in the callback, test that either is valid
+    ASSERT_TRUE((ud.m_UserDataA == &vo_a && ud.m_UserDataB == &vo_b) || (ud.m_UserDataA == &vo_b && ud.m_UserDataB == &vo_a));
 
     // Move kinematic inside, assert entry
     vo_a.m_Position.setX(1.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1, count);
+    ASSERT_EQ(1, ud.m_Count);
 
     // Disable kinematic, assert exit
     (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co_a, false);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(0, count);
+    ASSERT_EQ(0, ud.m_Count);
 
     // Enable kinematic, assert entry
     (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, box_co_a, true);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    ASSERT_EQ(1, count);
+    ASSERT_EQ(1, ud.m_Count);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_b);
@@ -1690,11 +1705,11 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitDelete)
     data_b.m_Restitution = 1.0f;
     typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
 
-    int32_t count = 0;
+    TriggerUserData ud = {0, 0, 0};
     TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
-    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &ud;
     TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
-    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &ud;
 
     uint32_t it_count = 17;
 
@@ -1715,7 +1730,7 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitDelete)
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
         // Deletions are not reported as exits
-        ASSERT_EQ((int32_t)(i+1), count);
+        ASSERT_EQ((int32_t)(i+1), ud.m_Count);
 
         (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co_a);
         (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
@@ -1741,11 +1756,11 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitOverflow)
     data_b.m_Restitution = 1.0f;
     typename TypeParam::CollisionObjectType box_co_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data_b, &shape_b, 1u);
 
-    int32_t count = 0;
+    TriggerUserData ud = {0, 0, 0};
     TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
-    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &ud;
     TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
-    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &ud;
 
     const uint32_t it_count = 17; // max overlaps is currently set to 16
 
@@ -1771,7 +1786,7 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitOverflow)
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
-    ASSERT_EQ((int32_t)(it_count - 1), count);
+    ASSERT_EQ((int32_t)(it_count - 1), ud.m_Count);
 
     for (uint32_t i = 0; i < it_count; ++i)
     {
@@ -1834,17 +1849,17 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitExpansion)
         }
     }
 
-    int32_t count = 0;
+    TriggerUserData ud = {0, 0, 0};
     TestFixture::m_StepWorldContext.m_TriggerEnteredCallback = TriggerEntered;
-    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerEnteredUserData = &ud;
     TestFixture::m_StepWorldContext.m_TriggerExitedCallback = TriggerExited;
-    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &count;
+    TestFixture::m_StepWorldContext.m_TriggerExitedUserData = &ud;
 
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
 
     // 64 is initial capacity of overlaps
     //ASSERT_LT(64, count);
-    ASSERT_EQ(361, count);
+    ASSERT_EQ(361, ud.m_Count);
 
     for (uint32_t i = 0; i < obj_count; ++i)
     {
