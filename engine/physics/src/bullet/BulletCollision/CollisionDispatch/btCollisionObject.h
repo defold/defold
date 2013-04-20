@@ -297,6 +297,13 @@ public:
 	}
 
 
+	// DEFOLD MOD only existed in btRigidBody before
+	//is this rigidbody added to a btCollisionWorld/btDynamicsWorld/btBroadphase?
+	bool isInWorld() const
+	{
+	    return m_broadphaseHandle != 0;
+	}
+
 	SIMD_FORCE_INLINE btBroadphaseProxy*	getBroadphaseHandle()
 	{
 		return m_broadphaseHandle;
