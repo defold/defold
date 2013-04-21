@@ -1113,15 +1113,15 @@ namespace dmScript
 
     /*# calculates the inverse matrix.
      *
-     * <b>NOTE</b> For ortho-normal matrises, e.g. regular object transformation use,
+     * <b>NOTE</b> For ortho-normal matrises, e.g. regular object transformation, use
      * vmath.matrix4_ortho_inv instead. The specialized inverse for ortho-normalized matrices
      * is much faster than the general inverse.
      *
-     * @name vmath.matrix4_inv
+     * @name vmath.inv
      * @param m matrix to invert (matrix4)
      * @return inverse of the supplied matrix (matrix4)
      */
-    static int Matrix4_Inverse(lua_State* L)
+    static int Inverse(lua_State* L)
     {
         const Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
         Vectormath::Aos::Matrix4 mi = Vectormath::Aos::inverse(*m);
@@ -1131,11 +1131,11 @@ namespace dmScript
 
     /*# calculates the inverse of an ortho-normal matrix.
      *
-     * @name vmath.matrix4_inv
+     * @name vmath.ortho_inv
      * @param m ortho-normalized matrix to invert (matrix4)
      * @return inverse of the supplied matrix (matrix4)
      */
-    static int Matrix4_OrthoInverse(lua_State* L)
+    static int OrthoInverse(lua_State* L)
     {
         const Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
         Vectormath::Aos::Matrix4 mi = Vectormath::Aos::orthoInverse(*m);
@@ -1418,8 +1418,6 @@ namespace dmScript
         {"matrix4_rotation_x", Matrix4_RotationX},
         {"matrix4_rotation_y", Matrix4_RotationY},
         {"matrix4_rotation_z", Matrix4_RotationZ},
-        {"matrix4_inv", Matrix4_Inverse},
-        {"matrix4_ortho_inv", Matrix4_OrthoInverse},
         {"dot", Dot},
         {"length_sqr", LengthSqr},
         {"length", Length},
@@ -1430,6 +1428,8 @@ namespace dmScript
         {"conj", Conj},
         {"rotate", Rotate},
         {"project", Project},
+        {"inv", Inverse},
+        {"ortho_inv", OrthoInverse},
         {0, 0}
     };
 
