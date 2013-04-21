@@ -168,7 +168,7 @@ TEST(ScalarTypes, Types)
     // Test descriptor
     const dmDDF::Descriptor& d = DUMMY::TestDDF_ScalarTypes_DESCRIPTOR;
     EXPECT_STREQ("scalar_types", d.m_Name);
-    EXPECT_EQ(7, d.m_FieldCount);
+    EXPECT_EQ(8, d.m_FieldCount);
 
     // Test field(s)
     const char* names[] =
@@ -180,6 +180,7 @@ TEST(ScalarTypes, Types)
         "int64_val",
         "uint64_val",
         "string_val",
+        "bool_val",
     };
 
     enum dmDDF::Type types[] =
@@ -191,6 +192,7 @@ TEST(ScalarTypes, Types)
         dmDDF::TYPE_INT64,
         dmDDF::TYPE_UINT64,
         dmDDF::TYPE_STRING,
+        dmDDF::TYPE_BOOL,
     };
 
     for (uint32_t i = 0; i < d.m_FieldCount; ++i)
@@ -212,6 +214,7 @@ TEST(ScalarTypes, Load)
     scalar_types.set_int64_val(INT64_MAX);
     scalar_types.set_uint64_val(UINT64_MAX);
     scalar_types.set_string_val("foo");
+    scalar_types.set_bool_val(true);
 
     std::string msg_str = scalar_types.SerializeAsString();
     const char* msg_buf = msg_str.c_str();
@@ -229,6 +232,7 @@ TEST(ScalarTypes, Load)
     EXPECT_EQ(scalar_types.int64_val(), msg->m_Int64Val);
     EXPECT_EQ(scalar_types.uint64_val(), msg->m_Uint64Val);
     EXPECT_STREQ(scalar_types.string_val().c_str(), msg->m_StringVal);
+    EXPECT_EQ(scalar_types.bool_val(), msg->m_BoolVal);
 
     std::string msg_str2;
     e = DDFSaveToString(message, &DUMMY::TestDDF_ScalarTypes_DESCRIPTOR, msg_str2);
@@ -660,6 +664,8 @@ TEST(TestDefault, LoadSave)
     ASSERT_EQ(defaulto.quat().x(), message->m_Quat.m_X);
 
     ASSERT_EQ((int) defaulto.enum_(), (int) message->m_Enum);
+
+    ASSERT_EQ(defaulto.bool_val(), message->m_BoolVal);
 
     std::string msg_str2;
     e = DDFSaveToString(message, DUMMY::TestDDF::TestDefault::m_DDFDescriptor, msg_str2);

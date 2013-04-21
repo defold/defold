@@ -124,6 +124,11 @@ namespace dmDDF
         return WriteVarInt64(value);
     }
 
+    bool OutputStream::WriteBool(bool value)
+    {
+        return WriteVarInt32(value);
+    }
+
     bool OutputStream::WriteString(const char* str)
     {
         uint32_t len = strlen(str);

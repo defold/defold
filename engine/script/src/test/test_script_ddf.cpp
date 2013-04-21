@@ -147,6 +147,9 @@ TEST_F(ScriptDDFTest, MessageInMessageToDDF)
     lua_pushinteger(L, 1);
     lua_setfield(L, -2, "enum_value");
 
+    lua_pushboolean(L, true);
+    lua_setfield(L, -2, "bool_value");
+
     char* buf = new char[1024];
 
     uint32_t size = dmScript::CheckDDF(L, TestScript::Msg::m_DDFDescriptor, buf, 1024, -1);
@@ -175,6 +178,7 @@ TEST_F(ScriptDDFTest, MessageInMessageToDDF)
             ASSERT_EQ(i * 4 + j, msg->m_Matrix4Value.getElem(i, j));
     ASSERT_EQ(1U, msg->m_SubMsgValue.m_UintValue);
     ASSERT_EQ(TestScript::ENUM_VAL1, msg->m_EnumValue);
+    ASSERT_EQ(true, msg->m_BoolValue);
 
     delete[] buf;
 
@@ -200,6 +204,7 @@ TEST_F(ScriptDDFTest, MessageInMessageToLua)
     g->m_Vec4Value.setW(4.0f);
     g->m_SubMsgValue.m_UintValue = 1;
     g->m_EnumValue = TestScript::ENUM_VAL1;
+    g->m_BoolValue = true;
 
     dmScript::PushDDF(L, TestScript::Msg::m_DDFDescriptor, (const char*) g);
 
@@ -230,6 +235,8 @@ TEST_F(ScriptDDFTest, MessageInMessageToLua)
 
     lua_getfield(L, -1, "enum_value"); ASSERT_EQ(TestScript::ENUM_VAL1, luaL_checkint(L, -1)); lua_pop(L, 1);
 
+    lua_getfield(L, -1, "bool_value"); ASSERT_EQ(true, lua_toboolean(L, -1)); lua_pop(L, 1);
+
     lua_pop(L, 1);
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -259,6 +266,7 @@ TEST_F(ScriptDDFTest, DefaultValueToDDF)
     ASSERT_EQ(0.0f, msg->m_QuatValue.getZ());
     ASSERT_EQ(1.0f, msg->m_QuatValue.getW());
     ASSERT_EQ(1, msg->m_EnumValue);
+    ASSERT_EQ(true, msg->m_BoolValue);
 
     delete[] buf;
 

@@ -637,7 +637,7 @@ bail:
             dmHID::Touch& a = action->m_Touch[i];
             dmHID::Touch& ia = input_action.m_Touch[i];
             ia = action->m_Touch[i];
-            ia.m_X = (a.m_Y + 0.5f) * width_ratio;
+            ia.m_X = (a.m_X + 0.5f) * width_ratio;
             ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
             ia.m_DX = a.m_DX * width_ratio;
             ia.m_DY = -a.m_DY * height_ratio;

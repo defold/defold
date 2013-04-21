@@ -232,6 +232,20 @@ namespace dmDDF
         }
     }
 
+    bool InputBuffer::ReadBool(bool* value)
+    {
+        uint32_t v;
+        if (ReadVarInt32(&v))
+        {
+            *value = (bool)v;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     bool InputBuffer::SubBuffer(uint32_t length, InputBuffer* sub_buffer)
     {
         if (m_Current + length > m_End)

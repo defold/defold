@@ -8,8 +8,7 @@ namespace dmDDF
         switch(type)
         {
         case TYPE_BOOL:
-            assert(false && "Bools not supported."); // TODO: Fix?
-            return -1;
+            return sizeof(bool);
 
         case TYPE_INT32:
         case TYPE_FLOAT:

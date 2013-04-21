@@ -242,7 +242,7 @@ message ContactPointResponse
 message TriggerResponse
 {
     required uint64 other_id                = 1;
-    required uint32 enter                   = 2;
+    required bool enter                     = 2;
 }
 
 message RequestRayCast

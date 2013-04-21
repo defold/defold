@@ -52,6 +52,7 @@ namespace dmDDF
             READSCALARFIELD_CASE(TYPE_INT64, int64_t, ReadInt64);
             READSCALARFIELD_CASE(TYPE_UINT64, uint64_t, ReadUInt64);
             READSCALARFIELD_CASE(TYPE_ENUM, uint32_t, ReadUInt32);
+            READSCALARFIELD_CASE(TYPE_BOOL, bool, ReadBool);
 
         default:
             assert(0);

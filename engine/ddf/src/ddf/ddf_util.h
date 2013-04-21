@@ -49,6 +49,7 @@ namespace dmDDF
         case TYPE_UINT64:
         case TYPE_INT32:
         case TYPE_UINT32:
+        case TYPE_BOOL:
             return WIRETYPE_VARINT;
 
         case TYPE_FIXED64:

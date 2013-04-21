@@ -27,6 +27,7 @@ namespace dmDDF
         bool WriteUInt32(uint32_t value);
         bool WriteInt64(int64_t value);
         bool WriteUInt64(uint64_t value);
+        bool WriteBool(bool value);
 
         bool WriteString(const char* str);
 

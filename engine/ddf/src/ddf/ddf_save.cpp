@@ -88,8 +88,7 @@ namespace dmDDF
                         break;
 
                     case TYPE_BOOL:
-                        assert(false);
-                        break;
+                        DDF_SAVEMESSAGE_CASE(bool, WIRETYPE_VARINT, WriteBool)
 
                     case TYPE_STRING:
                         // Do not write null-strings. Will result in null-pointer error in WriteString
