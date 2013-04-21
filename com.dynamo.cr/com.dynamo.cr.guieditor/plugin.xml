@@ -246,13 +246,13 @@
             commandId="com.dynamo.cr.guieditor.commands.bringForward"
             contextId="com.dynamo.cr.guieditor.contexts.GuiEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="M1+]">
+            sequence="PAGE_UP">
       </key>
       <key
             commandId="com.dynamo.cr.guieditor.commands.sendBackward"
             contextId="com.dynamo.cr.guieditor.contexts.GuiEditor"
             schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
-            sequence="M1+[">
+            sequence="PAGE_DOWN">
       </key>
    </extension>
    <extension
