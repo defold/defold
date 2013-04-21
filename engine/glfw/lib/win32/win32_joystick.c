@@ -30,6 +30,169 @@
 
 #include "internal.h"
 
+#define GLFW_XINPUT 1
+
+#if GLFW_XINPUT
+
+// NOTE: We put this information here instead of in _glfwInput as
+// _glfwInput is cleared when opening a new window
+int g_ControllerPresent[GLFW_MAX_XINPUT_CONTROLLERS] = { 0 };
+
+void _glfwPlatformDiscoverJoysticks()
+{
+    int i;
+    DWORD dwResult;
+    XINPUT_STATE state;
+
+    for (i = 0; i < GLFW_MAX_XINPUT_CONTROLLERS; i++)
+    {
+        dwResult = XInputGetState(i, &state);
+        g_ControllerPresent[i] = dwResult == ERROR_SUCCESS;
+    }
+}
+
+static int _glfwJoystickPresent( int joy )
+{
+    if (joy >= 0 && joy < GLFW_MAX_XINPUT_CONTROLLERS && g_ControllerPresent[joy])
+    {
+        return GL_TRUE;
+    }
+    return GL_FALSE;
+}
+
+int _glfwPlatformGetJoystickParam( int joy, int param )
+{
+    // Is joystick present?
+    if( !_glfwJoystickPresent( joy ) )
+    {
+        return 0;
+    }
+
+    // We got this far, the joystick is present
+    if( param == GLFW_PRESENT )
+    {
+        return GL_TRUE;
+    }
+
+    switch( param )
+    {
+    case GLFW_AXES:
+        // Return number of joystick axes
+        return 6;
+
+    case GLFW_BUTTONS:
+        // Return number of joystick buttons
+		// NOTE: We fake 16 buttons. The actual number is 14 but the button-mask is sparse in XInput. bit 0-9 + bit 12-15 
+        return 16;
+
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int _glfwPlatformGetJoystickPos(int joy, float *pos, int numaxes)
+{
+    int axis;
+    DWORD dwResult;
+    XINPUT_STATE state;
+
+    if (!_glfwJoystickPresent(joy))
+    {
+        return 0;
+    }
+
+    axis = 0;
+    dwResult = XInputGetState(joy, &state);
+    if (dwResult != ERROR_SUCCESS)
+    {
+        return 0;
+    }
+
+#define AXIS_VAL(x) 2.0f * ((x) + 32768) / 65535.0f - 1.0f;
+#define TRIGGER_VAL(x) ((x)/ 255.0f);
+
+    if (axis < numaxes)
+    {
+        pos[axis++] = AXIS_VAL(state.Gamepad.sThumbLX);
+    }
+    if (axis < numaxes)
+    {
+        pos[axis++] = AXIS_VAL(state.Gamepad.sThumbLY);
+    }
+    if (axis < numaxes)
+    {
+        pos[axis++] = AXIS_VAL(state.Gamepad.sThumbRX);
+    }
+    if (axis < numaxes)
+    {
+        pos[axis++] = AXIS_VAL(state.Gamepad.sThumbRY);
+    }
+    if (axis < numaxes)
+    {
+        pos[axis++] = TRIGGER_VAL(state.Gamepad.bLeftTrigger);
+    }
+    if (axis < numaxes)
+    {
+        pos[axis++] = TRIGGER_VAL(state.Gamepad.bRightTrigger);
+    }
+
+#undef AXIS_VAL
+#undef TRIGGER_VAL
+	return axis;
+}
+
+//========================================================================
+// Get joystick button states
+//========================================================================
+
+int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons,
+    int numbuttons )
+{
+    int       button;
+    DWORD dwResult;
+    XINPUT_STATE state;
+
+    if( !_glfwJoystickPresent( joy ) )
+    {
+        return 0;
+    }
+
+    dwResult = XInputGetState( joy, &state );
+    if(dwResult != ERROR_SUCCESS)
+    {
+        return 0;
+    }
+    button = 0;
+    while( button < numbuttons && button < 16 )
+    {
+        buttons[ button ] = (unsigned char)
+            (state.Gamepad.wButtons & (1UL << button) ? GLFW_PRESS : GLFW_RELEASE);
+        button++;
+    }
+
+    return button;
+}
+
+//========================================================================
+// _glfwPlatformGetJoystickDeviceId() - Get joystick device id
+//========================================================================
+
+int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
+{
+    static char name[] = "XBox 360 Controller";
+
+    if( !_glfwJoystickPresent( joy ) )
+    {
+        return GL_FALSE;
+    }
+
+    *device_id = (char*) name;
+    return GL_TRUE;
+}
+
+#else
 
 //************************************************************************
 //****                  GLFW internal functions                       ****
@@ -250,3 +413,5 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     *device_id = (char*)jc.szPname;
     return GL_TRUE;
 }
+
+#endif
