@@ -175,7 +175,6 @@ namespace dmInput
             delete binding->m_GamepadBinding;
             binding->m_GamepadBinding = 0x0;
         }
-        // TODO: use touch triggers, https://defold.fogbugz.com/default.asp?1253
         uint32_t touch_count = ddf->m_TouchTrigger.m_Count;
         if (touch_count > 0)
         {
