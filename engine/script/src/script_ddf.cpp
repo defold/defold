@@ -41,6 +41,12 @@ namespace dmScript
             }
             break;
 
+            case dmDDF::TYPE_BOOL:
+            {
+                *((bool *) &buffer[f->m_Offset]) = *((bool*) default_value);
+            }
+            break;
+
             case dmDDF::TYPE_FLOAT:
             {
                 *((float *) &buffer[f->m_Offset]) = *((float*) default_value);
@@ -98,6 +104,12 @@ namespace dmScript
             case dmDDF::TYPE_UINT64:
             {
                 *((dmhash_t *) &buffer[f->m_Offset]) = 0;
+            }
+            break;
+
+            case dmDDF::TYPE_BOOL:
+            {
+                *((bool *) &buffer[f->m_Offset]) = false;
             }
             break;
 
@@ -169,6 +181,15 @@ namespace dmScript
                     *((dmhash_t *) &buffer[f->m_Offset]) = 0;
                 else
                     *((dmhash_t *) &buffer[f->m_Offset]) = dmScript::CheckHash(L, -1);
+            }
+            break;
+
+            case dmDDF::TYPE_BOOL:
+            {
+                if (nil_val)
+                    *((bool *) &buffer[f->m_Offset]) = false;
+                else
+                    *((bool *) &buffer[f->m_Offset]) = (bool)lua_toboolean(L, -1) ;
             }
             break;
 
@@ -350,6 +371,12 @@ namespace dmScript
             case dmDDF::TYPE_UINT64:
             {
                 dmScript::PushHash(L, (dmhash_t) *((dmhash_t*) &data[f->m_Offset]));
+            }
+            break;
+
+            case dmDDF::TYPE_BOOL:
+            {
+                lua_pushboolean(L, (int) *((bool*) &data[f->m_Offset]));
             }
             break;
 

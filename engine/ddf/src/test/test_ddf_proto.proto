@@ -25,6 +25,7 @@ message ScalarTypes
     required int64  int64_val = 5;
     required uint64 uint64_val = 6;
     required string string_val = 7;
+    required bool bool_val = 8;
 }
 
 enum TestEnum
@@ -229,6 +230,8 @@ message TestDefault
     optional SubMessageWithOptionalQuat sub_message = 12;
 
     optional TestEnum enum = 13 [ default = TEST_ENUM_VAL2 ];
+
+    optional bool bool_val = 14 [ default = true ];
 }
 
 message EmptyMsg {}

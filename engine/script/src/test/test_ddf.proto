@@ -30,6 +30,7 @@ message Msg
     required dmMath.Matrix4 matrix4_value = 7;
     required SubMsg sub_msg_value = 8;
     required Enum enum_value = 9;
+    required bool bool_value = 10;
 }
 
 message DefaultValue
@@ -38,6 +39,7 @@ message DefaultValue
     optional string string_value = 2  [ default = "test" ];
     optional dmMath.Quat quat_value = 3;
     optional Enum enum_value = 4 [ default = ENUM_VAL1 ];
+    optional bool bool_value = 5 [ default = true ];
 }
 
 message OptionalNoDefaultValue

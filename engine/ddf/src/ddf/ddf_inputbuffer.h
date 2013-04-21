@@ -32,6 +32,7 @@ namespace dmDDF
         bool                ReadUInt32(uint32_t* value);
         bool                ReadInt64(int64_t* value);
         bool                ReadUInt64(uint64_t* value);
+        bool                ReadBool(bool* value);
 
     private:
         const char* m_Start;
