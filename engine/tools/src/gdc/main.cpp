@@ -251,20 +251,20 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, b
 
 void DumpDriver(FILE* out, Driver* driver)
 {
-    fprintf(out, "Driver\n{\n");
-    fprintf(out, "    Device: \"%s\"\n", driver->m_Device);
-    fprintf(out, "    Platform: \"%s\"\n", driver->m_Platform);
-    fprintf(out, "    DeadZone: %.3f\n", driver->m_DeadZone);
+    fprintf(out, "driver\n{\n");
+    fprintf(out, "    device: \"%s\"\n", driver->m_Device);
+    fprintf(out, "    platform: \"%s\"\n", driver->m_Platform);
+    fprintf(out, "    dead_zone: %.3f\n", driver->m_DeadZone);
     for (uint32_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
     {
-        fprintf(out, "    Map { Input: %s Type: %s Index: %d ",
+        fprintf(out, "    map { input: %s type: %s index: %d ",
                 dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name,
                 dmInputDDF_GamepadType_DESCRIPTOR.m_EnumValues[driver->m_Triggers[i].m_Type].m_Name,
                 driver->m_Triggers[i].m_Index);
         for (uint32_t j = 0; j < dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT; ++j)
         {
             if (driver->m_Triggers[i].m_Modifiers[j])
-                fprintf(out, "Mod { Mod: %s } ", dmInputDDF_GamepadModifier_DESCRIPTOR.m_EnumValues[j].m_Name);
+                fprintf(out, "mod { mod: %s } ", dmInputDDF_GamepadModifier_DESCRIPTOR.m_EnumValues[j].m_Name);
         }
         fprintf(out, "}\n");
     }

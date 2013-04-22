@@ -43,6 +43,7 @@
 // Include files
 #include <windows.h>
 #include <mmsystem.h>
+#include <xinput.h>
 #include "../../include/GL/glfw.h"
 
 
@@ -133,6 +134,7 @@ typedef struct tagKBDLLHOOKSTRUCT {
 #define XBUTTON2 2
 #endif
 
+#define GLFW_MAX_XINPUT_CONTROLLERS 4
 #ifndef WGL_EXT_swap_control
 
 /* Entry points */
@@ -554,5 +556,6 @@ int _glfwGetClosestVideoMode( int *w, int *h, int *r, int *g, int *b, int *refre
 void _glfwSetVideoModeMODE( int mode );
 void _glfwSetVideoMode( int *w, int *h, int r, int g, int b, int refresh );
 
+void _glfwPlatformDiscoverJoysticks();
 
 #endif // _platform_h_

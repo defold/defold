@@ -1768,6 +1768,10 @@ void _glfwPlatformPollEvents( void )
                 winclosed = GL_TRUE;
                 break;
 
+            case WM_DEVICECHANGE:
+                _glfwPlatformDiscoverJoysticks();
+                // fall-through. might be a good idea to send to DispatchMessage()?
+
             // Ok, send it to the window message handler
             default:
                 DispatchMessage( &msg );

@@ -47,6 +47,8 @@
 
 static int _glfwInitLibraries( void )
 {
+	_glfwPlatformDiscoverJoysticks();
+
     // gdi32.dll (OpenGL pixel format functions & SwapBuffers)
 #ifndef _GLFW_NO_DLOAD_GDI32
     _glfwLibrary.Libs.gdi32 = LoadLibrary( "gdi32.dll" );
