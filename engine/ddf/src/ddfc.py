@@ -69,7 +69,7 @@ type_to_boxedjavatype = { FieldDescriptor.TYPE_DOUBLE : "Double",
                   FieldDescriptor.TYPE_INT32 : "Integer",
 #                  FieldDescriptor.TYPE_FIXED64
 #                  FieldDescriptor.TYPE_FIXED32
-                  FieldDescriptor.TYPE_BOOL : "bool",
+                  FieldDescriptor.TYPE_BOOL : "Boolean",
                   FieldDescriptor.TYPE_STRING : "String",
 #                  FieldDescriptor.TYPE_GROUP
 #                  FieldDescriptor.TYPE_MESSAGE
