@@ -50,7 +50,7 @@ type_to_javatype = { FieldDescriptor.TYPE_DOUBLE : "double",
                   FieldDescriptor.TYPE_INT32 : "int",
 #                  FieldDescriptor.TYPE_FIXED64
 #                  FieldDescriptor.TYPE_FIXED32
-                  FieldDescriptor.TYPE_BOOL : "bool",
+                  FieldDescriptor.TYPE_BOOL : "boolean",
                   FieldDescriptor.TYPE_STRING : "String",
 #                  FieldDescriptor.TYPE_GROUP
 #                  FieldDescriptor.TYPE_MESSAGE
@@ -80,25 +80,6 @@ type_to_boxedjavatype = { FieldDescriptor.TYPE_DOUBLE : "Double",
 #                  FieldDescriptor.TYPE_SFIXED64
                   FieldDescriptor.TYPE_SINT32 : "Integer",
                   FieldDescriptor.TYPE_SINT64 : "Long" }
-
-type_to_size = { FieldDescriptor.TYPE_DOUBLE : 8,
-                 FieldDescriptor.TYPE_FLOAT : 4,
-                 FieldDescriptor.TYPE_INT64 : 8,
-                 FieldDescriptor.TYPE_UINT64 : 8,
-                 FieldDescriptor.TYPE_INT32 : 4,
-#                  FieldDescriptor.TYPE_FIXED64
-#                  FieldDescriptor.TYPE_FIXED32
-                 FieldDescriptor.TYPE_BOOL : "bool",
-                 FieldDescriptor.TYPE_STRING : DDF_POINTER_SIZE,
-#                  FieldDescriptor.TYPE_GROUP
-#                  FieldDescriptor.TYPE_MESSAGE
-#                  FieldDescriptor.TYPE_BYTES
-                 FieldDescriptor.TYPE_UINT32 : 4,
-                  FieldDescriptor.TYPE_ENUM : 4,
-#                  FieldDescriptor.TYPE_SFIXED32
-#                  FieldDescriptor.TYPE_SFIXED64
-                 FieldDescriptor.TYPE_SINT32 : 4,
-                 FieldDescriptor.TYPE_SINT64 : 8 }
 
 type_to_struct_format = { FieldDescriptor.TYPE_DOUBLE : ("d", float),
                           FieldDescriptor.TYPE_FLOAT : ("f", float),
