@@ -40,6 +40,8 @@ void b2GridAndCircleContact::Evaluate(b2Manifold* manifold, const b2Transform& x
     b2GridShape* gridShape = (b2GridShape*)m_fixtureA->GetShape();
     b2CircleShape* circleB = (b2CircleShape*)m_fixtureB->GetShape();
 
+    manifold->pointCount = 0;
+
     const b2GridShape::Cell& cell = gridShape->m_cells[m_indexA];
     if (cell.m_Index == 0xffffffff)
     {
