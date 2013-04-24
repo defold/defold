@@ -45,9 +45,10 @@ Here's an example of how to make a player object collide with an enemy object:
 Collision Handling
 ------------------
 
-To take action when collisions happen, there are three types of messages to be used for this purpose: link:/ref/gamesys#collision_response[+collision_response+], link:/ref/gamesys#contact_point_response[+contact_point_response+] and link:/ref/gamesys#trigger_response[+trigger_response+].
+To take action when collisions happen, there are three types of messages to be used for this purpose:
 
-+collision_response+-messages are sent once per frame for each pair of colliding objects.
-+contact_point_response+-messages are sent for each contact point between each pair of colliding objects.
-+trigger_response+-messages are sent when a collision object enters and exits a collision object of type *trigger*.
+* link:/ref/gamesys#collision_response[+collision_response+] - sent once per frame for each pair of colliding objects
+* link:/ref/gamesys#contact_point_response[+contact_point_response+] - sent for each contact point between each pair of colliding objects
+* link:/ref/gamesys#trigger_response[+trigger_response+] - sent when a collision object enters and exits a collision object of type *trigger*
+
 Please see the reference documentation (links above) on how to react to each message.
