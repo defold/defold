@@ -4,6 +4,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/script.html
+/blog/input_and_trigger_handling_release_1_2_19.html
 /blog/particlefx_fixes_release_1_2_18.html
 /blog/tiny_graphics_update_release_1_2_17.html
 /blog/in_place_game_objects_release_1_2_16.html

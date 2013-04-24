@@ -1,5 +1,36 @@
 :max-width: 45em
 
+Input and trigger handling (Release 1.2.19)
+-------------------------------------------
+_April 24, 2013_
+
+Release 1.2.19 brings multi-touch, 360 controllers on Windows and physics trigger handling.
+
+Multi-Touch
+~~~~~~~~~~~
+
+We now support multi-touch on iOS. Please see the link:/ref/go#on_input[reference docs] for how to handle multi-touch.
+
+360 Controllers on Windows
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We have finally added the ability to use XBox 360 controllers on Windows.
+To properly connect your 360 controller to Windows, please see the link:/doc/input[input guide].
+
+Physics Triggers
+~~~~~~~~~~~~~~~~
+
+We have added a new message to specifically handle entry and exit of physics triggers.
+The message is called +trigger_response+, please see the link:/ref/gamesys#trigger_response[reference documentation] how to act on it.
+
+Other Fixes
+~~~~~~~~~~~
+
+* New functions for inverting matrices: link:/ref/script#vmath.inv[vmath.inv] and link:/ref/script#vmath.ortho_inv[vmath.ortho_inv]
+* Fixed lingering contacts after a tile map cell had been cleared at run-time
+
+Enjoy!
+
 ParticleFX Fixes (Release 1.2.18)
 ---------------------------------
 _April 2, 2013_
