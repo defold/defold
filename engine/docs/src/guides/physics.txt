@@ -17,7 +17,7 @@ The three different _types_ defines how the position is controlled.
 * *Static* - the collision object will never move, which is beneficial for performance
 * *Dynamic* - the collision object is affected by gravity and other collision objects, also moves the game object
 * *Kinematic* - the collision object is moved by the game object (e.g. a script component), but can still affects other collision objects
-* *Trigger* - the collision object is moved by the game object (e.g. a script component), but does not affect other collision objects (gives collision response but no contact points)
+* *Trigger* - the collision object is moved by the game object (e.g. a script component), but does not affect other collision objects (gives collision- and trigger-response but no contact points)
 
 Collision Filtering
 -------------------
@@ -41,3 +41,13 @@ Here's an example of how to make a player object collide with an enemy object:
 * *Enemy*
 ** _Group_: +enemy+
 ** _Mask_: +player+
+
+Collision Handling
+------------------
+
+To take action when collisions happen, there are three types of messages to be used for this purpose: link:/ref/gamesys#collision_response[+collision_response+], link:/ref/gamesys#contact_point_response[+contact_point_response+] and link:/ref/gamesys#trigger_response[+trigger_response+].
+
++collision_response+-messages are sent once per frame for each pair of colliding objects.
++contact_point_response+-messages are sent for each contact point between each pair of colliding objects.
++trigger_response+-messages are sent when a collision object enters and exits a collision object of type *trigger*.
+Please see the reference documentation (links above) on how to react to each message.
