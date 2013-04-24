@@ -12,18 +12,16 @@ By separating the hardware input from the logical actions, you can script using 
 If you decide later on that you want to change which hardware inputs trigger what actions, there is only one place to modify.
 
 The bindings are specified in an _Input Binding_ file (.input_binding).
-By default, the engine will look for the file +/input/game.input_binding+ in your project, but you can change this in the link:/doc/game_project[game.project] file by adding:
+By default, the engine will look for the file +/input/game.input_binding+ in your project, but you can change this in the link:/doc/game_project[game.project] file.
 
-----
-[input]
-game_binding = /my_dir/my_file.input_bindingc
-----
+The file contains different hardware triggers for keyboard, mouse, touches and gamepads (Sixaxis/XBox 360).
+Please check the link:/ref/go#on_input[reference documentation] for how to handle each input.
+For convenience, single touch is currently converted into a mouse input to easier test your game.
 
 [IMPORTANT]
-There should be a 'c' at the end of the path to correspond to the compiled version of the file.
+On Windows, only XBox 360 controllers are currently supported.
+To hook up your 360 controller to your Windows machine, make sure it is link:http://www.wikihow.com/Use-Your-Xbox-360-Controller-for-Windows[setup] correctly.
 
-The file contains different hardware triggers for keyboard, mouse and gamepads (Sixaxis/XBox 360).
-Touch devices currently works identical to a mouse, but with only a single touch supported (link:http://defold.userecho.com[tell us] if you want multi-touch support).
 You can add and remove triggers via the context menus of the different trigger types.
 
 ((((
