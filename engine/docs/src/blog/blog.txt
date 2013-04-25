@@ -2,7 +2,7 @@
 
 Input and trigger handling (Release 1.2.19)
 -------------------------------------------
-_April 24, 2013_
+_April 25, 2013_
 
 Release 1.2.19 brings multi-touch, 360 controllers on Windows and physics trigger handling.
 
