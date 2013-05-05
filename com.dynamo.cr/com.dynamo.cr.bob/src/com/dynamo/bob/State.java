@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Bob state abstraction for peristant sha1-checksums
+ * Bob state abstraction for persistent sha1-checksums
  * @author Christian Murray
  *
  */

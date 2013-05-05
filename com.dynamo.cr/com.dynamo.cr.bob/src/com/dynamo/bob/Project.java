@@ -180,6 +180,7 @@ public class Project {
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
+        fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
         createTasks();
@@ -215,6 +216,7 @@ public class Project {
 
         monitor.done();
         state.save(stateResource);
+        fileSystem.saveCache();
         return result;
     }
 

@@ -26,4 +26,11 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
         }
         return r;
     }
+
+    @Override
+    public void loadCache() {}
+
+    @Override
+    public void saveCache() {}
+
 }
