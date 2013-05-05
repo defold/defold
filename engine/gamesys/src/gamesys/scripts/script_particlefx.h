@@ -9,7 +9,7 @@
 
 namespace dmGameSystem
 {
-    void ScriptParticleFXRegister(void* context);
+    void ScriptParticleFXRegister(const ScriptLibContext& context);
 }
 
 #endif // DM_GAMESYS_SCRIPT_PARTICLEFX_H

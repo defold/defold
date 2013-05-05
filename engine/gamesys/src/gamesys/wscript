@@ -15,14 +15,17 @@ def build(bld):
     resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto'])
     bld.add_group()
 
-    doc_dirs = ['.', '../../proto', 'scripts']
-    doc_task = bld.new_task_gen(target = 'gamesys_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-    doc_task.find_sources_in_dirs(doc_dirs)
-
-    doc_task = bld.new_task_gen(target = 'gamesys_doc.json',
-                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-    doc_task.find_sources_in_dirs(doc_dirs)
+    for d, source in [('camera', ('../../proto/camera_ddf.proto')),
+                      ('factory', ('scripts/script_factory.cpp')),
+                      ('particlefx', ('scripts/script_particlefx.cpp')),
+                      ('collision_object', ('../../proto/physics_ddf.proto', 'scripts/script_physics.cpp')),
+                      ('sprite', ('../../proto/sprite_ddf.proto', 'scripts/script_sprite.cpp')),
+                      ('tilemap', ('../../proto/tile_ddf.proto', 'scripts/script_tilemap.cpp')),
+                      ]:
+        bld.new_task_gen(source = source,
+                         target = '%s_doc.sdoc' % d,
+                         rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+        bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % d)
 
     bld.add_group()
     bld.add_subdirs('test')
@@ -34,5 +37,3 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../../proto/model_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/mesh_ddf.proto')
     bld.install_files('${PREFIX}/share/proto', '../../proto/sprite_ddf.proto')
-    bld.install_files('${PREFIX}/share/doc', 'gamesys_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'gamesys_doc.json')

@@ -137,6 +137,51 @@ namespace dmGameSystem
         return update_result;
     }
 
+    /*# plays a sound
+     * Post this message to a sound-component to make it play its sound. Multiple voices is support. The limit is set to 32 voices per sound component.
+     *
+     * @message
+     * @name play_sound
+     * @param [delay] delay in seconds before the sound starts playing, default is 0 (number)
+     * @param [gain] sound gain between 0 and 1, default is 1 (number)
+     * @examples
+     * <p>
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
+     * </p>
+     * <pre>
+     * msg.post("#sound", "play_sound", {delay = 1, gain = 0.5})
+     * </pre>
+     */
+
+    /*# stop a playing a sound(s)
+     * Post this message to a sound-component to make it stop playing all active voices
+     *
+     * @message
+     * @name stop_sound
+     * @examples
+     * <p>
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component stop all playing voices:
+     * </p>
+     * <pre>
+     * msg.post("#sound", "stop_sound")
+     * </pre>
+     */
+
+    /*# set sound gain
+     * Post this message to a sound-component to set gain on all active playing voices.
+     *
+     * @message
+     * @name set_gain
+     * @param [gain] sound gain between 0 and 1, default is 1 (number)
+     * @examples
+     * <p>
+     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
+     * </p>
+     * <pre>
+     * msg.post("#sound", "set_gain", {gain = 0.5})
+     * </pre>
+     */
+
     dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor)

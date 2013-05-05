@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %} {{ title }} {% endblock %}
+{% block title %} {{ title }} Reference Documentation {% endblock %}
 {% block head %}
 <link href="{{root}}prettify/prettify.css" type="text/css" rel="stylesheet" />
 <script type="text/javascript" src="{{root}}prettify/prettify.js"></script>
@@ -24,12 +24,29 @@
         <div class="well well-green sidebar-nav">
             <ul class="nav nav-list">
                 <li class="nav-header">Reference</li>
-                <li><a href="engine">Engine</a></li>
+
+                <li class="nav-header">Systems</li>
+                <li><a href="engine">System</a></li>
                 <li><a href="go">GameObject</a></li>
                 <li><a href="gamesys">GameSys</a></li>
                 <li><a href="gui">Gui</a></li>
                 <li><a href="render">Render</a></li>
-                <li><a href="script">Script</a></li>
+
+                <li class="nav-header">Components</li>
+                <li><a href="camera">Camera</a></li>
+                <li><a href="collection_proxy">Collection Proxy</a></li>
+                <li><a href="factory">Factory</a></li>
+                <li><a href="particlefx">ParticleFX</a></li>
+                <li><a href="collision_object">Collision Object</a></li>
+                <li><a href="sound">Sound</a></li>
+                <li><a href="sprite">Sprite</a></li>
+                <li><a href="tilemap">Tilemap</a></li>
+
+                <li class="nav-header">Script</li>
+                <li><a href="script_hash">Builtins</a></li>
+                <li><a href="script_msg">Message</a></li>
+                <li><a href="script_vmath">Vector Math</a></li>
+
             </ul>
         </div>
     </div>
@@ -97,7 +114,34 @@
     </table>
     {% endif %}
 
+    {% if properties %}
+    <h2>Properties</h2>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Message</th>
+                <th>Brief</th>
+            </tr>
+        </thead>
+        <tbody>
+    {% for p in properties %}
+        <tr>
+            <td><a href="#{{ p.name }}">{{ p.name }}</a></td>
+            <td>{{ p.brief }}</td>
+        </tr>
+    {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
     </div>
+
+    {% if package %}
+    <h2>Overview</h2>
+    <p>
+    {{ package.description }}
+    </p>
+    {% endif %}
 
     {% if functions %}
     <h2>Functions</h2>
@@ -181,6 +225,17 @@
     {% endfor %}
     {% endif %}
 
+    {% if properties %}
+    <h2>Properties</h2>
+    {% for p in properties %}
+        <a name="{{ p.name }}"></a>
+        <div>
+        <h3 class="name">{{ p.name }}</h3>
+        <p>
+        {{ p.brief }}
+        </div>
+    {% endfor %}
+    {% endif %}
 
     </div>
     </div>
