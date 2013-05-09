@@ -10,6 +10,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/profile.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 #include <dlib/mutex.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
@@ -28,6 +29,27 @@ namespace dmGameObject
     const uint32_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const char* ID_SEPARATOR = "/";
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 5;
+
+#define PROP_FLOAT(var_name, prop_name)\
+    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
+
+#define PROP_VECTOR3(var_name, prop_name)\
+    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
+    const dmhash_t PROP_##var_name##_X = dmHashString64(#prop_name ".x");\
+    const dmhash_t PROP_##var_name##_Y = dmHashString64(#prop_name ".y");\
+    const dmhash_t PROP_##var_name##_Z = dmHashString64(#prop_name ".z");
+
+#define PROP_QUAT(var_name, prop_name)\
+    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
+    const dmhash_t PROP_##var_name##_X = dmHashString64(#prop_name ".x");\
+    const dmhash_t PROP_##var_name##_Y = dmHashString64(#prop_name ".y");\
+    const dmhash_t PROP_##var_name##_Z = dmHashString64(#prop_name ".z");\
+    const dmhash_t PROP_##var_name##_W = dmHashString64(#prop_name ".w");
+
+    PROP_VECTOR3(POSITION, position);
+    PROP_QUAT(ROTATION, rotation);
+    PROP_VECTOR3(EULER, euler);
+    PROP_FLOAT(SCALE, scale);
 
     InputAction::InputAction()
     {
@@ -1805,6 +1827,197 @@ namespace dmGameObject
         }
 
         return false;
+    }
+
+    static void UpdateRotationToEuler(HInstance instance)
+    {
+        Quat q = instance->m_Transform.GetRotation();
+        instance->m_EulerRotation = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+        instance->m_PrevEulerRotation = instance->m_EulerRotation;
+    }
+
+    static void UpdateEulerToRotation(HInstance instance)
+    {
+        Quat q = instance->m_Transform.GetRotation();
+        instance->m_PrevEulerRotation = instance->m_EulerRotation;
+        instance->m_Transform.SetRotation(dmVMath::EulerToQuat(instance->m_EulerRotation));
+    }
+
+    GetPropertyParams::GetPropertyParams()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
+    PropertyResult GetProperty(const GetPropertyParams& params, GetPropertyOutParams& out)
+    {
+        HInstance instance = params.m_Instance;
+        dmhash_t component_id = params.m_ComponentId;
+        dmhash_t property_id = params.m_PropertyId;
+        if (component_id == 0)
+        {
+            uint32_t index = 0;
+            float* value = 0x0;
+            uint32_t element_count = 1;
+            float* transform = (float*)&instance->m_Transform;
+            if (property_id == PROP_POSITION)
+            {
+                value = transform;
+                element_count = 3;
+                index = 0;
+            }
+            else if (property_id == PROP_POSITION_X)
+            {
+                value = transform;
+                element_count = 1;
+                index = 0;
+            }
+            else if (property_id == PROP_POSITION_Y)
+            {
+                value = transform + 1;
+                element_count = 1;
+                index = 1;
+            }
+            else if (property_id == PROP_POSITION_Z)
+            {
+                value = transform + 2;
+                element_count = 1;
+                index = 2;
+            }
+            else if (property_id == PROP_SCALE)
+            {
+                value = transform + 3;
+                element_count = 1;
+                index = 3;
+            }
+            else if (property_id == PROP_ROTATION)
+            {
+                value = transform + 4;
+                element_count = 4;
+                index = 4;
+            }
+            else if (property_id == PROP_ROTATION_X)
+            {
+                value = transform + 4;
+                element_count = 1;
+                index = 4;
+            }
+            else if (property_id == PROP_ROTATION_Y)
+            {
+                value = transform + 5;
+                element_count = 1;
+                index = 5;
+            }
+            else if (property_id == PROP_ROTATION_Z)
+            {
+                value = transform + 6;
+                element_count = 1;
+                index = 6;
+            }
+            else if (property_id == PROP_ROTATION_W)
+            {
+                value = transform + 7;
+                element_count = 1;
+                index = 7;
+            }
+            else if (property_id == PROP_EULER)
+            {
+                UpdateRotationToEuler(instance);
+                value = (float*)&instance->m_EulerRotation;
+                element_count = 3;
+                index = 8;
+            }
+            else if (property_id == PROP_EULER_X)
+            {
+                UpdateRotationToEuler(instance);
+                value = ((float*)&instance->m_EulerRotation);
+                element_count = 1;
+                index = 8;
+            }
+            else if (property_id == PROP_EULER_Y)
+            {
+                UpdateRotationToEuler(instance);
+                value = ((float*)&instance->m_EulerRotation) + 1;
+                element_count = 1;
+                index = 9;
+            }
+            else if (property_id == PROP_EULER_Z)
+            {
+                UpdateRotationToEuler(instance);
+                value = ((float*)&instance->m_EulerRotation) + 2;
+                element_count = 1;
+                index = 10;
+            }
+            if (value != 0x0)
+            {
+                out.m_Index = index;
+                out.m_Value = value;
+                out.m_ElementType = ELEMENT_TYPE_FLOAT;
+                out.m_ElementCount = element_count;
+                out.m_ValueMutable = true;
+                return PROPERTY_RESULT_OK;
+            }
+            else
+            {
+                return PROPERTY_RESULT_NOT_FOUND;
+            }
+        }
+        else
+        {
+            // TODO Component properties
+        }
+    }
+
+    SetPropertyParams::SetPropertyParams()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
+    PropertyResult SetProperty(const SetPropertyParams& params)
+    {
+        HInstance instance = params.m_Instance;
+        dmhash_t component_id = params.m_ComponentId;
+        uint32_t property_index = params.m_PropertyIndex;
+        uint32_t elem_count = params.m_ElementCount;
+        if (component_id == 0)
+        {
+            if (property_index > 10)
+                return PROPERTY_RESULT_INVALID_INDEX;
+            if (property_index < 8)
+            {
+                if (property_index + elem_count <= 8)
+                {
+                    float* source_v = (float*)params.m_Value;
+                    float* target_v = (float*)&instance->m_Transform + property_index;
+                    for (uint32_t i = 0; i < elem_count; ++i)
+                        target_v[i] = source_v[i];
+                }
+                else
+                {
+                    return PROPERTY_RESULT_OVERFLOW;
+                }
+            }
+            else // Special handling for euler
+            {
+                uint32_t index = property_index - 8;
+                if (index + elem_count <= 3)
+                {
+                    float* source_v = (float*)params.m_Value;
+                    float* target_v = (float*)&instance->m_EulerRotation + index;
+                    for (uint32_t i = 0; i < elem_count; ++i)
+                        target_v[i] = source_v[i];
+                    UpdateEulerToRotation(instance);
+                }
+                else
+                {
+                    return PROPERTY_RESULT_OVERFLOW;
+                }
+            }
+        }
+        else
+        {
+            // TODO Component properties
+        }
+        return PROPERTY_RESULT_OK;
     }
 
     void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)

@@ -89,7 +89,11 @@ namespace dmGameObject
         PROPERTY_RESULT_OK = 0,
         PROPERTY_RESULT_NOT_FOUND = -1,
         PROPERTY_RESULT_INVALID_FORMAT = -2,
-        PROPERTY_RESULT_UNKNOWN_TYPE = -3
+        PROPERTY_RESULT_UNKNOWN_TYPE = -3,
+        PROPERTY_RESULT_TYPE_MISMATCH = -4,
+        PROPERTY_RESULT_COMP_NOT_FOUND = -5,
+        PROPERTY_RESULT_OVERFLOW = -6,
+        PROPERTY_RESULT_INVALID_INDEX = -7,
     };
 
     /**
@@ -443,6 +447,40 @@ namespace dmGameObject
 
     typedef void (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
 
+    enum ElementType
+    {
+        ELEMENT_TYPE_FLOAT,
+        ELEMENT_TYPE_HASH,
+        ELEMENT_TYPE_URL
+    };
+
+    struct ComponentGetPropertyParams
+    {
+        HInstance m_Instance;
+        dmhash_t m_PropertyId;
+    };
+
+    struct ComponentGetPropertyOutParams
+    {
+        uint32_t m_Index;
+        void* m_Value;
+        ElementType m_ElementType;
+        uint32_t m_ElementCount;
+        bool m_ValueMutable;
+    };
+
+    typedef PropertyResult (*ComponentGetProperty)(const ComponentGetPropertyParams& params, ComponentGetPropertyOutParams& out);
+
+    struct ComponentSetPropertyParams
+    {
+        HInstance m_Instance;
+        uint32_t m_PropertyIndex;
+        void* m_Value;
+        uint32_t m_ElementCount;
+    };
+
+    typedef PropertyResult (*ComponentSetProperty)(const ComponentSetPropertyParams& params);
+
     /**
      * Collection of component registration data.
      */
@@ -465,6 +503,8 @@ namespace dmGameObject
         ComponentOnInput        m_OnInputFunction;
         ComponentOnReload       m_OnReloadFunction;
         ComponentSetProperties  m_SetPropertiesFunction;
+        ComponentGetProperty    m_GetPropertyFunction;
+        ComponentSetProperty    m_SetPropertyFunction;
         uint32_t                m_InstanceHasUserData : 1;
         uint32_t                m_Reserved : 31;
         uint16_t                m_UpdateOrderPrio;
@@ -859,6 +899,71 @@ namespace dmGameObject
      * @return True if child of
      */
     bool IsChildOf(HInstance child, HInstance parent);
+
+    /**
+     * Parameters for GetProperty
+     */
+    struct GetPropertyParams
+    {
+        GetPropertyParams();
+
+        /// Instance of the game object
+        HInstance m_Instance;
+        /// Id of the component
+        dmhash_t m_ComponentId;
+        /// Id of the property
+        dmhash_t m_PropertyId;
+    };
+
+    /**
+     * Response parameters for GetProperty
+     */
+    struct GetPropertyOutParams
+    {
+        /// Index of the property
+        uint32_t m_Index;
+        /// Value of the property, the actual data type is described by out_element_type
+        void* m_Value;
+        /// Property element data type
+        ElementType m_ElementType;
+        /// Count of elements pointed to by the returned value
+        uint32_t m_ElementCount;
+        /// If the returned value pointer is safe to write to
+        bool m_ValueMutable;
+    };
+
+    /**
+     * Retrieve a property from a component.
+     * @param params Parameters to the function
+     * @return PROPERTY_RESULT_OK if the out-parameters were written
+     */
+    PropertyResult GetProperty(const GetPropertyParams& params, GetPropertyOutParams& out);
+
+    /**
+     * Parameters for SetProperty
+     */
+    struct SetPropertyParams
+    {
+        SetPropertyParams();
+
+        /// Instance of the game object
+        HInstance m_Instance;
+        /// Id of the component
+        dmhash_t m_ComponentId;
+        /// Index of the property, as returned by GetProperty
+        uint32_t m_PropertyIndex;
+        /// Value to set for the property
+        void* m_Value;
+        /// How many of the elements to set (e.g. 3 for a Vector3)
+        uint32_t m_ElementCount;
+    };
+
+    /**
+     * Sets the value of a property.
+     * @param params Parameters
+     * @return PROPERTY_RESULT_OK if the value could be set
+     */
+    PropertyResult SetProperty(const SetPropertyParams& params);
 
     /**
      * Register all resource types in resource factory

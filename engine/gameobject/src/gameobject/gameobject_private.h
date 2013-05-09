@@ -95,6 +95,10 @@ namespace dmGameObject
         }
 
         dmTransform::TransformS1 m_Transform;
+        // Shadowed rotation expressed in euler coordinates
+        Vector3 m_EulerRotation;
+        // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
+        Vector3 m_PrevEulerRotation;
         // Collection this instances belongs to. Added for GetWorldPosition.
         // We should consider to remove this (memory footprint)
         HCollection     m_Collection;
