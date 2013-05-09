@@ -39,6 +39,10 @@ def _parse_comment(str):
             element_type = script_doc_ddf_pb2.VARIABLE
         elif tag == 'message':
             element_type = script_doc_ddf_pb2.MESSAGE
+        elif tag == 'property':
+            element_type = script_doc_ddf_pb2.PROPERTY
+        elif tag == 'package':
+            element_type = script_doc_ddf_pb2.PACKAGE
 
     if not name_found:
         logging.warn('Missing tag @name in "%s"' % str)

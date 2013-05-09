@@ -1,13 +1,28 @@
 # Static site description. Run this file with desite.py
 import os
 
-for d, title in [('engine', 'Game Engine Reference Documentation'),
-                 ('gamesys', 'Gamesystem Reference Documentation'),
-                 ('go', 'Game Object Reference Documentation'),
-                 ('gui',  'Gui Reference Documentation'),
-                 ('render',  'Render Reference Documentation'),
-                 ('script', 'Script Reference Documentation')]:
-    ref(os.path.join(dynamo_home, 'share', 'doc', '%s_doc.sdoc' % d), title, 'ref/%s.html' % d,
+for d, title in [('camera', 'Camera Component'),
+                 ('collection_proxy', 'Collection Proxy Component'),
+                 ('factory', 'Factory Component'),
+                 ('particlefx', 'ParticleFX Component'),
+                 ('collision_object', 'Collision Object Component'),
+                 ('sound', 'Sound Component'),
+                 ('sprite', 'Sprite Component'),
+                 ('tilemap', 'Tilemap Component'),
+
+                 ('script_hash', 'Script Builtin'),
+                 ('script_msg', 'Script Message'),
+                 ('script_vmath', 'Script Vector Math'),
+
+                 ('go', 'Game Object'),
+                 ('gui',  'Gui'),
+                 ('render',  'Render'),
+                 ('gamesys', 'Gamesystem'),
+                 (['engine', 'script_sys'], 'System')]:
+    if isinstance(d, str):
+       d = [d]
+    docs = [ os.path.join(dynamo_home, 'share', 'doc', '%s_doc.sdoc' % x) for x in d]
+    ref(docs, title, 'ref/%s.html' % d[0],
         active_page = 'documentation')
 
 blog('doc/blog.html', 'blog')

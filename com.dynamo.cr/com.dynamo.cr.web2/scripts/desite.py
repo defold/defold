@@ -39,22 +39,37 @@ class Desite(object):
     def _progress(self, msg):
         print >>sys.stderr, msg
 
-    def render_reference(self, doc, title, output, **variables):
-        msg = script_doc_ddf_pb2.Document()
-        with open(doc, 'r') as f:
-            msg.MergeFromString(f.read())
+    def render_reference(self, docs, title, output, **variables):
+        elements = []
+        for d in docs:
+            msg = script_doc_ddf_pb2.Document()
+            with open(d, 'r') as f:
+                msg.MergeFromString(f.read())
+                elements += msg.elements
 
-        for e in msg.elements:
+        for e in elements:
             e.examples = e.examples.replace('<pre>', '<pre class="prettyprint linenums lang-lua">')
             e.description = e.description.replace('<table>', '<table class="table table-striped table-bordered">')
 
-        functions = filter(lambda e: e.type == script_doc_ddf_pb2.FUNCTION, msg.elements)
-        messages = filter(lambda e: e.type == script_doc_ddf_pb2.MESSAGE, msg.elements)
-        constants = filter(lambda e: e.type == script_doc_ddf_pb2.VARIABLE, msg.elements)
+        functions = filter(lambda e: e.type == script_doc_ddf_pb2.FUNCTION, elements)
+        messages = filter(lambda e: e.type == script_doc_ddf_pb2.MESSAGE, elements)
+        constants = filter(lambda e: e.type == script_doc_ddf_pb2.VARIABLE, elements)
+        properties = filter(lambda e: e.type == script_doc_ddf_pb2.PROPERTY, elements)
+        package = filter(lambda e: e.type == script_doc_ddf_pb2.PACKAGE, elements)
+        if len(package) == 0:
+            package = None
+        elif len(package) == 1:
+            package = package[0]
+        else:
+            print >>sys.stderr, "WARNING: Multiple packages specified for %s" % title
+            package = package[0]
+
         self.render('ref.html', output,
+                    package = package,
                     functions = functions,
                     messages = messages,
                     constants = constants,
+                    properties = properties,
                     title = title,
                     **variables)
 

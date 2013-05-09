@@ -1,9 +1,10 @@
-#include "script_tilemap.h"
-
 #include <dlib/log.h>
+#include <ddf/ddf.h>
 #include "tile_ddf.h"
 #include "../components/comp_tilegrid.h"
 #include "../proto/physics_ddf.h"
+#include "gamesys.h"
+#include "script_tilemap.h"
 
 extern "C"
 {
@@ -298,9 +299,9 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void ScriptTileMapRegister(void* context)
+    void ScriptTileMapRegister(const ScriptLibContext& context)
     {
-        lua_State* L = (lua_State*)context;
+        lua_State* L = context.m_LuaState;
         luaL_register(L, "tilemap", TILEMAP_FUNCTIONS);
         lua_pop(L, 1);
     }

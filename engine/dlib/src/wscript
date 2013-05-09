@@ -12,6 +12,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
@@ -49,6 +50,7 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
+    bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
     dlib = bld.new_task_gen(features = 'cxx cstaticlib embed',
                             includes = '.',

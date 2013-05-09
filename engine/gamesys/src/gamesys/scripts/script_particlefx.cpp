@@ -1,5 +1,3 @@
-#include "script_particlefx.h"
-
 #include <float.h>
 #include <stdio.h>
 #include <assert.h>
@@ -11,11 +9,13 @@
 #include <graphics/graphics.h>
 #include <render/render.h>
 
-#include "gamesys.h"
+#include "../gamesys.h"
 #include "gamesys_ddf.h"
 #include "../gamesys_private.h"
 
 #include "resources/res_particlefx.h"
+
+#include "script_particlefx.h"
 
 extern "C"
 {
@@ -25,6 +25,13 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# ParticleFX documentation
+     *
+     * ParticleFX documentation
+     * @name
+     * @package
+     */
+
     /*# start playing a particle FX
      * Particle FX started this way need to be manually stopped through particlefx.stop.
      * Which particle FX to play is identified by the URL.
@@ -270,9 +277,9 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void ScriptParticleFXRegister(void* context)
+    void ScriptParticleFXRegister(const ScriptLibContext& context)
     {
-        lua_State* L = (lua_State*)context;
+        lua_State* L = context.m_LuaState;
         luaL_register(L, "particlefx", PARTICLEFX_FUNCTIONS);
         lua_pop(L, 1);
     }

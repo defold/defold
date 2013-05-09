@@ -198,6 +198,48 @@ namespace dmGameSystem
         return result;
     }
 
+    /*# sets the time-step for update
+     * <p>
+     * Post this message to a collection-proxy-component to modify the time-step used when updating the collection controlled by the proxy.
+     * The time-step is modified by a scaling <code>factor</code> and can be incremented either continuously or in discrete steps.
+     * </p>
+     * <p>
+     * The continuous mode can be used for slow-motion or fast-forward effects.
+     * </p>
+     * <p>
+     * The discrete mode is only useful when scaling the time-step to pass slower than real time (<code>factor</code> is below 1).
+     * The time-step will then be set to 0 for as many frames as the scaling demands and then take on the full real-time-step for one frame,
+     * to simulate pulses. E.g. if <code>factor</code> is set to <code>0.1</code> the time-step would be 0 for 9 frames, then be 1/60 for one
+     * frame, 0 for 9 frames, and so on. The result in practice is that the game looks like it's updated at a much lower frequency than 60 Hz,
+     * which can be useful for debugging when each frame needs to be inspected.
+     * </p>
+     *
+     * @message
+     * @name set_time_step
+     * @param factor time-step scaling factor (number)
+     * @param mode time-step mode: 0 for continuous and 1 for discrete (number)
+     * @examples
+     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
+     * <p>
+     * Update the collection twice as fast:
+     * </p>
+     * <pre>
+     * msg.post("#proxy", "set_time_step", {factor = 2, mode = 0})
+     * </pre>
+     * <p>
+     * Update the collection twice as slow:
+     * </p>
+     * <pre>
+     * msg.post("#proxy", "set_time_step", {factor = 0.5, mode = 0})
+     * </pre>
+     * <p>
+     * Simulate 1 FPS for the collection:
+     * </p>
+     * <pre>
+     * msg.post("#proxy", "set_time_step", {factor = 1/60, mode = 1})
+     * </pre>
+     */
+
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;

@@ -30,16 +30,15 @@ def build(bld):
 
     bld.add_group()
 
-    bld.new_task_gen(source = 'script_hash.cpp script_sys.cpp script_msg.cpp script_vmath.cpp',
-                     target = 'script_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+    for d, source in [('script_hash', ('script_hash.cpp')),
+                      ('script_sys', ('script_sys.cpp')),
+                      ('script_msg', ('script_msg.cpp')),
+                      ('script_vmath', ('script_vmath.cpp'))]:
+        bld.new_task_gen(source = source,
+                         target = '%s_doc.sdoc' % d,
+                         rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
 
-    bld.new_task_gen(source = 'script_hash.cpp script_sys.cpp script_msg.cpp script_vmath.cpp',
-                     target = 'script_doc.json',
-                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'script_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'script_doc.json')
+        bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % d)
 
     bld.install_files('${PREFIX}/bin', 'script_doc', chmod=493)
     bld.install_files('${PREFIX}/bin', 'script_doc.bat')

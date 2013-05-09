@@ -332,3 +332,12 @@ def build(bld):
                                 target = 'test_vmath')
 
     test_vmath.install_path = None
+
+    test_easing = bld.new_task_gen(features = 'cxx cprogram',
+                                source = 'test_easing.cpp',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_easing')
+
+    test_easing.install_path = None

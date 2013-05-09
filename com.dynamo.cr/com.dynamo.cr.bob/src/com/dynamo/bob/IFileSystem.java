@@ -41,4 +41,15 @@ public interface IFileSystem {
      * @return root directory
      */
     public String getRootDirectory();
+
+    /**
+     * Load cache of file signatures (optionally)
+     * @note This method can only be invoked after setBuildDirectory is invoked
+     */
+    public void loadCache();
+
+    /**
+     * Save cache of file signatures (optionally)
+     */
+    public void saveCache();
 }

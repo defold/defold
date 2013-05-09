@@ -71,6 +71,11 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
     }
 
     @Override
+    public byte[] sha1() throws IOException {
+        return this.fileSystem.sha1(this);
+    }
+
+    @Override
     public boolean exists() {
         File file = new File(getAbsPath());
         return file.exists() && file.isFile();
