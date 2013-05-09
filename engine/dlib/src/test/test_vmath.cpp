@@ -14,22 +14,22 @@ TEST(dmVMath, QuatFromAngle)
     ASSERT_NEAR(0, dot(q - q1, q - q1), epsilon);
 
 }
-#include <stdio.h>
+
 TEST(dmMath, TestQuatToEuler)
 {
     float epsilon = 0.02f;
 
     Vector3 euler;
 
-    float rad_factor = M_PI / 360.0f; // contains half angle factor too
+    float half_rad_factor = M_PI / 360.0f;
     // different degrees around different single axis
     for (uint32_t i = 0; i < 3; ++i)
     {
         for (float a = 0.0f; a < 105.0f; a += 10.0f)
         {
             float ap = dmMath::Min(a, 90.0f);
-            float sa2 = sin(ap * rad_factor);
-            float ca2 = cos(ap * rad_factor);
+            float sa2 = sin(ap * half_rad_factor);
+            float ca2 = cos(ap * half_rad_factor);
             float v[] = {0.0f, 0.0f, 0.0f};
             v[i] = sa2;
             euler = dmVMath::QuatToEuler(v[0], v[1], v[2], ca2);
@@ -43,6 +43,31 @@ TEST(dmMath, TestQuatToEuler)
             ASSERT_NEAR(expected_i, euler.getElem(i), epsilon);
             ASSERT_NEAR(expected_i_1, euler.getElem((i + 1) % 3), epsilon);
             ASSERT_NEAR(expected_i_n_1, euler.getElem((i + 2) % 3), epsilon);
+        }
+    }
+}
+
+TEST(dmMath, TestEulerToQuat)
+{
+    float epsilon = 0.001f;
+
+    Vector3 euler;
+
+    float half_rad_factor = M_PI / 360.0f;
+    // different degrees around different single axis
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        for (float a = 0.0f; a < 105.0f; a += 10.0f)
+        {
+            Vector3 v(0.0f, 0.0f, 0.0f);
+            v.setElem(i, a);
+            Quat q = dmVMath::EulerToQuat(v);
+            Quat expected(0.0f, 0.0f, 0.0f, cos(a * half_rad_factor));
+            expected.setElem(i, sin(a * half_rad_factor));
+            ASSERT_NEAR(expected.getX(), q.getX(), epsilon);
+            ASSERT_NEAR(expected.getY(), q.getY(), epsilon);
+            ASSERT_NEAR(expected.getZ(), q.getZ(), epsilon);
+            ASSERT_NEAR(expected.getW(), q.getW(), epsilon);
         }
     }
 }
