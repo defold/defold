@@ -19,6 +19,10 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params);
+
+    dmGameObject::PropertyResult CompSpriteGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+
+    dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_SPRITE_H

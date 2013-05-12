@@ -178,6 +178,22 @@ namespace dmRender
         }
     }
 
+    bool GetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Constant& out_value)
+    {
+        dmArray<Constant>& constants = material->m_Constants;
+        uint32_t n = constants.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            Constant& c = constants[i];
+            if (c.m_NameHash == name_hash)
+            {
+                out_value = c;
+                return true;
+            }
+        }
+        return false;
+    }
+
     void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4 value)
     {
         dmArray<Constant>& constants = material->m_Constants;

@@ -369,7 +369,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "%s does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
             }
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {

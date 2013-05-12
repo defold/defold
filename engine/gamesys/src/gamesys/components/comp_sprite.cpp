@@ -716,6 +716,67 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static bool GetConstant(SpriteComponent* component, dmhash_t name_hash, Vectormath::Aos::Vector4& out_value)
+    {
+        dmRender::Constant constant;
+        bool result = dmRender::GetMaterialProgramConstant(component->m_Resource->m_Material, name_hash, constant);
+        if (result)
+        {
+            // Search for overrides
+            dmArray<dmGameSystemDDF::SetConstant>& constants = component->m_RenderConstants;
+            uint32_t constant_count = constants.Size();
+            for (uint32_t i = 0; i < constant_count; ++i)
+            {
+                dmGameSystemDDF::SetConstant& constant = constants[i];
+                if (constant.m_NameHash == name_hash)
+                {
+                    out_value = constant.m_Value;
+                    return true;
+                }
+            }
+            out_value = constant.m_Value;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    static bool SetConstant(SpriteComponent* component, dmGameSystemDDF::SetConstant* ddf)
+    {
+        int32_t location = dmRender::GetMaterialConstantLocation(component->m_Resource->m_Material, ddf->m_NameHash);
+        if (location >= 0)
+        {
+            dmArray<dmGameSystemDDF::SetConstant>& constants = component->m_RenderConstants;
+            uint32_t size = constants.Size();
+            bool found = false;
+            for (uint32_t i = 0; i < size; ++i)
+            {
+                if (constants[i].m_NameHash == ddf->m_NameHash)
+                {
+                    constants[i] = *ddf;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                if (constants.Full())
+                {
+                    constants.SetCapacity(constants.Capacity() + 4);
+                }
+                constants.Push(*ddf);
+            }
+            ReHash(component);
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
@@ -751,27 +812,16 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmArray<dmGameSystemDDF::SetConstant>& constants = component->m_RenderConstants;
-                uint32_t size = constants.Size();
-                bool found = false;
-                for (uint32_t i = 0; i < size; ++i)
+                bool result = SetConstant(component, ddf);
+                if (!result)
                 {
-                    if (constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = *ddf;
-                        found = true;
-                        break;
-                    }
+                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
+                    dmLogError("'%s:%s#%s' has no constant named '%s'",
+                            dmMessage::GetSocketName(receiver.m_Socket),
+                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
+                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
+                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
                 }
-                if (!found)
-                {
-                    if (constants.Full())
-                    {
-                        constants.SetCapacity(constants.Capacity() + 4);
-                    }
-                    constants.Push(*ddf);
-                }
-                ReHash(component);
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
@@ -804,5 +854,42 @@ namespace dmGameSystem
         component->m_CurrentTile = 0;
         component->m_FrameTimer = 0.0f;
         component->m_FrameTime = 0.0f;
+    }
+
+    dmGameObject::PropertyResult CompSpriteGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
+        Vector4 value;
+        bool result = GetConstant(component, params.m_PropertyId, value);
+        if (result)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(value);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else
+        {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+    }
+
+    dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
+        int32_t location = dmRender::GetMaterialConstantLocation(component->m_Resource->m_Material, params.m_PropertyId);
+        if (location >= 0)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            dmGameSystemDDF::SetConstant set_constant;
+            set_constant.m_NameHash = params.m_PropertyId;
+            const float* v = params.m_Value.m_V4;
+            set_constant.m_Value = Vectormath::Aos::Vector4(v[0], v[1], v[2], v[3]);
+            bool result = SetConstant(component, &set_constant);
+            if (result)
+            {
+                return dmGameObject::PROPERTY_RESULT_OK;
+            }
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 }

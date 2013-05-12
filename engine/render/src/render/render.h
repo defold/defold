@@ -221,6 +221,7 @@ namespace dmRender
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
+    bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, Constant& out_value);
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4 constant);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit);
