@@ -4,7 +4,9 @@ import org.eclipse.jface.text.TextAttribute;
 import org.eclipse.jface.text.rules.IRule;
 import org.eclipse.jface.text.rules.IToken;
 import org.eclipse.jface.text.rules.IWordDetector;
+import org.eclipse.jface.text.rules.NumberRule;
 import org.eclipse.jface.text.rules.RuleBasedScanner;
+import org.eclipse.jface.text.rules.SingleLineRule;
 import org.eclipse.jface.text.rules.Token;
 import org.eclipse.jface.text.rules.WhitespaceRule;
 import org.eclipse.jface.text.rules.WordRule;
@@ -19,7 +21,13 @@ public class LuaScanner extends RuleBasedScanner {
         IToken defaultToken = new Token(new TextAttribute(
                 manager.getColor(ILuaColorConstants.DEFAULT)));
 
-        IRule[] rules = new IRule[3];
+        IToken stringToken = new Token(new TextAttribute(
+                manager.getColor(ILuaColorConstants.STRING)));
+
+        IToken numberToken = new Token(new TextAttribute(
+                manager.getColor(ILuaColorConstants.NUMBER)));
+
+        IRule[] rules = new IRule[6];
 
         rules[0] = new WhitespaceRule(new LuaWhitespaceDetector());
 
@@ -61,6 +69,9 @@ public class LuaScanner extends RuleBasedScanner {
         rules[1] = name_rule;
 
         rules[2] = new WordRule(nameDetector, defaultToken);
+        rules[3] = new SingleLineRule("\"", "\"", stringToken, '\\');
+        rules[4] = new SingleLineRule("'", "'", stringToken, '\\');
+        rules[5] = new NumberRule(numberToken);
 
         setRules(rules);
     }
