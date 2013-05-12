@@ -1,0 +1,18 @@
+go.property("number", 1)
+go.property("hash", hash("test"))
+go.property("url", msg.url())
+go.property("vec3", vmath.vector3())
+go.property("vec4", vmath.vector4(0, 0, 0, 0))
+go.property("quat", vmath.quat())
+go.property("bool", false)
+
+function update(self)
+    -- the properties are set by props_get_set_a.script
+    assert(self.number == 2)
+    assert(self.hash == hash("test2"))
+    assert(self.url == msg.url("a#script"))
+    assert(self.vec3 == vmath.vector3(1, 1, 1))
+    assert(self.vec4 == vmath.vector4(1, 1, 1, 1))
+    assert(self.quat == vmath.quat(1, 1, 1, 1))
+    assert(self.bool)
+end

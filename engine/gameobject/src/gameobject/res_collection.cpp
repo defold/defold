@@ -66,50 +66,50 @@ namespace dmGameObject
                 }
 
                 // Set properties
-
-                uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
-                for (uint32_t i = 0; i < comp_prop_count; ++i)
+                uint32_t component_instance_data_index = 0;
+                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+                uint32_t comp_count = components.Size();
+                for (uint32_t comp_i = 0; comp_i < comp_count; ++comp_i)
                 {
-                    const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[i];
-                    uint8_t index;
-                    dmGameObject::Result result = GetComponentIndex(instance, dmHashString64(comp_prop.m_Id), &index);
-                    if (result == RESULT_COMPONENT_NOT_FOUND)
+                    Prototype::Component& component = components[comp_i];
+                    ComponentType* type = component.m_Type;
+                    if (type->m_SetPropertiesFunction != 0x0)
                     {
-                        dmLogWarning("The component '%s' could not be found in '%s' when setting properties.", comp_prop.m_Id, instance_desc.m_Id);
-                        continue;
-                    }
-                    dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
-                    ComponentType* type = components[index].m_Type;
-                    if (!type->m_InstanceHasUserData || type->m_SetPropertiesFunction == 0x0)
-                    {
-                        dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", comp_prop.m_Id, instance_desc.m_Id);
-                        res = dmResource::RESULT_FORMAT_ERROR;
-                        goto bail;
-                    }
-
-                    ComponentSetPropertiesParams params;
-                    params.m_Instance = instance;
-                    bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
-                    if (!r)
-                    {
-                        dmLogError("Could not instantiate game object '%s' in collection %s.", instance_desc.m_Id, filename);
-                        res = dmResource::RESULT_FORMAT_ERROR;
-                        goto bail;
-                    }
-                    else
-                    {
-                        params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                        params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
-                        uint32_t component_instance_data_index = 0;
-                        for (uint32_t j = 0; j < index; ++j)
+                        if (!type->m_InstanceHasUserData)
                         {
-                            if (components[i].m_Type->m_InstanceHasUserData)
-                                ++component_instance_data_index;
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", (const char*)dmHashReverse64(component.m_Id, 0x0), instance_desc.m_Id);
+                            res = dmResource::RESULT_FORMAT_ERROR;
+                            goto bail;
+                        }
+                        ComponentSetPropertiesParams params;
+                        params.m_Instance = instance;
+                        uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
+                        for (uint32_t prop_i = 0; prop_i < comp_prop_count; ++prop_i)
+                        {
+                            const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
+                            if (dmHashString64(comp_prop.m_Id) == component.m_Id)
+                            {
+                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
+                                if (!r)
+                                {
+                                    dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, filename);
+                                    res = dmResource::RESULT_FORMAT_ERROR;
+                                    goto bail;
+                                }
+                                else
+                                {
+                                    params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
+                                    params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
+                                }
+                                break;
+                            }
                         }
                         uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
                         params.m_UserData = component_instance_data;
                         type->m_SetPropertiesFunction(params);
                     }
+                    if (component.m_Type->m_InstanceHasUserData)
+                        ++component_instance_data_index;
                 }
             }
             else

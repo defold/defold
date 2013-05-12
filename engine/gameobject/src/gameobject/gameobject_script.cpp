@@ -16,6 +16,7 @@
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
+#include "gameobject_props_lua.h"
 
 // Not to pretty to include res_lua.h here but lua-modules
 // are released at system shutdown and not on a per parent-resource basis
@@ -266,6 +267,123 @@ namespace dmGameObject
         return instance;
     }
 
+    /*# gets a named property of the specified game object or component
+     *
+     * @name go.get
+     * @param url url of the game object or component having the property (hash|string|url)
+     * @param id id of the property to retrieve (hash|string)
+     * @return the value of the specified property (number|hash|url|vmath.vec3|vmath.vec4|vmath.quat|boolean)
+     * @examples
+     * <p>Get a property "speed" from a script "player", the property must be declared in the player-script:</p>
+     * <pre>
+     * go.property("speed", 50)
+     * </pre>
+     * <p>Then in the calling script (assumed to belong to the same game object, but does not have to):</p>
+     * <pre>
+     * local speed = go.get("#player", "speed")
+     * </pre>
+     */
+    int Script_Get(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 1, &target, 0x0);
+        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+        {
+            luaL_error(L, "go.get can only access instances within the same collection.");
+        }
+        dmhash_t property_id = 0;
+        if (lua_isstring(L, 2))
+        {
+            property_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else
+        {
+            property_id = dmScript::CheckHash(L, 2);
+        }
+        dmGameObject::PropertyDesc property_desc;
+        dmGameObject::PropertyResult result = dmGameObject::GetProperty(dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path), target.m_Fragment, property_id, property_desc);
+        switch (result)
+        {
+        case dmGameObject::PROPERTY_RESULT_OK:
+            dmGameObject::LuaPushVar(L, property_desc.m_Variant);
+            return 1;
+        case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
+            return luaL_error(L, "'%s' does not have any property called '%s'", lua_tostring(L, 1), (const char*)dmHashReverse64(property_id, 0x0));
+        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+        default:
+            // Should never happen, programmer error
+            return luaL_error(L, "go.get failed with error code %d", result);
+        }
+    }
+
+    /*# sets a named property of the specified game object or component
+     *
+     * @name go.set
+     * @param url url of the game object or component having the property (hash|string|url)
+     * @param id id of the property to set (hash|string)
+     * @param value the value to set (number|hash|url|vmath.vec3|vmath.vec4|vmath.quat|boolean)
+     * @examples
+     * <p>Set a property "speed" of a script "player", the property must be declared in the player-script:</p>
+     * <pre>
+     * go.property("speed", 50)
+     * </pre>
+     * <p>Then in the calling script (assumed to belong to the same game object, but does not have to):</p>
+     * <pre>
+     * go.set("#player", "speed", 100)
+     * </pre>
+     */
+    int Script_Set(lua_State* L)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 1, &target, 0x0);
+        if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+        {
+            luaL_error(L, "go.set can only access instances within the same collection.");
+        }
+        dmhash_t property_id = 0;
+        if (lua_isstring(L, 2))
+        {
+            property_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else
+        {
+            property_id = dmScript::CheckHash(L, 2);
+        }
+        dmGameObject::PropertyVar property_var;
+        dmGameObject::LuaToVar(L, 3, property_var);
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        dmGameObject::PropertyResult result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_var);
+        switch (result)
+        {
+        case dmGameObject::PROPERTY_RESULT_OK:
+            return 0;
+        case PROPERTY_RESULT_NOT_FOUND:
+            {
+                lua_pushliteral(L, "");
+                lua_pushvalue(L, 1);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "%s does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+            }
+        case PROPERTY_RESULT_TYPE_MISMATCH:
+            {
+                dmGameObject::PropertyDesc property_desc;
+                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
+                return luaL_error(L, "The property '%s' of '%s' must be of type '%s'", (const char*)dmHashReverse64(property_id, 0x0), lua_tostring(L, 1));
+            }
+        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+        default:
+            // Should never happen, programmer error
+            return luaL_error(L, "go.set failed with error code %d", result);
+        }
+    }
 
     /*# gets the position of the instance
      * The position is relative the parent (if any). Use <code>go.get_world_position</code> to retrieve the global world position.
@@ -714,6 +832,8 @@ namespace dmGameObject
 
     static const luaL_reg Script_methods[] =
     {
+        {"get",                 Script_Get},
+        {"set",                 Script_Set},
         {"get_position",        Script_GetPosition},
         {"get_rotation",        Script_GetRotation},
         {"get_scale",           Script_GetScale},

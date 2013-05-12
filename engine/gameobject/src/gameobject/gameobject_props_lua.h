@@ -10,6 +10,9 @@
 
 namespace dmGameObject
 {
+    bool LuaToVar(lua_State* L, int index, PropertyVar& out_var);
+    void LuaPushVar(lua_State* L, const PropertyVar& var);
+
     bool CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data);
     void DestroyPropertySetUserDataLua(uintptr_t user_data);
 

@@ -1,0 +1,9 @@
+name: "get_set"
+instances {
+  id: "a"
+  prototype: "/props_get_set_a.goc"
+}
+instances {
+  id: "b"
+  prototype: "/props_get_set_b.goc"
+}

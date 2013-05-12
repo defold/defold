@@ -92,8 +92,6 @@ namespace dmGameObject
         PROPERTY_RESULT_UNKNOWN_TYPE = -3,
         PROPERTY_RESULT_TYPE_MISMATCH = -4,
         PROPERTY_RESULT_COMP_NOT_FOUND = -5,
-        PROPERTY_RESULT_OVERFLOW = -6,
-        PROPERTY_RESULT_INVALID_INDEX = -7,
     };
 
     /**
@@ -106,22 +104,6 @@ namespace dmGameObject
     };
 
     extern const uint32_t UNNAMED_IDENTIFIER;
-
-    /**
-     * Supported property types.
-     */
-    enum PropertyType
-    {
-        // NOTE These must match the values in gameobject_ddf.proto
-        PROPERTY_TYPE_NUMBER = 0,
-        PROPERTY_TYPE_HASH = 1,
-        PROPERTY_TYPE_URL = 2,
-        PROPERTY_TYPE_VECTOR3 = 3,
-        PROPERTY_TYPE_VECTOR4 = 4,
-        PROPERTY_TYPE_QUAT = 5,
-        PROPERTY_TYPE_BOOLEAN = 6,
-        PROPERTY_TYPE_COUNT
-    };
 
     /**
      * Container of input related information.
@@ -158,8 +140,34 @@ namespace dmGameObject
         uint16_t m_AccelerationSet : 1;
     };
 
+    /**
+     * Supported property types.
+     */
+    enum PropertyType
+    {
+        // NOTE These must match the values in gameobject_ddf.proto
+        PROPERTY_TYPE_NUMBER = 0,
+        PROPERTY_TYPE_HASH = 1,
+        PROPERTY_TYPE_URL = 2,
+        PROPERTY_TYPE_VECTOR3 = 3,
+        PROPERTY_TYPE_VECTOR4 = 4,
+        PROPERTY_TYPE_QUAT = 5,
+        PROPERTY_TYPE_BOOLEAN = 6,
+        PROPERTY_TYPE_COUNT
+    };
+
     struct PropertyVar
     {
+        PropertyVar();
+        PropertyVar(float v);
+        PropertyVar(double v);
+        PropertyVar(dmhash_t v);
+        PropertyVar(dmMessage::URL v);
+        PropertyVar(Vectormath::Aos::Vector3 v);
+        PropertyVar(Vectormath::Aos::Vector4 v);
+        PropertyVar(Vectormath::Aos::Quat v);
+        PropertyVar(bool v);
+
         PropertyType m_Type;
         union
         {
@@ -181,6 +189,24 @@ namespace dmGameObject
         GetPropertyCallback m_GetPropertyCallback;
         FreeUserDataCallback m_FreeUserDataCallback;
         uintptr_t m_UserData;
+    };
+
+    /**
+     * Description of a property.
+     *
+     * If the property is externally mutable, m_ValuePtr points to the value and its length is m_ElementCount.
+     * m_Variant always reflects the value.
+     */
+    struct PropertyDesc
+    {
+        PropertyDesc();
+
+        /// Variant holding the value
+        PropertyVar m_Variant;
+        /// Pointer to the value. Might not be set, m_Variant holds the value in that case. The actual data type is described by out_element_type
+        float* m_ValuePtr;
+        /// Count of elements pointed to by the returned value
+        uint32_t m_ElementCount;
     };
 
     /**
@@ -447,36 +473,23 @@ namespace dmGameObject
 
     typedef void (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
 
-    enum ElementType
-    {
-        ELEMENT_TYPE_FLOAT,
-        ELEMENT_TYPE_HASH,
-        ELEMENT_TYPE_URL
-    };
-
     struct ComponentGetPropertyParams
     {
         HInstance m_Instance;
         dmhash_t m_PropertyId;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
     };
 
-    struct ComponentGetPropertyOutParams
-    {
-        uint32_t m_Index;
-        void* m_Value;
-        ElementType m_ElementType;
-        uint32_t m_ElementCount;
-        bool m_ValueMutable;
-    };
-
-    typedef PropertyResult (*ComponentGetProperty)(const ComponentGetPropertyParams& params, ComponentGetPropertyOutParams& out);
+    typedef PropertyResult (*ComponentGetProperty)(const ComponentGetPropertyParams& params, PropertyDesc& out_value);
 
     struct ComponentSetPropertyParams
     {
         HInstance m_Instance;
-        uint32_t m_PropertyIndex;
-        void* m_Value;
-        uint32_t m_ElementCount;
+        dmhash_t m_PropertyId;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+        PropertyVar m_Value;
     };
 
     typedef PropertyResult (*ComponentSetProperty)(const ComponentSetPropertyParams& params);
@@ -901,69 +914,24 @@ namespace dmGameObject
     bool IsChildOf(HInstance child, HInstance parent);
 
     /**
-     * Parameters for GetProperty
-     */
-    struct GetPropertyParams
-    {
-        GetPropertyParams();
-
-        /// Instance of the game object
-        HInstance m_Instance;
-        /// Id of the component
-        dmhash_t m_ComponentId;
-        /// Id of the property
-        dmhash_t m_PropertyId;
-    };
-
-    /**
-     * Response parameters for GetProperty
-     */
-    struct GetPropertyOutParams
-    {
-        /// Index of the property
-        uint32_t m_Index;
-        /// Value of the property, the actual data type is described by out_element_type
-        void* m_Value;
-        /// Property element data type
-        ElementType m_ElementType;
-        /// Count of elements pointed to by the returned value
-        uint32_t m_ElementCount;
-        /// If the returned value pointer is safe to write to
-        bool m_ValueMutable;
-    };
-
-    /**
      * Retrieve a property from a component.
-     * @param params Parameters to the function
+     * @param instance Instance of the game object
+     * @param component_id Id of the component
+     * @param property_id Id of the property
+     * @param out_value Description of the retrieved property value
      * @return PROPERTY_RESULT_OK if the out-parameters were written
      */
-    PropertyResult GetProperty(const GetPropertyParams& params, GetPropertyOutParams& out);
-
-    /**
-     * Parameters for SetProperty
-     */
-    struct SetPropertyParams
-    {
-        SetPropertyParams();
-
-        /// Instance of the game object
-        HInstance m_Instance;
-        /// Id of the component
-        dmhash_t m_ComponentId;
-        /// Index of the property, as returned by GetProperty
-        uint32_t m_PropertyIndex;
-        /// Value to set for the property
-        void* m_Value;
-        /// How many of the elements to set (e.g. 3 for a Vector3)
-        uint32_t m_ElementCount;
-    };
+    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyDesc& out_value);
 
     /**
      * Sets the value of a property.
-     * @param params Parameters
+     * @param instance Instance of the game object
+     * @param component_id Id of the component
+     * @param property_id Id of the property
+     * @param value Value and type of the property
      * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetProperty(const SetPropertyParams& params);
+    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value);
 
     /**
      * Register all resource types in resource factory

@@ -28,6 +28,11 @@ namespace dmGameObject
         memset(this, 0, sizeof(*this));
     }
 
+    PropertyDesc::PropertyDesc()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     Properties::Properties()
     {
         memset(this, 0, sizeof(*this));

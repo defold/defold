@@ -7,6 +7,7 @@
 
 #include "gameobject_script.h"
 #include "gameobject_private.h"
+#include "gameobject_props_lua.h"
 
 extern "C"
 {
@@ -146,26 +147,8 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        int top = lua_gettop(g_LuaState);
-        (void)top;
-
-        lua_State* L = g_LuaState;
-
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-        lua_pushlightuserdata(L, (void*) script_instance);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
-        PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
-        lua_pop(L, 1);
-
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-        lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
-
         RunScriptParams run_params;
         ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
-        assert(top == lua_gettop(g_LuaState));
         if (ret == SCRIPT_RESULT_FAILED)
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
@@ -482,6 +465,163 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
+
+        int top = lua_gettop(g_LuaState);
+        (void)top;
+
+        lua_State* L = g_LuaState;
+
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_pushlightuserdata(L, (void*) script_instance);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+        PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
+        lua_pop(L, 1);
+
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_pushnil(L);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+
+        assert(top == lua_gettop(g_LuaState));
+    }
+
+    static const char* FindPropertyNameFromEntries(dmPropertiesDDF::PropertyDeclarationEntry* entries, uint32_t entry_count, dmhash_t id)
+    {
+        for (uint32_t i = 0; i < entry_count; ++i)
+        {
+            if (entries[i].m_Id == id)
+            {
+                return entries[i].m_Key;
+            }
+        }
+        return 0x0;
+    }
+
+#define FIND_PROPERTY_NAME(array, id, property_name, in_type, out_type)\
+    {\
+        property_name = FindPropertyNameFromEntries(array.m_Data, array.m_Count, id);\
+        if (property_name != 0x0)\
+        {\
+            out_type = in_type;\
+        }\
+    }\
+
+    static const char* FindPropertyName(dmPropertiesDDF::PropertyDeclarations* decls, dmhash_t property_id, PropertyType& out_type)
+    {
+        const char* property_name = 0x0;
+        FIND_PROPERTY_NAME(decls->m_BoolEntries, property_id, property_name, PROPERTY_TYPE_BOOLEAN, out_type);
+        if (property_name == 0x0)
+            FIND_PROPERTY_NAME(decls->m_NumberEntries, property_id, property_name, PROPERTY_TYPE_NUMBER, out_type);
+        if (property_name == 0x0)
+            FIND_PROPERTY_NAME(decls->m_HashEntries, property_id, property_name, PROPERTY_TYPE_HASH, out_type);
+        if (property_name == 0x0)
+            FIND_PROPERTY_NAME(decls->m_UrlEntries, property_id, property_name, PROPERTY_TYPE_URL, out_type);
+        if (property_name == 0x0)
+            FIND_PROPERTY_NAME(decls->m_Vector3Entries, property_id, property_name, PROPERTY_TYPE_VECTOR3, out_type);
+        if (property_name == 0x0)
+            FIND_PROPERTY_NAME(decls->m_Vector4Entries, property_id, property_name, PROPERTY_TYPE_VECTOR4, out_type);
+        if (property_name == 0x0)
+            FIND_PROPERTY_NAME(decls->m_QuatEntries, property_id, property_name, PROPERTY_TYPE_QUAT, out_type);
+        return property_name;
+    }
+
+    PropertyResult CompScriptGetProperty(const ComponentGetPropertyParams& params, PropertyDesc& out_value)
+    {
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
+
+        dmPropertiesDDF::PropertyDeclarations* declarations = &script_instance->m_Script->m_LuaModule->m_Properties;
+        PropertyType type = PROPERTY_TYPE_NUMBER;
+        const char* property_name = FindPropertyName(declarations, params.m_PropertyId, type);
+        if (property_name == 0x0)
+            return PROPERTY_RESULT_NOT_FOUND;
+
+        int top = lua_gettop(g_LuaState);
+        (void)top;
+
+        lua_State* L = g_LuaState;
+
+        // Only push the script instance if it's not present already
+        bool pushed_instance = false;
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        pushed_instance = lua_isnil(L, -1);
+        lua_pop(L, 1);
+        if (pushed_instance)
+        {
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+            lua_pushlightuserdata(L, (void*) script_instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+
+        PropertyResult result = PROPERTY_RESULT_NOT_FOUND;
+        lua_getfield(L, -1, property_name);
+        if (!lua_isnil(L, -1))
+        {
+            if (LuaToVar(L, -1, out_value.m_Variant))
+                result = PROPERTY_RESULT_OK;
+            else
+                result = PROPERTY_RESULT_TYPE_MISMATCH;
+        }
+
+        lua_pop(L, 1);
+
+        if (pushed_instance)
+        {
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+        }
+
+        return result;
+    }
+
+    PropertyResult CompScriptSetProperty(const ComponentSetPropertyParams& params)
+    {
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
+
+        dmPropertiesDDF::PropertyDeclarations* declarations = &script_instance->m_Script->m_LuaModule->m_Properties;
+        PropertyType type = PROPERTY_TYPE_NUMBER;
+        const char* property_name = FindPropertyName(declarations, params.m_PropertyId, type);
+        if (property_name == 0x0)
+            return PROPERTY_RESULT_NOT_FOUND;
+
+        int top = lua_gettop(g_LuaState);
+        (void)top;
+
+        lua_State* L = g_LuaState;
+
+        // Only push the script instance if it's not present already
+        bool pushed_instance = false;
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        pushed_instance = lua_isnil(L, -1);
+        lua_pop(L, 1);
+        if (pushed_instance)
+        {
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+            lua_pushlightuserdata(L, (void*) script_instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
+
+        lua_pushstring(L, property_name);
+        LuaPushVar(L, params.m_Value);
+        lua_rawset(L, -3);
+
+        lua_pop(L, 1);
+
+        if (pushed_instance)
+        {
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+        }
+
+        return PROPERTY_RESULT_OK;
     }
 
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
@@ -501,6 +641,8 @@ namespace dmGameObject
         script_component.m_OnInputFunction = &CompScriptOnInput;
         script_component.m_OnReloadFunction = &CompScriptOnReload;
         script_component.m_SetPropertiesFunction = &CompScriptSetProperties;
+        script_component.m_GetPropertyFunction = &CompScriptGetProperty;
+        script_component.m_SetPropertyFunction = &CompScriptSetProperty;
         script_component.m_InstanceHasUserData = true;
         script_component.m_UpdateOrderPrio = 200;
         return RegisterComponentType(regist, script_component);

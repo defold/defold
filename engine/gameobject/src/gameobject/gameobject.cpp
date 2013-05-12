@@ -56,6 +56,68 @@ namespace dmGameObject
         memset(this, 0, sizeof(InputAction));
     }
 
+    PropertyVar::PropertyVar()
+    {
+        m_Type = PROPERTY_TYPE_NUMBER;
+        m_Number = 0.0f;
+    }
+
+    PropertyVar::PropertyVar(float v)
+    {
+        m_Type = PROPERTY_TYPE_NUMBER;
+        m_Number = v;
+    }
+
+    PropertyVar::PropertyVar(double v)
+    {
+        m_Type = PROPERTY_TYPE_NUMBER;
+        m_Number = v;
+    }
+
+    PropertyVar::PropertyVar(dmhash_t v)
+    {
+        m_Type = PROPERTY_TYPE_HASH;
+        m_Hash = v;
+    }
+
+    PropertyVar::PropertyVar(dmMessage::URL v)
+    {
+        m_Type = PROPERTY_TYPE_URL;
+        m_URL = v;
+    }
+
+    PropertyVar::PropertyVar(Vectormath::Aos::Vector3 v)
+    {
+        m_Type = PROPERTY_TYPE_VECTOR3;
+        m_V4[0] = v.getX();
+        m_V4[1] = v.getY();
+        m_V4[2] = v.getZ();
+    }
+
+    PropertyVar::PropertyVar(Vectormath::Aos::Vector4 v)
+    {
+        m_Type = PROPERTY_TYPE_VECTOR4;
+        m_V4[0] = v.getX();
+        m_V4[1] = v.getY();
+        m_V4[2] = v.getZ();
+        m_V4[3] = v.getW();
+    }
+
+    PropertyVar::PropertyVar(Vectormath::Aos::Quat v)
+    {
+        m_Type = PROPERTY_TYPE_QUAT;
+        m_V4[0] = v.getX();
+        m_V4[1] = v.getY();
+        m_V4[2] = v.getZ();
+        m_V4[3] = v.getW();
+    }
+
+    PropertyVar::PropertyVar(bool v)
+    {
+        m_Type = PROPERTY_TYPE_BOOLEAN;
+        m_Bool = v;
+    }
+
     Register::Register()
     {
         m_ComponentTypeCount = 0;
@@ -1843,19 +1905,10 @@ namespace dmGameObject
         instance->m_Transform.SetRotation(dmVMath::EulerToQuat(instance->m_EulerRotation));
     }
 
-    GetPropertyParams::GetPropertyParams()
+    PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyDesc& out_value)
     {
-        memset(this, 0, sizeof(*this));
-    }
-
-    PropertyResult GetProperty(const GetPropertyParams& params, GetPropertyOutParams& out)
-    {
-        HInstance instance = params.m_Instance;
-        dmhash_t component_id = params.m_ComponentId;
-        dmhash_t property_id = params.m_PropertyId;
         if (component_id == 0)
         {
-            uint32_t index = 0;
             float* value = 0x0;
             uint32_t element_count = 1;
             float* transform = (float*)&instance->m_Transform;
@@ -1863,97 +1916,94 @@ namespace dmGameObject
             {
                 value = transform;
                 element_count = 3;
-                index = 0;
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetTranslation());
             }
             else if (property_id == PROP_POSITION_X)
             {
                 value = transform;
                 element_count = 1;
-                index = 0;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_POSITION_Y)
             {
                 value = transform + 1;
                 element_count = 1;
-                index = 1;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_POSITION_Z)
             {
                 value = transform + 2;
                 element_count = 1;
-                index = 2;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_SCALE)
             {
                 value = transform + 3;
                 element_count = 1;
-                index = 3;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_ROTATION)
             {
                 value = transform + 4;
                 element_count = 4;
-                index = 4;
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetRotation());
             }
             else if (property_id == PROP_ROTATION_X)
             {
                 value = transform + 4;
                 element_count = 1;
-                index = 4;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_ROTATION_Y)
             {
                 value = transform + 5;
                 element_count = 1;
-                index = 5;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_ROTATION_Z)
             {
                 value = transform + 6;
                 element_count = 1;
-                index = 6;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_ROTATION_W)
             {
                 value = transform + 7;
                 element_count = 1;
-                index = 7;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_EULER)
             {
                 UpdateRotationToEuler(instance);
                 value = (float*)&instance->m_EulerRotation;
                 element_count = 3;
-                index = 8;
+                out_value.m_Variant = PropertyVar(instance->m_EulerRotation);
             }
             else if (property_id == PROP_EULER_X)
             {
                 UpdateRotationToEuler(instance);
                 value = ((float*)&instance->m_EulerRotation);
                 element_count = 1;
-                index = 8;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_EULER_Y)
             {
                 UpdateRotationToEuler(instance);
                 value = ((float*)&instance->m_EulerRotation) + 1;
                 element_count = 1;
-                index = 9;
+                out_value.m_Variant = PropertyVar(*value);
             }
             else if (property_id == PROP_EULER_Z)
             {
                 UpdateRotationToEuler(instance);
                 value = ((float*)&instance->m_EulerRotation) + 2;
                 element_count = 1;
-                index = 10;
+                out_value.m_Variant = PropertyVar(*value);
             }
             if (value != 0x0)
             {
-                out.m_Index = index;
-                out.m_Value = value;
-                out.m_ElementType = ELEMENT_TYPE_FLOAT;
-                out.m_ElementCount = element_count;
-                out.m_ValueMutable = true;
+                out_value.m_ValuePtr = value;
+                out_value.m_ElementCount = element_count;
                 return PROPERTY_RESULT_OK;
             }
             else
@@ -1963,59 +2013,203 @@ namespace dmGameObject
         }
         else
         {
-            // TODO Component properties
+            uint8_t component_index;
+            if (RESULT_OK == GetComponentIndex(instance, component_id, &component_index))
+            {
+                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+                Prototype::Component& component = components[component_index];
+                ComponentType* type = component.m_Type;
+                if (type->m_GetPropertyFunction)
+                {
+                    uintptr_t* user_data = 0;
+                    if (type->m_InstanceHasUserData)
+                    {
+                        uint32_t next_component_instance_data = 0;
+                        for (uint32_t i = 0; i < component_index; ++i)
+                        {
+                            if (components[i].m_Type->m_InstanceHasUserData)
+                                ++next_component_instance_data;
+                        }
+                        user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                    }
+                    ComponentGetPropertyParams p;
+                    p.m_Instance = instance;
+                    p.m_PropertyId = property_id;
+                    p.m_UserData = user_data;
+                    PropertyDesc prop_desc;
+                    PropertyResult result = type->m_GetPropertyFunction(p, prop_desc);
+                    if (result == PROPERTY_RESULT_OK)
+                    {
+                        out_value = prop_desc;
+                    }
+                    return result;
+                }
+                else
+                {
+                    return PROPERTY_RESULT_NOT_FOUND;
+                }
+            }
+            else
+            {
+                return PROPERTY_RESULT_COMP_NOT_FOUND;
+            }
         }
     }
 
-    SetPropertyParams::SetPropertyParams()
+    PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value)
     {
-        memset(this, 0, sizeof(*this));
-    }
-
-    PropertyResult SetProperty(const SetPropertyParams& params)
-    {
-        HInstance instance = params.m_Instance;
-        dmhash_t component_id = params.m_ComponentId;
-        uint32_t property_index = params.m_PropertyIndex;
-        uint32_t elem_count = params.m_ElementCount;
         if (component_id == 0)
         {
-            if (property_index > 10)
-                return PROPERTY_RESULT_INVALID_INDEX;
-            if (property_index < 8)
+            float* transform = (float*)&instance->m_Transform;
+            if (property_id == PROP_POSITION)
             {
-                if (property_index + elem_count <= 8)
-                {
-                    float* source_v = (float*)params.m_Value;
-                    float* target_v = (float*)&instance->m_Transform + property_index;
-                    for (uint32_t i = 0; i < elem_count; ++i)
-                        target_v[i] = source_v[i];
-                }
-                else
-                {
-                    return PROPERTY_RESULT_OVERFLOW;
-                }
+                if (value.m_Type != PROPERTY_TYPE_VECTOR3)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[0] = value.m_V4[0];
+                transform[1] = value.m_V4[1];
+                transform[2] = value.m_V4[2];
+                return PROPERTY_RESULT_OK;
             }
-            else // Special handling for euler
+            else if (property_id == PROP_POSITION_X)
             {
-                uint32_t index = property_index - 8;
-                if (index + elem_count <= 3)
-                {
-                    float* source_v = (float*)params.m_Value;
-                    float* target_v = (float*)&instance->m_EulerRotation + index;
-                    for (uint32_t i = 0; i < elem_count; ++i)
-                        target_v[i] = source_v[i];
-                    UpdateEulerToRotation(instance);
-                }
-                else
-                {
-                    return PROPERTY_RESULT_OVERFLOW;
-                }
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[0] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_POSITION_Y)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[1] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_POSITION_Z)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[2] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_SCALE)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[3] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_ROTATION)
+            {
+                if (value.m_Type != PROPERTY_TYPE_QUAT)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[4] = value.m_V4[0];
+                transform[5] = value.m_V4[1];
+                transform[6] = value.m_V4[2];
+                transform[7] = value.m_V4[3];
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_ROTATION_X)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[4] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_ROTATION_Y)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[5] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_ROTATION_Z)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[6] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_ROTATION_W)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                transform[7] = (float)value.m_Number;
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_EULER)
+            {
+                if (value.m_Type != PROPERTY_TYPE_VECTOR3)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                instance->m_EulerRotation = Vector3(value.m_V4[0], value.m_V4[1], value.m_V4[2]);
+                UpdateEulerToRotation(instance);
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_EULER_X)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                instance->m_EulerRotation.setX((float)value.m_Number);
+                UpdateEulerToRotation(instance);
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_EULER_Y)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                instance->m_EulerRotation.setY((float)value.m_Number);
+                UpdateEulerToRotation(instance);
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_EULER_Z)
+            {
+                if (value.m_Type != PROPERTY_TYPE_NUMBER)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                instance->m_EulerRotation.setZ((float)value.m_Number);
+                UpdateEulerToRotation(instance);
+                return PROPERTY_RESULT_OK;
+            }
+            else
+            {
+                return PROPERTY_RESULT_NOT_FOUND;
             }
         }
         else
         {
-            // TODO Component properties
+            uint8_t component_index;
+            if (RESULT_OK == GetComponentIndex(instance, component_id, &component_index))
+            {
+                dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
+                Prototype::Component& component = components[component_index];
+                ComponentType* type = component.m_Type;
+                if (type->m_SetPropertyFunction)
+                {
+                    uintptr_t* user_data = 0;
+                    if (type->m_InstanceHasUserData)
+                    {
+                        uint32_t next_component_instance_data = 0;
+                        for (uint32_t i = 0; i < component_index; ++i)
+                        {
+                            if (components[i].m_Type->m_InstanceHasUserData)
+                                ++next_component_instance_data;
+                        }
+                        user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                    }
+                    ComponentSetPropertyParams p;
+                    p.m_Instance = instance;
+                    p.m_PropertyId = property_id;
+                    p.m_UserData = user_data;
+                    p.m_Value = value;
+                    return type->m_SetPropertyFunction(p);
+                }
+                else
+                {
+                    return PROPERTY_RESULT_NOT_FOUND;
+                }
+            }
+            else
+            {
+                return PROPERTY_RESULT_COMP_NOT_FOUND;
+            }
         }
         return PROPERTY_RESULT_OK;
     }

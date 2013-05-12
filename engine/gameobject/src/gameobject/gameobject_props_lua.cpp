@@ -13,6 +13,97 @@ namespace dmGameObject
         PropertyVar m_Var;
     };
 
+    bool LuaToVar(lua_State* L, int index, PropertyVar& out_var)
+    {
+        switch (lua_type(L, index))
+        {
+        case LUA_TNUMBER:
+            out_var.m_Type = PROPERTY_TYPE_NUMBER;
+            out_var.m_Number = lua_tonumber(L, index);
+            return true;
+        case LUA_TBOOLEAN:
+            out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
+            out_var.m_Bool = lua_toboolean(L, index);
+            return true;
+        case LUA_TUSERDATA:
+            if (dmScript::IsHash(L, index))
+            {
+                out_var.m_Type = PROPERTY_TYPE_HASH;
+                out_var.m_Hash = dmScript::CheckHash(L, index);
+                return true;
+            }
+            else if (dmScript::IsURL(L, index))
+            {
+                out_var.m_Type = PROPERTY_TYPE_URL;
+                out_var.m_URL = *dmScript::CheckURL(L, index);
+                return true;
+            }
+            else if (dmScript::IsVector3(L, index))
+            {
+                out_var.m_Type = PROPERTY_TYPE_VECTOR3;
+                Vector3 v = *dmScript::CheckVector3(L, index);
+                out_var.m_V4[0] = v.getX();
+                out_var.m_V4[1] = v.getY();
+                out_var.m_V4[2] = v.getZ();
+                return true;
+            }
+            else if (dmScript::IsVector4(L, index))
+            {
+                out_var.m_Type = PROPERTY_TYPE_VECTOR4;
+                Vector4 v = *dmScript::CheckVector4(L, index);
+                out_var.m_V4[0] = v.getX();
+                out_var.m_V4[1] = v.getY();
+                out_var.m_V4[2] = v.getZ();
+                out_var.m_V4[3] = v.getW();
+                return true;
+            }
+            else if (dmScript::IsQuat(L, index))
+            {
+                out_var.m_Type = PROPERTY_TYPE_QUAT;
+                Quat q = *dmScript::CheckQuat(L, index);
+                out_var.m_V4[0] = q.getX();
+                out_var.m_V4[1] = q.getY();
+                out_var.m_V4[2] = q.getZ();
+                out_var.m_V4[3] = q.getW();
+                return true;
+            }
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+
+    void LuaPushVar(lua_State* L, const PropertyVar& var)
+    {
+        switch (var.m_Type)
+        {
+        case PROPERTY_TYPE_NUMBER:
+            lua_pushnumber(L, var.m_Number);
+            break;
+        case PROPERTY_TYPE_HASH:
+            dmScript::PushHash(L, var.m_Hash);
+            break;
+        case PROPERTY_TYPE_URL:
+            dmScript::PushURL(L, var.m_URL);
+            break;
+        case PROPERTY_TYPE_VECTOR3:
+            dmScript::PushVector3(L, Vectormath::Aos::Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
+            break;
+        case PROPERTY_TYPE_VECTOR4:
+            dmScript::PushVector4(L, Vectormath::Aos::Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            break;
+        case PROPERTY_TYPE_QUAT:
+            dmScript::PushQuat(L, Vectormath::Aos::Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
+            break;
+        case PROPERTY_TYPE_BOOLEAN:
+            lua_pushboolean(L, var.m_Bool);
+            break;
+        default:
+            break;
+        }
+    }
+
     bool CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
     {
         int top = lua_gettop(L);
@@ -28,63 +119,7 @@ namespace dmGameObject
                 if (lua_isstring(L, -2))
                 {
                     PropertyVar var;
-                    bool valid = true;
-                    switch (lua_type(L, -1))
-                    {
-                    case LUA_TNUMBER:
-                        var.m_Type = PROPERTY_TYPE_NUMBER;
-                        var.m_Number = lua_tonumber(L, -1);
-                        break;
-                    case LUA_TBOOLEAN:
-                        var.m_Type = PROPERTY_TYPE_BOOLEAN;
-                        var.m_Bool = lua_toboolean(L, -1);
-                        break;
-                    case LUA_TUSERDATA:
-                        if (dmScript::IsHash(L, -1))
-                        {
-                            var.m_Type = PROPERTY_TYPE_HASH;
-                            var.m_Hash = dmScript::CheckHash(L, -1);
-                        }
-                        else if (dmScript::IsURL(L, -1))
-                        {
-                            var.m_Type = PROPERTY_TYPE_URL;
-                            var.m_URL = *dmScript::CheckURL(L, -1);
-                        }
-                        else if (dmScript::IsVector3(L, -1))
-                        {
-                            var.m_Type = PROPERTY_TYPE_VECTOR3;
-                            Vector3 v = *dmScript::CheckVector3(L, -1);
-                            var.m_V4[0] = v.getX();
-                            var.m_V4[1] = v.getY();
-                            var.m_V4[2] = v.getZ();
-                        }
-                        else if (dmScript::IsVector4(L, -1))
-                        {
-                            var.m_Type = PROPERTY_TYPE_VECTOR4;
-                            Vector4 v = *dmScript::CheckVector4(L, -1);
-                            var.m_V4[0] = v.getX();
-                            var.m_V4[1] = v.getY();
-                            var.m_V4[2] = v.getZ();
-                            var.m_V4[3] = v.getW();
-                        }
-                        else if (dmScript::IsQuat(L, -1))
-                        {
-                            var.m_Type = PROPERTY_TYPE_QUAT;
-                            Quat q = *dmScript::CheckQuat(L, -1);
-                            var.m_V4[0] = q.getX();
-                            var.m_V4[1] = q.getY();
-                            var.m_V4[2] = q.getZ();
-                            var.m_V4[3] = q.getW();
-                        }
-                        else
-                        {
-                            valid = false;
-                        }
-                        break;
-                    default:
-                        valid = false;
-                        break;
-                    }
+                    bool valid = LuaToVar(L, -1, var);
                     lua_pop(L, 1);
                     if (valid)
                     {

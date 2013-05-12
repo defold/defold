@@ -1,0 +1,32 @@
+function init(self)
+    -- game object properties
+    local url = msg.url("/a")
+    local p = vmath.vector3(1, 2, 3)
+    local r = vmath.quat(1, 2, 3, 4)
+    local s = 2
+    local e = vmath.vector3(1, 2, 3)
+    go.set(url, "position", p)
+    assert(go.get(url, "position") == p)
+    go.set(url, "rotation", r)
+    assert(go.get(url, "rotation") == r)
+    go.set(url, "scale", s)
+    assert(go.get(url, "scale") == s)
+    go.set(url, "euler", e)
+    -- euler has low precision due to quat-conversion, test that error is sufficiently small
+    assert(vmath.length(go.get(url, "euler") - e)/3 < 0.02)
+    -- script properties
+    assert(go.get("b#script", "number") == 1)
+    go.set("b#script", "number", 2)
+    assert(go.get("b#script", "hash") == hash("test"))
+    go.set("b#script", "hash", hash("test2"))
+    assert(go.get("b#script", "url") == msg.url("b#script"))
+    go.set("b#script", "url", msg.url())
+    assert(go.get("b#script", "vec3") == vmath.vector3())
+    go.set("b#script", "vec3", vmath.vector3(1, 1, 1))
+    assert(go.get("b#script", "vec4") == vmath.vector4(0, 0, 0, 0))
+    go.set("b#script", "vec4", vmath.vector4(1, 1, 1, 1))
+    assert(go.get("b#script", "quat") == vmath.quat())
+    go.set("b#script", "quat", vmath.quat(1, 1, 1, 1))
+    assert(not go.get("b#script", "bool"))
+    go.set("b#script", "bool", true)
+end

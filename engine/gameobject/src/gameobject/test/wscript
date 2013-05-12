@@ -267,7 +267,7 @@ def parse_properties(props):
                 if (m_quat.group(2)):
                     quat = (float(m_quat.group(2)), float(m_quat.group(3)), float(m_quat.group(4)), float(m_quat.group(5)))
                 else:
-                    quat = (0, 0, 0, 0)
+                    quat = (0, 0, 0, 1)
                 declarations.float_values.extend(quat)
             elif m_bool:
                 entry = declarations.bool_entries.add()

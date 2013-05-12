@@ -28,6 +28,10 @@ namespace dmGameObject
     void CompScriptOnReload(const ComponentOnReloadParams& params);
 
     void CompScriptSetProperties(const ComponentSetPropertiesParams& params);
+
+    PropertyResult CompScriptGetProperty(const ComponentGetPropertyParams& params, PropertyDesc& out_value);
+
+    PropertyResult CompScriptSetProperty(const ComponentSetPropertyParams& params);
 }
 
 #endif // DM_GAMEOBJECT_COMP_SCRIPT_H
