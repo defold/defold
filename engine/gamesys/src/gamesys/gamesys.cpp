@@ -217,7 +217,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("tilegridc", 1200, render_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
                 CompTileGridCreate, CompTileGridDestroy, 0, 0,
-                CompTileGridUpdate, 0, CompTileGridOnMessage, 0, CompTileGridOnReload, 0, 0);
+                CompTileGridUpdate, 0, CompTileGridOnMessage, 0, CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty);
 
         #undef REGISTER_COMPONENT_TYPE
 
