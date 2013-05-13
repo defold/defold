@@ -74,13 +74,14 @@ namespace dmGameSystem
         uint32_t index = model_world->m_ComponentIndices.Pop();
         ModelComponent* component = &model_world->m_Components[index];
 
+        Model* model = (Model*)params.m_Resource;
         component->m_Instance = params.m_Instance;
         component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
-        component->m_Model = (Model*)params.m_Resource;
+        component->m_Model = model;
         component->m_ModelWorld = model_world;
         component->m_RenderObject = dmRender::RenderObject();
-        component->m_RenderObject.m_Material = 0;
+        component->m_RenderObject.m_Material = model->m_Material;
         *params.m_UserData = (uintptr_t)component;
 
         return dmGameObject::CREATE_RESULT_OK;
@@ -146,13 +147,6 @@ namespace dmGameSystem
 
         dmRender::RenderObject* ro = &component->m_RenderObject;
 
-        // Return if pre first update.
-        // Perhaps we should initialize stuff in Create instead of Update?
-        // EnableRenderObjectConstant asserts on valid material
-        // https://defold.fogbugz.com/default.asp?2116
-        if (!ro->m_Material)
-            return dmGameObject::UPDATE_RESULT_OK;
-
         if (params.m_Message->m_Id == dmModelDDF::SetConstant::m_DDFDescriptor->m_NameHash)
         {
             dmModelDDF::SetConstant* ddf = (dmModelDDF::SetConstant*)params.m_Message->m_Data;
@@ -215,9 +209,6 @@ namespace dmGameSystem
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             dmRender::RenderObject* ro = &component->m_RenderObject;
-            // https://defold.fogbugz.com/default.asp?2116#13626
-            if (!ro->m_Material)
-                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
             for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
             {
                 const float* v = params.m_Value.m_V4;
