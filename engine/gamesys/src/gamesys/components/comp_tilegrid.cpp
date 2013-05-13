@@ -559,14 +559,14 @@ namespace dmGameSystem
         bool result = dmRender::GetMaterialProgramConstant(component->m_TileGridResource->m_Material, params.m_PropertyId, constant);
         if (result)
         {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             uint32_t region_count = component->m_Regions.Size();
             for (uint32_t i = 0; i < region_count; ++i)
             {
                 TileGridRegion* region = &component->m_Regions[i];
                 for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
                 {
-                    if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
-                        return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
                     const float* v = params.m_Value.m_V4;
                     dmRender::EnableRenderObjectConstant(&region->m_RenderObject, params.m_PropertyId, Vector4(v[0], v[1], v[2] ,v[3]));
                 }
