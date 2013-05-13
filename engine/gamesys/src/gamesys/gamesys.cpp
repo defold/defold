@@ -187,7 +187,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("modelc", 700, render_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, CompModelDestroy, 0, 0,
-                CompModelUpdate, 0, CompModelOnMessage, 0, 0, 0, 0);
+                CompModelUpdate, 0, CompModelOnMessage, 0, 0, CompModelGetProperty, CompModelSetProperty);
 
         REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,

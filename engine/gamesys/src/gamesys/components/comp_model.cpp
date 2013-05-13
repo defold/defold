@@ -40,14 +40,19 @@ namespace dmGameSystem
     struct ModelWorld
     {
         dmArray<ModelComponent> m_Components;
+        dmIndexPool32           m_ComponentIndices;
     };
 
     dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         ModelWorld* model_world = new ModelWorld();
-        // TODO: How to configure?
-        const uint32_t max_component_count = 1024;
+        // TODO: Expose model count in game.project
+        // https://defold.fogbugz.com/default.asp?2115
+        const uint32_t max_component_count = 128;
         model_world->m_Components.SetCapacity(max_component_count);
+        model_world->m_Components.SetSize(max_component_count);
+        memset(&model_world->m_Components[0], 0, sizeof(ModelComponent) * max_component_count);
+        model_world->m_ComponentIndices.SetCapacity(max_component_count);
         *params.m_World = model_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -61,41 +66,33 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompModelCreate(const dmGameObject::ComponentCreateParams& params)
     {
         ModelWorld* model_world = (ModelWorld*)params.m_World;
-        if (!model_world->m_Components.Full())
+        if (model_world->m_ComponentIndices.Remaining() == 0)
         {
-            Model* model = (Model*)params.m_Resource;
-            ModelComponent component;
-
-            component.m_Instance = params.m_Instance;
-            component.m_Position = params.m_Position;
-            component.m_Rotation = params.m_Rotation;
-            component.m_Model = model;
-            component.m_ModelWorld = model_world;
-            component.m_RenderObject.m_Material = 0;
-            model_world->m_Components.Push(component);
-            *params.m_UserData = (uintptr_t)params.m_Instance;
-
-            return dmGameObject::CREATE_RESULT_OK;
+            dmLogError("Model could not be created since the model buffer is full (%d).", model_world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-        dmLogError("Could not create model component, out of resources.");
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        uint32_t index = model_world->m_ComponentIndices.Pop();
+        ModelComponent* component = &model_world->m_Components[index];
+
+        component->m_Instance = params.m_Instance;
+        component->m_Position = params.m_Position;
+        component->m_Rotation = params.m_Rotation;
+        component->m_Model = (Model*)params.m_Resource;
+        component->m_ModelWorld = model_world;
+        component->m_RenderObject = dmRender::RenderObject();
+        component->m_RenderObject.m_Material = 0;
+        *params.m_UserData = (uintptr_t)component;
+
+        return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompModelDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         ModelWorld* model_world = (ModelWorld*)params.m_World;
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)*params.m_UserData;
-        dmArray<ModelComponent>& components = model_world->m_Components;
-        uint32_t n = components.Size();
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            if (components[i].m_Instance == instance)
-            {
-                components.EraseSwap(i);
-                break;
-            }
-        }
-
+        ModelComponent* component = (ModelComponent*)*params.m_UserData;
+        uint32_t index = component - &model_world->m_Components[0];
+        memset(component, 0, sizeof(ModelComponent));
+        model_world->m_ComponentIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -110,6 +107,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             ModelComponent& component = components[i];
+            if (component.m_Instance == 0)
+                continue;
             model = component.m_Model;
             mesh = model->m_Mesh;
             dmRender::RenderObject& ro = component.m_RenderObject;
@@ -143,51 +142,89 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)*params.m_UserData;
-        ModelWorld* model_world = (ModelWorld*)params.m_World;
-        dmArray<ModelComponent>& components = model_world->m_Components;
-        uint32_t n = components.Size();
-        for (uint32_t i = 0; i < n; ++i)
+        ModelComponent* component = (ModelComponent*)*params.m_UserData;
+
+        dmRender::RenderObject* ro = &component->m_RenderObject;
+
+        // Return if pre first update.
+        // Perhaps we should initialize stuff in Create instead of Update?
+        // EnableRenderObjectConstant asserts on valid material
+        // https://defold.fogbugz.com/default.asp?2116
+        if (!ro->m_Material)
+            return dmGameObject::UPDATE_RESULT_OK;
+
+        if (params.m_Message->m_Id == dmModelDDF::SetConstant::m_DDFDescriptor->m_NameHash)
         {
-            ModelComponent* component = &components[i];
-            if (component->m_Instance == instance)
+            dmModelDDF::SetConstant* ddf = (dmModelDDF::SetConstant*)params.m_Message->m_Data;
+            dmRender::EnableRenderObjectConstant(ro, ddf->m_NameHash, ddf->m_Value);
+        }
+        else if (params.m_Message->m_Id == dmModelDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
+        {
+            dmModelDDF::ResetConstant* ddf = (dmModelDDF::ResetConstant*)params.m_Message->m_Data;
+            dmRender::DisableRenderObjectConstant(ro, ddf->m_NameHash);
+        }
+        else if (params.m_Message->m_Id == dmModelDDF::SetTexture::m_DDFDescriptor->m_NameHash)
+        {
+            dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)params.m_Message->m_Data;
+            uint32_t unit = ddf->m_TextureUnit;
+            dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)params.m_Context;
+            dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, ddf->m_TextureHash);
+            if (rendertarget)
             {
-                dmRender::RenderObject* ro = &component->m_RenderObject;
-
-                // Return if pre first update.
-                // Perhaps we should initialize stuff in Create instead of Update?
-                // EnableRenderObjectConstant asserts on valid material
-                if (!ro->m_Material)
-                    return dmGameObject::UPDATE_RESULT_OK;
-
-                if (params.m_Message->m_Id == dmModelDDF::SetConstant::m_DDFDescriptor->m_NameHash)
-                {
-                    dmModelDDF::SetConstant* ddf = (dmModelDDF::SetConstant*)params.m_Message->m_Data;
-                    dmRender::EnableRenderObjectConstant(ro, ddf->m_NameHash, ddf->m_Value);
-                }
-                else if (params.m_Message->m_Id == dmModelDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
-                {
-                    dmModelDDF::ResetConstant* ddf = (dmModelDDF::ResetConstant*)params.m_Message->m_Data;
-                    dmRender::DisableRenderObjectConstant(ro, ddf->m_NameHash);
-                }
-                else if (params.m_Message->m_Id == dmModelDDF::SetTexture::m_DDFDescriptor->m_NameHash)
-                {
-                    dmModelDDF::SetTexture* ddf = (dmModelDDF::SetTexture*)params.m_Message->m_Data;
-                    uint32_t unit = ddf->m_TextureUnit;
-                    dmRender::HRenderContext rendercontext = (dmRender::HRenderContext)params.m_Context;
-                    dmGraphics::HRenderTarget rendertarget = dmRender::GetRenderTarget(rendercontext, ddf->m_TextureHash);
-                    if (rendertarget)
-                    {
-                        ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR_BIT);
-                    }
-                    else {
-                        LogMessageError(params.m_Message, "No such render target: %s.",
-                                     (const char*) dmHashReverse64(ddf->m_TextureHash, 0));
-                    }
-                }
+                ro->m_Textures[unit] = dmGraphics::GetRenderTargetTexture(rendertarget, dmGraphics::BUFFER_TYPE_COLOR_BIT);
+            }
+            else {
+                LogMessageError(params.m_Message, "No such render target: %s.",
+                             (const char*) dmHashReverse64(ddf->m_TextureHash, 0));
             }
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        ModelComponent* component = (ModelComponent*)*params.m_UserData;
+        dmRender::Constant constant;
+        bool result = dmRender::GetMaterialProgramConstant(component->m_Model->m_Material, params.m_PropertyId, constant);
+        if (result)
+        {
+            dmRender::RenderObject* ro = &component->m_RenderObject;
+            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++i)
+            {
+                dmRender::Constant& constant = ro->m_Constants[i];
+                if (constant.m_Location != -1 && constant.m_NameHash == params.m_PropertyId)
+                {
+                    out_value.m_Variant = dmGameObject::PropertyVar(constant.m_Value);
+                    return dmGameObject::PROPERTY_RESULT_OK;
+                }
+            }
+            out_value.m_Variant = dmGameObject::PropertyVar(constant.m_Value);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    {
+        ModelComponent* component = (ModelComponent*)*params.m_UserData;
+        dmRender::Constant constant;
+        bool result = dmRender::GetMaterialProgramConstant(component->m_Model->m_Material, params.m_PropertyId, constant);
+        if (result)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            dmRender::RenderObject* ro = &component->m_RenderObject;
+            // https://defold.fogbugz.com/default.asp?2116#13626
+            if (!ro->m_Material)
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
+            {
+                const float* v = params.m_Value.m_V4;
+                dmRender::EnableRenderObjectConstant(ro, params.m_PropertyId, Vector4(v[0], v[1], v[2] ,v[3]));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 }
