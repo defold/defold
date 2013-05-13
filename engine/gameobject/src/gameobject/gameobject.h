@@ -462,36 +462,60 @@ namespace dmGameObject
      */
     typedef void (*ComponentOnReload)(const ComponentOnReloadParams& params);
 
+    /**
+     * Parameters to ComponentSetProperties callback.
+     */
     struct ComponentSetPropertiesParams
     {
         /// Instance handle
         HInstance m_Instance;
+        /// Property set to use
         PropertySet m_PropertySet;
         /// User data storage pointer
         uintptr_t* m_UserData;
     };
 
+    /**
+     * Set a property set for the component.
+     */
     typedef void (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
 
+    /**
+     * Parameters to ComponentGetProperty callback.
+     */
     struct ComponentGetPropertyParams
     {
+        /// Game object instance
         HInstance m_Instance;
+        /// Id of the property
         dmhash_t m_PropertyId;
         /// User data storage pointer
         uintptr_t* m_UserData;
     };
 
+    /**
+     * Callback for retrieving a property value of the component.
+     */
     typedef PropertyResult (*ComponentGetProperty)(const ComponentGetPropertyParams& params, PropertyDesc& out_value);
 
+    /**
+     * Parameters to ComponentSetProperty callback.
+     */
     struct ComponentSetPropertyParams
     {
+        /// Game object instance
         HInstance m_Instance;
+        /// Id of the property
         dmhash_t m_PropertyId;
         /// User data storage pointer
         uintptr_t* m_UserData;
+        /// New value of the property
         PropertyVar m_Value;
     };
 
+    /**
+     * Callback for setting a property value of the component.
+     */
     typedef PropertyResult (*ComponentSetProperty)(const ComponentSetPropertyParams& params);
 
     /**
