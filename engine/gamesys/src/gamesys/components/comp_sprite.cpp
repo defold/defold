@@ -812,7 +812,7 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                bool result = SetConstant(component, ddf);
+                bool result = dmGameSystem::SetConstant(component, ddf);
                 if (!result)
                 {
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
@@ -884,7 +884,7 @@ namespace dmGameSystem
             set_constant.m_NameHash = params.m_PropertyId;
             const float* v = params.m_Value.m_V4;
             set_constant.m_Value = Vectormath::Aos::Vector4(v[0], v[1], v[2], v[3]);
-            bool result = SetConstant(component, &set_constant);
+            bool result = dmGameSystem::SetConstant(component, &set_constant);
             if (result)
             {
                 return dmGameObject::PROPERTY_RESULT_OK;
