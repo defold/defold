@@ -9,6 +9,7 @@
 #include "script_vmath.h"
 #include "script_sys.h"
 #include "script_module.h"
+#include "script_json.h"
 
 extern "C"
 {
@@ -57,6 +58,7 @@ namespace dmScript
         InitializeVmath(L);
         InitializeSys(L);
         InitializeModule(L);
+        InitializeJson(L);
 
         lua_register(L, "print", LuaPrint);
 

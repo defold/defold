@@ -84,3 +84,14 @@ def build(bld):
                                           source = 'test_script_module.cpp test_module.lua test_module_missing.lua')
 
     test_script_module.install_path = None
+
+    test_script_json = bld.new_task_gen(features = 'cxx cprogram',
+                                       includes = '..',
+                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib_local = 'script',
+                                       proto_gen_py = True,
+                                       target = 'test_script_json',
+                                       source = 'test_script_json.cpp test_json.lua')
+
+    test_script_json.install_path = None
+
