@@ -36,7 +36,7 @@ TEST(dmMath, TestQuatToEuler)
             float expected_i = ap;
             float expected_i_1 = 0.0f;
             float expected_i_n_1 = 0.0f;
-            if (i == 0 and ap >= 90.0f)
+            if (i == 0 && ap >= 90.0f)
             {
                 expected_i_1 = 90.0f;
             }
