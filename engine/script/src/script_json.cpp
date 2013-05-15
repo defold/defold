@@ -90,6 +90,7 @@ namespace dmScript
         if (r == dmJson::RESULT_OK)
         {
             ToLua(L, &doc, json, 0);
+            dmJson::Free(&doc);
             assert(top + 1== lua_gettop(L));
             return 1;
         }
