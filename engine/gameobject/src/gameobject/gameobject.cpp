@@ -1909,101 +1909,94 @@ namespace dmGameObject
     {
         if (component_id == 0)
         {
-            float* value = 0x0;
-            uint32_t element_count = 1;
             float* transform = (float*)&instance->m_Transform;
+            out_value.m_ValuePtr = 0x0;
             if (property_id == PROP_POSITION)
             {
-                value = transform;
-                element_count = 3;
+                out_value.m_ValuePtr = transform;
+                out_value.m_ElementIds[0] = PROP_POSITION_X;
+                out_value.m_ElementIds[1] = PROP_POSITION_Y;
+                out_value.m_ElementIds[2] = PROP_POSITION_Z;
                 out_value.m_Variant = PropertyVar(instance->m_Transform.GetTranslation());
             }
             else if (property_id == PROP_POSITION_X)
             {
-                value = transform;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Y)
             {
-                value = transform + 1;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform + 1;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Z)
             {
-                value = transform + 2;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform + 2;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_SCALE)
             {
-                value = transform + 3;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform + 3;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION)
             {
-                value = transform + 4;
-                element_count = 4;
+                out_value.m_ValuePtr = transform + 4;
+                out_value.m_ElementIds[0] = PROP_ROTATION_X;
+                out_value.m_ElementIds[1] = PROP_ROTATION_Y;
+                out_value.m_ElementIds[2] = PROP_ROTATION_Z;
+                out_value.m_ElementIds[3] = PROP_ROTATION_W;
                 out_value.m_Variant = PropertyVar(instance->m_Transform.GetRotation());
             }
             else if (property_id == PROP_ROTATION_X)
             {
-                value = transform + 4;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform + 4;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Y)
             {
-                value = transform + 5;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform + 5;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Z)
             {
-                value = transform + 6;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform + 6;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_W)
             {
-                value = transform + 7;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = transform + 7;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER)
             {
                 UpdateRotationToEuler(instance);
-                value = (float*)&instance->m_EulerRotation;
-                element_count = 3;
+                out_value.m_ValuePtr = (float*)&instance->m_EulerRotation;
+                out_value.m_ElementIds[0] = PROP_EULER_X;
+                out_value.m_ElementIds[1] = PROP_EULER_Y;
+                out_value.m_ElementIds[2] = PROP_EULER_Z;
                 out_value.m_Variant = PropertyVar(instance->m_EulerRotation);
             }
             else if (property_id == PROP_EULER_X)
             {
                 UpdateRotationToEuler(instance);
-                value = ((float*)&instance->m_EulerRotation);
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation);
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER_Y)
             {
                 UpdateRotationToEuler(instance);
-                value = ((float*)&instance->m_EulerRotation) + 1;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation) + 1;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER_Z)
             {
                 UpdateRotationToEuler(instance);
-                value = ((float*)&instance->m_EulerRotation) + 2;
-                element_count = 1;
-                out_value.m_Variant = PropertyVar(*value);
+                out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation) + 2;
+                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
-            if (value != 0x0)
+            if (out_value.m_ValuePtr != 0x0)
             {
-                out_value.m_ValuePtr = value;
-                out_value.m_ElementCount = element_count;
                 return PROPERTY_RESULT_OK;
             }
             else

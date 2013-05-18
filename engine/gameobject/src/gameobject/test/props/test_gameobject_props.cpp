@@ -257,7 +257,7 @@ static dmhash_t hash(const char* s)
         dmGameObject::SetScale(go, v0);\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
     }\
 
@@ -274,22 +274,25 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
-        ASSERT_EQ(3u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);\
+        ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
+        ASSERT_EQ(hash(prop ".y"), desc.m_ElementIds[1]);\
+        ASSERT_EQ(hash(prop ".z"), desc.m_ElementIds[2]);\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".x"), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".y"), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[0], epsilon);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".z"), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[0], epsilon);\
     }
 
@@ -329,7 +332,11 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
-        ASSERT_EQ(4u, desc.m_ElementCount);\
+        ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_VECTOR4 == desc.m_Variant.m_Type || dmGameObject::PROPERTY_TYPE_QUAT == desc.m_Variant.m_Type);\
+        ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
+        ASSERT_EQ(hash(prop ".y"), desc.m_ElementIds[1]);\
+        ASSERT_EQ(hash(prop ".z"), desc.m_ElementIds[2]);\
+        ASSERT_EQ(hash(prop ".w"), desc.m_ElementIds[3]);\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[1], epsilon);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[2], epsilon);\
@@ -337,19 +344,19 @@ static dmhash_t hash(const char* s)
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".x"), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getX(), desc.m_ValuePtr[0], epsilon);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".y"), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getY(), desc.m_ValuePtr[0], epsilon);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".z"), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getZ(), desc.m_ValuePtr[0], epsilon);\
 \
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop ".w"), desc));\
-        ASSERT_EQ(1u, desc.m_ElementCount);\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v.getW(), desc.m_ValuePtr[0], epsilon);\
 }
 

@@ -207,6 +207,11 @@ def scan_lua(str):
     return modules, props
 
 def parse_properties(props):
+    def add_elements(entry, id, elements):
+        for e in elements:
+            key = "%s.%s" % (id, e)
+            entry.element_ids.append(dlib.dmHashBuffer64(key))
+
     import properties_ddf_pb2
     declarations = properties_ddf_pb2.PropertyDeclarations()
     if props:
@@ -248,6 +253,7 @@ def parse_properties(props):
             elif m_vec3:
                 entry = declarations.vector3_entries.add()
                 entry.index = len(declarations.float_values)
+                add_elements(entry, k, ("x", "y", "z"))
                 if (m_vec3.group(2)):
                     vec3 = (float(m_vec3.group(2)), float(m_vec3.group(3)), float(m_vec3.group(4)))
                 else:
@@ -256,6 +262,7 @@ def parse_properties(props):
             elif m_vec4:
                 entry = declarations.vector4_entries.add()
                 entry.index = len(declarations.float_values)
+                add_elements(entry, k, ("x", "y", "z", "w"))
                 if (m_vec4.group(2)):
                     vec4 = (float(m_vec4.group(2)), float(m_vec4.group(3)), float(m_vec4.group(4)), float(m_vec4.group(5)))
                 else:
@@ -264,6 +271,7 @@ def parse_properties(props):
             elif m_quat:
                 entry = declarations.quat_entries.add()
                 entry.index = len(declarations.float_values)
+                add_elements(entry, k, ("x", "y", "z", "w"))
                 if (m_quat.group(2)):
                     quat = (float(m_quat.group(2)), float(m_quat.group(3)), float(m_quat.group(4)), float(m_quat.group(5)))
                 else:

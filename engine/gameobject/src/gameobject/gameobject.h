@@ -89,7 +89,7 @@ namespace dmGameObject
         PROPERTY_RESULT_OK = 0,
         PROPERTY_RESULT_NOT_FOUND = -1,
         PROPERTY_RESULT_INVALID_FORMAT = -2,
-        PROPERTY_RESULT_UNKNOWN_TYPE = -3,
+        PROPERTY_RESULT_UNSUPPORTED_TYPE = -3,
         PROPERTY_RESULT_TYPE_MISMATCH = -4,
         PROPERTY_RESULT_COMP_NOT_FOUND = -5,
     };
@@ -201,12 +201,12 @@ namespace dmGameObject
     {
         PropertyDesc();
 
+        /// For composite properties (float arrays), these ids name each element
+        dmhash_t m_ElementIds[4];
         /// Variant holding the value
         PropertyVar m_Variant;
-        /// Pointer to the value. Might not be set, m_Variant holds the value in that case. The actual data type is described by out_element_type
+        /// Pointer to the value, only set for mutable values. The actual data type is described by the variant.
         float* m_ValuePtr;
-        /// Count of elements pointed to by the returned value
-        uint32_t m_ElementCount;
     };
 
     /**
