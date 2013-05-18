@@ -341,3 +341,12 @@ def build(bld):
                                 target = 'test_easing')
 
     test_easing.install_path = None
+
+    test_json = bld.new_task_gen(features = 'cxx cprogram',
+                                source = 'test_json.cpp',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_json')
+
+    test_json.install_path = None
