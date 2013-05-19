@@ -176,46 +176,63 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static bool CompModelGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
+    {
+        ModelComponent* component = (ModelComponent*)user_data;
+        dmRender::RenderObject* ro = &component->m_RenderObject;
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++i)
+        {
+            dmRender::Constant& constant = ro->m_Constants[i];
+            if (constant.m_Location != -1 && constant.m_NameHash == name_hash)
+            {
+                *out_constant = &constant;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static void CompModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    {
+        ModelComponent* component = (ModelComponent*)user_data;
+        dmRender::RenderObject* ro = &component->m_RenderObject;
+        Vector4 val;
+        if (element_index == 0x0)
+        {
+            val = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2] ,var.m_V4[3]);
+        }
+        else
+        {
+            Vector4* v = 0x0;
+            for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
+            {
+                dmRender::Constant* c = &ro->m_Constants[j];
+                if (c->m_Location != -1 && c->m_NameHash == name_hash)
+                {
+                    v = &c->m_Value;
+                    break;
+                }
+            }
+            if (v == 0x0)
+            {
+                dmRender::Constant c;
+                dmRender::GetMaterialProgramConstant(component->m_Model->m_Material, name_hash, c);
+                val = c.m_Value;
+            }
+            val.setElem(*element_index, var.m_Number);
+        }
+        dmRender::EnableRenderObjectConstant(ro, name_hash, val);
+    }
+
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         ModelComponent* component = (ModelComponent*)*params.m_UserData;
-        dmRender::Constant constant;
-        bool result = dmRender::GetMaterialProgramConstant(component->m_Model->m_Material, params.m_PropertyId, constant);
-        if (result)
-        {
-            dmRender::RenderObject* ro = &component->m_RenderObject;
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++i)
-            {
-                dmRender::Constant& constant = ro->m_Constants[i];
-                if (constant.m_Location != -1 && constant.m_NameHash == params.m_PropertyId)
-                {
-                    out_value.m_Variant = dmGameObject::PropertyVar(constant.m_Value);
-                    return dmGameObject::PROPERTY_RESULT_OK;
-                }
-            }
-            out_value.m_Variant = dmGameObject::PropertyVar(constant.m_Value);
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        return GetMaterialConstant(component->m_Model->m_Material, params.m_PropertyId, out_value, CompModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         ModelComponent* component = (ModelComponent*)*params.m_UserData;
-        dmRender::Constant constant;
-        bool result = dmRender::GetMaterialProgramConstant(component->m_Model->m_Material, params.m_PropertyId, constant);
-        if (result)
-        {
-            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
-                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            dmRender::RenderObject* ro = &component->m_RenderObject;
-            for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
-            {
-                const float* v = params.m_Value.m_V4;
-                dmRender::EnableRenderObjectConstant(ro, params.m_PropertyId, Vector4(v[0], v[1], v[2] ,v[3]));
-            }
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        return SetMaterialConstant(component->m_Model->m_Material, params.m_PropertyId, params.m_Value, CompModelSetConstantCallback, component);
     }
 }

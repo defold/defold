@@ -3,6 +3,10 @@
 
 #include <dlib/message.h>
 
+#include <render/render.h>
+
+#include <gameobject/gameobject.h>
+
 namespace dmGameSystem
 {
     /**
@@ -15,6 +19,19 @@ namespace dmGameSystem
      */
     void LogMessageError(dmMessage::Message* message, const char* format, ...);
 
+    typedef bool (*CompGetConstantCallback)(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant);
+
+    /**
+     * Helper function to get material constants of components that use them: sprite, tile maps and models
+     */
+    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetConstantCallback callback, void* callback_user_data);
+
+    typedef void (*CompSetConstantCallback)(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
+
+    /**
+     * Helper function to set material constants of components that use them: sprite, tile maps and models
+     */
+    dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data);
 }
 
 #endif // DM_GAMESYS_PRIVER_H
