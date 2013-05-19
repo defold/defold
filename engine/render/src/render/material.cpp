@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include <dlib/array.h>
+#include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include "render.h"
@@ -80,7 +81,25 @@ namespace dmRender
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
-                m->m_Constants.Push(Constant(name_hash, location));
+                MaterialConstant constant;
+                constant.m_Constant = Constant(name_hash, location);
+                if (type == dmGraphics::TYPE_FLOAT_VEC4)
+                {
+                    size_t original_size = strlen(buffer);
+                    dmStrlCat(buffer, ".x", sizeof(buffer));
+                    constant.m_ElementIds[0] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".y", sizeof(buffer));
+                    constant.m_ElementIds[1] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".z", sizeof(buffer));
+                    constant.m_ElementIds[2] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".w", sizeof(buffer));
+                    constant.m_ElementIds[3] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                }
+                m->m_Constants.Push(constant);
             }
             else if (type == dmGraphics::TYPE_SAMPLER_2D)
             {
@@ -100,12 +119,13 @@ namespace dmRender
 
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
-        const dmArray<Constant>& constants = material->m_Constants;
+        const dmArray<MaterialConstant>& constants = material->m_Constants;
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            const Constant& constant = constants[i];
+            const MaterialConstant& material_constant = constants[i];
+            const Constant& constant = material_constant.m_Constant;
             int32_t location = constant.m_Location;
             switch (constant.m_Type)
             {
@@ -165,11 +185,12 @@ namespace dmRender
 
     void SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
     {
-        dmArray<Constant>& constants = material->m_Constants;
+        dmArray<MaterialConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            Constant& c = constants[i];
+            MaterialConstant& mc = constants[i];
+            Constant& c = mc.m_Constant;
             if (c.m_NameHash == name_hash)
             {
                 c.m_Type = type;
@@ -180,14 +201,57 @@ namespace dmRender
 
     bool GetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Constant& out_value)
     {
-        dmArray<Constant>& constants = material->m_Constants;
+        dmArray<MaterialConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            Constant& c = constants[i];
-            if (c.m_NameHash == name_hash)
+            MaterialConstant& c = constants[i];
+            if (c.m_Constant.m_NameHash == name_hash)
             {
-                out_value = c;
+                out_value = c.m_Constant;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index)
+    {
+        dmArray<MaterialConstant>& constants = material->m_Constants;
+        uint32_t n = constants.Size();
+        *out_element_index = ~0u;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            MaterialConstant& c = constants[i];
+            if (c.m_Constant.m_NameHash == name_hash)
+            {
+                *out_element_ids = c.m_ElementIds;
+                *out_constant_id = c.m_Constant.m_NameHash;
+                return true;
+            }
+            for (uint32_t elem_i = 0; elem_i < 4; ++elem_i)
+            {
+                if (c.m_ElementIds[elem_i] == name_hash)
+                {
+                    *out_element_index = elem_i;
+                    *out_constant_id = c.m_Constant.m_NameHash;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    bool GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value)
+    {
+        dmArray<MaterialConstant>& constants = material->m_Constants;
+        uint32_t n = constants.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            MaterialConstant& c = constants[i];
+            if (c.m_Constant.m_NameHash == name_hash)
+            {
+                out_value = c.m_Constant.m_Value.getElem(element_index);
                 return true;
             }
         }
@@ -196,14 +260,14 @@ namespace dmRender
 
     void SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vector4 value)
     {
-        dmArray<Constant>& constants = material->m_Constants;
+        dmArray<MaterialConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            Constant& c = constants[i];
-            if (c.m_NameHash == name_hash)
+            MaterialConstant& c = constants[i];
+            if (c.m_Constant.m_NameHash == name_hash)
             {
-                c.m_Value = value;
+                c.m_Constant.m_Value = value;
             }
         }
     }

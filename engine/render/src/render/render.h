@@ -84,6 +84,12 @@ namespace dmRender
         }
     };
 
+    struct MaterialConstant
+    {
+        Constant m_Constant;
+        dmhash_t m_ElementIds[4];
+    };
+
     struct RenderObject
     {
         RenderObject();
@@ -222,6 +228,28 @@ namespace dmRender
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, Constant& out_value);
+
+    /** Retrieve info about a hash related to a program constant
+     * The function checks if the hash matches a constant or any element of it.
+     * In the former case, the available element ids are returned.
+     * In the latter, the index of the element is returned (~0u otherwise).
+     * @param material Material to search for constants
+     * @param name_hash Hash of the constant name or element id
+     * @param out_constant_id Hash of the constant name
+     * @param out_element_ids List of 4 element ids, only set if the hash matched a constant
+     * @param out_element_index Set if the hash matched an element
+     * @return True if a constant or element was found
+     */
+    bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index);
+
+    /** Retrieve the value of a constant element
+     * @param material Material containing the constant
+     * @param name_hash Hash of the material name
+     * @param element_index Index of the element
+     * @param out_value Out var set to the value
+     * @return True if the value was retrieved
+     */
+    bool                            GetMaterialProgramConstantElement(HMaterial material, dmhash_t name_hash, uint32_t element_index, float& out_value);
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, Vectormath::Aos::Vector4 constant);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit);
