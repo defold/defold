@@ -11,6 +11,7 @@ message PropertyDeclarationEntry
     required string key     = 1;
     required uint64 id      = 2;
     required uint32 index   = 3;
+    repeated uint64 element_ids = 4;
 }
 
 message PropertyDeclarations

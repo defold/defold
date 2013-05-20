@@ -355,9 +355,12 @@ namespace dmGameObject
             property_id = dmScript::CheckHash(L, 2);
         }
         dmGameObject::PropertyVar property_var;
-        dmGameObject::LuaToVar(L, 3, property_var);
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
-        dmGameObject::PropertyResult result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_var);
+        dmGameObject::PropertyResult result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
+        if (dmGameObject::LuaToVar(L, 3, property_var))
+        {
+            result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_var);
+        }
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
@@ -371,6 +374,7 @@ namespace dmGameObject
                 lua_pop(L, 1);
                 return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
             }
+        case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
                 dmGameObject::PropertyDesc property_desc;

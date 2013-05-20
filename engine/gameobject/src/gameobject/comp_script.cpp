@@ -486,44 +486,107 @@ namespace dmGameObject
         assert(top == lua_gettop(g_LuaState));
     }
 
-    static const char* FindPropertyNameFromEntries(dmPropertiesDDF::PropertyDeclarationEntry* entries, uint32_t entry_count, dmhash_t id)
+    static bool FindPropertyNameFromEntries(dmPropertiesDDF::PropertyDeclarationEntry* entries, uint32_t entry_count, dmhash_t id, const char** out_key, dmhash_t** out_element_ids)
     {
         for (uint32_t i = 0; i < entry_count; ++i)
         {
-            if (entries[i].m_Id == id)
+            dmPropertiesDDF::PropertyDeclarationEntry& entry = entries[i];
+            if (entry.m_Id == id)
             {
-                return entries[i].m_Key;
+                *out_key = entry.m_Key;
+                *out_element_ids = entry.m_ElementIds.m_Data;
+                return true;
             }
         }
-        return 0x0;
+        return false;
     }
 
-#define FIND_PROPERTY_NAME(array, id, property_name, in_type, out_type)\
-    {\
-        property_name = FindPropertyNameFromEntries(array.m_Data, array.m_Count, id);\
-        if (property_name != 0x0)\
-        {\
-            out_type = in_type;\
-        }\
-    }\
-
-    static const char* FindPropertyName(dmPropertiesDDF::PropertyDeclarations* decls, dmhash_t property_id, PropertyType& out_type)
+    static bool FindPropertyNameFromElements(dmPropertiesDDF::PropertyDeclarationEntry* entries, uint32_t entry_count, dmhash_t id, const char** out_key, uint32_t* out_index)
     {
-        const char* property_name = 0x0;
-        FIND_PROPERTY_NAME(decls->m_BoolEntries, property_id, property_name, PROPERTY_TYPE_BOOLEAN, out_type);
-        if (property_name == 0x0)
-            FIND_PROPERTY_NAME(decls->m_NumberEntries, property_id, property_name, PROPERTY_TYPE_NUMBER, out_type);
-        if (property_name == 0x0)
-            FIND_PROPERTY_NAME(decls->m_HashEntries, property_id, property_name, PROPERTY_TYPE_HASH, out_type);
-        if (property_name == 0x0)
-            FIND_PROPERTY_NAME(decls->m_UrlEntries, property_id, property_name, PROPERTY_TYPE_URL, out_type);
-        if (property_name == 0x0)
-            FIND_PROPERTY_NAME(decls->m_Vector3Entries, property_id, property_name, PROPERTY_TYPE_VECTOR3, out_type);
-        if (property_name == 0x0)
-            FIND_PROPERTY_NAME(decls->m_Vector4Entries, property_id, property_name, PROPERTY_TYPE_VECTOR4, out_type);
-        if (property_name == 0x0)
-            FIND_PROPERTY_NAME(decls->m_QuatEntries, property_id, property_name, PROPERTY_TYPE_QUAT, out_type);
-        return property_name;
+        for (uint32_t i = 0; i < entry_count; ++i)
+        {
+            dmPropertiesDDF::PropertyDeclarationEntry& entry = entries[i];
+            uint32_t element_count = entry.m_ElementIds.m_Count;
+            for (uint32_t i = 0; i < element_count; ++i)
+            {
+                if (entry.m_ElementIds[i] == id)
+                {
+                    *out_key = entry.m_Key;
+                    *out_index = i;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    static bool FindPropertyName(dmPropertiesDDF::PropertyDeclarations* decls, dmhash_t property_id, const char** out_key, PropertyType* out_type, dmhash_t** out_element_ids, bool* out_is_element, uint32_t* out_element_index)
+    {
+        *out_is_element = false;
+        if (FindPropertyNameFromEntries(decls->m_BoolEntries.m_Data, decls->m_BoolEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_BOOLEAN;
+            return true;
+        }
+        if (FindPropertyNameFromEntries(decls->m_NumberEntries.m_Data, decls->m_NumberEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_NUMBER;
+            return true;
+        }
+        if (FindPropertyNameFromEntries(decls->m_HashEntries.m_Data, decls->m_HashEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_HASH;
+            return true;
+        }
+        if (FindPropertyNameFromEntries(decls->m_UrlEntries.m_Data, decls->m_UrlEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_URL;
+            return true;
+        }
+        if (FindPropertyNameFromEntries(decls->m_Vector3Entries.m_Data, decls->m_Vector3Entries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_VECTOR3;
+            return true;
+        }
+        if (FindPropertyNameFromElements(decls->m_Vector3Entries.m_Data, decls->m_Vector3Entries.m_Count,
+                property_id, out_key, out_element_index))
+        {
+            *out_type = PROPERTY_TYPE_NUMBER;
+            *out_is_element = true;
+            return true;
+        }
+        if (FindPropertyNameFromEntries(decls->m_Vector4Entries.m_Data, decls->m_Vector4Entries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_VECTOR4;
+            return true;
+        }
+        if (FindPropertyNameFromElements(decls->m_Vector4Entries.m_Data, decls->m_Vector4Entries.m_Count,
+                property_id, out_key, out_element_index))
+        {
+            *out_type = PROPERTY_TYPE_NUMBER;
+            *out_is_element = true;
+            return true;
+        }
+        if (FindPropertyNameFromEntries(decls->m_QuatEntries.m_Data, decls->m_QuatEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_QUAT;
+            return true;
+        }
+        if (FindPropertyNameFromElements(decls->m_QuatEntries.m_Data, decls->m_QuatEntries.m_Count,
+                property_id, out_key, out_element_index))
+        {
+            *out_type = PROPERTY_TYPE_NUMBER;
+            *out_is_element = true;
+            return true;
+        }
+        return false;
     }
 
     PropertyResult CompScriptGetProperty(const ComponentGetPropertyParams& params, PropertyDesc& out_value)
@@ -532,9 +595,26 @@ namespace dmGameObject
 
         dmPropertiesDDF::PropertyDeclarations* declarations = &script_instance->m_Script->m_LuaModule->m_Properties;
         PropertyType type = PROPERTY_TYPE_NUMBER;
-        const char* property_name = FindPropertyName(declarations, params.m_PropertyId, type);
-        if (property_name == 0x0)
+        dmhash_t* element_ids = 0x0;
+        const char* property_name = 0x0;
+        bool is_element = false;
+        uint32_t element_index = 0;
+        if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
             return PROPERTY_RESULT_NOT_FOUND;
+
+        if (type == PROPERTY_TYPE_VECTOR3)
+        {
+            out_value.m_ElementIds[0] = element_ids[0];
+            out_value.m_ElementIds[1] = element_ids[1];
+            out_value.m_ElementIds[2] = element_ids[2];
+        }
+        else if (type == PROPERTY_TYPE_VECTOR4 || type == PROPERTY_TYPE_QUAT)
+        {
+            out_value.m_ElementIds[0] = element_ids[0];
+            out_value.m_ElementIds[1] = element_ids[1];
+            out_value.m_ElementIds[2] = element_ids[2];
+            out_value.m_ElementIds[3] = element_ids[3];
+        }
 
         int top = lua_gettop(g_LuaState);
         (void)top;
@@ -561,9 +641,15 @@ namespace dmGameObject
         if (!lua_isnil(L, -1))
         {
             if (LuaToVar(L, -1, out_value.m_Variant))
+            {
+                if (is_element)
+                {
+                    out_value.m_Variant = PropertyVar(out_value.m_Variant.m_V4[element_index]);
+                }
                 result = PROPERTY_RESULT_OK;
+            }
             else
-                result = PROPERTY_RESULT_TYPE_MISMATCH;
+                result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
 
         lua_pop(L, 1);
@@ -584,8 +670,11 @@ namespace dmGameObject
 
         dmPropertiesDDF::PropertyDeclarations* declarations = &script_instance->m_Script->m_LuaModule->m_Properties;
         PropertyType type = PROPERTY_TYPE_NUMBER;
-        const char* property_name = FindPropertyName(declarations, params.m_PropertyId, type);
-        if (property_name == 0x0)
+        const char* property_name = 0x0;
+        dmhash_t* element_ids = 0x0;
+        bool is_element = false;
+        uint32_t element_index = 0;
+        if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
             return PROPERTY_RESULT_NOT_FOUND;
 
         int top = lua_gettop(g_LuaState);
@@ -608,8 +697,29 @@ namespace dmGameObject
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
+        PropertyVar var = params.m_Value;
+        if (is_element)
+        {
+            PropertyResult result = PROPERTY_RESULT_NOT_FOUND;
+            lua_pushstring(L, property_name);
+            lua_rawget(L, -2);
+            if (!lua_isnil(L, -1))
+            {
+                if (LuaToVar(L, -1, var))
+                {
+                    var.m_V4[element_index] = params.m_Value.m_Number;
+                    result = PROPERTY_RESULT_OK;
+                }
+                else
+                {
+                    result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
+                }
+            }
+
+            lua_pop(L, 1);
+        }
         lua_pushstring(L, property_name);
-        LuaPushVar(L, params.m_Value);
+        LuaPushVar(L, var);
         lua_rawset(L, -3);
 
         lua_pop(L, 1);
@@ -620,6 +730,8 @@ namespace dmGameObject
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
         }
+
+        assert(lua_gettop(L) == top);
 
         return PROPERTY_RESULT_OK;
     }

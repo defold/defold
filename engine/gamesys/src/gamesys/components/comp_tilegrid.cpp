@@ -525,54 +525,73 @@ namespace dmGameSystem
         }
     }
 
+    static bool CompTileGridGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
+    {
+        TileGridComponent* component = (TileGridComponent*)user_data;
+        uint32_t region_count = component->m_Regions.Size();
+        for (uint32_t i = 0; i < region_count; ++i)
+        {
+            TileGridRegion* region = &component->m_Regions[i];
+            for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
+            {
+                dmRender::Constant& constant = region->m_RenderObject.m_Constants[j];
+                if (constant.m_Location != -1 && constant.m_NameHash == name_hash)
+                {
+                    *out_constant = &constant;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    static void CompTileGridSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
+    {
+        TileGridComponent* component = (TileGridComponent*)user_data;
+        uint32_t region_count = component->m_Regions.Size();
+        Vector4 val;
+        if (element_index == 0x0)
+        {
+            val = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2] ,var.m_V4[3]);
+        }
+        else
+        {
+            dmRender::Constant c;
+            dmRender::GetMaterialProgramConstant(component->m_TileGridResource->m_Material, name_hash, c);
+            val = c.m_Value;
+        }
+        for (uint32_t i = 0; i < region_count; ++i)
+        {
+            TileGridRegion* region = &component->m_Regions[i];
+            if (element_index != 0x0)
+            {
+                Vector4* v = 0x0;
+                for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
+                {
+                    dmRender::Constant* c = &region->m_RenderObject.m_Constants[j];
+                    if (c->m_Location != -1 && c->m_NameHash == name_hash)
+                    {
+                        v = &c->m_Value;
+                        break;
+                    }
+                }
+                if (v != 0x0)
+                    val = *v;
+                val.setElem(*element_index, var.m_Number);
+            }
+            dmRender::EnableRenderObjectConstant(&region->m_RenderObject, name_hash, val);
+        }
+    }
+
     dmGameObject::PropertyResult CompTileGridGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
-        dmRender::Constant constant;
-        bool result = dmRender::GetMaterialProgramConstant(component->m_TileGridResource->m_Material, params.m_PropertyId, constant);
-        if (result)
-        {
-            uint32_t region_count = component->m_Regions.Size();
-            for (uint32_t i = 0; i < region_count; ++i)
-            {
-                TileGridRegion* region = &component->m_Regions[i];
-                for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
-                {
-                    dmRender::Constant& constant = region->m_RenderObject.m_Constants[j];
-                    if (constant.m_Location != -1 && constant.m_NameHash == params.m_PropertyId)
-                    {
-                        out_value.m_Variant = dmGameObject::PropertyVar(constant.m_Value);
-                        return dmGameObject::PROPERTY_RESULT_OK;
-                    }
-                }
-            }
-            out_value.m_Variant = dmGameObject::PropertyVar(constant.m_Value);
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        return GetMaterialConstant(component->m_TileGridResource->m_Material, params.m_PropertyId, out_value, CompTileGridGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
-        dmRender::Constant constant;
-        bool result = dmRender::GetMaterialProgramConstant(component->m_TileGridResource->m_Material, params.m_PropertyId, constant);
-        if (result)
-        {
-            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
-                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            uint32_t region_count = component->m_Regions.Size();
-            for (uint32_t i = 0; i < region_count; ++i)
-            {
-                TileGridRegion* region = &component->m_Regions[i];
-                for (uint32_t j = 0; j < dmRender::RenderObject::MAX_CONSTANT_COUNT; ++j)
-                {
-                    const float* v = params.m_Value.m_V4;
-                    dmRender::EnableRenderObjectConstant(&region->m_RenderObject, params.m_PropertyId, Vector4(v[0], v[1], v[2] ,v[3]));
-                }
-            }
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        return SetMaterialConstant(component->m_TileGridResource->m_Material, params.m_PropertyId, params.m_Value, CompTileGridSetConstantCallback, component);
     }
 }

@@ -14,19 +14,49 @@ function init(self)
     go.set(url, "euler", e)
     -- euler has low precision due to quat-conversion, test that error is sufficiently small
     assert(vmath.length(go.get(url, "euler") - e)/3 < 0.02)
+
     -- script properties
+    -- number
     assert(go.get("b#script", "number") == 1)
     go.set("b#script", "number", 2)
+    -- hash
     assert(go.get("b#script", "hash") == hash("test"))
     go.set("b#script", "hash", hash("test2"))
+    -- url
     assert(go.get("b#script", "url") == msg.url("b#script"))
     go.set("b#script", "url", msg.url())
-    assert(go.get("b#script", "vec3") == vmath.vector3())
+    -- vec3
+    go.set("b#script", "vec3.x", 1)
+    assert(go.get("b#script", "vec3.x") == 1)
+    go.set("b#script", "vec3.y", 2)
+    assert(go.get("b#script", "vec3.y") == 2)
+    go.set("b#script", "vec3.z", 3)
+    assert(go.get("b#script", "vec3.z") == 3)
+    assert(go.get("b#script", "vec3") == vmath.vector3(1, 2, 3))
     go.set("b#script", "vec3", vmath.vector3(1, 1, 1))
-    assert(go.get("b#script", "vec4") == vmath.vector4(0, 0, 0, 0))
+    -- vec4
+    go.set("b#script", "vec4.x", 1)
+    assert(go.get("b#script", "vec4.x") == 1)
+    go.set("b#script", "vec4.y", 2)
+    assert(go.get("b#script", "vec4.y") == 2)
+    go.set("b#script", "vec4.z", 3)
+    assert(go.get("b#script", "vec4.z") == 3)
+    go.set("b#script", "vec4.w", 4)
+    assert(go.get("b#script", "vec4.w") == 4)
+    assert(go.get("b#script", "vec4") == vmath.vector4(1, 2, 3, 4))
     go.set("b#script", "vec4", vmath.vector4(1, 1, 1, 1))
-    assert(go.get("b#script", "quat") == vmath.quat())
+    -- quat
+    go.set("b#script", "quat.x", 1)
+    assert(go.get("b#script", "quat.x") == 1)
+    go.set("b#script", "quat.y", 2)
+    assert(go.get("b#script", "quat.y") == 2)
+    go.set("b#script", "quat.z", 3)
+    assert(go.get("b#script", "quat.z") == 3)
+    go.set("b#script", "quat.w", 4)
+    assert(go.get("b#script", "quat.w") == 4)
+    assert(go.get("b#script", "quat") == vmath.quat(1, 2, 3, 4))
     go.set("b#script", "quat", vmath.quat(1, 1, 1, 1))
+    -- bool
     assert(not go.get("b#script", "bool"))
     go.set("b#script", "bool", true)
 end

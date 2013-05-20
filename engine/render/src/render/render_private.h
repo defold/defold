@@ -54,7 +54,7 @@ namespace dmRender
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmHashTable64<int32_t>                  m_NameHashToLocation;
-        dmArray<Constant>                       m_Constants;
+        dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
         uint32_t                                m_TagMask;
         uint64_t                                m_UserData1;
