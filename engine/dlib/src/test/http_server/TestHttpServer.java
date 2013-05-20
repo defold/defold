@@ -180,7 +180,13 @@ public class TestHttpServer extends AbstractHandler
         {
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
-            response.getWriter().println(Integer.parseInt(addm.group(1)) + Integer.parseInt(addm.group(2)));
+            String xscaleStr = request.getHeader("X-Scale");
+            int xscale = 1;
+            if (xscaleStr != null) {
+            	xscale = Integer.parseInt(xscaleStr);
+            }
+            int sum = Integer.parseInt(addm.group(1)) + Integer.parseInt(addm.group(2));
+            response.getWriter().println(sum * xscale);
         }
         else if (arbm.matches())
         {

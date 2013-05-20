@@ -81,6 +81,7 @@ namespace dmHttpClient
         HttpHeader          m_HttpHeader;
         HttpSendContentLength m_HttpSendContentLength;
         HttpWrite           m_HttpWrite;
+        HttpWriteHeaders    m_HttpWriteHeaders;
         int                 m_MaxGetRetries;
         Statistics          m_Statistics;
 
@@ -105,6 +106,7 @@ namespace dmHttpClient
         params->m_HttpHeader = 0;
         params->m_HttpSendContentLength = 0;
         params->m_HttpWrite = 0;
+        params->m_HttpWriteHeaders = 0;
         params->m_HttpCache = 0;
     }
 
@@ -140,6 +142,7 @@ namespace dmHttpClient
         client->m_HttpHeader = params->m_HttpHeader;
         client->m_HttpSendContentLength = params->m_HttpSendContentLength;
         client->m_HttpWrite = params->m_HttpWrite;
+        client->m_HttpWriteHeaders = params->m_HttpWriteHeaders;
         client->m_MaxGetRetries = 4;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
@@ -343,6 +346,9 @@ namespace dmHttpClient
 
     Result Write(HClient client, const void* buffer, uint32_t buffer_size)
     {
+        if (client->m_SocketResult != dmSocket::RESULT_OK) {
+            return RESULT_SOCKET_ERROR;
+        }
         dmSocket::Result sock_res = SendAll(client->m_Socket, (const char*) buffer, buffer_size);
         if (sock_res != dmSocket::RESULT_OK)
         {
@@ -350,6 +356,24 @@ namespace dmHttpClient
             return RESULT_SOCKET_ERROR;
         }
 
+        return RESULT_OK;
+    }
+
+    Result WriteHeader(HClient client, const char* name, const char* value)
+    {
+        if (client->m_SocketResult != dmSocket::RESULT_OK) {
+            return RESULT_SOCKET_ERROR;
+        }
+        dmSocket::Result sock_res;
+
+        char buf[1024];
+        DM_SNPRINTF(buf, sizeof(buf), "%s: %s\r\n", name, value);
+
+        sock_res = SendAll(client->m_Socket, buf, strlen(buf));
+        if (sock_res != dmSocket::RESULT_OK) {
+            client->m_SocketResult = sock_res;
+            return RESULT_SOCKET_ERROR;
+        }
         return RESULT_OK;
     }
 
@@ -374,6 +398,12 @@ if (sock_res != dmSocket::RESULT_OK)\
         HTTP_CLIENT_SENDALL_AND_BAIL("Host: ");
         HTTP_CLIENT_SENDALL_AND_BAIL(client->m_Hostname);
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
+        if (client->m_HttpWriteHeaders) {
+            Result header_result = client->m_HttpWriteHeaders(client, client->m_Userdata);
+            if (header_result != RESULT_OK) {
+                goto bail;
+            }
+        }
         if (client->m_HttpCache)
         {
             char etag[64];
@@ -405,11 +435,11 @@ if (sock_res != dmSocket::RESULT_OK)\
             }
         }
 
-        return sock_res;
+        return client->m_SocketResult;
 bail:
         dmSocket::Delete(client->m_Socket);
         client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-        return sock_res;
+        return client->m_SocketResult;
     }
 
     static Result DoTransfer(HClient client, Response* response, int to_transfer, HttpContent http_content, bool add_to_cache)
