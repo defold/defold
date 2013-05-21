@@ -147,6 +147,13 @@ TEST(dmStrings, dmStrlCat3)
     ASSERT_STREQ("xyzfo", dst);
 }
 
+TEST(dmStrings, dmStrCaseCmp)
+{
+    ASSERT_GT(0, dmStrCaseCmp("a", "b"));
+    ASSERT_LT(0, dmStrCaseCmp("b", "a"));
+    ASSERT_EQ(0, dmStrCaseCmp("a", "a"));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

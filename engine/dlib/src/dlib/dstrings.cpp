@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "dstrings.h"
 
@@ -206,3 +207,13 @@ dmStrlCat(char *dst, const char *src, size_t siz)
 
         return(dlen + (s - src));       /* count does not include NUL */
 }
+
+int dmStrCaseCmp(const char *s1, const char *s2)
+{
+#ifdef _WIN32
+    return _stricmp(s1, s1);
+#else
+    return strcasecmp(s1, s2);
+#endif
+}
+

@@ -255,19 +255,20 @@ namespace dmHttpClient
     static void HandleHeader(void* user_data, const char* key, const char* value)
     {
         Response* resp = (Response*) user_data;
-        if (strcmp(key, "Content-Length") == 0)
+
+        if (dmStrCaseCmp(key, "Content-Length") == 0)
         {
             resp->m_ContentLength = strtol(value, 0, 10);
         }
-        else if (strcmp(key, "Transfer-Encoding") == 0 && strcmp(value, "chunked") == 0)
+        else if (dmStrCaseCmp(key, "Transfer-Encoding") == 0 && dmStrCaseCmp(value, "chunked") == 0)
         {
             resp->m_Chunked = 1;
         }
-        else if (strcmp(key, "Connection") == 0 && strcmp(value, "close") == 0)
+        else if (dmStrCaseCmp(key, "Connection") == 0 && dmStrCaseCmp(value, "close") == 0)
         {
             resp->m_CloseConnection = 1;
         }
-        else if (strcmp(key, "ETag") == 0)
+        else if (dmStrCaseCmp(key, "ETag") == 0)
         {
             dmStrlCpy(resp->m_ETag, value, sizeof(resp->m_ETag));
         }

@@ -190,11 +190,11 @@ namespace dmHttpServer
     {
         InternalRequest* req = (InternalRequest*) user_data;
 
-        if (strcmp(key, "Content-Length") == 0)
+        if (dmStrCaseCmp(key, "Content-Length") == 0)
         {
             req->m_Request.m_ContentLength = strtol(value, 0, 10);
         }
-        else if (strcmp(key, "Connection") == 0 && strcmp(key, "close") == 0)
+        else if (dmStrCaseCmp(key, "Connection") == 0 && dmStrCaseCmp(key, "close") == 0)
         {
             req->m_CloseConnection = 1;
         }
