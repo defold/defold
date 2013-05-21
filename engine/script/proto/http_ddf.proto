@@ -1,0 +1,43 @@
+package dmHttpDDF;
+
+import "ddf/ddf_extensions.proto";
+
+option java_package = "com.dynamo.http";
+option java_outer_classname = "HttpProto";
+
+message HttpRequest
+{
+    required string method  = 1;
+    required string url     = 2;
+
+    // pointer to headers in the format
+    // ATTRIBUTE:VALUE\n
+    // ...
+    // the receiver is responsible for deallocating the memory
+    required uint64 headers = 3;
+    required uint64 headers_length = 4;
+
+    // pointer to data
+    required uint64 request        = 5;
+    required uint32 request_length = 6;
+}
+
+message HttpResponse
+{
+    required int32  status          = 1;
+
+    // pointer to headers in the format
+    // ATTRIBUTE:VALUE\n
+    // ...
+    // uint64 for portability
+    // for responder is responsible to free
+    // the memory
+    required uint64 headers         = 2;
+    required uint32 headers_length  = 3;
+
+    // pointer to data. uint64 for portability
+    // the responder is responsible for deallocating
+    // the memory
+    required uint64 response        = 4;
+    required uint32 response_length = 5;
+}

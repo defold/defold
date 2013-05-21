@@ -6,33 +6,24 @@ def configure(conf):
 
 def build(bld):
     script = bld.new_task_gen(features = 'cxx cstaticlib',
-                          includes = '.',
+                          includes = '. ../proto',
+                          proto_gen_cc = False,
+                          proto_gen_py = True,
+                          protoc_includes = '../proto',
                           target = 'script')
-    script.find_sources_in_dirs(['.'])
-
-    script_proto = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                      includes = '../proto .',
-                      proto_gen_cc = False,
-                      proto_gen_py = True,
-                      protoc_includes = '../proto',
-                      # Create a dummy lib in order to avoid internal waf problem
-                      # File "...\waf-1.5.9-d1e0349fc8937631a656fb8ea7e99063\wafadmin\Tools\msvc.py", line 460, in apply_flags_msvc
-                      # pdbnode=self.link_task.outputs[0].change_ext('.pdb')
-                      # AttributeError: 'NoneType' object has no attribute 'outputs'
-                      target = 'dummylib',
-                      install_path=None)
+    script.find_sources_in_dirs(['.', '../proto'])
 
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib
     bld.install_files('${PREFIX}/lib/python', '../proto/script_doc_ddf_pb2.py')
-
-    script_proto.find_sources_in_dirs(['../proto'])
 
     bld.add_group()
 
     for d, source in [('script_hash', ('script_hash.cpp')),
                       ('script_sys', ('script_sys.cpp')),
                       ('script_msg', ('script_msg.cpp')),
+                      ('script_json', ('script_json.cpp')),
+                      ('script_http', ('script_http.cpp')),
                       ('script_vmath', ('script_vmath.cpp'))]:
         bld.new_task_gen(source = source,
                          target = '%s_doc.sdoc' % d,

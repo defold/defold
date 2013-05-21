@@ -1201,6 +1201,8 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
 
     char buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
     dmMessage::Message* message = (dmMessage::Message*)buf;
+    message->m_Sender = dmMessage::URL();
+    message->m_Receiver = dmMessage::URL();
     message->m_Id = dmHashString64("amessage");
     message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;
     message->m_DataSize = sizeof(dmTestGuiDDF::AMessage);
@@ -1230,6 +1232,8 @@ TEST_F(dmGuiTest, PostMessageToGuiEmptyLuaTable)
 
     char buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Sender = dmMessage::URL();
+    message->m_Receiver = dmMessage::URL();
     message->m_Id = dmHashString64("amessage");
     message->m_Descriptor = 0;
 
@@ -1259,6 +1263,8 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
 
     char buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Sender = dmMessage::URL();
+    message->m_Receiver = dmMessage::URL();
     message->m_Id = dmHashString64("amessage");
     message->m_Descriptor = 0;
 
@@ -1523,6 +1529,8 @@ TEST_F(dmGuiTest, Bug352)
 
     char buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Sender = dmMessage::URL();
+    message->m_Receiver = dmMessage::URL();
     message->m_Id = dmHashString64("inc_score");
     message->m_Descriptor = 0;
 
@@ -1769,6 +1777,8 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     ASSERT_NE(dmGui::RESULT_OK, r);
     char buffer[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
+    message->m_Sender = dmMessage::URL();
+    message->m_Receiver = dmMessage::URL();
     message->m_Id = 1;
     message->m_DataSize = 0;
     message->m_Descriptor = (uintptr_t)dmTestGuiDDF::AMessage::m_DDFDescriptor;

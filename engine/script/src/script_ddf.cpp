@@ -1,4 +1,5 @@
 #include "script.h"
+#include <dlib/hashtable.h>
 
 #include <string.h>
 extern "C"
@@ -14,6 +15,8 @@ namespace dmScript
 #define DDF_TYPE_NAME_VECTOR4   "vector4"
 #define DDF_TYPE_NAME_QUAT      "quat"
 #define DDF_TYPE_NAME_MATRIX4   "matrix4"
+
+    dmHashTable<uintptr_t, MessageDecoder> g_Decoders;
 
     static void DoLuaTableToDDF(lua_State* L, const dmDDF::Descriptor* descriptor,
                                 char* buffer, char** data_start, char** data_last, int index);
@@ -445,14 +448,33 @@ namespace dmScript
 
     void PushDDF(lua_State*L, const dmDDF::Descriptor* d, const char* data)
     {
-        lua_newtable(L);
-        for (uint32_t i = 0; i < d->m_FieldCount; ++i)
-        {
-            const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
+        MessageDecoder* decoder = g_Decoders.Get((uintptr_t) d);
+        if (decoder) {
+            Result r = (*decoder)(L, d, data);
+            if (r != RESULT_OK) {
+                luaL_error(L, "Failed to decode %s message (%d)", d->m_Name, r);
+            }
+        } else {
+            lua_newtable(L);
+            for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+            {
+                const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
 
-            lua_pushstring(L, f->m_Name);
-            DDFToLuaValue(L, &d->m_Fields[i], data);
-            lua_rawset(L, -3);
+                lua_pushstring(L, f->m_Name);
+                DDFToLuaValue(L, &d->m_Fields[i], data);
+                lua_rawset(L, -3);
+            }
         }
     }
+
+    void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder)
+    {
+        if (g_Decoders.Full())
+        {
+            uint32_t capacity = g_Decoders.Capacity() + 128;
+            g_Decoders.SetCapacity((100 * capacity) / 80, capacity);
+        }
+        g_Decoders.Put((uintptr_t) descriptor, decoder);
+    }
+
 }

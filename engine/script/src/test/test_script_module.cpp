@@ -30,6 +30,7 @@ protected:
 
     virtual void TearDown()
     {
+        dmScript::Finalize(L);
         dmScript::DeleteContext(m_Context);
         lua_close(L);
     }
@@ -56,7 +57,6 @@ TEST_F(ScriptModuleTest, TestModule)
 {
     int top = lua_gettop(L);
     const char* script = "module(..., package.seeall)\n function f1()\n return 123\n end\n";
-    const char* script_reload = "module(..., package.seeall)\n reloaded = 1010\n function f1()\n return 456\n end\n";
     const char* script_file_name = "x.test_mod";
     ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, script_file_name));
     dmScript::Result ret = dmScript::AddModule(m_Context, script, strlen(script), script_file_name, 0);

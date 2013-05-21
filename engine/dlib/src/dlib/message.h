@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <dlib/hash.h>
+#include <string.h>
 
 namespace dmMessage
 {
@@ -29,9 +30,22 @@ namespace dmMessage
      */
     struct URL
     {
-        HSocket     m_Socket;       //! Socket
-        dmhash_t    m_Path;         //! Path of the receiver
-        dmhash_t    m_Fragment;     //! Fragment of the receiver
+        URL()
+        {
+            memset(this, 0, sizeof(URL));
+        }
+        /// Socket
+        HSocket     m_Socket;
+        /// Lua function reference for callback dispatching.
+        /// The value is ref + 2 as LUA_NOREF is defined as -2 as
+        /// we the convention of zero for default values.
+        /// It's unfortunate that we have to add lua related
+        /// functionality here though.
+        int         m_Function;
+        /// Path of the receiver
+        dmhash_t    m_Path;
+        /// Fragment of the receiver
+        dmhash_t    m_Fragment;
     };
 
     /**
@@ -95,6 +109,8 @@ namespace dmMessage
 
     /**
      * Resets the given URL to default values.
+     * @note Previously the URL wasn't reset in the constructor and certain calls
+     *       to ResetURL might currently be redundant
      * @param url URL to reset
      */
     void ResetURL(const URL& url);

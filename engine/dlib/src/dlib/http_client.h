@@ -66,6 +66,14 @@ namespace dmHttpClient
     typedef Result (*HttpWrite)(HClient client, void* user_data);
 
     /**
+     * HTTP write request header callback. The function invokes the WriteHeader function to send request header
+     * @param client Client handle
+     * @param user_data User data
+     * @return The callback should return the value returned from the WriteHeader function
+     */
+    typedef Result (*HttpWriteHeaders)(HClient client, void* user_data);
+
+    /**
      * HTTP-client options
      */
     enum Option
@@ -100,6 +108,9 @@ namespace dmHttpClient
 
         /// HTTP-write callback
         HttpWrite    m_HttpWrite;
+
+        /// HTTP-write headers callback
+        HttpWriteHeaders m_HttpWriteHeaders;
 
         /// HTTP-cache. Default value 0. Set to a http-cache to enable http-caching
         dmHttpCache::HCache m_HttpCache;
@@ -152,7 +163,7 @@ namespace dmHttpClient
     dmSocket::Result GetLastSocketResult(HClient client);
 
     /**
-     * HTTP GET-request
+     * HTTP GET-request with automatic retry
      * @param client Client handle
      * @param path Path part of URI
      * @return RESULT_OK on success
@@ -168,6 +179,15 @@ namespace dmHttpClient
     Result Post(HClient client, const char* path);
 
     /**
+     * Generic HTTP request with automatic retry for GET-requests only
+     * @param client Client handle
+     * @param method HTTP method
+     * @param path Path part of URI
+     * @return RESULT_OK on success
+     */
+    Result Request(HClient client, const char* method, const char* path);
+
+    /**
      * Write data. Called from HttpWrite-callback to write POST-data
      * @param client Client handle
      * @param buffer Buffer
@@ -175,6 +195,15 @@ namespace dmHttpClient
      * @return RESULT_OK on success
      */
     Result Write(HClient client, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Write request header. Called from HttpWriteHeadwers-callback to write request headers
+     * @param client Client handle
+     * @param name Header name
+     * @param value Header value
+     * @return RESULT_OK on success
+     */
+    Result WriteHeader(HClient client, const char* name, const char* value);
 
     /**
      * Get HTTP-client statistics

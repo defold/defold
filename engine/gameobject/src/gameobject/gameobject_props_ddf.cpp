@@ -37,11 +37,11 @@ namespace dmGameObject
         }
     }
 
-    static bool ResolveURL(Properties* properties, const char* url, dmMessage::URL& out_url)
+    static bool ResolveURL(Properties* properties, const char* url, dmMessage::URL* out_url)
     {
         dmMessage::URL default_url;
         properties->m_GetURLCallback((lua_State*)properties->m_ResolvePathUserData, &default_url);
-        dmMessage::Result result = dmScript::ResolveURL(properties->m_ResolvePathCallback, properties->m_ResolvePathUserData, url, &out_url, &default_url);
+        dmMessage::Result result = dmScript::ResolveURL(properties->m_ResolvePathCallback, properties->m_ResolvePathUserData, url, out_url, &default_url);
         if (result != dmMessage::RESULT_OK)
         {
             return false;
@@ -80,7 +80,7 @@ namespace dmGameObject
             }
             else if (GetPropertyEntryIndex(id, copy->m_UrlEntries.m_Data, copy->m_UrlEntries.m_Count, &index))
             {
-                if (!ResolveURL(properties, copy->m_StringValues[index], out_var.m_URL))
+                if (!ResolveURL(properties, copy->m_StringValues[index], (dmMessage::URL*) out_var.m_URL))
                     return PROPERTY_RESULT_INVALID_FORMAT;
                 out_var.m_Type = PROPERTY_TYPE_URL;
             }

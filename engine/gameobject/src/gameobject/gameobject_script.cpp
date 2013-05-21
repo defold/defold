@@ -1241,7 +1241,7 @@ bail:
                 dmMessage::URL default_url;
                 properties->m_GetURLCallback((lua_State*)properties->m_ResolvePathUserData, &default_url);
                 const char* url_string = defs->m_StringValues[entry.m_Index];
-                dmMessage::Result result = dmScript::ResolveURL(properties->m_ResolvePathCallback, properties->m_ResolvePathUserData, url_string, &out_var.m_URL, &default_url);
+                dmMessage::Result result = dmScript::ResolveURL(properties->m_ResolvePathCallback, properties->m_ResolvePathUserData, url_string, (dmMessage::URL*) out_var.m_URL, &default_url);
                 if (result != dmMessage::RESULT_OK)
                 {
                     return PROPERTY_RESULT_INVALID_FORMAT;
@@ -1390,13 +1390,21 @@ bail:
         count = declarations->m_UrlEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i)
         {
+            /*
+             * NOTE/TODO: var above is reused and URL::m_Function must
+             * always be zero or a valid lua-reference. By reusing a union-type here, PropertyVar,
+             * m_Function could have an invalid value. We could move PropertyVar var inside every
+             * loop but the problem and risk is illustrated here.
+             */
+            var = PropertyVar();
             const PropertyDeclarationEntry& entry = declarations->m_UrlEntries[i];
             lua_pushstring(L, entry.m_Key);
             bool result = GetProperty(properties, entry.m_Id, var);
             (void)result;
             assert(result);
             assert(var.m_Type == PROPERTY_TYPE_URL);
-            dmScript::PushURL(L, var.m_URL);
+            dmMessage::URL* url = (dmMessage::URL*) var.m_URL;
+            dmScript::PushURL(L, *url);
             lua_settable(L, index - 2);
         }
         count = declarations->m_Vector3Entries.m_Count;

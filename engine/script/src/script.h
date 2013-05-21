@@ -64,6 +64,17 @@ namespace dmScript
     typedef uintptr_t (*GetUserDataCallback)(lua_State* L);
 
     /**
+     * DDF to Lua decoder. Useful for custom interpretation of field, e.g. pointers.
+     * By convention the decoder can also be responsible to free allocated memory
+     * refererred in the message
+     * @param L Lua state
+     * @param desc DDF descriptor
+     * @param data Data to decode
+     * @return RESULT_OK on success
+     */
+    typedef Result (*MessageDecoder)(lua_State* L, const dmDDF::Descriptor* desc, const char* data);
+
+    /**
      * Parameters to initialize the script context
      */
     struct ScriptParams
@@ -83,6 +94,12 @@ namespace dmScript
     void Initialize(lua_State* L, const ScriptParams& params);
 
     /**
+     * Finalize script libraries
+     * @param L Lua state
+     */
+    void Finalize(lua_State* L);
+
+    /**
      * Retrieve a ddf structure from a lua state.
      * @param L Lua state
      * @param descriptor DDF descriptor
@@ -100,6 +117,9 @@ namespace dmScript
      * @param data DDF data
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data);
+
+    void RegisterDDFDecoder(void* descriptor, MessageDecoder decoder);
+
 
     /**
      * Serialize a table to a buffer

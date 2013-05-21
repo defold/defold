@@ -10,6 +10,7 @@
 #include "script_sys.h"
 #include "script_module.h"
 #include "script_json.h"
+#include "script_http.h"
 
 extern "C"
 {
@@ -59,6 +60,7 @@ namespace dmScript
         InitializeSys(L);
         InitializeModule(L);
         InitializeJson(L);
+        InitializeHttp(L);
 
         lua_register(L, "print", LuaPrint);
 
@@ -73,6 +75,11 @@ namespace dmScript
 
         lua_pushlightuserdata(L, (void*)params.m_GetUserDataCallback);
         lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
+    }
+
+    void Finalize(lua_State* L)
+    {
+        FinalizeHttp(L);
     }
 
     int LuaPrint(lua_State* L)

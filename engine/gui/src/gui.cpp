@@ -353,7 +353,7 @@ namespace dmGui
         bool m_Consumed;
     };
 
-    Result RunScript(HScene scene, ScriptFunction script_function, void* args)
+    Result RunScript(HScene scene, ScriptFunction script_function, int custom_ref, void* args)
     {
         if (scene->m_Script == 0x0)
             return RESULT_OK;
@@ -362,12 +362,17 @@ namespace dmGui
         int top = lua_gettop(L);
         (void)top;
 
-        if (scene->m_Script->m_FunctionReferences[script_function] != LUA_NOREF)
+        int lua_ref = scene->m_Script->m_FunctionReferences[script_function];
+        if (custom_ref != LUA_NOREF) {
+            lua_ref = custom_ref;
+        }
+
+        if (lua_ref != LUA_NOREF)
         {
             lua_pushlightuserdata(L, (void*) scene);
             lua_setglobal(L, "__scene__");
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_Script->m_FunctionReferences[script_function]);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
             assert(lua_isfunction(L, -1));
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
 
@@ -559,12 +564,12 @@ namespace dmGui
 
     Result InitScene(HScene scene)
     {
-        return RunScript(scene, SCRIPT_FUNCTION_INIT, 0x0);
+        return RunScript(scene, SCRIPT_FUNCTION_INIT, LUA_NOREF, 0x0);
     }
 
     Result FinalScene(HScene scene)
     {
-        Result result = RunScript(scene, SCRIPT_FUNCTION_FINAL, 0x0);
+        Result result = RunScript(scene, SCRIPT_FUNCTION_FINAL, LUA_NOREF, 0x0);
 
         // Deferred deletion of nodes
         uint32_t n = scene->m_Nodes.Size();
@@ -584,7 +589,7 @@ namespace dmGui
 
     Result UpdateScene(HScene scene, float dt)
     {
-        Result result = RunScript(scene, SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+        Result result = RunScript(scene, SCRIPT_FUNCTION_UPDATE, LUA_NOREF, (void*)&dt);
 
         UpdateAnimations(scene, dt);
 
@@ -608,7 +613,21 @@ namespace dmGui
 
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
     {
-        return RunScript(scene, SCRIPT_FUNCTION_ONMESSAGE, (void*)message);
+        int custom_ref = LUA_NOREF;
+        bool is_callback = false;
+        if (message->m_Receiver.m_Function) {
+            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
+            custom_ref = message->m_Receiver.m_Function - 2;
+            is_callback = true;
+        }
+
+        Result r = RunScript(scene, SCRIPT_FUNCTION_ONMESSAGE, custom_ref, (void*)message);
+
+        if (is_callback) {
+            lua_State* L = scene->m_Context->m_LuaState;
+            luaL_unref(L, LUA_REGISTRYINDEX, custom_ref);
+        }
+        return r;
     }
 
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count, bool* input_consumed)
@@ -618,7 +637,7 @@ namespace dmGui
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
             args.m_Action = &input_actions[i];
-            Result result = RunScript(scene, SCRIPT_FUNCTION_ONINPUT, (void*)&args);
+            Result result = RunScript(scene, SCRIPT_FUNCTION_ONINPUT, LUA_NOREF, (void*)&args);
             if (result != RESULT_OK)
             {
                 return result;
@@ -634,7 +653,7 @@ namespace dmGui
 
     Result ReloadScene(HScene scene)
     {
-        return RunScript(scene, SCRIPT_FUNCTION_ONRELOAD, 0x0);
+        return RunScript(scene, SCRIPT_FUNCTION_ONRELOAD, LUA_NOREF, 0x0);
     }
 
     Result SetSceneScript(HScene scene, HScript script)

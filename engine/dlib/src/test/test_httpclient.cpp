@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include <gtest/gtest.h>
+#include "dlib/dstrings.h"
 #include "dlib/time.h"
 #include "dlib/log.h"
 #include "dlib/uri.h"
@@ -20,6 +21,7 @@ public:
     std::string m_Content;
     std::string m_ToPost;
     int m_StatusCode;
+    int m_XScale;
     dmURI::Parts m_URI;
 
     static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
@@ -49,6 +51,15 @@ public:
         return dmHttpClient::Write(client, s, strlen(s));
     }
 
+    static dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HClient client, void* user_data)
+    {
+        dmHttpClientTest* self = (dmHttpClientTest*) user_data;
+        char scale[128];
+        DM_SNPRINTF(scale, sizeof(scale), "%d", self->m_XScale);
+        return dmHttpClient::WriteHeader(client, "X-Scale", scale);
+    }
+
+
     virtual void SetUp()
     {
 #ifndef _WIN32
@@ -70,8 +81,11 @@ public:
         params.m_HttpHeader = dmHttpClientTest::HttpHeader;
         params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
+        params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
         m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
         ASSERT_NE((void*) 0, m_Client);
+
+        m_XScale = 1;
     }
 
     virtual void TearDown()
@@ -217,6 +231,22 @@ TEST_F(dmHttpClientTest, Simple)
         r = dmHttpClient::Get(m_Client, buf);
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
+    }
+}
+
+TEST_F(dmHttpClientTest, CustomRequestHeaders)
+{
+    char buf[128];
+
+    m_XScale = 123;
+    for (int i = 0; i < 100; ++i)
+    {
+        m_Content = "";
+        sprintf(buf, "/add/%d/1000", i);
+        dmHttpClient::Result r;
+        r = dmHttpClient::Get(m_Client, buf);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ((1000 + i) * m_XScale, strtol(m_Content.c_str(), 0, 10));
     }
 }
 
