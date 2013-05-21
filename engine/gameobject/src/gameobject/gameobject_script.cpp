@@ -650,6 +650,105 @@ namespace dmGameObject
         return 1;
     }
 
+    /*# animates a named property of the specified game object or component
+     * <p>
+     * This is only supported for numerical properties. If the node property is already being
+     * animated, that animation will be canceled and replaced by the new one.
+     * </p>
+     * <p>
+     * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
+     * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
+     * </p>
+     *
+     * @name go.animate
+     * @param url url of the game object or component having the property (hash|string|url)
+     * @param property name of the property to animate (hash|string)
+     * @param playback playback mode of the animation (constant)
+     * @param to target property value (number|vmath.vec3|vmath.vec4|vmath.quat)
+     * @param easing easing to use during animation (constant), see LINK for a complete list
+     * @param duration duration of the animation (number)
+     * @param [delay] delay before the animation starts (number)
+     * @param [complete_function] function to call when the animation has completed (function)
+     * @examples
+     * <p>Animate the position of a game object to x = 10 during 1 second:</p>
+     * <pre>
+     * go.animate(go.get_id(), "position.x", go.PLAYBACK_FORWARD, 10, go.EASE_LINEAR, 1)
+     * </pre>
+     */
+    int Script_Animate(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 1, &target, 0x0);
+        HCollection collection = dmGameObject::GetCollection(instance);
+        if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
+        {
+            luaL_error(L, "go.animate can only animate instances within the same collection.");
+        }
+        dmhash_t property_id = 0;
+        if (lua_isstring(L, 2))
+        {
+            property_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else
+        {
+            property_id = dmScript::CheckHash(L, 2);
+        }
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        dmGameObject::PropertyResult result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
+        lua_Integer playback = luaL_checkinteger(L, 3);
+        if (playback >= PLAYBACK_COUNT)
+            return luaL_error(L, "invalid playback mode when starting an animation");
+        dmGameObject::PropertyVar property_var;
+        if (!dmGameObject::LuaToVar(L, 4, property_var))
+        {
+            return luaL_error(L, "only numerical values can be used as target values for animation");
+        }
+        lua_Integer easing = luaL_checkinteger(L, 5);
+        if (easing >= dmEasing::TYPE_COUNT)
+            return luaL_error(L, "invalid playback mode when starting an animation");
+        float duration = luaL_checknumber(L, 6);
+        float delay = 0.0f;
+        if (top > 6)
+            delay = luaL_checknumber(L, 7);
+
+        dmGameObject::PropertyResult res = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
+                (Playback)playback, property_var, (dmEasing::Type)easing, duration, delay, 0x0, 0x0);
+        switch (res)
+        {
+        case dmGameObject::PROPERTY_RESULT_OK:
+            return 0;
+        case PROPERTY_RESULT_NOT_FOUND:
+            {
+                lua_pushliteral(L, "");
+                lua_pushvalue(L, 1);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+            }
+        case PROPERTY_RESULT_UNSUPPORTED_TYPE:
+        case PROPERTY_RESULT_TYPE_MISMATCH:
+            {
+                dmGameObject::PropertyDesc property_desc;
+                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
+                return luaL_error(L, "The property '%s' of '%s' must be of a numerical type", (const char*)dmHashReverse64(property_id, 0x0));
+            }
+        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+        default:
+            // Should never happen, programmer error
+            return luaL_error(L, "go.set failed with error code %d", result);
+        }
+
+        assert(lua_gettop(L) == top);
+        return 0;
+    }
+
     /*# deletes a game object instance
      * <div>Use this function to delete a game object identified by its id.</div>
      *
@@ -848,6 +947,7 @@ namespace dmGameObject
         {"get_world_rotation",  Script_GetWorldRotation},
         {"get_world_scale",     Script_GetWorldScale},
         {"get_id",              Script_GetId},
+        {"animate",             Script_Animate},
         {"delete",              Script_Delete},
         {"screen_ray",          Script_ScreenRay},
         {"property",            Script_Property},
@@ -879,6 +979,68 @@ namespace dmGameObject
         lua_pop(L, 2);
 
         luaL_register(L, "go", Script_methods);
+
+#define SETPLAYBACK(name) \
+        lua_pushnumber(L, (lua_Number) PLAYBACK_##name); \
+        lua_setfield(L, -2, "PLAYBACK_"#name);\
+
+        SETPLAYBACK(NONE)
+        SETPLAYBACK(ONCE_FORWARD)
+        SETPLAYBACK(ONCE_BACKWARD)
+        SETPLAYBACK(LOOP_FORWARD)
+        SETPLAYBACK(LOOP_BACKWARD)
+        SETPLAYBACK(LOOP_PINGPONG)
+
+#undef SETPLAYBACK
+
+#define SETEASING(name) \
+        lua_pushnumber(L, (lua_Number) dmEasing::TYPE_##name); \
+        lua_setfield(L, -2, "EASING_"#name);\
+
+        SETEASING(LINEAR)
+        SETEASING(INQUAD)
+        SETEASING(OUTQUAD)
+        SETEASING(INOUTQUAD)
+        SETEASING(OUTINQUAD)
+        SETEASING(INCUBIC)
+        SETEASING(OUTCUBIC)
+        SETEASING(INOUTCUBIC)
+        SETEASING(OUTINCUBIC)
+        SETEASING(INQUART)
+        SETEASING(OUTQUART)
+        SETEASING(INOUTQUART)
+        SETEASING(OUTINQUART)
+        SETEASING(INQUINT)
+        SETEASING(OUTQUINT)
+        SETEASING(INOUTQUINT)
+        SETEASING(OUTINQUINT)
+        SETEASING(INSINE)
+        SETEASING(OUTSINE)
+        SETEASING(INOUTSINE)
+        SETEASING(OUTINSINE)
+        SETEASING(INEXPO)
+        SETEASING(OUTEXPO)
+        SETEASING(INOUTEXPO)
+        SETEASING(OUTINEXPO)
+        SETEASING(INCIRC)
+        SETEASING(OUTCIRC)
+        SETEASING(INOUTCIRC)
+        SETEASING(OUTINCIRC)
+        SETEASING(INELASTIC)
+        SETEASING(OUTELASTIC)
+        SETEASING(INOUTELASTIC)
+        SETEASING(OUTINELASTIC)
+        SETEASING(INBACK)
+        SETEASING(OUTBACK)
+        SETEASING(INOUTBACK)
+        SETEASING(OUTINBACK)
+        SETEASING(INBOUNCE)
+        SETEASING(OUTBOUNCE)
+        SETEASING(INOUTBOUNCE)
+        SETEASING(OUTINBOUNCE)
+
+#undef SETEASING
+
         lua_pop(L, 1);
 
         dmScript::ScriptParams params;

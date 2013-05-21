@@ -4,8 +4,9 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#include <dlib/message.h>
+#include <dlib/easing.h>
 #include <dlib/hash.h>
+#include <dlib/message.h>
 #include <dlib/transform.h>
 
 #include <ddf/ddf.h>
@@ -956,6 +957,35 @@ namespace dmGameObject
      * @return PROPERTY_RESULT_OK if the value could be set
      */
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value);
+
+    typedef void (*AnimationStopped)(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+                                        bool finished,
+                                        void* userdata);
+
+    enum Playback
+    {
+        PLAYBACK_NONE          = 0,
+        PLAYBACK_ONCE_FORWARD  = 1,
+        PLAYBACK_ONCE_BACKWARD = 2,
+        PLAYBACK_LOOP_FORWARD  = 3,
+        PLAYBACK_LOOP_BACKWARD = 4,
+        PLAYBACK_LOOP_PINGPONG = 5,
+        PLAYBACK_COUNT = 6,
+    };
+
+    PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,
+                     dmhash_t property_id,
+                     Playback playback,
+                     const PropertyVar& to,
+                     dmEasing::Type easing,
+                     float duration,
+                     float delay,
+                     AnimationStopped animation_stopped,
+                     void* userdata);
+
+    PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
+                     dmhash_t property_id);
+    void CancelAnimations(HCollection collection, HInstance instance);
 
     /**
      * Register all resource types in resource factory

@@ -736,28 +736,4 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
-    {
-        ComponentType script_component;
-        dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
-        script_component.m_Name = "scriptc";
-        script_component.m_Context = 0x0;
-        script_component.m_NewWorldFunction = &CompScriptNewWorld;
-        script_component.m_DeleteWorldFunction = &CompScriptDeleteWorld;
-        script_component.m_CreateFunction = &CompScriptCreate;
-        script_component.m_DestroyFunction = &CompScriptDestroy;
-        script_component.m_InitFunction = &CompScriptInit;
-        script_component.m_FinalFunction = &CompScriptFinal;
-        script_component.m_UpdateFunction = &CompScriptUpdate;
-        script_component.m_OnMessageFunction = &CompScriptOnMessage;
-        script_component.m_OnInputFunction = &CompScriptOnInput;
-        script_component.m_OnReloadFunction = &CompScriptOnReload;
-        script_component.m_SetPropertiesFunction = &CompScriptSetProperties;
-        script_component.m_GetPropertyFunction = &CompScriptGetProperty;
-        script_component.m_SetPropertyFunction = &CompScriptSetProperty;
-        script_component.m_InstanceHasUserData = true;
-        script_component.m_UpdateOrderPrio = 200;
-        return RegisterComponentType(regist, script_component);
-    }
-
 }

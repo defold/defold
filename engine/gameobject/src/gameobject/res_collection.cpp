@@ -32,6 +32,7 @@ namespace dmGameObject
         dmMutex::Lock(regist->m_Mutex);
 
         // TODO: How to configure 1024. In collection?
+        // The size is also used in comp_anim.cpp (AnimWorld::m_InstanceToIndex)
         HCollection collection = NewCollection(collection_desc->m_Name, factory, regist, 1024);
         if (collection == 0)
         {

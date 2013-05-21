@@ -21,6 +21,7 @@
 #include "res_prototype.h"
 #include "res_script.h"
 #include "res_lua.h"
+#include "res_anim.h"
 
 #include "../proto/gameobject_ddf.h"
 
@@ -362,6 +363,10 @@ namespace dmGameObject
             return ret;
 
         ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionCreate, &ResCollectionDestroy, 0);
+        if (ret != dmResource::RESULT_OK)
+            return ret;
+
+        ret = dmResource::RegisterType(factory, "animc", 0, &ResAnimCreate, &ResAnimDestroy, 0x0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -914,6 +919,7 @@ namespace dmGameObject
 
     void DoDelete(HCollection collection, HInstance instance)
     {
+        CancelAnimations(collection, instance);
         dmResource::HFactory factory = collection->m_Factory;
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
@@ -1500,6 +1506,7 @@ namespace dmGameObject
                 if (instance->m_Initialized)
                     if (!Final(collection, instance) && result)
                         result = false;
+
             }
         }
 

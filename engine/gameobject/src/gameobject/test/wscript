@@ -341,6 +341,7 @@ def build(bld):
         test_task_gen.find_sources_in_dirs(dir, exts)
         test_task_gen.install_path = None
 
+    new_test('anim')
     new_test('collection', exts = ['.cpp', '.go_pb', '.script', '.collection'])
     new_test('component', exts = ['.cpp', '.proto', '.go_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
     new_test('delete')
