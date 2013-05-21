@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
+#include <string.h>
 
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
