@@ -59,7 +59,7 @@ namespace dmGameObject
     PropertyVar::PropertyVar()
     {
         m_Type = PROPERTY_TYPE_NUMBER;
-        m_Number = 0.0f;
+        memset(this, 0, sizeof(*this));
     }
 
     PropertyVar::PropertyVar(float v)
@@ -80,10 +80,11 @@ namespace dmGameObject
         m_Hash = v;
     }
 
-    PropertyVar::PropertyVar(dmMessage::URL v)
+    PropertyVar::PropertyVar(const dmMessage::URL& v)
     {
         m_Type = PROPERTY_TYPE_URL;
-        m_URL = v;
+        dmMessage::URL* u = (dmMessage::URL*) m_URL;
+        *u = v;
     }
 
     PropertyVar::PropertyVar(Vectormath::Aos::Vector3 v)

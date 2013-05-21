@@ -817,9 +817,18 @@ bail:
 
     Result Post(HClient client, const char* path)
     {
-        DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
-        Result r = DoRequest(client, path, "POST");
-        return r;
+        return Request(client, "POST", path);
+    }
+
+    Result Request(HClient client, const char* method, const char* path)
+    {
+        if (strcmp(method, "GET") == 0) {
+            return Get(client, path);
+        } else {
+            DM_SNPRINTF(client->m_URI, sizeof(client->m_URI), "http://%s:%d/%s", client->m_Hostname, (int) client->m_Port, path);
+            Result r = DoRequest(client, path, method);
+            return r;
+        }
     }
 
     void GetStatistics(HClient client, Statistics* statistics)

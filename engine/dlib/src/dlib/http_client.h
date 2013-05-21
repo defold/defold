@@ -163,7 +163,7 @@ namespace dmHttpClient
     dmSocket::Result GetLastSocketResult(HClient client);
 
     /**
-     * HTTP GET-request
+     * HTTP GET-request with automatic retry
      * @param client Client handle
      * @param path Path part of URI
      * @return RESULT_OK on success
@@ -177,6 +177,15 @@ namespace dmHttpClient
      * @return RESULT_OK on success
      */
     Result Post(HClient client, const char* path);
+
+    /**
+     * Generic HTTP request with automatic retry for GET-requests only
+     * @param client Client handle
+     * @param method HTTP method
+     * @param path Path part of URI
+     * @return RESULT_OK on success
+     */
+    Result Request(HClient client, const char* method, const char* path);
 
     /**
      * Write data. Called from HttpWrite-callback to write POST-data

@@ -73,6 +73,8 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
 
     private void loadDocumentation() {
         loadDocumentation("doc/script_doc.sdoc");
+        loadDocumentation("doc/script_json_doc.sdoc");
+        loadDocumentation("doc/script_http_doc.sdoc");
         loadDocumentation("doc/go_doc.sdoc");
         loadDocumentation("doc/render_doc.sdoc");
         loadDocumentation("doc/gui_doc.sdoc");

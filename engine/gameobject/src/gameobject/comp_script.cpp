@@ -205,7 +205,16 @@ namespace dmGameObject
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
 
-        int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
+        int function_ref;
+        bool is_callback = false;
+        if (params.m_Message->m_Receiver.m_Function) {
+            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
+            function_ref = params.m_Message->m_Receiver.m_Function - 2;
+            is_callback = true;
+        } else {
+            function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
+        }
+
         if (function_ref != LUA_NOREF)
         {
             lua_State* L = g_LuaState;
@@ -218,6 +227,9 @@ namespace dmGameObject
             lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
+            if (is_callback) {
+                luaL_unref(L, LUA_REGISTRYINDEX, function_ref);
+            }
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
             dmScript::PushHash(L, params.m_Message->m_Id);

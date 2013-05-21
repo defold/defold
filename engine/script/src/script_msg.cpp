@@ -546,6 +546,11 @@ namespace dmScript
         uint32_t path_size;
         const char* fragment;
         uint32_t fragment_size;
+
+        // Make sure that m_Function is 0. A value != 0 is probably a bug due to
+        // reused PropertyVar (union) or use of char-buffers with uninitialized data
+        assert(out_url->m_Function == 0);
+
         dmMessage::Result result = dmMessage::ParseURL(url, &socket, &socket_size, &path, &path_size, &fragment, &fragment_size);
         if (result != dmMessage::RESULT_OK)
         {

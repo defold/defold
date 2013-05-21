@@ -162,7 +162,7 @@ namespace dmGameObject
         PropertyVar(float v);
         PropertyVar(double v);
         PropertyVar(dmhash_t v);
-        PropertyVar(dmMessage::URL v);
+        PropertyVar(const dmMessage::URL& v);
         PropertyVar(Vectormath::Aos::Vector3 v);
         PropertyVar(Vectormath::Aos::Vector4 v);
         PropertyVar(Vectormath::Aos::Quat v);
@@ -173,7 +173,8 @@ namespace dmGameObject
         {
             double m_Number;
             dmhash_t m_Hash;
-            dmMessage::URL m_URL;
+            // NOTE: We can't store an URL as is due to constructor
+            char  m_URL[sizeof(dmMessage::URL)];
             float m_V4[4];
             bool m_Bool;
         };

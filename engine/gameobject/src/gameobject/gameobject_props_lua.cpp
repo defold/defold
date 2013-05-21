@@ -35,7 +35,8 @@ namespace dmGameObject
             else if (dmScript::IsURL(L, index))
             {
                 out_var.m_Type = PROPERTY_TYPE_URL;
-                out_var.m_URL = *dmScript::CheckURL(L, index);
+                dmMessage::URL* url = (dmMessage::URL*) out_var.m_URL;
+                *url = *dmScript::CheckURL(L, index);
                 return true;
             }
             else if (dmScript::IsVector3(L, index))
@@ -85,7 +86,10 @@ namespace dmGameObject
             dmScript::PushHash(L, var.m_Hash);
             break;
         case PROPERTY_TYPE_URL:
-            dmScript::PushURL(L, var.m_URL);
+        {
+            dmMessage::URL* url = (dmMessage::URL*) var.m_URL;
+            dmScript::PushURL(L, *url);
+        }
             break;
         case PROPERTY_TYPE_VECTOR3:
             dmScript::PushVector3(L, Vectormath::Aos::Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
