@@ -258,6 +258,7 @@ namespace dmHttpService
             dmThread::Join(http_service->m_Threads[i]);
         }
         dmMessage::DeleteSocket(http_service->m_Socket);
+        delete http_service;
     }
 
 }
