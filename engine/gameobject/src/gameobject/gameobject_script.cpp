@@ -707,20 +707,28 @@ namespace dmGameObject
      * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
      * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
      * </p>
+     * <p>
+     * See the <a href="/doc/properties">properties guide</a> for which properties can be animated and how.
+     * </p>
      *
      * @name go.animate
      * @param url url of the game object or component having the property (hash|string|url)
      * @param property name of the property to animate (hash|string)
      * @param playback playback mode of the animation (constant)
      * @param to target property value (number|vmath.vec3|vmath.vec4|vmath.quat)
-     * @param easing easing to use during animation (constant), see LINK for a complete list
-     * @param duration duration of the animation (number)
-     * @param [delay] delay before the animation starts (number)
+     * @param easing easing to use during animation (constant), see the <a href="/doc/properties">properties guide</a> for a complete list
+     * @param duration duration of the animation in seconds (number)
+     * @param [delay] delay before the animation starts in seconds (number)
      * @param [complete_function] function to call when the animation has completed (function)
      * @examples
-     * <p>Animate the position of a game object to x = 10 during 1 second:</p>
+     * <p>Animate the position of a game object to x = 10 during 1 second, then y = 20 during 1 second:</p>
      * <pre>
-     * go.animate(go.get_id(), "position.x", go.PLAYBACK_FORWARD, 10, go.EASE_LINEAR, 1)
+     * local function x_done(self, url, property)
+     *     go.animate(go.get_id(), "position.y", go.PLAYBACK_ONCE_FORWARD, 20, go.EASING_LINEAR, 1)
+     * end
+     * function init(self)
+     *     go.animate(go.get_id(), "position.x", go.PLAYBACK_ONCE_FORWARD, 10, go.EASING_LINEAR, 1, 0, x_done)
+     * end
      * </pre>
      */
     int Script_Animate(lua_State* L)
@@ -814,6 +822,9 @@ namespace dmGameObject
     /*# cancels all animatiosn of the named property of the specified game object or component
      * <p>
      * By calling this function, all stored animations of the given property will be canceled.
+     * </p>
+     * <p>
+     * See the <a href="/doc/properties">properties guide</a> for which properties can be animated and how.
      * </p>
      *
      * @name go.cancel_animations
@@ -1833,5 +1844,242 @@ bail:
      *     self.max_speed = 100
      * end
      * </pre>
+     */
+
+    /*# no playback
+     *
+     * @name go.PLAYBACK_NONE
+     * @variable
+     */
+    /*# once forward
+     *
+     * @name go.PLAYBACK_ONCE_FORWARD
+     * @variable
+     */
+    /*# once backward
+     *
+     * @name go.PLAYBACK_ONCE_BACKWARD
+     * @variable
+     */
+    /*# loop forward
+     *
+     * @name go.PLAYBACK_LOOP_FORWARD
+     * @variable
+     */
+    /*# loop backward
+     *
+     * @name go.PLAYBACK_LOOP_BACKWARD
+     * @variable
+     */
+    /*# ping pong loop
+     *
+     * @name go.PLAYBACK_LOOP_PINGPONG
+     * @variable
+     */
+
+    /*# linear interpolation
+     *
+     * @name go.EASING_LINEAR
+     * @variable
+     */
+    /*# in-quadratic
+     *
+     * @name go.EASING_INQUAD
+     * @variable
+     */
+    /*# out-quadratic
+     *
+     * @name go.EASING_OUTQUAD
+     * @variable
+     */
+    /*# in-out-quadratic
+     *
+     * @name go.EASING_INOUTQUAD
+     * @variable
+     */
+    /*# out-in-quadratic
+     *
+     * @name go.EASING_OUTINQUAD
+     * @variable
+     */
+    /*# in-cubic
+     *
+     * @name go.EASING_INCUBIC
+     * @variable
+     */
+    /*# out-cubic
+     *
+     * @name go.EASING_OUTCUBIC
+     * @variable
+     */
+    /*# in-out-cubic
+     *
+     * @name go.EASING_INOUTCUBIC
+     * @variable
+     */
+    /*# out-in-cubic
+     *
+     * @name go.EASING_OUTINCUBIC
+     * @variable
+     */
+    /*# in-quartic
+     *
+     * @name go.EASING_INQUART
+     * @variable
+     */
+    /*# out-quartic
+     *
+     * @name go.EASING_OUTQUART
+     * @variable
+     */
+    /*# in-out-quartic
+     *
+     * @name go.EASING_INOUTQUART
+     * @variable
+     */
+    /*# out-in-quartic
+     *
+     * @name go.EASING_OUTINQUART
+     * @variable
+     */
+    /*# in-quintic
+     *
+     * @name go.EASING_INQUINT
+     * @variable
+     */
+    /*# out-quintic
+     *
+     * @name go.EASING_OUTQUINT
+     * @variable
+     */
+    /*# in-out-quintic
+     *
+     * @name go.EASING_INOUTQUINT
+     * @variable
+     */
+    /*# out-in-quintic
+     *
+     * @name go.EASING_OUTINQUINT
+     * @variable
+     */
+    /*# in-sine
+     *
+     * @name go.EASING_INSINE
+     * @variable
+     */
+    /*# out-sine
+     *
+     * @name go.EASING_OUTSINE
+     * @variable
+     */
+    /*# in-out-sine
+     *
+     * @name go.EASING_INOUTSINE
+     * @variable
+     */
+    /*# out-in-sine
+     *
+     * @name go.EASING_OUTINSINE
+     * @variable
+     */
+    /*# in-exponential
+     *
+     * @name go.EASING_INEXPO
+     * @variable
+     */
+    /*# out-exponential
+     *
+     * @name go.EASING_OUTEXPO
+     * @variable
+     */
+    /*# in-out-exponential
+     *
+     * @name go.EASING_INOUTEXPO
+     * @variable
+     */
+    /*# out-in-exponential
+     *
+     * @name go.EASING_OUTINEXPO
+     * @variable
+     */
+    /*# in-circlic
+     *
+     * @name go.EASING_INCIRC
+     * @variable
+     */
+    /*# out-circlic
+     *
+     * @name go.EASING_OUTCIRC
+     * @variable
+     */
+    /*# in-out-circlic
+     *
+     * @name go.EASING_INOUTCIRC
+     * @variable
+     */
+    /*# out-in-circlic
+     *
+     * @name go.EASING_OUTINCIRC
+     * @variable
+     */
+    /*# in-elastic
+     *
+     * @name go.EASING_INELASTIC
+     * @variable
+     */
+    /*# out-elastic
+     *
+     * @name go.EASING_OUTELASTIC
+     * @variable
+     */
+    /*# in-out-elastic
+     *
+     * @name go.EASING_INOUTELASTIC
+     * @variable
+     */
+    /*# out-in-elastic
+     *
+     * @name go.EASING_OUTINELASTIC
+     * @variable
+     */
+    /*# in-back
+     *
+     * @name go.EASING_INBACK
+     * @variable
+     */
+    /*# out-back
+     *
+     * @name go.EASING_OUTBACK
+     * @variable
+     */
+    /*# in-out-back
+     *
+     * @name go.EASING_INOUTBACK
+     * @variable
+     */
+    /*# out-in-back
+     *
+     * @name go.EASING_OUTINBACK
+     * @variable
+     */
+    /*# in-bounce
+     *
+     * @name go.EASING_INBOUNCE
+     * @variable
+     */
+    /*# out-bounce
+     *
+     * @name go.EASING_OUTBOUNCE
+     * @variable
+     */
+    /*# in-out-bounce
+     *
+     * @name go.EASING_INOUTBOUNCE
+     * @variable
+     */
+    /*# out-in-bounce
+     *
+     * @name go.EASING_OUTINBOUNCE
+     * @variable
      */
 }
