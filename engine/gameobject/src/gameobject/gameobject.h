@@ -954,14 +954,16 @@ namespace dmGameObject
      * @param instance Instance of the game object
      * @param component_id Id of the component
      * @param property_id Id of the property
-     * @param value Value and type of the property
+     * @param var Value and type of the property
+     * @param finished If the animation finished or not
+     * @param userdata1 User specified data
+     * @param userdata2 User specified data
      * @return PROPERTY_RESULT_OK if the value could be set
      */
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value);
 
     typedef void (*AnimationStopped)(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                                        bool finished,
-                                        void* userdata);
+                                        bool finished, void* userdata1, void* userdata2);
 
     enum Playback
     {
@@ -982,7 +984,7 @@ namespace dmGameObject
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,
-                     void* userdata);
+                     void* userdata1, void* userdata2);
 
     PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id);

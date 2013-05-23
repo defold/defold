@@ -287,8 +287,10 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
         dmMessage::URL target;
-        dmScript::ResolveURL(L, 1, &target, 0x0);
+        dmScript::ResolveURL(L, 1, &target, &sender);
         if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
         {
             luaL_error(L, "go.get can only access instances within the same collection.");
@@ -339,8 +341,10 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
         dmMessage::URL target;
-        dmScript::ResolveURL(L, 1, &target, 0x0);
+        dmScript::ResolveURL(L, 1, &target, &sender);
         if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
         {
             luaL_error(L, "go.set can only access instances within the same collection.");
@@ -650,6 +654,50 @@ namespace dmGameObject
         return 1;
     }
 
+    void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+                                        bool finished, void* userdata1, void* userdata2)
+    {
+        lua_State* L = g_LuaState;
+
+        int top = lua_gettop(L);
+        (void) top;
+
+        dmMessage::URL url;
+        url.m_Socket = instance->m_Collection->m_ComponentSocket;
+        url.m_Path = instance->m_Identifier;
+        url.m_Fragment = component_id;
+
+        ScriptInstance* script_instance = (ScriptInstance*)userdata1;
+        int ref = (int)userdata2;
+
+        if (finished)
+        {
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+            lua_pushlightuserdata(L, (void*) script_instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+
+            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dmScript::PushURL(L, url);
+            dmScript::PushHash(L, property_id);
+
+            int ret = lua_pcall(L, 3, 0, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error running animation callback: %s", lua_tostring(L,-1));
+                lua_pop(L, 1);
+            }
+
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+            lua_pushnil(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
+        }
+
+        lua_unref(L, ref);
+
+        assert(top == lua_gettop(L));
+    }
+
     /*# animates a named property of the specified game object or component
      * <p>
      * This is only supported for numerical properties. If the node property is already being
@@ -682,8 +730,10 @@ namespace dmGameObject
 
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
         dmMessage::URL target;
-        dmScript::ResolveURL(L, 1, &target, 0x0);
+        dmScript::ResolveURL(L, 1, &target, &sender);
         HCollection collection = dmGameObject::GetCollection(instance);
         if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
         {
@@ -699,7 +749,6 @@ namespace dmGameObject
             property_id = dmScript::CheckHash(L, 2);
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
-        dmGameObject::PropertyResult result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
         lua_Integer playback = luaL_checkinteger(L, 3);
         if (playback >= PLAYBACK_COUNT)
             return luaL_error(L, "invalid playback mode when starting an animation");
@@ -715,17 +764,30 @@ namespace dmGameObject
         float delay = 0.0f;
         if (top > 6)
             delay = luaL_checknumber(L, 7);
+        AnimationStopped stopped = 0x0;
+        void* userdata1 = i;
+        void* userdata2 = 0x0;
+        if (top > 7)
+        {
+            if (lua_isfunction(L, 8))
+            {
+                stopped = LuaAnimationStopped;
+                lua_pushvalue(L, 8);
+                userdata2 = (void*)luaL_ref(L, LUA_REGISTRYINDEX);
+            }
+        }
 
-        dmGameObject::PropertyResult res = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
-                (Playback)playback, property_var, (dmEasing::Type)easing, duration, delay, 0x0, 0x0);
-        switch (res)
+
+        dmGameObject::PropertyResult result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
+                (Playback)playback, property_var, (dmEasing::Type)easing, duration, delay, stopped, userdata1, userdata2);
+        switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
-            return 0;
+            break;
         case PROPERTY_RESULT_NOT_FOUND:
             {
                 lua_pushliteral(L, "");
-                lua_pushvalue(L, 1);
+                dmScript::PushURL(L, target);
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
@@ -742,7 +804,81 @@ namespace dmGameObject
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
         default:
             // Should never happen, programmer error
-            return luaL_error(L, "go.set failed with error code %d", result);
+            return luaL_error(L, "go.animate failed with error code %d", result);
+        }
+
+        assert(lua_gettop(L) == top);
+        return 0;
+    }
+
+    /*# cancels all animatiosn of the named property of the specified game object or component
+     * <p>
+     * By calling this function, all stored animations of the given property will be canceled.
+     * </p>
+     *
+     * @name go.cancel_animations
+     * @param url url of the game object or component having the property (hash|string|url)
+     * @param property name of the property to animate (hash|string)
+     * @examples
+     * <p>Cancel the animation of the position of a game object:</p>
+     * <pre>
+     * go.cancel_animations(go.get_id(), "position")
+     * </pre>
+     */
+    int Script_CancelAnimations(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 1, &target, &sender);
+        HCollection collection = dmGameObject::GetCollection(instance);
+        if (target.m_Socket != dmGameObject::GetMessageSocket(collection))
+        {
+            luaL_error(L, "go.animate can only animate instances within the same collection.");
+        }
+        dmhash_t property_id = 0;
+        if (lua_isstring(L, 2))
+        {
+            property_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else
+        {
+            property_id = dmScript::CheckHash(L, 2);
+        }
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+
+        dmGameObject::PropertyResult res = dmGameObject::CancelAnimations(collection, target_instance, target.m_Fragment, property_id);
+
+        switch (res)
+        {
+        case dmGameObject::PROPERTY_RESULT_OK:
+            break;
+        case PROPERTY_RESULT_NOT_FOUND:
+            {
+                lua_pushliteral(L, "");
+                dmScript::PushURL(L, target);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+            }
+        case PROPERTY_RESULT_UNSUPPORTED_TYPE:
+        case PROPERTY_RESULT_TYPE_MISMATCH:
+            {
+                dmGameObject::PropertyDesc property_desc;
+                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
+                return luaL_error(L, "The property '%s' of '%s' must be of a numerical type", (const char*)dmHashReverse64(property_id, 0x0));
+            }
+        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+        default:
+            // Should never happen, programmer error
+            return luaL_error(L, "go.cancel_animations failed with error code %d", res);
         }
 
         assert(lua_gettop(L) == top);
@@ -948,6 +1084,7 @@ namespace dmGameObject
         {"get_world_scale",     Script_GetWorldScale},
         {"get_id",              Script_GetId},
         {"animate",             Script_Animate},
+        {"cancel_animations",   Script_CancelAnimations},
         {"delete",              Script_Delete},
         {"screen_ray",          Script_ScreenRay},
         {"property",            Script_Property},

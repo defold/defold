@@ -628,18 +628,17 @@ namespace dmGameObject
             out_value.m_ElementIds[3] = element_ids[3];
         }
 
-        int top = lua_gettop(g_LuaState);
-        (void)top;
-
         lua_State* L = g_LuaState;
 
+        int top = lua_gettop(L);
+        (void)top;
+
         // Only push the script instance if it's not present already
-        bool pushed_instance = false;
         lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
         lua_rawget(L, LUA_GLOBALSINDEX);
-        pushed_instance = lua_isnil(L, -1);
+        bool push_instance = lua_isnil(L, -1);
         lua_pop(L, 1);
-        if (pushed_instance)
+        if (push_instance)
         {
             lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushlightuserdata(L, (void*) script_instance);
@@ -649,7 +648,8 @@ namespace dmGameObject
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         PropertyResult result = PROPERTY_RESULT_NOT_FOUND;
-        lua_getfield(L, -1, property_name);
+        lua_pushstring(L, property_name);
+        lua_rawget(L, -2);
         if (!lua_isnil(L, -1))
         {
             if (LuaToVar(L, -1, out_value.m_Variant))
@@ -664,14 +664,16 @@ namespace dmGameObject
                 result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
 
-        lua_pop(L, 1);
+        lua_pop(L, 2);
 
-        if (pushed_instance)
+        if (push_instance)
         {
             lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
             lua_rawset(L, LUA_GLOBALSINDEX);
         }
+
+        assert(lua_gettop(L) == top);
 
         return result;
     }

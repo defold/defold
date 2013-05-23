@@ -1,0 +1,23 @@
+go.property("test_value", vmath.vector3())
+
+local epsilon = 0.000001
+
+local function callback(self, url, property_id)
+    go.cancel_animations(url, "test_value.x")
+end
+
+function init(self)
+    go.animate(nil, "test_value.x", go.PLAYBACK_ONCE_FORWARD, 2, go.EASING_LINEAR, 2)
+    go.animate(nil, "test_value.y", go.PLAYBACK_ONCE_FORWARD, 1, go.EASING_LINEAR, 1, 0, callback)
+    self.timer = 0
+    self.frame = 0
+end
+
+function update(self, dt)
+    assert(math.abs(self.timer - self.test_value.x) < epsilon)
+    assert(math.abs(self.timer - self.test_value.y) < epsilon)
+    if self.frame < 4 then
+        self.timer = self.timer + dt
+    end
+    self.frame = self.frame + 1
+end

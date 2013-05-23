@@ -54,10 +54,9 @@ public:
 #define EPSILON 0.000001f
 
 void AnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                                    bool finished,
-                                    void* userdata)
+                                    bool finished, void* userdata1, void* userdata2)
 {
-    AnimTest* test = (AnimTest*)userdata;
+    AnimTest* test = (AnimTest*)userdata1;
     if (finished)
         ++test->m_FinishCount;
     else
@@ -85,7 +84,7 @@ TEST_F(AnimTest, AnimateAndStop)
     float delay = 0.f;
     dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id,
             dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR,
-            duration, delay, AnimationStopped, this);
+            duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NEAR(2.5f, X(go), EPSILON);
@@ -115,7 +114,7 @@ TEST_F(AnimTest, Playback)
     Point3 pos;
 
 #define ANIM(playback)\
-    Animate(m_Collection, go, 0, id, playback, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);
+    Animate(m_Collection, go, 0, id, playback, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
 
 #define ASSERT_FRAME(expected)\
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));\
@@ -173,7 +172,7 @@ TEST_F(AnimTest, Cancel)
     float duration = 1.0f;
     float delay = 0.f;
 
-    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);
+    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, id));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -195,7 +194,7 @@ TEST_F(AnimTest, DeleteInAnim)
     float duration = 1.0f;
     float delay = 0.f;
 
-    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);
+    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
 
@@ -203,10 +202,10 @@ TEST_F(AnimTest, DeleteInAnim)
 
     dmGameObject::PostUpdate(m_Collection);
 
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
     ASSERT_EQ(0u, this->m_FinishCount);
     ASSERT_EQ(1u, this->m_CancelCount);
-
-    dmGameObject::Update(m_Collection, &m_UpdateContext);
 }
 
 TEST_F(AnimTest, Delay)
@@ -219,7 +218,7 @@ TEST_F(AnimTest, Delay)
     float duration = 1.0f;
     float delay = 1.0f;
 
-    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
 
     Point3 pos;
@@ -255,7 +254,7 @@ TEST_F(AnimTest, LoadTest)
     for (uint32_t i = 0; i < count; ++i)
     {
         gos[i] = dmGameObject::New(m_Collection, "/dummy.goc");
-        dmGameObject::PropertyResult result = Animate(m_Collection, gos[i], 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);
+        dmGameObject::PropertyResult result = Animate(m_Collection, gos[i], 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     }
 
@@ -290,9 +289,9 @@ TEST_F(AnimTest, LinkedList)
 
 #define ANIM\
     dmGameObject::SetPosition(go, Point3(0, 0, 0));\
-    Animate(m_Collection, go, 0, ids[0], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);\
-    Animate(m_Collection, go, 0, ids[1], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);\
-    Animate(m_Collection, go, 0, ids[2], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this);
+    Animate(m_Collection, go, 0, ids[0], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);\
+    Animate(m_Collection, go, 0, ids[1], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);\
+    Animate(m_Collection, go, 0, ids[2], dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
 #define ASSERT_FRAME(x, y, z)\
     dmGameObject::Update(m_Collection, &m_UpdateContext);\
     p = dmGameObject::GetPosition(go);\
@@ -323,6 +322,34 @@ TEST_F(AnimTest, LinkedList)
 
 #undef ANIM
 #undef ASSERT_FRAME
+}
+
+TEST_F(AnimTest, ScriptedRestart)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    float duration = 1.0f;
+    float delay = 0.0f;
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/restart.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+}
+
+TEST_F(AnimTest, ScriptedCancel)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    float duration = 1.0f;
+    float delay = 0.0f;
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/cancel.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
 }
 
 int main(int argc, char **argv)

@@ -35,10 +35,12 @@ namespace dmGameObject
         float               m_Duration;
         float               m_InvDuration;
         AnimationStopped    m_AnimationStopped;
-        void*               m_Userdata;
+        void*               m_Userdata1;
+        void*               m_Userdata2;
         uint16_t            m_Index;
         uint16_t            m_Next;
         uint16_t            m_Playing : 1;
+        uint16_t            m_Finished : 1;
         uint16_t            m_Composite : 1;
         uint16_t            m_Backwards : 1;
         uint16_t            m_FirstUpdate : 1;
@@ -89,14 +91,8 @@ namespace dmGameObject
 
     static void StopAnimation(Animation* anim, bool finished)
     {
-        if (anim->m_Playing)
-        {
-            if (anim->m_AnimationStopped != 0x0)
-            {
-                anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, finished, anim->m_Userdata);
-            }
-            anim->m_Playing = 0;
-        }
+        anim->m_Finished = finished;
+        anim->m_Playing = 0;
     }
 
     static void StopAnimations(AnimWorld* world, uint16_t* head_ptr, dmhash_t component_id, dmhash_t property_id)
@@ -143,6 +139,10 @@ namespace dmGameObject
          * retrieve the from-value.
          *
          * The second pass advances and evaluates the animations.
+         *
+         * The third pass prunes stopped animations and call callbacks.
+         *
+         * The reason for this is to give consistent animation evaluation, independent of ordering.
          */
         UpdateResult result = UPDATE_RESULT_OK;
         AnimWorld* world = (AnimWorld*)params.m_World;
@@ -268,12 +268,19 @@ namespace dmGameObject
             }
         }
         i = 0;
-        // Prune canceled animations
+        // Prune canceled animations and call callbacks
         while (i < size)
         {
             Animation* anim = &world->m_Animations[i];
             if (!anim->m_Playing)
             {
+                uint32_t new_size = size;
+                if (anim->m_AnimationStopped != 0x0)
+                {
+                    anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
+                            anim->m_Userdata1, anim->m_Userdata2);
+                    new_size = world->m_Animations.Size();
+                }
                 uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
                 while (*index_ptr != INVALID_INDEX)
@@ -294,13 +301,15 @@ namespace dmGameObject
                 {
                     world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
                 }
+                // delete the instance from the list
                 world->m_Animations.EraseSwap(i);
-                --size;
-                if (size > i)
+                if (new_size > i)
                 {
-                    // We swapped, update the map to the replaced animations
+                    // We swapped, anim points to the swapped animation, update its map
+                    uint16_t original_index = anim->m_Index;
                     world->m_AnimMap[anim->m_Index] = i;
                 }
+                --size;
             }
             else
             {
@@ -331,7 +340,7 @@ namespace dmGameObject
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,
-                     void* userdata,
+                     void* userdata1, void* userdata2,
                      bool composite)
     {
         uint32_t top = world->m_Animations.Size();
@@ -367,7 +376,8 @@ namespace dmGameObject
         animation.m_Duration = dmMath::Max(duration, 0.0f);
         animation.m_InvDuration = dmMath::Select(duration, 1.0f / duration, 0.0f);
         animation.m_AnimationStopped = animation_stopped;
-        animation.m_Userdata = userdata;
+        animation.m_Userdata1 = userdata1;
+        animation.m_Userdata2 = userdata2;
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
@@ -392,10 +402,11 @@ namespace dmGameObject
     }
 
     static void PlayCompositeAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
-            dmhash_t property_id, Playback playback, float duration, AnimationStopped animation_stopped, void* userdata)
+            dmhash_t property_id, Playback playback, float duration, AnimationStopped animation_stopped,
+            void* userdata1, void* userdata2)
     {
         PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, dmEasing::TYPE_LINEAR,
-                duration, 0, animation_stopped, userdata, true);
+                duration, 0, animation_stopped, userdata1, userdata2, true);
     }
 
     static uint32_t GetElementCount(PropertyType type)
@@ -422,7 +433,7 @@ namespace dmGameObject
                      float duration,
                      float delay,
                      AnimationStopped animation_stopped,
-                     void* userdata)
+                     void* userdata1, void* userdata2)
     {
         PropertyDesc prop_desc;
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, prop_desc);
@@ -444,7 +455,7 @@ namespace dmGameObject
         if (element_count > 1)
         {
             PlayCompositeAnimation(world, instance, component_id, property_id, playback,
-                    duration, animation_stopped, userdata);
+                    duration, animation_stopped, userdata1, userdata2);
             float* v = prop_desc.m_Variant.m_V4;
             for (uint32_t i = 0; i < element_count; ++i)
             {
@@ -452,13 +463,14 @@ namespace dmGameObject
                 if (prop_desc.m_ValuePtr != 0x0)
                     val_ptr = prop_desc.m_ValuePtr + i;
                 PlayAnimation(world, instance, component_id, prop_desc.m_ElementIds[i], playback, val_ptr,
-                        *(v + i), to.m_V4[i], easing, duration, delay, 0x0, 0x0, false);
+                        *(v + i), to.m_V4[i], easing, duration, delay, 0x0, 0x0, 0x0, false);
             }
         }
         else
         {
             PlayAnimation(world, instance, component_id, property_id, playback, prop_desc.m_ValuePtr,
-                    (float)prop_desc.m_Variant.m_Number, (float)to.m_Number, easing, duration, delay, animation_stopped, userdata, false);
+                    (float)prop_desc.m_Variant.m_Number, (float)to.m_Number, easing, duration, delay, animation_stopped,
+                    userdata1, userdata2, false);
         }
         return PROPERTY_RESULT_OK;
     }
