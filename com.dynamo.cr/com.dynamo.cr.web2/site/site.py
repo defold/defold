@@ -1,8 +1,7 @@
 # Static site description. Run this file with desite.py
 import os
 
-for d, title in [('camera', 'Camera Component'),
-                 ('collection_proxy', 'Collection Proxy Component'),
+for d, title in [('collection_proxy', 'Collection Proxy Component'),
                  ('factory', 'Factory Component'),
                  ('particlefx', 'ParticleFX Component'),
                  ('collision_object', 'Collision Object Component'),
@@ -10,15 +9,14 @@ for d, title in [('camera', 'Camera Component'),
                  ('sprite', 'Sprite Component'),
                  ('tilemap', 'Tilemap Component'),
 
-                 ('script_hash', 'Script Builtin'),
-                 ('script_msg', 'Script Message'),
-                 ('script_vmath', 'Script Vector Math'),
+                 ('builtins', 'Script Builtin'),
+                 ('msg', 'Script Message'),
+                 ('vmath', 'Script Vector Math'),
 
                  ('go', 'Game Object'),
                  ('gui',  'Gui'),
                  ('render',  'Render'),
-                 ('gamesys', 'Gamesystem'),
-                 (['engine', 'script_sys'], 'System')]:
+                 (['sys', 'engine'], 'System')]:
     if isinstance(d, str):
        d = [d]
     docs = [ os.path.join(dynamo_home, 'share', 'doc', '%s_doc.sdoc' % x) for x in d]

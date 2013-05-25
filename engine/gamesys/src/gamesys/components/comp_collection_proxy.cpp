@@ -373,4 +373,162 @@ namespace dmGameSystem
             dmGameObject::DispatchInput(proxy->m_Collection, (dmGameObject::InputAction*)params.m_InputAction, 1);
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
+
+    /*# tells a collection proxy to start loading the referenced collection
+     * <p>
+     * Post this message to a collection-proxy-component to start the loading of the referenced collection.
+     * When the loading has completed, the message <code>proxy_loaded</code> will be sent back to the script.
+     * </p>
+     * <p>
+     * A loaded collection must be initialized (message <code>init</code>) and enabled (message <code>enable</code>) in order to be simulated and drawn.
+     * </p>
+     * @message
+     * @name load
+     * @examples
+     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
+     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
+     * <pre>
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("start_level") then
+     *         -- some script tells us to start loading the level
+     *         msg.post("#proxy", "load")
+     *         -- store sender for later notification
+     *         self.loader = sender
+     *     elseif message_id == hash("proxy_loaded") then
+     *         -- enable the collection and let the loader know
+     *         msg.post(sender, "enable")
+     *         msg.post(self.loader, message_id)
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# tells a collection proxy to initialize the loaded collection
+     * Post this message to a collection-proxy-component to initialize the game objects and components in the referenced collection.
+     * Sending <code>enable</code> to an uninitialized collection proxy automatically initializes it.
+     * The <code>init</code> message simply provides a higher level of control.
+     *
+     * @message
+     * @name init
+     * @examples
+     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
+     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
+     * <pre>
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("load_level") then
+     *         -- some script tells us to start loading the level
+     *         msg.post("#proxy", "load")
+     *         -- store sender for later notification
+     *         self.loader = sender
+     *     elseif message_id == hash("proxy_loaded") then
+     *         -- only initialize the proxy at this point since we want to enable it at a later time for some reason
+     *         msg.post(sender, "init")
+     *         -- let loader know
+     *         msg.post(self.loader, message_id)
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# tells a collection proxy to enable the referenced collection
+     * Post this message to a collection-proxy-component to enable the referenced collection, which in turn enables the contained game objects and components.
+     * If the referenced collection was not initialized prior to this call, it will automatically be initialized.
+     *
+     * @message
+     * @name enable
+     * @examples
+     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
+     * <p>The examples assume the script belongs to an instance with collection-proxy-component with id "proxy".</p>
+     * <pre>
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("start_level") then
+     *         -- some script tells us to start loading the level
+     *         msg.post("#proxy", "load")
+     *         -- store sender for later notification
+     *         self.loader = sender
+     *     elseif message_id == hash("proxy_loaded") then
+     *         -- enable the collection and let the loader know
+     *         msg.post(sender, "enable")
+     *         msg.post(self.loader, "level_started")
+     *     end
+     * end
+     */
+
+    /*# tells a collection proxy to disable the referenced collection
+     * Post this message to a collection-proxy-component to disable the referenced collection, which in turn disables the contained game objects and components.
+     *
+     * @message
+     * @name disable
+     * @examples
+     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
+     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
+     * <pre>
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("end_level") then
+     *         local proxy = msg.url("#proxy")
+     *         msg.post(proxy, "disable")
+     *         msg.post(proxy, "final")
+     *         msg.post(proxy, "unload")
+     *         -- store sender for later notification
+     *         self.unloader = sender
+     *     elseif message_id == hash("proxy_unloaded") then
+     *         -- let unloader know
+     *         msg.post(self.unloader, "level_ended")
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# tells a collection proxy to finalize the referenced collection
+     * Post this message to a collection-proxy-component to finalize the referenced collection, which in turn finalizes the contained game objects and components.
+     *
+     * @message
+     * @name finalize
+     * @examples
+     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
+     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
+     * <pre>
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("end_level") then
+     *         local proxy = msg.url("#proxy")
+     *         msg.post(proxy, "disable")
+     *         msg.post(proxy, "final")
+     *         msg.post(proxy, "unload")
+     *         -- store sender for later notification
+     *         self.unloader = sender
+     *     elseif message_id == hash("proxy_unloaded") then
+     *         -- let unloader know
+     *         msg.post(self.unloader, "level_ended")
+     *     end
+     * end
+     * </pre>
+     */
+
+    /*# tells a collection proxy to start unloading the referenced collection
+     * <p>
+     * Post this message to a collection-proxy-component to start the unloading of the referenced collection.
+     * When the unloading has completed, the message <code>proxy_unloaded</code> will be sent back to the script.
+     * </p>
+     *
+     * @message
+     * @name unload
+     * @examples
+     * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
+     * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>
+     * <pre>
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == hash("end_level") then
+     *         local proxy = msg.url("#proxy")
+     *         msg.post(proxy, "disable")
+     *         msg.post(proxy, "final")
+     *         msg.post(proxy, "unload")
+     *         -- store sender for later notification
+     *         self.unloader = sender
+     *     elseif message_id == hash("proxy_unloaded") then
+     *         -- let unloader know
+     *         msg.post(self.unloader, "level_ended")
+     *     end
+     * end
+     * </pre>
+     */
 }

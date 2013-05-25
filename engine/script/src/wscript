@@ -19,12 +19,12 @@ def build(bld):
 
     bld.add_group()
 
-    for d, source in [('script_hash', ('script_hash.cpp')),
-                      ('script_sys', ('script_sys.cpp')),
-                      ('script_msg', ('script_msg.cpp')),
-                      ('script_json', ('script_json.cpp')),
-                      ('script_http', ('script_http.cpp')),
-                      ('script_vmath', ('script_vmath.cpp'))]:
+    for d, source in [('builtins', ('script_hash.cpp')),
+                      ('sys', ('script_sys.cpp')),
+                      ('msg', ('script_msg.cpp')),
+                      ('json', ('script_json.cpp')),
+                      ('http', ('script_http.cpp')),
+                      ('vmath', ('script_vmath.cpp'))]:
         bld.new_task_gen(source = source,
                          target = '%s_doc.sdoc' % d,
                          rule = '${SCRIPT_DOC} ${SRC} ${TGT}')

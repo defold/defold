@@ -1,4 +1,3 @@
-/ref/camera.html
 /ref/collection_proxy.html
 /ref/factory.html
 /ref/particlefx.html
@@ -6,14 +5,14 @@
 /ref/sound.html
 /ref/sprite.html
 /ref/tilemap.html
-/ref/script_hash.html
-/ref/script_msg.html
-/ref/script_vmath.html
+/ref/builtins.html
+/ref/msg.html
+/ref/vmath.html
 /ref/go.html
 /ref/gui.html
 /ref/render.html
-/ref/gamesys.html
-/ref/engine.html
+/ref/sys.html
+/blog/input_and_trigger_handling_release_1_2_19.html
 /blog/particlefx_fixes_release_1_2_18.html
 /blog/tiny_graphics_update_release_1_2_17.html
 /blog/in_place_game_objects_release_1_2_16.html
