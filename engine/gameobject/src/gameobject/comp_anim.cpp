@@ -306,7 +306,6 @@ namespace dmGameObject
                 if (new_size > i)
                 {
                     // We swapped, anim points to the swapped animation, update its map
-                    uint16_t original_index = anim->m_Index;
                     world->m_AnimMap[anim->m_Index] = i;
                 }
                 --size;
@@ -330,7 +329,7 @@ namespace dmGameObject
         return (AnimWorld*)collection->m_ComponentWorlds[component_index];
     }
 
-    static void PlayAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
+    static bool PlayAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id,
                      Playback playback,
                      float* value,
@@ -347,8 +346,30 @@ namespace dmGameObject
         if (top == MAX_CAPACITY)
         {
             dmLogError("Animation could not be stored since the buffer is full (%d).", MAX_CAPACITY);
-            return;
+            return false;
         }
+        uint16_t index = world->m_AnimMapIndexPool.Pop();
+        uint16_t* index_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
+        if (index_ptr == 0x0)
+        {
+            if (world->m_InstanceToIndex.Full())
+            {
+                dmLogError("Animation could not be stored since the instance buffer is full (%d).", world->m_InstanceToIndex.Size());
+                world->m_AnimMapIndexPool.Push(index);
+                return false;
+            }
+            world->m_InstanceToIndex.Put((uintptr_t)instance, index);
+        }
+        else
+        {
+            Animation* last_anim = &world->m_Animations[world->m_AnimMap[*index_ptr]];
+            while (last_anim->m_Next != INVALID_INDEX)
+            {
+                last_anim = &world->m_Animations[world->m_AnimMap[last_anim->m_Next]];
+            }
+            last_anim->m_Next = index;
+        }
+
         if (world->m_Animations.Full())
         {
             uint32_t capacity = dmMath::Min(world->m_Animations.Capacity() + 128, MAX_CAPACITY);
@@ -360,7 +381,6 @@ namespace dmGameObject
         Animation& animation = world->m_Animations[top];
         memset(&animation, 0, sizeof(Animation));
 
-        uint16_t index = world->m_AnimMapIndexPool.Pop();
         world->m_AnimMap[index] = top;
         animation.m_Index = index;
 
@@ -384,28 +404,14 @@ namespace dmGameObject
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
         animation.m_FirstUpdate = 1;
-
-        uint16_t* index_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
-        if (index_ptr == 0x0)
-        {
-            world->m_InstanceToIndex.Put((uintptr_t)instance, index);
-        }
-        else
-        {
-            Animation* last_anim = &world->m_Animations[world->m_AnimMap[*index_ptr]];
-            while (last_anim->m_Next != INVALID_INDEX)
-            {
-                last_anim = &world->m_Animations[world->m_AnimMap[last_anim->m_Next]];
-            }
-            last_anim->m_Next = index;
-        }
+        return true;
     }
 
-    static void PlayCompositeAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
+    static bool PlayCompositeAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
             dmhash_t property_id, Playback playback, float duration, AnimationStopped animation_stopped,
             void* userdata1, void* userdata2)
     {
-        PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, dmEasing::TYPE_LINEAR,
+        return PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, dmEasing::TYPE_LINEAR,
                 duration, 0, animation_stopped, userdata1, userdata2, true);
     }
 
@@ -435,6 +441,8 @@ namespace dmGameObject
                      AnimationStopped animation_stopped,
                      void* userdata1, void* userdata2)
     {
+        if (instance == 0)
+            return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyDesc prop_desc;
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
@@ -454,23 +462,26 @@ namespace dmGameObject
 
         if (element_count > 1)
         {
-            PlayCompositeAnimation(world, instance, component_id, property_id, playback,
-                    duration, animation_stopped, userdata1, userdata2);
+            if (!PlayCompositeAnimation(world, instance, component_id, property_id, playback,
+                    duration, animation_stopped, userdata1, userdata2))
+                return PROPERTY_RESULT_BUFFER_OVERFLOW;
             float* v = prop_desc.m_Variant.m_V4;
             for (uint32_t i = 0; i < element_count; ++i)
             {
                 float* val_ptr = 0x0;
                 if (prop_desc.m_ValuePtr != 0x0)
                     val_ptr = prop_desc.m_ValuePtr + i;
-                PlayAnimation(world, instance, component_id, prop_desc.m_ElementIds[i], playback, val_ptr,
-                        *(v + i), to.m_V4[i], easing, duration, delay, 0x0, 0x0, 0x0, false);
+                if (!PlayAnimation(world, instance, component_id, prop_desc.m_ElementIds[i], playback, val_ptr,
+                        *(v + i), to.m_V4[i], easing, duration, delay, 0x0, 0x0, 0x0, false))
+                    return PROPERTY_RESULT_BUFFER_OVERFLOW;
             }
         }
         else
         {
-            PlayAnimation(world, instance, component_id, property_id, playback, prop_desc.m_ValuePtr,
+            if (!PlayAnimation(world, instance, component_id, property_id, playback, prop_desc.m_ValuePtr,
                     (float)prop_desc.m_Variant.m_Number, (float)to.m_Number, easing, duration, delay, animation_stopped,
-                    userdata1, userdata2, false);
+                    userdata1, userdata2, false))
+                return PROPERTY_RESULT_BUFFER_OVERFLOW;
         }
         return PROPERTY_RESULT_OK;
     }
@@ -478,6 +489,8 @@ namespace dmGameObject
     PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id)
     {
+        if (instance == 0)
+            return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyDesc prop_desc;
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)

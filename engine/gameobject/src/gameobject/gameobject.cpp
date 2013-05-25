@@ -1915,6 +1915,8 @@ namespace dmGameObject
 
     PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyDesc& out_value)
     {
+        if (instance == 0)
+            return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
             float* transform = (float*)&instance->m_Transform;
@@ -2059,6 +2061,8 @@ namespace dmGameObject
 
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value)
     {
+        if (instance == 0)
+            return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
             float* transform = (float*)&instance->m_Transform;
