@@ -52,6 +52,7 @@ namespace dmGameSystem
         dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
         dmArray<dmRender::Constant> m_RenderConstants;
+        dmArray<Vector4>            m_PrevRenderConstants;
         float                       m_FrameTime;
         float                       m_FrameTimer;
         dmhash_t                    m_CurrentAnimation;
@@ -169,6 +170,7 @@ namespace dmGameSystem
             dmRender::Constant& c = constants[i];
             dmHashUpdateBuffer32(&state, &c.m_NameHash, sizeof(uint64_t));
             dmHashUpdateBuffer32(&state, &c.m_Value, sizeof(Vector4));
+            component->m_PrevRenderConstants[i] = c.m_Value;
         }
         component->m_MixedHash = dmHashFinal32(&state);
     }
@@ -688,13 +690,27 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
 
+        dmArray<SpriteComponent>& components = sprite_world->m_Components;
+        uint32_t sprite_count = sprite_world->m_Components.Size();
+        for (uint32_t i = 0; i < sprite_count && components[i].m_Enabled; ++i)
+        {
+            SpriteComponent& component = components[i];
+            uint32_t const_count = component.m_RenderConstants.Size();
+            for (uint32_t const_i = 0; const_i < const_count; ++const_i)
+            {
+                if (lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]) > 0.000001f)
+                {
+                    ReHash(&component);
+                    break;
+                }
+            }
+        }
         UpdateTransforms(sprite_world, sprite_context->m_Subpixels);
         GenerateKeys(sprite_world);
         SortSprites(sprite_world);
 
         sprite_world->m_RenderObjects.SetSize(0);
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components;
         const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
 
         uint32_t start_index = 0;
@@ -751,10 +767,15 @@ namespace dmGameSystem
         if (v == 0x0)
         {
             if (constants.Full())
-                constants.SetCapacity(constants.Capacity() + 4);
+            {
+                uint32_t capacity = constants.Capacity() + 4;
+                constants.SetCapacity(capacity);
+                component->m_PrevRenderConstants.SetCapacity(capacity);
+            }
             dmRender::Constant c;
             dmRender::GetMaterialProgramConstant(component->m_Resource->m_Material, name_hash, c);
             constants.Push(c);
+            component->m_PrevRenderConstants.Push(c.m_Value);
             v = &(constants[constants.Size()-1].m_Value);
         }
         if (element_index == 0x0)
@@ -821,6 +842,7 @@ namespace dmGameSystem
                     if (constants[i].m_NameHash == ddf->m_NameHash)
                     {
                         constants.EraseSwap(i);
+                        component->m_PrevRenderConstants.EraseSwap(i);
                         ReHash(component);
                         break;
                     }
