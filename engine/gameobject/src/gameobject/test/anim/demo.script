@@ -1,0 +1,40 @@
+local count = 257
+
+function init(self)
+    self.objects = {}
+
+    for i = 1, count do
+        table.insert(self.objects, hash("box" .. i))
+    end    
+    self.p = true
+end
+
+local function animate_color(self)
+    local c = vmath.vector4(1, 0, 0, 1)
+    for i = 1, count do
+        local delay = i / count
+        local o = self.objects[i]
+        local url = msg.url()
+        url.path = o
+        url.fragment = hash("script")
+        go.animate(url, "tint.x", go.PLAYBACK_ONCE_FORWARD, c.x, go.EASING_LINEAR, 1.6, delay)
+    end
+end
+
+local function done(self)
+    animate_color(self)
+end
+
+function update(self, dt)
+    if self.p then
+        for i = 1, count do
+            local pos = vmath.vector3(i * 10 + 300 , -i * 10 + 700 , 0)    
+            local cb = nil
+            if #self.objects == i then
+                cb = done
+            end
+            go.animate(self.objects[i], "position.x", go.PLAYBACK_ONCE_FORWARD, pos.x, go.EASING_INOUTELASTIC, 1.6, 0, cb)
+        end
+    end
+    self.p = nil
+end

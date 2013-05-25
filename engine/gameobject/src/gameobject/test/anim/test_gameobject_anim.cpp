@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include <dlib/dstrings.h>
 #include <dlib/easing.h>
 #include <dlib/time.h>
 
@@ -328,9 +329,8 @@ TEST_F(AnimTest, ScriptedRestart)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    float duration = 1.0f;
-    float delay = 0.0f;
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/restart.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -342,9 +342,8 @@ TEST_F(AnimTest, ScriptedCancel)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    float duration = 1.0f;
-    float delay = 0.0f;
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/cancel.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -362,6 +361,42 @@ TEST_F(AnimTest, ScriptedCancelBadURL)
 {
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/cancel_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
     ASSERT_EQ(0, go);
+}
+
+TEST_F(AnimTest, ScriptedChainOtherProp)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/chain_other_prop.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_NE((void*)0, go);
+
+    for (uint32_t i = 0; i < 12; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+}
+
+// Test that relocating anims through a SetCapacity (via callback) works
+TEST_F(AnimTest, ScriptedDemo)
+{
+    uint32_t count = 257;
+    char id[8];
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        DM_SNPRINTF(id, 8, "box%d", i + 1);
+        dmGameObject::HInstance box = dmGameObject::Spawn(m_Collection, "/demo_box.goc", hash(id), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+        ASSERT_NE((void*)0, box);
+    }
+    dmGameObject::HInstance demo = dmGameObject::Spawn(m_Collection, "/demo.goc", hash("demo"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_NE((void*)0, demo);
+
+    uint32_t frame_count = 1000;
+    m_UpdateContext.m_DT = 0.25f;
+
+    for (uint32_t i = 0; i < frame_count; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
 }
 
 int main(int argc, char **argv)

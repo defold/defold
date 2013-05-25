@@ -1,0 +1,33 @@
+go.property("test_value", vmath.vector4())
+
+local epsilon = 0.000001
+
+local function callback(self, url, property_id)
+    self.loop = true
+    self.timer = 0
+    go.animate(url, "test_value.y", go.PLAYBACK_ONCE_FORWARD, 1, go.EASING_LINEAR, 1, 0.5)
+end
+
+function init(self)
+    go.animate(nil, "test_value.x", go.PLAYBACK_ONCE_FORWARD, 1, go.EASING_LINEAR, 1, 0, callback)
+    self.timer = 0
+    self.frame = 0
+end
+
+function update(self, dt)
+    if self.frame < 4 then
+        assert(math.abs(self.timer - self.test_value.x) < epsilon)
+        assert(0 == self.test_value.y)
+    elseif self.frame < 6 then
+        assert(1 == self.test_value.x)
+        assert(0 == self.test_value.y)
+    elseif self.frame < 10 then
+        assert(1 == self.test_value.x)
+        assert(math.abs(self.timer - self.test_value.y - 0.5) < epsilon)
+    else
+        assert(1 == self.test_value.x)
+        assert(1 == self.test_value.y)
+    end
+    self.timer = self.timer + dt
+    self.frame = self.frame + 1
+end

@@ -274,12 +274,15 @@ namespace dmGameObject
             Animation* anim = &world->m_Animations[i];
             if (!anim->m_Playing)
             {
-                uint32_t new_size = size;
                 if (anim->m_AnimationStopped != 0x0)
                 {
+                    uint32_t orig_size = size;
                     anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
                             anim->m_Userdata1, anim->m_Userdata2);
-                    new_size = world->m_Animations.Size();
+                    // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
+                    size = world->m_Animations.Size();
+                    if (size != orig_size)
+                        anim = &world->m_Animations[i];
                 }
                 uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
@@ -302,13 +305,13 @@ namespace dmGameObject
                     world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
                 }
                 // delete the instance from the list
-                world->m_Animations.EraseSwap(i);
-                if (new_size > i)
+                anim = &world->m_Animations.EraseSwap(i);
+                --size;
+                if (size > i)
                 {
                     // We swapped, anim points to the swapped animation, update its map
                     world->m_AnimMap[anim->m_Index] = i;
                 }
-                --size;
             }
             else
             {
