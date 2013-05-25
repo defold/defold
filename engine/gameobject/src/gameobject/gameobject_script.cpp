@@ -293,7 +293,7 @@ namespace dmGameObject
         dmScript::ResolveURL(L, 1, &target, &sender);
         if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
         {
-            luaL_error(L, "go.get can only access instances within the same collection.");
+            return luaL_error(L, "go.get can only access instances within the same collection.");
         }
         dmhash_t property_id = 0;
         if (lua_isstring(L, 2))
@@ -304,8 +304,11 @@ namespace dmGameObject
         {
             property_id = dmScript::CheckHash(L, 2);
         }
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        if (target_instance == 0)
+            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
         dmGameObject::PropertyDesc property_desc;
-        dmGameObject::PropertyResult result = dmGameObject::GetProperty(dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path), target.m_Fragment, property_id, property_desc);
+        dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
@@ -360,6 +363,8 @@ namespace dmGameObject
         }
         dmGameObject::PropertyVar property_var;
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        if (target_instance == 0)
+            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
         dmGameObject::PropertyResult result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
         if (dmGameObject::LuaToVar(L, 3, property_var))
         {
@@ -757,6 +762,8 @@ namespace dmGameObject
             property_id = dmScript::CheckHash(L, 2);
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
+        if (target_instance == 0)
+            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
         lua_Integer playback = luaL_checkinteger(L, 3);
         if (playback >= PLAYBACK_COUNT)
             return luaL_error(L, "invalid playback mode when starting an animation");
@@ -862,7 +869,8 @@ namespace dmGameObject
             property_id = dmScript::CheckHash(L, 2);
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
-
+        if (target_instance == 0)
+            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
         dmGameObject::PropertyResult res = dmGameObject::CancelAnimations(collection, target_instance, target.m_Fragment, property_id);
 
         switch (res)

@@ -1,0 +1,3 @@
+function init(self)
+    go.cancel_animations("bad_url", "test_value")
+end

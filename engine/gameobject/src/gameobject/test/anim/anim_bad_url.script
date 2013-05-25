@@ -1,0 +1,3 @@
+function init(self)
+    go.animate("bad_url", "test_value", go.PLAYBACK_ONCE_FORWARD, 1, go.EASING_LINEAR, 1, 0, callback)
+end

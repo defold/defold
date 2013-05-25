@@ -1,0 +1,3 @@
+function init(self)
+    go.set("bad_url", "no_property", 1)
+end

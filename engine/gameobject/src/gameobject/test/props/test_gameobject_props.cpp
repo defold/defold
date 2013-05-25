@@ -453,6 +453,18 @@ TEST_F(PropsTest, PropsGetSetScript)
     dmResource::Release(m_Factory, collection);
 }
 
+TEST_F(PropsTest, PropsGetBadURLScript)
+{
+    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, "/props_get_bad_url.goc", dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1.0f);
+    ASSERT_EQ(0, i);
+}
+
+TEST_F(PropsTest, PropsSetBadURLScript)
+{
+    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, "/props_set_bad_url.goc", dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1.0f);
+    ASSERT_EQ(0, i);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

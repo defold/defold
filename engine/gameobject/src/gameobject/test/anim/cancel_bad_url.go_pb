@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/cancel_bad_url.scriptc"
+}

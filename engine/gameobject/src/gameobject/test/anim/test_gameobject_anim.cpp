@@ -352,6 +352,18 @@ TEST_F(AnimTest, ScriptedCancel)
     }
 }
 
+TEST_F(AnimTest, ScriptedAnimBadURL)
+{
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/anim_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_EQ(0, go);
+}
+
+TEST_F(AnimTest, ScriptedCancelBadURL)
+{
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/cancel_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_EQ(0, go);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
