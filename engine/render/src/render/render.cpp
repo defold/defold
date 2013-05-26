@@ -84,7 +84,8 @@ namespace dmRender
 
         context->m_OutOfResources = 0;
 
-        assert(dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket) == dmMessage::RESULT_OK);
+        dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
+        assert(r == dmMessage::RESULT_OK);
 
         return context;
     }
