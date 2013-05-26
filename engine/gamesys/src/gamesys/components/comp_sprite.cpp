@@ -692,13 +692,16 @@ namespace dmGameSystem
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components;
         uint32_t sprite_count = sprite_world->m_Components.Size();
-        for (uint32_t i = 0; i < sprite_count && components[i].m_Enabled; ++i)
+        for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpriteComponent& component = components[i];
+            if (!component.m_Enabled)
+                continue;
             uint32_t const_count = component.m_RenderConstants.Size();
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
             {
-                if (lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]) > 0.000001f)
+                float diff_sq = lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]);
+                if (diff_sq > 0.000001f)
                 {
                     ReHash(&component);
                     break;
