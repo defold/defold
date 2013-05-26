@@ -147,6 +147,7 @@ namespace dmGameObject
         UpdateResult result = UPDATE_RESULT_OK;
         AnimWorld* world = (AnimWorld*)params.m_World;
         uint32_t size = world->m_Animations.Size();
+        DM_COUNTER("animc", size);
         uint32_t i = 0;
         for (i = 0; i < size; ++i)
         {
