@@ -248,7 +248,9 @@ namespace dmGameObject
             // Evaluate animation
             if (!anim.m_Composite)
             {
-                float t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
+                float t = 1.0f;
+                if (anim.m_Cursor < anim.m_Duration)
+                    t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
                 if (anim.m_Backwards)
                     t = 1.0f - t;
                 t = dmEasing::GetValue(anim.m_Easing, t);
@@ -397,7 +399,9 @@ namespace dmGameObject
         animation.m_To = to;
         animation.m_Delay = dmMath::Max(delay, 0.0f);
         animation.m_Duration = dmMath::Max(duration, 0.0f);
-        animation.m_InvDuration = dmMath::Select(duration, 1.0f / duration, 0.0f);
+        animation.m_InvDuration = 0.0f;
+        if (animation.m_Duration > 0.0f)
+            animation.m_InvDuration = 1.0f / animation.m_Duration;
         animation.m_AnimationStopped = animation_stopped;
         animation.m_Userdata1 = userdata1;
         animation.m_Userdata2 = userdata2;

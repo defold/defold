@@ -209,6 +209,26 @@ TEST_F(AnimTest, DeleteInAnim)
     ASSERT_EQ(1u, this->m_CancelCount);
 }
 
+// Tests that animation with duration=0 is equivalent with "set" of the target value
+TEST_F(AnimTest, ZeroDuration)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("position.x");
+    dmGameObject::PropertyVar var(10.f);
+    float duration = 0.0f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_EQ(10.0f, X(go));
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 TEST_F(AnimTest, Delay)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
