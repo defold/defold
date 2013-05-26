@@ -701,7 +701,7 @@ namespace dmGameSystem
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
             {
                 float diff_sq = lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]);
-                if (diff_sq > 0.000001f)
+                if (diff_sq > 0)
                 {
                     ReHash(&component);
                     break;
