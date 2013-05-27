@@ -18,7 +18,8 @@ extern "C"
 namespace dmGameObject
 {
 #define INVALID_INDEX 0xffff
-#define MAX_CAPACITY 10000u
+#define MAX_CAPACITY 65000u
+#define MIN_CAPACITY_GROWTH 2048u
 
     struct Animation
     {
@@ -378,7 +379,10 @@ namespace dmGameObject
 
         if (world->m_Animations.Full())
         {
-            uint32_t capacity = dmMath::Min(world->m_Animations.Capacity() + 128, MAX_CAPACITY);
+            // Growth heuristic is to grow with the mean of MIN_CAPACITY_GROWTH and half current capacity, and at least MIN_CAPACITY_GROWTH
+            uint32_t capacity = world->m_Animations.Capacity();
+            uint32_t growth = dmMath::Min(MIN_CAPACITY_GROWTH, (MIN_CAPACITY_GROWTH + capacity / 2) / 2);
+            capacity = dmMath::Min(capacity + growth, MAX_CAPACITY);
             world->m_Animations.SetCapacity(capacity);
         }
         uint32_t anim_count = top + 1;
