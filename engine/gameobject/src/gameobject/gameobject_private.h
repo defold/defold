@@ -76,6 +76,8 @@ namespace dmGameObject
         {
             m_Collection = 0;
             m_Transform.SetIdentity();
+            m_EulerRotation = Vector3(0.0f, 0.0f, 0.0f);
+            m_PrevEulerRotation = Vector3(0.0f, 0.0f, 0.0f);
             m_Prototype = prototype;
             m_Identifier = UNNAMED_IDENTIFIER;
             dmHashInit64(&m_CollectionPathHashState, true);

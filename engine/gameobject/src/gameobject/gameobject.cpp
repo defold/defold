@@ -1379,6 +1379,19 @@ namespace dmGameObject
         return ctx.m_Success;
     }
 
+    static void UpdateEulerToRotation(HInstance instance);
+
+    static void CheckEuler(Instance* instance)
+    {
+        Vector3& euler = instance->m_EulerRotation;
+        Vector3& prev_euler = instance->m_PrevEulerRotation;
+        if (lengthSqr(euler - prev_euler) != 0.0f)
+        {
+            UpdateEulerToRotation(instance);
+            prev_euler = euler;
+        }
+    }
+
     void UpdateTransforms(HCollection collection)
     {
         DM_PROFILE(GameObject, "UpdateTransforms");
@@ -1389,6 +1402,7 @@ namespace dmGameObject
         {
             uint16_t index = collection->m_LevelIndices[i];
             Instance* instance = collection->m_Instances[index];
+            CheckEuler(instance);
             collection->m_WorldTransforms[index] = instance->m_Transform;
             uint16_t parent_index = instance->m_Parent;
             assert(parent_index == INVALID_INSTANCE_INDEX);
@@ -1402,6 +1416,7 @@ namespace dmGameObject
             {
                 uint16_t index = collection->m_LevelIndices[level * max_instance + i];
                 Instance* instance = collection->m_Instances[index];
+                CheckEuler(instance);
                 dmTransform::TransformS1* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;

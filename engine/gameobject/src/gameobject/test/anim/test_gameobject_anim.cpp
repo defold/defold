@@ -185,6 +185,40 @@ TEST_F(AnimTest, Cancel)
     dmGameObject::Delete(m_Collection, go);
 }
 
+TEST_F(AnimTest, AnimateEuler)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("euler.z");
+    dmGameObject::PropertyVar var(360.0f);
+    float duration = 1.0f;
+    float delay = 0.f;
+    // Higher epsilon because of low precision euler conversions
+    const float epsilon = 0.0001f;
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id,
+            dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR,
+            duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    Quat r;
+
+#define ASSERT_FRAME(q_z, q_w)\
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));\
+    r = dmGameObject::GetRotation(go);\
+    ASSERT_NEAR(q_z, r.getZ(), epsilon);\
+    ASSERT_NEAR(q_w, r.getW(), epsilon);
+
+    ASSERT_FRAME(M_SQRT1_2, M_SQRT1_2);
+
+    ASSERT_FRAME(1, 0.0f);
+
+    ASSERT_FRAME(M_SQRT1_2, -M_SQRT1_2);
+
+    ASSERT_FRAME(0.0f, -1);
+
+#undef ASSERT_FRAME
+}
+
 TEST_F(AnimTest, DeleteInAnim)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
