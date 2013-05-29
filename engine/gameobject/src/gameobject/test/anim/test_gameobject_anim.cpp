@@ -453,6 +453,14 @@ TEST_F(AnimTest, ScriptedDemo)
     }
 }
 
+TEST_F(AnimTest, ScriptedInvalidType)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/invalid_type.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_EQ((void*)0, go);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

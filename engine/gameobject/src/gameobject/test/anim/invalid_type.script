@@ -1,0 +1,4 @@
+function init(self)
+    local rot = vmath.vector4(0, 0, 0, 1)
+    go.animate(go.get_id(), "rotation", go.PLAYBACK_ONCE_FORWARD, rot, go.EASING_LINEAR, 0.6)
+end

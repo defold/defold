@@ -811,9 +811,12 @@ namespace dmGameObject
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
-                dmGameObject::PropertyDesc property_desc;
-                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
-                return luaL_error(L, "The property '%s' of '%s' must be of a numerical type", (const char*)dmHashReverse64(property_id, 0x0));
+                lua_pushliteral(L, "");
+                dmScript::PushURL(L, target);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "The property '%s' of '%s' has incorrect type", (const char*)dmHashReverse64(property_id, 0x0), name);
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
