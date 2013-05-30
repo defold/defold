@@ -1664,6 +1664,7 @@ namespace dmGui
 
     void FinalizeScript(lua_State* L)
     {
+        dmScript::Finalize(L);
         lua_close(L);
     }
 
