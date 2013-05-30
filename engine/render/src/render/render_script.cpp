@@ -1534,6 +1534,7 @@ namespace dmRender
 
     void FinalizeRenderScriptContext(RenderScriptContext& context)
     {
+        dmScript::Finalize(context.m_LuaState);
         if (context.m_LuaState)
             lua_close(context.m_LuaState);
         context.m_LuaState = 0;
