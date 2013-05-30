@@ -1,5 +1,39 @@
 :max-width: 45em
 
+Animation & getters/setters (Release 1.2.20)
+--------------------------------------------
+_May 30, 2013_
+
+We are proud to release Defold 1.2.20, containing animations, getters/setters and more!
+
+Animation
+~~~~~~~~~
+
+You can now animate gameobject-transforms, shader constants and script properties from scripts.
+We made link:http://www.youtube.com/watch?v=Mptu8h-qFL8&hd=1[a demo] to show what you can achieve with it.
+
+Getters/Setters
+~~~~~~~~~~~~~~~
+
+This is something that has been on the wishlist for a long time and we have finally solved it in a robust way.
+See the guide for link:http://www.defold.com/doc/properties[more info].
+
+Reference docs
+~~~~~~~~~~~~~~
+
+The reference documentation should be more clearly categorized now.
+Have a link:http://www.defold.com/ref/sys[look] and see what you think.
+
+Other fixes
+~~~~~~~~~~~
+
+* The amount of projects are now 10 per user
+* Better syntax-highlighting in the lua-editor
+* Major improvement on build times for large repos
+* msg.url correctly resolves the URL's: msg.url(nil, "instance", "sprite") is equal to msg.url("instance#sprite")
+
+Enjoy!
+
 Input and trigger handling (Release 1.2.19)
 -------------------------------------------
 _April 25, 2013_
