@@ -1,0 +1,3 @@
+function init(self)
+    assert(msg.url("collection", nil, "script") == true, "nil id should fail")
+end

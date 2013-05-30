@@ -1,0 +1,8 @@
+function init(self)
+    assert(msg.url(nil, nil, nil) == msg.url(), "component mismatch")
+    assert(msg.url(nil, nil, "script") == msg.url(), "instance mismatch")
+    assert(msg.url(nil, "test_id", "script") == msg.url(), "collection mismatch")
+    assert(msg.url("collection", "test_id", "script") == msg.url(), "complete mismatch")
+    assert(msg.url("collection", "test_id", nil) == msg.url(go.get_id()), "complete mismatch")
+    assert(msg.url("collection", nil, nil) == msg.url("collection:"), "complete mismatch")
+end
