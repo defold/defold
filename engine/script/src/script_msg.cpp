@@ -289,6 +289,12 @@ namespace dmScript
         }
         else if (top == 3)
         {
+            dmMessage::URL source;
+            if (lua_isnil(L, 1))
+            {
+                dmMessage::ResetURL(source);
+                GetURL(L, &source);
+            }
             if (!lua_isnil(L, 1))
             {
                 if (lua_isnumber(L, 1))
@@ -311,6 +317,10 @@ namespace dmScript
                             return luaL_error(L, "Error when checking socket '%s': %d.", s, result);
                     }
                 }
+            }
+            else
+            {
+                url.m_Socket = source.m_Socket;
             }
             if (!lua_isnil(L, 2))
             {
@@ -344,6 +354,17 @@ namespace dmScript
                     url.m_Path = CheckHash(L, 2);
                 }
             }
+            else
+            {
+                if (lua_isnil(L, 1))
+                {
+                    url.m_Path = source.m_Path;
+                }
+                else if (!lua_isnil(L, 3))
+                {
+                    return luaL_error(L, "Can't resolve id with specified socket and fragment.");
+                }
+            }
             if (!lua_isnil(L, 3))
             {
                 if (lua_isstring(L, 3))
@@ -357,7 +378,14 @@ namespace dmScript
             }
             else
             {
-                url.m_Fragment = 0;
+                if (lua_isnil(L, 1) && lua_isnil(L, 2))
+                {
+                    url.m_Fragment = source.m_Fragment;
+                }
+                else
+                {
+                    url.m_Fragment = 0;
+                }
             }
         }
         else if (top > 0)
@@ -635,7 +663,7 @@ namespace dmScript
                     switch (result)
                     {
                     case dmMessage::RESULT_MALFORMED_URL:
-                        return luaL_error(L, "Could not send message to '%s' because the address is invalid (should be [socket:][path][#fragment]).", url);
+                        return luaL_error(L, "Could not parse '%s' because the URL is invalid (should be [socket:][path][#fragment]).", url);
                     case dmMessage::RESULT_INVALID_SOCKET_NAME:
                         return luaL_error(L, "The socket name in '%s' is invalid.", url);
                     case dmMessage::RESULT_SOCKET_NOT_FOUND:

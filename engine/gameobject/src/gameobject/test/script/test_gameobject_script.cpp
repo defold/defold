@@ -320,6 +320,27 @@ TEST_F(ScriptTest, TestReloadModule)
     dmGameObject::Delete(m_Collection, go);
 }
 
+TEST_F(ScriptTest, TestURL)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/url.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_id"));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+}
+
+TEST_F(ScriptTest, TestURLNilId)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/url_nil_id.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_id"));
+
+    ASSERT_FALSE(dmGameObject::Init(m_Collection));
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
