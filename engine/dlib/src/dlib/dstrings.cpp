@@ -211,7 +211,7 @@ dmStrlCat(char *dst, const char *src, size_t siz)
 int dmStrCaseCmp(const char *s1, const char *s2)
 {
 #ifdef _WIN32
-    return _stricmp(s1, s1);
+    return _stricmp(s1, s2);
 #else
     return strcasecmp(s1, s2);
 #endif
