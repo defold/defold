@@ -115,6 +115,22 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
         ));
 
+    // default path
+    ASSERT_TRUE(RunString(L,
+        "local url = msg.url(\".\")\n"
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
+        "assert(url.fragment == nil, \"invalid fragment\")\n"
+       ));
+
+    // default fragment
+    ASSERT_TRUE(RunString(L,
+        "local url = msg.url(\"#\")\n"
+        "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
+        "assert(url.path == __default_url.path, \"invalid path\")\n"
+        "assert(url.fragment == __default_url.fragment, \"invalid fragment\")\n"
+       ));
+
     // socket string
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test", &socket));

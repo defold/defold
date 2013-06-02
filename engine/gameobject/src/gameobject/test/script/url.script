@@ -1,4 +1,13 @@
 function init(self)
+    -- string form
+    assert(msg.url("") == msg.url(), "component mismatch")
+    assert(msg.url(nil) == msg.url(), "component mismatch")
+    assert(msg.url(".") == msg.url(go.get_id()), "instance mismatch")
+    assert(msg.url("#") == msg.url(), "component mismatch")
+    assert(msg.url("#script") == msg.url(), "component mismatch")
+    assert(msg.url("test_id") == msg.url(go.get_id()), "component mismatch")
+    assert(msg.url("test_id") == msg.url(go.get_id()), "component mismatch")
+    -- 3-arg form
     assert(msg.url(nil, nil, nil) == msg.url(), "component mismatch")
     assert(msg.url(nil, nil, "script") == msg.url(), "instance mismatch")
     assert(msg.url(nil, "test_id", "script") == msg.url(), "collection mismatch")
