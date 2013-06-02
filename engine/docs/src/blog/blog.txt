@@ -16,13 +16,13 @@ Getters/Setters
 ~~~~~~~~~~~~~~~
 
 This is something that has been on the wishlist for a long time and we have finally solved it in a robust way.
-See the guide for link:http://www.defold.com/doc/properties[more info].
+See the guide for link:/doc/properties[more info].
 
 Reference docs
 ~~~~~~~~~~~~~~
 
 The reference documentation should be more clearly categorized now.
-Have a link:http://www.defold.com/ref/sys[look] and see what you think.
+Have a link:/ref/sys[look] and see what you think.
 
 Other fixes
 ~~~~~~~~~~~
