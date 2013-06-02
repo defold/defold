@@ -1221,13 +1221,13 @@ namespace dmGameObject
 
     void FinalizeScript(dmResource::HFactory factory)
     {
-        dmScript::Finalize(g_LuaState);
         if (g_ScriptContext)
         {
             dmScript::IterateModules(g_ScriptContext, factory, FreeModule);
         }
         if (g_LuaState)
         {
+            dmScript::Finalize(g_LuaState);
             lua_close(g_LuaState);
         }
         g_LuaState = 0;
