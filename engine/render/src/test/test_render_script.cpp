@@ -509,7 +509,7 @@ TEST_F(dmRenderScriptTest, TestPostToSelf)
 {
     const char* script =
         "function init(self)\n"
-        "    msg.post(nil, \"test_message\", {test_value = 1})\n"
+        "    msg.post(\".\", \"test_message\", {test_value = 1})\n"
         "end\n"
         "function update(self, dt)\n"
         "    assert(self.test_value == 1, \"invalid test value\")\n"
@@ -535,7 +535,7 @@ TEST_F(dmRenderScriptTest, TestDrawText)
 {
     const char* script =
         "function init(self)\n"
-        "    msg.post(nil, \"draw_text\", {position = vmath.vector3(0, 0, 0), text = \"Hello world!\"})\n"
+        "    msg.post(\".\", \"draw_text\", {position = vmath.vector3(0, 0, 0), text = \"Hello world!\"})\n"
         "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");

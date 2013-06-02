@@ -1,7 +1,7 @@
 function init(self)
 	-- set blue background
     msg.post("@render:", "clear_color", { color = vmath.vector4(0.52, 0.80, 1, 0) } )
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 end
 
 function update(self, dt)

@@ -4,7 +4,7 @@ local max_y = 600
 
 function init(self)
 	-- let the script receive input from the player
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	-- the current speed of the space ship
 	self.speed = 0
 end

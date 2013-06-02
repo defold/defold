@@ -432,7 +432,7 @@ TEST_F(ScriptMsgTest, TestPost)
 
     // DDF to default socket
     ASSERT_TRUE(RunString(L,
-        "msg.post(nil, \"sub_msg\", {uint_value = 1})\n"
+        "msg.post(\".\", \"sub_msg\", {uint_value = 1})\n"
         ));
     uint32_t test_value = 0;
     ASSERT_EQ(1u, dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, &test_value));
