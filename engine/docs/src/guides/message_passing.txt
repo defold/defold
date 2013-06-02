@@ -1,44 +1,54 @@
-Message Passing
-===============
+Addressing and Message Passing
+==============================
 
-All communication between systems and game objects in Defold is based on link:http://en.wikipedia.org/wiki/Message_passing[message passing].
+Addressing
+----------
+
+To address and reference different objects in Defold, we use a URL-like format.
+There is also a URL type (link:/ref/msg#msg.url[msg.url]) which provides more ways of constructing URLs.
+
+[source-code, lua]
+----
+-- Format:
+"[socket:][path][#fragment]"
+-- Examples:
+"@physics:" -- physics system
+"#sprite" -- sprite component
+"player#script" -- script component of a player object
+----
+
+_Socket_ is the name of the socket (or "port") in the system, which can also be thought of as a domain of objects.
+The path is unique and specifies an object inside that domain.
+The fragment is also unique and specifies a sub object inside the object specified by the path.
+
+When communicating with game objects, the socket is the name of the root collection they belong to.
+The path specifies the game object and is a a slash-segmented path of the collection names leading up to the game object id.
+When specifying the path in a script, the path can be relative the game object containing the script or global by including a leading slash.
+The fragment specifies the component.
+
+There are two short-hand URL forms for convenience:
+
+* +"."+ results in a URL to the game object containing the script
+* +"#"+ results in a URL to the script
+
+When communicating with other parts of the engine, only the socket is used.
+These are the URLs of different systems in Defold:
+
+* +"@physics:"+
+* +"@render:"+
+* +"@system:"+
+
+Message Passing
+---------------
+
+Much of the communication between systems and game objects in Defold is based on link:http://en.wikipedia.org/wiki/Message_passing[message passing].
 It provides separation and less dependencies between systems, while still allowing anything to communicate with anything.
 
 When posting a message, three things are needed:
 
-* The address of the recipient
+* The address (URL) of the recipient
 * The message id
 * The data to be passed along with the message (some messages don't have additional data attached)
-
-The address of the recipient is expressed in a URL-like format, where any part is optional:
-
-----
-[socket:][path][#fragment]
-----
-
-_Socket_ is the name of the socket (or "port") in the system.
-When communicating with game objects, this would be the named of the root collection they belonged to.
-When posting to the engine, this would be the name of the specific system, e.g. +@render+ or +@physics+.
-
-_Path_ is only used when communicating with game objects.
-In this case, it's a slash segmented path of the collection ids leading up to the game object id.
-The path itself is relative to the sender.
-Let's show by example.
-Suppose you have the following structure inside your main collection:
-
-* main collection
-** sub collection "my_sub1"
-*** game object "my_go1"
-*** sub collection "my_sub2"
-**** game object "my_go2"
-
-The path of _my_go2_ relative _my_go1_ would then be +my_sub2/my_go2+.
-Anyone in the main collection could address _my_go2_ by its absolute path: +/my_sub1/my_sub2/my_go2+.
-Anyone in another collection could address _my_go2_ by also adding the socket of the main collection: +main:/my_sub1/my_sub2/my_go2+.
-
-_Fragment_ is also only used when passing messages to game objects, in which case it names the specific component to receive the message.
-If fragment is omitted, the message will be sent to every component in the specified game object.
-This is called broad-casting.
 
 There are two types of messages, predefined messages in Defold (which you can find in the link:/ref/engine[reference]) and user defined messages.
 Predefined messages must contain specific data and can only be sent to specific components or systems (this is detailed in the reference documentation).
@@ -49,8 +59,96 @@ Posting a message from a script is very simple:
 
 [source-code, lua]
 ----
--- post to another game object
-msg.post("my_go", "my_message", {my_parameter = "my_value"})
+-- post to the script of another game object
+msg.post("my_go#script", "my_message", {my_parameter = "my_value"})
 -- post to the system socket to exit the game
 msg.post("@system:", "exit", {code = 0})
+----
+
+Example
+-------
+
+This example demonstrates some of the parts described above.
+Suppose that you have a moving cannon which the player can enter and fire by input.
+Then you could have the following structure inside your main collection:
+
+* main [Collection]
+** player [Game Object]
+*** script [Script Component: player.script]
+** cannon [Collection]
+*** controller [Game Object]
+**** script [Script Component: controller.script]
+**** bullet_factory [Factory Component]
+*** seat [Game Object]
+**** barrel [Game Object]
+***** muzzle [Game Object]
+
+Some parts (like graphics) have been left out for clarity.
+
+In player.script:
+
+[source-code, lua]
+----
+function on_input(self, action_id, action)
+    if action_id == hash("enter") then
+        -- set the cannon-seat as a parent to the player so the player follows the movement of the cannon
+        -- the "." is a short-hand for the containing game object (player in this case)
+        msg.post(".", "set_parent", {parent_id = go.get_id("cannon/seat"), keep_world_transform = 0})
+        -- set player position to origo:
+        go.set_position(vmath.vector3())
+        self.inside_cannon = true
+    elseif action_id == hash("exit") then
+        -- unparent the player from the seat to detach
+        msg.post(".", "set_parent", {parent_id = nil, keep_world_transform = 1})
+        self.inside_cannon = false
+    elseif action_id == hash("fire") then
+        if self.inside_cannon then
+            -- fire the cannon
+            msg.post("fire", "cannon/controller#script")
+        end
+    elseif action_id == hash("aim_up") then
+        if self.inside_cannon then
+            msg.post("aim_up", "cannon/controller#script")
+        end
+    elseif action_id == hash("aim_down") then
+        if self.inside_cannon then
+            msg.post("aim_down", "cannon/controller#script")
+        end
+    end
+end
+----
+
+In controller.script:
+
+[source-code, lua]
+----
+go.property("max_aim", 90)
+go.property("min_aim", 0)
+go.property("aim_delta", 2)
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("fire") then
+        -- fire the cannon by spawning bullets at the muzzle, relative path
+        local p = go.get_world_position("muzzle")
+        local r = go.get_world_rotation("barrel")
+        factory.create("#bullet_factory", p, r, {speed = 200})
+        -- update timers for fire-rate, play sounds etc
+    elseif message_id == hash("aim_up") then
+        -- aim by rotating barrel up
+        local v = go.get("barrel", "euler.z")
+        v = v + self.aim_delta
+        if v > self.max_aim then
+            v = self.max_aim
+        end
+        go.set("barrel", "euler.z", v)
+    elseif message_id == hash("aim_down") then
+        -- aim by rotating barrel down
+        local v = go.get("barrel", "euler.z")
+        v = v - aim_delta
+        if v < self.min_aim then
+            v = self.min_aim
+        end
+        go.set("barrel", "euler.z", v)
+    end
+end
 ----
