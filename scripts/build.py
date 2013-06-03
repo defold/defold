@@ -17,6 +17,7 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0".split()
+PACKAGES_EMSCRIPTEN="gtest-1.5.0".split()
 
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
@@ -106,6 +107,9 @@ class Configuration(object):
 
         for p in PACKAGES_ANDROID:
             self._extract_tgz(make_path('armv7-android'), ext)
+
+        for p in PACKAGES_EMSCRIPTEN:
+            self._extract_tgz(make_path('js-web'), ext)
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))

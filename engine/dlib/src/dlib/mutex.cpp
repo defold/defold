@@ -3,7 +3,7 @@
 
 namespace dmMutex
 {
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
     Mutex New()
     {
         pthread_mutexattr_t attr;

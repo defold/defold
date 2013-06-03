@@ -10,6 +10,9 @@ ANDROID_NDK_VERSION='8b'
 ANDROID_VERSION='14'
 ANDROID_GCC_VERSION='4.6'
 
+# TODO: HACK
+EMSCRIPTEN_ROOT=os.path.join(os.environ['HOME'], 'local', 'emscripten')
+
 def new_copy_task(name, input_ext, output_ext):
     def compile(task):
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
@@ -105,6 +108,9 @@ def default_flags(self):
                 '--sysroot=%s' % sysroot,
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack',
                 '-L%s' % stl_lib])
+    elif platform == "js-web":
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-g', '-O0', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
@@ -721,7 +727,19 @@ def detect(conf):
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
 
-    if conf.env['CCACHE'] and not 'win32' == platform:
+    # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
+    if platform == "js-web":
+        bin = EMSCRIPTEN_ROOT
+        conf.env['CC'] = '%s/emcc' % (bin)
+        conf.env['CXX'] = '%s/emcc' % (bin)
+        conf.env['LINK_CXX'] = '%s/em++' % (bin)
+        conf.env['CPP'] = '/usr/bin/cpp'
+        conf.env['AR'] = '%s/emar' % (bin)
+        conf.env['RANLIB'] = '%s/emranlib' % (bin)
+        conf.env['LD'] = '/usr/bin/ld'
+        conf.env['program_PATTERN']='%s.js'
+
+    if conf.env['CCACHE'] and not 'win32' == platform and not platform == 'js-web':
         if not Options.options.disable_ccache:
             # Prepend gcc/g++ with CCACHE
             for t in ['CC', 'CXX']:

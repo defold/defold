@@ -1,7 +1,7 @@
 #ifndef DM_MUTEX_H
 #define DM_MUTEX_H
 
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <pthread.h>
 namespace dmMutex
 {

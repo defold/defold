@@ -2,6 +2,9 @@
 #ifdef __linux__
 #include <malloc.h>
 #endif
+#if defined(__EMSCRIPTEN__)
+#include <libc/malloc.h>
+#endif
 #include <gtest/gtest.h>
 #include "../dlib/memprofile.h"
 #include "../dlib/profile.h"

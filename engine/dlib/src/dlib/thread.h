@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <pthread.h>
 namespace dmThread
 {
