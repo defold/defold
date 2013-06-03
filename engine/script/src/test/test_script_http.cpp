@@ -7,6 +7,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <dlib/socket.h>
 #include <dlib/web_server.h>
 
 extern "C"
@@ -217,8 +218,10 @@ TEST_F(ScriptHttpTest, TestPost)
 
 int main(int argc, char **argv)
 {
+    dmSocket::Initialize();
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
     int ret = RUN_ALL_TESTS();
+    dmSocket::Finalize();
     return ret;
 }
