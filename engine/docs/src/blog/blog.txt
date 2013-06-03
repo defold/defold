@@ -2,7 +2,7 @@
 
 Animation & getters/setters (Release 1.2.20)
 --------------------------------------------
-_May 30, 2013_
+_June 3, 2013_
 
 We are proud to release Defold 1.2.20, containing animations, getters/setters and more!
 
