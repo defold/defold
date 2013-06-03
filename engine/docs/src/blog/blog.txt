@@ -18,6 +18,14 @@ Getters/Setters
 This is something that has been on the wishlist for a long time and we have finally solved it in a robust way.
 See the guide for link:/doc/properties[more info].
 
+URLs
+~~~~
+
+The features mentioned above makes use of our URL-like concept for addressing objects.
+To make it easier to understand how the URLs work, we have improved the link:/doc/message_passing[guide] about them.
+We have also introduced two short-hand notations: +"."+ means the game object containing the script and +"#"+ means the script itself.
+We hope this will make URLs easier to use.
+
 Reference docs
 ~~~~~~~~~~~~~~
 
@@ -30,7 +38,7 @@ Other fixes
 * The amount of projects are now 10 per user
 * Better syntax-highlighting in the lua-editor
 * Major improvement on build times for large repos
-* msg.url correctly resolves the URL's: msg.url(nil, "instance", "sprite") is equal to msg.url("instance#sprite")
+* msg.url correctly resolves the URLs: msg.url(nil, "instance", "sprite") is equal to msg.url("instance#sprite")
 
 Enjoy!
 
