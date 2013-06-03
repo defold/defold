@@ -133,7 +133,7 @@ message CollectionDesc
  * <pre>
  * function init(self)
  *     -- acquire input focus as soon as the instance has been initialized
- *     msg.post(nil, "acquire_input_focus")
+ *     msg.post(".", "acquire_input_focus")
  * end
  *
  * function on_input(self, action_id, action)
@@ -156,7 +156,7 @@ message AcquireInputFocus {}
  * @examples
  * How to make a game object stop receiving input:
  * <pre>
- * msg.post(nil, "release_input_focus")
+ * msg.post(".", "release_input_focus")
  * </pre>
  */
 message ReleaseInputFocus {}
@@ -242,7 +242,7 @@ message TransformResponse
  * Attach myself to another instance "my_parent":
  * </p>
  * <pre>
- * msg.post(nil, "set_parent", {parent_id = go.get_id("my_parent")})
+ * msg.post(".", "set_parent", {parent_id = go.get_id("my_parent")})
  * </pre>
  * <p>
  * Attach an instance "my_instance" to another instance "my_parent":

@@ -1,4 +1,12 @@
+go.property("number", 1)
+
 function init(self)
+    -- local game object properties
+    assert(go.get(".", "position") == go.get_position())
+    go.set(".", "position", vmath.vector3(1, 2, 3))
+    assert(go.get(".", "position") == vmath.vector3(1, 2, 3))
+    -- local script properties
+    assert(go.get("#", "number") == 1)
     -- game object properties
     local url = msg.url("/a")
     local p = vmath.vector3(1, 2, 3)

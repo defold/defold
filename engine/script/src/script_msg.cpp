@@ -390,7 +390,7 @@ namespace dmScript
         }
         else if (top > 0)
         {
-            luaL_error(L, "Only %s.%s(\"[socket:][path][#fragment]\") or %s.%s(socket, path, fragment) is supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL);
+            luaL_error(L, "Only %s.%s(), %s.%s(\"[socket:][path][#fragment]\") or %s.%s(socket, path, fragment) is supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_URL);
         }
         PushURL(L, url);
         assert(top + 1 == lua_gettop(L));
@@ -568,6 +568,19 @@ namespace dmScript
 
     dmMessage::Result ResolveURL(ResolvePathCallback resolve_path_callback, uintptr_t resolve_user_data, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url)
     {
+        // Special handling for "." which means default socket + path
+        if (url[0] == '.' && url[1] == '\0')
+        {
+            out_url->m_Socket = default_url->m_Socket;
+            out_url->m_Path = default_url->m_Path;
+            return dmMessage::RESULT_OK;
+        }
+        // Special handling for "#" which means default socket + path + fragment
+        if (url[0] == '#' && url[1] == '\0')
+        {
+            *out_url = *default_url;
+            return dmMessage::RESULT_OK;
+        }
         const char* socket;
         uint32_t socket_size;
         const char* path;
