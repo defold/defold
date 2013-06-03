@@ -27,7 +27,7 @@ local anim_fall = hash("fall")
 
 function init(self)
 	-- this lets us handle input in this script
-	msg.post(nil, "acquire_input_focus")
+	msg.post(".", "acquire_input_focus")
 	
 	-- initial player velocity
 	self.velocity = vmath.vector3(0, 0, 0)

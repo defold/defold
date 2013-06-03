@@ -42,7 +42,7 @@ This is usually done in the link:/ref/go#init[init-callback] of the script:
 [source-code, lua]
 ----
 function init(self)
-    msg.post(nil, "acquire_input_focus")
+    msg.post(".", "acquire_input_focus")
 end
 ----
 
@@ -76,7 +76,7 @@ You do this by posting the message link:/ref/go#release_input_focus[+release_inp
 
 [source-code, lua]
 ----
-msg.post(nil, "release_input_focus")
+msg.post(".", "release_input_focus")
 ----
 
 In the on_input-callback you have a choice of whether to consume the input or pass it on to the others.

@@ -1787,7 +1787,7 @@ bail:
      * <pre>
      * function init(self)
      *     -- acquire input focus
-     *     msg.post(nil, "acquire_input_focus")
+     *     msg.post(".", "acquire_input_focus")
      *     -- maximum speed the instance can be moved
      *     self.max_speed = 2
      *     -- velocity of the instance, initially zero
@@ -1827,7 +1827,7 @@ bail:
      * <pre>
      * function init(self)
      *     -- acquire input focus
-     *     msg.post(nil, "acquire_input_focus")
+     *     msg.post(".", "acquire_input_focus")
      *     -- maximum speed the instance can be moved, this value is tweaked in the on_reload function below
      *     self.max_speed = 2
      *     -- velocity of the instance, initially zero
