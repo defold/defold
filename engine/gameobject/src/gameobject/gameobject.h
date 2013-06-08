@@ -990,6 +990,11 @@ namespace dmGameObject
 
     PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id);
+    /**
+     * Cancel all animations belonging to the specified instance.
+     * @param collection Collection the instance belongs to
+     * @param instance Instance for which to cancel all animations
+     */
     void CancelAnimations(HCollection collection, HInstance instance);
 
     /**

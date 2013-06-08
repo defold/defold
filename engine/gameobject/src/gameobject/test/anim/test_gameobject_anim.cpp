@@ -219,28 +219,58 @@ TEST_F(AnimTest, AnimateEuler)
 #undef ASSERT_FRAME
 }
 
+void AnimationStoppedToDelete(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+                                    bool finished, void* userdata1, void* userdata2)
+{
+    AnimTest* test = (AnimTest*)userdata1;
+    if (finished)
+        ++test->m_FinishCount;
+    else
+        ++test->m_CancelCount;
+    *((dmhash_t*)userdata2) = instance->m_Identifier;
+}
+
 TEST_F(AnimTest, DeleteInAnim)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    const uint32_t instance_count = 3;
+    dmGameObject::HInstance gos[instance_count];
+    dmhash_t orig_instance_ids[instance_count];
+    uint32_t order[instance_count] = {1, 0, 2};
+    char id_buffer[32];
+    const char* id_fmt = "test_id%d";
+    for (uint32_t i = 0; i < instance_count; ++i)
+    {
+        gos[i] = dmGameObject::New(m_Collection, "/dummy.goc");
+        DM_SNPRINTF(id_buffer, 32, id_fmt, i);
+        orig_instance_ids[i] = dmHashString64(id_buffer);
+        dmGameObject::SetIdentifier(m_Collection, gos[i], id_buffer);
+    }
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
     dmGameObject::PropertyVar var(Vectormath::Aos::Vector3(10.f, 0.f, 0.f));
     float duration = 1.0f;
     float delay = 0.f;
+    dmhash_t instance_id = 0;
 
-    Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    for (uint32_t i = 0; i < instance_count; ++i)
+    {
+        Animate(m_Collection, gos[i], 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStoppedToDelete, this, &instance_id);
+    }
 
+    for (uint32_t i = 0; i < instance_count; ++i)
+    {
+        dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+        dmGameObject::Delete(m_Collection, gos[order[i]]);
+
+        dmGameObject::PostUpdate(m_Collection);
+
+        ASSERT_EQ(0u, this->m_FinishCount);
+        ASSERT_EQ(i+1, this->m_CancelCount);
+        ASSERT_EQ(orig_instance_ids[order[i]], instance_id);
+    }
     dmGameObject::Update(m_Collection, &m_UpdateContext);
-
-    dmGameObject::Delete(m_Collection, go);
-
-    dmGameObject::PostUpdate(m_Collection);
-
-    dmGameObject::Update(m_Collection, &m_UpdateContext);
-
-    ASSERT_EQ(0u, this->m_FinishCount);
-    ASSERT_EQ(1u, this->m_CancelCount);
 }
 
 // Tests that animation with duration=0 is equivalent with "set" of the target value
