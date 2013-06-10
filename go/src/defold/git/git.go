@@ -202,7 +202,7 @@ func (s *session) getInfoRefs(rw http.ResponseWriter, r *http.Request) {
 	service := r.URL.Query().Get("service")
 	if !(service == "git-upload-pack" || service == "git-receive-pack") {
 		rw.WriteHeader(http.StatusBadRequest)
-		io.WriteString(rw, fmt.Sprintf("Invalid service: '%s'\n"))
+		io.WriteString(rw, fmt.Sprintf("Invalid service: '%s'\n", service))
 		return
 	}
 
