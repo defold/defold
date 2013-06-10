@@ -65,6 +65,10 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	err = g.Close()
+	if err != nil {
+		panic(err)
+	}
 }
 
 /*
