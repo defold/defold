@@ -42,10 +42,6 @@ func (a *AccessAll) Authorize(header http.Header, repo string) error {
 }
 
 func main() {
-	if fi, _ := os.Stat(filepath.Join(gitRoot, "libexec/git-core")); fi == nil {
-		log.Fatalf("%s not found. Invalid git installation?", filepath.Join(gitRoot, "libexec/git-core"))
-	}
-
 	accessFile, err := os.OpenFile(filepath.Join(logDir, "access.log"), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
 	if err != nil {
 		log.Fatal(err)
