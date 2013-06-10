@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, zipfile, re
-import optparse, subprocess
+import optparse, subprocess, urllib, urlparse
 from tarfile import TarFile
-from os.path import join, basename, relpath
+from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 from glob import glob
 
 """
@@ -39,6 +39,8 @@ class Configuration(object):
             home = os.environ['HOME']
 
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
+        self.ext = join(self.dynamo_home, 'ext')
+        self.defold = normpath(join(dirname(abspath(__file__)), '..'))
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
@@ -82,34 +84,81 @@ class Configuration(object):
             tf.extractall(path)
             tf.close()
 
+    def _extract_zip(self, file, path):
+        self._log('Extracting %s to %s' % (file, path))
+        zf = zipfile.ZipFile(file, 'r')
+        zf.extractall(path)
+        zf.close()
+
+    def _extract(self, file, path):
+        if os.path.splitext(file)[1] == '.zip':
+            self._extract_zip(file, path)
+        else:
+            self._extract_tgz(file, path)
+
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
 
+    def _download(self, url):
+        name = basename(urlparse.urlparse(url).path)
+        path = expanduser('~/.dcache/%s' % name)
+        if os.path.exists(path):
+            return path
+
+        if not os.path.exists(dirname(path)):
+            os.makedirs(dirname(path), 0755)
+
+        tmp = path + '_tmp'
+        with open(tmp, 'wb') as f:
+            self._log('Downloading %s %d%%' % (name, 0))
+            x = urllib.urlopen(url)
+            file_len = int(x.headers.get('Content-Length', 0))
+            buf = x.read(1024 * 1024)
+            n = 0
+            while buf:
+                n += len(buf)
+                self._log('Downloading %s %d%%' % (name, 100 * n / file_len))
+                f.write(buf)
+                buf = x.read(1024 * 1024)
+
+        if os.path.exists(path): os.unlink(path)
+        os.rename(tmp, path)
+        return path
+
+    def _install_go(self):
+        urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
+                'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
+                'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
+        url = urls[self.host]
+        path = self._download(url)
+        self._extract(path, self.ext)
+
     def install_ext(self):
-        ext = join(self.dynamo_home, 'ext')
         def make_path(platform):
             return join(self.defold_root, 'packages', p) + '-%s.tar.gz' % platform
 
+        self._install_go()
+
         for p in PACKAGES_ALL:
-            self._extract_tgz(make_path('common'), ext)
+            self._extract_tgz(make_path('common'), self.ext)
 
         for p in PACKAGES_HOST:
-            self._extract_tgz(make_path(self.host), ext)
+            self._extract_tgz(make_path(self.host), self.ext)
 
         for p in PACKAGES_IOS:
-            self._extract_tgz(make_path('armv7-darwin'), ext)
+            self._extract_tgz(make_path('armv7-darwin'), self.ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
-                self._extract_tgz(make_path('x86_64-darwin'), ext)
+                self._extract_tgz(make_path('x86_64-darwin'), self.ext)
 
         for p in PACKAGES_ANDROID:
-            self._extract_tgz(make_path('armv7-android'), ext)
+            self._extract_tgz(make_path('armv7-android'), self.ext)
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
-            self.exec_command(['easy_install', '-q', '-d', join(ext, 'lib', 'python'), '-N', egg])
+            self.exec_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
@@ -208,6 +257,19 @@ class Configuration(object):
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
+
+    def build_go(self):
+        if not self.skip_tests:
+            self.exec_command('go test defold/...'.split())
+        self.exec_command('go install defold/...'.split())
+
+    def archive_go(self):
+        full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
+        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+
+        for p in glob(join(self.defold, 'go', 'bin', '*')):
+            self.exec_command(['scp', p, full_archive_path])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -378,9 +440,15 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         paths = os.path.pathsep.join(['%s/bin' % self.dynamo_home,
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host)])
+                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host),
+                                      '%s/ext/go/bin' % self.dynamo_home])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
+
+        go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
+                                         join(self.defold, 'go')])
+        env['GOPATH'] = go_paths + os.path.pathsep + env['GOPATH']
+        env['GOROOT'] = '%s/go' % self.ext
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
@@ -405,6 +473,8 @@ distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
 build_engine    - Build engine
 archive_engine  - Archive engine to path specified with --archive-path
+build_go        - Build go code
+archive_go      - Archive go binaries
 test_cr         - Test editor and server
 build_server    - Build server
 build_editor    - Build editor
