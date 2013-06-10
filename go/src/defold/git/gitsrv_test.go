@@ -1,4 +1,4 @@
-package gitsrv
+package git
 
 import (
 	"crypto/md5"
