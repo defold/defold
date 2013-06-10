@@ -12,8 +12,11 @@ package git
 
 import (
 	"bytes"
+	"compress/zlib"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -37,6 +40,31 @@ type Server struct {
 	accessLog  *log.Logger
 	errorLog   *log.Logger
 	authorizor Authorizor
+}
+
+func init() {
+	// Decompress and write embedded git executable
+
+	compressed, _ := base64.StdEncoding.DecodeString(gitCompressedBase64)
+
+	zr, err := zlib.NewReader(bytes.NewBuffer(compressed))
+	if err != nil {
+		panic(err)
+	}
+	git, err := ioutil.ReadAll(zr)
+	if err != nil {
+		panic(err)
+	}
+	g, err := os.Create("go-git")
+	if err != nil {
+		panic(err)
+	}
+	g.Chmod(0777)
+
+	_, err = g.Write(git)
+	if err != nil {
+		panic(err)
+	}
 }
 
 /*
@@ -123,11 +151,13 @@ func (l *logWriter) Close() error {
 }
 
 func (s *session) send(w io.Writer, in io.ReadCloser, gitCmd string, args ...string) error {
-	path := filepath.Join(s.gitRoot, "libexec/git-core", gitCmd)
+	path := "./go-git"
+	// git-x-y -> x-y
+	gitSubCmd := strings.SplitN(gitCmd, "-", 2)[1]
 	lw := &logWriter{s.errorLog, bytes.NewBuffer(nil)}
 	cmd := &exec.Cmd{
 		Path:   path,
-		Args:   append([]string{gitCmd}, args...),
+		Args:   append([]string{path, gitSubCmd}, args...),
 		Stderr: lw,
 	}
 	cmd.Stdin = in
