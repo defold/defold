@@ -447,7 +447,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
                                          join(self.defold, 'go')])
-        env['GOPATH'] = go_paths + os.path.pathsep + env['GOPATH']
+        env['GOPATH'] = go_paths
         env['GOROOT'] = '%s/go' % self.ext
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
