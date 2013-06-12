@@ -1,0 +1,62 @@
+This package implements a parser for configuration files.
+This allows easy reading and writing of structured configuration files.
+
+Given a sample configuration file:
+
+  [default]
+  host=www.example.com
+  protocol=http://
+  base-url=%(protocol)s%(host)s
+
+  [service-1]
+  url=%(base-url)s/some/path
+  delegation : on
+  maxclients=200 # do not set this higher
+  comments=This is a multi-line
+    entry	; And this is a comment
+
+To read this configuration file, do:
+
+  c, err := configfile.ReadConfigFile("config.cfg");
+  // result is string :http://www.example.com/some/path"
+  c.GetString("service-1", "url");
+  c.GetInt64("service-1", "maxclients"); // result is int 200
+  c.GetBool("service-1", "delegation"); // result is bool true
+
+  // result is string "This is a multi-line\nentry"
+  c.GetString("service-1", "comments");
+
+Note the support for unfolding variables (such as %(base-url)s), which are
+read from the special (reserved) section name [default].
+
+A new configuration file can also be created with:
+  c := configfile.NewConfigFile();
+  c.AddSection("section");
+  c.AddOption("section", "option", "value");
+  // use 0644 as file permission
+  c.WriteConfigFile("config.cfg", 0644, "A header for this file");
+
+This results in the file:
+
+  # A header for this file
+  [section]
+  option=value
+
+Note that sections and options are case-insensitive (values are
+case-sensitive) and are converted to lowercase when saved to a file.
+
+The functionality and workflow is loosely based on the configparser.py
+package of the Python Standard Library.
+
+To install:
+
+  go get "github.com/msbranco/goconfig"
+
+To test:
+
+  go test
+
+To use:
+
+  import "github.com/msbranco/goconfig"
+
