@@ -235,3 +235,46 @@ func TestWriteReadFile(t *testing.T) {
 	testGet(t, cr, "Another-SECTION", "usehttps", true)
 	testGet(t, cr, "another-section", "url", "https://www.example.com/some/path")
 }
+
+func TestDefaultValues(t *testing.T) {
+	cw := NewConfigFile()
+
+	if x := cw.GetStringDefault("default", "string", "default value"); x != "default value" {
+		t.Errorf("expected 'default value', got '%v'", x)
+	}
+
+	if x := cw.GetInt64Default("default", "int", 123); x != 123 {
+		t.Errorf("expected 123, got %v", x)
+	}
+
+	if x := cw.GetFloatDefault("default", "float", 3.14); x != 3.14 {
+		t.Errorf("expected 3.14, got %v", x)
+	}
+
+	if x := cw.GetBoolDefault("default", "bool", true); x != true {
+		t.Errorf("expected 3.14, got %v", x)
+	}
+
+	cw.AddSection("default")
+	cw.AddOption("default", "string", "a string")
+	cw.AddOption("default", "int", "1000")
+	cw.AddOption("default", "float", "10.20")
+	cw.AddOption("default", "bool", "false")
+
+	if x := cw.GetStringDefault("default", "string", "default value"); x != "a string" {
+		t.Errorf("expected 'a string', got '%v'", x)
+	}
+
+	if x := cw.GetInt64Default("default", "int", 123); x != 1000 {
+		t.Errorf("expected 1000, got %v", x)
+	}
+
+	if x := cw.GetFloatDefault("default", "float", 3.14); x != 10.20 {
+		t.Errorf("expected 10.20, got %v", x)
+	}
+
+	if x := cw.GetBoolDefault("default", "bool", true); x != false {
+		t.Errorf("expected false, got %v", x)
+	}
+
+}

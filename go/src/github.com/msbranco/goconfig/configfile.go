@@ -541,3 +541,36 @@ func (c *ConfigFile) GetBool(section string, option string) (bool, error) {
 
 	return value, nil
 }
+
+func (c *ConfigFile) GetStringDefault(section string, option string, def string) string {
+	if ret, err := c.GetString(section, option); err == nil {
+		return ret
+	} else {
+		return def
+	}
+}
+
+func (c *ConfigFile) GetInt64Default(section string, option string, def int64) int64 {
+	if ret, err := c.GetInt64(section, option); err == nil {
+		return ret
+	} else {
+		return def
+	}
+}
+
+func (c *ConfigFile) GetFloatDefault(section string, option string, def float64) float64 {
+	if ret, err := c.GetFloat(section, option); err == nil {
+		return ret
+	} else {
+		return def
+	}
+}
+
+func (c *ConfigFile) GetBoolDefault(section string, option string, def bool) bool {
+	if ret, err := c.GetBool(section, option); err == nil {
+		return ret
+	} else {
+		return def
+	}
+}
+
