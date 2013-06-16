@@ -21,7 +21,7 @@ import java.util.Properties;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 
-import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+import org.eclipse.persistence.jpa.PersistenceProvider;
 
 import com.dynamo.inject.persist.PersistService;
 import com.dynamo.inject.persist.UnitOfWork;

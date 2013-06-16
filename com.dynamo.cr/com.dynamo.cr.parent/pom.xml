@@ -9,19 +9,16 @@
 
     <repositories>
         <repository>
-            <id>indigo</id>
+            <id>juno</id>
             <layout>p2</layout>
-            <url>http://download.eclipse.org/releases/indigo</url>
+            <url>http://download.eclipse.org/eclipse/updates/3.8</url>
         </repository>
 
-        <!--
-        We currently don't want the latest version. Had some problems with 2.2.0 (api changes)
-        We use a released version from release/helios instead. See above
         <repository>
             <id>eclipselink</id>
             <layout>p2</layout>
             <url>http://download.eclipse.org/rt/eclipselink/updates/</url>
-        </repository> -->
+        </repository>
 
     </repositories>
 
