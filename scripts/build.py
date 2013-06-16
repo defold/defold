@@ -333,7 +333,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
         self._archive_cr('server', build_dir)
 
     def _build_cr(self, product, build_dir, root_properties = None):
-        equinox_version = '1.2.0.v20110502'
+        equinox_version = '1.3.0.v20120522-1813'
 
         if os.path.exists(build_dir):
             shutil.rmtree(build_dir)
