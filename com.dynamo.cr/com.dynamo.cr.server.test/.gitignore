@@ -2,4 +2,7 @@
 /access*.log
 /access*.xml
 /billing*.log
+/git-access.log
+/git-error.log
+/go-git
 

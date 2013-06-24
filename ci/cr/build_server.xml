@@ -20,6 +20,7 @@
 
     <target name="init">
         <ant dir="${buildDirectory}/plugins/com.dynamo.cr.common" antfile="build.xml"/>
+        <ant dir="${buildDirectory}/plugins/com.dynamo.cr.server" antfile="build.xml"/>
 
         <!-- pushd not availble in dash.
              That's the reason for expicit bash below -->

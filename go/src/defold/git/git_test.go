@@ -118,8 +118,7 @@ func setup(auth Authorizor) *gitTest {
 	template := newTemplate()
 	repo := cloneRepoBare(template)
 
-	// TODO: Use bundled git
-	s := NewServer(repo, "/usr", auth, nil, nil)
+	s := NewServer(repo, auth, nil, nil)
 
 	l, e := net.Listen("tcp", ":0")
 	if e != nil {

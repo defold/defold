@@ -262,6 +262,8 @@ class Configuration(object):
         if not self.skip_tests:
             self.exec_command('go test defold/...'.split())
         self.exec_command('go install defold/...'.split())
+        for f in glob(join(self.defold, 'go', 'bin', '*')):
+            shutil.copy(f, join(self.dynamo_home, 'bin'))
 
     def archive_go(self):
         full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')

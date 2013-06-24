@@ -36,7 +36,6 @@ var (
 */
 type Server struct {
 	root       string
-	gitRoot    string
 	accessLog  *log.Logger
 	errorLog   *log.Logger
 	authorizor Authorizor
@@ -72,10 +71,9 @@ func init() {
 }
 
 /*
-	Creates a new git server. Git repositories are located under root. gitRoot is the installation
-	directory to git, e.g. /usr.
+	Creates a new git server. Git repositories are located under root.
 */
-func NewServer(root, gitRoot string, authorizor Authorizor, accessLog, errorLog *log.Logger) *Server {
+func NewServer(root string, authorizor Authorizor, accessLog, errorLog *log.Logger) *Server {
 	if accessLog == nil {
 		accessLog = defaultLog
 	}
@@ -86,7 +84,6 @@ func NewServer(root, gitRoot string, authorizor Authorizor, accessLog, errorLog 
 
 	return &Server{
 		root:       root,
-		gitRoot:    gitRoot,
 		accessLog:  accessLog,
 		errorLog:   errorLog,
 		authorizor: authorizor,
@@ -103,7 +100,6 @@ type Authorizor interface {
 }
 
 type session struct {
-	gitRoot  string
 	repo     string
 	errorLog *log.Logger
 }
@@ -249,7 +245,6 @@ func (s *Server) serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			sess := &session{
-				gitRoot:  s.gitRoot,
 				repo:     filepath.Join(s.root, res[1]),
 				errorLog: s.errorLog}
 			srv.handler(sess, rw, r)

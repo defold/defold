@@ -2,3 +2,5 @@
 /access*.log
 /access*.xml
 /billing*.log
+/gitsrv
+

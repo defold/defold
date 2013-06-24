@@ -1,6 +1,7 @@
 package com.dynamo.cr.server;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.util.logging.Handler;
 import java.util.logging.LogManager;
@@ -8,6 +9,8 @@ import java.util.logging.LogManager;
 import javax.inject.Singleton;
 import javax.persistence.EntityManagerFactory;
 
+import org.eclipse.core.runtime.FileLocator;
+import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.slf4j.Logger;
@@ -19,6 +22,7 @@ import ch.qos.logback.classic.joran.JoranConfigurator;
 import ch.qos.logback.core.joran.spi.JoranException;
 import ch.qos.logback.core.util.StatusPrinter;
 
+import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.proto.Config.Configuration;
 import com.dynamo.cr.server.billing.ChargifyService;
 import com.dynamo.cr.server.billing.IBillingProvider;
@@ -34,6 +38,8 @@ import com.google.inject.name.Names;
 public class Activator implements BundleActivator {
 
     private Server server;
+    private Bundle bundle;
+    private static Activator instance;
     protected static Logger logger = LoggerFactory.getLogger(Activator.class);
 
     class Module extends AbstractModule {
@@ -54,6 +60,10 @@ public class Activator implements BundleActivator {
             bind(EntityManagerFactory.class).toProvider(EntityManagerFactoryProvider.class).in(Singleton.class);
             bind(Server.class).in(Singleton.class);
         }
+    }
+
+    public static Activator getDefault() {
+        return instance;
     }
 
     private void configureLogging() {
@@ -94,8 +104,23 @@ public class Activator implements BundleActivator {
         SLF4JBridgeHandler.install();
     }
 
+    public String getGitSrvPath() {
+        URL bundleUrl = bundle.getEntry("/gitsrv/gitsrv");
+        URL fileUrl;
+        try {
+            fileUrl = FileLocator.toFileURL(bundleUrl);
+            String path = fileUrl.getPath();
+            Exec.exec("chmod", "+x", path);
+            return path;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public void start(BundleContext context) throws Exception {
+        instance = this;
+        this.bundle = context.getBundle();
         configureLogging();
 
         final String serverConfig = System.getProperty("server.config");
@@ -118,6 +143,7 @@ public class Activator implements BundleActivator {
 
     @Override
     public void stop(BundleContext context) throws Exception {
+        instance = null;
         if (server != null)
             server.stop();
     }
