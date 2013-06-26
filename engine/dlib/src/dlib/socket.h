@@ -6,6 +6,7 @@
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID)
 #include <sys/socket.h>
 #include <sys/errno.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>

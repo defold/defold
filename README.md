@@ -66,6 +66,17 @@ iOS Debugging
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
 
+Android SDK/NDK
+---------------
+
+* Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html]().
+  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1.. 
+  Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
+* Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
+  mentioned above
+* Download NDK 8e
+* Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively 
+
 Android testing
 ---------------
 Copy executable (or directory) with
