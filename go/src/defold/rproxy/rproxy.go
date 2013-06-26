@@ -107,6 +107,7 @@ func (p *proxy) route(ur url.URL) *url.URL {
 		path := singleJoiningSlash(p.routes[best].to.Path, ur.Path[len(p.routes[best].from.Path):])
 		ret := *p.routes[best].to
 		ret.Path = path
+		ret.RawQuery = ur.RawQuery
 		return &ret
 	}
 

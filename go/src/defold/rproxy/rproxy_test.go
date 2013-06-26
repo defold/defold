@@ -24,7 +24,8 @@ func TestReverseProxy(t *testing.T) {
 		expected string
 	}{
 		{"http://localhost", "http://localhost:8000"},
-		{"http://localhost/", "http://localhost:8000/"},
+		{"http://localhost?foo=bar", "http://localhost:8000?foo=bar"},
+		{"http://localhost/?foo=bar", "http://localhost:8000/?foo=bar"},
 		{"http://localhost/foo/bar", "http://localhost:8000/foo/bar"},
 		{"http://localhost:9998", "http://localhost:8000"},
 		{"http://localhost:9998/", "http://localhost:8000/"},
