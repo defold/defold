@@ -6,9 +6,10 @@ from Logs import error
 import cc, cxx
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
-ANDROID_NDK_VERSION='8b'
-ANDROID_VERSION='14'
-ANDROID_GCC_VERSION='4.6'
+ANDROID_NDK_VERSION='8e'
+ANDROID_NDK_API_VERSION='14'
+ANDROID_API_VERSION='17'
+ANDROID_GCC_VERSION='4.7'
 
 def new_copy_task(name, input_ext, output_ext):
     def compile(task):
@@ -79,7 +80,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     elif platform == 'armv7-android':
 
-        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_VERSION)
+        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
         stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
         stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
         stl_arch="%s/include" % stl_lib
@@ -92,7 +93,7 @@ def default_flags(self):
                                       '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_VERSION),
+                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
                                       '-I%s' % stl,
                                       '-I%s' % stl_arch,
                                       '--sysroot=%s' % sysroot,
@@ -418,7 +419,7 @@ def android_package(task):
     manifest_file.close()
 
     aapt = '%s/android-sdk/platform-tools/aapt' % (ANDROID_ROOT)
-    android_jar = '%s/android-sdk/platforms/android-16/android.jar' % (ANDROID_ROOT)
+    android_jar = '%s/android-sdk/platforms/android-%s/android.jar' % (ANDROID_ROOT, ANDROID_API_VERSION)
     manifest = task.manifest.abspath(task.env)
     ap_ = task.ap_.abspath(task.env)
     native_lib = task.native_lib.abspath(task.env)
@@ -709,7 +710,7 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (IOS_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
     elif platform == "armv7-android":
-        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform)
+        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform)
         conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
         conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
         conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)

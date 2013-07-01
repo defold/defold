@@ -34,8 +34,11 @@
       <plugin id="com.google.inject"/>
       <plugin id="javax.activation"/>
       <plugin id="javax.mail"/>
+      <plugin id="javax.persistence"/>
       <plugin id="javax.servlet"/>
       <plugin id="joda.time"/>
+      <plugin id="org.apache.felix.gogo.runtime"/>
+      <plugin id="org.apache.felix.gogo.shell"/>
       <plugin id="org.eclipse.core.contenttype"/>
       <plugin id="org.eclipse.core.jobs"/>
       <plugin id="org.eclipse.core.runtime"/>
@@ -43,10 +46,19 @@
       <plugin id="org.eclipse.core.runtime.compatibility.registry" fragment="true"/>
       <plugin id="org.eclipse.equinox.app"/>
       <plugin id="org.eclipse.equinox.common"/>
+      <plugin id="org.eclipse.equinox.console"/>
       <plugin id="org.eclipse.equinox.preferences"/>
       <plugin id="org.eclipse.equinox.registry"/>
       <plugin id="org.eclipse.osgi"/>
       <plugin id="org.eclipse.osgi.services"/>
+      <plugin id="org.eclipse.persistence.antlr"/>
+      <plugin id="org.eclipse.persistence.asm"/>
+      <plugin id="org.eclipse.persistence.core"/>
+      <plugin id="org.eclipse.persistence.jpa"/>
+      <plugin id="org.eclipse.persistence.jpa.jpql"/>
+      <plugin id="org.eclipse.persistence.nosql" fragment="true"/>
+      <plugin id="org.eclipse.persistence.oracle" fragment="true"/>
+      <plugin id="org.eclipse.persistence.oracle.nosql" fragment="true"/>
       <plugin id="org.glassfish.grizzly"/>
       <plugin id="slf4j"/>
    </plugins>

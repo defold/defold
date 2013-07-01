@@ -262,6 +262,8 @@ class Configuration(object):
         if not self.skip_tests:
             self.exec_command('go test defold/...'.split())
         self.exec_command('go install defold/...'.split())
+        for f in glob(join(self.defold, 'go', 'bin', '*')):
+            shutil.copy(f, join(self.dynamo_home, 'bin'))
 
     def archive_go(self):
         full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
@@ -333,7 +335,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
         self._archive_cr('server', build_dir)
 
     def _build_cr(self, product, build_dir, root_properties = None):
-        equinox_version = '1.2.0.v20110502'
+        equinox_version = '1.3.0.v20120522-1813'
 
         if os.path.exists(build_dir):
             shutil.rmtree(build_dir)

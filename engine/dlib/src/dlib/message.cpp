@@ -12,14 +12,14 @@
 namespace dmMessage
 {
     // Alignment of allocations
-    const uint32_t ALIGNMENT = 4U;
+    const uint32_t DM_MESSAGE_ALIGNMENT = 4U;
     // Page size must be a multiple of ALIGNMENT. Currently 4 but could be changed to 16.
     // This simplifies the allocation scheme
-    const uint32_t PAGE_SIZE = 4096U;
+    const uint32_t DM_MESSAGE_PAGE_SIZE = 4096U;
 
     struct MemoryPage
     {
-        uint8_t     m_Memory[PAGE_SIZE];
+        uint8_t     m_Memory[DM_MESSAGE_PAGE_SIZE];
         uint32_t    m_Current;
         MemoryPage* m_NextPage;
     };
@@ -69,11 +69,11 @@ namespace dmMessage
     static void* AllocateMessage(MemoryAllocator* allocator, uint32_t size)
     {
         // At least ALIGNMENT bytes alignment of size in order to ensure that the next allocation is aligned
-        size += ALIGNMENT-1;
-        size &= ~(ALIGNMENT-1);
-        assert(size <= PAGE_SIZE);
+        size += DM_MESSAGE_ALIGNMENT-1;
+        size &= ~(DM_MESSAGE_ALIGNMENT-1);
+        assert(size <= DM_MESSAGE_PAGE_SIZE);
 
-        if (allocator->m_CurrentPage == 0 || (PAGE_SIZE-allocator->m_CurrentPage->m_Current) < size)
+        if (allocator->m_CurrentPage == 0 || (DM_MESSAGE_PAGE_SIZE-allocator->m_CurrentPage->m_Current) < size)
         {
             // No current page or allocation didn't fit.
             AllocateNewPage(allocator);

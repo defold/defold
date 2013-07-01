@@ -143,6 +143,8 @@ public class Server implements ServerMBean {
     // be run-time changeable. Required for unit-tests
     private int openRegistrationMaxUsers;
 
+    private GitServer gitServer;
+
     class CleanBuildsThread extends Thread {
         private boolean quit = false;
 
@@ -358,9 +360,6 @@ public class Server implements ServerMBean {
             l.getFileCache().setEnabled(false);
             l.getFileCache().setMaxCacheEntries(0);
         }
-        GitServlet gitServlet = new GitServlet();
-        ServletHandler gitHandler = new ServletHandler(gitServlet);
-        gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
 
         /*
          * NOTE: The GitServlet and friends seems to be a bit budget
@@ -379,12 +378,26 @@ public class Server implements ServerMBean {
 
         String basePath = ResourceUtil.getGitBasePath(getConfiguration());
         logger.info("git base-path: {}", basePath);
-        gitHandler.addInitParameter("base-path", basePath);
-        gitHandler.addInitParameter("export-all", "1");
 
-        String baseUri = ResourceUtil.getGitBaseUri(getConfiguration());
-        logger.info("git base uri: {}", baseUri);
-        httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
+        if (getConfiguration().getGoGitSrv()) {
+            String crUrl  = String.format("http://%s:%d",
+                    configuration.getHostname(),
+                    configuration.getServicePort());
+
+            gitServer = new GitServer(crUrl, Activator.getDefault().getGitSrvPath(), basePath, getConfiguration().getGitsrvPort());
+            gitServer.start();
+        } else {
+            GitServlet gitServlet = new GitServlet();
+            ServletHandler gitHandler = new ServletHandler(gitServlet);
+            gitHandler.addFilter(new GitSecurityFilter(emf), "gitAuth", null);
+
+            gitHandler.addInitParameter("base-path", basePath);
+            gitHandler.addInitParameter("export-all", "1");
+
+            String baseUri = ResourceUtil.getGitBaseUri(getConfiguration());
+            logger.info("git base uri: {}", baseUri);
+            httpServer.getServerConfiguration().addHttpHandler(gitHandler, baseUri);
+        }
 
         /*
         if (!GitFactory.create(Type.CGIT).checkGitVersion()) {
@@ -706,6 +719,10 @@ public class Server implements ServerMBean {
                 logger.error(e.getMessage(), e);
             }
         }
+        if (getConfiguration().getGoGitSrv()) {
+            gitServer.stop();
+        }
+
         emf.close();
     }
 
