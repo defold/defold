@@ -1,7 +1,6 @@
 #include "texc.h"
 
 #include <assert.h>
-#include <unistd.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
