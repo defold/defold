@@ -16,7 +16,7 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     if 'android' in bld.env['PLATFORM']:
-        sound_lib = 'SOUND_NULL'
+        sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
     else:
         sound_lib = 'SOUND'
 
