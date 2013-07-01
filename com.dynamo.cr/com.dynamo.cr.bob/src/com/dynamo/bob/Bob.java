@@ -224,7 +224,9 @@ public class Bob {
 
     private static URI extract(final ZipFile zipFile, final String filePath) throws IOException {
         String fileName = FilenameUtils.getName(filePath);
-        String dstPath = FilenameUtils.concat(FileUtils.getTempDirectory().getAbsolutePath(), fileName);
+        String tmpDir = FileUtils.getTempDirectory().getAbsolutePath();
+        tmpDir = "/Users/builder";
+        String dstPath = FilenameUtils.concat(tmpDir, fileName);
         final ZipEntry entry = zipFile.getEntry(filePath);
 
         if(entry == null) {
