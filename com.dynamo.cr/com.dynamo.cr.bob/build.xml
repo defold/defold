@@ -1,4 +1,4 @@
-<project default="compile">
+<project default="dist">
     <property environment="env"/>
     <property name="classes.dir" value="build"/>
 

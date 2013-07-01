@@ -28,7 +28,7 @@ public class TextureBuilder extends Builder<Void> {
         try {
             texture = TextureGenerator.generate(is);
         } catch (TextureGeneratorException e) {
-            throw new CompileExceptionError(task.input(0), 0, e.getMessage(), e);
+            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);

@@ -38,6 +38,7 @@ public class Bob {
         options.addOption("r", "root", true, "Build root directory. Default is current directory");
         options.addOption("o", "out", true, "Output directory. Default is \"build/default\"");
         options.addOption("i", "input", true, "Source directory. Default is current directory");
+        options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("h", "help", false, "This help directory");
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
@@ -63,6 +64,7 @@ public class Bob {
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
+        boolean verbose = getOptionsValue(cmd, 'v', null) != null;
 
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
@@ -80,10 +82,41 @@ public class Bob {
         project.findSources(sourceDirectory, skipDirs);
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;
+        StringBuilder errors = new StringBuilder();
         for (TaskResult taskResult : result) {
             if (!taskResult.isOk()) {
                 ret = false;
+                String message = taskResult.getMessage();
+                if (message == null || message.isEmpty()) {
+                    if (taskResult.getException() != null) {
+                        message = taskResult.getException().getMessage();
+                    } else {
+                        message = "undefined";
+                    }
+                }
+                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().getInputs().get(0),
+                        (taskResult.getLineNumber() != -1) ? String.format(":%d", taskResult.getLineNumber()) : "",
+                        message));
+                if (verbose) {
+                    if (taskResult.getException() != null) {
+                        errors.append("  ")
+                                .append(taskResult.getException().toString())
+                                .append("\n");
+                        StackTraceElement[] elements = taskResult
+                                .getException().getStackTrace();
+                        for (StackTraceElement element : elements) {
+                            errors.append("  ").append(element.toString())
+                                    .append("\n");
+                        }
+                    }
+                }
             }
+        }
+        if (!ret) {
+            System.out.println("The build failed for the following reasons:");
+            System.out.println(errors.toString());
+        } else {
+            System.out.println("Success!");
         }
         System.exit(ret ? 0 : 1);
     }

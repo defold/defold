@@ -35,7 +35,6 @@ public class TextureGenerator {
     }
 
     static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
-
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
         BufferedImage image;
@@ -70,7 +69,7 @@ public class TextureGenerator {
         int[] rasterData = new int[dataSize];
         image.getRaster().getPixels(0, 0, width, height, rasterData);
         for (int i = 0; i < rasterData.length; ++i) {
-            buffer.put((byte)(rasterData[i] & 0xff));
+            buffer.put((byte) (rasterData[i] & 0xff));
         }
         buffer.flip();
         Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, buffer);
@@ -82,32 +81,30 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not resize texture to POT");
                 }
             }
-            // TODO Remove comments when pre-multiplied alpha is implemented (blending etc)
-//            if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
-//                if (!TexcLibrary.Texc_PreMultiplyAlpha(texture)) {
-//                    throw new TextureGeneratorException("could not premultiply alpha");
-//                }
-//            }
+            // TODO Remove comments when pre-multiplied alpha is implemented
+            // (blending etc)
+            // if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+            // if (!TexcLibrary.Texc_PreMultiplyAlpha(texture)) {
+            // throw new
+            // TextureGeneratorException("could not premultiply alpha");
+            // }
+            // }
             if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                 throw new TextureGeneratorException("could not generate mip-maps");
             }
             if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB)) {
                 throw new TextureGeneratorException("could not transcode");
             }
+            // twice the size for mip maps
             int bufferSize = widthPOT * heightPOT * componentCount * 2;
-            buffer = ByteBuffer.allocateDirect(bufferSize); // twice the size for mip maps
+            buffer = ByteBuffer.allocateDirect(bufferSize);
             dataSize = TexcLibrary.TEXC_GetData(texture, buffer, bufferSize);
             buffer.limit(dataSize);
 
             TextureImage.Builder textureBuilder = TextureImage.newBuilder();
 
-            TextureImage.Image.Builder raw = TextureImage.Image
-                    .newBuilder()
-                    .setWidth(widthPOT)
-                    .setHeight(heightPOT)
-                    .setOriginalWidth(width)
-                    .setOriginalHeight(height)
-                    .setFormat(textureFormat);
+            TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(widthPOT).setHeight(heightPOT)
+                    .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
 
             int w = widthPOT;
             int h = heightPOT;

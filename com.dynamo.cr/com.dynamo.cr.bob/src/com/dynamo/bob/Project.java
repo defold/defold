@@ -3,6 +3,7 @@ package com.dynamo.bob;
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -459,6 +460,9 @@ run:
     public void findSources(String path, Set<String> skipDirs) throws IOException {
         if (!new File(path).isAbsolute()) {
             path = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path));
+        }
+        if (!new File(path).exists()) {
+            throw new FileNotFoundException(String.format("the path '%s' can not be found", path));
         }
         Walker walker = new Walker(skipDirs);
         walker.walk(path);
