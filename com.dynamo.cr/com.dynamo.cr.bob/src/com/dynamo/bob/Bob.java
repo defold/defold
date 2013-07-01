@@ -58,9 +58,6 @@ public class Bob {
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
-        String libDir = getTexcLibDir();
-        String prop = "jna.library.path";
-        System.setProperty(prop, System.getProperty(prop) + File.pathSeparator + libDir);
 
         CommandLine cmd = parse(args);
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
@@ -145,7 +142,12 @@ public class Bob {
         String path = prefix + "texc_shared" + ext;
         File file = FileUtils.toFile(getFile(uri, path).toURL());
         if (!file.exists()) {
-            uri = new File(uri.getPath() + "build/").toURI();
+            String libPath = uri.getPath() + "lib/";
+            // No platform-qualified path in dev mode (waf install)
+            if (!isDev() || platform.equals("darwin")) {
+                libPath = libPath.concat(platform);
+            }
+            uri = new File(uri.getPath() + "lib/").toURI();
             file = FileUtils.toFile(getFile(uri, path).toURL());
         }
         texcLibDir = FileUtils.toFile(getFile(uri, path).toURL()).getParentFile().getAbsolutePath();
@@ -226,4 +228,14 @@ public class Bob {
             }
         }
     }
+
+    /**
+     * Return whether the editor is currently running in development mode or
+     * not. Based on if the "osgi.dev" system property is set or not.
+     */
+    private static boolean isDev() {
+        String dev = System.getProperty("osgi.dev");
+        return dev != null;
+    }
+
 }

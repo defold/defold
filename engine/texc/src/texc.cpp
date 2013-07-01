@@ -38,7 +38,7 @@ namespace dmTexc
         }
         // Should never get here
         assert(false);
-        return CS_SRGB;
+        return ePVRTCSpacesRGB;
     }
 
     HTexture Create(uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, void* data)

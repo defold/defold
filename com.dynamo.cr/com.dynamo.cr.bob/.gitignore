@@ -1,4 +1,6 @@
 /build
 /dist
 /tmp
+/lib/libtexc_shared*
+/lib/*/libtexc_shared*
 
