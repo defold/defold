@@ -1,6 +1,5 @@
 package com.dynamo.bob;
 
-import java.io.File;
 import java.nio.Buffer;
 
 import com.sun.jna.Native;
@@ -9,9 +8,8 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         String libDir = Bob.getTexcLibDir();
-        String prop = "jna.library.path";
-        System.setProperty(prop, System.getProperty(prop) + File.pathSeparator + libDir);
-        Bob.verbose("Added '%s' to '%s'", libDir, prop);
+        System.setProperty("jna.library.path", libDir);
+        Bob.verbose("Added '%s' to 'jna.library.path'", libDir);
         Native.register("texc_shared");
     }
 
