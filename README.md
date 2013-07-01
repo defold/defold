@@ -65,6 +65,13 @@ iOS Debugging
 * Select executable (dmengine.app)
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
+Android
+-------
+
+By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp. 
+g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c. 
+Life-cycle support should probably be moved to dlib at some point.
+
 
 Android SDK/NDK
 ---------------

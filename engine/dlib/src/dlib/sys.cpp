@@ -25,6 +25,19 @@
 #endif
 #endif
 
+#ifdef __ANDROID__
+#include <jni.h>
+#include <android_native_app_glue.h>
+
+extern "C" {
+    // By convention we have a global variable called g_AndroidApp
+    // This is currently created in glfw..
+    // Application life-cycle should perhaps be part of dlib instead
+    extern struct android_app* __attribute__((weak)) g_AndroidApp ;
+}
+#endif
+
+
 namespace dmSys
 {
 
@@ -168,10 +181,44 @@ namespace dmSys
         }
     }
 
+#elif defined(__ANDROID__)
+
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        ANativeActivity* activity = g_AndroidApp->activity;
+        JNIEnv* env = 0;
+        activity->vm->AttachCurrentThread( &env, 0);
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_files_dir_method = env->GetMethodID(activity_class, "getFilesDir", "()Ljava/io/File;");
+        jobject files_dir_obj = env->CallObjectMethod(activity->clazz, get_files_dir_method);
+        jclass file_class = env->FindClass("java/io/File");
+        jmethodID getPathMethod = env->GetMethodID(file_class, "getPath", "()Ljava/lang/String;");
+        jstring path_obj = (jstring) env->CallObjectMethod(files_dir_obj, getPathMethod);
+        const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
+
+        Result res = RESULT_OK;
+        if (dmStrlCpy(path, filesDir, path_len) >= path_len) {
+            res = RESULT_INVAL;
+        }
+        env->ReleaseStringUTFChars(path_obj, filesDir);
+        activity->vm->DetachCurrentThread();
+        return res;
+    }
+
+    Result OpenURL(const char* url)
+    {
+        // TODO:
+        return RESULT_UNKNOWN;
+    }
+
 #elif defined(__linux__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         char* home = getenv("HOME");
+        if (!home)
+            return RESULT_UNKNOWN;
+
         if (dmStrlCpy(path, home, path_len) >= path_len)
             return RESULT_INVAL;
         if (dmStrlCat(path, "/", path_len) >= path_len)

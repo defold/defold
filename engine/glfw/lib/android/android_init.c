@@ -154,6 +154,8 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     }
 }
 
+struct android_app* g_AndroidApp;
+
 void _glfwPreMain(struct android_app* state)
 {
     int i;
@@ -161,6 +163,7 @@ void _glfwPreMain(struct android_app* state)
     int events;
     struct android_poll_source* source;
 
+    g_AndroidApp = state;
     _glfwWin.iconified = GL_TRUE;
     _glfwAndrodApp = state;
 
