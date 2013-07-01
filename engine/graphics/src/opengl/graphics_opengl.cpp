@@ -526,6 +526,10 @@ static void LogFrameBufferError(GLenum status)
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(Graphics, "SetVertexBufferData");
+        // NOTE: Android doesn't seem to like zero-sized vertex buffers
+        if (size == 0) {
+            return;
+        }
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, buffer_usage);
