@@ -2,8 +2,6 @@
 
 #include "../texc.h"
 
-#include <unistd.h>
-
 class TexcTest : public ::testing::Test
 {
 protected:
