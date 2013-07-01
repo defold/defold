@@ -32,6 +32,7 @@ import org.apache.commons.io.FilenameUtils;
 public class Bob {
 
     private static String texcLibDir = null;
+    private static boolean verbose = false;
 
     private static CommandLine parse(String[] args) {
         Options options = new Options();
@@ -64,7 +65,7 @@ public class Bob {
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
-        boolean verbose = getOptionsValue(cmd, 'v', null) != null;
+        verbose = cmd.hasOption('v');
 
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
@@ -183,7 +184,7 @@ public class Bob {
             uri = new File(uri.getPath() + "lib/").toURI();
             file = FileUtils.toFile(getFile(uri, path).toURL());
         }
-        texcLibDir = FileUtils.toFile(getFile(uri, path).toURL()).getParentFile().getAbsolutePath();
+        texcLibDir = file.getParentFile().getAbsolutePath();
     }
 
     private static URI getJarURI() throws URISyntaxException {
@@ -248,6 +249,7 @@ public class Bob {
             close(zipStream);
             close(fileStream);
         }
+        verbose("Extracted '%s' from '%s' to '%s'", filePath, zipFile.getName(), dstPath);
 
         return (new File(dstPath).toURI());
     }
@@ -271,4 +273,9 @@ public class Bob {
         return dev != null;
     }
 
+    public static void verbose(String message, Object... args) {
+        if (verbose) {
+            System.out.println("Bob: " + String.format(message, args));
+        }
+    }
 }

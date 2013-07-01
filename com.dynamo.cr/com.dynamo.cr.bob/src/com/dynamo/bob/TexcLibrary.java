@@ -11,6 +11,7 @@ public class TexcLibrary {
         String libDir = Bob.getTexcLibDir();
         String prop = "jna.library.path";
         System.setProperty(prop, System.getProperty(prop) + File.pathSeparator + libDir);
+        Bob.verbose("Added '%s' to '%s'", libDir, prop);
         Native.register("texc_shared");
     }
 
