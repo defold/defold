@@ -70,16 +70,19 @@ public class Project {
     @SuppressWarnings("unchecked")
     private void doScan(Set<String> classNames) {
         for (String className : classNames) {
-            try {
-                Class<?> klass = Class.forName(className);
-                BuilderParams params = klass.getAnnotation(BuilderParams.class);
-                if (params != null) {
-                    for (String inExt : params.inExts()) {
-                        extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+            // Ignore TexcLibrary to avoid it being loaded and initialized
+            if (!className.startsWith("com.dynamo.bob.TexcLibrary")) {
+                try {
+                    Class<?> klass = Class.forName(className);
+                    BuilderParams params = klass.getAnnotation(BuilderParams.class);
+                    if (params != null) {
+                        for (String inExt : params.inExts()) {
+                            extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+                        }
                     }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         }
     }

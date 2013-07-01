@@ -1,13 +1,15 @@
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 
 import org.junit.Test;
 
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
+import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 
 public class TextureGeneratorTest {
 
@@ -27,6 +29,7 @@ public class TextureGeneratorTest {
 
         assertEquals(1, texture.getAlternativesCount());
         Image image = texture.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, image.getFormat());
         assertEquals(mipMaps.length, image.getMipMapOffsetCount());
 
         int offset = 0;
@@ -38,6 +41,65 @@ public class TextureGeneratorTest {
             offset += size;
             ++i;
         }
+    }
+
+    @Test
+    public void testLuminance() throws TextureGeneratorException, IOException {
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_lum.png"));
+
+        assertEquals(1, texture.getAlternativesCount());
+        Image image = texture.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, image.getFormat());
+    }
+
+    @Test
+    public void testRGB() throws TextureGeneratorException, IOException {
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"));
+
+        assertEquals(1, texture.getAlternativesCount());
+        Image image = texture.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, image.getFormat());
+    }
+
+    @Test
+    public void testIndexed() throws TextureGeneratorException, IOException {
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_idx.png"));
+
+        assertEquals(1, texture.getAlternativesCount());
+        Image image = texture.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, image.getFormat());
+    }
+
+    @Test
+    public void testMipMaps() throws TextureGeneratorException, IOException {
+        int[][] mipMaps = new int[][] {
+                { 256, 256 },
+                { 128, 128 },
+                { 64, 64 },
+                { 32, 32 },
+                { 16, 16 },
+                { 8, 8 },
+                { 4, 4 },
+                { 2, 2 },
+                { 1, 1 } };
+
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("btn_next_level.png"));
+
+        assertEquals(1, texture.getAlternativesCount());
+        Image image = texture.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, image.getFormat());
+        assertEquals(mipMaps.length, image.getMipMapOffsetCount());
+
+        int offset = 0;
+        int i = 0;
+        for (int[] dim : mipMaps) {
+            int size = dim[0] * dim[1] * 4;
+            assertEquals(offset, image.getMipMapOffset(i));
+            assertEquals(size, image.getMipMapSize(i));
+            offset += size;
+            ++i;
+        }
+        assertEquals(offset, image.getData().size());
     }
 
     @Test
@@ -64,18 +126,18 @@ public class TextureGeneratorTest {
 
     @Test
     public void testClosestPowerTwo() throws TextureGeneratorException, IOException {
-        assertEquals(128, TextureGenerator.closestPowerTwo(127));
-        assertEquals(128, TextureGenerator.closestPowerTwo(129));
+        assertEquals(128, TextureUtil.closestPOT(127));
+        assertEquals(128, TextureUtil.closestPOT(129));
 
-        assertEquals(1, TextureGenerator.closestPowerTwo(1));
-        assertEquals(2, TextureGenerator.closestPowerTwo(2));
-        assertEquals(4, TextureGenerator.closestPowerTwo(3));
-        assertEquals(4, TextureGenerator.closestPowerTwo(5));
-        assertEquals(8, TextureGenerator.closestPowerTwo(6));
-        assertEquals(8, TextureGenerator.closestPowerTwo(7));
-        assertEquals(8, TextureGenerator.closestPowerTwo(8));
-        assertEquals(8, TextureGenerator.closestPowerTwo(9));
-        assertEquals(8, TextureGenerator.closestPowerTwo(10));
+        assertEquals(1, TextureUtil.closestPOT(1));
+        assertEquals(2, TextureUtil.closestPOT(2));
+        assertEquals(4, TextureUtil.closestPOT(3));
+        assertEquals(4, TextureUtil.closestPOT(5));
+        assertEquals(8, TextureUtil.closestPOT(6));
+        assertEquals(8, TextureUtil.closestPOT(7));
+        assertEquals(8, TextureUtil.closestPOT(8));
+        assertEquals(8, TextureUtil.closestPOT(9));
+        assertEquals(8, TextureUtil.closestPOT(10));
 
     }
 

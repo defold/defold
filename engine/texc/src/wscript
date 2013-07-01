@@ -1,0 +1,22 @@
+#! /usr/bin/env python
+import os
+
+def configure(conf):
+    pass
+
+def build(bld):
+    texc = bld.new_task_gen(features = 'cxx cstaticlib',
+                                includes = ['.'],
+                                target = 'texc',
+                                uselib = 'PVRTEXLIB DLIB',
+                                source = 'texc.cpp')
+
+    texc_shared = bld.new_task_gen(features = 'cxx cshlib',
+                                       includes = ['.'],
+                                       target = 'texc_shared',
+                                       uselib = 'PVRTEXLIB DLIB',
+                                       source = 'texc.cpp')
+
+    bld.install_files('${PREFIX}/include/texc', 'texc.h')
+
+    bld.add_subdirs('test')
