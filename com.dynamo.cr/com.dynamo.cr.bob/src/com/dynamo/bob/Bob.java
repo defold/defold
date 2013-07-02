@@ -132,7 +132,6 @@ public class Bob {
     }
 
     public static String getTexcLibDir() {
-        // Fallback for testing
         if (texcLibDir == null) {
             try {
                 setTexcLibDir();

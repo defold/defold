@@ -7,10 +7,14 @@ import com.sun.jna.Pointer;
 
 public class TexcLibrary {
     static {
-        String libDir = Bob.getTexcLibDir();
-        System.setProperty("jna.library.path", libDir);
-        Bob.verbose("Added '%s' to 'jna.library.path'", libDir);
-        Native.register("texc_shared");
+        try {
+            String libDir = Bob.getTexcLibDir();
+            System.setProperty("jna.library.path", libDir);
+            Bob.verbose("Added '%s' to 'jna.library.path'", libDir);
+            Native.register("texc_shared");
+        } catch (Exception e) {
+            System.out.println("FATAL: " + e.getMessage());
+        }
     }
 
     public interface PixelFormat {
