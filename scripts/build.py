@@ -15,7 +15,7 @@ PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidi
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0".split()
 
 def get_host_platform():
