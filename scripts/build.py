@@ -233,18 +233,19 @@ class Configuration(object):
 
         eclipse = '--eclipse' if self.eclipse else ''
 
+        # Base platforms is the set of platforms to build the base libs for
+        # The base libs are the libs needed to build bob, i.e. contains compiler code
+        base_platforms = [self.host]
         if self.target_platform.startswith('x86_64'):
             # Only partial support for 64-bit
             libs="dlib ddf texc particle".split()
+            base_platforms.append(self.target_platform)
         else:
             libs="dlib ddf texc particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         base_libs = ['dlib', 'texc']
-        platforms = [self.host]
-        if self.target_platform != self.host:
-            platforms.append(self.target_platform)
-        for platform in platforms:
+        for platform in base_platforms:
             for lib in base_libs:
                 self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
                 cwd = join(self.defold_root, 'engine/%s' % (lib))
