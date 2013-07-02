@@ -235,17 +235,24 @@ class Configuration(object):
 
         if self.target_platform.startswith('x86_64'):
             # Only partial support for 64-bit
-            libs="dlib ddf particle".split()
+            libs="dlib ddf texc particle".split()
         else:
-            libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
+            libs="dlib ddf texc particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         base_libs = ['dlib', 'texc']
-        for lib in base_libs:
-            self._log('Building %s for host platform' % (lib))
-            cwd = join(self.defold_root, 'engine/%s' % (lib))
-            cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_command(cmd.split(), cwd = cwd)
+        platforms = [self.host]
+        if self.target_platform != self.host:
+            platforms.append(self.target_platform)
+        for platform in platforms:
+            for lib in base_libs:
+                self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
+                cwd = join(self.defold_root, 'engine/%s' % (lib))
+                pf_arg = ""
+                if platform != self.host:
+                    pf_arg = "--platform=%s" % (platform)
+                cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
+                self.exec_command(cmd.split(), cwd = cwd)
 
         self._log('Building bob')
 

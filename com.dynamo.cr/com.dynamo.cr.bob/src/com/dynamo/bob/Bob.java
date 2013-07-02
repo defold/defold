@@ -167,7 +167,7 @@ public class Bob {
         if (platform.equals("win32")) {
             ext = ".dll";
         } else if (platform.equals("darwin")) {
-            prefix = "lib";
+            prefix = "x86_64-darwin/lib";
             ext = ".dylib";
         } else if (platform.equals("linux")) {
             prefix = "lib";
@@ -225,7 +225,6 @@ public class Bob {
     private static URI extract(final ZipFile zipFile, final String filePath) throws IOException {
         String fileName = FilenameUtils.getName(filePath);
         String tmpDir = FileUtils.getTempDirectory().getAbsolutePath();
-        tmpDir = "/Users/builder";
         String dstPath = FilenameUtils.concat(tmpDir, fileName);
         final ZipEntry entry = zipFile.getEntry(filePath);
 
