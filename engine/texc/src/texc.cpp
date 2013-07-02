@@ -64,9 +64,19 @@ namespace dmTexc
     {
         if (texture != INVALID_TEXTURE && out_header != 0x0)
         {
-            assert(sizeof(Header) == sizeof(PVRTextureHeaderV3));
             PVRTextureHeaderV3 src = ((pvrtexture::CPVRTexture*)texture)->getFileHeader();
-            memcpy(out_header, &src, sizeof(PVRTextureHeaderV3));
+            out_header->m_Version = src.u32Version;
+            out_header->m_Flags = src.u32Flags;
+            out_header->m_PixelFormat = src.u64PixelFormat;
+            out_header->m_ColourSpace = src.u32ColourSpace;
+            out_header->m_ChannelType = src.u32ChannelType;
+            out_header->m_Height = src.u32Height;
+            out_header->m_Width = src.u32Width;
+            out_header->m_Depth = src.u32Depth;
+            out_header->m_NumSurfaces = src.u32NumSurfaces;
+            out_header->m_NumFaces = src.u32NumFaces;
+            out_header->m_MipMapCount = src.u32MIPMapCount;
+            out_header->m_MetaDataSize = src.u32MetaDataSize;
             return true;
         }
         else
