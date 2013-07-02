@@ -221,10 +221,12 @@ class Configuration(object):
             self.exec_command(['scp', engine,
                                '%s/dmengine_release%s.%s' % (full_archive_path, exe_ext, sha1)])
 
-        libparticle = join(dynamo_home, 'lib', lib_dir, '%sparticle_shared%s' % (lib_prefix, lib_ext))
-        self._log('Archiving %s' % libparticle)
-        self.exec_command(['scp', libparticle,
-                           '%s/%sparticle_shared%s.%s' % (full_archive_path, lib_prefix, lib_ext, sha1)])
+        libs = ['particle', 'texc']
+        for lib in libs:
+            lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
+            self._log('Archiving %s' % lib_path)
+            self.exec_command(['scp', lib_path,
+                               '%s/%s%s_shared%s.%s' % (full_archive_path, lib_prefix, lib, lib_ext, sha1)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
