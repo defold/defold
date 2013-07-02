@@ -238,10 +238,10 @@ class Configuration(object):
         base_platforms = [self.host]
         if self.target_platform.startswith('x86_64'):
             # Only partial support for 64-bit
-            libs="dlib ddf texc particle".split()
+            libs="dlib ddf particle".split()
             base_platforms.append(self.target_platform)
         else:
-            libs="dlib ddf texc particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
+            libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
         base_libs = ['dlib', 'texc']
