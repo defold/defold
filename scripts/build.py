@@ -221,7 +221,9 @@ class Configuration(object):
             self.exec_command(['scp', engine,
                                '%s/dmengine_release%s.%s' % (full_archive_path, exe_ext, sha1)])
 
-        libs = ['particle', 'texc']
+        libs = ['particle']
+        if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
+            libs.append('texc')
         for lib in libs:
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
             self._log('Archiving %s' % lib_path)
