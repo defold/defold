@@ -5,6 +5,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 
+import com.dynamo.cr.common.util.DDFUtil;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -129,6 +130,17 @@ public class SpriteNode extends ComponentTypeNode {
 
     public void setBlendMode(BlendMode blendMode) {
         this.blendMode = blendMode;
+    }
+
+    public IStatus validateBlendMode() {
+        if (this.blendMode == BlendMode.BLEND_MODE_ADD_ALPHA) {
+            String add = DDFUtil.getEnumValueDisplayName(BlendMode.BLEND_MODE_ADD.getValueDescriptor());
+            String addAlpha = DDFUtil.getEnumValueDisplayName(BlendMode.BLEND_MODE_ADD_ALPHA.getValueDescriptor());
+            return new Status(Status.WARNING, Activator.PLUGIN_ID, String.format("'%s' has been replaced by '%s'",
+                    addAlpha, add));
+        } else {
+            return Status.OK_STATUS;
+        }
     }
 
     @Override

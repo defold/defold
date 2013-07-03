@@ -31,6 +31,9 @@ namespace dmGameSystem
         {
             return r;
         }
+        // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
+        if (tile_grid_ddf->m_BlendMode == dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA)
+            tile_grid_ddf->m_BlendMode = dmGameSystemDDF::TileGrid::BLEND_MODE_ADD;
         tile_grid->m_TileGrid = tile_grid_ddf;
         TextureSetResource* texture_set = tile_grid->m_TextureSet;
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;

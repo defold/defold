@@ -154,6 +154,9 @@ namespace dmGameSystem
             // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
             dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
             dmGui::BlendMode blend_mode = (dmGui::BlendMode) node_desc->m_BlendMode;
+            // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
+            if (blend_mode == dmGui::BLEND_MODE_ADD_ALPHA)
+                blend_mode = dmGui::BLEND_MODE_ADD;
             dmGui::AdjustMode adjust_mode = (dmGui::AdjustMode) node_desc->m_AdjustMode;
 
             Vector4 position = node_desc->m_Position;
@@ -306,23 +309,19 @@ namespace dmGameSystem
             switch (blend_mode)
             {
                 case dmGui::BLEND_MODE_ALPHA:
-                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                     ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
                 break;
 
                 case dmGui::BLEND_MODE_ADD:
+                case dmGui::BLEND_MODE_ADD_ALPHA:
                     ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                     ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                 break;
 
-                case dmGui::BLEND_MODE_ADD_ALPHA:
-                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
-                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                break;
-
                 case dmGui::BLEND_MODE_MULT:
-                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ZERO;
-                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_SRC_COLOR;
+                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
                 break;
 
                 default:

@@ -2,6 +2,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 
 import org.junit.Test;
@@ -139,6 +140,21 @@ public class TextureGeneratorTest {
         assertEquals(8, TextureUtil.closestPOT(9));
         assertEquals(8, TextureUtil.closestPOT(10));
 
+    }
+
+    @Test
+    public void testPreMultipliedAlpha() throws TextureGeneratorException, IOException {
+        BufferedImage srcImage = new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR);
+        // full transparent white pixel
+        int pixel = (0 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
+        srcImage.setRGB(0, 0, pixel);
+        TextureImage texture = TextureGenerator.generate(srcImage);
+
+        Image image = texture.getAlternatives(0);
+        assertEquals((byte) 0, image.getData().byteAt(0));
+        assertEquals((byte) 0, image.getData().byteAt(1));
+        assertEquals((byte) 0, image.getData().byteAt(2));
+        assertEquals((byte) 0, image.getData().byteAt(3));
     }
 
 }

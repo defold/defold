@@ -7,6 +7,15 @@ import Image
 from optparse import OptionParser
 import graphics_ddf_pb2
 
+def premult_alpha(img):
+    w, _ = img.size
+    for i, px in enumerate(img.getdata()):
+        a = px[3] / 255.0
+        y = i / w
+        x = i % w
+        new_px = (int(px[0] * a), int(px[1] * a), int(px[2] * a), px[3])
+        img.putpixel((x, y), new_px)
+
 def compile_uncompressed(source_name, source_image, texture_image):
     image = texture_image.alternatives.add()
     image.width, image.height = source_image.size
@@ -19,6 +28,9 @@ def compile_uncompressed(source_name, source_image, texture_image):
 
     mip_maps = ""
     w, h = image.width, image.height
+    # premultiply alpha for RGBA
+    if source_image.mode == "RGBA":
+        premult_alpha(source_image)
     current = source_image
     while not (w == 0 and h == 0):
         w = max(1, w)

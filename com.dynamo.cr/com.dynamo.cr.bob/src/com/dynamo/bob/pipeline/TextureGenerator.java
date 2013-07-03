@@ -81,14 +81,11 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not resize texture to POT");
                 }
             }
-            // TODO Remove comments when pre-multiplied alpha is implemented
-            // (blending etc)
-            // if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
-            // if (!TexcLibrary.Texc_PreMultiplyAlpha(texture)) {
-            // throw new
-            // TextureGeneratorException("could not premultiply alpha");
-            // }
-            // }
+            if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+                if (!TexcLibrary.TEXC_PreMultiplyAlpha(texture)) {
+                    throw new TextureGeneratorException("could not premultiply alpha");
+                }
+            }
             if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                 throw new TextureGeneratorException("could not generate mip-maps");
             }
