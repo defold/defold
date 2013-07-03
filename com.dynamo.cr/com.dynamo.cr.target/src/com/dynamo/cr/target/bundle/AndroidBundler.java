@@ -2,7 +2,6 @@ package com.dynamo.cr.target.bundle;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -21,8 +20,6 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.common.util.Exec.Result;
@@ -30,7 +27,6 @@ import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.target.core.TargetPlugin;
 
 public class AndroidBundler {
-    private static Logger logger = LoggerFactory.getLogger(AndroidBundler.class);
     private ProjectProperties projectProperties;
     private String exe;
     private String projectRoot;
@@ -202,7 +198,6 @@ public class AndroidBundler {
                 String p = normalize(r.getPath(), true).substring(prefixLen);
                 if (!(p.startsWith("/builtins") || p.equals("/game.arc"))) {
                     String ap = normalize("assets" + p, true);
-                    System.out.println(ap);
                     zipOut.putNextEntry(new ZipEntry(ap));
                     FileUtils.copyFile(r, zipOut);
                 }
