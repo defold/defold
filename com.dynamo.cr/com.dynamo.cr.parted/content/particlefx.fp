@@ -8,7 +8,7 @@ uniform vec4 tint;
 void main()
 {
     // Pre-multiply alpha since all runtime textures already are
-    tint.xyz *= tint.w;
+    vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);
     // var_color is vertex color from the particle system, already pre-multiplied
-    gl_FragColor = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy) * var_color * tint;
+    gl_FragColor = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy) * var_color * tint_pm;
 }
