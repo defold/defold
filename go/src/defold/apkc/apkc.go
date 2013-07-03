@@ -17,6 +17,7 @@ import (
 	"defold/apkc/sign"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -57,11 +58,11 @@ func main() {
 	}
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	err = s.SignZip(inZip, outZip)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }

@@ -123,6 +123,10 @@ func loadPemCert(fileName string) (*x509.Certificate, error) {
 	}
 
 	pemBlock, _ := pem.Decode(data)
+	if pemBlock == nil {
+		return nil, fmt.Errorf("unable to parse certificate %s", fileName)
+	}
+
 	certList, err := x509.ParseCertificates(pemBlock.Bytes)
 	if err != nil {
 		return nil, err
