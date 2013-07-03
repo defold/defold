@@ -22,17 +22,6 @@ namespace dmGraphics
         sizeof(float) // TYPE_FLOAT
     };
 
-    uint16_t TEXTURE_FORMAT_SIZE[] =
-    {
-        1, // TEXTURE_FORMAT_LUMINANCE
-        3, // TEXTURE_FORMAT_RGB
-        4, // TEXTURE_FORMAT_RGBA
-        3, // TEXTURE_FORMAT_RGB_DXT1
-        4, // TEXTURE_FORMAT_RGBA_DXT1
-        4, // TEXTURE_FORMAT_RGBA_DXT3
-        4 // TEXTURE_FORMAT_RGBA_DXT5
-    };
-
     bool g_ContextCreated = false;
 
     Context::Context(const ContextParams& params)
@@ -40,6 +29,11 @@ namespace dmGraphics
         memset(this, 0, sizeof(*this));
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -681,9 +675,9 @@ namespace dmGraphics
         }
     }
 
-    bool IsTextureFormatSupported(TextureFormat format)
+    bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return true;
+        return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
     HTexture NewTexture(HContext context, const TextureParams& params)

@@ -18,6 +18,7 @@ message TextureImage
         TEXTURE_FORMAT_RGB_PVRTC_4BPPV1  = 8;
         TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 = 9;
         TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 = 10;
+        TEXTURE_FORMAT_RGB_ETC1          = 11;
     }
 
     message Image

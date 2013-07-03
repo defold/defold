@@ -82,6 +82,7 @@ namespace dmGraphics
         uint32_t                    m_WindowWidth;
         uint32_t                    m_WindowHeight;
         uint32_t                    m_StencilMask;
+        uint32_t                    m_TextureFormatSupport;
         uint32_t                    m_WindowOpened : 1;
         uint32_t                    m_RedMask : 1;
         uint32_t                    m_GreenMask : 1;

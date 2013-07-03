@@ -232,6 +232,11 @@ static void LogFrameBufferError(GLenum status)
         m_ModificationVersion = 1;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        // Formats supported on all platforms
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -274,6 +279,36 @@ static void LogFrameBufferError(GLenum status)
             return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
         // Close by default
         return 1;
+    }
+
+    static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
+    {
+        // Copied from http://www.opengl.org/archives/resources/features/OGLextensions/
+        const GLubyte *start;
+
+        /* Extension names should not have spaces. */
+        GLubyte* where = (GLubyte *) strchr(extension, ' ');
+        if (where || *extension == '\0')
+            return false;
+
+        /* It takes a bit of care to be fool-proof about parsing the
+           OpenGL extensions string. Don't be fooled by sub-strings,
+           etc. */
+
+        start = extensions;
+        GLubyte* terminator;
+        for (;;) {
+            where = (GLubyte *) strstr((const char *) start, extension);
+            if (!where)
+                break;
+            terminator = where + strlen(extension);
+            if (where == start || *(where - 1) == ' ')
+                if (*terminator == ' ' || *terminator == '\0')
+                    return true;
+            start = terminator;
+        }
+
+        return false;
     }
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
@@ -396,6 +431,33 @@ static void LogFrameBufferError(GLenum status)
         if (err == noErr)
             (void) SetFrontProcess( &psn );
 #endif
+
+        // Check texture format support
+        const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+        if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+        }
+        if (IsExtensionSupported("GL_EXT_texture_compression_dxt1", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_DXT1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT1;
+        }
+        if (IsExtensionSupported("GL_EXT_texture_compression_dxt3", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT3;
+        }
+        if (IsExtensionSupported("GL_EXT_texture_compression_dxt5", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_DXT5;
+        }
+        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
 
         return WINDOW_RESULT_OK;
     }
@@ -1135,51 +1197,9 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    bool IsTextureFormatSupported(TextureFormat format)
+    bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        switch (format)
-        {
-        // Supported on all platforms
-        case TEXTURE_FORMAT_LUMINANCE:
-        case TEXTURE_FORMAT_RGB:
-        case TEXTURE_FORMAT_RGBA:
-        case TEXTURE_FORMAT_DEPTH:
-            return true;
-
-#ifndef ANDROID
-        // No support for compressed textures on Android for now (different hardware)
-
-#ifndef __arm__
-        // Non arm platform. We currently assume that DXT* is supported
-        case TEXTURE_FORMAT_RGB_DXT1:
-        case TEXTURE_FORMAT_RGBA_DXT1:
-        case TEXTURE_FORMAT_RGBA_DXT3:
-        case TEXTURE_FORMAT_RGBA_DXT5:
-            return true;
-
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-            return false;
-#else
-        // Arm platforms. We assume PVRTC* support
-        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-            return true;
-
-        case TEXTURE_FORMAT_RGB_DXT1:
-        case TEXTURE_FORMAT_RGBA_DXT1:
-        case TEXTURE_FORMAT_RGBA_DXT3:
-        case TEXTURE_FORMAT_RGBA_DXT5:
-            return false;
-
-#endif
-#endif
-        }
-        return false;
+        return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
     HTexture NewTexture(HContext context, const TextureParams& params)
@@ -1238,58 +1258,53 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
 
         GLenum gl_format;
-        GLenum gl_type = GL_UNSIGNED_BYTE;
+        GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
+        // Only used for uncompressed formats
         GLint internal_format;
 
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
-            gl_format = GL_LUMINANCE;
-            internal_format = GL_LUMINANCE;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
             break;
         case TEXTURE_FORMAT_RGB:
-            gl_format = GL_RGB;
-            internal_format = GL_RGB;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             break;
         case TEXTURE_FORMAT_RGBA:
-            gl_format = GL_RGBA;
-            internal_format = GL_RGBA;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
 
-#ifndef ANDROID
-
-#ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
         case TEXTURE_FORMAT_RGB_DXT1:
-            gl_format = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1;
             break;
         case TEXTURE_FORMAT_RGBA_DXT1:
-            gl_format = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT1;
             break;
         case TEXTURE_FORMAT_RGBA_DXT3:
-            gl_format = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT3;
             break;
         case TEXTURE_FORMAT_RGBA_DXT5:
-            gl_format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT3;
             CHECK_GL_ERROR
             break;
-#endif
-
-#ifdef GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG
         case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-            gl_format = GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
             break;
         case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-            gl_format = GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
             break;
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-            gl_format = GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             break;
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-            gl_format = GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
             break;
-#endif
-
-#endif
+        case TEXTURE_FORMAT_RGB_ETC1:
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1;
+            break;
 
         case TEXTURE_FORMAT_DEPTH:
             gl_format = GL_DEPTH_COMPONENT;
@@ -1325,6 +1340,7 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+        case TEXTURE_FORMAT_RGB_ETC1:
             if (params.m_DataSize > 0)
                 glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
             CHECK_GL_ERROR
