@@ -1,0 +1,12 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def build(bld):
+    test_texc = bld.new_task_gen(features = 'cc cxx cprogram',
+                                     uselib = 'GTEST DLIB',
+                                     uselib_local = 'texc',
+                                     proto_gen_py = True,
+                                     target = 'test_texc')
+    test_texc.find_sources_in_dirs(['.'])
+
+    test_texc.install_path = None

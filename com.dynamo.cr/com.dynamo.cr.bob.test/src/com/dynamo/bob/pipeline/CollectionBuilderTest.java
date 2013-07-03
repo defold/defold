@@ -375,7 +375,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("}\n");
 
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(2, messages.size());
+        Assert.assertEquals(3, messages.size());
 
         CollectionDesc collection = (CollectionDesc)messages.get(0);
         Assert.assertEquals(1, collection.getInstancesCount());
@@ -414,7 +414,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
         addEmbeddedInstance(src, "go", components, p, r, s);
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(4, messages.size());
+        Assert.assertEquals(7, messages.size());
 
         CollectionDesc collection = (CollectionDesc)messages.get(0);
         Assert.assertEquals(3, collection.getInstancesCount());
@@ -462,12 +462,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("}\n");
 
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(3, messages.size());
+        Assert.assertEquals(5, messages.size());
 
         CollectionDesc collection = (CollectionDesc)messages.get(0);
         Assert.assertEquals(1, collection.getInstancesCount());
-        PrototypeDesc go = (PrototypeDesc)messages.get(1);
+        PrototypeDesc go = (PrototypeDesc)messages.get(2);
         Assert.assertEquals(1, go.getComponentsCount());
-        SpriteDesc sprite = (SpriteDesc)messages.get(2);
+        SpriteDesc sprite = (SpriteDesc)messages.get(4);
     }
 }

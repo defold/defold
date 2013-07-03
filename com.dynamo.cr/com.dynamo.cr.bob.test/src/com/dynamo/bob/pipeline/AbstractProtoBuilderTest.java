@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.IResource;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
@@ -37,12 +38,18 @@ public abstract class AbstractProtoBuilderTest {
                 throw new CompileExceptionError(project.getResource(file), result.getLineNumber(), result.getMessage());
             }
             Task<?> task = result.getTask();
-            messages.add(ParseUtil.parse(task.getOutputs().get(0)));
+            for (IResource output : task.getOutputs()) {
+                messages.add(ParseUtil.parse(output));
+            }
         }
         return messages;
     }
 
     protected void addFile(String file, String source) {
-        this.fileSystem.addFile(file, source.getBytes());
+        addFile(file, source.getBytes());
+    }
+
+    protected void addFile(String file, byte[] content) {
+        this.fileSystem.addFile(file, content);
     }
 }

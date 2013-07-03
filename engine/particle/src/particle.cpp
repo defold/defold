@@ -968,6 +968,10 @@ namespace dmParticle
             Vertex* vertex = &((Vertex*)vertex_buffer)[vertex_index];
 
             Vector4 c = particle->GetColor();
+            float a = c.getW();
+            c.setX(c.getX() * a);
+            c.setY(c.getY() * a);
+            c.setZ(c.getZ() * a);
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
 #define TO_SHORT(val) (uint16_t)(val * 65535.0f)
@@ -1437,6 +1441,9 @@ namespace dmParticle
             for (uint32_t i = 0; i < emitter_count; ++i)
             {
                 dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
+                // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
+                if (emitter_ddf->m_BlendMode == dmParticleDDF::BLEND_MODE_ADD_ALPHA)
+                    emitter_ddf->m_BlendMode = dmParticleDDF::BLEND_MODE_ADD;
                 EmitterPrototype* emitter = &prototype->m_Emitters[i];
                 emitter->m_Animation = dmHashString64(emitter_ddf->m_Animation);
                 emitter->m_BlendMode = emitter_ddf->m_BlendMode;

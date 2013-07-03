@@ -11,6 +11,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.cr.common.util.DDFUtil;
 import com.dynamo.cr.parted.Messages;
 import com.dynamo.cr.parted.ParticleEditorPlugin;
 import com.dynamo.cr.parted.curve.HermiteSpline;
@@ -452,6 +453,18 @@ public class EmitterNode extends Node implements Identifiable {
     public void setBlendMode(BlendMode blendMode) {
         this.blendMode = blendMode;
         reloadSystem(false);
+    }
+
+    public IStatus validateBlendMode() {
+        if (this.blendMode == BlendMode.BLEND_MODE_ADD_ALPHA) {
+            String add = DDFUtil.getEnumValueDisplayName(BlendMode.BLEND_MODE_ADD.getValueDescriptor());
+            String addAlpha = DDFUtil.getEnumValueDisplayName(BlendMode.BLEND_MODE_ADD_ALPHA.getValueDescriptor());
+            return new Status(Status.WARNING, ParticleEditorPlugin.PLUGIN_ID, String.format(
+                    "'%s' has been replaced by '%s'",
+                    addAlpha, add));
+        } else {
+            return Status.OK_STATUS;
+        }
     }
 
     public int getMaxParticleCount() {

@@ -142,23 +142,19 @@ namespace dmGameSystem
         switch (blend_mode)
         {
             case dmGameSystemDDF::TileGrid::BLEND_MODE_ALPHA:
-                source_blend_factor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                source_blend_factor = dmGraphics::BLEND_FACTOR_ONE;
                 destination_blend_factor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
             case dmGameSystemDDF::TileGrid::BLEND_MODE_ADD:
+            case dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA:
                 source_blend_factor = dmGraphics::BLEND_FACTOR_ONE;
                 destination_blend_factor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
-            case dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA:
-                source_blend_factor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
-                destination_blend_factor = dmGraphics::BLEND_FACTOR_ONE;
-            break;
-
             case dmGameSystemDDF::TileGrid::BLEND_MODE_MULT:
-                source_blend_factor = dmGraphics::BLEND_FACTOR_ZERO;
-                destination_blend_factor = dmGraphics::BLEND_FACTOR_SRC_COLOR;
+                source_blend_factor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                destination_blend_factor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
             default:

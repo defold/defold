@@ -329,23 +329,19 @@ namespace dmGameSystem
         switch (blend_mode)
         {
             case dmParticleDDF::BLEND_MODE_ALPHA:
-                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                 ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
             case dmParticleDDF::BLEND_MODE_ADD:
+            case dmParticleDDF::BLEND_MODE_ADD_ALPHA:
                 ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                 ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
-            case dmParticleDDF::BLEND_MODE_ADD_ALPHA:
-                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
-                ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-            break;
-
             case dmParticleDDF::BLEND_MODE_MULT:
-                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ZERO;
-                ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_SRC_COLOR;
+                ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
             default:

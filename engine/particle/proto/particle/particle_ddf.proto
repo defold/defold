@@ -99,7 +99,7 @@ enum BlendMode
 {
     BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
     BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
-    BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha"];
+    BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha (Deprecated)"];
     BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
 }
 

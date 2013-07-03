@@ -12,10 +12,10 @@ Run build.py --help for help
 """
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.8.4 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 PVRTexToolCL-2.08.28.0634 vpx-v0.9.7-p1".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0".split()
 
 def get_host_platform():
@@ -221,10 +221,14 @@ class Configuration(object):
             self.exec_command(['scp', engine,
                                '%s/dmengine_release%s.%s' % (full_archive_path, exe_ext, sha1)])
 
-        libparticle = join(dynamo_home, 'lib', lib_dir, '%sparticle_shared%s' % (lib_prefix, lib_ext))
-        self._log('Archiving %s' % libparticle)
-        self.exec_command(['scp', libparticle,
-                           '%s/%sparticle_shared%s.%s' % (full_archive_path, lib_prefix, lib_ext, sha1)])
+        libs = ['particle']
+        if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
+            libs.append('texc')
+        for lib in libs:
+            lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
+            self._log('Archiving %s' % lib_path)
+            self.exec_command(['scp', lib_path,
+                               '%s/%s%s_shared%s.%s' % (full_archive_path, lib_prefix, lib, lib_ext, sha1)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -239,12 +243,22 @@ class Configuration(object):
         else:
             libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
 
+        # Base platforms is the set of platforms to build the base libs for
+        # The base libs are the libs needed to build bob, i.e. contains compiler code
+        base_platforms = [self.host]
+        if self.host == 'darwin':
+            base_platforms.append('x86_64-darwin')
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
-        if self.is_cross_platform():
-            self._log('Building dlib for host platform')
-            cwd = join(self.defold_root, 'engine/dlib')
-            cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_command(cmd.split(), cwd = cwd)
+        base_libs = ['dlib', 'texc']
+        for platform in base_platforms:
+            for lib in base_libs:
+                self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
+                cwd = join(self.defold_root, 'engine/%s' % (lib))
+                pf_arg = ""
+                if platform != self.host:
+                    pf_arg = "--platform=%s" % (platform)
+                cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
+                self.exec_command(cmd.split(), cwd = cwd)
 
         self._log('Building bob')
 

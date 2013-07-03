@@ -3,6 +3,7 @@ package com.dynamo.bob;
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,16 +71,19 @@ public class Project {
     @SuppressWarnings("unchecked")
     private void doScan(Set<String> classNames) {
         for (String className : classNames) {
-            try {
-                Class<?> klass = Class.forName(className);
-                BuilderParams params = klass.getAnnotation(BuilderParams.class);
-                if (params != null) {
-                    for (String inExt : params.inExts()) {
-                        extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+            // Ignore TexcLibrary to avoid it being loaded and initialized
+            if (!className.startsWith("com.dynamo.bob.TexcLibrary")) {
+                try {
+                    Class<?> klass = Class.forName(className);
+                    BuilderParams params = klass.getAnnotation(BuilderParams.class);
+                    if (params != null) {
+                        for (String inExt : params.inExts()) {
+                            extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+                        }
                     }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         }
     }
@@ -456,6 +460,9 @@ run:
     public void findSources(String path, Set<String> skipDirs) throws IOException {
         if (!new File(path).isAbsolute()) {
             path = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path));
+        }
+        if (!new File(path).exists()) {
+            throw new FileNotFoundException(String.format("the path '%s' can not be found", path));
         }
         Walker walker = new Walker(skipDirs);
         walker.walk(path);
