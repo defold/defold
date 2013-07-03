@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BEGIN_INCLUDE(manifest) -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+        package="{{package}}"
+        android:versionCode="{{versionCode}}"
+        android:versionName="{{versionName}}">
+
+    <uses-sdk android:minSdkVersion="9" />
+    <application {{application_attr}} android:label="{{label}}" android:hasCode="false" android:debuggable="false">
+        <activity android:name="android.app.NativeActivity"
+                android:label="{{label}}"
+                android:configChanges="orientation|keyboardHidden">
+            <meta-data android:name="android.app.lib_name"
+                    android:value="dmengine_release" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>
+<!-- END_INCLUDE(manifest) -->
