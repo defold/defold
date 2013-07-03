@@ -180,7 +180,15 @@ class Configuration(object):
         return self.host != self.target_platform
 
     def archive_engine(self):
-        exe_ext = '.exe' if self.target_platform == 'win32' else ''
+        exe_prefix = ''
+        if self.target_platform == 'win32':
+            exe_ext = '.exe'
+        elif 'android' in self.target_platform:
+            exe_prefix = 'lib'
+            exe_ext = '.so'
+        else:
+            exe_ext = ''
+
         lib_ext = ''
         lib_prefix = 'lib'
         if 'darwin' in self.target_platform:
@@ -211,15 +219,15 @@ class Configuration(object):
             bin_dir = ''
             lib_dir = ''
 
-        engine = join(dynamo_home, 'bin', bin_dir, 'dmengine' + exe_ext)
-        engine_release = join(dynamo_home, 'bin', bin_dir, 'dmengine_release' + exe_ext)
+        engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine' + exe_ext)
+        engine_release = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_release' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             self._log('Archiving %s' % engine)
             self.exec_command(['scp', engine,
-                               '%s/dmengine%s.%s' % (full_archive_path, exe_ext, sha1)])
+                               '%s/%sdmengine%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
             self.exec_command(['scp', engine,
-                               '%s/dmengine_release%s.%s' % (full_archive_path, exe_ext, sha1)])
+                               '%s/%sdmengine_release%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
 
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':

@@ -710,7 +710,13 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (IOS_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
     elif platform == "armv7-android":
-        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86_64/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform)
+        # TODO: No windows support yet (unknown path to compiler when wrote this)
+        if build_platform == 'linux':
+            arch = 'x86'
+        else:
+            arch = 'x86_64'
+
+        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform, arch)
         conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
         conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
         conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)

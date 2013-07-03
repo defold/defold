@@ -15,7 +15,13 @@
 #include <direct.h>
 #else
 #include <unistd.h>
+#endif
+
+#include <sys/types.h>
 #include <sys/stat.h>
+
+#ifndef S_ISREG
+#define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
 
 #ifdef __MACH__

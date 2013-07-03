@@ -1,0 +1,15 @@
+Signature-Version: 1.0
+SHA1-Digest-Manifest: wgq6pHmGV2IdNtB1K47LhcuhF58=
+
+Name: lib/armeabi-v7a/gdb.setup
+SHA1-Digest: sAIEyT4V8a9Odl6AgipfPMZP2ww=
+
+Name: lib/armeabi-v7a/libdmengine.so
+SHA1-Digest: jFRrI0376px1pDIX4cjAjiXmNIA=
+
+Name: AndroidManifest.xml
+SHA1-Digest: 9MuXFB3mvN1pKUf6nxeB+zwF1dc=
+
+Name: lib/armeabi-v7a/gdbserver
+SHA1-Digest: J7QATaX85qnxq5kA10EoLCvUVA0=
+
