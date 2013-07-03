@@ -292,8 +292,9 @@ class Configuration(object):
         host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
 
+        sha1 = self._git_sha1()
         for p in glob(join(self.defold, 'go', 'bin', '*')):
-            self.exec_command(['scp', p, full_archive_path])
+            self.exec_command(['scp', p, full_archive_path + sha1])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
