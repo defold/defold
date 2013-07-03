@@ -1,0 +1,15 @@
+Manifest-Version: 1.0
+Created-By: 1.6.0_51 (Apple Inc.)
+
+Name: lib/armeabi-v7a/libdmengine.so
+SHA1-Digest: 1yN4zRbhAgmXduC40c/V9W7DHJI=
+
+Name: lib/armeabi-v7a/gdb.setup
+SHA1-Digest: KjRTlZl+m7qdbgpClRyMaOlOxKg=
+
+Name: AndroidManifest.xml
+SHA1-Digest: cV/curTIemB5Hi4FPO8KXds3N6Y=
+
+Name: lib/armeabi-v7a/gdbserver
+SHA1-Digest: FTB5i8nYgCgU7RXrvgVmjIGQgwE=
+
