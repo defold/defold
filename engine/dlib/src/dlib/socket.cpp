@@ -4,6 +4,10 @@
 #include <fcntl.h>
 #include <string.h>
 
+#if defined(__linux__)
+#include <linux/if.h>
+#endif
+
 #if defined(__linux__) || defined(__MACH__)
 #include <unistd.h>
 #include <sys/socket.h>
@@ -466,6 +470,41 @@ namespace dmSocket
 #if !(defined(__MACH__) && defined(__arm__))
     Result GetLocalAddress(Address* address)
     {
+#ifdef __ANDROID__
+        // NOTE: This method should probably be used on Linux as well
+        // fall-back to 127.0.0.1
+        *address = AddressFromIPString("127.0.0.1");
+
+        struct ifreq *ifr;
+        struct ifconf ifc;
+        char buf[2048];
+        int s = socket(AF_INET, SOCK_DGRAM, 0);
+        if (s < 0) {
+            // We just fall-back to 127.0.0.1
+            return RESULT_OK;
+        }
+
+        memset(&ifc, 0, sizeof(ifc));
+        ifr = (ifreq*) buf;
+        ifc.ifc_ifcu.ifcu_req = ifr;
+        ifc.ifc_len = sizeof(buf);
+        if (ioctl(s, SIOCGIFCONF, &ifc) < 0) {
+            // We just fall-back to 127.0.0.1
+            return RESULT_OK;
+        }
+
+        int numif = ifc.ifc_len / sizeof(struct ifreq);
+        for (int i = 0; i < numif; i++) {
+          struct ifreq *r = &ifr[i];
+          struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
+          if (strcmp(r->ifr_name, "lo") != 0) {
+              *address = ntohl(sin->sin_addr.s_addr);
+          }
+        }
+
+        close(s);
+        return RESULT_OK;
+#else
         /*
          * Get local address from reverse lookup of hostname
          * The method is potentially fragile. On iOS we iterate
@@ -490,6 +529,7 @@ namespace dmSocket
         }
 
         return RESULT_OK;
+#endif
     }
 #endif
 

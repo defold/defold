@@ -5,9 +5,14 @@ def configure(conf):
     pass
 
 def build(bld):
+    bld.add_subdirs('openal')
+
+    include = ''
+    if re.match('arm.*?android', bld.env['PLATFORM']):
+        include = 'openal/include'
 
     alut = bld.new_task_gen(features = 'cc cstaticlib',
-                            includes = '. alut',
+                            includes = '. alut %s' % include ,
                             target = 'alut')
 
     alut.find_sources_in_dirs('alut')
@@ -18,11 +23,10 @@ def build(bld):
     else:
         alut.defines = 'HAVE_STDINT_H HAVE_STAT HAVE_UNISTD_H HAVE_USLEEP'
 
-    if not re.match('arm.*?android', bld.env['PLATFORM']):
-        sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                                 includes = '. alut vorbis_tremor',
-                                 target = 'sound',
-                                 source = 'sound.cpp stb_vorbis/stb_vorbis.c')
+    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                             includes = '. alut vorbis_tremor %s' % include,
+                             target = 'sound',
+                             source = 'sound.cpp stb_vorbis/stb_vorbis.c')
 
     sound_null = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                              includes = '.',

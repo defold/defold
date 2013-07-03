@@ -13,6 +13,7 @@
 #include "array.h"
 #include "dstrings.h"
 #include "math.h"
+#include "sys.h"
 
 namespace dmConfigFile
 {
@@ -422,6 +423,26 @@ namespace dmConfigFile
 
     static Result LoadFromFileInternal(const char* url, const dmURI::Parts& uri_parts, int argc, const char** argv, HConfig* config)
     {
+#ifdef __ANDROID__
+        // TODO:
+        // This is not pretty but we wan't use dmSys::LoadResource()
+        // on all platforms as we must be able
+        // to load from any path (file:///...)
+        // We should probably add a new scheme resource: or similar
+        // to solve this situation.
+        uint32_t buffer_size = 1024 * 256;
+        void* buffer = malloc(buffer_size);
+
+        uint32_t project_size;
+        dmSys::Result sysr = dmSys::LoadResource(url, buffer, buffer_size, &project_size);
+        if (sysr != dmSys::RESULT_OK) {
+            return RESULT_FILE_NOT_FOUND;
+        }
+
+        Result r = LoadFromBufferInternal(url, (const char*) buffer, project_size, argc, argv, config);
+        free(buffer);
+        return r;
+#else
         FILE* f = fopen(url, "rb");
         if (!f)
         {
@@ -444,6 +465,7 @@ namespace dmConfigFile
         delete[] buffer;
 
         return r;
+#endif
     }
 
     static Result LoadFromHttpInternal(const char* url, const dmURI::Parts& uri_parts, int argc, const char** argv, HConfig* config)

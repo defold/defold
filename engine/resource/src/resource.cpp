@@ -523,37 +523,23 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
     else
     {
         // Load over local file system
-
-        FILE* f = fopen(path, "rb");
-        if (f == 0)
-        {
-            dmLogError("Resource not found: %s", path);
-            return RESULT_RESOURCE_NOT_FOUND;
+        uint32_t file_size;
+        dmSys::Result r = dmSys::LoadResource(path, factory->m_StreamBuffer, factory->m_StreamBufferSize, &file_size);
+        if (r == dmSys::RESULT_OK) {
+            // Extra byte for resources expecting null-terminated string...
+            if (file_size + 1 >= factory->m_StreamBufferSize) {
+                dmLogError("Resource too large for streambuffer: %s", path);
+                return RESULT_STREAMBUFFER_TOO_SMALL;
+            }
+            factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+            *resource_size = file_size;
+            return RESULT_OK;
+        } else {
+            if (r == dmSys::RESULT_NOENT)
+                return RESULT_RESOURCE_NOT_FOUND;
+            else
+                return RESULT_IO_ERROR;
         }
-
-        fseek(f, 0, SEEK_END);
-        long file_size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        *resource_size = (uint32_t) file_size;
-
-        // Extra byte for resources expecting null-terminated string...
-        if (file_size + 1 >= (long) factory->m_StreamBufferSize)
-        {
-            dmLogError("Resource too large for streambuffer: %s", path);
-            fclose(f);
-            return RESULT_STREAMBUFFER_TOO_SMALL;
-        }
-        factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
-
-        if (fread(factory->m_StreamBuffer, 1, file_size, f) != (size_t) file_size)
-        {
-            fclose(f);
-            return RESULT_IO_ERROR;
-        }
-
-        fclose(f);
-        return RESULT_OK;
     }
 }
 
