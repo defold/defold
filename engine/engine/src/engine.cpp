@@ -264,7 +264,7 @@ namespace dmEngine
             char* paths[] = { p1, p2, p3 };
             uint32_t count = 0;
 
-            dmStrlCpy(p1, "game.projectc", sizeof(p1));
+            dmStrlCpy(p1, "./game.projectc", sizeof(p1));
             dmStrlCpy(p2, "build/default/game.projectc", sizeof(p2));
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
@@ -278,8 +278,7 @@ namespace dmEngine
 
             for (uint32_t i = 0; i < count; ++i)
             {
-                struct stat file_stat;
-                if (stat(paths[i], &file_stat) == 0)
+                if (dmSys::ResourceExists(paths[i]))
                 {
                     dmStrlCpy(project_file, paths[i], project_file_size);
                     return true;
@@ -340,8 +339,7 @@ namespace dmEngine
             {
                 dmStrlCat(tmp, "game.arc", sizeof(tmp));
             }
-            struct stat stats;
-            if (stat(tmp, &stats) == 0)
+            if (dmSys::ResourceExists(tmp))
             {
                 dmStrlCpy(content_root, "arc:", sizeof(content_root));
                 dmStrlCat(content_root, tmp, sizeof(content_root));

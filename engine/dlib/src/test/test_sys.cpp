@@ -65,6 +65,26 @@ TEST(dmSys, GetResourcesPath)
     printf("GetResourcesPath: '%s'\n", path);
 }
 
+TEST(dmSys, LoadResource)
+{
+    char buffer[1024 * 100];
+    dmSys::Result r;
+    uint32_t size;
+    r = dmSys::LoadResource("does_not_exists", buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResource(".", buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResource("wscript", 0, 0, &size);
+    ASSERT_EQ(dmSys::RESULT_INVAL, r);
+
+    r = dmSys::LoadResource("wscript", buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_OK, r);
+
+    ASSERT_GT(size, 0);
+}
+
 int main(int argc, char **argv)
 {
     g_Argc = argc;

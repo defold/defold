@@ -120,3 +120,17 @@ Typically the getFactory and createExternalGLContext are in the same statement. 
 created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
 are unknown though.
 
+Asset loading
+-------------
+
+Assets can be loaded from file-system, from an archive or over http.
+
+See *dmResource::LoadResource* for low-level loading of assets, *dmResource* for general resource loading and *engine.cpp*
+for initialization. A current limitation is that we don't have a specific protocol for *resource:* For file-system, archive
+and http url schemes *file:*, *arc:* and *http:* are used respectively. See dmConfigFile for the limitation about the absence 
+of a resource-scheme.
+
+### Http Cache
+
+Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism 
+used if available in order to speed up the cache-validation process. See dlib, *dmHttpCache* and *ConsistencyPolicy*, for more information.

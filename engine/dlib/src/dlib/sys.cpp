@@ -28,13 +28,12 @@
 #ifdef __ANDROID__
 #include <jni.h>
 #include <android_native_app_glue.h>
-
-extern "C" {
-    // By convention we have a global variable called g_AndroidApp
-    // This is currently created in glfw..
-    // Application life-cycle should perhaps be part of dlib instead
-    extern struct android_app* __attribute__((weak)) g_AndroidApp ;
-}
+#include <sys/types.h>
+#include <android/asset_manager.h>
+// By convention we have a global variable called g_AndroidApp
+// This is currently created in glfw..
+// Application life-cycle should perhaps be part of dlib instead
+extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 #endif
 
 
@@ -281,4 +280,77 @@ namespace dmSys
 #endif
     }
 
+    bool ResourceExists(const char* path)
+    {
+#ifdef __ANDROID__
+        AAssetManager* am = g_AndroidApp->activity->assetManager;
+        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+        if (asset) {
+            AAsset_close(asset);
+            return true;
+        } else {
+            return false;
+        }
+#else
+        struct stat file_stat;
+        return stat(path, &file_stat) == 0;
+#endif
+    }
+
+    Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
+    {
+        *resource_size = 0;
+#ifdef __ANDROID__
+        // Fix path for android.
+        // We always try to have a path-root and '.'
+        // for current directory. Assets on Android
+        // are always loaded with relative path from assets
+        // E.g. The relative path to /assets/file is file
+        if (strcmp(path, "./") == 0) {
+            path += 2;
+        }
+        while (*path == '/') {
+            ++path;
+        }
+
+        AAssetManager* am = g_AndroidApp->activity->assetManager;
+        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_BUFFER);
+        if (asset) {
+            uint32_t asset_size = (uint32_t) AAsset_getLength(asset);
+            if (asset_size > buffer_size) {
+                return RESULT_INVAL;
+            }
+            int nread = AAsset_read(asset, buffer, asset_size);
+            AAsset_close(asset);
+            if (nread != asset_size) {
+                return RESULT_IO;
+            }
+            *resource_size = asset_size;
+            return RESULT_OK;
+        } else {
+            return RESULT_NOENT;
+        }
+#else
+        struct stat file_stat;
+        if (stat(path, &file_stat) == 0) {
+            if (!S_ISREG(file_stat.st_mode)) {
+                return RESULT_NOENT;
+            }
+            if (file_stat.st_size > buffer_size) {
+                return RESULT_INVAL;
+            }
+            FILE* f = fopen(path, "rb");
+            size_t nread = fread(buffer, 1, file_stat.st_size, f);
+            fclose(f);
+            if (nread != file_stat.st_size) {
+                return RESULT_IO;
+            }
+            *resource_size = file_stat.st_size;
+            return RESULT_OK;
+        } else {
+            return NativeToResult(errno);
+        }
+#endif
+    }
 }
