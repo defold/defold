@@ -186,6 +186,8 @@ class Configuration(object):
         elif 'android' in self.target_platform:
             exe_prefix = 'lib'
             exe_ext = '.so'
+        else:
+            exe_ext = ''
 
         lib_ext = ''
         lib_prefix = 'lib'
