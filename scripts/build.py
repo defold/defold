@@ -294,7 +294,7 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         for p in glob(join(self.defold, 'go', 'bin', '*')):
-            self.exec_command(['scp', p, full_archive_path + sha1])
+            self.exec_command(['scp', p, full_archive_path + "." + sha1])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
