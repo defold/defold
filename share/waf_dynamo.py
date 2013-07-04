@@ -300,7 +300,7 @@ def codesign(task):
 
     identity = task.env.IDENTITY
     if not identity:
-        identity = 'iPhone Developer: Christian MURRAY (QXZXCL5J5G)'
+        identity = 'iPhone Developer'
 
     mobileprovision = task.env.MOBILE_PROVISION
     if not mobileprovision:
@@ -308,10 +308,11 @@ def codesign(task):
     mobileprovision_path = os.path.join(task.env['DYNAMO_HOME'], 'share', mobileprovision)
     shutil.copyfile(mobileprovision_path, os.path.join(signed_exe_dir, 'embedded.mobileprovision'))
 
-    entitlements = '/Users/chmu/Library/Developer/Xcode/DerivedData/test_iphone2-dsbdefmnlgdwdlchxwoxthhbgnwc/Build/Intermediates/test_iphone2.build/Debug-iphoneos/test_iphone2.build/test_iphone2.xcent'
+    entitlements = 'engine_profile.xcent'
+    entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements, signed_exe_dir))
+    ret = bld.exec_command('CODESIGN_ALLOCATE=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
     if ret != 0:
         error('Error running codesign')
         return 1

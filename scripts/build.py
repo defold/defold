@@ -163,7 +163,7 @@ class Configuration(object):
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
 
-        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision'.split():
+        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision engine_profile.xcent'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
     def _git_sha1(self, dir = '.'):
