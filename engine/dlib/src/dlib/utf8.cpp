@@ -10,7 +10,7 @@
  */
 namespace dmUtf8
 {
-    static const u_int32_t offsets[6] = {
+    static const uint32_t offsets[6] = {
         0x00000000UL,
         0x00003080UL,
         0x000e2080UL,
