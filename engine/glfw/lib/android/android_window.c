@@ -228,7 +228,9 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
+    if (!_glfwWin.iconified) {
+        eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
+    }
 }
 
 //========================================================================
