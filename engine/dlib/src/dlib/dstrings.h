@@ -40,7 +40,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
 size_t dmStrlCat(char *dst, const char *src, size_t size);
 
 /**
- * Case-insensitivt string comparison
+ * Case-insensitive string comparison
  * @param s1 First string to compare
  * @param s2 Second string to compare
  * @return an integer greater than, equal to, or less than 0 after lexicographically comparison of s1 and s2

@@ -493,13 +493,19 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
-        if (strncmp(physics_type, "3D", 2) == 0)
+        if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
             engine->m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(physics_params);
         }
-        else if (strncmp(physics_type, "2D", 2) == 0)
+        else if (dmStrCaseCmp(physics_type, "2D") == 0)
         {
+            engine->m_PhysicsContext.m_3D = false;
+            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
+        }
+        else
+        {
+            dmLogWarning("Unsupported physics type '%s'. Defaults to 2D", physics_type);
             engine->m_PhysicsContext.m_3D = false;
             engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
         }
