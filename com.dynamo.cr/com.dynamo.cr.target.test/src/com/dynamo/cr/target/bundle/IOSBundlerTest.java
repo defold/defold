@@ -11,7 +11,6 @@ import java.io.IOException;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.SystemUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,6 +24,7 @@ public class IOSBundlerTest {
     private String outputDir;
     private ProjectProperties projectProperties;
     private String provisioningProfile;
+    private boolean isMac;
 
     @Before
     public void setUp() throws Exception {
@@ -35,6 +35,7 @@ public class IOSBundlerTest {
         createFile(contentRoot, "game.projectc", "game.projectc data");
         createFile(contentRoot, "game.arc", "game.arc data");
         provisioningProfile = createFile(contentRoot, "test.mobileprovision", "test provision");
+        isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
     }
 
     @After
@@ -53,7 +54,7 @@ public class IOSBundlerTest {
 
     @Test
     public void testBundle() throws IOException, ConfigurationException {
-        if (SystemUtils.IS_OS_MAC) {
+        if (isMac) {
             createFile(contentRoot, "test.png", "test_icon");
             projectProperties.putStringValue("ios", "app_icon_57x57", "test.png");
             projectProperties.putStringValue("project", "title", "MyApp");
@@ -71,7 +72,7 @@ public class IOSBundlerTest {
 
     @Test
     public void testNoIconSpecified() throws IOException, ConfigurationException {
-        if (SystemUtils.IS_OS_MAC) {
+        if (isMac) {
             projectProperties.putStringValue("project", "title", "MyApp");
             IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot,
                     contentRoot, outputDir);
