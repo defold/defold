@@ -294,8 +294,14 @@ class Configuration(object):
         host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
 
+        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
+        defold = self.defold
+        if self.target_platform == 'win32':
+            defold = defold.replace("\\", "/")
+            defold = "/" + defold[:1] + defold[2:]
+
         sha1 = self._git_sha1()
-        for p in glob(join(self.defold, 'go', 'bin', '*')):
+        for p in glob(join(defold, 'go', 'bin', '*')):
             self.exec_command(['scp', p, join(full_archive_path, basename(p) + "." + sha1)])
 
     def build_docs(self):
