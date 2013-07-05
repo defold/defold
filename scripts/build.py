@@ -300,7 +300,7 @@ class Configuration(object):
             if self.target_platform == 'win32':
                 p = p.replace("\\", "/")
                 p = "/" + p[:1] + p[2:]
-            self.exec_command(['scp', p, join(full_archive_path, basename(p) + "." + sha1)])
+            self.exec_command(['scp', p, '%s/%s.%s' % (full_archive_path, basename(p), sha1)])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
