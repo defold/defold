@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -221,10 +222,23 @@ public class Bob {
         return (fileURI);
     }
 
+    private static String uniqueTmpDir() {
+        final int length = 8;
+        String tmp = FileUtils.getTempDirectory().getAbsolutePath();
+        String uniquePath = FilenameUtils.concat(tmp, UUID.randomUUID().toString().substring(0, length));
+        File f = new File(uniquePath);
+        while (f.exists()) {
+            uniquePath = FilenameUtils.concat(tmp, UUID.randomUUID().toString().substring(length));
+            f = new File(uniquePath);
+        }
+        f.mkdir();
+        f.deleteOnExit();
+        return uniquePath;
+    }
+
     private static URI extract(final ZipFile zipFile, final String filePath) throws IOException {
         String fileName = FilenameUtils.getName(filePath);
-        String tmpDir = FileUtils.getTempDirectory().getAbsolutePath();
-        String dstPath = FilenameUtils.concat(tmpDir, fileName);
+        String dstPath = FilenameUtils.concat(uniqueTmpDir(), fileName);
         final ZipEntry entry = zipFile.getEntry(filePath);
 
         if(entry == null) {
