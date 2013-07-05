@@ -11,6 +11,7 @@ import java.io.IOException;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.SystemUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -52,27 +53,33 @@ public class IOSBundlerTest {
 
     @Test
     public void testBundle() throws IOException, ConfigurationException {
-        createFile(contentRoot, "test.png", "test_icon");
-        projectProperties.putStringValue("ios", "app_icon_57x57", "test.png");
-        projectProperties.putStringValue("project", "title", "MyApp");
-        IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot, contentRoot, outputDir);
-        bundler.bundleApplication();
+        if (SystemUtils.IS_OS_MAC) {
+            createFile(contentRoot, "test.png", "test_icon");
+            projectProperties.putStringValue("ios", "app_icon_57x57", "test.png");
+            projectProperties.putStringValue("project", "title", "MyApp");
+            IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot,
+                    contentRoot, outputDir);
+            bundler.bundleApplication();
 
-        assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
-        assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
-        assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
-        assertExe();
-        assertPList();
+            assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
+            assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
+            assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
+            assertExe();
+            assertPList();
+        }
     }
 
     @Test
     public void testNoIconSpecified() throws IOException, ConfigurationException {
-        projectProperties.putStringValue("project", "title", "MyApp");
-        IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot, contentRoot, outputDir);
-        bundler.bundleApplication();
+        if (SystemUtils.IS_OS_MAC) {
+            projectProperties.putStringValue("project", "title", "MyApp");
+            IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot,
+                    contentRoot, outputDir);
+            bundler.bundleApplication();
 
-        assertExe();
-        assertPList();
+            assertExe();
+            assertPList();
+        }
     }
 
     private String readFile(String dir, String name) throws IOException {
