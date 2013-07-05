@@ -1,3 +1,5 @@
+// +build !windows
+
 /*
 	Git server library with support for the "smart protocol"
 
@@ -8,8 +10,6 @@
 	Note: It's currently not required that http.receivepack is set to true.
 
 */
-
-// +build !windows
 
 package git
 

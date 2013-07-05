@@ -1,8 +1,8 @@
+// +build !windows
+
 /*
 	Git server in go
 */
-
-// +build !windows
 
 package main
 
