@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/props_set_no_inst.scriptc"
+}

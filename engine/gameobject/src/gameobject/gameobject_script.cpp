@@ -324,6 +324,29 @@ namespace dmGameObject
         }
     }
 
+    static const char* GetPropertyTypeName(PropertyType type)
+    {
+        switch (type)
+        {
+        case PROPERTY_TYPE_NUMBER:
+            return "number";
+        case PROPERTY_TYPE_HASH:
+            return "hash";
+        case PROPERTY_TYPE_URL:
+            return "msg.url";
+        case PROPERTY_TYPE_VECTOR3:
+            return "vmath.vector3";
+        case PROPERTY_TYPE_VECTOR4:
+            return "vmath.vector4";
+        case PROPERTY_TYPE_QUAT:
+            return "vmath.quat";
+        case PROPERTY_TYPE_BOOLEAN:
+            return "boolean";
+        default:
+            return "unknown";
+        }
+    }
+
     /*# sets a named property of the specified game object or component
      *
      * @name go.set
@@ -364,7 +387,7 @@ namespace dmGameObject
         dmGameObject::PropertyVar property_var;
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
         dmGameObject::PropertyResult result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
         if (dmGameObject::LuaToVar(L, 3, property_var))
         {
@@ -388,7 +411,7 @@ namespace dmGameObject
             {
                 dmGameObject::PropertyDesc property_desc;
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
-                return luaL_error(L, "The property '%s' of '%s' must be of type '%s'", (const char*)dmHashReverse64(property_id, 0x0), lua_tostring(L, 1));
+                return luaL_error(L, "the property '%s' of '%s' must be a %s", (const char*)dmHashReverse64(property_id, 0x0), lua_tostring(L, 1), GetPropertyTypeName(property_desc.m_Variant.m_Type));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));

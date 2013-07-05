@@ -453,17 +453,51 @@ TEST_F(PropsTest, PropsGetSetScript)
     dmResource::Release(m_Factory, collection);
 }
 
-TEST_F(PropsTest, PropsGetBadURLScript)
-{
-    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, "/props_get_bad_url.goc", dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1.0f);
+#define ASSERT_SPAWN_FAILS(path)\
+    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1.0f);\
     ASSERT_EQ(0, i);
+
+TEST_F(PropsTest, PropsGetBadURL)
+{
+    ASSERT_SPAWN_FAILS("/props_get_bad_url.goc");
 }
 
-TEST_F(PropsTest, PropsSetBadURLScript)
+TEST_F(PropsTest, PropsGetNotFound)
 {
-    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, "/props_set_bad_url.goc", dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1.0f);
-    ASSERT_EQ(0, i);
+    ASSERT_SPAWN_FAILS("/props_get_not_found.goc");
 }
+
+TEST_F(PropsTest, PropsGetCompNotFound)
+{
+    ASSERT_SPAWN_FAILS("/props_get_comp_not_found.goc");
+}
+
+TEST_F(PropsTest, PropsSetBadURL)
+{
+    ASSERT_SPAWN_FAILS("/props_set_bad_url.goc");
+}
+
+TEST_F(PropsTest, PropsSetNoInst)
+{
+    ASSERT_SPAWN_FAILS("/props_set_no_inst.goc");
+}
+
+TEST_F(PropsTest, PropsSetNotFound)
+{
+    ASSERT_SPAWN_FAILS("/props_set_not_found.goc");
+}
+
+TEST_F(PropsTest, PropsSetInvType)
+{
+    ASSERT_SPAWN_FAILS("/props_set_inv_type.goc");
+}
+
+TEST_F(PropsTest, PropsSetCompNotFound)
+{
+    ASSERT_SPAWN_FAILS("/props_set_comp_not_found.goc");
+}
+
+#undef ASSERT_SPAWN_FAILS
 
 int main(int argc, char **argv)
 {
