@@ -281,9 +281,11 @@ class Configuration(object):
             self.exec_command(cmd.split(), cwd = cwd)
 
     def build_go(self):
+        # TODO: shell=True is required only on windows
+        # otherwise it fails. WHY?
         if not self.skip_tests:
-            self.exec_command('go test defold/...'.split())
-        self.exec_command('go install defold/...'.split())
+            self.exec_command('go test defold/...', shell=True)
+        self.exec_command('go install defold/...', shell=True)
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
@@ -292,8 +294,14 @@ class Configuration(object):
         host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
 
+        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
+        defold = self.defold
+        if self.target_platform == 'win32':
+            defold = defold.replace("\\", "/")
+            defold = "/" + defold[:1] + defold[2:]
+
         sha1 = self._git_sha1()
-        for p in glob(join(self.defold, 'go', 'bin', '*')):
+        for p in glob(join(defold, 'go', 'bin', '*')):
             self.exec_command(['scp', p, join(full_archive_path, basename(p) + "." + sha1)])
 
     def build_docs(self):
