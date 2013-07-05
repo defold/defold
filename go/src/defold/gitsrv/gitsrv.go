@@ -1,6 +1,9 @@
 /*
 	Git server in go
 */
+
+// +build !windows
+
 package main
 
 import (

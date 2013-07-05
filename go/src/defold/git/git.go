@@ -8,6 +8,9 @@
 	Note: It's currently not required that http.receivepack is set to true.
 
 */
+
+// +build !windows
+
 package git
 
 import (
