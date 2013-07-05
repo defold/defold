@@ -29,6 +29,11 @@
               <arg value="scripts/copy_libparticle.sh"/>
         </exec>
 
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.bob"
+              executable="sh" failonerror="true">
+              <arg value="scripts/copy_libtexc.sh"/>
+        </exec>
+
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.target"
               executable="sh" failonerror="true">
               <arg value="scripts/copy_apkc.sh"/>
