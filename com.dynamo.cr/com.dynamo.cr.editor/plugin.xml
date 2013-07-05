@@ -195,6 +195,17 @@
                </visibleWhen>
             </command>
             <command
+                  commandId="com.dynamo.cr.target.commands.bundleAndroid"
+                  label="Android Application..."
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <test
+                        property="com.dynamo.cr.editor.is_dev">
+                  </test>
+               </visibleWhen>
+            </command>
+            <command
                   commandId="com.dynamo.cr.target.commands.bundleOSX"
                   label="OSX Application..."
                   style="push">
@@ -341,6 +352,11 @@
             defaultHandler="com.dynamo.cr.editor.handlers.BundleiOSHandler"
             id="com.dynamo.cr.target.commands.bundleiOS"
             name="Bundle iOS Application">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleAndroidHandler"
+            id="com.dynamo.cr.target.commands.bundleAndroid"
+            name="Bundle Android Application">
       </command>
       <command
             defaultHandler="com.dynamo.cr.editor.handlers.BundleOSXHandler"

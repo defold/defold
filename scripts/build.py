@@ -163,7 +163,7 @@ class Configuration(object):
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
 
-        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision'.split():
+        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision engine_profile.xcent'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
     def _git_sha1(self, dir = '.'):
@@ -292,8 +292,9 @@ class Configuration(object):
         host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
 
+        sha1 = self._git_sha1()
         for p in glob(join(self.defold, 'go', 'bin', '*')):
-            self.exec_command(['scp', p, full_archive_path])
+            self.exec_command(['scp', p, join(full_archive_path, basename(p) + "." + sha1)])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''

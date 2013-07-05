@@ -852,7 +852,7 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# cancels all animatiosn of the named property of the specified game object or component
+    /*# cancels all animations of the named property of the specified game object or component
      * <p>
      * By calling this function, all stored animations of the given property will be canceled.
      * </p>

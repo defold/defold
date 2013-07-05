@@ -31,6 +31,7 @@
 #include "internal.h"
 
 #include <limits.h>
+#include <jni.h>
 
 //************************************************************************
 //****               Platform implementation functions                ****
@@ -72,10 +73,28 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
     return 0;
 }
 
+extern struct android_app* g_AndroidApp;
+
 int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWwndconfig* wndconfig__,
                              const _GLFWfbconfig* fbconfig__ )
 {
+    ANativeActivity* activity = g_AndroidApp->activity;
+    JNIEnv* env = 0;
+    (*activity->vm)->AttachCurrentThread(activity->vm, &env, 0);
+
+    jclass activity_class = (*env)->FindClass(env, "android/app/NativeActivity");
+    jmethodID setOrientationMethod = (*env)->GetMethodID(env, activity_class, "setRequestedOrientation", "(I)V");
+    if (setOrientationMethod) {
+        // See http://developer.android.com/reference/android/content/pm/ActivityInfo.html
+        const int SCREEN_ORIENTATION_LANDSCAPE = 0;
+        const int SCREEN_ORIENTATION_PORTRAIT = 1;
+
+        int o = width__ > height__ ? SCREEN_ORIENTATION_LANDSCAPE : SCREEN_ORIENTATION_PORTRAIT;
+        (*env)->CallIntMethod(env, activity->clazz, setOrientationMethod, o);
+    }
+    (*activity->vm)->DetachCurrentThread(activity->vm);
+
     _glfwWin.app = _glfwAndrodApp;
     _glfwWin.app->onInputEvent = handleInput;
 
@@ -209,7 +228,9 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
+    if (!_glfwWin.iconified) {
+        eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
+    }
 }
 
 //========================================================================

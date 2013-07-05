@@ -25,18 +25,22 @@ public class Engine extends Plugin {
 
     public String getEnginePath(String platform, boolean release) {
         String ext = "";
+        String prefix = "";
         if (platform.equals("win32")) {
             ext = ".exe";
+        } else if (platform.equals("android")) {
+            prefix = "lib";
+            ext = ".so";
         }
 
         URL bundleUrl = null;
         if (release)
         {
-            bundleUrl = getBundle().getEntry("/engine/" + platform + "/dmengine_release" + ext);
+            bundleUrl = getBundle().getEntry("/engine/" + platform + "/" + prefix + "dmengine_release" + ext);
         }
         else
         {
-            bundleUrl = getBundle().getEntry("/engine/" + platform + "/dmengine" + ext);
+            bundleUrl = getBundle().getEntry("/engine/" + platform + "/" + prefix + "dmengine" + ext);
         }
         URL fileUrl;
         try {
