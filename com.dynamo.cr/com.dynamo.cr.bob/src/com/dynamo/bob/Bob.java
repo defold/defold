@@ -181,7 +181,7 @@ public class Bob {
             if (!isDev() || platform.equals("darwin")) {
                 libPath = libPath.concat(platform);
             }
-            uri = new File(uri.getPath() + "lib/").toURI();
+            uri = new File(libPath).toURI();
             file = FileUtils.toFile(getFile(uri, path).toURL());
         }
         texcLibDir = file.getParentFile().getAbsolutePath();
