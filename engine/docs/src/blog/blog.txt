@@ -1,5 +1,20 @@
 :max-width: 45em
 
+Pre-multiplied alpha (Release 1.2.21)
+-------------------------------------
+_July 7, 2013_
+
+All textures loaded in Defold now have the color-value link:http://en.wikipedia.org/wiki/Alpha_compositing[pre-multiplied] with alpha for prettier blending.
+If you have made custom shaders, you will need to update them accordingly.
+There is plenty of online resources which explains pre-multiplied alpha in greater detail, e.g. link:http://home.comcast.net/~tom_forsyth/blog.wiki.html#%5B%5BPremultiplied%20alpha%5D%5D[this] and link:http://blogs.msdn.com/b/shawnhar/archive/2009/11/06/premultiplied-alpha.aspx[this].
+
+Other fixes
+~~~~~~~~~~~
+
+* Crash when deleting game objects with running animations
+* Crash when setting properties through go.set and specifying a value of the wrong type
+* Updated the editor framework (Eclipse RCP) to a later version
+
 Animation & getters/setters (Release 1.2.20)
 --------------------------------------------
 _June 3, 2013_
