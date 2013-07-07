@@ -167,7 +167,7 @@ public class Bob {
         if (platform.equals("win32")) {
             ext = ".dll";
         } else if (platform.equals("darwin")) {
-            prefix = "lib";
+            prefix = "x86_64-darwin/lib";
             ext = ".dylib";
         } else if (platform.equals("linux")) {
             prefix = "lib";
@@ -178,7 +178,7 @@ public class Bob {
         if (!file.exists()) {
             String libPath = uri.getPath() + "lib/";
             // No platform-qualified path in dev mode (waf install)
-            if (!isDev() || platform.equals("darwin")) {
+            if (!isDev() && !platform.equals("darwin")) {
                 libPath = libPath.concat(platform);
             }
             uri = new File(libPath).toURI();
