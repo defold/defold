@@ -167,7 +167,7 @@ public class Bob {
         if (platform.equals("win32")) {
             ext = ".dll";
         } else if (platform.equals("darwin")) {
-            prefix = "x86_64-darwin/lib";
+            prefix = "lib";
             ext = ".dylib";
         } else if (platform.equals("linux")) {
             prefix = "lib";
