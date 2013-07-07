@@ -349,7 +349,12 @@ namespace dmGameSystem
             {
                 ro.m_WorldTransform = node_transforms[i];
                 ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
-                dmRender::EnableRenderObjectConstant(&ro, DIFFUSE_COLOR_HASH, color);
+                // Pre-multiplied alpha
+                Vector4 pm_color(color);
+                pm_color.setX(color.getX() * color.getW());
+                pm_color.setY(color.getY() * color.getW());
+                pm_color.setZ(color.getZ() * color.getW());
+                dmRender::EnableRenderObjectConstant(&ro, DIFFUSE_COLOR_HASH, pm_color);
                 gui_world->m_GuiRenderObjects.Push(ro);
 
                 dmRender::AddToRender(gui_context->m_RenderContext, &gui_world->m_GuiRenderObjects[gui_world->m_GuiRenderObjects.Size()-1]);
