@@ -24,7 +24,8 @@ def build(bld):
                       ('msg', ('script_msg.cpp')),
                       ('json', ('script_json.cpp')),
                       ('http', ('script_http.cpp')),
-                      ('vmath', ('script_vmath.cpp'))]:
+                      ('vmath', ('script_vmath.cpp')),
+                      ('zlib', ('script_zlib.cpp'))]:
         bld.new_task_gen(source = source,
                          target = '%s_doc.sdoc' % d,
                          rule = '${SCRIPT_DOC} ${SRC} ${TGT}')

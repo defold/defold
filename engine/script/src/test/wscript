@@ -105,3 +105,13 @@ def build(bld):
 
     test_script_http.install_path = None
 
+    test_script_zlib = bld.new_task_gen(features = 'cxx cprogram',
+                                       includes = '..',
+                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib_local = 'script',
+                                       proto_gen_py = True,
+                                       target = 'test_script_zlib',
+                                       source = 'test_script_zlib.cpp test_zlib.lua')
+
+    test_script_zlib.install_path = None
+

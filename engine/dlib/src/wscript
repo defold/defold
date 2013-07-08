@@ -45,20 +45,26 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/utf8.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/uri.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/vmath.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
-    source_dirs = 'dlib dlib/jsmn'
+    source_dirs = 'dlib dlib/jsmn zlib'
+    if bld.env.PLATFORM != 'win32':
+        extra_defines = 'HAVE_HIDDEN ZLIB_CONST'
+    else:
+        extra_defines = ''
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
                             includes = '.',
                             target = 'dlib',
-                            defines= 'VALGRIND',
+                            defines= 'VALGRIND %s' % extra_defines,
                             embed_source = '../data/profiler.html')
     dlib.find_sources_in_dirs(source_dirs)
     if 'darwin' in bld.env.BUILD_PLATFORM and re.match('arm.*?android', bld.env.PLATFORM):
@@ -72,7 +78,7 @@ def build(bld):
     dlib = bld.new_task_gen(features = 'cc cxx cshlib embed',
                             includes = '.',
                             target = 'dlib_shared',
-                            defines= 'VALGRIND',
+                            defines= 'VALGRIND %s' % extra_defines,
                             embed_source = '../data/profiler.html',
                             uselib = 'UUID PLATFORM_SOCKET')
     dlib.find_sources_in_dirs(source_dirs)

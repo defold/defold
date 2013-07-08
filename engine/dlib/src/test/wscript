@@ -359,3 +359,14 @@ def build(bld):
                                 target = 'test_utf8')
 
     test_utf8.install_path = None
+
+    test_zlib = bld.new_task_gen(features = 'cxx cprogram embed',
+                                source = 'test_zlib.cpp',
+                                embed_source = 'data/foo.gz data/foo.deflate',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_zlib')
+
+    test_zlib.install_path = None
+

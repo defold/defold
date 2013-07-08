@@ -11,6 +11,7 @@
 #include "script_module.h"
 #include "script_json.h"
 #include "script_http.h"
+#include "script_zlib.h"
 
 extern "C"
 {
@@ -61,6 +62,7 @@ namespace dmScript
         InitializeModule(L);
         InitializeJson(L);
         InitializeHttp(L);
+        InitializeZlib(L);
 
         lua_register(L, "print", LuaPrint);
 
