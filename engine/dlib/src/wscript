@@ -60,6 +60,8 @@ def build(bld):
     extra_defines = ['ZLIB_CONST']
     if bld.env.PLATFORM != 'win32':
         extra_defines.append('HAVE_HIDDEN')
+    else:
+        extra_defines.append('CONFIG_WIN32_USE_CRYPTO_LIB')
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
                             includes = '. axtls/config axtls/crypto axtls/ssl',
