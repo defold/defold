@@ -45,7 +45,10 @@ extern "C" {
 #include <stdio.h>
 
 #if defined(WIN32)
-#define STDCALL                 __stdcall
+// Defold change
+// Remove __stdcall as it didn't seem to be consistently defined
+#define STDCALL
+//#define STDCALL                 __stdcall
 #define EXP_FUNC                __declspec(dllexport)
 #else
 #define STDCALL

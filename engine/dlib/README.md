@@ -30,3 +30,4 @@ axTLS
 -----
 
 * The os_int.h is replaced by #include <stdint.h> as we have a portable stdint.h in dlib
+* Removed __stdcall on WIN32, see change in os_port.h
