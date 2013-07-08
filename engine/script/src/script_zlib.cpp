@@ -53,6 +53,7 @@ namespace dmScript
         }
         else
         {
+            out.SetCapacity(0); // Required as the destructor isn't run
             luaL_error(L, "Failed to inflate buffer (%d)", r);
             return 0;
         }
