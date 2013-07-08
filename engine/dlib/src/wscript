@@ -60,8 +60,12 @@ def build(bld):
     extra_defines = ['ZLIB_CONST']
     if bld.env.PLATFORM != 'win32':
         extra_defines.append('HAVE_HIDDEN')
+        extra_defines.append('CONFIG_USE_DEV_URANDOM')
     else:
-        extra_defines.append('CONFIG_WIN32_USE_CRYPTO_LIB')
+        pass
+        # NOTE: CONFIG_WIN32_USE_CRYPTO_LIB is disabled
+        # on windows due to compile error in RNG_custom_init()
+        # when CONFIG_WIN32_USE_CRYPTO_LIB is set (missing entropy_pool, see top of file)
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
                             includes = '. axtls/config axtls/crypto axtls/ssl',
