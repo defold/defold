@@ -25,3 +25,8 @@ To enable tracing where every allocation is written to disk for analaysis:
 Create a trace report using memprofile.sh
 
     memprofile.sh `which dmengine` memprofile.trace > report.html
+
+axTLS
+-----
+
+* The os_int.h is replaced by #include <stdint.h> as we have a portable stdint.h in dlib

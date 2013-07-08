@@ -37,31 +37,8 @@
 #ifndef HEADER_OS_INT_H
 #define HEADER_OS_INT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#if defined(WIN32)
-typedef UINT8 uint8_t;
-typedef INT8 int8_t;
-typedef UINT16 uint16_t;
-typedef INT16 int16_t;
-typedef UINT32 uint32_t;
-typedef INT32 int32_t;
-typedef UINT64 uint64_t;
-typedef INT64 int64_t;
-#else   /* Not Win32 */
-
-#ifdef CONFIG_PLATFORM_SOLARIS
-#include <inttypes.h>
-#else
+// Defold change
+// Replaced with #include <stdint.h>
 #include <stdint.h>
-#endif /* Not Solaris */
 
-#endif /* Not Win32 */
-
-#ifdef __cplusplus
-}
 #endif
-
-#endif 
