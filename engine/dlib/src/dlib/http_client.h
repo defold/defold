@@ -22,6 +22,7 @@ namespace dmHttpClient
         RESULT_INVAL_ERROR = -6,                  //!< RESULT_INVAL_ERROR
         RESULT_UNEXPECTED_EOF = -7,               //!< RESULT_UNEXPECTED_EOF
         RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
+        RESULT_HANDSHAKE_FAILED = -9,             //!< RESULT_HANDSHAKE_FAILED
     };
 
     /**
@@ -145,6 +146,16 @@ namespace dmHttpClient
      * @return HTTP-client handle on success. 0 on failure.
      */
     HClient New(const NewParams* params, const char* hostname, uint16_t port);
+
+    /**
+     * Create a new HTTP client
+     * @param params Parameters
+     * @param hostname Hostname
+     * @param port Port number
+     * @param secure TLS/SSL or not
+     * @return HTTP-client handle on success. 0 on failure.
+     */
+    HClient New(const NewParams* params, const char* hostname, uint16_t port, bool secure);
 
     /**
      * Set HTTP client option

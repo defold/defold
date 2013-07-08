@@ -55,13 +55,14 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
-    source_dirs = 'dlib dlib/jsmn zlib'
+    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl'
+    # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
     extra_defines = ['ZLIB_CONST']
     if bld.env.PLATFORM != 'win32':
         extra_defines.append('HAVE_HIDDEN')
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
-                            includes = '.',
+                            includes = '. axtls/config axtls/crypto axtls/ssl',
                             target = 'dlib',
                             defines= ['VALGRIND'] + extra_defines,
                             embed_source = '../data/profiler.html')
@@ -75,7 +76,7 @@ def build(bld):
         dlib.source.remove('dlib/socket_cocoa.mm')
 
     dlib = bld.new_task_gen(features = 'cc cxx cshlib embed',
-                            includes = '.',
+                            includes = '. axtls/config axtls/crypto axtls/ssl',
                             target = 'dlib_shared',
                             defines= ['VALGRIND'] + extra_defines,
                             embed_source = '../data/profiler.html',

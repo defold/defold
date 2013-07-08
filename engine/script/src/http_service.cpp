@@ -139,7 +139,9 @@ namespace dmHttpService
             url.m_Path[1] = '\0';
         }
 
-        if (worker->m_Client == 0 || !(strcmp(url.m_Hostname, worker->m_CurrentURL.m_Hostname) == 0 && url.m_Port == worker->m_CurrentURL.m_Port)) {
+        if (worker->m_Client == 0 || !(strcmp(url.m_Hostname, worker->m_CurrentURL.m_Hostname) == 0 &&
+                                       strcmp(url.m_Scheme, worker->m_CurrentURL.m_Scheme) == 0 &&
+                                       url.m_Port == worker->m_CurrentURL.m_Port)) {
             if (worker->m_Client) {
                 dmHttpClient::Delete(worker->m_Client);
             }
@@ -151,7 +153,7 @@ namespace dmHttpService
             params.m_HttpWrite = &HttpWrite;
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
-            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port);
+            worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
 

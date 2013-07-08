@@ -172,6 +172,13 @@ namespace dmSocket
     Result Delete(Socket socket);
 
     /**
+     * Get underlying file descriptor
+     * @param socket socket to get fd for
+     * @return file-descriptor
+     */
+    int GetFD(Socket socket);
+
+    /**
      * Set reuse socket address option on socket. Socket option SO_REUSEADDR on most platforms
      * @param socket Socket to set reuse address to
      * @param reuse True if reuse

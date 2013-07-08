@@ -207,6 +207,11 @@ namespace dmSocket
         }
     }
 
+    int GetFD(Socket socket)
+    {
+        return socket;
+    }
+
     Result Accept(Socket socket, Address* address, Socket* accept_socket)
     {
         struct sockaddr_in sock_addr;
