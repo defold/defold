@@ -82,7 +82,7 @@ Android SDK/NDK
   Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
 * Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
   mentioned above
-* Download NDK 8e
+* Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
 * Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively 
 
 Android testing
