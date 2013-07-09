@@ -21,3 +21,5 @@ var %s = "'''
 if __name__ == '__main__':
     to_go('gitCompressedBase64', 'git/git.darwin', 'git_darwin.go')
     to_go('gitCompressedBase64', 'git/git.linux', 'git_linux.go')
+    to_go('gitUploadPackCompressedBase64', 'git/git-upload-pack.darwin', 'git-upload-pack_darwin.go')
+    to_go('gitUploadPackCompressedBase64', 'git/git-upload-pack.linux', 'git-upload-pack_linux.go')
