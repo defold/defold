@@ -301,6 +301,7 @@ class Configuration(object):
                 p = p.replace("\\", "/")
                 p = "/" + p[:1] + p[2:]
             self.exec_command(['scp', p, '%s/%s.%s' % (full_archive_path, basename(p), sha1)])
+            self.exec_command(['ssh', host, 'cd %s; ln -sf %s.%s %s' % (path, basename(p), sha1, basename(p))])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
