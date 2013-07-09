@@ -73,8 +73,11 @@ func decompress(name string, data string) {
 
 func init() {
 	// Decompress and write embedded git executables
-	decompress("go-git", gitCompressedBase64)
-	decompress("go-git-upload-pack", gitUploadPackCompressedBase64)
+	// We used to call prefix these commands with go- but
+	// git-upload-pack run "git pack-objects" and will fail
+	// if git is called go-git
+	decompress("git", gitCompressedBase64)
+	decompress("git-upload-pack", gitUploadPackCompressedBase64)
 }
 
 /*
@@ -164,9 +167,9 @@ func (s *session) send(w io.Writer, in io.ReadCloser, gitCmd string, args ...str
 	// upload-pack is a special case. In general, git embeds
 	// most commands but not upload-pack
 	if gitSubCmd == "upload-pack" {
-		prefix = []string{"./go-git-upload-pack"}
+		prefix = []string{"./git-upload-pack"}
 	} else {
-		prefix = []string{"./go-git", gitSubCmd}
+		prefix = []string{"./git", gitSubCmd}
 	}
 	lw := &logWriter{s.errorLog, bytes.NewBuffer(nil)}
 	cmd := &exec.Cmd{
