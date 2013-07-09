@@ -77,7 +77,7 @@ Life-cycle support should probably be moved to dlib at some point.
 Android SDK/NDK
 ---------------
 
-* Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html]().
+* Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
   Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1.. 
   Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
 * Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
