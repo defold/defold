@@ -1,4 +1,5 @@
 /*.log
 /gitsrv
-/go-git
+/git
+/git-upload-pack
 

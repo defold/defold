@@ -145,7 +145,7 @@ func main() {
 	}
 
 	s := http.Server{
-		Addr:    fmt.Sprintf("%s:%d", p.host, p.port),
+		Addr:    fmt.Sprintf(":%d", p.port),
 		Handler: p,
 	}
 	err = s.ListenAndServe()

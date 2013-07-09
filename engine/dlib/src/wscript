@@ -59,6 +59,7 @@ def build(bld):
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
     extra_defines = ['ZLIB_CONST']
     if bld.env.PLATFORM != 'win32':
+        extra_defines.append('Z_HAVE_UNISTD_H')
         extra_defines.append('HAVE_HIDDEN')
         extra_defines.append('CONFIG_USE_DEV_URANDOM')
     else:

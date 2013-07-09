@@ -44,10 +44,8 @@ type Server struct {
 	authorizor Authorizor
 }
 
-func init() {
-	// Decompress and write embedded git executable
-
-	compressed, _ := base64.StdEncoding.DecodeString(gitCompressedBase64)
+func decompress(name string, data string) {
+	compressed, _ := base64.StdEncoding.DecodeString(data)
 
 	zr, err := zlib.NewReader(bytes.NewBuffer(compressed))
 	if err != nil {
@@ -57,7 +55,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	g, err := os.Create("go-git")
+	g, err := os.Create(name)
 	if err != nil {
 		panic(err)
 	}
@@ -71,6 +69,15 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func init() {
+	// Decompress and write embedded git executables
+	// We used to call prefix these commands with go- but
+	// git-upload-pack run "git pack-objects" and will fail
+	// if git is called go-git
+	decompress("git", gitCompressedBase64)
+	decompress("git-upload-pack", gitUploadPackCompressedBase64)
 }
 
 /*
@@ -154,13 +161,20 @@ func (l *logWriter) Close() error {
 }
 
 func (s *session) send(w io.Writer, in io.ReadCloser, gitCmd string, args ...string) error {
-	path := "./go-git"
 	// git-x-y -> x-y
 	gitSubCmd := strings.SplitN(gitCmd, "-", 2)[1]
+	var prefix []string
+	// upload-pack is a special case. In general, git embeds
+	// most commands but not upload-pack
+	if gitSubCmd == "upload-pack" {
+		prefix = []string{"./git-upload-pack"}
+	} else {
+		prefix = []string{"./git", gitSubCmd}
+	}
 	lw := &logWriter{s.errorLog, bytes.NewBuffer(nil)}
 	cmd := &exec.Cmd{
-		Path:   path,
-		Args:   append([]string{path, gitSubCmd}, args...),
+		Path:   prefix[0],
+		Args:   append(prefix, args...),
 		Stderr: lw,
 	}
 	cmd.Stdin = in
