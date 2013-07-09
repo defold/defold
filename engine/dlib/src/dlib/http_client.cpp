@@ -255,6 +255,7 @@ namespace dmHttpClient
         if (client->m_Socket == dmSocket::INVALID_SOCKET_HANDLE) {
             if (client->m_SSLConnection != 0) {
                 ssl_free(client->m_SSLConnection);
+                client->m_SSLConnection = 0;
             }
 
             Result r = ConnectSocket(client);
@@ -270,6 +271,7 @@ namespace dmHttpClient
                         r = RESULT_HANDSHAKE_FAILED;
                         dmLogWarning("SSL handshake failed (%d)", hs);
                         ssl_free(ssl);
+                        ssl = 0;
                     }
                     client->m_SSLConnection = ssl;
                 }
