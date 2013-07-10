@@ -117,8 +117,6 @@ public class Bob {
         if (!ret) {
             System.out.println("The build failed for the following reasons:");
             System.out.println(errors.toString());
-        } else {
-            System.out.println("Success!");
         }
         System.exit(ret ? 0 : 1);
     }
