@@ -1545,6 +1545,14 @@ namespace dmGui
 
         int top = lua_gettop(L);
         (void)top;
+        luaopen_base(L);
+        luaopen_table(L);
+        luaopen_string(L);
+        luaopen_math(L);
+        //luaopen_debug(L);
+
+        // Pop all stack values generated from luaopen_*
+        lua_pop(L, lua_gettop(L));
 
         dmScript::ScriptParams params;
         params.m_Context = script_context;
@@ -1644,18 +1652,6 @@ namespace dmGui
 #undef SETADJUST
 
         lua_pop(L, 1);
-
-        assert(lua_gettop(L) == top);
-
-        top = lua_gettop(L);
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        //luaopen_debug(L);
-
-        // Pop all stack values generated from luaopen_*
-        lua_pop(L, lua_gettop(L));
 
         assert(lua_gettop(L) == top);
 
