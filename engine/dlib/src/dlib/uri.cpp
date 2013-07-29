@@ -53,6 +53,11 @@ namespace dmURI
                 // Default to port 80 for http
                 parts->m_Port = 80;
             }
+            else if (strcmp(parts->m_Scheme, "https") == 0)
+            {
+                // Default to port 443 for https
+                parts->m_Port = 443;
+            }
 
             const char* slash_slash = strstr(uri, "//");
             if (slash_slash)

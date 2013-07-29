@@ -140,6 +140,16 @@ TEST(dmURI, Test3)
     delete uri_parts;
 }
 
+TEST(dmURI, HTTPS)
+{
+    dmURI::Parts* uri_parts = new dmURI::Parts();
+    dmURI::Result r;
+    r = dmURI::Parse("https://foo.com/x", uri_parts);
+    ASSERT_EQ(dmURI::RESULT_OK, r);
+    ASSERT_EQ(443, uri_parts->m_Port);
+    delete uri_parts;
+}
+
 TEST(dmURI, TestPort)
 {
     dmURI::Parts* uri_parts = new dmURI::Parts();
