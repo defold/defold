@@ -215,6 +215,8 @@ RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 # <string>MainWindow</string>
 # We manage our own setup. At least for now
 
+# NOTE: fb355198514515820 is HelloFBSample appid and for testing only
+# This INFO_PLIST is only used for development
 INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -288,6 +290,16 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
                 <string>UIInterfaceOrientationLandscapeLeft</string>
                 <string>UIInterfaceOrientationLandscapeRight</string>
         </array>
+
+        <key>CFBundleURLTypes</key>
+        <array>
+                <dict>
+                        <key>CFBundleURLSchemes</key>
+                        <array>
+                                <string>fb355198514515820</string>
+                        </array>
+                </dict>
+        </array>        
 </dict>
 </plist>
 """
@@ -555,7 +567,7 @@ def create_copy_glue(self):
     task.set_outputs([glue, stub])
 
 def embed_build(task):
-    symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_')
+    symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
     in_file = open(task.inputs[0].bldpath(task.env), 'rb')
     out_file = open(task.outputs[0].bldpath(task.env), 'wb')
 

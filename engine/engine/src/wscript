@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os
+import os, re
 
 def set_options(opt):
     pass
@@ -15,15 +15,22 @@ def build(bld):
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
+    additional_libs = []
+    if  re.match('arm.*?darwin', bld.env['PLATFORM']):
+        additional_libs.append('FACEBOOK')
+
     if 'android' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
     else:
         sound_lib = 'SOUND OPENAL'
 
+    additional_libs = ' '.join(additional_libs)
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X' % sound_lib,
+        uselib = 'EXTENSION FACEBOOKEXT FACEBOOK SQLLITE RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
+        exported_symbols = 'FacebookExt',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',
@@ -34,7 +41,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X' % sound_lib,
+        uselib = 'EXTENSION FACEBOOKEXT FACEBOOK SQLLITE RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -49,7 +56,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW X',
+        uselib = 'EXTENSION RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW X',
         uselib_local = 'engine',
         includes = '../build ../proto .',
         proto_gen_py = True,
