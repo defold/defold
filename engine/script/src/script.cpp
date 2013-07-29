@@ -119,7 +119,10 @@ namespace dmScript
             ++i;
             ed = ed->m_Next;
         }
-        memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
+        if (context) {
+            // context might be NULL in tests. Should probably be forbidden though
+            memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
+        }
     }
 #undef BIT_INDEX
 #undef BIT_OFFSET
