@@ -52,7 +52,6 @@ namespace dmExtension
     }
 #else
     #define DM_REGISTER_EXTENSION(name, desc) RegisterExtension name(&desc);
-    }
 #endif
 
 }
