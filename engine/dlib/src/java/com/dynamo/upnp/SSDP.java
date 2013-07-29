@@ -126,6 +126,8 @@ public class SSDP implements ISSDP {
                             discoveredDevices.put(usn, device);
                             ++changeCount;
                         } else {
+                            // The port might have changed (for identical usn) so we check
+                            // for equality here (equals in DeviceInfo compares headers)
                             if (!discDevice.equals(device)) {
                                 discoveredDevices.put(usn, device);
                                 ++changeCount;
@@ -155,9 +157,17 @@ public class SSDP implements ISSDP {
             if (usn != null) {
                 DeviceInfo device = DeviceInfo.create(response.headers, address);
                 if (device != null) {
-                    if (!discoveredDevices.containsKey(usn)) {
-                        ++changeCount;
+                    DeviceInfo discDevice = discoveredDevices.get(usn);
+                    if (discDevice == null) {
                         discoveredDevices.put(usn, device);
+                        ++changeCount;
+                    } else {
+                        // The port might have changed (for identical usn) so we check
+                        // for equality here (equals in DeviceInfo compares headers)
+                        if (!discDevice.equals(device)) {
+                            discoveredDevices.put(usn, device);
+                            ++changeCount;
+                        }
                     }
                 } else {
                     logger.warning("Malformed response " + data);
