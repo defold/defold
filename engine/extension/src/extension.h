@@ -51,7 +51,7 @@ namespace dmExtension
         dmExtension::Register(&desc); \
     }
 #else
-    #define DM_REGISTER_EXTENSION(name, desc) RegisterExtension name(&desc);
+    #define DM_REGISTER_EXTENSION(name, desc) dmExtension::RegisterExtension name(&desc);
 #endif
 
 }
