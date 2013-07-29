@@ -183,7 +183,7 @@ namespace dmFontView
             dmResource::DeleteFactory(context->m_Factory);
         }
         if (context->m_RenderContext)
-            dmRender::DeleteRenderContext(context->m_RenderContext);
+            dmRender::DeleteRenderContext(context->m_RenderContext, 0);
         dmGraphics::DeleteContext(context->m_GraphicsContext);
     }
 }

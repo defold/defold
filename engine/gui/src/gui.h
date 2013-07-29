@@ -231,7 +231,7 @@ namespace dmGui
 
     HContext NewContext(const NewContextParams* params);
 
-    void DeleteContext(HContext context);
+    void DeleteContext(HContext context, dmScript::HContext script_context);
 
     void SetResolution(HContext context, uint32_t width, uint32_t height);
 

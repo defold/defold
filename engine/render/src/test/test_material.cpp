@@ -30,7 +30,7 @@ TEST(dmMaterialTest, TestTags)
     dmRender::DeleteMaterial(render_context, material);
 
     dmGraphics::DeleteContext(context);
-    dmRender::DeleteRenderContext(render_context);
+    dmRender::DeleteRenderContext(render_context, 0);
 }
 
 int main(int argc, char **argv)

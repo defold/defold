@@ -6,7 +6,7 @@ import waf_gamesys
 def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram',
-        uselib = 'RECORD VPX GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB',
+        uselib = 'RECORD VPX GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET EXTENSION LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB',
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

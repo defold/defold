@@ -141,9 +141,9 @@ namespace dmGameObject
         InitializeScript(context, factory);
     }
 
-    void Finalize(dmResource::HFactory factory)
+    void Finalize(dmScript::HContext context, dmResource::HFactory factory)
     {
-        FinalizeScript(factory);
+        FinalizeScript(context, factory);
     }
 
     HRegister NewRegister()

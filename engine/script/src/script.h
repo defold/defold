@@ -97,7 +97,7 @@ namespace dmScript
      * Finalize script libraries
      * @param L Lua state
      */
-    void Finalize(lua_State* L);
+    void Finalize(lua_State* L, HContext context);
 
     /**
      * Retrieve a ddf structure from a lua state.

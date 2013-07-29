@@ -44,7 +44,7 @@ protected:
     virtual void TearDown()
     {
         ASSERT_EQ(top, lua_gettop(L));
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, m_Context);
         lua_close(L);
         dmScript::DeleteContext(m_Context);
         g_LuaTableTest = 0;

@@ -148,10 +148,10 @@ void GamesysTest<T>::TearDown()
     dmGameObject::DeleteCollection(m_Collection);
     dmGameObject::PostUpdate(m_Register);
     dmResource::Release(m_Factory, m_GamepadMapsDDF);
-    dmGui::DeleteContext(m_GuiContext.m_GuiContext);
-    dmRender::DeleteRenderContext(m_RenderContext);
+    dmGui::DeleteContext(m_GuiContext.m_GuiContext, m_ScriptContext);
+    dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
-    dmGameObject::Finalize(m_Factory);
+    dmGameObject::Finalize(m_ScriptContext, m_Factory);
     dmResource::DeleteFactory(m_Factory);
     dmGameObject::DeleteRegister(m_Register);
     dmSound::Finalize();

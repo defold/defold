@@ -31,6 +31,7 @@ def configure(conf):
     conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_EXTENSION'] = 'extension'
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')

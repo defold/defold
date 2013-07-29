@@ -73,9 +73,9 @@ namespace dmGui
         return context;
     }
 
-    void DeleteContext(HContext context)
+    void DeleteContext(HContext context, dmScript::HContext script_context)
     {
-        FinalizeScript(context->m_LuaState);
+        FinalizeScript(context->m_LuaState, script_context);
         delete context;
     }
 

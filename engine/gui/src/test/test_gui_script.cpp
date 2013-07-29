@@ -22,7 +22,7 @@ public:
 
     virtual void TearDown()
     {
-        dmGui::DeleteContext(m_Context);
+        dmGui::DeleteContext(m_Context, 0);
     }
 };
 

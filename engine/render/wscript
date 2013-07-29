@@ -66,6 +66,7 @@ def configure(conf):
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_LUA'] = 'lua'
+    conf.env['STATICLIB_EXTENSION'] = 'extension'
 
     if sys.platform == "linux2":
         conf.env['LIB_PLATFORM_SOCKET'] = ''

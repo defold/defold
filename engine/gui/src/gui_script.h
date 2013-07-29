@@ -12,7 +12,7 @@ extern "C"
 namespace dmGui
 {
     lua_State* InitializeScript(dmScript::HContext script_context);
-    void FinalizeScript(lua_State* L);
+    void FinalizeScript(lua_State* L, dmScript::HContext script_context);
 }
 
 #endif

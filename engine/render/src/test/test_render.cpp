@@ -30,7 +30,7 @@ protected:
 
     virtual void TearDown()
     {
-        dmRender::DeleteRenderContext(m_Context);
+        dmRender::DeleteRenderContext(m_Context, 0);
         dmGraphics::DeleteContext(m_GraphicsContext);
     }
 };

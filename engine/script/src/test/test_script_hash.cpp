@@ -37,7 +37,7 @@ protected:
 
     virtual void TearDown()
     {
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, m_Context);
         dmScript::DeleteContext(m_Context);
         lua_close(L);
     }

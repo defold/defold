@@ -61,7 +61,7 @@ protected:
         dmRender::DeleteMaterial(m_Context, m_FontMaterial);
 
         dmGraphics::CloseWindow(m_GraphicsContext);
-        dmRender::DeleteRenderContext(m_Context);
+        dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);

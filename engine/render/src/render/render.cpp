@@ -90,11 +90,11 @@ namespace dmRender
         return context;
     }
 
-    Result DeleteRenderContext(HRenderContext render_context)
+    Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
     {
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
-        FinalizeRenderScriptContext(render_context->m_RenderScriptContext);
+        FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);

@@ -337,6 +337,15 @@ def app_bundle(task):
 
     return 0
 
+@feature('cprogram')
+@after('apply_link')
+def export_symbols(self):
+    if not re.match('.*?darwin', self.env['PLATFORM']):
+        return
+    Utils.def_attrs(self, exported_symbols=[])
+    for name in Utils.to_list(self.exported_symbols):
+        self.link_task.env.append_value('LINKFLAGS', ['-Wl,-exported_symbol', '-Wl,_%s' % name])
+
 Task.task_type_from_func('app_bundle',
                          func = app_bundle,
                          vars = ['SRC', 'DST'],

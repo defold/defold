@@ -5,9 +5,10 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
+    libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION DDF DLIB LUA'
     test_script_ddf = bld.new_task_gen(features = 'cxx cprogram',
                                         includes = '..',
-                                        uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                        uselib = libs,
                                         uselib_local = 'script',
                                         proto_gen_py = True,
                                         target = 'test_script_ddf',
@@ -17,7 +18,7 @@ def build(bld):
 
     test_script_msg = bld.new_task_gen(features = 'cxx cprogram',
                                         includes = '..',
-                                        uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                        uselib = libs,
                                         uselib_local = 'script',
                                         proto_gen_py = True,
                                         target = 'test_script_msg',
@@ -27,7 +28,7 @@ def build(bld):
 
     test_script_hash = bld.new_task_gen(features = 'cxx cprogram',
                                         includes = '..',
-                                        uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                        uselib = libs,
                                         uselib_local = 'script',
                                         proto_gen_py = True,
                                         target = 'test_script_hash',
@@ -37,7 +38,7 @@ def build(bld):
 
     test_script_vmath = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '.. .',
-                                     uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                     uselib = libs,
                                      uselib_local = 'script',
                                      proto_gen_py = True,
                                      target = 'test_script_vmath',
@@ -47,7 +48,7 @@ def build(bld):
 
     test_script_table = bld.new_task_gen(features = 'cxx cprogram',
                                      includes = '.. .',
-                                     uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                     uselib = libs,
                                      uselib_local = 'script',
                                      proto_gen_py = True,
                                      target = 'test_script_table',
@@ -57,7 +58,7 @@ def build(bld):
 
     test_script_sys = bld.new_task_gen(features = 'cxx cprogram',
                                        includes = '..',
-                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib = libs,
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script_sys',
@@ -67,7 +68,7 @@ def build(bld):
 
     test_script = bld.new_task_gen(features = 'cxx cprogram',
                                        includes = '..',
-                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib = libs,
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script',
@@ -77,7 +78,7 @@ def build(bld):
 
     test_script_module = bld.new_task_gen(features = 'cxx cprogram',
                                           includes = '..',
-                                          uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                          uselib = libs,
                                           uselib_local = 'script',
                                           proto_gen_py = True,
                                           target = 'test_script_module',
@@ -87,7 +88,7 @@ def build(bld):
 
     test_script_json = bld.new_task_gen(features = 'cxx cprogram',
                                        includes = '..',
-                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib = libs,
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script_json',
@@ -97,7 +98,7 @@ def build(bld):
 
     test_script_http = bld.new_task_gen(features = 'cxx cprogram',
                                        includes = '..',
-                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib = libs,
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script_http',
@@ -107,7 +108,7 @@ def build(bld):
 
     test_script_zlib = bld.new_task_gen(features = 'cxx cprogram',
                                        includes = '..',
-                                       uselib = 'GTEST PLATFORM_SOCKET THREAD DDF DLIB LUA',
+                                       uselib = libs,
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script_zlib',

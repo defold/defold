@@ -61,7 +61,7 @@ protected:
     virtual void TearDown()
     {
         dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, m_ScriptContext);
         lua_close(L);
         dmScript::DeleteContext(m_ScriptContext);
     }

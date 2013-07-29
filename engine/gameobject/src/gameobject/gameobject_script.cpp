@@ -1242,7 +1242,7 @@ namespace dmGameObject
         dmResource::Release(factory, lua_script);
     }
 
-    void FinalizeScript(dmResource::HFactory factory)
+    void FinalizeScript(dmScript::HContext context, dmResource::HFactory factory)
     {
         if (g_ScriptContext)
         {
@@ -1250,7 +1250,7 @@ namespace dmGameObject
         }
         if (g_LuaState)
         {
-            dmScript::Finalize(g_LuaState);
+            dmScript::Finalize(g_LuaState, context);
             lua_close(g_LuaState);
         }
         g_LuaState = 0;

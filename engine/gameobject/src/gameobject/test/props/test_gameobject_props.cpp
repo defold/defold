@@ -83,7 +83,7 @@ protected:
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::Finalize(m_Factory);
+        dmGameObject::Finalize(m_ScriptContext, m_Factory);
         dmGameObject::DeleteRegister(m_Register);
         dmScript::DeleteContext(m_ScriptContext);
     }

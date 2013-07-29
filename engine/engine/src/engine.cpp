@@ -12,6 +12,7 @@
 #include <dlib/math.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <extension/extension.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -177,7 +178,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRender::DeleteRenderContext(engine->m_RenderContext);
+        dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
         if (engine->m_HidContext)
         {
@@ -185,7 +186,7 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        dmGameObject::Finalize(engine->m_Factory);
+        dmGameObject::Finalize(engine->m_GOScriptContext, engine->m_Factory);
 
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
@@ -204,7 +205,7 @@ namespace dmEngine
         }
 
         if (engine->m_GuiContext.m_GuiContext)
-            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext);
+            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
         if (engine->m_SystemSocket)
             dmMessage::DeleteSocket(engine->m_SystemSocket);
 

@@ -1662,9 +1662,9 @@ namespace dmGui
         return L;
     }
 
-    void FinalizeScript(lua_State* L)
+    void FinalizeScript(lua_State* L, dmScript::HContext script_context)
     {
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, script_context);
         lua_close(L);
     }
 

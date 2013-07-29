@@ -563,9 +563,10 @@ namespace dmGameObject
 
     /**
      * Finalize system
+     * @param context Script context
      * @param factory Factory
      */
-    void Finalize(dmResource::HFactory factory);
+    void Finalize(dmScript::HContext context, dmResource::HFactory factory);
 
     /**
      * Create a new component type register

@@ -110,7 +110,7 @@ public:
     {
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
-        dmGui::DeleteContext(m_Context);
+        dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmMessage::DeleteSocket(m_Socket);
         dmScript::DeleteContext(m_ScriptContext);
     }

@@ -2,6 +2,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <extension/extension.h>
 
 #include "script_private.h"
 #include "script_hash.h"
@@ -27,6 +28,7 @@ namespace dmScript
         context->m_Modules.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
+        memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         return context;
     }
 
@@ -77,12 +79,50 @@ namespace dmScript
 
         lua_pushlightuserdata(L, (void*)params.m_GetUserDataCallback);
         lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
+
+#define BIT_INDEX(b) ((b) / sizeof(uint32_t))
+#define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
+
+        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+        uint32_t i = 0;
+        while (ed) {
+            dmExtension::Params p;
+            p.m_ConfigFile = params.m_Context->m_ConfigFile;
+            p.m_L = L;
+            dmExtension::Result r = ed->Initialize(&p);
+            if (r == dmExtension::RESULT_OK) {
+                params.m_Context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
+            } else {
+                dmLogError("Failed to initialize extension: %s", ed->m_Name);
+            }
+            ++i;
+            ed = ed->m_Next;
+        }
     }
 
-    void Finalize(lua_State* L)
+    void Finalize(lua_State* L, HContext context)
     {
         FinalizeHttp(L);
+
+        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+        uint32_t i = 0;
+        while (ed) {
+            dmExtension::Params p;
+            p.m_ConfigFile = context->m_ConfigFile;
+            p.m_L = L;
+            if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                dmExtension::Result r = ed->Finalize(&p);
+                if (r != dmExtension::RESULT_OK) {
+                    dmLogError("Failed to finalize extension: %s", ed->m_Name);
+                }
+            }
+            ++i;
+            ed = ed->m_Next;
+        }
+        memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
     }
+#undef BIT_INDEX
+#undef BIT_OFFSET
 
     int LuaPrint(lua_State* L)
     {
