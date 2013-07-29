@@ -16,8 +16,11 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     additional_libs = []
+    exported_symbols = []
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
         additional_libs.append('FACEBOOK')
+        additional_libs.append('SQLLITE')
+        exported_symbols = ['FacebookExt']
 
     if 'android' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
@@ -28,9 +31,9 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'EXTENSION FACEBOOKEXT FACEBOOK SQLLITE RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
+        uselib = 'EXTENSION FACEBOOKEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
-        exported_symbols = 'FacebookExt',
+        exported_symbols = exported_symbols,
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',
@@ -41,7 +44,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'EXTENSION FACEBOOKEXT FACEBOOK SQLLITE RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
+        uselib = 'EXTENSION FACEBOOKEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
