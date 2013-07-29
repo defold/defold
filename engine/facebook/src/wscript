@@ -16,5 +16,6 @@ def build(bld):
         # darwin to linux platform
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
-        facebook.source.remove('./facebook.mm')
+        if './facebook.mm' in facebook.source:
+            facebook.source.remove('./facebook.mm')
 
