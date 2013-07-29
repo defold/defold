@@ -62,9 +62,16 @@ public class IOSBundlerTest {
                     contentRoot, outputDir);
             bundler.bundleApplication();
 
-            assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
+            // Used to be assertFalse() but archives are currently disabled
+            boolean useArchive = false;
             assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
-            assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
+            if (useArchive) {
+                assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
+                assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
+            } else {
+                assertTrue(new File(concat(outputDir, "MyApp.app/test.png")).exists());
+                assertFalse(new File(concat(outputDir, "MyApp.app/game.arc")).exists());
+            }
             assertExe();
             assertPList();
         }
@@ -80,6 +87,25 @@ public class IOSBundlerTest {
 
             assertExe();
             assertPList();
+        }
+    }
+
+    @Test
+    public void testFacebookId() throws IOException, ConfigurationException {
+        if (isMac) {
+            projectProperties.putStringValue("project", "title", "MyApp");
+            projectProperties.putStringValue("facebook", "appid", "123456789");
+            IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot,
+                    contentRoot, outputDir);
+            bundler.bundleApplication();
+
+            assertExe();
+            assertPList();
+
+            String plist = FileUtils.readFileToString(new File(concat(outputDir, "MyApp.app/Info.plist")));
+            if (plist.indexOf("123456789") == -1) {
+                assertTrue("123456789 not found", false);
+            }
         }
     }
 

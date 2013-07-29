@@ -19,7 +19,8 @@ Require-Bundle: org.eclipse.core.runtime,
  slf4j;bundle-version="1.6.4"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ClassPath: lib/jdom-2.0.1.jar,
- .
+ .,
+ lib/jmustache-1.8.jar
 Export-Package: com.dynamo.cr.target.bundle,
  com.dynamo.cr.target.core,
  com.dynamo.cr.target.sign
