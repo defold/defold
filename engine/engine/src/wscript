@@ -31,7 +31,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'EXTENSION FACEBOOKEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
+        uselib = 'FACEBOOKEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto .',
@@ -44,7 +44,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'EXTENSION FACEBOOKEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
+        uselib = 'FACEBOOKEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -59,7 +59,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram',
-        uselib = 'EXTENSION RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW X',
+        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW X',
         uselib_local = 'engine',
         includes = '../build ../proto .',
         proto_gen_py = True,
