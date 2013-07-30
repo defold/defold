@@ -28,7 +28,7 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/script";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0);
+        m_ScriptContext = dmScript::NewContext(0, 0);
         dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);

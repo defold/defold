@@ -24,6 +24,14 @@ function test_sys()
     assert(sys.get_config("main.does_not_exists", "foobar") == "foobar")
     assert(sys.get_config("foo.value") == "123")
     assert(sys.get_config("foo.value", 456) == "123")
+
+    -- load_resource
+    local test_resource = sys.load_resource("/src/test/test_resource.txt")
+    assert(test_resource == "defold")
+
+    local does_not_exists = sys.load_resource("/does_not_exists")
+    assert(does_not_exists == nil)
+
 end
 
 functions = { test_sys = test_sys }

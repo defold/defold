@@ -689,6 +689,42 @@ Result Get(HFactory factory, const char* name, void** resource)
     return r;
 }
 
+Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size)
+{
+    assert(name);
+    assert(resource);
+    assert(resource_size);
+
+    DM_PROFILE(Resource, "GetRaw");
+
+    *resource = 0;
+    *resource_size = 0;
+
+    if (name[0] == 0)
+    {
+        dmLogError("Empty resource path");
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    if (name[0] != '/')
+    {
+        dmLogError("Resource path is not absolute (%s)", name);
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    char canonical_path[RESOURCE_PATH_MAX];
+    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+
+    uint32_t file_size;
+    Result result = LoadResource(factory, canonical_path, name, &file_size);
+    if (result == RESULT_OK) {
+        *resource = malloc(file_size);
+        memcpy(*resource, factory->m_StreamBuffer, file_size);
+        *resource_size = file_size;
+    }
+    return result;
+}
+
 static Result DoReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];

@@ -5,7 +5,7 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
-    libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION DDF DLIB LUA'
+    libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA'
     test_script_ddf = bld.new_task_gen(features = 'cxx cprogram',
                                         includes = '..',
                                         uselib = libs,

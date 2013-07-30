@@ -11,6 +11,7 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
@@ -40,6 +41,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
+        project.buildResource(input, CopyCustomResourcesBuilder.class);
         return builder.build();
     }
 

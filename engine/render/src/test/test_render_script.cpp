@@ -24,7 +24,7 @@ protected:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0);
+        m_ScriptContext = dmScript::NewContext(0, 0);
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;
         font_map_params.m_Glyphs.SetCapacity(128);

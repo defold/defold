@@ -29,7 +29,7 @@ protected:
         luaopen_math(L);
         luaopen_debug(L);
 
-        m_Context = dmScript::NewContext(0);
+        m_Context = dmScript::NewContext(0, 0);
         dmScript::ScriptParams params;
         params.m_Context = m_Context;
         dmScript::Initialize(L, params);

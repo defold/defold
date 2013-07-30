@@ -70,7 +70,7 @@ public:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0);
+        m_ScriptContext = dmScript::NewContext(0, 0);
 
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
         dmGui::NewContextParams context_params;

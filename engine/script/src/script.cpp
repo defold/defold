@@ -22,12 +22,13 @@ extern "C"
 
 namespace dmScript
 {
-    HContext NewContext(dmConfigFile::HConfig config_file)
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
+        context->m_ResourceFactory = factory;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         return context;
     }

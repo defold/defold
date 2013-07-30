@@ -6,6 +6,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <resource/resource.h>
 
 extern "C"
 {
@@ -23,7 +24,9 @@ protected:
         dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
 
-        m_Context = dmScript::NewContext(m_ConfigFile);
+        dmResource::NewFactoryParams factory_params;
+        m_ResourceFactory = dmResource::NewFactory(&factory_params, ".");
+        m_Context = dmScript::NewContext(m_ConfigFile, m_ResourceFactory);
 
         L = lua_open();
         luaL_openlibs(L);
@@ -35,6 +38,7 @@ protected:
     virtual void TearDown()
     {
         dmConfigFile::Delete(m_ConfigFile);
+        dmResource::DeleteFactory(m_ResourceFactory);
         dmScript::Finalize(L, m_Context);
         dmScript::DeleteContext(m_Context);
         lua_close(L);
@@ -42,6 +46,7 @@ protected:
 
     dmScript::HContext m_Context;
     dmConfigFile::HConfig m_ConfigFile;
+    dmResource::HFactory m_ResourceFactory;
     lua_State* L;
 };
 

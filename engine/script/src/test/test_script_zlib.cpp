@@ -23,7 +23,7 @@ protected:
         dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
 
-        m_Context = dmScript::NewContext(m_ConfigFile);
+        m_Context = dmScript::NewContext(m_ConfigFile, 0);
 
         L = lua_open();
         luaL_openlibs(L);

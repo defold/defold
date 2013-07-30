@@ -25,7 +25,7 @@ protected:
         g_LuaTableTest = this;
         L = lua_open();
         lua_atpanic(L, &AtPanic);
-        m_Context = dmScript::NewContext(0);
+        m_Context = dmScript::NewContext(0, 0);
         dmScript::ScriptParams params;
         params.m_Context = m_Context;
         dmScript::Initialize(L, params);

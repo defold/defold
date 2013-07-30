@@ -399,31 +399,7 @@ namespace dmEngine
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
-        engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config);
-        engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config);
-        engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config);
-        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
-        dmHID::Init(engine->m_HidContext);
-
-        dmSound::InitializeParams sound_params;
-        dmSound::Initialize(engine->m_Config, &sound_params);
-
-        dmRender::RenderContextParams render_params;
-        render_params.m_MaxRenderTypes = 16;
-        render_params.m_MaxInstances = 1024; // TODO: Should be configurable
-        render_params.m_MaxRenderTargets = 32;
-        render_params.m_VertexProgramData = ::DEBUG_VPC;
-        render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
-        render_params.m_FragmentProgramData = ::DEBUG_FPC;
-        render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
-        render_params.m_MaxCharacters = 2048 * 4;
-        render_params.m_CommandBufferSize = 1024;
-        render_params.m_ScriptContext = engine->m_RenderScriptContext;
-        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
-        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
-
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
-
         dmResource::NewFactoryParams params;
         int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
@@ -445,6 +421,30 @@ namespace dmEngine
         {
             return false;
         }
+
+        engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::Init(engine->m_HidContext);
+
+        dmSound::InitializeParams sound_params;
+        dmSound::Initialize(engine->m_Config, &sound_params);
+
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 16;
+        render_params.m_MaxInstances = 1024; // TODO: Should be configurable
+        render_params.m_MaxRenderTargets = 32;
+        render_params.m_VertexProgramData = ::DEBUG_VPC;
+        render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
+        render_params.m_FragmentProgramData = ::DEBUG_FPC;
+        render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
+        render_params.m_MaxCharacters = 2048 * 4;
+        render_params.m_CommandBufferSize = 1024;
+        render_params.m_ScriptContext = engine->m_RenderScriptContext;
+        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
+        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+
         dmGameObject::Initialize(engine->m_GOScriptContext, engine->m_Factory);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;

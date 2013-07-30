@@ -295,6 +295,22 @@ TEST_P(GetResourceTest, GetTestResource)
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, e);
 }
 
+TEST_P(GetResourceTest, GetRaw)
+{
+    dmResource::Result e;
+
+    void* resource = 0;
+    uint32_t resource_size = 0;
+    e = dmResource::GetRaw(m_Factory, "/test01.foo", (void**) &resource, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    // NOTE: Not pretty to hard-code the size here
+    ASSERT_EQ(2U, resource_size);
+    free(resource);
+
+    e = dmResource::GetRaw(m_Factory, "does_not_exists", (void**) &resource, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, e);
+}
+
 TEST_P(GetResourceTest, IncRef)
 {
     dmResource::Result e;

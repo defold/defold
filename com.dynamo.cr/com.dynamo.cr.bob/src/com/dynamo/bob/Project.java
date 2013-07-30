@@ -90,24 +90,28 @@ public class Project {
 
     private Task<?> doCreateTask(String input) throws CompileExceptionError {
         Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
-        Builder<?> builder;
         if (builderClass != null) {
-            try {
-                builder = builderClass.newInstance();
-                builder.setProject(this);
-                IResource inputResource = fileSystem.get(input);
-                Task<?> task = builder.create(inputResource);
-                return task;
-            } catch (CompileExceptionError e) {
-                // Just pass CompileExceptionError on unmodified
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            return doCreateTask(input, builderClass);
         } else {
             logWarning("No builder for '%s' found", input);
         }
         return null;
+    }
+
+    private Task<?> doCreateTask(String input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        Builder<?> builder;
+        try {
+            builder = builderClass.newInstance();
+            builder.setProject(this);
+            IResource inputResource = fileSystem.get(input);
+            Task<?> task = builder.create(inputResource);
+            return task;
+        } catch (CompileExceptionError e) {
+            // Just pass CompileExceptionError on unmodified
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private Class<? extends Builder<?>> getBuilderFromExtension(String input) {
@@ -124,7 +128,28 @@ public class Project {
      * @throws CompileExceptionError
      */
     public Task<?> buildResource(IResource input) throws CompileExceptionError {
-        Task<?> task = doCreateTask(input.getPath());
+        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input.getPath());
+        if (builderClass == null) {
+            logWarning("No builder for '%s' found", input);
+            return null;
+        }
+
+        Task<?> task = doCreateTask(input.getPath(), builderClass);
+        if (task != null) {
+            newTasks.add(task);
+        }
+        return task;
+    }
+
+    /**
+     * Create task from resource with explicit builder.
+     * @param input input resource
+     * @param builderClass class to build resource with
+     * @return
+     * @throws CompileExceptionError
+     */
+    public Task<?> buildResource(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        Task<?> task = doCreateTask(input.getPath(), builderClass);
         if (task != null) {
             newTasks.add(task);
         }
