@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.commons.io.IOUtils;
+
 public class ArchiveBuilder {
 
     public static final int VERSION = 2;
@@ -64,6 +66,7 @@ public class ArchiveBuilder {
             outFile.write(buf, 0, n);
             n = is.read(buf);
         }
+        IOUtils.closeQuietly(is);
     }
 
     public void write(RandomAccessFile outFile) throws IOException {
