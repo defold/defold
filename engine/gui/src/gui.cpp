@@ -69,6 +69,7 @@ namespace dmGui
         context->m_Height = params->m_Height;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
+        context->m_HidContext = params->m_HidContext;
 
         return context;
     }
@@ -506,6 +507,14 @@ namespace dmGui
 
                             lua_settable(L, -3);
                         }
+                        lua_settable(L, -3);
+                    }
+
+                    if (ia->m_TextCount > 0)
+                    {
+                        int tc = ia->m_TextCount;
+                        lua_pushliteral(L, "text");
+                        lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
                         lua_settable(L, -3);
                     }
 

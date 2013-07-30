@@ -19,6 +19,15 @@ namespace dmUtf8
      * @return decoded unicode character
      */
     uint32_t NextChar(const char** str);
+
+    /**
+     * Convert a 16-bit unicode character to utf-8
+     * @note Buffer must be of at least 4 characters. The string is *not* NULL-terminated
+     * @param chr character to convert
+     * @param buf output buffer
+     * @return number of characters in buffer
+     */
+    uint32_t ToUtf8(uint16_t chr, char* buf);
 }
 
 #endif // DM_UTF8

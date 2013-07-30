@@ -205,6 +205,10 @@ GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun )
     _glfwWin.charCallback = cbfun;
 }
 
+GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type )
+{
+    _glfwShowKeyboard(show, type);
+}
 
 //========================================================================
 // Set callback function for mouse clicks

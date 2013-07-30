@@ -205,6 +205,37 @@ namespace dmInput
             delete binding->m_TouchDeviceBinding;
             binding->m_TouchDeviceBinding = 0x0;
         }
+
+        uint32_t text_count = ddf->m_TextTrigger.m_Count;
+        if (text_count > 0)
+        {
+            if (binding->m_TextBinding == 0x0)
+            {
+                binding->m_TextBinding = new TextBinding();
+                memset(binding->m_TextBinding, 0, sizeof(*binding->m_TextBinding));
+            }
+            else
+            {
+                binding->m_TextBinding->m_Triggers.SetSize(0);
+            }
+            binding->m_TextBinding->m_Triggers.SetCapacity(text_count);
+            for (uint32_t i = 0; i < text_count; ++i)
+            {
+                const dmInputDDF::TextTrigger& ddf_trigger = ddf->m_TextTrigger[i];
+                dmInput::TextTrigger trigger;
+                trigger.m_ActionId = dmHashString64(ddf_trigger.m_Action);
+                trigger.m_Input = ddf_trigger.m_Input;
+                binding->m_TextBinding->m_Triggers.Push(trigger);
+                binding->m_Actions.Put(trigger.m_ActionId, action);
+            }
+            binding->m_Actions.Put(0, action);
+        }
+        else if (binding->m_TextBinding != 0x0)
+        {
+            delete binding->m_TextBinding;
+            binding->m_TextBinding = 0x0;
+        }
+
         if (binding->m_AccelerationBinding == 0x0)
         {
             binding->m_AccelerationBinding = new AccelerationBinding();
@@ -227,6 +258,8 @@ namespace dmInput
             delete binding->m_TouchDeviceBinding;
         if (binding->m_AccelerationBinding != 0x0)
             delete binding->m_AccelerationBinding;
+        if (binding->m_TextBinding != 0x0)
+            delete binding->m_TextBinding;
         delete binding;
     }
 
@@ -376,6 +409,27 @@ namespace dmInput
                     }
                 }
                 *prev_packet = *packet;
+            }
+        }
+        if (binding->m_TextBinding != 0x0)
+        {
+            TextBinding* text_binding = binding->m_TextBinding;
+            dmHID::TextPacket* packet = &text_binding->m_Packet;
+            if (dmHID::GetTextPacket(hid_context, packet))
+            {
+                const dmArray<TextTrigger>& triggers = text_binding->m_Triggers;
+                for (uint32_t i = 0; i < triggers.Size(); ++i)
+                {
+                    const TextTrigger& trigger = triggers[i];
+                    Action* action = binding->m_Actions.Get(trigger.m_ActionId);
+                    if (action != 0x0)
+                    {
+                        for (uint32_t i = 0; i < packet->m_Size; ++i) {
+                            action->m_Text[i] = packet->m_Text[i];
+                        }
+                        action->m_TextCount = packet->m_Size;
+                    }
+                }
             }
         }
         if (binding->m_MouseBinding != 0x0)
@@ -613,7 +667,7 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released;
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TextCount > 0;
         // Mouse move action
         active = active || (*key == 0 && (action->m_DX != 0 || action->m_DY != 0 || action->m_AccelerationSet));
         if (active)

@@ -43,14 +43,37 @@ TEST(dmUtf8, NextChar)
     ASSERT_EQ((uint32_t) '\0', dmUtf8::NextChar(&s));
 
     s = seq1;
-    ASSERT_EQ(0xe5, dmUtf8::NextChar(&s));
-    ASSERT_EQ(0xe4, dmUtf8::NextChar(&s));
-    ASSERT_EQ(0xf6, dmUtf8::NextChar(&s));
-    ASSERT_EQ(0, dmUtf8::NextChar(&s));
+    ASSERT_EQ(0xe5U, dmUtf8::NextChar(&s));
+    ASSERT_EQ(0xe4U, dmUtf8::NextChar(&s));
+    ASSERT_EQ(0xf6U, dmUtf8::NextChar(&s));
+    ASSERT_EQ(0U, dmUtf8::NextChar(&s));
 
     s = seq2;
-    ASSERT_EQ(0x261e, dmUtf8::NextChar(&s));
-    ASSERT_EQ(0, dmUtf8::NextChar(&s));
+    ASSERT_EQ(0x261eU, dmUtf8::NextChar(&s));
+    ASSERT_EQ(0U, dmUtf8::NextChar(&s));
+}
+
+TEST(dmUtf8, ToUtf8)
+{
+    char buf[4];
+    uint32_t n;
+
+    n = dmUtf8::ToUtf8('x', buf);
+    ASSERT_EQ(1U, n);
+    ASSERT_EQ('x', (int16_t) buf[0]);
+
+    // ä
+    n = dmUtf8::ToUtf8(0xe4, buf);
+    ASSERT_EQ(2U, n);
+    ASSERT_EQ(0xc3U, (uint8_t) buf[0]);
+    ASSERT_EQ(0xa4U, (uint8_t) buf[1]);
+
+    // See seq2
+    n = dmUtf8::ToUtf8(0x261e, buf);
+    ASSERT_EQ(3U, n);
+    ASSERT_EQ(0xe2U, (uint8_t) buf[0]);
+    ASSERT_EQ(0x98U, (uint8_t) buf[1]);
+    ASSERT_EQ(0x9eU, (uint8_t) buf[2]);
 }
 
 int main(int argc, char **argv)

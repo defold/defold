@@ -8,6 +8,8 @@
 
 namespace dmHID
 {
+    const uint32_t MAX_CHAR_COUNT = 16;
+
     /// Hid context handle
     typedef struct Context* HContext;
     /// Gamepad handle
@@ -160,6 +162,13 @@ namespace dmHID
         MAX_KEY_COUNT = HID_KEY_KP_ENTER + 1
     };
 
+    enum KeyboardType
+    {
+        KEYBOARD_TYPE_DEFAULT,
+        KEYBOARD_TYPE_NUMBER_PAD,
+        KEYBOARD_TYPE_EMAIL,
+    };
+
     enum MouseButton
     {
         MOUSE_BUTTON_LEFT = HID_MOUSE_BUTTON_LEFT,
@@ -190,6 +199,12 @@ namespace dmHID
     struct KeyboardPacket
     {
         uint32_t m_Keys[MAX_KEY_COUNT / 32 + 1];
+    };
+
+    struct TextPacket
+    {
+        char     m_Text[MAX_CHAR_COUNT];
+        uint32_t m_Size;
     };
 
     struct MousePacket
@@ -375,6 +390,15 @@ namespace dmHID
     bool GetKeyboardPacket(HContext context, KeyboardPacket* out_packet);
 
     /**
+     * Get text-input package
+     * @note The function clears the internal buffer and subsequent calls will return an empty package (size 0)
+     * @param context context
+     * @param out_packet package
+     * @return If the packet was successfully updated or not.
+     */
+    bool GetTextPacket(HContext context, TextPacket* out_packet);
+
+    /**
      * Obtain a mouse packet reflecting the current input state of a HID context.
      *
      * @param context context from which to retrieve the packet
@@ -420,6 +444,19 @@ namespace dmHID
      * @param value Key state
      */
     void SetKey(HContext context, Key key, bool value);
+
+    /**
+     * Show keyboard if applicable
+     * @param context context
+     * @param type keyboard type
+     */
+    void ShowKeyboard(HContext context, KeyboardType type);
+
+    /**
+     * Hide keyboard
+     * @param context context
+     */
+    void HideKeyboard(HContext context);
 
     /**
      * Convenience function to retrieve the state of a mouse button from a mouse packet.

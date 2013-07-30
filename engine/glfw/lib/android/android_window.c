@@ -301,6 +301,10 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 {
 }
 
+void _glfwShowKeyboard( int /*show*/, int /*type*/ )
+{
+}
+
 //========================================================================
 // Get physical accelerometer
 //========================================================================

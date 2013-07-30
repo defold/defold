@@ -476,6 +476,7 @@ namespace dmEngine
         gui_params.m_Height = engine->m_Height;
         gui_params.m_PhysicalWidth = physical_width;
         gui_params.m_PhysicalHeight = physical_height;
+        gui_params.m_HidContext = engine->m_HidContext;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         dmPhysics::NewContextParams physics_params;
@@ -646,6 +647,12 @@ bail:
             ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
             ia.m_DX = a.m_DX * width_ratio;
             ia.m_DY = -a.m_DY * height_ratio;
+        }
+
+        input_action.m_TextCount = action->m_TextCount;
+        tc = action->m_TextCount;
+        for (int i = 0; i < tc; ++i) {
+            input_action.m_Text[i] = action->m_Text[i];
         }
 
         input_buffer->Push(input_action);

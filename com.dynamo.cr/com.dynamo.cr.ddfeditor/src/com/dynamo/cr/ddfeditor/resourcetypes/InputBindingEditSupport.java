@@ -7,6 +7,8 @@ import com.dynamo.input.proto.Input.Key;
 import com.dynamo.input.proto.Input.KeyTrigger;
 import com.dynamo.input.proto.Input.Mouse;
 import com.dynamo.input.proto.Input.MouseTrigger;
+import com.dynamo.input.proto.Input.Text;
+import com.dynamo.input.proto.Input.TextTrigger;
 import com.dynamo.input.proto.Input.Touch;
 import com.dynamo.input.proto.Input.TouchTrigger;
 import com.google.protobuf.Descriptors.Descriptor;
@@ -31,6 +33,10 @@ public class InputBindingEditSupport implements IResourceTypeEditSupport {
         else if (descriptor.getFullName().equals(TouchTrigger.getDescriptor().getFullName())) {
             return TouchTrigger.newBuilder().setAction("unnamed").setInput(Touch.TOUCH_MULTI).build();
         }
+        else if (descriptor.getFullName().equals(TextTrigger.getDescriptor().getFullName())) {
+            return TextTrigger.newBuilder().setAction("unnamed").setInput(Text.TEXT).build();
+        }
+
         return null;
     }
 

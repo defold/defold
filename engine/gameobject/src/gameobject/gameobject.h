@@ -132,6 +132,8 @@ namespace dmGameObject
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
         int32_t  m_TouchCount;
+        char     m_Text[dmHID::MAX_CHAR_COUNT];
+        uint32_t m_TextCount;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update

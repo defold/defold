@@ -41,6 +41,7 @@ namespace dmGui
         uint32_t                m_PhysicalHeight;
         dmArray<HNode>          m_RenderNodes;
         dmArray<Matrix4>        m_RenderTransforms;
+        dmHID::HContext         m_HidContext;
     };
 
     struct Node

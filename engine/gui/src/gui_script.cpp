@@ -1153,6 +1153,48 @@ namespace dmGui
         return 0;
     }
 
+    /*# default keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_DEFAULT
+     * @variable
+     */
+
+    /*# number input keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_NUMBER_PAD
+     * @variable
+     */
+
+    /*# email keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_EMAIL
+     * @variable
+     */
+
+    /*# display on-display keyboard if available
+     *
+     * @name gui.show_keyboard
+     * @param type keyboard type
+     */
+    static int LuaShowKeyboard(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        int type = luaL_checkinteger(L, 1);
+        dmHID::ShowKeyboard(scene->m_Context->m_HidContext, (dmHID::KeyboardType) type);
+        return 0;
+    }
+
+    /*# hide on-display keyboard if available
+     *
+     * @name gui.hide_keyboard
+     */
+    static int LuaHideKeyboard(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        dmHID::HideKeyboard(scene->m_Context->m_HidContext);
+        return 0;
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -1344,6 +1386,8 @@ namespace dmGui
         {"set_adjust_mode", LuaSetAdjustMode},
         {"move_above",      LuaMoveAbove},
         {"move_below",      LuaMoveBelow},
+        {"show_keyboard",   LuaShowKeyboard},
+        {"hide_keyboard",   LuaHideKeyboard},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -1609,6 +1653,16 @@ namespace dmGui
         SETBLEND(MULT)
 
 #undef SETBLEND
+
+#define SETKEYBOARD(name) \
+        lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \
+        lua_setfield(L, -2, "KEYBOARD_TYPE_"#name);\
+
+        SETKEYBOARD(DEFAULT)
+        SETKEYBOARD(NUMBER_PAD)
+        SETKEYBOARD(EMAIL)
+
+#undef SETKEYBOARD
 
         // Assert that the assumption of 0 below holds
         assert(XANCHOR_NONE == 0);

@@ -222,6 +222,12 @@ enum Touch
     MAX_TOUCH_COUNT = 1;
 }
 
+enum Text
+{
+    TEXT = 0;
+    MAX_TEXT_COUNT = 1;
+}
+
 message KeyTrigger
 {
     required Key input = 1;
@@ -246,10 +252,17 @@ message TouchTrigger
     required string action = 2;
 }
 
+message TextTrigger
+{
+    required Text input = 1;
+    required string action = 2;
+}
+
 message InputBinding
 {
     repeated KeyTrigger key_trigger = 1;
     repeated MouseTrigger mouse_trigger = 2;
     repeated GamepadTrigger gamepad_trigger = 3;
     repeated TouchTrigger touch_trigger = 4;
+    repeated TextTrigger text_trigger = 5;
 }

@@ -36,6 +36,26 @@ namespace dmUtf8
         return c;
     }
 
+    uint32_t ToUtf8(uint16_t chr, char* buf)
+    {
+        if (chr < 0x80) {
+            buf[0] = (char) chr;
+            return 1;
+        }
+        if (chr < 0x800) {
+            buf[0] = (chr >> 6) | 0xc0;
+            buf[1] = (chr & 0x3f) | 0x80;
+            return 2;
+        }
+        if (chr < 0x10000) {
+            buf[0] = (chr >> 12) | 0xe0;
+            buf[1] = ((chr >> 6) & 0x3f) | 0x80;
+            buf[2] = (chr & 0x3f) | 0x80;
+            return 3;
+        }
+        return 0;
+    }
+
     uint32_t StrLen(const char* str) {
         int i = 0, j = 0;
         while (str[i]) {
