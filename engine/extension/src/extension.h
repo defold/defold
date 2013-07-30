@@ -51,7 +51,12 @@ namespace dmExtension
         dmExtension::Register(&desc); \
     }
 #else
-    #define DM_REGISTER_EXTENSION(name, desc) dmExtension::RegisterExtension name(&desc);
+    #define DM_REGISTER_EXTENSION(name, desc) extern "C" void name () { \
+        dmExtension::Register(&desc); \
+        }\
+        int name ## Wrapper(void) { name(); return 0; } \
+        __pragma(section(".CRT$XCU",read)) \
+        __declspec(allocate(".CRT$XCU")) int (* _Fp ## name)(void) = name ## Wrapper;
 #endif
 
 }
