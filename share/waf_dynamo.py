@@ -4,6 +4,7 @@ from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
+from Constants import RUN_ME
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
 ANDROID_NDK_VERSION='8e'
@@ -349,14 +350,42 @@ def app_bundle(task):
 
     return 0
 
+def create_export_symbols(task):
+    with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        for name in Utils.to_list(task.exported_symbols):
+            print >>out_f, 'extern "C" void %s();' % name
+        print >>out_f, "void dmExportedSymbols() {"
+        for name in Utils.to_list(task.exported_symbols):
+            print >>out_f, "    %s();" % name
+        print >>out_f, "}"
+
+    return 0
+
+task = Task.task_type_from_func('create_export_symbols',
+                                func  = create_export_symbols,
+                                color = 'PINK',
+                                before  = 'cc cxx')
+
+task.runnable_status = lambda self: RUN_ME
+
+@taskgen
 @feature('cprogram')
-@after('apply_link')
+@before('apply_core')
 def export_symbols(self):
-    if not re.match('.*?darwin', self.env['PLATFORM']):
-        return
+    # Force inclusion of symbol, e.g. from static libraries
+    # We used to use -Wl,-exported_symbol on Darwin but changed
+    # to a more general solution by generating a .cpp-file with
+    # a function which references the symbols in question
     Utils.def_attrs(self, exported_symbols=[])
-    for name in Utils.to_list(self.exported_symbols):
-        self.link_task.env.append_value('LINKFLAGS', ['-Wl,-exported_symbol', '-Wl,_%s' % name])
+    if not self.exported_symbols:
+        return
+
+    exported_symbols = self.path.find_or_declare('__exported_symbols_%d.cpp' % self.idx)
+    self.allnodes.append(exported_symbols)
+
+    task = self.create_task('create_export_symbols')
+    task.exported_symbols = self.exported_symbols
+    task.set_outputs([exported_symbols])
 
 Task.task_type_from_func('app_bundle',
                          func = app_bundle,
@@ -545,8 +574,6 @@ task = Task.task_type_from_func('copy_glue',
                                 func  = copy_glue,
                                 color = 'PINK',
                                 before  = 'cc cxx')
-
-from Constants import RUN_ME
 
 task.runnable_status = lambda self: RUN_ME
 
