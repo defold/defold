@@ -77,6 +77,7 @@ message NodeDesc
     optional dmMath.Vector4 outline  = 15;
     optional dmMath.Vector4 shadow   = 16;
     optional AdjustMode adjust_mode  = 17 [default = ADJUST_MODE_FIT];
+    optional bool       line_break   = 18 [default = false];
 }
 
 message SceneDesc

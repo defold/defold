@@ -3,6 +3,7 @@ package com.dynamo.cr.guieditor.render;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.geom.Rectangle2D;
+import java.util.List;
 
 import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
@@ -21,11 +22,11 @@ public interface IGuiRenderer {
             double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform);
 
     public void drawString(TextRenderer textRenderer, String text, double x0, double y0,
-            double r, double g, double b, double a, BlendMode blendMode,
-            Texture texture, Matrix4d transform);
+            double width, boolean lineBreak, double r, double g, double b,
+            double a, BlendMode blendMode, Texture texture, Matrix4d transform);
 
     public void drawStringBounds(TextRenderer textRenderer, String text, double x0,
-            double y0, double r, double g, double b, double a, Matrix4d transform);
+            double y0, double width, boolean lineBreak, double r, double g, double b, double a, Matrix4d transform);
 
     public Rectangle2D getStringBounds(TextRenderer textRenderer, String text);
 
@@ -50,5 +51,8 @@ public interface IGuiRenderer {
     public SelectResult endSelect();
 
     public TextRenderer getDebugTextRenderer();
+
+    List<String> layout(TextRenderer textRenderer, String text, double width,
+            boolean lineBreak);
 
 }

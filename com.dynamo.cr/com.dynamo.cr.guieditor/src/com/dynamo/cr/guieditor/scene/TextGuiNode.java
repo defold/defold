@@ -29,6 +29,10 @@ public class TextGuiNode extends GuiNode {
 
     @Property
     private String text;
+
+    @Property
+    private boolean lineBreak;
+
     @Property(editorType = EditorType.DROP_DOWN)
     private String font;
 
@@ -42,7 +46,6 @@ public class TextGuiNode extends GuiNode {
     @Property
     private double shadowAlpha;
 
-    private Rectangle2D textBounds = new Rectangle2D.Double(0, 0, 1, 1);
     private double pivotOffsetX;
     private double pivotOffsetY;
 
@@ -58,6 +61,7 @@ public class TextGuiNode extends GuiNode {
                 (int) (nodeDesc.getShadow().getY() * 255),
                 (int) (nodeDesc.getShadow().getZ() * 255));
         this.shadowAlpha = nodeDesc.getShadow().getW();
+        this.lineBreak = nodeDesc.getLineBreak();
     }
 
     @Override
@@ -79,6 +83,14 @@ public class TextGuiNode extends GuiNode {
 
     public void setText(String text) {
         this.text = text;
+    }
+
+    public boolean isLineBreak() {
+        return lineBreak;
+    }
+
+    public void setLineBreak(boolean lineBreak) {
+        this.lineBreak = lineBreak;
     }
 
     public String getFont() {
@@ -211,13 +223,17 @@ public class TextGuiNode extends GuiNode {
             texture = null;
         }
 
-        textBounds = renderer.getStringBounds(textRenderer, actualText);
-
         FontMetrics metrics = renderer.getFontMetrics(textRenderer.getFont());
+
+        List<String> lines = renderer.layout(textRenderer, text, size.getX(), lineBreak);
+        int width = 0;
+        for (String l : lines) {
+            width = Math.max(width, metrics.stringWidth(l));
+        }
+
         int ascent = metrics.getMaxAscent();
         int descent = metrics.getMaxDescent();
 
-        int width = metrics.stringWidth(actualText);
         pivotOffsetX = pivotOffsetX(width);
         pivotOffsetY = pivotOffsetY(ascent, descent);
 
@@ -226,7 +242,7 @@ public class TextGuiNode extends GuiNode {
 
         Matrix4d transform = new Matrix4d();
         calculateWorldTransform(transform);
-        renderer.drawString(textRenderer, actualText, x0, y0, r, g, b, alpha, blendMode, texture, transform);
+        renderer.drawString(textRenderer, actualText, x0, y0, this.getSize().x, lineBreak, r, g, b, alpha, blendMode, texture, transform);
     }
 
     @Override
@@ -255,46 +271,34 @@ public class TextGuiNode extends GuiNode {
 
         Matrix4d transform = new Matrix4d();
         calculateWorldTransform(transform);
-        renderer.drawStringBounds(textRenderer, actualText, x0, y0, 1, 1, 1, 1, transform);
+        renderer.drawStringBounds(textRenderer, actualText, x0, y0, this.size.getX(), lineBreak, 1, 1, 1, 1, transform);
     }
 
     @Override
     public Rectangle2D getVisualBounds() {
-        if (textBounds != null) {
-            // Return cached text bounds
-            double x0 = textBounds.getX();
-            double y0 = -(textBounds.getHeight() + textBounds.getY());
+        Matrix4d transform = new Matrix4d();
+        calculateWorldTransform(transform);
 
-            x0 -= pivotOffsetX;
-            y0 -= pivotOffsetY;
-            double x1 = x0 + textBounds.getWidth();
-            double y1 = y0 + textBounds.getHeight();
-
-            Vector4d[] points = new Vector4d[] {
-                    new Vector4d(x0, y0, 0, 1),
-                    new Vector4d(x1, y0, 0, 1),
-                    new Vector4d(x1, y1, 0, 1),
-                    new Vector4d(x0, y1, 0, 1),
-            };
-            double xMin = Double.POSITIVE_INFINITY, yMin = Double.POSITIVE_INFINITY;
-            double xMax = Double.NEGATIVE_INFINITY, yMax = Double.NEGATIVE_INFINITY;
-
-            Matrix4d transform = new Matrix4d();
-            calculateWorldTransform(transform);
-            for (int i = 0; i < 4; ++i) {
-                transform.transform(points[i]);
-                xMin = Math.min(xMin, points[i].getX());
-                yMin = Math.min(yMin, points[i].getY());
-                xMax = Math.max(xMax, points[i].getX());
-                yMax = Math.max(yMax, points[i].getY());
-            }
-
-            Rectangle2D ret = new Rectangle2D.Double(xMin, yMin, xMax - xMin, yMax - yMin);
-            return ret;
+        double x0 = -pivotOffsetX(size.x);
+        double y0 = -pivotOffsetY(size.y, 0);
+        double x1 = x0 + size.x;
+        double y1 = y0 + size.y;
+        Vector4d points[] = new Vector4d[] {
+                new Vector4d(x0, y0, 0, 1),
+                new Vector4d(x1, y0, 0, 1),
+                new Vector4d(x0, y1, 0, 1),
+                new Vector4d(x1, y1, 0, 1),
+        };
+        double xMin = Double.POSITIVE_INFINITY, yMin = Double.POSITIVE_INFINITY;
+        double xMax = Double.NEGATIVE_INFINITY, yMax = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < 4; ++i) {
+            transform.transform(points[i]);
+            xMin = Math.min(xMin, points[i].getX());
+            xMax = Math.max(xMax, points[i].getX());
+            yMin = Math.min(yMin, points[i].getY());
+            yMax = Math.max(yMax, points[i].getY());
         }
-
-        // else return something temp (predraw)
-        return new Rectangle2D.Double(0, 0, 1, 1);
+        return new Rectangle2D.Double(xMin, yMin, xMax - xMin, yMax - yMin);
     }
 
     @Override
@@ -310,6 +314,7 @@ public class TextGuiNode extends GuiNode {
                 .setZ(shadow.blue / 255.0f)
                 .setW((float) shadowAlpha).build();
         builder.setText(this.text)
+               .setLineBreak(this.lineBreak)
                .setFont(this.font)
                .setOutline(outline4)
                .setShadow(shadow4);

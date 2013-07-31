@@ -53,7 +53,8 @@ namespace dmGui
         uint32_t    m_YAnchor : 2;
         uint32_t    m_Pivot : 4;
         uint32_t    m_AdjustMode : 2;
-        uint32_t    m_Reserved : 14;
+        uint32_t    m_LineBreak : 1;
+        uint32_t    m_Reserved : 13;
         const char* m_Text;
         uint64_t    m_TextureHash;
         void*       m_Texture;

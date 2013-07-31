@@ -66,9 +66,11 @@ namespace dmGui
      *
      * @param font font to measure
      * @param text text to measure
+     * @param width max width. used only when line_break is true
+     * @param line_break line break characters
      * @param out_metrics the metrics of the supplied text
      */
-    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, TextMetrics* out_metrics);
+    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, TextMetrics* out_metrics);
 
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
@@ -384,6 +386,8 @@ namespace dmGui
 
     const char* GetNodeText(HScene scene, HNode node);
     void SetNodeText(HScene scene, HNode node, const char* text);
+    void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
+    bool GetNodeLineBreak(HScene scene, HNode node);
 
     void* GetNodeTexture(HScene scene, HNode node);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);

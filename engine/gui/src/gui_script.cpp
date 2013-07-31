@@ -624,6 +624,36 @@ namespace dmGui
         return 0;
     }
 
+    /*# get line-break mode
+     * This is only useful for text nodes.
+     *
+     * @name gui.get_line_break
+     * @param node node from which to get the line-break for (node)
+     * @return line-break (bool)
+     */
+    static int LuaGetLineBreak(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushboolean(L, n->m_Node.m_LineBreak);
+        return 1;
+    }
+
+    /*# set line-break mode
+     * This is only useful for text nodes.
+     *
+     * @name gui.set_line_break
+     * @param node node to set line-break for (node)
+     * @param text text to set (string)
+     */
+    static int LuaSetLineBreak(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        bool line_break = lua_toboolean(L, 2);
+        n->m_Node.m_LineBreak = line_break;
+        return 0;
+    }
+
     /*# gets the node blend mode
      * Blend mode defines how the node will be blended with the background.
      *
@@ -1365,6 +1395,8 @@ namespace dmGui
         {"new_text_node",   LuaNewTextNode},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
+        {"set_line_break",  LuaSetLineBreak},
+        {"get_line_break",  LuaGetLineBreak},
         {"get_blend_mode",  LuaGetBlendMode},
         {"set_blend_mode",  LuaSetBlendMode},
         {"get_texture",     LuaGetTexture},

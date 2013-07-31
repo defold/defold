@@ -1,8 +1,10 @@
 
 #include "font_renderer.h"
+#include "font_renderer_private.h"
 
 #include <string.h>
 #include <math.h>
+#include <float.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dlib/array.h>
@@ -64,6 +66,8 @@ namespace dmRender
         float                   m_MaxAscent;
         float                   m_MaxDescent;
     };
+
+    static float GetLineTextMetrics(HFontMap font_map, const char* text, int n);
 
     HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
     {
@@ -187,10 +191,22 @@ namespace dmRender
     , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_Text(0x0)
     , m_Depth(0)
+    , m_Width(FLT_MAX)
+    , m_LineBreak(false)
     {
     }
 
     static dmhash_t g_ConstantNameHashes[] = { dmHashString64("face_color"), dmHashString64("outline_color"), dmHashString64("shadow_color") };
+
+    struct LayoutMetrics
+    {
+        HFontMap m_FontMap;
+        LayoutMetrics(HFontMap font_map) : m_FontMap(font_map) {}
+        float operator()(const char* text, int n)
+        {
+            return GetLineTextMetrics(m_FontMap, text, n);
+        }
+    };
 
     void DrawText(HRenderContext render_context, HFontMap font_map, const DrawTextParams& params)
     {
@@ -201,7 +217,16 @@ namespace dmRender
             return;
         }
 
-        int n = (int) dmUtf8::StrLen(params.m_Text);
+        float width = params.m_Width;
+        if (!params.m_LineBreak) {
+            width = FLT_MAX;
+        }
+
+        const uint32_t max_lines = 512;
+        uint16_t lines[max_lines];
+        LayoutMetrics lm(font_map);
+        float layout_width;
+        int line_count = Layout(params.m_Text, width, lines, max_lines, &layout_width, lm);
 
         Vectormath::Aos::Vector4 colors[3] = {params.m_FaceColor, params.m_OutlineColor, params.m_ShadowColor};
         Vectormath::Aos::Vector4 clear_color(0.0f, 0.0f, 0.0f, 0.0f);
@@ -238,62 +263,71 @@ namespace dmRender
                 else
                     EnableRenderObjectConstant(ro, g_ConstantNameHashes[j], clear_color);
             }
-            int16_t x = 0;
-            int16_t y = 0;
             const char* cursor = params.m_Text;
-            for (int j = 0; j < n; ++j)
-            {
-                uint16_t c = (uint16_t) dmUtf8::NextChar(&cursor);
 
-                const Glyph* g = font_map->m_Glyphs.Get(c);
-                if (!g)
-                    g = font_map->m_Glyphs.Get(126U); // Fallback to ~
-
-                if (g->m_Width > 0)
+            for (int line = 0; line < line_count; ++line) {
+                int16_t x = 0;
+                int16_t y = (int16_t) (-line * (font_map->m_MaxAscent + font_map->m_MaxDescent) - 0.5f);
+                int n = lines[line];
+                for (int j = 0; j < n; ++j)
                 {
-                    TextVertex& v1 = vertices[text_context.m_VertexIndex];
-                    TextVertex& v2 = *(&v1 + 1);
-                    TextVertex& v3 = *(&v1 + 2);
-                    TextVertex& v4 = *(&v1 + 3);
-                    TextVertex& v5 = *(&v1 + 4);
-                    TextVertex& v6 = *(&v1 + 5);
-                    text_context.m_VertexIndex += 6;
+                    uint16_t c = (uint16_t) dmUtf8::NextChar(&cursor);
 
-                    int16_t width = (int16_t)g->m_Width;
-                    int16_t descent = (int16_t)g->m_Descent;
-                    int16_t ascent = (int16_t)g->m_Ascent;
+                    if (j == n - 1 && (c == ' ' || c == '\n')) {
+                        // Skip single trailing white-space
+                        continue;
+                    }
 
-                    v1.m_Position[0] = x + g->m_LeftBearing + x_offsets[i];
-                    v1.m_Position[1] = y - descent + y_offsets[i];
+                    const Glyph* g = font_map->m_Glyphs.Get(c);
+                    if (!g)
+                        g = font_map->m_Glyphs.Get(126U); // Fallback to ~
 
-                    v2.m_Position[0] = x + g->m_LeftBearing + x_offsets[i];
-                    v2.m_Position[1] = y + ascent + y_offsets[i];
+                    if (g->m_Width > 0)
+                    {
+                        TextVertex& v1 = vertices[text_context.m_VertexIndex];
+                        TextVertex& v2 = *(&v1 + 1);
+                        TextVertex& v3 = *(&v1 + 2);
+                        TextVertex& v4 = *(&v1 + 3);
+                        TextVertex& v5 = *(&v1 + 4);
+                        TextVertex& v6 = *(&v1 + 5);
+                        text_context.m_VertexIndex += 6;
 
-                    v3.m_Position[0] = x + g->m_LeftBearing + width + x_offsets[i];
-                    v3.m_Position[1] = y - descent + y_offsets[i];
+                        int16_t width = (int16_t)g->m_Width;
+                        int16_t descent = (int16_t)g->m_Descent;
+                        int16_t ascent = (int16_t)g->m_Ascent;
 
-                    v6.m_Position[0] = x + g->m_LeftBearing + width + x_offsets[i];
-                    v6.m_Position[1] = y + ascent + y_offsets[i];
+                        v1.m_Position[0] = x + g->m_LeftBearing + x_offsets[i];
+                        v1.m_Position[1] = y - descent + y_offsets[i];
 
-                    float im_recip = 1.0f / font_map->m_TextureWidth;
-                    float ih_recip = 1.0f / font_map->m_TextureHeight;
+                        v2.m_Position[0] = x + g->m_LeftBearing + x_offsets[i];
+                        v2.m_Position[1] = y + ascent + y_offsets[i];
 
-                    v1.m_UV[0] = (g->m_X + g->m_LeftBearing) * im_recip;
-                    v1.m_UV[1] = (g->m_Y + descent) * ih_recip;
+                        v3.m_Position[0] = x + g->m_LeftBearing + width + x_offsets[i];
+                        v3.m_Position[1] = y - descent + y_offsets[i];
 
-                    v2.m_UV[0] = (g->m_X + g->m_LeftBearing) * im_recip;
-                    v2.m_UV[1] = (g->m_Y - ascent) * ih_recip;
+                        v6.m_Position[0] = x + g->m_LeftBearing + width + x_offsets[i];
+                        v6.m_Position[1] = y + ascent + y_offsets[i];
 
-                    v3.m_UV[0] = (g->m_X + g->m_LeftBearing + g->m_Width) * im_recip;
-                    v3.m_UV[1] = (g->m_Y + descent) * ih_recip;
+                        float im_recip = 1.0f / font_map->m_TextureWidth;
+                        float ih_recip = 1.0f / font_map->m_TextureHeight;
 
-                    v6.m_UV[0] = (g->m_X + g->m_LeftBearing + g->m_Width) * im_recip;
-                    v6.m_UV[1] = (g->m_Y - ascent) * ih_recip;
+                        v1.m_UV[0] = (g->m_X + g->m_LeftBearing) * im_recip;
+                        v1.m_UV[1] = (g->m_Y + descent) * ih_recip;
 
-                    v4 = v3;
-                    v5 = v2;
+                        v2.m_UV[0] = (g->m_X + g->m_LeftBearing) * im_recip;
+                        v2.m_UV[1] = (g->m_Y - ascent) * ih_recip;
+
+                        v3.m_UV[0] = (g->m_X + g->m_LeftBearing + g->m_Width) * im_recip;
+                        v3.m_UV[1] = (g->m_Y + descent) * ih_recip;
+
+                        v6.m_UV[0] = (g->m_X + g->m_LeftBearing + g->m_Width) * im_recip;
+                        v6.m_UV[1] = (g->m_Y - ascent) * ih_recip;
+
+                        v4 = v3;
+                        v5 = v2;
+                    }
+                    x += (int16_t)g->m_Advance;
                 }
-                x += (int16_t)g->m_Advance;
             }
             ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
             AddToRender(render_context, ro);
@@ -308,11 +342,8 @@ namespace dmRender
         dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
-    void GetTextMetrics(HFontMap font_map, const char* text, TextMetrics* metrics)
+    static float GetLineTextMetrics(HFontMap font_map, const char* text, int n)
     {
-        metrics->m_MaxAscent = font_map->m_MaxAscent;
-        metrics->m_MaxDescent = font_map->m_MaxDescent;
-        int n = (int) dmUtf8::StrLen(text);
         float width = 0;
         const char* cursor = text;
         const Glyph* first = 0;
@@ -331,15 +362,32 @@ namespace dmRender
         }
         if (n > 0)
         {
-            // TODO: This must be broken "last->m_Advance - last->m_Advance" is zero.
-            width = width - first->m_LeftBearing - (last->m_Advance - last->m_Advance - last->m_Width);
+            width = width - first->m_LeftBearing - (last->m_Advance - last->m_LeftBearing - last->m_Width);
             if (last->m_Width == 0.0f)
             {
                 width += last->m_Advance;
             }
         }
 
-        metrics->m_Width = width;
+        return width;
+    }
+
+    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, TextMetrics* metrics)
+    {
+        metrics->m_MaxAscent = font_map->m_MaxAscent;
+        metrics->m_MaxDescent = font_map->m_MaxDescent;
+
+        if (!line_break) {
+            width = FLT_MAX;
+        }
+
+        const uint32_t max_lines = 512;
+        uint16_t lines[max_lines];
+
+        LayoutMetrics lm(font_map);
+        float layout_width;
+        Layout(text, width, lines, max_lines, &layout_width, lm);
+        metrics->m_Width = layout_width;
     }
 
 }

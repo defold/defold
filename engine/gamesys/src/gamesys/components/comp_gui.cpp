@@ -168,6 +168,7 @@ namespace dmGameSystem
                 {
                     dmGui::SetNodeText(scene, n, node_desc->m_Text);
                     dmGui::SetNodeFont(scene, n, node_desc->m_Font);
+                    dmGui::SetNodeLineBreak(scene, n, node_desc->m_LineBreak);
                 }
                 if (node_desc->m_Id)
                 {
@@ -368,6 +369,8 @@ namespace dmGameSystem
                 params.m_Text = dmGui::GetNodeText(scene, node);
                 params.m_WorldTransform = node_transforms[i];
                 params.m_Depth = gui_context->m_NextZ;
+                params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
+                params.m_Width = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE).getX();
                 dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
             }
             gui_context->m_NextZ++;
@@ -535,10 +538,10 @@ namespace dmGameSystem
         }
     }
 
-    void GuiGetTextMetricsCallback(const void* font, const char* text, dmGui::TextMetrics* out_metrics)
+    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics)
     {
         dmRender::TextMetrics metrics;
-        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, &metrics);
+        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, width, line_break, &metrics);
         out_metrics->m_Width = metrics.m_Width;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;
         out_metrics->m_MaxDescent = metrics.m_MaxDescent;
