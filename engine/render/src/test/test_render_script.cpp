@@ -33,6 +33,7 @@ protected:
         for (uint32_t i = 0; i < 128; ++i)
         {
             font_map_params.m_Glyphs[i].m_Width = 1;
+            font_map_params.m_Glyphs[i].m_Character = i;
         }
         m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
         dmRender::RenderContextParams params;

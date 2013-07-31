@@ -16,6 +16,7 @@ namespace dmRender
      */
     struct Glyph
     {
+        uint16_t    m_Character;
         /// Width of the glyph
         uint32_t    m_Width;
         /// Total advancement of the glyph, measured from left to the next glyph

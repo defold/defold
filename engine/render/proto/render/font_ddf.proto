@@ -19,19 +19,21 @@ message FontDesc
     optional uint32 shadow_blur = 9 [default = 0];
     optional float shadow_x = 10 [default = 0.0];
     optional float shadow_y = 11 [default = 0.0];
+    optional string extra_characters = 12 [default = ""];
 }
 
 message FontMap
 {
     message Glyph
     {
-        optional uint32 width = 1 [default = 0];
+        required uint32 character = 1;
+        optional uint32 width = 2 [default = 0];
         optional float advance = 3 [default = 0.0];
         optional float left_bearing = 4 [default = 0.0];
-        optional uint32 ascent = 6 [default = 0];
-        optional uint32 descent = 7 [default = 0];
-        optional int32 x = 8 [default = 0];
-        optional int32 y = 9 [default = 0];
+        optional uint32 ascent = 5 [default = 0];
+        optional uint32 descent = 6 [default = 0];
+        optional int32 x = 7 [default = 0];
+        optional int32 y = 8 [default = 0];
     }
 
     repeated Glyph glyphs = 1;

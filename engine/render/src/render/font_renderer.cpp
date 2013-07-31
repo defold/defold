@@ -8,6 +8,8 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/hashtable.h>
+#include <dlib/utf8.h>
 
 #include "render_private.h"
 #include "render/font_ddf.h"
@@ -25,6 +27,8 @@ namespace dmRender
     , m_TextureDataSize(0)
     , m_ShadowX(0.0f)
     , m_ShadowY(0.0f)
+    , m_MaxAscent(0.0f)
+    , m_MaxDescent(0.0f)
     {
 
     }
@@ -39,6 +43,8 @@ namespace dmRender
         , m_TextureHeight(0)
         , m_ShadowX(0.0f)
         , m_ShadowY(0.0f)
+        , m_MaxAscent(0.0f)
+        , m_MaxDescent(0.0f)
         {
 
         }
@@ -50,7 +56,7 @@ namespace dmRender
 
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
-        dmArray<Glyph>          m_Glyphs;
+        dmHashTable16<Glyph>    m_Glyphs;
         uint32_t                m_TextureWidth;
         uint32_t                m_TextureHeight;
         float                   m_ShadowX;
@@ -64,7 +70,13 @@ namespace dmRender
         FontMap* font_map = new FontMap();
         font_map->m_Material = 0;
 
-        font_map->m_Glyphs.Swap(params.m_Glyphs);
+        const dmArray<Glyph>& glyphs = params.m_Glyphs;
+        font_map->m_Glyphs.SetCapacity((3 * glyphs.Size()) / 2, glyphs.Size());
+        for (uint32_t i = 0; i < glyphs.Size(); ++i) {
+            const Glyph& g = glyphs[i];
+            font_map->m_Glyphs.Put(g.m_Character, g);
+        }
+
         font_map->m_TextureWidth = params.m_TextureWidth;
         font_map->m_TextureHeight = params.m_TextureHeight;
         font_map->m_ShadowX = params.m_ShadowX;
@@ -94,7 +106,12 @@ namespace dmRender
 
     void SetFontMap(HFontMap font_map, FontMapParams& params)
     {
-        font_map->m_Glyphs.Swap(params.m_Glyphs);
+        const dmArray<Glyph>& glyphs = params.m_Glyphs;
+        font_map->m_Glyphs.SetCapacity((3 * glyphs.Size()) / 2, glyphs.Size());
+        for (uint32_t i = 0; i < glyphs.Size(); ++i) {
+            const Glyph& g = glyphs[i];
+            font_map->m_Glyphs.Put(g.m_Character, g);
+        }
         font_map->m_TextureWidth = params.m_TextureWidth;
         font_map->m_TextureHeight = params.m_TextureHeight;
         font_map->m_ShadowX = params.m_ShadowX;
@@ -183,7 +200,7 @@ namespace dmRender
             return;
         }
 
-        int n = strlen(params.m_Text);
+        int n = (int) dmUtf8::StrLen(params.m_Text);
 
         Vectormath::Aos::Vector4 colors[3] = {params.m_FaceColor, params.m_OutlineColor, params.m_ShadowColor};
         Vectormath::Aos::Vector4 clear_color(0.0f, 0.0f, 0.0f, 0.0f);
@@ -222,13 +239,16 @@ namespace dmRender
             }
             int16_t x = 0;
             int16_t y = 0;
+            const char* cursor = params.m_Text;
             for (int j = 0; j < n; ++j)
             {
-                char c = params.m_Text[j];
+                uint16_t c = (uint16_t) dmUtf8::NextChar(&cursor);
 
-                const Glyph& g = font_map->m_Glyphs[c];
+                const Glyph* g = font_map->m_Glyphs.Get(c);
+                if (!g)
+                    g = font_map->m_Glyphs.Get(126U); // Fallback to ~
 
-                if (g.m_Width > 0)
+                if (g->m_Width > 0)
                 {
                     TextVertex& v1 = vertices[text_context.m_VertexIndex];
                     TextVertex& v2 = *(&v1 + 1);
@@ -238,41 +258,41 @@ namespace dmRender
                     TextVertex& v6 = *(&v1 + 5);
                     text_context.m_VertexIndex += 6;
 
-                    int16_t width = (int16_t)g.m_Width;
-                    int16_t descent = (int16_t)g.m_Descent;
-                    int16_t ascent = (int16_t)g.m_Ascent;
+                    int16_t width = (int16_t)g->m_Width;
+                    int16_t descent = (int16_t)g->m_Descent;
+                    int16_t ascent = (int16_t)g->m_Ascent;
 
-                    v1.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
+                    v1.m_Position[0] = x + g->m_LeftBearing + x_offsets[i];
                     v1.m_Position[1] = y - descent + y_offsets[i];
 
-                    v2.m_Position[0] = x + g.m_LeftBearing + x_offsets[i];
+                    v2.m_Position[0] = x + g->m_LeftBearing + x_offsets[i];
                     v2.m_Position[1] = y + ascent + y_offsets[i];
 
-                    v3.m_Position[0] = x + g.m_LeftBearing + width + x_offsets[i];
+                    v3.m_Position[0] = x + g->m_LeftBearing + width + x_offsets[i];
                     v3.m_Position[1] = y - descent + y_offsets[i];
 
-                    v6.m_Position[0] = x + g.m_LeftBearing + width + x_offsets[i];
+                    v6.m_Position[0] = x + g->m_LeftBearing + width + x_offsets[i];
                     v6.m_Position[1] = y + ascent + y_offsets[i];
 
                     float im_recip = 1.0f / font_map->m_TextureWidth;
                     float ih_recip = 1.0f / font_map->m_TextureHeight;
 
-                    v1.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v1.m_UV[1] = (g.m_Y + descent) * ih_recip;
+                    v1.m_UV[0] = (g->m_X + g->m_LeftBearing) * im_recip;
+                    v1.m_UV[1] = (g->m_Y + descent) * ih_recip;
 
-                    v2.m_UV[0] = (g.m_X + g.m_LeftBearing) * im_recip;
-                    v2.m_UV[1] = (g.m_Y - ascent) * ih_recip;
+                    v2.m_UV[0] = (g->m_X + g->m_LeftBearing) * im_recip;
+                    v2.m_UV[1] = (g->m_Y - ascent) * ih_recip;
 
-                    v3.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
-                    v3.m_UV[1] = (g.m_Y + descent) * ih_recip;
+                    v3.m_UV[0] = (g->m_X + g->m_LeftBearing + g->m_Width) * im_recip;
+                    v3.m_UV[1] = (g->m_Y + descent) * ih_recip;
 
-                    v6.m_UV[0] = (g.m_X + g.m_LeftBearing + g.m_Width) * im_recip;
-                    v6.m_UV[1] = (g.m_Y - ascent) * ih_recip;
+                    v6.m_UV[0] = (g->m_X + g->m_LeftBearing + g->m_Width) * im_recip;
+                    v6.m_UV[1] = (g->m_Y - ascent) * ih_recip;
 
                     v4 = v3;
                     v5 = v2;
                 }
-                x += (int16_t)g.m_Advance;
+                x += (int16_t)g->m_Advance;
             }
             ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
             AddToRender(render_context, ro);
@@ -291,23 +311,30 @@ namespace dmRender
     {
         metrics->m_MaxAscent = font_map->m_MaxAscent;
         metrics->m_MaxDescent = font_map->m_MaxDescent;
-        int n = strlen(text);
+        int n = (int) dmUtf8::StrLen(text);
         float width = 0;
+        const char* cursor = text;
+        const Glyph* first = 0;
+        const Glyph* last = 0;
         for (int i = 0; i < n; ++i)
         {
-            char c = text[i];
-            const Glyph& g = font_map->m_Glyphs[c];
+            uint32_t c = dmUtf8::NextChar(&cursor);
+            const Glyph* g = font_map->m_Glyphs.Get(c);
+            if (!g)
+                g = font_map->m_Glyphs.Get(126U); // Fallback to ~
+            if (i == 0)
+                first = g;
+            last = g;
             // NOTE: We round advance here just as above in DrawText
-            width += (int16_t) g.m_Advance;
+            width += (int16_t) g->m_Advance;
         }
         if (n > 0)
         {
-            const Glyph& first = font_map->m_Glyphs[0];
-            const Glyph& last = font_map->m_Glyphs[n-1];
-            width = width - first.m_LeftBearing - (last.m_Advance - last.m_Advance - last.m_Width);
-            if (last.m_Width == 0.0f)
+            // TODO: This must be broken "last->m_Advance - last->m_Advance" is zero.
+            width = width - first->m_LeftBearing - (last->m_Advance - last->m_Advance - last->m_Width);
+            if (last->m_Width == 0.0f)
             {
-                width += last.m_Advance;
+                width += last->m_Advance;
             }
         }
 
