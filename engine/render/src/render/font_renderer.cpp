@@ -108,6 +108,7 @@ namespace dmRender
     {
         const dmArray<Glyph>& glyphs = params.m_Glyphs;
         font_map->m_Glyphs.SetCapacity((3 * glyphs.Size()) / 2, glyphs.Size());
+        font_map->m_Glyphs.Clear();
         for (uint32_t i = 0; i < glyphs.Size(); ++i) {
             const Glyph& g = glyphs[i];
             font_map->m_Glyphs.Put(g.m_Character, g);
