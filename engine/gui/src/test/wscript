@@ -5,7 +5,7 @@ from TaskGen import extension, declare_extension
 def build(bld):
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW',
+                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui',
                                 source = 'test_gui.cpp test_gui_ddf.proto',
@@ -15,7 +15,7 @@ def build(bld):
 
     test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW',
+                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui_script',
                                 source = 'test_gui_script.cpp')
