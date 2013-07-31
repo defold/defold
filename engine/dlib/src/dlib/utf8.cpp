@@ -24,6 +24,12 @@ namespace dmUtf8
         int i = 0;
         const char* s = *str;
 
+        // Edge-case for termination, see doc for behavior
+        // Not so pretty perhaps
+        if (*s == 0) {
+            return 0;
+        }
+
         do {
             c <<= 6;
             c += (uint8_t)(*s);

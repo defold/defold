@@ -38,6 +38,9 @@ TEST(dmUtf8, NextChar)
     s = "";
     ASSERT_EQ((uint32_t) '\0', dmUtf8::NextChar(&s));
 
+    s = "\x00\x80";
+    ASSERT_EQ((uint32_t) '\0', dmUtf8::NextChar(&s));
+
     s = "x";
     ASSERT_EQ((uint32_t) 'x', dmUtf8::NextChar(&s));
     ASSERT_EQ((uint32_t) '\0', dmUtf8::NextChar(&s));

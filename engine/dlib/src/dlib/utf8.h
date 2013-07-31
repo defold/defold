@@ -14,7 +14,7 @@ namespace dmUtf8
     uint32_t StrLen(const char* str);
 
     /**
-     * Get next unicode character in utf-8 string
+     * Get next unicode character in utf-8 string. Iteration terminates at '\0' and repeated invocations will return '\0'
      * @param str pointer to string. the pointer value is updated
      * @return decoded unicode character
      */
