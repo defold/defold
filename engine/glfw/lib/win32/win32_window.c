@@ -1888,7 +1888,7 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
     SetCursorPos( pos.x, pos.y );
 }
 
-void _glfwShowKeyboard( int /*show*/, int /*type*/ )
+void _glfwShowKeyboard( int show, int type )
 {
 }
 
