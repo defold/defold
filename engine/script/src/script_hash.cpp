@@ -66,6 +66,27 @@ namespace dmScript
         return 1;
     }
 
+    /*#
+     * get hex representation of a hash value as a string
+     * The returned string is always padded with leading zeros
+     *
+     * @name hash_to_hex
+     * @param h hash value to get hex string for
+     * @return hex representation
+     */
+    int Script_HashToHex(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmhash_t hash = dmScript::CheckHash(L, 1);
+        char buf[17];
+        DM_SNPRINTF(buf, sizeof(buf), "%016llx", hash);
+        lua_pushstring(L, buf);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     void PushHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
@@ -196,6 +217,9 @@ namespace dmScript
 
         lua_pushcfunction(L, Script_Hash);
         lua_setglobal(L, SCRIPT_TYPE_NAME_HASH);
+
+        lua_pushcfunction(L, Script_HashToHex);
+        lua_setglobal(L, "hash_to_hex");
 
         lua_newtable(L);
         lua_setglobal(L, SCRIPT_HASH_TABLE);

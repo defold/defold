@@ -72,8 +72,10 @@ TEST_F(ScriptHashTest, TestHash)
 {
     int top = lua_gettop(L);
 
+    char hash_hex[64];
     const char* s = "test_value";
     dmhash_t hash = dmHashString64(s);
+    DM_SNPRINTF(hash_hex, sizeof(hash_hex), "%016llx", hash);
     dmScript::PushHash(L, hash);
     ASSERT_EQ(hash, dmScript::CheckHash(L, -1));
     lua_pop(L, 1);
@@ -87,7 +89,8 @@ TEST_F(ScriptHashTest, TestHash)
     lua_getfield(L, -1, "test_hash");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
     dmScript::PushHash(L, hash);
-    int result = lua_pcall(L, 1, LUA_MULTRET, 0);
+    lua_pushstring(L, hash_hex);
+    int result = lua_pcall(L, 2, LUA_MULTRET, 0);
     if (result == LUA_ERRRUN)
     {
         dmLogError("Error running script: %s", lua_tostring(L,-1));

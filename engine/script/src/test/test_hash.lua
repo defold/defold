@@ -1,6 +1,8 @@
-function test_hash(hash_value)
+function test_hash(hash_value, hash_value_hex)
     assert(hash_value == hash("test_value"))
+    assert(hash_value_hex == hash_to_hex(hash_value))
     assert(hash("test_string1") ~= hash("test_string2") )
+    assert(hash_to_hex(hash("test_string1")) ~= hash_to_hex(hash("test_string2")))
     print(tostring(hash_value))
     print("hash: " .. hash_value)
 
