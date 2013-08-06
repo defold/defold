@@ -376,9 +376,9 @@ namespace dmSys
         PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandle("kernel32.dll"), "GetUserDefaultLocaleName");
         dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
-        OSVERSIONINFOEX version_info;
+        OSVERSIONINFOA version_info;
         version_info.dwOSVersionInfoSize = sizeof(version_info);
-        GetVersionEx(&version_info);
+        GetVersion(&version_info);
 
         const int max_len = 256;
         char lang[max_len];
