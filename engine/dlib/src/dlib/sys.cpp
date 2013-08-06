@@ -378,22 +378,22 @@ namespace dmSys
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
         OSVERSIONINFOA version_info;
         version_info.dwOSVersionInfoSize = sizeof(version_info);
-        GetVersion(&version_info);
+        GetVersionEx(&version_info);
 
         const int max_len = 256;
         char lang[max_len];
         dmStrlCpy(lang, "en-US", max_len);
 
-        DM_SNPRINTF(info->m_SystemVersion, "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
+        DM_SNPRINTF(info->m_SystemVersion, sizeof(info->m_SystemVersion), "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
         if (GetUserDefaultLocaleName) {
             // Only availble on >= Vista
             wchar_t tmp[max_len];
             GetUserDefaultLocaleName(tmp, max_len);
             WideCharToMultiByte(CP_UTF8, 0, tmp, -1, lang, max_len, 0, 0);
         }
-        int index = strchr(lang, '-');
-        if (index != -1) {
-            lang[index] = '_';
+        char* index = strchr(lang, '-');
+        if (index) {
+            *index = '_';
         }
         FillLanguageTerritory(lang, info);
     }
