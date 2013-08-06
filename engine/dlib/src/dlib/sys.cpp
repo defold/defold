@@ -387,7 +387,7 @@ namespace dmSys
         DM_SNPRINTF(info->m_SystemVersion, "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
         if (GetUserDefaultLocaleName) {
             // Only availble on >= Vista
-            WSTR tmp[max_len];
+            wchar_t tmp[max_len];
             GetUserDefaultLocaleName(tmp, max_len);
             WideCharToMultiByte(CP_UTF8, 0, tmp, -1, lang, max_len, 0, 0);
         }
