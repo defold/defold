@@ -308,7 +308,7 @@ namespace dmSys
         info->m_Territory[2] = '\0';
     }
 
-#if (defined(__MACH__) and not defined(__arm__)) or (defined(__linux__) and not defined(__ANDROID__))
+#if (defined(__MACH__) and !defined(__arm__)) || (defined(__linux__) and !defined(__ANDROID__))
     void GetSystemInfo(SystemInfo* info)
     {
         struct utsname uts;
