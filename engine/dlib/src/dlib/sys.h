@@ -45,6 +45,23 @@ namespace dmSys
     };
 
     /**
+     * System information
+     */
+    struct SystemInfo
+    {
+        /// Device model where applicable, e.g. iPhone3,1
+        char m_DeviceModel[32];
+        /// System name, i.e. OS name, e.g. "Darwin", "iPhone OS", "Linux", etc
+        char m_SystemName[32];
+        /// System version, e.g. 12.0.1
+        char m_SystemVersion[32];
+        /// ISO 639 language code
+        char m_Language[8];
+        ///  ISO 3166 country code
+        char m_Territory[8];
+    };
+
+    /**
      * Create directory.
      * @param path path to directory to create
      * @param mode initial unix file permissions. ignored on some platforms
@@ -92,6 +109,12 @@ namespace dmSys
      * @return RESULT_OK on success
      */
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len);
+
+    /**
+     * Get system information
+     * @param info input data
+     */
+    void GetSystemInfo(SystemInfo* info);
 
     /**
      * Check if a resource exists. That path supplied should

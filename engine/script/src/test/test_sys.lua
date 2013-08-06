@@ -32,6 +32,13 @@ function test_sys()
     local does_not_exists = sys.load_resource("/does_not_exists")
     assert(does_not_exists == nil)
 
+    -- get_sys_info
+    local info = sys.get_sys_info()
+    print("device_model: " .. info.device_model)
+    print("system_name: " .. info.system_name)
+    print("system_version: " .. info.system_version)
+    print("language: " .. info.language)
+    print("territory: " .. info.territory)
 end
 
 functions = { test_sys = test_sys }

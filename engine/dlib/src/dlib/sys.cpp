@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include "sys.h"
 #include "log.h"
@@ -15,6 +16,7 @@
 #include <direct.h>
 #else
 #include <unistd.h>
+#include <sys/utsname.h>
 #endif
 
 #include <sys/types.h>
@@ -285,6 +287,117 @@ namespace dmSys
         return RESULT_OK;
 #endif
     }
+
+    void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
+    {
+        const char* default_lang = "en_US";
+
+        if (strlen(lang) < 5) {
+            dmLogWarning("Unknown language format: '%s'", lang);
+            lang = default_lang;
+        } else if(lang[2] != '_') {
+            dmLogWarning("Unknown language format: '%s'", lang);
+            lang = default_lang;
+        }
+
+        info->m_Language[0] = lang[0];
+        info->m_Language[1] = lang[1];
+        info->m_Language[2] = '\0';
+        info->m_Territory[0] = lang[3];
+        info->m_Territory[1] = lang[4];
+        info->m_Territory[2] = '\0';
+    }
+
+#if (defined(__MACH__) and not defined(__arm__)) or (defined(__linux__) and not defined(__ANDROID__))
+    void GetSystemInfo(SystemInfo* info)
+    {
+        struct utsname uts;
+        uname(&uts);
+
+        dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
+        info->m_DeviceModel[0] = '\0';
+
+        const char* lang = getenv("LANG");
+        const char* default_lang = "en_US";
+
+        if (!lang) {
+            dmLogWarning("Variable LANG not set");
+            lang = default_lang;
+        }
+        FillLanguageTerritory(lang, info);
+    }
+
+#elif defined(__ANDROID__)
+
+    void GetSystemInfo(SystemInfo* info)
+    {
+        dmStrlCpy(info->m_SystemName, "Android", sizeof(info->m_SystemName));
+
+        ANativeActivity* activity = g_AndroidApp->activity;
+        JNIEnv* env = 0;
+        activity->vm->AttachCurrentThread( &env, 0);
+
+        jclass locale_class = env->FindClass("java/util/Locale");
+        jmethodID get_default_method = env->GetStaticMethodID(locale_class, "getDefault", "()Ljava/util/Locale;");
+        jmethodID get_country_method = env->GetMethodID(locale_class, "getCountry", "()Ljava/lang/String;");
+        jmethodID get_language_method = env->GetMethodID(locale_class, "getLanguage", "()Ljava/lang/String;");
+        jobject locale = (jobject) env->CallStaticObjectMethod(locale_class, get_default_method);
+        jstring countryObj = (jstring) env->CallObjectMethod(locale, get_country_method);
+        jstring languageObj = (jstring) env->CallObjectMethod(locale, get_language_method);
+
+        const char* country = env->GetStringUTFChars(countryObj, NULL);
+        const char* language = env->GetStringUTFChars(languageObj, NULL);
+        dmStrlCpy(info->m_Language, language, sizeof(info->m_Language));
+        dmStrlCpy(info->m_Territory, country, sizeof(info->m_Territory));
+        env->ReleaseStringUTFChars(countryObj, country);
+        env->ReleaseStringUTFChars(languageObj, language);
+
+        jclass build_class = env->FindClass("android/os/Build");
+        jstring modelObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MODEL", "Ljava/lang/String;"));
+
+        jclass build_version_class = env->FindClass("android/os/Build$VERSION");
+        jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
+
+        const char* model = env->GetStringUTFChars(modelObj, NULL);
+        const char* release = env->GetStringUTFChars(releaseObj, NULL);
+        dmStrlCpy(info->m_DeviceModel, model, sizeof(info->m_DeviceModel));
+        dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
+        env->ReleaseStringUTFChars(modelObj, model);
+        env->ReleaseStringUTFChars(releaseObj, release);
+
+        activity->vm->DetachCurrentThread();
+    }
+#elif defined(_WIN32)
+    typedef int (WINAPI *PGETUSERDEFAULTLOCALENAME)(LPWSTR, int);
+
+    void GetSystemInfo(SystemInfo* info)
+    {
+        PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandle("kernel32.dll"), "GetUserDefaultLocaleName");
+        dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
+        dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));
+        OSVERSIONINFOEX version_info;
+        version_info.dwOSVersionInfoSize = sizeof(version_info);
+        GetVersionEx(&version_info);
+
+        const int max_len = 256;
+        char lang[max_len];
+        dmStrlCpy(lang, "en-US", max_len);
+
+        DM_SNPRINTF(info->m_SystemVersion, "%d.%d", version_info.dwMajorVersion, version_info.dwMinorVersion);
+        if (GetUserDefaultLocaleName) {
+            // Only availble on >= Vista
+            WSTR tmp[max_len];
+            GetUserDefaultLocaleName(tmp, max_len);
+            WideCharToMultiByte(CP_UTF8, 0, tmp, -1, lang, max_len, 0, 0);
+        }
+        int index = strchr(lang, '-');
+        if (index != -1) {
+            lang[index] = '_';
+        }
+        FillLanguageTerritory(lang, info);
+    }
+#endif
 
     bool ResourceExists(const char* path)
     {

@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include "../dlib/sys.h"
 #include "../dlib/path.h"
+#include "../dlib/log.h"
 
 TEST(dmSys, Mkdir)
 {
@@ -63,6 +64,18 @@ TEST(dmSys, GetResourcesPath)
     char path[DMPATH_MAX_PATH];
     dmSys::GetResourcesPath(g_Argc, g_Argv, path, sizeof(path));
     printf("GetResourcesPath: '%s'\n", path);
+}
+
+TEST(dmSys, GetSystemInfo)
+{
+    dmSys::SystemInfo info;
+    dmSys::GetSystemInfo(&info);
+
+    dmLogInfo("DeviceModel: '%s'", info.m_DeviceModel);
+    dmLogInfo("SystemName: '%s'", info.m_SystemName);
+    dmLogInfo("SystemVersion: '%s'", info.m_SystemVersion);
+    dmLogInfo("Language: '%s'", info.m_Language);
+    dmLogInfo("Territory: '%s'", info.m_Territory);
 }
 
 TEST(dmSys, LoadResource)

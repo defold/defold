@@ -1,8 +1,10 @@
 #include <assert.h>
 #include <stdint.h>
+#include <sys/utsname.h>
 #import <Foundation/NSFileManager.h>
 #include "log.h"
 #include "sys.h"
+#include "sys_private.h"
 #include "dstrings.h"
 
 #ifdef __arm__
@@ -27,7 +29,7 @@ namespace dmSys
         if ([urls count] > 0)
         {
             NSURL* app_support_dir = [urls objectAtIndex:0];
-            [[app_support_dir path] getCString:path maxLength:path_len];
+            dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
 
             path[path_len-1] = '\0';
 
@@ -69,6 +71,22 @@ namespace dmSys
             return RESULT_UNKNOWN;
         }
     }
+
+    void GetSystemInfo(struct SystemInfo* info)
+    {
+        UIDevice* d = [UIDevice currentDevice];
+        struct utsname uts;
+        uname(&uts);
+
+        dmStrlCpy(info->m_DeviceModel, uts.machine, sizeof(info->m_DeviceModel));
+        dmStrlCpy(info->m_SystemName, [d.systemName UTF8String], sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemVersion, [d.systemVersion UTF8String], sizeof(info->m_SystemVersion));
+
+        NSLocale* locale = [NSLocale currentLocale];
+        const char* lang = [locale.localeIdentifier UTF8String];
+        FillLanguageTerritory(lang, info);
+    }
+
 #else
 
     Result OpenURL(const char* url)
