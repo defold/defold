@@ -189,7 +189,7 @@ public:
      */
     const T& operator[](uint32_t i) const
     {
-        assert ( i >= 0 && i < Size() );
+        assert ( i < Size() );
         return m_Front[i];
     }
 
