@@ -178,8 +178,12 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
         ClearDebugRenderObjects(context);
 
+        // Should probably be moved and/or refactored, see case 2261
         context->m_TextContext.m_RenderObjectIndex = 0;
         context->m_TextContext.m_VertexIndex = 0;
+        context->m_TextContext.m_TextBuffer.SetSize(0);
+        context->m_TextContext.m_Batches.Clear();
+        context->m_TextContext.m_TextEntries.SetSize(0);
 
         return RESULT_OK;
     }
@@ -245,6 +249,7 @@ namespace dmRender
                       &SortPred);
         }
 
+        // TODO: Move to "BeginFrame()" or similar? See case 2261
         FlushTexts(render_context);
         FlushDebug(render_context);
 

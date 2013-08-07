@@ -296,6 +296,7 @@ namespace dmGameSystem
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
+        dmGui::NodeType prev_node_type;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = nodes[i];
@@ -346,7 +347,18 @@ namespace dmGameSystem
             else
                 ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
-            if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_BOX)
+            dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
+
+            /*
+             * Consecutive nodes of the same type will get the some
+             * pseudo-z for batching. This is an approximation of the correct
+             * layer-rendering.
+             */
+            if (i > 0 && node_type != prev_node_type) {
+                gui_context->m_NextZ++;
+            }
+
+            if (node_type == dmGui::NODE_TYPE_BOX)
             {
                 ro.m_WorldTransform = node_transforms[i];
                 ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
@@ -360,7 +372,7 @@ namespace dmGameSystem
 
                 dmRender::AddToRender(gui_context->m_RenderContext, &gui_world->m_GuiRenderObjects[gui_world->m_GuiRenderObjects.Size()-1]);
             }
-            else if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT)
+            else if (node_type == dmGui::NODE_TYPE_TEXT)
             {
                 dmRender::DrawTextParams params;
                 params.m_FaceColor = color;
@@ -373,7 +385,7 @@ namespace dmGameSystem
                 params.m_Width = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE).getX();
                 dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
             }
-            gui_context->m_NextZ++;
+            prev_node_type = node_type;
         }
     }
 

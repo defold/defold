@@ -88,6 +88,21 @@ namespace dmRender
         uint32_t                        m_MaxVertexCount;
     };
 
+    struct TextEntry
+    {
+        Matrix4  m_Transform;
+        uint32_t m_StringOffset;
+        HFontMap m_FontMap;
+        uint32_t m_FaceColor;
+        uint32_t m_OutlineColor;
+        uint32_t m_ShadowColor;
+        uint32_t m_Depth;
+        float    m_Width;
+        bool     m_LineBreak;
+        int32_t  m_Next;
+        int32_t  m_Tail;
+    };
+
     struct TextContext
     {
         dmArray<dmRender::RenderObject>     m_RenderObjects;
@@ -97,6 +112,10 @@ namespace dmRender
         uint32_t                            m_RenderObjectIndex;
         uint32_t                            m_VertexIndex;
         uint32_t                            m_MaxVertexCount;
+        dmArray<char>                       m_TextBuffer;
+        // Map from batch id (hash of font-map etc) to index into m_TextEntries
+        dmHashTable64<int32_t>              m_Batches;
+        dmArray<TextEntry>                  m_TextEntries;
     };
 
     struct RenderTargetSetup
