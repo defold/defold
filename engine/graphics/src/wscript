@@ -25,6 +25,7 @@ def build(bld):
     bld.add_subdirs('test')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
+    bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
 

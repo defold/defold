@@ -21,6 +21,12 @@ namespace dmRender
 
     RenderObject::RenderObject()
     {
+        Init();
+    }
+
+    void RenderObject::Init()
+    {
+        // See case 2264 why this method was added
         memset(this, 0, sizeof(RenderObject));
         m_WorldTransform = Matrix4::identity();
         m_TextureTransform = Matrix4::identity();

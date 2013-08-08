@@ -3,10 +3,12 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <graphics/graphics.h>
+#include <graphics/graphics_util.h>
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
@@ -65,16 +67,13 @@ namespace dmGameSystem
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+                {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
         };
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
-
-        float quad[] = { 0, 0, 0, 0, 1,
-                         0, 1, 0, 0, 0,
-                         1, 0, 0, 1, 1,
-                         1, 1, 0, 1, 0 };
-
-        gui_world->m_QuadVertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_context->m_RenderContext), sizeof(quad), (void*) quad, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        // Grows automatically
+        gui_world->m_ClientVertexBuffer.SetCapacity(512);
+        gui_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_context->m_RenderContext), 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         uint8_t white_texture[] = { 0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff,
@@ -93,8 +92,8 @@ namespace dmGameSystem
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_params);
 
-        // TODO: Configurable
-        gui_world->m_GuiRenderObjects.SetCapacity(32);
+        // Grows automatically
+        gui_world->m_GuiRenderObjects.SetCapacity(128);
 
         *params.m_World = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -123,7 +122,7 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexProgram(gui_world->m_VertexProgram);
         dmGraphics::DeleteFragmentProgram(gui_world->m_FragmentProgram);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(gui_world->m_QuadVertexBuffer);
+        dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
 
         delete gui_world;
@@ -285,18 +284,40 @@ namespace dmGameSystem
         uint32_t                 m_NextZ;
     };
 
-    static dmhash_t DIFFUSE_COLOR_HASH = dmHashString64("diffuse_color");
+    static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
+    {
+        switch (blend_mode)
+        {
+            case dmGui::BLEND_MODE_ALPHA:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
 
-    void RenderNodes(dmGui::HScene scene,
-                    dmGui::HNode* nodes,
-                    const Matrix4* node_transforms,
-                    uint32_t node_count,
-                    void* context)
+            case dmGui::BLEND_MODE_ADD:
+            case dmGui::BLEND_MODE_ADD_ALPHA:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
+            break;
+
+            case dmGui::BLEND_MODE_MULT:
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+
+            default:
+                dmLogError("Unknown blend mode: %d\n", blend_mode);
+                assert(0);
+            break;
+        }
+    }
+
+    void RenderTextNodes(dmGui::HScene scene,
+                         dmGui::HNode* nodes,
+                         const Matrix4* node_transforms,
+                         uint32_t node_count,
+                         void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
-        GuiWorld* gui_world = gui_context->m_GuiWorld;
-
-        dmGui::NodeType prev_node_type;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = nodes[i];
@@ -305,88 +326,169 @@ namespace dmGameSystem
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
             const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
 
-            dmRender::RenderObject ro;
-
-            dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
-            switch (blend_mode)
-            {
-                case dmGui::BLEND_MODE_ALPHA:
-                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-                break;
-
-                case dmGui::BLEND_MODE_ADD:
-                case dmGui::BLEND_MODE_ADD_ALPHA:
-                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-                break;
-
-                case dmGui::BLEND_MODE_MULT:
-                    ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
-                    ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-                break;
-
-                default:
-                    dmLogError("Unknown blend mode: %d\n", blend_mode);
-                    assert(0);
-                break;
-            }
-            ro.m_SetBlendFactors = 1;
-
-            ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
-            ro.m_VertexBuffer = gui_world->m_QuadVertexBuffer;
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
-            ro.m_VertexStart = 0;
-            ro.m_VertexCount = 4;
-            ro.m_Material = gui_world->m_Material;
-
-            // Set default texture
-            void* texture = dmGui::GetNodeTexture(scene, node);
-            if (texture)
-                ro.m_Textures[0] = (dmGraphics::HTexture) texture;
-            else
-                ro.m_Textures[0] = gui_world->m_WhiteTexture;
-
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
+            assert(node_type == dmGui::NODE_TYPE_TEXT);
 
-            /*
-             * Consecutive nodes of the same type will get the some
-             * pseudo-z for batching. This is an approximation of the correct
-             * layer-rendering.
-             */
-            if (i > 0 && node_type != prev_node_type) {
+            dmRender::DrawTextParams params;
+            params.m_FaceColor = color;
+            params.m_OutlineColor = outline;
+            params.m_ShadowColor = shadow;
+            params.m_Text = dmGui::GetNodeText(scene, node);
+            params.m_WorldTransform = node_transforms[i];
+            params.m_Depth = gui_context->m_NextZ;
+            params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
+            params.m_Width = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE).getX();
+            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
+        }
+    }
+
+    void RenderBoxNodes(dmGui::HScene scene,
+                        dmGui::HNode* nodes,
+                        const Matrix4* node_transforms,
+                        uint32_t node_count,
+                        void* context)
+    {
+        RenderGuiContext* gui_context = (RenderGuiContext*) context;
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
+
+        dmGui::HNode first_node = nodes[0];
+        dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
+        assert(node_type == dmGui::NODE_TYPE_BOX);
+
+        uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
+        gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
+        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
+        // NOTE: ro might be uninitialized and we don't want to create a stack allocated temporary
+        // See case 2264
+        ro.Init();
+
+        dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
+        SetBlendMode(ro, blend_mode);
+        ro.m_SetBlendFactors = 1;
+        ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
+        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_VertexCount = 6 * node_count;
+        ro.m_Material = gui_world->m_Material;
+
+        // Set default texture
+        void* texture = dmGui::GetNodeTexture(scene, first_node);
+        if (texture)
+            ro.m_Textures[0] = (dmGraphics::HTexture) texture;
+        else
+            ro.m_Textures[0] = gui_world->m_WhiteTexture;
+
+        if (gui_world->m_ClientVertexBuffer.Remaining() < (6 * node_count)) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, 6 * node_count));
+        }
+
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            dmGui::HNode node = nodes[i];
+
+            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+
+            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
+            // Pre-multiplied alpha
+            Vector4 pm_color(color);
+            pm_color.setX(color.getX() * color.getW());
+            pm_color.setY(color.getY() * color.getW());
+            pm_color.setZ(color.getZ() * color.getW());
+            uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
+
+            Vectormath::Aos::Vector4 p0 = (node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
+            Vectormath::Aos::Vector4 p1 = (node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
+            Vectormath::Aos::Vector4 p2 = (node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+            Vectormath::Aos::Vector4 p3 = (node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
+            Vectormath::Aos::Vector4 p4 = (node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
+            Vectormath::Aos::Vector4 p5 = (node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+
+            BoxVertex v0(p0, 0, 1, bcolor);
+            BoxVertex v1(p1, 0, 0, bcolor);
+            BoxVertex v2(p2, 1, 1, bcolor);
+            BoxVertex v3(p3, 0, 0, bcolor);
+            BoxVertex v4(p4, 1, 0, bcolor);
+            BoxVertex v5(p5, 1, 1, bcolor);
+
+            gui_world->m_ClientVertexBuffer.Push(v0);
+            gui_world->m_ClientVertexBuffer.Push(v1);
+            gui_world->m_ClientVertexBuffer.Push(v2);
+            gui_world->m_ClientVertexBuffer.Push(v3);
+            gui_world->m_ClientVertexBuffer.Push(v4);
+            gui_world->m_ClientVertexBuffer.Push(v5);
+
+        }
+        dmRender::AddToRender(gui_context->m_RenderContext, &ro);
+    }
+
+    void RenderNodes(dmGui::HScene scene,
+                    dmGui::HNode* nodes,
+                    const Matrix4* node_transforms,
+                    uint32_t node_count,
+                    void* context)
+    {
+        if (node_count == 0)
+            return;
+
+        RenderGuiContext* gui_context = (RenderGuiContext*) context;
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
+
+        dmGui::HNode first_node = nodes[0];
+
+        dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
+        dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
+        void* prev_texture;
+
+        uint32_t i = 0;
+        uint32_t start = 0;
+        while (i < node_count) {
+            dmGui::HNode node = nodes[i];
+            dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
+            dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
+            void* texture = dmGui::GetNodeTexture(scene, node);
+
+            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture);
+            bool flush = (i > 0 && batch_change);
+
+            if (flush) {
+                uint32_t n = i - start;
+                if (prev_node_type == dmGui::NODE_TYPE_TEXT) {
+                    RenderTextNodes(scene, nodes + start, node_transforms + start, n, context);
+                } else {
+                    RenderBoxNodes(scene, nodes + start, node_transforms + start, n, context);
+                }
+
+                start = i;
+
+                /*
+                 * Consecutive nodes of the same type will get the some
+                 * pseudo-z for batching. This is an approximation of the correct
+                 * layer-rendering.
+                 */
                 gui_context->m_NextZ++;
             }
 
-            if (node_type == dmGui::NODE_TYPE_BOX)
-            {
-                ro.m_WorldTransform = node_transforms[i];
-                ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
-                // Pre-multiplied alpha
-                Vector4 pm_color(color);
-                pm_color.setX(color.getX() * color.getW());
-                pm_color.setY(color.getY() * color.getW());
-                pm_color.setZ(color.getZ() * color.getW());
-                dmRender::EnableRenderObjectConstant(&ro, DIFFUSE_COLOR_HASH, pm_color);
-                gui_world->m_GuiRenderObjects.Push(ro);
-
-                dmRender::AddToRender(gui_context->m_RenderContext, &gui_world->m_GuiRenderObjects[gui_world->m_GuiRenderObjects.Size()-1]);
-            }
-            else if (node_type == dmGui::NODE_TYPE_TEXT)
-            {
-                dmRender::DrawTextParams params;
-                params.m_FaceColor = color;
-                params.m_OutlineColor = outline;
-                params.m_ShadowColor = shadow;
-                params.m_Text = dmGui::GetNodeText(scene, node);
-                params.m_WorldTransform = node_transforms[i];
-                params.m_Depth = gui_context->m_NextZ;
-                params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
-                params.m_Width = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE).getX();
-                dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
-            }
             prev_node_type = node_type;
+            prev_blend_mode = blend_mode;
+            prev_texture = texture;
+
+            ++i;
         }
+
+        uint32_t n = i - start;
+        if (n > 0) {
+            if (prev_node_type == dmGui::NODE_TYPE_TEXT) {
+                RenderTextNodes(scene, nodes + start, node_transforms + start, n, context);
+            } else {
+                RenderBoxNodes(scene, nodes + start, node_transforms + start, n, context);
+            }
+        }
+
+        dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
+                                        gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
+                                        gui_world->m_ClientVertexBuffer.Begin(),
+                                        dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -419,9 +521,13 @@ namespace dmGameSystem
 
         if (gui_world->m_GuiRenderObjects.Capacity() < total_node_count)
         {
+            // NOTE: m_GuiRenderObjects *before* rendering as pointers
+            // to render-objects are passed to the render-system
+            // Given batching the capacity is perhaps a bit over the top
             gui_world->m_GuiRenderObjects.SetCapacity(total_node_count);
         }
         gui_world->m_GuiRenderObjects.SetSize(0);
+        gui_world->m_ClientVertexBuffer.SetSize(0);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];

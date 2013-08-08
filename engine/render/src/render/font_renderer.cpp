@@ -9,6 +9,7 @@
 #include <dlib/profile.h>
 #include <dlib/hashtable.h>
 #include <dlib/utf8.h>
+#include <graphics/graphics_util.h>
 
 #include "font_renderer.h"
 #include "font_renderer_private.h"
@@ -231,17 +232,6 @@ namespace dmRender
         }
     };
 
-    static void ToByteColor(const Vectormath::Aos::Vector4& in_color, uint32_t& out)
-    {
-        uint8_t r = (uint8_t)(in_color.getX() * 255.0f);
-        uint8_t g = (uint8_t)(in_color.getY() * 255.0f);
-        uint8_t b = (uint8_t)(in_color.getZ() * 255.0f);
-        uint8_t a = (uint8_t)(in_color.getW() * 255.0f);
-
-        uint32_t c = a << 24 | b << 16 | g << 8 | r;
-        out = c;
-    }
-
     static dmhash_t g_ShadowOffsetHash = dmHashString64("offset");
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
 
@@ -290,9 +280,10 @@ namespace dmRender
         te.m_FontMap = font_map;
         te.m_Next = -1;
         te.m_Tail = -1;
-        ToByteColor(params.m_FaceColor, te.m_FaceColor);
-        ToByteColor(params.m_OutlineColor, te.m_OutlineColor);
-        ToByteColor(params.m_ShadowColor, te.m_ShadowColor);
+
+        te.m_FaceColor = dmGraphics::PackRGBA(params.m_FaceColor);
+        te.m_OutlineColor = dmGraphics::PackRGBA(params.m_OutlineColor);
+        te.m_ShadowColor = dmGraphics::PackRGBA(params.m_ShadowColor);
         te.m_Depth = params.m_Depth;
         te.m_Width = params.m_Width;
         te.m_LineBreak = params.m_LineBreak;
