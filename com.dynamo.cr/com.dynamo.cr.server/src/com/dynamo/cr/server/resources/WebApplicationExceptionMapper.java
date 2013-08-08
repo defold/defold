@@ -25,7 +25,9 @@ public class WebApplicationExceptionMapper implements
             Response r = e.getResponse();
             if (r.getEntity() == null) {
                 String message = String.format("Error %d", r.getStatus());
-                logger.error(message, e);
+                if (e.getCause() != null) {
+                    message += ": " + e.getCause().getMessage();
+                }
                 return Response.fromResponse(r).entity(message).build();
             } else {
                 logger.error(e.getMessage(), e);

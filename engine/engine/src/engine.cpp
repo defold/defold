@@ -12,6 +12,7 @@
 #include <dlib/math.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
+#include <extension/extension.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
@@ -177,7 +178,7 @@ namespace dmEngine
 
         dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRender::DeleteRenderContext(engine->m_RenderContext);
+        dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
         if (engine->m_HidContext)
         {
@@ -185,7 +186,7 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        dmGameObject::Finalize(engine->m_Factory);
+        dmGameObject::Finalize(engine->m_GOScriptContext, engine->m_Factory);
 
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
@@ -204,7 +205,7 @@ namespace dmEngine
         }
 
         if (engine->m_GuiContext.m_GuiContext)
-            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext);
+            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
         if (engine->m_SystemSocket)
             dmMessage::DeleteSocket(engine->m_SystemSocket);
 
@@ -264,7 +265,7 @@ namespace dmEngine
             char* paths[] = { p1, p2, p3 };
             uint32_t count = 0;
 
-            dmStrlCpy(p1, "game.projectc", sizeof(p1));
+            dmStrlCpy(p1, "./game.projectc", sizeof(p1));
             dmStrlCpy(p2, "build/default/game.projectc", sizeof(p2));
             if (dmSys::GetResourcesPath(argc, argv, tmp, sizeof(tmp)) == dmSys::RESULT_OK)
             {
@@ -278,8 +279,7 @@ namespace dmEngine
 
             for (uint32_t i = 0; i < count; ++i)
             {
-                struct stat file_stat;
-                if (stat(paths[i], &file_stat) == 0)
+                if (dmSys::ResourceExists(paths[i]))
                 {
                     dmStrlCpy(project_file, paths[i], project_file_size);
                     return true;
@@ -340,8 +340,7 @@ namespace dmEngine
             {
                 dmStrlCat(tmp, "game.arc", sizeof(tmp));
             }
-            struct stat stats;
-            if (stat(tmp, &stats) == 0)
+            if (dmSys::ResourceExists(tmp))
             {
                 dmStrlCpy(content_root, "arc:", sizeof(content_root));
                 dmStrlCat(content_root, tmp, sizeof(content_root));
@@ -400,31 +399,7 @@ namespace dmEngine
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
-        engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config);
-        engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config);
-        engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config);
-        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
-        dmHID::Init(engine->m_HidContext);
-
-        dmSound::InitializeParams sound_params;
-        dmSound::Initialize(engine->m_Config, &sound_params);
-
-        dmRender::RenderContextParams render_params;
-        render_params.m_MaxRenderTypes = 16;
-        render_params.m_MaxInstances = 1024; // TODO: Should be configurable
-        render_params.m_MaxRenderTargets = 32;
-        render_params.m_VertexProgramData = ::DEBUG_VPC;
-        render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
-        render_params.m_FragmentProgramData = ::DEBUG_FPC;
-        render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
-        render_params.m_MaxCharacters = 2048 * 4;
-        render_params.m_CommandBufferSize = 1024;
-        render_params.m_ScriptContext = engine->m_RenderScriptContext;
-        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
-        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
-
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
-
         dmResource::NewFactoryParams params;
         int32_t http_cache = dmConfigFile::GetInt(engine->m_Config, "resource.http_cache", 1);
         params.m_MaxResources = max_resources;
@@ -446,6 +421,30 @@ namespace dmEngine
         {
             return false;
         }
+
+        engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::Init(engine->m_HidContext);
+
+        dmSound::InitializeParams sound_params;
+        dmSound::Initialize(engine->m_Config, &sound_params);
+
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 16;
+        render_params.m_MaxInstances = 1024; // TODO: Should be configurable
+        render_params.m_MaxRenderTargets = 32;
+        render_params.m_VertexProgramData = ::DEBUG_VPC;
+        render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
+        render_params.m_FragmentProgramData = ::DEBUG_FPC;
+        render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
+        render_params.m_MaxCharacters = 2048 * 4;
+        render_params.m_CommandBufferSize = 1024;
+        render_params.m_ScriptContext = engine->m_RenderScriptContext;
+        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
+        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+
         dmGameObject::Initialize(engine->m_GOScriptContext, engine->m_Factory);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
@@ -477,6 +476,7 @@ namespace dmEngine
         gui_params.m_Height = engine->m_Height;
         gui_params.m_PhysicalWidth = physical_width;
         gui_params.m_PhysicalHeight = physical_height;
+        gui_params.m_HidContext = engine->m_HidContext;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         dmPhysics::NewContextParams physics_params;
@@ -495,13 +495,19 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
-        if (strncmp(physics_type, "3D", 2) == 0)
+        if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;
             engine->m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(physics_params);
         }
-        else if (strncmp(physics_type, "2D", 2) == 0)
+        else if (dmStrCaseCmp(physics_type, "2D") == 0)
         {
+            engine->m_PhysicsContext.m_3D = false;
+            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
+        }
+        else
+        {
+            dmLogWarning("Unsupported physics type '%s'. Defaults to 2D", physics_type);
             engine->m_PhysicsContext.m_3D = false;
             engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
         }
@@ -641,6 +647,12 @@ bail:
             ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
             ia.m_DX = a.m_DX * width_ratio;
             ia.m_DY = -a.m_DY * height_ratio;
+        }
+
+        input_action.m_TextCount = action->m_TextCount;
+        tc = action->m_TextCount;
+        for (int i = 0; i < tc; ++i) {
+            input_action.m_Text[i] = action->m_Text[i];
         }
 
         input_buffer->Push(input_action);

@@ -69,13 +69,14 @@ namespace dmGui
         context->m_Height = params->m_Height;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
+        context->m_HidContext = params->m_HidContext;
 
         return context;
     }
 
-    void DeleteContext(HContext context)
+    void DeleteContext(HContext context, dmScript::HContext script_context)
     {
-        FinalizeScript(context->m_LuaState);
+        FinalizeScript(context->m_LuaState, script_context);
         delete context;
     }
 
@@ -509,6 +510,13 @@ namespace dmGui
                         lua_settable(L, -3);
                     }
 
+                    if (ia->m_TextCount > 0)
+                    {
+                        lua_pushliteral(L, "text");
+                        lua_pushlstring(L, ia->m_Text, ia->m_TextCount);
+                        lua_settable(L, -3);
+                    }
+
                     arg_count += 2;
                 }
                 break;
@@ -841,6 +849,18 @@ namespace dmGui
             n->m_Node.m_Text = strdup(text);
         else
             n->m_Node.m_Text = 0;
+    }
+
+    void SetNodeLineBreak(HScene scene, HNode node, bool line_break)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_LineBreak = line_break;
+    }
+
+    bool GetNodeLineBreak(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_LineBreak;
     }
 
     void* GetNodeTexture(HScene scene, HNode node)
@@ -1296,7 +1316,7 @@ namespace dmGui
         {
             if (scene->m_Context->m_GetTextMetricsCallback != 0x0)
             {
-                scene->m_Context->m_GetTextMetricsCallback(node.m_Font, node.m_Text, &metrics);
+                scene->m_Context->m_GetTextMetricsCallback(node.m_Font, node.m_Text, node.m_Properties[PROPERTY_SIZE].getX(), node.m_LineBreak, &metrics);
             }
             width = metrics.m_Width;
             height = metrics.m_MaxAscent + metrics.m_MaxDescent;

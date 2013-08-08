@@ -122,8 +122,15 @@ public class SecurityFilter implements ContainerRequestFilter {
             User user = ModelUtil.findUserByEmail(em, username);
             if (user != null && user.authenticate(password)) {
                 return user;
-            }
-            else {
+            } else if (user != null && AuthCookie.auth(username, password)) {
+                // NOTE: This is rather messy. We also support
+                // auth-cookie login using http basic auth.
+                // Should perhaps deprecate X-Auth and use basic auth for
+                // everything. The reason for this is that the gitsrv
+                // must handle both passwords and cookies as passwords
+                // are used in tests
+                return user;
+            } else {
                 logger.warn("User authentication failed");
                 throw new MappableContainerException(new AuthenticationException(
                         "Invalid username or password", REALM));

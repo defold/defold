@@ -146,7 +146,7 @@ int main(void)
     }
 
     dmGui::NewContextParams context_params;
-    context_params.m_ScriptContext = dmScript::NewContext(0);
+    context_params.m_ScriptContext = dmScript::NewContext(0, 0);
     g_GuiContext = dmGui::NewContext(&context_params);
     dmGui::HContext context = g_GuiContext;
 
@@ -255,7 +255,7 @@ int main(void)
         dmGui::DeleteScript(dmGui::GetSceneScript(g_Scenes[i]));
         dmGui::DeleteScene(g_Scenes[i]);
     }
-    dmGui::DeleteContext(context);
+    dmGui::DeleteContext(context, context_params.m_ScriptContext);
     dmScript::DeleteContext(context_params.m_ScriptContext);
 
     glfwCloseWindow();

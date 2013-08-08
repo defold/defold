@@ -18,6 +18,7 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.server.bio.SocketConnector;
+import org.eclipse.jetty.server.ssl.SslSocketConnector;
 
 public class TestHttpServer extends AbstractHandler
 {
@@ -250,6 +251,15 @@ public class TestHttpServer extends AbstractHandler
             connector.setMaxIdleTime(100);
             connector.setPort(7000);
             server.addConnector(connector);
+
+            SslSocketConnector sslConnector = new SslSocketConnector();
+            sslConnector.setHandshakeTimeout(100);
+            sslConnector.setMaxIdleTime(100);
+            sslConnector.setPort(7001);
+            sslConnector.setKeystore("src/test/data/keystore");
+            sslConnector.setKeyPassword("defold");
+            server.addConnector(sslConnector);
+
             HandlerList handlerList = new HandlerList();
             handlerList.addHandler(new TestHttpServer());
             ResourceHandler resourceHandler = new ResourceHandler() {

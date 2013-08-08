@@ -19,6 +19,7 @@ namespace dmHID
         Context();
 
         KeyboardPacket m_KeyboardPacket;
+        TextPacket     m_TextPacket;
         MousePacket m_MousePacket;
         Gamepad m_Gamepads[MAX_GAMEPAD_COUNT];
         TouchDevicePacket m_TouchDevicePacket;

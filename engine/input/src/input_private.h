@@ -65,6 +65,18 @@ namespace dmInput
         dmArray<TouchTrigger> m_Triggers;
     };
 
+    struct TextTrigger
+    {
+        dmInputDDF::Text m_Input;
+        dmhash_t m_ActionId;
+    };
+
+    struct TextBinding
+    {
+        dmHID::TextPacket m_Packet;
+        dmArray<TextTrigger> m_Triggers;
+    };
+
     struct AccelerationBinding
     {
         dmHID::AccelerationPacket m_PreviousPacket;
@@ -79,6 +91,7 @@ namespace dmInput
         GamepadBinding* m_GamepadBinding;
         TouchDeviceBinding* m_TouchDeviceBinding;
         AccelerationBinding* m_AccelerationBinding;
+        TextBinding* m_TextBinding;
         dmHashTable64< Action > m_Actions;
     };
 

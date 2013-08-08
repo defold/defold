@@ -7,9 +7,9 @@
         <key>CFBundleDevelopmentRegion</key>
         <string>en</string>
         <key>CFBundleDisplayName</key>
-        <string>Defold</string>
+        <string>{{CFBundleDisplayName}}</string>
         <key>CFBundleExecutable</key>
-        <string>dmengine</string>
+        <string>{{CFBundleExecutable}}</string>
         <key>CFBundleIconFiles</key>
         <array>
                 <string>ios_icon_114.png</string>
@@ -29,11 +29,11 @@
                                 <string>ios_icon_57.png</string>
                         </array>
                         <key>UIPrerenderedIcon</key>
-                        <true/>
+                        <{{UIPrerenderedIcon}}/>
                 </dict>
         </dict>
         <key>CFBundleIdentifier</key>
-        <string>dmengine</string>
+        <string>{{CFBundleIdentifier}}</string>
         <key>CFBundleInfoDictionaryVersion</key>
         <string>6.0</string>
         <key>CFBundleName</key>
@@ -43,7 +43,7 @@
         <key>CFBundleResourceSpecification</key>
         <string>ResourceRules.plist</string>
         <key>CFBundleShortVersionString</key>
-        <string>1.0</string>
+        <string>{{CFBundleShortVersionString}}</string>
         <key>CFBundleSignature</key>
         <string>????</string>
         <key>CFBundleSupportedPlatforms</key>
@@ -51,7 +51,7 @@
                 <string>iPhoneOS</string>
         </array>
         <key>CFBundleVersion</key>
-        <string>1.0</string>
+        <string>{{CFBundleVersion}}</string>
         <key>DTCompiler</key>
         <string>com.apple.compilers.llvmgcc42</string>
         <key>DTPlatformBuild</key>
@@ -98,5 +98,16 @@
                 <string>UIInterfaceOrientationLandscapeLeft</string>
                 <string>UIInterfaceOrientationLandscapeRight</string>
         </array>
+
+        <key>CFBundleURLTypes</key>
+        <array>
+                <dict>
+                        <key>CFBundleURLSchemes</key>
+                        <array>
+                                {{#CFBundleURLSchemes}}<string>{{.}}</string>{{/CFBundleURLSchemes}}
+                        </array>
+                </dict>
+        </array>
+
 </dict>
 </plist>

@@ -1,0 +1,3 @@
+function init(self)
+    go.set(".", "position", 1)
+end

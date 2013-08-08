@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include <dlib/log.h>
+#include <dlib/utf8.h>
+#include <dlib/dstrings.h>
 
 #include <graphics/glfw/glfw.h>
 
@@ -31,6 +33,22 @@ namespace dmHID
             GLFW_JOYSTICK_16
     };
 
+
+    /*
+     * TODO: Unfortunately a global variable as glfw has no notion of user-data context
+     */
+    HContext g_Context = 0;
+    static void CharacterCallback(int chr,int)
+    {
+        if (g_Context) {
+            char buf[5];
+            uint32_t n = dmUtf8::ToUtf8((uint16_t) chr, buf);
+            buf[n] = '\0';
+            TextPacket* p = &g_Context->m_TextPacket;
+            p->m_Size = dmStrlCat(p->m_Text, buf, sizeof(p->m_Text));
+        }
+    }
+
     bool Init(HContext context)
     {
         if (context != 0x0)
@@ -40,6 +58,9 @@ namespace dmHID
                 dmLogFatal("glfw could not be initialized.");
                 return false;
             }
+            assert(g_Context == 0);
+            g_Context = context;
+            glfwSetCharCallback(CharacterCallback);
             context->m_KeyboardConnected = 0;
             context->m_MouseConnected = 0;
             context->m_TouchDeviceConnected = 0;
@@ -59,6 +80,7 @@ namespace dmHID
 
     void Final(HContext context)
     {
+        g_Context = 0;
     }
 
     void Update(HContext context)
@@ -168,4 +190,29 @@ namespace dmHID
     {
         glfwGetJoystickDeviceId(gamepad->m_Index, (char**)device_name);
     }
+
+    void ShowKeyboard(HContext context, KeyboardType type)
+    {
+        int t = GLFW_KEYBOARD_DEFAULT;
+        switch (type) {
+            case KEYBOARD_TYPE_DEFAULT:
+                t = GLFW_KEYBOARD_DEFAULT;
+                break;
+            case KEYBOARD_TYPE_NUMBER_PAD:
+                t = GLFW_KEYBOARD_NUMBER_PAD;
+                break;
+            case KEYBOARD_TYPE_EMAIL:
+                t = GLFW_KEYBOARD_EMAIL;
+                break;
+            default:
+                dmLogWarning("Unknown keyboard type %d\n", type);
+        }
+        glfwShowKeyboard(1, type);
+    }
+
+    void HideKeyboard(HContext context)
+    {
+        glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT);
+    }
+
 }

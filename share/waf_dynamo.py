@@ -4,11 +4,13 @@ from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
+from Constants import RUN_ME
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
-ANDROID_NDK_VERSION='8b'
-ANDROID_VERSION='14'
-ANDROID_GCC_VERSION='4.6'
+ANDROID_NDK_VERSION='8e'
+ANDROID_NDK_API_VERSION='14'
+ANDROID_API_VERSION='17'
+ANDROID_GCC_VERSION='4.7'
 
 # TODO: HACK
 EMSCRIPTEN_ROOT=os.path.join(os.environ['HOME'], 'local', 'emscripten')
@@ -64,7 +66,7 @@ def default_flags(self):
 
     if platform == "linux" or platform == "darwin" or platform == "x86_64-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions',])
             if platform == "darwin":
                 self.env.append_value(f, ['-m32'])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
@@ -78,24 +80,26 @@ def default_flags(self):
             pass
     elif platform == "armv7-darwin":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-arch', 'armv7', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     elif platform == 'armv7-android':
 
-        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_VERSION)
+        sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
         stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
         stl_lib="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/libs/armeabi-v7a" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
         stl_arch="%s/include" % stl_lib
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            # NOTE: -mthumb removed from default flags
-            self.env.append_value(f, ['-g', '-O0', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
-                                      '-fpic', '-ffunction-sections', '-funwind-tables', '-fstack-protector',
+            # NOTE: 
+            # -mthumb and -funwind-tables removed from default flags
+            # -fno-exceptions added
+            self.env.append_value(f, ['-g', '-Os', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
+                                      '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
                                       '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64',
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
-                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_VERSION),
+                                      '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
                                       '-I%s' % stl,
                                       '-I%s' % stl_arch,
                                       '--sysroot=%s' % sysroot,
@@ -106,7 +110,7 @@ def default_flags(self):
         # -lgnustl_static -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '--sysroot=%s' % sysroot,
-                '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack',
+                '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid',
                 '-L%s' % stl_lib])
     elif platform == "js-web":
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -218,6 +222,8 @@ RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 # <string>MainWindow</string>
 # We manage our own setup. At least for now
 
+# NOTE: fb355198514515820 is HelloFBSample appid and for testing only
+# This INFO_PLIST is only used for development
 INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -291,6 +297,16 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
                 <string>UIInterfaceOrientationLandscapeLeft</string>
                 <string>UIInterfaceOrientationLandscapeRight</string>
         </array>
+
+        <key>CFBundleURLTypes</key>
+        <array>
+                <dict>
+                        <key>CFBundleURLSchemes</key>
+                        <array>
+                                <string>fb355198514515820</string>
+                        </array>
+                </dict>
+        </array>        
 </dict>
 </plist>
 """
@@ -305,7 +321,7 @@ def codesign(task):
 
     identity = task.env.IDENTITY
     if not identity:
-        identity = 'iPhone Developer: Christian MURRAY (QXZXCL5J5G)'
+        identity = 'iPhone Developer'
 
     mobileprovision = task.env.MOBILE_PROVISION
     if not mobileprovision:
@@ -313,10 +329,11 @@ def codesign(task):
     mobileprovision_path = os.path.join(task.env['DYNAMO_HOME'], 'share', mobileprovision)
     shutil.copyfile(mobileprovision_path, os.path.join(signed_exe_dir, 'embedded.mobileprovision'))
 
-    entitlements = '/Users/chmu/Library/Developer/Xcode/DerivedData/test_iphone2-dsbdefmnlgdwdlchxwoxthhbgnwc/Build/Intermediates/test_iphone2.build/Debug-iphoneos/test_iphone2.build/test_iphone2.xcent'
+    entitlements = 'engine_profile.xcent'
+    entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements, signed_exe_dir))
+    ret = bld.exec_command('CODESIGN_ALLOCATE=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
     if ret != 0:
         error('Error running codesign')
         return 1
@@ -338,6 +355,43 @@ def app_bundle(task):
     resource_rules_plist_file.close()
 
     return 0
+
+def create_export_symbols(task):
+    with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+        for name in Utils.to_list(task.exported_symbols):
+            print >>out_f, 'extern "C" void %s();' % name
+        print >>out_f, "void dmExportedSymbols() {"
+        for name in Utils.to_list(task.exported_symbols):
+            print >>out_f, "    %s();" % name
+        print >>out_f, "}"
+
+    return 0
+
+task = Task.task_type_from_func('create_export_symbols',
+                                func  = create_export_symbols,
+                                color = 'PINK',
+                                before  = 'cc cxx')
+
+task.runnable_status = lambda self: RUN_ME
+
+@taskgen
+@feature('cprogram')
+@before('apply_core')
+def export_symbols(self):
+    # Force inclusion of symbol, e.g. from static libraries
+    # We used to use -Wl,-exported_symbol on Darwin but changed
+    # to a more general solution by generating a .cpp-file with
+    # a function which references the symbols in question
+    Utils.def_attrs(self, exported_symbols=[])
+    if not self.exported_symbols:
+        return
+
+    exported_symbols = self.path.find_or_declare('__exported_symbols_%d.cpp' % self.idx)
+    self.allnodes.append(exported_symbols)
+
+    task = self.create_task('create_export_symbols')
+    task.exported_symbols = self.exported_symbols
+    task.set_outputs([exported_symbols])
 
 Task.task_type_from_func('app_bundle',
                          func = app_bundle,
@@ -424,7 +478,7 @@ def android_package(task):
     manifest_file.close()
 
     aapt = '%s/android-sdk/platform-tools/aapt' % (ANDROID_ROOT)
-    android_jar = '%s/android-sdk/platforms/android-16/android.jar' % (ANDROID_ROOT)
+    android_jar = '%s/android-sdk/platforms/android-%s/android.jar' % (ANDROID_ROOT, ANDROID_API_VERSION)
     manifest = task.manifest.abspath(task.env)
     ap_ = task.ap_.abspath(task.env)
     native_lib = task.native_lib.abspath(task.env)
@@ -527,8 +581,6 @@ task = Task.task_type_from_func('copy_glue',
                                 color = 'PINK',
                                 before  = 'cc cxx')
 
-from Constants import RUN_ME
-
 task.runnable_status = lambda self: RUN_ME
 
 @taskgen
@@ -548,7 +600,7 @@ def create_copy_glue(self):
     task.set_outputs([glue, stub])
 
 def embed_build(task):
-    symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_')
+    symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
     in_file = open(task.inputs[0].bldpath(task.env), 'rb')
     out_file = open(task.outputs[0].bldpath(task.env), 'wb')
 
@@ -715,7 +767,13 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (IOS_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
     elif platform == "armv7-android":
-        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-x86/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform)
+        # TODO: No windows support yet (unknown path to compiler when wrote this)
+        if build_platform == 'linux':
+            arch = 'x86'
+        else:
+            arch = 'x86_64'
+
+        bin='%s/android-ndk-r%s/toolchains/arm-linux-androideabi-%s/prebuilt/%s-%s/bin' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION, build_platform, arch)
         conf.env['CC'] = '%s/arm-linux-androideabi-gcc' % (bin)
         conf.env['CXX'] = '%s/arm-linux-androideabi-g++' % (bin)
         conf.env['LINK_CXX'] = '%s/arm-linux-androideabi-g++' % (bin)

@@ -11,6 +11,7 @@
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
 #include <sys/socket.h>
 #include <sys/errno.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>
@@ -179,6 +180,13 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result Delete(Socket socket);
+
+    /**
+     * Get underlying file descriptor
+     * @param socket socket to get fd for
+     * @return file-descriptor
+     */
+    int GetFD(Socket socket);
 
     /**
      * Set reuse socket address option on socket. Socket option SO_REUSEADDR on most platforms

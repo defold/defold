@@ -1,0 +1,3 @@
+function init(self)
+    local v = go.get(".", "missing_property", 1)
+end

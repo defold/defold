@@ -523,37 +523,23 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
     else
     {
         // Load over local file system
-
-        FILE* f = fopen(path, "rb");
-        if (f == 0)
-        {
-            dmLogError("Resource not found: %s", path);
-            return RESULT_RESOURCE_NOT_FOUND;
+        uint32_t file_size;
+        dmSys::Result r = dmSys::LoadResource(path, factory->m_StreamBuffer, factory->m_StreamBufferSize, &file_size);
+        if (r == dmSys::RESULT_OK) {
+            // Extra byte for resources expecting null-terminated string...
+            if (file_size + 1 >= factory->m_StreamBufferSize) {
+                dmLogError("Resource too large for streambuffer: %s", path);
+                return RESULT_STREAMBUFFER_TOO_SMALL;
+            }
+            factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+            *resource_size = file_size;
+            return RESULT_OK;
+        } else {
+            if (r == dmSys::RESULT_NOENT)
+                return RESULT_RESOURCE_NOT_FOUND;
+            else
+                return RESULT_IO_ERROR;
         }
-
-        fseek(f, 0, SEEK_END);
-        long file_size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        *resource_size = (uint32_t) file_size;
-
-        // Extra byte for resources expecting null-terminated string...
-        if (file_size + 1 >= (long) factory->m_StreamBufferSize)
-        {
-            dmLogError("Resource too large for streambuffer: %s", path);
-            fclose(f);
-            return RESULT_STREAMBUFFER_TOO_SMALL;
-        }
-        factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
-
-        if (fread(factory->m_StreamBuffer, 1, file_size, f) != (size_t) file_size)
-        {
-            fclose(f);
-            return RESULT_IO_ERROR;
-        }
-
-        fclose(f);
-        return RESULT_OK;
     }
 }
 
@@ -701,6 +687,42 @@ Result Get(HFactory factory, const char* name, void** resource)
     stack.SetSize(stack.Size() - 1);
     --factory->m_RecursionDepth;
     return r;
+}
+
+Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size)
+{
+    assert(name);
+    assert(resource);
+    assert(resource_size);
+
+    DM_PROFILE(Resource, "GetRaw");
+
+    *resource = 0;
+    *resource_size = 0;
+
+    if (name[0] == 0)
+    {
+        dmLogError("Empty resource path");
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    if (name[0] != '/')
+    {
+        dmLogError("Resource path is not absolute (%s)", name);
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    char canonical_path[RESOURCE_PATH_MAX];
+    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+
+    uint32_t file_size;
+    Result result = LoadResource(factory, canonical_path, name, &file_size);
+    if (result == RESULT_OK) {
+        *resource = malloc(file_size);
+        memcpy(*resource, factory->m_StreamBuffer, file_size);
+        *resource_size = file_size;
+    }
+    return result;
 }
 
 static Result DoReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)

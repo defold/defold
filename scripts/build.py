@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, zipfile, re
-import optparse, subprocess
+import optparse, subprocess, urllib, urlparse
 from tarfile import TarFile
-from os.path import join, basename, relpath
+from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 from glob import glob
 
 """
@@ -12,10 +12,10 @@ Run build.py --help for help
 """
 
 PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.8.4 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 PVRTexToolCL-2.08.28.0634 vpx-v0.9.7-p1".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0".split()
 
@@ -40,6 +40,8 @@ class Configuration(object):
             home = os.environ['HOME']
 
         self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
+        self.ext = join(self.dynamo_home, 'ext')
+        self.defold = normpath(join(dirname(abspath(__file__)), '..'))
         self.eclipse_home = eclipse_home if eclipse_home else join(home, 'eclipse')
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
@@ -83,42 +85,89 @@ class Configuration(object):
             tf.extractall(path)
             tf.close()
 
+    def _extract_zip(self, file, path):
+        self._log('Extracting %s to %s' % (file, path))
+        zf = zipfile.ZipFile(file, 'r')
+        zf.extractall(path)
+        zf.close()
+
+    def _extract(self, file, path):
+        if os.path.splitext(file)[1] == '.zip':
+            self._extract_zip(file, path)
+        else:
+            self._extract_tgz(file, path)
+
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
 
+    def _download(self, url):
+        name = basename(urlparse.urlparse(url).path)
+        path = expanduser('~/.dcache/%s' % name)
+        if os.path.exists(path):
+            return path
+
+        if not os.path.exists(dirname(path)):
+            os.makedirs(dirname(path), 0755)
+
+        tmp = path + '_tmp'
+        with open(tmp, 'wb') as f:
+            self._log('Downloading %s %d%%' % (name, 0))
+            x = urllib.urlopen(url)
+            file_len = int(x.headers.get('Content-Length', 0))
+            buf = x.read(1024 * 1024)
+            n = 0
+            while buf:
+                n += len(buf)
+                self._log('Downloading %s %d%%' % (name, 100 * n / file_len))
+                f.write(buf)
+                buf = x.read(1024 * 1024)
+
+        if os.path.exists(path): os.unlink(path)
+        os.rename(tmp, path)
+        return path
+
+    def _install_go(self):
+        urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
+                'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
+                'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
+        url = urls[self.host]
+        path = self._download(url)
+        self._extract(path, self.ext)
+
     def install_ext(self):
-        ext = join(self.dynamo_home, 'ext')
         def make_path(platform):
             return join(self.defold_root, 'packages', p) + '-%s.tar.gz' % platform
 
+        self._install_go()
+
         for p in PACKAGES_ALL:
-            self._extract_tgz(make_path('common'), ext)
+            self._extract_tgz(make_path('common'), self.ext)
 
         for p in PACKAGES_HOST:
-            self._extract_tgz(make_path(self.host), ext)
+            self._extract_tgz(make_path(self.host), self.ext)
 
         for p in PACKAGES_IOS:
-            self._extract_tgz(make_path('armv7-darwin'), ext)
+            self._extract_tgz(make_path('armv7-darwin'), self.ext)
 
         if self.host == 'darwin':
             for p in PACKAGES_DARWIN_64:
-                self._extract_tgz(make_path('x86_64-darwin'), ext)
+                self._extract_tgz(make_path('x86_64-darwin'), self.ext)
 
         for p in PACKAGES_ANDROID:
-            self._extract_tgz(make_path('armv7-android'), ext)
+            self._extract_tgz(make_path('armv7-android'), self.ext)
 
         for p in PACKAGES_EMSCRIPTEN:
             self._extract_tgz(make_path('js-web'), ext)
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
-            self.exec_command(['easy_install', '-q', '-d', join(ext, 'lib', 'python'), '-N', egg])
+            self.exec_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
 
-        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision'.split():
+        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision engine_profile.xcent'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
     def _git_sha1(self, dir = '.'):
@@ -135,7 +184,15 @@ class Configuration(object):
         return self.host != self.target_platform
 
     def archive_engine(self):
-        exe_ext = '.exe' if self.target_platform == 'win32' else ''
+        exe_prefix = ''
+        if self.target_platform == 'win32':
+            exe_ext = '.exe'
+        elif 'android' in self.target_platform:
+            exe_prefix = 'lib'
+            exe_ext = '.so'
+        else:
+            exe_ext = ''
+
         lib_ext = ''
         lib_prefix = 'lib'
         if 'darwin' in self.target_platform:
@@ -166,20 +223,24 @@ class Configuration(object):
             bin_dir = ''
             lib_dir = ''
 
-        engine = join(dynamo_home, 'bin', bin_dir, 'dmengine' + exe_ext)
-        engine_release = join(dynamo_home, 'bin', bin_dir, 'dmengine_release' + exe_ext)
+        engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine' + exe_ext)
+        engine_release = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_release' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             self._log('Archiving %s' % engine)
             self.exec_command(['scp', engine,
-                               '%s/dmengine%s.%s' % (full_archive_path, exe_ext, sha1)])
+                               '%s/%sdmengine%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
             self.exec_command(['scp', engine,
-                               '%s/dmengine_release%s.%s' % (full_archive_path, exe_ext, sha1)])
+                               '%s/%sdmengine_release%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
 
-        libparticle = join(dynamo_home, 'lib', lib_dir, '%sparticle_shared%s' % (lib_prefix, lib_ext))
-        self._log('Archiving %s' % libparticle)
-        self.exec_command(['scp', libparticle,
-                           '%s/%sparticle_shared%s.%s' % (full_archive_path, lib_prefix, lib_ext, sha1)])
+        libs = ['particle']
+        if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
+            libs.append('texc')
+        for lib in libs:
+            lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
+            self._log('Archiving %s' % lib_path)
+            self.exec_command(['scp', lib_path,
+                               '%s/%s%s_shared%s.%s' % (full_archive_path, lib_prefix, lib, lib_ext, sha1)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -192,14 +253,24 @@ class Configuration(object):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
-            libs="dlib ddf particle glfw graphics hid input physics resource lua script render gameobject gui sound gamesys tools record engine".split()
+            libs="dlib ddf particle glfw graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record facebook engine".split()
 
+        # Base platforms is the set of platforms to build the base libs for
+        # The base libs are the libs needed to build bob, i.e. contains compiler code
+        base_platforms = [self.host]
+        if self.host == 'darwin':
+            base_platforms.append('x86_64-darwin')
         # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
-        if self.is_cross_platform():
-            self._log('Building dlib for host platform')
-            cwd = join(self.defold_root, 'engine/dlib')
-            cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_command(cmd.split(), cwd = cwd)
+        base_libs = ['dlib', 'texc']
+        for platform in base_platforms:
+            for lib in base_libs:
+                self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
+                cwd = join(self.defold_root, 'engine/%s' % (lib))
+                pf_arg = ""
+                if platform != self.host:
+                    pf_arg = "--platform=%s" % (platform)
+                cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
+                self.exec_command(cmd.split(), cwd = cwd)
 
         self._log('Building bob')
 
@@ -212,6 +283,29 @@ class Configuration(object):
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
             self.exec_command(cmd.split(), cwd = cwd)
+
+    def build_go(self):
+        # TODO: shell=True is required only on windows
+        # otherwise it fails. WHY?
+        if not self.skip_tests:
+            self.exec_command('go test defold/...', shell=True)
+        self.exec_command('go install defold/...', shell=True)
+        for f in glob(join(self.defold, 'go', 'bin', '*')):
+            shutil.copy(f, join(self.dynamo_home, 'bin'))
+
+    def archive_go(self):
+        full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
+        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+
+        sha1 = self._git_sha1()
+        for p in glob(join(self.defold, 'go', 'bin', '*')):
+            # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
+            if self.target_platform == 'win32':
+                p = p.replace("\\", "/")
+                p = "/" + p[:1] + p[2:]
+            self.exec_command(['scp', p, '%s/%s.%s' % (full_archive_path, basename(p), sha1)])
+            self.exec_command(['ssh', host, 'cd %s; ln -sf %s.%s %s' % (path, basename(p), sha1, basename(p))])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -275,7 +369,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
         self._archive_cr('server', build_dir)
 
     def _build_cr(self, product, build_dir, root_properties = None):
-        equinox_version = '1.2.0.v20110502'
+        equinox_version = '1.3.0.v20120522-1813'
 
         if os.path.exists(build_dir):
             shutil.rmtree(build_dir)
@@ -382,9 +476,15 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         paths = os.path.pathsep.join(['%s/bin' % self.dynamo_home,
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host)])
+                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host),
+                                      '%s/ext/go/bin' % self.dynamo_home])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
+
+        go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
+                                         join(self.defold, 'go')])
+        env['GOPATH'] = go_paths
+        env['GOROOT'] = '%s/go' % self.ext
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
@@ -409,6 +509,8 @@ distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
 build_engine    - Build engine
 archive_engine  - Archive engine to path specified with --archive-path
+build_go        - Build go code
+archive_go      - Archive go binaries
 test_cr         - Test editor and server
 build_server    - Build server
 build_editor    - Build editor

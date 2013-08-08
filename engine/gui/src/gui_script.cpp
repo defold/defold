@@ -624,6 +624,36 @@ namespace dmGui
         return 0;
     }
 
+    /*# get line-break mode
+     * This is only useful for text nodes.
+     *
+     * @name gui.get_line_break
+     * @param node node from which to get the line-break for (node)
+     * @return line-break (bool)
+     */
+    static int LuaGetLineBreak(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushboolean(L, n->m_Node.m_LineBreak);
+        return 1;
+    }
+
+    /*# set line-break mode
+     * This is only useful for text nodes.
+     *
+     * @name gui.set_line_break
+     * @param node node to set line-break for (node)
+     * @param text text to set (string)
+     */
+    static int LuaSetLineBreak(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        bool line_break = lua_toboolean(L, 2);
+        n->m_Node.m_LineBreak = line_break;
+        return 0;
+    }
+
     /*# gets the node blend mode
      * Blend mode defines how the node will be blended with the background.
      *
@@ -1153,6 +1183,48 @@ namespace dmGui
         return 0;
     }
 
+    /*# default keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_DEFAULT
+     * @variable
+     */
+
+    /*# number input keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_NUMBER_PAD
+     * @variable
+     */
+
+    /*# email keyboard
+     *
+     * @name gui.KEYBOARD_TYPE_EMAIL
+     * @variable
+     */
+
+    /*# display on-display keyboard if available
+     *
+     * @name gui.show_keyboard
+     * @param type keyboard type
+     */
+    static int LuaShowKeyboard(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        int type = luaL_checkinteger(L, 1);
+        dmHID::ShowKeyboard(scene->m_Context->m_HidContext, (dmHID::KeyboardType) type);
+        return 0;
+    }
+
+    /*# hide on-display keyboard if available
+     *
+     * @name gui.hide_keyboard
+     */
+    static int LuaHideKeyboard(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        dmHID::HideKeyboard(scene->m_Context->m_HidContext);
+        return 0;
+    }
+
     /*# gets the node position
      *
      * @name gui.get_position
@@ -1323,6 +1395,8 @@ namespace dmGui
         {"new_text_node",   LuaNewTextNode},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
+        {"set_line_break",  LuaSetLineBreak},
+        {"get_line_break",  LuaGetLineBreak},
         {"get_blend_mode",  LuaGetBlendMode},
         {"set_blend_mode",  LuaSetBlendMode},
         {"get_texture",     LuaGetTexture},
@@ -1344,6 +1418,8 @@ namespace dmGui
         {"set_adjust_mode", LuaSetAdjustMode},
         {"move_above",      LuaMoveAbove},
         {"move_below",      LuaMoveBelow},
+        {"show_keyboard",   LuaShowKeyboard},
+        {"hide_keyboard",   LuaHideKeyboard},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -1545,6 +1621,14 @@ namespace dmGui
 
         int top = lua_gettop(L);
         (void)top;
+        luaopen_base(L);
+        luaopen_table(L);
+        luaopen_string(L);
+        luaopen_math(L);
+        //luaopen_debug(L);
+
+        // Pop all stack values generated from luaopen_*
+        lua_pop(L, lua_gettop(L));
 
         dmScript::ScriptParams params;
         params.m_Context = script_context;
@@ -1602,6 +1686,16 @@ namespace dmGui
 
 #undef SETBLEND
 
+#define SETKEYBOARD(name) \
+        lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \
+        lua_setfield(L, -2, "KEYBOARD_TYPE_"#name);\
+
+        SETKEYBOARD(DEFAULT)
+        SETKEYBOARD(NUMBER_PAD)
+        SETKEYBOARD(EMAIL)
+
+#undef SETKEYBOARD
+
         // Assert that the assumption of 0 below holds
         assert(XANCHOR_NONE == 0);
         assert(YANCHOR_NONE == 0);
@@ -1647,24 +1741,12 @@ namespace dmGui
 
         assert(lua_gettop(L) == top);
 
-        top = lua_gettop(L);
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        //luaopen_debug(L);
-
-        // Pop all stack values generated from luaopen_*
-        lua_pop(L, lua_gettop(L));
-
-        assert(lua_gettop(L) == top);
-
         return L;
     }
 
-    void FinalizeScript(lua_State* L)
+    void FinalizeScript(lua_State* L, dmScript::HContext script_context)
     {
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, script_context);
         lua_close(L);
     }
 

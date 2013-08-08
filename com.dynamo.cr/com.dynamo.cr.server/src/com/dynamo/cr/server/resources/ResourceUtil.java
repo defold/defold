@@ -92,7 +92,7 @@ public class ResourceUtil {
             .setCreated(project.getCreated().getTime())
             .setLastUpdated(project.getLastUpdated().getTime())
             .setRepositoryUrl(String.format("http://%s:%d%s/%d", configuration.getHostname(),
-                    configuration.getServicePort(),
+                    configuration.getGitPort(),
                     getGitBaseUri(configuration),
                     project.getId()));
         if (isQualified) {

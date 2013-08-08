@@ -1,22 +1,15 @@
-varying vec4 position;
-varying vec2 var_texcoord0;
+varying mediump vec4 position;
+varying mediump vec2 var_texcoord0;
+varying lowp vec4 var_face_color;
+varying lowp vec4 var_outline_color;
+varying lowp vec4 var_shadow_color;
 
-uniform vec4 face_color;
-uniform vec4 outline_color;
-uniform vec4 shadow_color;
-uniform sampler2D texture;
+uniform lowp vec4 texture_size_recip;
+uniform lowp sampler2D texture;
 
 void main()
 {
-    vec4 t = texture2D(texture, var_texcoord0.xy);
-
-    vec4 fc = face_color;
-    vec4 oc = outline_color;
-    vec4 sc = shadow_color;
-
-    fc.w *= t.x;
-    oc.w *= t.y;
-    sc.w *= t.z;
-
-    gl_FragColor = fc + oc + sc;
+    // Outline
+    lowp vec2 t = texture2D(texture, var_texcoord0.xy).xy;
+    gl_FragColor = mix(vec4(var_face_color.xyz, t.x), var_outline_color, t.y);
 }

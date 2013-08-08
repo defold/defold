@@ -20,7 +20,7 @@ message NodeDesc
     {
         BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
         BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
-        BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha"];
+        BLEND_MODE_ADD_ALPHA = 2 [(displayName) = "Add Alpha (Deprecated)"];
         BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
     }
 
@@ -77,6 +77,7 @@ message NodeDesc
     optional dmMath.Vector4 outline  = 15;
     optional dmMath.Vector4 shadow   = 16;
     optional AdjustMode adjust_mode  = 17 [default = ADJUST_MODE_FIT];
+    optional bool       line_break   = 18 [default = false];
 }
 
 message SceneDesc

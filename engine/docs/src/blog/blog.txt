@@ -1,8 +1,23 @@
 :max-width: 45em
 
+Pre-multiplied alpha (Release 1.2.21)
+-------------------------------------
+_July 7, 2013_
+
+All textures loaded in Defold now have the color-value link:http://en.wikipedia.org/wiki/Alpha_compositing[pre-multiplied] with alpha for prettier blending.
+If you have made custom shaders, you will need to update them accordingly.
+There is plenty of online resources which explains pre-multiplied alpha in greater detail, e.g. link:http://home.comcast.net/~tom_forsyth/blog.wiki.html#%5B%5BPremultiplied%20alpha%5D%5D[this] and link:http://blogs.msdn.com/b/shawnhar/archive/2009/11/06/premultiplied-alpha.aspx[this].
+
+Other fixes
+~~~~~~~~~~~
+
+* Crash when deleting game objects with running animations
+* Crash when setting properties through go.set and specifying a value of the wrong type
+* Updated the editor framework (Eclipse RCP) to a later version
+
 Animation & getters/setters (Release 1.2.20)
 --------------------------------------------
-_May 30, 2013_
+_June 3, 2013_
 
 We are proud to release Defold 1.2.20, containing animations, getters/setters and more!
 
@@ -16,13 +31,21 @@ Getters/Setters
 ~~~~~~~~~~~~~~~
 
 This is something that has been on the wishlist for a long time and we have finally solved it in a robust way.
-See the guide for link:http://www.defold.com/doc/properties[more info].
+See the guide for link:/doc/properties[more info].
+
+URLs
+~~~~
+
+The features mentioned above makes use of our URL-like concept for addressing objects.
+To make it easier to understand how the URLs work, we have improved the link:/doc/message_passing[guide] about them.
+We have also introduced two short-hand notations: +"."+ means the game object containing the script and +"#"+ means the script itself.
+We hope this will make URLs easier to use.
 
 Reference docs
 ~~~~~~~~~~~~~~
 
 The reference documentation should be more clearly categorized now.
-Have a link:http://www.defold.com/ref/sys[look] and see what you think.
+Have a link:/ref/sys[look] and see what you think.
 
 Other fixes
 ~~~~~~~~~~~
@@ -30,7 +53,7 @@ Other fixes
 * The amount of projects are now 10 per user
 * Better syntax-highlighting in the lua-editor
 * Major improvement on build times for large repos
-* msg.url correctly resolves the URL's: msg.url(nil, "instance", "sprite") is equal to msg.url("instance#sprite")
+* msg.url correctly resolves the URLs: msg.url(nil, "instance", "sprite") is equal to msg.url("instance#sprite")
 
 Enjoy!
 

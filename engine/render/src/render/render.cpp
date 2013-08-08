@@ -21,6 +21,12 @@ namespace dmRender
 
     RenderObject::RenderObject()
     {
+        Init();
+    }
+
+    void RenderObject::Init()
+    {
+        // See case 2264 why this method was added
         memset(this, 0, sizeof(RenderObject));
         m_WorldTransform = Matrix4::identity();
         m_TextureTransform = Matrix4::identity();
@@ -90,11 +96,11 @@ namespace dmRender
         return context;
     }
 
-    Result DeleteRenderContext(HRenderContext render_context)
+    Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
     {
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
-        FinalizeRenderScriptContext(render_context->m_RenderScriptContext);
+        FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);
@@ -178,8 +184,12 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
         ClearDebugRenderObjects(context);
 
+        // Should probably be moved and/or refactored, see case 2261
         context->m_TextContext.m_RenderObjectIndex = 0;
         context->m_TextContext.m_VertexIndex = 0;
+        context->m_TextContext.m_TextBuffer.SetSize(0);
+        context->m_TextContext.m_Batches.Clear();
+        context->m_TextContext.m_TextEntries.SetSize(0);
 
         return RESULT_OK;
     }
@@ -245,6 +255,7 @@ namespace dmRender
                       &SortPred);
         }
 
+        // TODO: Move to "BeginFrame()" or similar? See case 2261
         FlushTexts(render_context);
         FlushDebug(render_context);
 

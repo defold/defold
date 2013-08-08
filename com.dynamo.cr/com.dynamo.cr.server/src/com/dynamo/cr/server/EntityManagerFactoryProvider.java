@@ -6,7 +6,7 @@ import javax.inject.Inject;
 import javax.persistence.EntityManagerFactory;
 
 import org.eclipse.persistence.config.PersistenceUnitProperties;
-import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+import org.eclipse.persistence.jpa.PersistenceProvider;
 
 import com.dynamo.cr.proto.Config.Configuration;
 import com.google.inject.Provider;

@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include "../dlib/sys.h"
 #include "../dlib/path.h"
+#include "../dlib/log.h"
 
 TEST(dmSys, Mkdir)
 {
@@ -63,6 +64,38 @@ TEST(dmSys, GetResourcesPath)
     char path[DMPATH_MAX_PATH];
     dmSys::GetResourcesPath(g_Argc, g_Argv, path, sizeof(path));
     printf("GetResourcesPath: '%s'\n", path);
+}
+
+TEST(dmSys, GetSystemInfo)
+{
+    dmSys::SystemInfo info;
+    dmSys::GetSystemInfo(&info);
+
+    dmLogInfo("DeviceModel: '%s'", info.m_DeviceModel);
+    dmLogInfo("SystemName: '%s'", info.m_SystemName);
+    dmLogInfo("SystemVersion: '%s'", info.m_SystemVersion);
+    dmLogInfo("Language: '%s'", info.m_Language);
+    dmLogInfo("Territory: '%s'", info.m_Territory);
+}
+
+TEST(dmSys, LoadResource)
+{
+    char buffer[1024 * 100];
+    dmSys::Result r;
+    uint32_t size;
+    r = dmSys::LoadResource("does_not_exists", buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResource(".", buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResource("wscript", 0, 0, &size);
+    ASSERT_EQ(dmSys::RESULT_INVAL, r);
+
+    r = dmSys::LoadResource("wscript", buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_OK, r);
+
+    ASSERT_GT(size, 0);
 }
 
 int main(int argc, char **argv)

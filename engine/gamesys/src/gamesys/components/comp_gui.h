@@ -19,6 +19,23 @@ namespace dmGameSystem
         uint8_t                 m_Enabled : 1;
     };
 
+    struct BoxVertex
+    {
+        inline BoxVertex();
+        inline BoxVertex(const Vectormath::Aos::Vector4& p, float u, float v, uint32_t color)
+        {
+            m_Position[0] = p.getX();
+            m_Position[1] = p.getY();
+            m_Position[2] = p.getZ();
+            m_UV[0] = u;
+            m_UV[1] = v;
+            m_Color = color;
+        }
+        float    m_Position[3];
+        float    m_UV[2];
+        uint32_t m_Color;
+    };
+
     struct GuiWorld
     {
         dmArray<GuiComponent*>           m_Components;
@@ -26,7 +43,8 @@ namespace dmGameSystem
         dmGraphics::HVertexProgram       m_VertexProgram;
         dmGraphics::HFragmentProgram     m_FragmentProgram;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
-        dmGraphics::HVertexBuffer        m_QuadVertexBuffer;
+        dmGraphics::HVertexBuffer        m_VertexBuffer;
+        dmArray<BoxVertex>               m_ClientVertexBuffer;
         dmGraphics::HTexture             m_WhiteTexture;
         dmArray<dmRender::RenderObject>  m_GuiRenderObjects;
     };

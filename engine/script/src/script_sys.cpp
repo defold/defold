@@ -15,6 +15,8 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
+#include <dlib/log.h>
+#include <resource/resource.h>
 #include "script.h"
 
 #include <string.h>
@@ -235,6 +237,74 @@ namespace dmScript
         return 1;
     }
 
+    /*# loads resource from game data
+     *
+     *
+     * @name sys.load_resource
+     * @param filename resource to load (string)
+     * @return loaded lua table, which is empty if the file could not be found (table)
+     */
+    int Sys_LoadResource(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        const char* filename = luaL_checkstring(L, 1);
+
+        lua_getglobal(L, SCRIPT_CONTEXT);
+        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        void* resource;
+        uint32_t resource_size;
+        dmResource::Result r = dmResource::GetRaw(context->m_ResourceFactory, filename, &resource, &resource_size);
+        if (r != dmResource::RESULT_OK) {
+            dmLogWarning("Failed to load resource: %s (%d)", filename, r);
+            lua_pushnil(L);
+        } else {
+            lua_pushlstring(L, (const char*) resource, resource_size);
+            free(resource);
+        }
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# get system information
+     * returns a table with the following members:
+     * device_model, system_name, system_version, language and territory.
+     * model is currently only available on iOS and Android.
+     * language is in ISO-639 format (two characters) and territory in
+     * ISO-3166 format (two characters)
+     *
+     * @name get_sys_info
+     * @return table with system information
+     */
+    int Sys_GetSysInfo(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+
+        lua_newtable(L);
+        lua_pushliteral(L, "device_model");
+        lua_pushstring(L, info.m_DeviceModel);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "system_name");
+        lua_pushstring(L, info.m_SystemName);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "system_version");
+        lua_pushstring(L, info.m_SystemVersion);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "language");
+        lua_pushstring(L, info.m_Language);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "territory");
+        lua_pushstring(L, info.m_Territory);
+        lua_rawset(L, -3);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -242,6 +312,8 @@ namespace dmScript
         {"get_save_file", Sys_GetSaveFile},
         {"get_config", Sys_GetConfig},
         {"open_url", Sys_OpenURL},
+        {"load_resource", Sys_LoadResource},
+        {"get_sys_info", Sys_GetSysInfo},
         {0, 0}
     };
 

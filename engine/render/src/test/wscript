@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 
 def build(bld):
+    libs = 'GTEST GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA'
     test_render = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_render.cpp',
-                                    uselib = 'GTEST GRAPHICS_NULL DDF SCRIPT DLIB LUA',
+                                    uselib = libs,
                                     uselib_local = 'render',
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_render')
@@ -12,7 +13,7 @@ def build(bld):
 
     test_material = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_material.cpp',
-                                    uselib = 'GTEST GRAPHICS_NULL DDF SCRIPT DLIB LUA',
+                                    uselib = libs,
                                     uselib_local = 'render',
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_material')
@@ -21,7 +22,7 @@ def build(bld):
 
     test_render_script = bld.new_task_gen(features = 'cxx cprogram',
                                     source = 'test_render_script.cpp',
-                                    uselib = 'GTEST GRAPHICS_NULL DDF SCRIPT DLIB LUA',
+                                    uselib = libs,
                                     uselib_local = 'render',
                                     includes = ['../../src', '../../proto'],
                                     target = 'test_render_script')

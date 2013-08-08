@@ -9,10 +9,14 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
+import com.google.protobuf.TextFormat;
+import com.google.protobuf.TextFormat.ParseException;
 
 public class ParseUtil {
 
@@ -45,6 +49,48 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return SpriteDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("texturec", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return TextureImage.parseFrom(content);
+            }
+        });
+        parseMap.put("texturesetc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return TextureSet.parseFrom(content);
+            }
+        });
+        parseMap.put("goc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return PrototypeDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("go", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                PrototypeDesc.Builder builder = PrototypeDesc.newBuilder();
+                try {
+                    TextFormat.merge(new String(content), builder);
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+                return builder.build();
+            }
+        });
+        parseMap.put("sprite", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                SpriteDesc.Builder builder = SpriteDesc.newBuilder();
+                try {
+                    TextFormat.merge(new String(content), builder);
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+                return builder.build();
             }
         });
     }

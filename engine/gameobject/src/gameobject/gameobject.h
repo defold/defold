@@ -132,6 +132,8 @@ namespace dmGameObject
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
         int32_t  m_TouchCount;
+        char     m_Text[dmHID::MAX_CHAR_COUNT];
+        uint32_t m_TextCount;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
@@ -563,9 +565,10 @@ namespace dmGameObject
 
     /**
      * Finalize system
+     * @param context Script context
      * @param factory Factory
      */
-    void Finalize(dmResource::HFactory factory);
+    void Finalize(dmScript::HContext context, dmResource::HFactory factory);
 
     /**
      * Create a new component type register
@@ -990,6 +993,11 @@ namespace dmGameObject
 
     PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id);
+    /**
+     * Cancel all animations belonging to the specified instance.
+     * @param collection Collection the instance belongs to
+     * @param instance Instance for which to cancel all animations
+     */
     void CancelAnimations(HCollection collection, HInstance instance);
 
     /**

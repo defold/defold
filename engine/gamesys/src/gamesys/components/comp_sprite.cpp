@@ -72,6 +72,7 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
+        void*                           m_VertexBufferData;
 
         dmArray<uint32_t>               m_RenderSortBuffer;
         float                           m_MinZ;
@@ -116,7 +117,8 @@ namespace dmGameSystem
 
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
-        sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), sizeof(float) * sizeof(SpriteVertex) * 6 * sprite_world->m_Components.Capacity(), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        sprite_world->m_VertexBufferData = malloc(sizeof(SpriteVertex) * 6 * sprite_world->m_Components.Capacity());
 
         *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -127,6 +129,7 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(sprite_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
+        free(sprite_world->m_VertexBufferData);
 
         delete sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -405,23 +408,19 @@ namespace dmGameSystem
         switch (blend_mode)
         {
             case dmGameSystemDDF::SpriteDesc::BLEND_MODE_ALPHA:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
             case dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD:
+            case dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD_ALPHA:
                 ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
                 ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
             break;
 
-            case dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD_ALPHA:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
-            break;
-
             case dmGameSystemDDF::SpriteDesc::BLEND_MODE_MULT:
-                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ZERO;
-                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_SRC_COLOR;
+                ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_DST_COLOR;
+                ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             break;
 
             default:
@@ -682,13 +681,8 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
 
-        dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * sprite_world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        void* vertex_buffer = dmGraphics::MapVertexBuffer(sprite_world->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
-        if (vertex_buffer == 0x0)
-        {
-            dmLogError("%s", "Could not map vertex buffer when drawing sprites.");
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-        }
+        dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * sprite_world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        void* vertex_buffer = sprite_world->m_VertexBufferData;
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components;
         uint32_t sprite_count = sprite_world->m_Components.Size();
@@ -725,13 +719,7 @@ namespace dmGameSystem
 
         PostMessages(sprite_world);
         Animate(sprite_world, params.m_UpdateContext->m_DT);
-
-        if (!dmGraphics::UnmapVertexBuffer(sprite_world->m_VertexBuffer))
-        {
-            dmLogError("%s", "Could not unmap vertex buffer when drawing sprites.");
-            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-        }
-
+        dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * start_index, sprite_world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

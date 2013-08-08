@@ -93,6 +93,7 @@ namespace dmRender
     struct RenderObject
     {
         RenderObject();
+        void Init();
 
         static const uint32_t MAX_TEXTURE_COUNT = 32;
         static const uint32_t MAX_CONSTANT_COUNT = 4;
@@ -141,7 +142,7 @@ namespace dmRender
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0;
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
-    Result DeleteRenderContext(HRenderContext render_context);
+    Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 

@@ -166,7 +166,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         } catch (IOException e) {
             throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));
         } catch (CompileExceptionError e) {
-            if (e.getResource() != null) {
+            if (e.getResource() != null && e.getResource().exists()) {
                 ret = false;
                 IFile resource = EditorUtil.getContentRoot(getProject()).getFile(e.getResource().getPath());
                 IMarker marker = resource.createMarker(IMarker.PROBLEM);

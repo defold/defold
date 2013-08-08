@@ -4,6 +4,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.font.FontRenderContext;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
@@ -18,6 +19,7 @@ import javax.media.opengl.GL2;
 import javax.media.opengl.glu.GLU;
 import javax.vecmath.Matrix4d;
 
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.ui.services.IDisposable;
 
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
@@ -70,12 +72,9 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
                 break;
 
                 case BLEND_MODE_ADD:
-                    gl.glBlendFunc(GL.GL_ONE, GL.GL_ONE);
-                break;
-
                 case BLEND_MODE_ADD_ALPHA:
                     gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
-                    break;
+                break;
 
                 case BLEND_MODE_MULT:
                     gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
@@ -136,22 +135,39 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         private String text;
         private double x0, y0;
         private TextRenderer textRenderer;
+        private double width;
+        private boolean lineBreak;
 
-        public TextRenderCommmand(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
+        public TextRenderCommmand(TextRenderer textRenderer, String text, double x0, double y0, double width, boolean lineBreak, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
             super(r, g, b, a, blendMode, texture, transform);
             this.textRenderer = textRenderer;
             this.text = text;
             this.x0 = x0;
             this.y0 = y0;
+            this.width = width;
+            this.lineBreak = lineBreak;
         }
 
         @Override
         public void draw(GL2 gl) {
+            Font font = textRenderer.getFont();
+            FontMetrics metrics = getFontMetrics(font);
+            int ascent = metrics.getMaxAscent();
+            int descent = metrics.getMaxDescent();
+
             textRenderer.begin3DRendering();
             gl.glColor4d(r, g, b, a);
             pushTransform();
             setupBlendMode();
-            textRenderer.draw3D(text, (float) x0, (float) y0, 0, 1);
+
+            double x = x0;
+            double y = y0;
+            List<String> lines = layout(textRenderer, text, width, lineBreak);
+            for (String t : lines) {
+                textRenderer.draw3D(t, (float) x, (float) y, 0, 1);
+                y -= ascent + descent;
+            }
+
             textRenderer.end3DRendering();
             popTransform();
         }
@@ -247,11 +263,11 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawString(java.lang.String, java.lang.String, double, double, double, double, double, double, com.dynamo.gui.proto.Gui.NodeDesc.BlendMode, java.lang.String)
      */
     @Override
-    public void drawString(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
+    public void drawString(TextRenderer textRenderer, String text, double x0, double y0, double width, boolean lineBreak, double r, double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform) {
         if (textRenderer == null)
             textRenderer = debugTextRenderer;
 
-        TextRenderCommmand command = new TextRenderCommmand(textRenderer, text, x0, y0, r, g, b, a, blendMode, texture, transform);
+        TextRenderCommmand command = new TextRenderCommmand(textRenderer, text, x0, y0, width, lineBreak, r, g, b, a, blendMode, texture, transform);
         if (currentName != -1) {
             command.name = currentName;
         }
@@ -262,15 +278,24 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawStringBounds(java.lang.String, java.lang.String, double, double, double, double, double, double)
      */
     @Override
-    public void drawStringBounds(TextRenderer textRenderer, String text, double x0, double y0, double r, double g, double b, double a, Matrix4d transform) {
+    public void drawStringBounds(TextRenderer textRenderer, String text, double x0, double y0, double width, boolean lineBreak, double r, double g, double b, double a, Matrix4d transform) {
         if (textRenderer == null)
             textRenderer = debugTextRenderer;
 
-        Rectangle2D bounds = textRenderer.getBounds(text);
-        double x = x0 + bounds.getX();
-        double y = y0 - (bounds.getHeight() + bounds.getY());
-        double w = bounds.getWidth();
-        double h = bounds.getHeight();
+        FontMetrics metrics = getFontMetrics(textRenderer.getFont());
+        int ascent = metrics.getMaxAscent();
+        int descent = metrics.getMaxDescent();
+
+        double h = y0;
+        double w = 0;
+        List<String> lines = layout(textRenderer, text, width, lineBreak);
+        for (String t : lines) {
+            h += ascent + descent;
+            w = Math.max(w, textRenderer.getBounds(t).getWidth());
+        }
+
+        double x = x0;
+        double y = y0;
         QuadRenderCommand command = new QuadRenderCommand(x, y, x + w, y + h, r, g, b, a, null, null, transform);
         if (currentName != -1) {
             command.name = currentName;
@@ -287,6 +312,46 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
             textRenderer = debugTextRenderer;
 
         return textRenderer.getBounds(text);
+    }
+
+    @Override
+    public List<String> layout(TextRenderer textRenderer, String text, double width, boolean lineBreak) {
+        Font font = textRenderer.getFont();
+        FontRenderContext ctx = textRenderer.getFontRenderContext();
+
+        List<String> lines = new ArrayList<String>(128);
+        if (!lineBreak) {
+            lines.add(StringUtils.stripEnd(text, null));
+            return lines;
+        }
+        int i = 0;
+        double max_width = 0;
+        do {
+            char c = 0;
+            double w, trimmed_w;
+            int j = i;
+            do {
+                c = text.charAt(j);
+                while (c != 0 && j < text.length()) {
+                    if (c == ' ' || c == '\n')
+                        break;
+                    c = text.charAt(j);
+                    ++j;
+                }
+
+                int trim = 0;
+                // Skip single trailing white-space in actual width
+                if (c == ' ' || c == '\n')
+                    trim = 1;
+
+                w = font.getStringBounds(text, i, j, ctx).getWidth();
+                trimmed_w = font.getStringBounds(text, i, j - trim, ctx).getWidth();
+            } while (w <= width && j < text.length() && c != '\n');
+            lines.add(StringUtils.stripEnd(text.substring(i, j), null));
+            max_width = Math.max(max_width, trimmed_w);
+            i = j;
+        } while (i < text.length());
+        return lines;
     }
 
     /* (non-Javadoc)

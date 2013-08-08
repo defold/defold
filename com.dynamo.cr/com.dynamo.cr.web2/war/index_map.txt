@@ -12,6 +12,7 @@
 /ref/gui.html
 /ref/render.html
 /ref/sys.html
+/blog/pre_multiplied_alpha_release_1_2_21.html
 /blog/animation_and_getters_setters_release_1_2_20.html
 /blog/input_and_trigger_handling_release_1_2_19.html
 /blog/particlefx_fixes_release_1_2_18.html

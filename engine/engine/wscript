@@ -50,6 +50,8 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
     elif re.match('arm.*?darwin', platform):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'IOKit'])
+        # For Facebook SDK...
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-framework', 'Accounts', '-framework', 'Social', '-framework', 'AdSupport'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform == "linux":
@@ -61,6 +63,7 @@ def configure(conf):
 
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_EXTENSION'] = 'extension'
     conf.env['STATICLIB_RESOURCE'] = 'resource'
     conf.env['STATICLIB_GRAPHICS'] = 'graphics'
     conf.env['STATICLIB_GRAPHICS_NULL'] = 'graphics_null'
@@ -74,10 +77,16 @@ def configure(conf):
     conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_SOUND'] = 'sound'
     conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
+    conf.env['STATICLIB_OPENAL_SOFT'] = 'openal_soft'
+    conf.env['LIB_OPENSLES'] = 'OpenSLES'
     conf.env['STATICLIB_ALUT'] = 'alut'
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_INPUT'] = 'input'
+
+    conf.env['STATICLIB_FACEBOOK'] = 'FacebookSDK'
+    conf.env['LIB_SQLLITE'] = 'sqlite3'
+    conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
 
     if conf.env.PLATFORM.find('arm') == -1:
         conf.env['STATICLIB_RECORD'] = 'record'

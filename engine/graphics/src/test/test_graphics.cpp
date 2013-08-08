@@ -449,6 +449,12 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
     ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
 }
 
+TEST_F(dmGraphicsTest, TestTextureSupport)
+{
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_LUMINANCE));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA_DXT1));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

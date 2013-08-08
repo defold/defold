@@ -15,7 +15,7 @@ import javax.persistence.EntityManagerFactory;
 import javax.ws.rs.core.UriBuilder;
 
 import org.eclipse.persistence.config.PersistenceUnitProperties;
-import org.eclipse.persistence.jpa.osgi.PersistenceProvider;
+import org.eclipse.persistence.jpa.PersistenceProvider;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
@@ -34,8 +34,8 @@ import com.dynamo.cr.server.mail.IMailProcessor;
 import com.dynamo.cr.server.mail.IMailer;
 import com.dynamo.cr.server.mail.MailProcessor;
 import com.dynamo.cr.server.model.User;
-import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.User.Role;
+import com.dynamo.cr.server.model.UserSubscription;
 import com.dynamo.cr.server.model.UserSubscription.CreditCard;
 import com.dynamo.cr.server.model.UserSubscription.State;
 import com.dynamo.cr.server.test.Util;

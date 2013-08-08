@@ -20,7 +20,7 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_Context = dmScript::NewContext(0x0);
+        m_Context = dmScript::NewContext(0x0, 0);
 
         L = lua_open();
         luaL_openlibs(L);
@@ -31,7 +31,7 @@ protected:
 
     virtual void TearDown()
     {
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, m_Context);
         dmScript::DeleteContext(m_Context);
         lua_close(L);
     }

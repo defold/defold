@@ -5,9 +5,9 @@
     <!-- For eclipse 3.7.2 -->
     <!-- property name="pdeBuildPluginVersion" value="3.7.0.v20111116-2009" />-->
     <!-- For eclipse 3.7.1 -->
-    <property name="pdeBuildPluginVersion" value="3.7.0.v20110512-1320" />
+    <property name="pdeBuildPluginVersion" value="3.8.2.v20121114-140810" />
 
-    <property name="equinoxLauncherPluginVersion" value="1.2.0.v20110502" />
+    <property name="equinoxLauncherPluginVersion" value="1.3.0.v20120522-1813" />
     <property name="eclipseLocation" value="${baseLocation}" />
     <property environment="env"/>
 
@@ -27,6 +27,16 @@
         <exec dir="${buildDirectory}/plugins/com.dynamo.cr.parted"
               executable="sh" failonerror="true">
               <arg value="scripts/copy_libparticle.sh"/>
+        </exec>
+
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.bob"
+              executable="sh" failonerror="true">
+              <arg value="scripts/copy_libtexc.sh"/>
+        </exec>
+
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.target"
+              executable="sh" failonerror="true">
+              <arg value="scripts/copy_apkc.sh"/>
         </exec>
 
         <ant dir="${buildDirectory}/plugins/com.dynamo.cr.rlog" antfile="build_proto.xml"/>

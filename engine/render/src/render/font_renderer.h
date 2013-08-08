@@ -16,6 +16,7 @@ namespace dmRender
      */
     struct Glyph
     {
+        uint16_t    m_Character;
         /// Width of the glyph
         uint32_t    m_Width;
         /// Total advancement of the glyph, measured from left to the next glyph
@@ -133,10 +134,14 @@ namespace dmRender
         Vectormath::Aos::Vector4 m_OutlineColor;
         /// Color of the shadow
         Vectormath::Aos::Vector4 m_ShadowColor;
-        /// Text to draw
+        /// Text to draw in utf8-format
         const char* m_Text;
         /// Render depth value. Passed to the render-key depth
         uint32_t    m_Depth;
+        /// Text render box width. Used when m_LineBreak is true
+        float       m_Width;
+        /// True for linebreak
+        bool        m_LineBreak;
     };
 
     /**
@@ -157,10 +162,13 @@ namespace dmRender
     /**
      * Get text metrics for string
      * @param font_map Font map handle
-     * @param text Text to get metrics for
+     * @param text utf8 text to get metrics for
+     * @param width max width. used only when line_break is true
+     * @param line_break line break characters
      * @param metrics Metrics, out-value
      */
-    void GetTextMetrics(HFontMap font_map, const char* text, TextMetrics* metrics);
+    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, TextMetrics* metrics);
+
 }
 
 #endif // FONTRENDERER_H

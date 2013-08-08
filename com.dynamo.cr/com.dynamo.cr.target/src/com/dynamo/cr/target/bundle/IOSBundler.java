@@ -9,12 +9,13 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.SubnodeConfiguration;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -25,6 +26,8 @@ import org.slf4j.LoggerFactory;
 import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.target.core.TargetPlugin;
+import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
 
 public class IOSBundler {
     private static Logger logger = LoggerFactory.getLogger(IOSBundler.class);
@@ -130,17 +133,18 @@ public class IOSBundler {
         // Create Info.plist
         InputStream infoIn = getClass().getResourceAsStream(
                 "resources/ios/Info.plist");
-        XMLPropertyListConfiguration info = new XMLPropertyListConfiguration();
-        info.load(infoIn);
+
+        Template infoTemplate = Mustache.compiler().compile(IOUtils.toString(infoIn));
         infoIn.close();
+        Map<String, Object> infoData = new HashMap<String, Object>();
 
         // Set properties from project file
         for (PropertyAlias alias : propertyAliases) {
             String value = projectProperties.getStringValue(alias.category, alias.key, alias.defaultValue);
-            info.setProperty(alias.bundleProperty, value);
+            infoData.put(alias.bundleProperty, value);
         }
-        info.setProperty("CFBundleDisplayName", title);
-        info.setProperty("CFBundleExecutable", FilenameUtils.getName(exe));
+        infoData.put("CFBundleDisplayName", title);
+        infoData.put("CFBundleExecutable", FilenameUtils.getName(exe));
 
         // Copy ResourceRules.plist
         InputStream resourceRulesIn = getClass().getResourceAsStream(
@@ -164,20 +168,23 @@ public class IOSBundler {
         copyIcon("launch_image_1024x748", "Default-Landscape~ipad.png");
         copyIcon("launch_image_2048x1496", "Default-Landscape@2x~ipad.png");
 
-        SubnodeConfiguration primaryIcon = info.configurationAt(
-                "CFBundleIcons", true).configurationAt("CFBundlePrimaryIcon",
-                true);
-
         // NOTE: We don't set CFBundleIconFiles here
-        // Instead we copy icons to pre-set names, ios_icon_X.png, due to a bug
-        // in XMLPropertyListConfiguration
-        // see https://issues.apache.org/jira/browse/CONFIGURATION-427?page=com.atlassian.jira.plugin.system.issuetabpanels:all-tabpanel
-        primaryIcon.setProperty("UIPrerenderedIcon", projectProperties
-                .getBooleanValue("ios", "pre_renderered_icons", false));
+        // Instead we copy icons to pre-set names, ios_icon_X.png
+        // Legacy solution due to a bug in XMLPropertyListConfiguration previously used
+        infoData.put("UIPrerenderedIcon", projectProperties.getBooleanValue("ios", "pre_renderered_icons", false));
+
+        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
+        List<String> urlSchemes = new ArrayList<String>();
+
+        if (facebookAppId != null) {
+            urlSchemes.add(facebookAppId);
+        }
+        infoData.put("CFBundleURLSchemes", urlSchemes);
 
         // Save updated Info.plist
         File infoFile = new File(appDir, "Info.plist");
-        info.save(infoFile);
+        String compiledInfo = infoTemplate.execute(infoData);
+        FileUtils.write(infoFile, compiledInfo);
 
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir,

@@ -24,6 +24,7 @@ public class IOSBundlerTest {
     private String outputDir;
     private ProjectProperties projectProperties;
     private String provisioningProfile;
+    private boolean isMac;
 
     @Before
     public void setUp() throws Exception {
@@ -34,6 +35,7 @@ public class IOSBundlerTest {
         createFile(contentRoot, "game.projectc", "game.projectc data");
         createFile(contentRoot, "game.arc", "game.arc data");
         provisioningProfile = createFile(contentRoot, "test.mobileprovision", "test provision");
+        isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
     }
 
     @After
@@ -52,27 +54,59 @@ public class IOSBundlerTest {
 
     @Test
     public void testBundle() throws IOException, ConfigurationException {
-        createFile(contentRoot, "test.png", "test_icon");
-        projectProperties.putStringValue("ios", "app_icon_57x57", "test.png");
-        projectProperties.putStringValue("project", "title", "MyApp");
-        IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot, contentRoot, outputDir);
-        bundler.bundleApplication();
+        if (isMac) {
+            createFile(contentRoot, "test.png", "test_icon");
+            projectProperties.putStringValue("ios", "app_icon_57x57", "test.png");
+            projectProperties.putStringValue("project", "title", "MyApp");
+            IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot,
+                    contentRoot, outputDir);
+            bundler.bundleApplication();
 
-        assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
-        assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
-        assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
-        assertExe();
-        assertPList();
+            // Used to be assertFalse() but archives are currently disabled
+            boolean useArchive = false;
+            assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
+            if (useArchive) {
+                assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
+                assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
+            } else {
+                assertTrue(new File(concat(outputDir, "MyApp.app/test.png")).exists());
+                assertFalse(new File(concat(outputDir, "MyApp.app/game.arc")).exists());
+            }
+            assertExe();
+            assertPList();
+        }
     }
 
     @Test
     public void testNoIconSpecified() throws IOException, ConfigurationException {
-        projectProperties.putStringValue("project", "title", "MyApp");
-        IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot, contentRoot, outputDir);
-        bundler.bundleApplication();
+        if (isMac) {
+            projectProperties.putStringValue("project", "title", "MyApp");
+            IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot,
+                    contentRoot, outputDir);
+            bundler.bundleApplication();
 
-        assertExe();
-        assertPList();
+            assertExe();
+            assertPList();
+        }
+    }
+
+    @Test
+    public void testFacebookId() throws IOException, ConfigurationException {
+        if (isMac) {
+            projectProperties.putStringValue("project", "title", "MyApp");
+            projectProperties.putStringValue("facebook", "appid", "123456789");
+            IOSBundler bundler = new IOSBundler(null, provisioningProfile, projectProperties, exe, contentRoot,
+                    contentRoot, outputDir);
+            bundler.bundleApplication();
+
+            assertExe();
+            assertPList();
+
+            String plist = FileUtils.readFileToString(new File(concat(outputDir, "MyApp.app/Info.plist")));
+            if (plist.indexOf("123456789") == -1) {
+                assertTrue("123456789 not found", false);
+            }
+        }
     }
 
     private String readFile(String dir, String name) throws IOException {

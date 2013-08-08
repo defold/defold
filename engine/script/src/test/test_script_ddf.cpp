@@ -23,7 +23,7 @@ protected:
         luaopen_math(L);
         luaopen_debug(L);
 
-        m_Context = dmScript::NewContext(0);
+        m_Context = dmScript::NewContext(0, 0);
         dmScript::ScriptParams params;
         params.m_Context = m_Context;
         dmScript::Initialize(L, params);
@@ -31,7 +31,7 @@ protected:
 
     virtual void TearDown()
     {
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, m_Context);
         dmScript::DeleteContext(m_Context);
         lua_close(L);
     }

@@ -125,7 +125,8 @@ public class AtlasBuilder extends Builder<Void>  {
         try {
             texture = TextureGenerator.generate(pair.right);
         } catch (TextureGeneratorException e) {
-            throw new CompileExceptionError(task.input(0), -1, "Unable to create atlas texture", e);
+            throw new CompileExceptionError(task.input(0), -1, e.getMessage(),
+                    e);
         }
 
         task.output(0).setContent(textureSet.toByteArray());

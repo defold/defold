@@ -66,9 +66,11 @@ namespace dmGui
      *
      * @param font font to measure
      * @param text text to measure
+     * @param width max width. used only when line_break is true
+     * @param line_break line break characters
      * @param out_metrics the metrics of the supplied text
      */
-    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, TextMetrics* out_metrics);
+    typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, TextMetrics* out_metrics);
 
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
@@ -84,6 +86,7 @@ namespace dmGui
         uint32_t                m_Height;
         uint32_t                m_PhysicalWidth;
         uint32_t                m_PhysicalHeight;
+        dmHID::HContext         m_HidContext;
 
         NewContextParams()
         {
@@ -208,6 +211,8 @@ namespace dmGui
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
         int32_t  m_TouchCount;
+        char     m_Text[dmHID::MAX_CHAR_COUNT];
+        uint32_t m_TextCount;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
@@ -231,7 +236,7 @@ namespace dmGui
 
     HContext NewContext(const NewContextParams* params);
 
-    void DeleteContext(HContext context);
+    void DeleteContext(HContext context, dmScript::HContext script_context);
 
     void SetResolution(HContext context, uint32_t width, uint32_t height);
 
@@ -381,6 +386,8 @@ namespace dmGui
 
     const char* GetNodeText(HScene scene, HNode node);
     void SetNodeText(HScene scene, HNode node, const char* text);
+    void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
+    bool GetNodeLineBreak(HScene scene, HNode node);
 
     void* GetNodeTexture(HScene scene, HNode node);
     dmhash_t GetNodeTextureId(HScene scene, HNode node);

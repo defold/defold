@@ -13,7 +13,7 @@
 
 const char* g_URI = "http://localhost:7000";
 
-class dmHttpClientTest: public ::testing::Test
+class dmHttpClientTest: public ::testing::TestWithParam<const char*>
 {
 public:
     dmHttpClient::HClient m_Client;
@@ -69,7 +69,7 @@ public:
 #endif
         m_Client = 0;
 
-        dmURI::Result parse_r = dmURI::Parse(g_URI, &m_URI);
+        dmURI::Result parse_r = dmURI::Parse(GetParam(), &m_URI);
         ASSERT_EQ(dmURI::RESULT_OK, parse_r);
 
         int ret = system("python src/test/test_httpclient.py");
@@ -82,7 +82,8 @@ public:
         params.m_HttpSendContentLength = dmHttpClientTest::HttpSendContentLength;
         params.m_HttpWrite = dmHttpClientTest::HttpWrite;
         params.m_HttpWriteHeaders = dmHttpClientTest::HttpWriteHeaders;
-        m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+        bool secure = strcmp(m_URI.m_Scheme, "https") == 0;
+        m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, secure);
         ASSERT_NE((void*) 0, m_Client);
 
         m_XScale = 1;
@@ -219,7 +220,7 @@ TEST_F(dmHttpClientParserTest, TestContent)
 
 // NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
 
-TEST_F(dmHttpClientTest, Simple)
+TEST_P(dmHttpClientTest, Simple)
 {
     char buf[128];
 
@@ -234,7 +235,7 @@ TEST_F(dmHttpClientTest, Simple)
     }
 }
 
-TEST_F(dmHttpClientTest, CustomRequestHeaders)
+TEST_P(dmHttpClientTest, CustomRequestHeaders)
 {
     char buf[128];
 
@@ -250,7 +251,7 @@ TEST_F(dmHttpClientTest, CustomRequestHeaders)
     }
 }
 
-TEST_F(dmHttpClientTest, Timeout1)
+TEST_P(dmHttpClientTest, Timeout1)
 {
     for (int i = 0; i < 10; ++i)
     {
@@ -270,7 +271,7 @@ TEST_F(dmHttpClientTest, Timeout1)
     }
 }
 
-TEST_F(dmHttpClientTest, Timeout2)
+TEST_P(dmHttpClientTest, Timeout2)
 {
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
     for (int i = 0; i < 10; ++i)
@@ -292,7 +293,7 @@ TEST_F(dmHttpClientTest, Timeout2)
     }
 }
 
-TEST_F(dmHttpClientTest, ContentSizes)
+TEST_P(dmHttpClientTest, ContentSizes)
 {
     char buf[128];
 
@@ -316,7 +317,7 @@ TEST_F(dmHttpClientTest, ContentSizes)
     }
 }
 
-TEST_F(dmHttpClientTest, LargeFile)
+TEST_P(dmHttpClientTest, LargeFile)
 {
     char buf[128];
 
@@ -334,7 +335,7 @@ TEST_F(dmHttpClientTest, LargeFile)
     }
 }
 
-TEST_F(dmHttpClientTest, TestHeaders)
+TEST_P(dmHttpClientTest, TestHeaders)
 {
     char buf[128];
 
@@ -348,7 +349,7 @@ TEST_F(dmHttpClientTest, TestHeaders)
     ASSERT_STREQ("123", m_Headers["Content-Length"].c_str());
 }
 
-TEST_F(dmHttpClientTest, Test404)
+TEST_P(dmHttpClientTest, Test404)
 {
     for (int i = 0; i < 17; ++i)
     {
@@ -361,7 +362,7 @@ TEST_F(dmHttpClientTest, Test404)
     }
 }
 
-TEST_F(dmHttpClientTest, Post)
+TEST_P(dmHttpClientTest, Post)
 {
     for (int i = 0; i < 27; ++i)
     {
@@ -385,7 +386,7 @@ TEST_F(dmHttpClientTest, Post)
     }
 }
 
-TEST_F(dmHttpClientTest, InvalidProxy)
+TEST_P(dmHttpClientTest, InvalidProxy)
 {
     setenv("DMSOCKS_PROXY", "invalid_host", 1);
 
@@ -400,7 +401,7 @@ TEST_F(dmHttpClientTest, InvalidProxy)
     ASSERT_EQ((void*) 0, (void*) m_Client);
 }
 
-TEST_F(dmHttpClientTest, InvalidProxyPort)
+TEST_P(dmHttpClientTest, InvalidProxyPort)
 {
     setenv("DMSOCKS_PROXY", "localhost", 1);
     setenv("DMSOCKS_PROXY_PORT", "1082", 1);
@@ -421,8 +422,12 @@ TEST_F(dmHttpClientTest, InvalidProxyPort)
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(m_Client));
 }
 
-TEST_F(dmHttpClientTest, SimpleProxy)
+TEST_P(dmHttpClientTest, SimpleProxy)
 {
+    if (strcmp(m_URI.m_Scheme, "https") == 0) {
+        dmLogWarning("Skipping proxy test for https");
+        return;
+    }
     char buf[128];
 
     setenv("DMSOCKS_PROXY", "localhost", 1);
@@ -450,7 +455,7 @@ TEST_F(dmHttpClientTest, SimpleProxy)
     unsetenv("DMSOCKS_PROXY_PORT");
 }
 
-TEST_F(dmHttpClientTest, Cache)
+TEST_P(dmHttpClientTest, Cache)
 {
     dmHttpClient::Delete(m_Client);
 
@@ -463,7 +468,7 @@ TEST_F(dmHttpClientTest, Cache)
     cache_params.m_Path = "tmp/cache";
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
+    m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0);
     ASSERT_NE((void*) 0, m_Client);
 
     for (int i = 0; i < 100; ++i)
@@ -492,7 +497,7 @@ TEST_F(dmHttpClientTest, Cache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-TEST_F(dmHttpClientTest, PathWithSpaces)
+TEST_P(dmHttpClientTest, PathWithSpaces)
 {
     char buf[128];
 
@@ -503,6 +508,10 @@ TEST_F(dmHttpClientTest, PathWithSpaces)
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_STREQ(message, m_Content.c_str());
 }
+
+INSTANTIATE_TEST_CASE_P(dmHttpClientTest,
+                        dmHttpClientTest,
+                        ::testing::Values("http://localhost:7000", "https://localhost:7001"));
 
 class dmHttpClientTestCache : public dmHttpClientTest
 {
@@ -543,7 +552,7 @@ public:
     }
 };
 
-TEST_F(dmHttpClientTestCache, DirectFromCache)
+TEST_P(dmHttpClientTestCache, DirectFromCache)
 {
     dmHttpClient::Delete(m_Client);
 
@@ -583,7 +592,7 @@ TEST_F(dmHttpClientTestCache, DirectFromCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-TEST_F(dmHttpClientTestCache, TrustCacheNoValidate)
+TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
 {
     dmHttpClient::Delete(m_Client);
 
@@ -619,7 +628,7 @@ TEST_F(dmHttpClientTestCache, TrustCacheNoValidate)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-TEST_F(dmHttpClientTestCache, BatchValidateCache)
+TEST_P(dmHttpClientTestCache, BatchValidateCache)
 {
     dmHttpClient::Delete(m_Client);
 
@@ -700,6 +709,10 @@ TEST_F(dmHttpClientTestCache, BatchValidateCache)
     cache_r = dmHttpCache::Close(params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
+
+INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache,
+                        dmHttpClientTestCache,
+                        ::testing::Values("http://localhost:7000"));
 
 #endif // #ifndef _WIN32
 

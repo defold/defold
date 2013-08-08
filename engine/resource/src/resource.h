@@ -223,6 +223,17 @@ namespace dmResource
     Result Get(HFactory factory, const char* name, void** resource);
 
     /**
+     * Get raw resource data. Unregistered resources can be loaded with this function.
+     * The returned resource data must be deallocated with free()
+     * @param factory Factory handle
+     * @param name Resource name
+     * @param resource Resource data
+     * @param resource_size Resource size
+     * @return RESULT_OK on success
+     */
+    Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
+
+    /**
      * Reload a specific resource
      * @param factory Resource factory
      * @param name Name that identifies the resource, i.e. the same name used in Get

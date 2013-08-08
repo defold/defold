@@ -22,6 +22,12 @@ public class FragmentProgramBuilder extends CopyBuilder {
         writer.println("#ifdef GL_ES");
         writer.println("precision mediump float;");
         writer.println("#endif");
+        writer.println("#ifndef GL_ES");
+        writer.println("#define lowp");
+        writer.println("#define mediump");
+        writer.println("#define highp");
+        writer.println("#endif");
+
         writer.close();
         os.write(in.getContent());
         os.close();

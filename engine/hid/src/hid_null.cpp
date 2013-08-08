@@ -66,4 +66,13 @@ namespace dmHID
     {
         *device_name = "null_device";
     }
+
+    void ShowKeyboard(HContext context, KeyboardType type)
+    {
+    }
+
+    void HideKeyboard(HContext context)
+    {
+    }
+
 }

@@ -72,14 +72,30 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
     }
 
     private void loadDocumentation() {
-        loadDocumentation("doc/script_doc.sdoc");
-        loadDocumentation("doc/script_json_doc.sdoc");
-        loadDocumentation("doc/script_http_doc.sdoc");
-        loadDocumentation("doc/go_doc.sdoc");
-        loadDocumentation("doc/render_doc.sdoc");
-        loadDocumentation("doc/gui_doc.sdoc");
-        loadDocumentation("doc/engine_doc.sdoc");
-        loadDocumentation("doc/gamesys_doc.sdoc");
+        // TODO: Enable http/json docs
+        String[] docs = new String[] {
+                "builtins",
+                "camera",
+                "collection_proxy",
+                "collision_object",
+                "engine",
+                "factory",
+                "go",
+                "gui",
+                //"http",
+                //"json",
+                "msg",
+                "particlefx",
+                "render",
+                "sound",
+                "sprite",
+                "sys",
+                "tilemap",
+                "vmath"
+        };
+        for (String doc : docs) {
+            loadDocumentation(String.format("doc/%s_doc.sdoc", doc));
+        }
 
         // Add all namespaces to the global namespace
         for (String ns : nameSpaceToElementList.keySet()) {

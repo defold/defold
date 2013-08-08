@@ -411,6 +411,14 @@ namespace dmGameObject
                 lua_settable(L, -3);
             }
 
+            if (params.m_InputAction->m_TextCount > 0)
+            {
+                int tc = params.m_InputAction->m_TextCount;
+                lua_pushliteral(L, "text");
+                lua_pushlstring(L, params.m_InputAction->m_Text, tc);
+                lua_settable(L, -3);
+            }
+
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;
             int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);

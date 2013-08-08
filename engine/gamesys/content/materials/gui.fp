@@ -1,11 +1,11 @@
-varying vec4 position;
-varying vec2 var_texcoord0;
+varying mediump vec4 position;
+varying mediump vec2 var_texcoord0;
+varying lowp vec4 var_color;
 
-uniform vec4 diffuse_color;
-uniform sampler2D texture;
+uniform lowp sampler2D texture;
 
 void main()
 {
     vec4 tex = texture2D(texture, var_texcoord0.xy);
-    gl_FragColor = tex * diffuse_color;
+    gl_FragColor = tex * var_color;
 }

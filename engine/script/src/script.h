@@ -6,6 +6,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/configfile.h>
+#include <resource/resource.h>
 #include <ddf/ddf.h>
 
 extern "C"
@@ -28,9 +29,10 @@ namespace dmScript
     /**
      * Create and return a new context.
      * @param config_file optional config file handle
+     * @param factory resource factory
      * @return context
      */
-    HContext NewContext(dmConfigFile::HConfig config_file);
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory);
 
     /**
      * Delete an existing context.
@@ -97,7 +99,7 @@ namespace dmScript
      * Finalize script libraries
      * @param L Lua state
      */
-    void Finalize(lua_State* L);
+    void Finalize(lua_State* L, HContext context);
 
     /**
      * Retrieve a ddf structure from a lua state.

@@ -45,20 +45,33 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/time.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/utf8.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/uri.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/vmath.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
-    source_dirs = 'dlib dlib/jsmn'
+    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl'
+    # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
+    extra_defines = ['ZLIB_CONST']
+    if bld.env.PLATFORM != 'win32':
+        extra_defines.append('Z_HAVE_UNISTD_H')
+        extra_defines.append('HAVE_HIDDEN')
+        extra_defines.append('CONFIG_USE_DEV_URANDOM')
+    else:
+        pass
+        # NOTE: CONFIG_WIN32_USE_CRYPTO_LIB is disabled
+        # on windows due to compile error in RNG_custom_init()
+        # when CONFIG_WIN32_USE_CRYPTO_LIB is set (missing entropy_pool, see top of file)
 
     dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
-                            includes = '.',
+                            includes = '. axtls/config axtls/crypto axtls/ssl',
                             target = 'dlib',
-                            defines= 'VALGRIND',
+                            defines= ['VALGRIND'] + extra_defines,
                             embed_source = '../data/profiler.html')
     dlib.find_sources_in_dirs(source_dirs)
     if ('darwin' in bld.env.BUILD_PLATFORM and re.match('arm.*?android', bld.env.PLATFORM)) or bld.env.PLATFORM == 'js-web':
@@ -70,9 +83,9 @@ def build(bld):
         dlib.source.remove('dlib/socket_cocoa.mm')
 
     dlib = bld.new_task_gen(features = 'cc cxx cshlib embed',
-                            includes = '.',
+                            includes = '. axtls/config axtls/crypto axtls/ssl',
                             target = 'dlib_shared',
-                            defines= 'VALGRIND',
+                            defines= ['VALGRIND'] + extra_defines,
                             embed_source = '../data/profiler.html',
                             uselib = 'UUID PLATFORM_SOCKET')
     dlib.find_sources_in_dirs(source_dirs)

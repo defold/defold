@@ -30,7 +30,7 @@ namespace dmRender
     };
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size);
-    void FinalizeRenderScriptContext(RenderScriptContext& context);
+    void FinalizeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context);
 }
 
 #endif // DMRENDER_RENDER_SCRIPT_H

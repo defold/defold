@@ -81,7 +81,7 @@ This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView sub
 The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
 */
-@interface EAGLView : UIView {
+@interface EAGLView : UIView<UIKeyInput, UITextInputTraits> {
 
 @private
     GLint backingWidth;
@@ -92,6 +92,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     CADisplayLink* displayLink;
     int countDown;
     int swapInterval;
+    UIKeyboardType keyboardType;
 }
 
 - (void)swapBuffers;
@@ -103,6 +104,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 @interface EAGLView ()
 
 @property (nonatomic, retain) EAGLContext *context;
+@property (nonatomic) BOOL keyboardActive;
+// TODO: Cooldown "timer" *hack* for backspace and enter release
+#define TEXT_KEY_COOLDOWN (10)
+@property (nonatomic) int textkeyActive;
 
 - (BOOL) createFramebuffer;
 - (void) destroyFramebuffer;
@@ -181,6 +186,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     // At least when running in frame-rates < 60
     if (!_glfwWin.iconified)
     {
+        const GLenum discards[]  = {GL_DEPTH_ATTACHMENT};
+        glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
+        glDiscardFramebufferEXT(GL_FRAMEBUFFER, 1, discards);
+
         glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
         [context presentRenderbuffer:GL_RENDERBUFFER];
     }
@@ -294,6 +303,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
+    if (self.keyboardActive) {
+        // Implicitly hide keyboard
+        _glfwShowKeyboard(0, 0);
+        return;
+    }
+
     _glfwInput.TouchCount = [self fillTouch: event];
     if( _glfwWin.touchCallback )
     {
@@ -321,6 +336,54 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         // Send release for last finger
         _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
     }
+}
+
+- (BOOL)canBecomeFirstResponder
+{
+    return YES;
+}
+
+- (BOOL)hasText
+{
+    return YES;
+}
+
+- (void)insertText:(NSString *)theText
+{
+    int length = [theText length];
+
+    if (length == 1 && [theText characterAtIndex: 0] == 10) {
+        _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
+        self.textkeyActive = TEXT_KEY_COOLDOWN;
+        return;
+    }
+
+    for(int i = 0;  i < length;  i++) {
+        // Trick to "fool" glfw. Otherwise repeated characters will be filtered due to repeat
+        _glfwInputChar( [theText characterAtIndex:i], GLFW_RELEASE );
+        _glfwInputChar( [theText characterAtIndex:i], GLFW_PRESS );
+    }
+}
+
+- (void)deleteBackward
+{
+    _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
+    self.textkeyActive = TEXT_KEY_COOLDOWN;
+}
+
+- (UIKeyboardType) keyboardType
+{
+    return keyboardType;
+}
+
+- (void) setKeyboardType: (UIKeyboardType) type
+{
+    keyboardType = type;
+}
+
+- (UIReturnKeyType) returnKeyType
+{
+    return UIReturnKeyDefault;
 }
 
 - (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
@@ -762,6 +825,16 @@ void _glfwPlatformPollEvents( void )
         result = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, TRUE);
     } while (result == kCFRunLoopRunHandledSource);
     [pool release];
+
+    EAGLView* view = (EAGLView*) _glfwWin.view;
+    if (view.keyboardActive) {
+        if (view.textkeyActive == 0) {
+            _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
+            _glfwInputKey( GLFW_KEY_ENTER, GLFW_RELEASE );
+        } else {
+            view.textkeyActive = view.textkeyActive - 1;
+        }
+    }
 }
 
 //========================================================================
@@ -794,6 +867,32 @@ void _glfwPlatformShowMouseCursor( void )
 
 void _glfwPlatformSetMouseCursorPos( int x, int y )
 {
+}
+
+void _glfwShowKeyboard( int show, int type )
+{
+    EAGLView* view = (EAGLView*) _glfwWin.view;
+    switch (type) {
+        case GLFW_KEYBOARD_DEFAULT:
+            view.keyboardType = UIKeyboardTypeDefault;
+            break;
+        case GLFW_KEYBOARD_NUMBER_PAD:
+            view.keyboardType = UIKeyboardTypeNumberPad;
+            break;
+        case GLFW_KEYBOARD_EMAIL:
+            view.keyboardType = UIKeyboardTypeEmailAddress;
+            break;
+        default:
+            view.keyboardType = UIKeyboardTypeDefault;
+    }
+    view.textkeyActive = -1;
+    if (show) {
+        view.keyboardActive = YES;
+        [_glfwWin.view becomeFirstResponder];
+    } else {
+        view.keyboardActive = NO;
+        [_glfwWin.view resignFirstResponder];
+    }
 }
 
 //========================================================================

@@ -58,6 +58,19 @@ public class TileGridRenderer implements INodeRenderer<TileGridNode> {
             texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
             texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
             texture.enable(gl);
+
+            switch (node.getBlendMode()) {
+            case BLEND_MODE_ALPHA:
+                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+                break;
+            case BLEND_MODE_ADD:
+            case BLEND_MODE_ADD_ALPHA:
+                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
+                break;
+            case BLEND_MODE_MULT:
+                gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
+                break;
+            }
         }
 
         gl.glColor4fv(renderContext.selectColor(node, COLOR), 0);
@@ -75,6 +88,7 @@ public class TileGridRenderer implements INodeRenderer<TileGridNode> {
 
         if (useTexture) {
             texture.disable(gl);
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
         }
     }
 

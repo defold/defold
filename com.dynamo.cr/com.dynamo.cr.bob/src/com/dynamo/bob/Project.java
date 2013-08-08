@@ -3,6 +3,7 @@ package com.dynamo.bob;
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,40 +71,47 @@ public class Project {
     @SuppressWarnings("unchecked")
     private void doScan(Set<String> classNames) {
         for (String className : classNames) {
-            try {
-                Class<?> klass = Class.forName(className);
-                BuilderParams params = klass.getAnnotation(BuilderParams.class);
-                if (params != null) {
-                    for (String inExt : params.inExts()) {
-                        extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+            // Ignore TexcLibrary to avoid it being loaded and initialized
+            if (!className.startsWith("com.dynamo.bob.TexcLibrary")) {
+                try {
+                    Class<?> klass = Class.forName(className);
+                    BuilderParams params = klass.getAnnotation(BuilderParams.class);
+                    if (params != null) {
+                        for (String inExt : params.inExts()) {
+                            extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+                        }
                     }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         }
     }
 
     private Task<?> doCreateTask(String input) throws CompileExceptionError {
         Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
-        Builder<?> builder;
         if (builderClass != null) {
-            try {
-                builder = builderClass.newInstance();
-                builder.setProject(this);
-                IResource inputResource = fileSystem.get(input);
-                Task<?> task = builder.create(inputResource);
-                return task;
-            } catch (CompileExceptionError e) {
-                // Just pass CompileExceptionError on unmodified
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            return doCreateTask(input, builderClass);
         } else {
             logWarning("No builder for '%s' found", input);
         }
         return null;
+    }
+
+    private Task<?> doCreateTask(String input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        Builder<?> builder;
+        try {
+            builder = builderClass.newInstance();
+            builder.setProject(this);
+            IResource inputResource = fileSystem.get(input);
+            Task<?> task = builder.create(inputResource);
+            return task;
+        } catch (CompileExceptionError e) {
+            // Just pass CompileExceptionError on unmodified
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private Class<? extends Builder<?>> getBuilderFromExtension(String input) {
@@ -120,7 +128,28 @@ public class Project {
      * @throws CompileExceptionError
      */
     public Task<?> buildResource(IResource input) throws CompileExceptionError {
-        Task<?> task = doCreateTask(input.getPath());
+        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input.getPath());
+        if (builderClass == null) {
+            logWarning("No builder for '%s' found", input);
+            return null;
+        }
+
+        Task<?> task = doCreateTask(input.getPath(), builderClass);
+        if (task != null) {
+            newTasks.add(task);
+        }
+        return task;
+    }
+
+    /**
+     * Create task from resource with explicit builder.
+     * @param input input resource
+     * @param builderClass class to build resource with
+     * @return
+     * @throws CompileExceptionError
+     */
+    public Task<?> buildResource(IResource input, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+        Task<?> task = doCreateTask(input.getPath(), builderClass);
         if (task != null) {
             newTasks.add(task);
         }
@@ -456,6 +485,9 @@ run:
     public void findSources(String path, Set<String> skipDirs) throws IOException {
         if (!new File(path).isAbsolute()) {
             path = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path));
+        }
+        if (!new File(path).exists()) {
+            throw new FileNotFoundException(String.format("the path '%s' can not be found", path));
         }
         Walker walker = new Walker(skipDirs);
         walker.walk(path);

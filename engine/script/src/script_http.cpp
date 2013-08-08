@@ -106,7 +106,9 @@ namespace dmScript
                 request_data_length = len;
             }
 
-            const uint32_t string_buf_len = 256;
+            // Really arbitrary length.
+            // TODO: Warn if the buffer isn't long enough
+            const uint32_t string_buf_len = 1024;
             const uint32_t max_method_len = 16;
             char buf[sizeof(dmHttpDDF::HttpRequest) + string_buf_len];
             dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) buf;

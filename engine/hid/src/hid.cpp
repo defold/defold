@@ -1,3 +1,4 @@
+#include <dlib/log.h>
 #include "hid.h"
 #include "hid_private.h"
 
@@ -85,6 +86,21 @@ namespace dmHID
         if (out_packet != 0x0 && context->m_KeyboardConnected)
         {
             *out_packet = context->m_KeyboardPacket;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool GetTextPacket(HContext context, TextPacket* out_packet)
+    {
+        if (out_packet != 0x0 && context->m_KeyboardConnected)
+        {
+            *out_packet = context->m_TextPacket;
+            context->m_TextPacket.m_Size = 0;
+            context->m_TextPacket.m_Text[0] = '\0';
             return true;
         }
         else

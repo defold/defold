@@ -24,7 +24,7 @@ protected:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0);
+        m_ScriptContext = dmScript::NewContext(0, 0);
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;
         font_map_params.m_Glyphs.SetCapacity(128);
@@ -33,6 +33,7 @@ protected:
         for (uint32_t i = 0; i < 128; ++i)
         {
             font_map_params.m_Glyphs[i].m_Width = 1;
+            font_map_params.m_Glyphs[i].m_Character = i;
         }
         m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
         dmRender::RenderContextParams params;
@@ -61,7 +62,7 @@ protected:
         dmRender::DeleteMaterial(m_Context, m_FontMaterial);
 
         dmGraphics::CloseWindow(m_GraphicsContext);
-        dmRender::DeleteRenderContext(m_Context);
+        dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);
@@ -546,6 +547,7 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
+    dmRender::FlushTexts(m_Context);
 
     ASSERT_NE(0u, m_Context->m_TextContext.m_VertexIndex);
 

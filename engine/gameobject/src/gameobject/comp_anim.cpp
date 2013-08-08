@@ -53,6 +53,7 @@ namespace dmGameObject
         dmArray<uint16_t>                   m_AnimMap;
         dmIndexPool<uint16_t>               m_AnimMapIndexPool;
         dmHashTable<uintptr_t, uint16_t>    m_InstanceToIndex;
+        uint32_t                            m_InUpdate : 1;
     };
 
     CreateResult CompAnimNewWorld(const ComponentNewWorldParams& params)
@@ -69,6 +70,7 @@ namespace dmGameObject
             // This is fetched from res_collection.cpp (ResCollectionCreate)
             const uint32_t instance_count = 1024;
             world->m_InstanceToIndex.SetCapacity(instance_count/3, instance_count);
+            world->m_InUpdate = 0;
             return CREATE_RESULT_OK;
         }
         else
@@ -147,6 +149,7 @@ namespace dmGameObject
          */
         UpdateResult result = UPDATE_RESULT_OK;
         AnimWorld* world = (AnimWorld*)params.m_World;
+        world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
         DM_COUNTER("animc", size);
         uint32_t i = 0;
@@ -322,6 +325,7 @@ namespace dmGameObject
                 ++i;
             }
         }
+        world->m_InUpdate = 0;
         return result;
     }
 
@@ -530,6 +534,42 @@ namespace dmGameObject
     void CancelAnimations(HCollection collection, HInstance instance)
     {
         AnimWorld* world = GetWorld(collection);
-        StopAllAnimations(world, world->m_InstanceToIndex.Get((uintptr_t)instance));
+        // Deferred cancel while in update
+        if (world->m_InUpdate)
+        {
+            StopAllAnimations(world, world->m_InstanceToIndex.Get((uintptr_t)instance));
+        }
+        else
+        {
+            uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
+            if (head_ptr != 0x0)
+            {
+                uint32_t anim_count = world->m_Animations.Size();
+                uint16_t index = *head_ptr;
+                while (index != INVALID_INDEX)
+                {
+                    uint16_t anim_index = world->m_AnimMap[index];
+                    Animation* anim = &world->m_Animations[anim_index];
+                    StopAnimation(anim, false);
+                    if (anim->m_AnimationStopped != 0x0)
+                    {
+                        anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
+                                anim->m_Userdata1, anim->m_Userdata2);
+                    }
+                    world->m_AnimMapIndexPool.Push(index);
+                    index = anim->m_Next;
+                    // delete the instance from the list
+                    anim_index = (uint16_t)(anim - world->m_Animations.Begin());
+                    anim = &world->m_Animations.EraseSwap(anim_index);
+                    --anim_count;
+                    if (anim_count > anim_index)
+                    {
+                        // We swapped, anim points to the swapped animation, update its map
+                        world->m_AnimMap[anim->m_Index] = anim_index;
+                    }
+                }
+                world->m_InstanceToIndex.Erase((uintptr_t)instance);
+            }
+        }
     }
 }

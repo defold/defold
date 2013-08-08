@@ -275,6 +275,10 @@ extern "C" {
 #define GLFW_KEY_MENU         (GLFW_KEY_SPECIAL+69)
 #define GLFW_KEY_LAST         GLFW_KEY_MENU
 
+#define GLFW_KEYBOARD_DEFAULT    (0)
+#define GLFW_KEYBOARD_NUMBER_PAD (1)
+#define GLFW_KEYBOARD_EMAIL      (2)
+
 /* Mouse button definitions */
 #define GLFW_MOUSE_BUTTON_1      0
 #define GLFW_MOUSE_BUTTON_2      1
@@ -479,6 +483,7 @@ GLFWAPI int  GLFWAPIENTRY glfwGetMouseWheel( void );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseWheel( int pos );
 GLFWAPI void GLFWAPIENTRY glfwSetKeyCallback( GLFWkeyfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun );
+GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseButtonCallback( GLFWmousebuttonfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMousePosCallback( GLFWmouseposfun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun );

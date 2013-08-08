@@ -146,13 +146,19 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
             _glfwWin.iconified = GL_FALSE;
             break;
         case APP_CMD_TERM_WINDOW:
+            // TODO: Only a temporary solution
+            _exit(0);
             break;
         case APP_CMD_GAINED_FOCUS:
             break;
         case APP_CMD_LOST_FOCUS:
+            // TODO: Only a temporary solution
+            _exit(0);
             break;
     }
 }
+
+struct android_app* g_AndroidApp;
 
 void _glfwPreMain(struct android_app* state)
 {
@@ -161,6 +167,7 @@ void _glfwPreMain(struct android_app* state)
     int events;
     struct android_poll_source* source;
 
+    g_AndroidApp = state;
     _glfwWin.iconified = GL_TRUE;
     _glfwAndrodApp = state;
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?pde version="3.5"?>
 
-<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.2.20" useFeatures="false" includeLaunchers="true">
+<product name="Defold Editor" uid="com.dynamo.cr.editor.product" id="com.dynamo.cr.editor.product" application="com.dynamo.cr.editor.application" version="1.2.21" useFeatures="false" includeLaunchers="true">
 
    <configIni use="default">
    </configIni>
@@ -64,7 +64,6 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="javax.media.opengl"/>
       <plugin id="javax.persistence"/>
       <plugin id="javax.servlet"/>
-      <plugin id="javax.transaction" fragment="true"/>
       <plugin id="joda.time"/>
       <plugin id="org.eclipse.compare"/>
       <plugin id="org.eclipse.compare.core"/>
@@ -142,11 +141,9 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="org.eclipse.persistence.asm"/>
       <plugin id="org.eclipse.persistence.core"/>
       <plugin id="org.eclipse.persistence.jpa"/>
-      <plugin id="org.eclipse.persistence.jpa.equinox.weaving" fragment="true"/>
       <plugin id="org.eclipse.persistence.oracle" fragment="true"/>
       <plugin id="org.eclipse.search"/>
       <plugin id="org.eclipse.swt"/>
-      <plugin id="org.eclipse.swt.carbon.macosx" fragment="true"/>
       <plugin id="org.eclipse.swt.cocoa.macosx" fragment="true"/>
       <plugin id="org.eclipse.swt.cocoa.macosx.x86_64" fragment="true"/>
       <plugin id="org.eclipse.swt.gtk.linux.ppc64" fragment="true"/>
@@ -162,7 +159,6 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="org.eclipse.team.ui"/>
       <plugin id="org.eclipse.text"/>
       <plugin id="org.eclipse.ui"/>
-      <plugin id="org.eclipse.ui.carbon" fragment="true"/>
       <plugin id="org.eclipse.ui.cocoa" fragment="true"/>
       <plugin id="org.eclipse.ui.console"/>
       <plugin id="org.eclipse.ui.editors"/>

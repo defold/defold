@@ -7,7 +7,8 @@ Licenses
 ========
 
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src)
-
+* **zlib**: [http://www.zlib.net]() - zlib
+* **axTLS**: [http://axtls.sourceforge.net]() - BSD
 
 Tagging
 -------
@@ -65,6 +66,24 @@ iOS Debugging
 * Select executable (dmengine.app)
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
+Android
+-------
+
+By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp. 
+g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c. 
+Life-cycle support should probably be moved to dlib at some point.
+
+
+Android SDK/NDK
+---------------
+
+* Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
+  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1.. 
+  Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
+* Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
+  mentioned above
+* Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
+* Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively 
 
 Android testing
 ---------------
@@ -101,4 +120,29 @@ Prior to GLCanvas#setCurrent the GLDrawableFactory must be created on OSX. This 
 Typically the getFactory and createExternalGLContext are in the same statement. The exception thrown is "Error: current Context (CGL) null, no Context (NS)" and might be related to loading of shared libraries that seems to triggered when the factory is
 created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
 are unknown though.
+
+Asset loading
+-------------
+
+Assets can be loaded from file-system, from an archive or over http.
+
+See *dmResource::LoadResource* for low-level loading of assets, *dmResource* for general resource loading and *engine.cpp*
+for initialization. A current limitation is that we don't have a specific protocol for *resource:* For file-system, archive
+and http url schemes *file:*, *arc:* and *http:* are used respectively. See dmConfigFile for the limitation about the absence 
+of a resource-scheme.
+
+### Http Cache
+
+Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism 
+used if available in order to speed up the cache-validation process. See dlib, *dmHttpCache* and *ConsistencyPolicy*, for more information.
+
+Engine Extensions
+-----------------
+
+Script extensions can be created using a simple exensions mechanism. To add a new extension to the engine the only required step is to link with the
+extension library and set "exported_symbols" in the wscript, see note below.
+
+*NOTE:* In order to avoid a dead-stripping bug with static libraries on OSX/iOS a constructor symbol must be explicitly exported with "exported_symbols"
+in the wscript-target. See extension-test.
+
 

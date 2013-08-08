@@ -32,6 +32,8 @@ namespace dmGameSystem
             return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
+            return dmGraphics::TEXTURE_FORMAT_RGB_ETC1;
         default:
             assert(0);
         }
@@ -53,7 +55,7 @@ namespace dmGameSystem
             dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
             dmGraphics::TextureFormat format = TextureImageToTextureFormat(image);
 
-            if (!dmGraphics::IsTextureFormatSupported(format))
+            if (!dmGraphics::IsTextureFormatSupported(context, format))
             {
                 continue;
             }

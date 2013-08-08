@@ -104,12 +104,20 @@ public class Fontc {
     static final int imageComponentCount = 3;
 
     public Fontc() {
-        this.characters = new StringBuffer();
-        for (int i = 32; i < 255; ++i)
-            this.characters.append((char) i);
     }
 
     public void run(InputStream fontStream, FontDesc fontDesc, String fontMapFile) throws FontFormatException, IOException {
+        this.characters = new StringBuffer();
+        // 7-bit ASCII. Note inclusive range [32,126]
+        for (int i = 32; i <= 126; ++i)
+            this.characters.append((char) i);
+
+        String extraCharacters = fontDesc.getExtraCharacters();
+        for (int i = 0; i < extraCharacters.length(); i++) {
+            char c = extraCharacters.charAt(i);
+            this.characters.append(c);
+        }
+
         this.fontDesc = fontDesc;
         this.fontRendererContext = new FontRenderContext(new AffineTransform(), fontDesc.getAntialias() != 0, fontDesc.getAntialias() != 0);
 
@@ -242,14 +250,11 @@ public class Fontc {
             .setMaxAscent(maxAscent)
             .setMaxDescent(maxDescent);
 
-        // Add 32 dummy characters
-        for (int j = 0; j < 32; ++j) {
-            builder.addGlyphs(FontMap.Glyph.newBuilder().build());
-        }
 
         i = 0;
         for (Glyph glyph : glyphs) {
             FontMap.Glyph.Builder glyphBuilder = FontMap.Glyph.newBuilder()
+                .setCharacter(glyph.c)
                 .setWidth(glyph.width + (glyph.width > 0 ? padding * 2 : 0))
                 .setAdvance(glyph.advance)
                 .setLeftBearing(glyph.leftBearing - padding)

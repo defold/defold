@@ -37,6 +37,7 @@ namespace dmGameSystem
         {
             dmRenderDDF::FontMap::Glyph& i_g = ddf->m_Glyphs[i];
             dmRender::Glyph& o_g = params.m_Glyphs[i];
+            o_g.m_Character = i_g.m_Character;
             o_g.m_Advance = i_g.m_Advance;
             o_g.m_Ascent = i_g.m_Ascent;
             o_g.m_Descent = i_g.m_Descent;

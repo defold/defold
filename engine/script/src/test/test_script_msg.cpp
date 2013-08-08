@@ -43,7 +43,7 @@ protected:
     {
         L = lua_open();
         luaL_openlibs(L);
-        m_ScriptContext = dmScript::NewContext(0);
+        m_ScriptContext = dmScript::NewContext(0, 0);
         dmScript::ScriptParams params;
         params.m_Context = m_ScriptContext;
         params.m_ResolvePathCallback = ResolvePathCallback;
@@ -61,7 +61,7 @@ protected:
     virtual void TearDown()
     {
         dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
-        dmScript::Finalize(L);
+        dmScript::Finalize(L, m_ScriptContext);
         lua_close(L);
         dmScript::DeleteContext(m_ScriptContext);
     }

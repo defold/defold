@@ -271,9 +271,6 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
             break;
 
             case BLEND_MODE_ADD:
-                gl.glBlendFunc(GL.GL_ONE, GL.GL_ONE);
-            break;
-
             case BLEND_MODE_ADD_ALPHA:
                 gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
             break;
