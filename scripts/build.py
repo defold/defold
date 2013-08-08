@@ -158,7 +158,7 @@ class Configuration(object):
             self._extract_tgz(make_path('armv7-android'), self.ext)
 
         for p in PACKAGES_EMSCRIPTEN:
-            self._extract_tgz(make_path('js-web'), ext)
+            self._extract_tgz(make_path('js-web'), self.ext)
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
