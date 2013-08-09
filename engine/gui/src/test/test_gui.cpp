@@ -378,7 +378,7 @@ TEST_F(dmGuiTest, AnimateNode)
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
         dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-        dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0.5f, 0, 0, 0);
+        dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.5f, 0, 0, 0);
 
         ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -399,10 +399,77 @@ TEST_F(dmGuiTest, AnimateNode)
     }
 }
 
+TEST_F(dmGuiTest, Playback)
+{
+    const float duration = 4 / 60.0f;
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX);
+
+    dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_BACKWARD, duration, 0, 0, 0, 0);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f / 4.0f, EPSILON);
+
+    dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_FORWARD, duration, 0, 0, 0, 0);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 4.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
+
+    dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_BACKWARD, duration, 0, 0, 0, 0);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
+
+    dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_PINGPONG, duration, 0, 0, 0, 0);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 4.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f / 4.0f, EPSILON);
+
+
+    dmGui::DeleteNode(m_Scene, node);
+}
+
 TEST_F(dmGuiTest, AnimateNode2)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -419,7 +486,7 @@ TEST_F(dmGuiTest, AnimateNode2)
 TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -440,7 +507,7 @@ TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
 TEST_F(dmGuiTest, AnimateNodeDelete)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::HNode node2 = 0;
@@ -468,7 +535,7 @@ void MyAnimationComplete(dmGui::HScene scene,
                          void* userdata2)
 {
     MyAnimationCompleteCount++;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(2,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(2,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
     // Check that we reached target position
     *(Point3*)userdata2 = dmGui::GetNodePosition(scene, node);
 }
@@ -477,7 +544,7 @@ TEST_F(dmGuiTest, AnimateComplete)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     Point3 completed_position;
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -513,7 +580,7 @@ void MyPingPongComplete1(dmGui::HScene scene,
                         void* userdata2)
 {
     ++PingPongCount;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -522,13 +589,13 @@ void MyPingPongComplete2(dmGui::HScene scene,
                          void* userdata2)
 {
     ++PingPongCount;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 }
 
 TEST_F(dmGuiTest, PingPong)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -590,6 +657,42 @@ TEST_F(dmGuiTest, ScriptAnimate)
     ASSERT_EQ(m_Scene->m_NodePool.Capacity(), m_Scene->m_NodePool.Remaining());
 }
 
+TEST_F(dmGuiTest, ScriptPlayback)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, node, "n");
+    const char* s = "function init(self)\n"
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.animate(self.node, gui.PROP_POSITION, vmath.vector4(1,0,0,0), gui.EASING_NONE, 1, 0, nil, gui.PLAYBACK_ONCE_BACKWARD)\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete_node(self.node)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, r);
+    }
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    ASSERT_EQ(m_Scene->m_NodePool.Capacity(), m_Scene->m_NodePool.Remaining());
+}
+
 TEST_F(dmGuiTest, ScriptAnimatePreserveAlpha)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -616,6 +719,39 @@ TEST_F(dmGuiTest, ScriptAnimatePreserveAlpha)
     Vector4 color = dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR);
     ASSERT_NEAR(color.getX(), 1.0f, EPSILON);
     ASSERT_NEAR(color.getW(), 0.5f, EPSILON);
+
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+}
+
+TEST_F(dmGuiTest, ScriptAnimateComponent)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, node, "n");
+    const char* s = "function init(self)\n"
+                    "    self.node = gui.get_node(\"n\")\n"
+                    "    gui.set_color(self.node, vmath.vector4(0.1,0.2,0.3,0.4))\n"
+                    "    gui.animate(self.node, \"color.z\", 0.9, gui.EASING_NONE, 0.01)\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete_node(self.node)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, s, strlen(s), "file");
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    Vector4 color = dmGui::GetNodeProperty(m_Scene, node, dmGui::PROPERTY_COLOR);
+    ASSERT_NEAR(color.getX(), 0.1f, EPSILON);
+    ASSERT_NEAR(color.getY(), 0.2f, EPSILON);
+    ASSERT_NEAR(color.getZ(), 0.9f, EPSILON);
+    ASSERT_NEAR(color.getW(), 0.4f, EPSILON);
 
     r = dmGui::FinalScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -1365,9 +1501,9 @@ TEST_F(dmGuiTest, ReplaceAnimation)
     dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
 
-    dmGui::AnimateNode(m_Scene, node2, dmGui::PROPERTY_POSITION, Vector4(123,0,0,0), dmGui::EASING_NONE, 0.5f, 0, 0, 0, 0);
-    dmGui::AnimateNode(m_Scene, node1, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
-    dmGui::AnimateNode(m_Scene, node1, dmGui::PROPERTY_POSITION, Vector4(10,0,0,0), dmGui::EASING_NONE, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, node2, dmGui::PROPERTY_POSITION, Vector4(123,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 0.5f, 0, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, node1, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, node1, dmGui::PROPERTY_POSITION, Vector4(10,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
 
     for (int i = 0; i < 60; ++i)
     {
@@ -1889,8 +2025,8 @@ TEST_F(dmGuiTest, EnableDisable)
     ASSERT_FALSE(rendered);
 
     // Test animations disabled from start for disabled nodes
-    dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_COLOR, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmGui::EASING_NONE, 1.0f, 0.0f, 0x0, 0x0, 0x0);
-    ASSERT_EQ(1U, m_Scene->m_Animations.Size());
+    dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_COLOR, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0x0, 0x0, 0x0);
+    ASSERT_EQ(4U, m_Scene->m_Animations.Size());
     ASSERT_FALSE(m_Scene->m_Animations[0].m_Enabled);
 
     // Test animations properly enabled/disabled

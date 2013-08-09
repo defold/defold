@@ -4,6 +4,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
+#include <dlib/easing.h>
 
 #include "gui.h"
 
@@ -83,13 +84,14 @@ namespace dmGui
     struct Animation
     {
         HNode    m_Node;
-        Vector4* m_Value;
-        Vector4  m_From;
-        Vector4  m_To;
+        float*   m_Value;
+        float    m_From;
+        float    m_To;
         float    m_Delay;
         float    m_Elapsed;
         float    m_Duration;
-        float    m_BezierControlPoints[4];
+        dmEasing::Type m_Easing;
+        Playback m_Playback;
         AnimationComplete m_AnimationComplete;
         void*    m_Userdata1;
         void*    m_Userdata2;
@@ -97,6 +99,7 @@ namespace dmGui
         uint16_t m_AnimationCompleteCalled : 1;
         uint16_t m_Cancelled : 1;
         uint16_t m_Enabled : 1;
+        uint16_t m_Backwards : 1;
     };
 
     struct Script
