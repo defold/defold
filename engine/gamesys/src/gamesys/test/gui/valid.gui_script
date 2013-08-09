@@ -1,3 +1,5 @@
+require "gui.gui_module"
+
 function init(self)
     self.x = 1
 end

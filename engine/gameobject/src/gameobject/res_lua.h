@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
+#include <script/script.h>
 #include "../proto/lua_ddf.h"
 
 namespace dmGameObject
@@ -11,9 +12,13 @@ namespace dmGameObject
     struct LuaScript
     {
         LuaScript(dmLuaDDF::LuaModule* lua_module) :
-            m_LuaModule(lua_module), m_NameHash(0), m_ModuleHash(0) {}
+            m_LuaModule(lua_module), m_ScriptContext(0), m_LuaState(0), m_NameHash(0), m_ModuleHash(0) {}
 
         dmLuaDDF::LuaModule* m_LuaModule;
+
+        // The following variables are used for reloading modules, see gameobject_script_util.cpp
+        dmScript::HContext   m_ScriptContext;
+        lua_State*           m_LuaState;
         uint64_t             m_NameHash;
         uint64_t             m_ModuleHash;
     };

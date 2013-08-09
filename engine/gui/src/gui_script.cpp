@@ -1842,11 +1842,7 @@ namespace dmGui
 
         int top = lua_gettop(L);
         (void)top;
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        //luaopen_debug(L);
+        luaL_openlibs(L);
 
         // Pop all stack values generated from luaopen_*
         lua_pop(L, lua_gettop(L));

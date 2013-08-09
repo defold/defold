@@ -405,7 +405,13 @@ def dae_file(self, node):
     out = node.change_ext(obj_ext)
     mesh.set_outputs(out)
 
-new_copy_task('gui_script', '.gui_script', '.gui_scriptc')
+@extension('.gui_script')
+def script_file(self, node):
+    obj_ext = '.gui_scriptc'
+    task = self.create_task('luascript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
 
 Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.tile.TileSetc ${SRC} ${TGT}',
                       color='PINK',

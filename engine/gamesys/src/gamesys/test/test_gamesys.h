@@ -99,6 +99,7 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxRenderTargets = 10;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
     m_GuiContext.m_RenderContext = m_RenderContext;
+    m_GuiContext.m_ScriptContext = m_ScriptContext;
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;

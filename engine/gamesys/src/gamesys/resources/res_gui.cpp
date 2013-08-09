@@ -3,6 +3,8 @@
 #include "../proto/gui_ddf.h"
 #include "../components/comp_gui.h"
 #include "gamesys.h"
+#include <gameobject/lua_ddf.h>
+#include <gameobject/gameobject_script_util.h>
 
 namespace dmGameSystem
 {
@@ -13,15 +15,30 @@ namespace dmGameSystem
                                              const char* filename)
     {
         GuiContext* gui_context = (GuiContext*)context;
+
+        dmLuaDDF::LuaModule* lua_module = 0;
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        if ( e != dmDDF::RESULT_OK )
+            return dmResource::RESULT_FORMAT_ERROR;
+
+
+        if (!dmGameObject::LoadModules(factory, gui_context->m_ScriptContext, dmGui::GetLuaState(gui_context->m_GuiContext), lua_module))
+        {
+            dmDDF::FreeMessage(lua_module);
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
         dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
-        dmGui::Result result = dmGui::SetScript(script, (const char*)buffer, buffer_size, filename);
+        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
         if (result == dmGui::RESULT_OK)
         {
             resource->m_Resource = script;
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }
         else
         {
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
@@ -42,7 +59,14 @@ namespace dmGameSystem
                                           const char* filename)
     {
         dmGui::HScript script = (dmGui::HScript)resource->m_Resource;
-        dmGui::Result result = dmGui::SetScript(script, (const char*)buffer, buffer_size, filename);
+
+        dmLuaDDF::LuaModule* lua_module = 0;
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        if ( e != dmDDF::RESULT_OK ) {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
         if (result == dmGui::RESULT_OK)
         {
             GuiContext* gui_context = (GuiContext*)context;
@@ -58,10 +82,12 @@ namespace dmGameSystem
                     }
                 }
             }
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }
         else
         {
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }

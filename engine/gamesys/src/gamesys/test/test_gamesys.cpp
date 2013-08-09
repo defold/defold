@@ -269,6 +269,7 @@ INSTANTIATE_TEST_CASE_P(GuiScript, ResourceTest, ::testing::ValuesIn(valid_gs_re
 ResourceFailParams invalid_gs_resources[] =
 {
     {"/gui/valid.gui_scriptc", "/gui/missing.gui_scriptc"},
+    {"/gui/valid.gui_scriptc", "/gui/missing_module.gui_scriptc"},
 };
 INSTANTIATE_TEST_CASE_P(GuiScript, ResourceFailTest, ::testing::ValuesIn(invalid_gs_resources));
 
