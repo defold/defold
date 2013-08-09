@@ -11,5 +11,5 @@ void main()
 {
     // Outline
     lowp vec2 t = texture2D(texture, var_texcoord0.xy).xy;
-    gl_FragColor = mix(vec4(var_face_color.xyz, t.x), var_outline_color, t.y);
+    gl_FragColor = mix(vec4(var_outline_color.xyz, t.y), var_face_color, t.x);
 }
