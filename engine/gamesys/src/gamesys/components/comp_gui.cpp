@@ -138,12 +138,22 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
-            dmGui::AddFont(scene, scene_desc->m_Fonts[i].m_Name, (void*)scene_resource->m_FontMaps[i]);
+            const char* name = scene_desc->m_Fonts[i].m_Name;
+            dmGui::Result r = dmGui::AddFont(scene, name, (void*) scene_resource->m_FontMaps[i]);
+            if (r != dmGui::RESULT_OK) {
+                dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
+                return false;
+            }
         }
 
         for (uint32_t i = 0; i < scene_resource->m_Textures.Size(); ++i)
         {
-            dmGui::AddTexture(scene, scene_desc->m_Textures[i].m_Name, (void*)scene_resource->m_Textures[i]);
+            const char* name = scene_desc->m_Textures[i].m_Name;
+            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) scene_resource->m_Textures[i]);
+            if (r != dmGui::RESULT_OK) {
+                dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
+                return false;
+            }
         }
 
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
@@ -217,6 +227,8 @@ namespace dmGameSystem
         scene_params.m_MaxNodes = 256;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
+        scene_params.m_MaxFonts = 64;
+        scene_params.m_MaxTextures = 128;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
