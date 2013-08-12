@@ -87,7 +87,7 @@ namespace dmScript
         const char* json = luaL_checkstring(L, 1);
         dmJson::Document doc;
         dmJson::Result r = dmJson::Parse(json, &doc);
-        if (r == dmJson::RESULT_OK)
+        if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0)
         {
             ToLua(L, &doc, json, 0);
             dmJson::Free(&doc);
