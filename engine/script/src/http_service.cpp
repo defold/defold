@@ -168,6 +168,7 @@ namespace dmHttpService
                 SendResponse(requester, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size());
             } else {
                 // TODO: Error codes to lua?
+                dmLogError("HTTP request to '%s' failed (%d)", request->m_Url, r);
                 SendResponse(requester, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size());
             }
         } else {
