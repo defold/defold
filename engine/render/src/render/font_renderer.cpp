@@ -321,7 +321,7 @@ namespace dmRender
         }
 
         RenderObject* ro = &text_context.m_RenderObjects[text_context.m_RenderObjectIndex++];
-        ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
+        ro->m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_ONE;
         ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         ro->m_SetBlendFactors = 1;
         ro->m_RenderKey.m_Depth = first_te.m_Depth;
