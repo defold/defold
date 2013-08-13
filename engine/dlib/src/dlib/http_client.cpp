@@ -290,9 +290,13 @@ namespace dmHttpClient
         // handled specifically, e.g. ssl_handshake_status and RESULT_HANDSHAKE_FAILED
         // above.
         switch (r) {
+            case SSL_CLOSE_NOTIFY:
             case SSL_ERROR_CONN_LOST:
                 return dmSocket::RESULT_CONNRESET;
             default:
+                dmLogWarning("Unhandled ssl status code: %d", r);
+                // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
+                // a abort the request
                 return dmSocket::RESULT_UNKNOWN;
         }
     }
@@ -616,7 +620,12 @@ bail:
             }
             else if (sock_res == dmSocket::RESULT_TRY_AGAIN)
             {
-
+                // Continue
+            }
+            else if (sock_res == dmSocket::RESULT_CONNRESET)
+            {
+                // Break out of loop and handle below
+                break;
             }
             else
             {

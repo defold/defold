@@ -235,6 +235,21 @@ TEST_P(dmHttpClientTest, Simple)
     }
 }
 
+TEST_P(dmHttpClientTest, NoKeepAliave)
+{
+    char buf[128];
+
+    for (int i = 0; i < 100; ++i)
+    {
+        m_Content = "";
+        sprintf(buf, "/no-keep-alive");
+        dmHttpClient::Result r;
+        r = dmHttpClient::Get(m_Client, buf);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_STREQ("will close connection now.", m_Content.c_str());
+    }
+}
+
 TEST_P(dmHttpClientTest, CustomRequestHeaders)
 {
     char buf[128];
