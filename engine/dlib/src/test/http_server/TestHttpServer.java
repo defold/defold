@@ -238,6 +238,11 @@ public class TestHttpServer extends AbstractHandler
             baseRequest.setHandled(true);
             response.getWriter().print(s);
             response.setStatus(HttpServletResponse.SC_OK);
+        } else if (target.equals("/no-keep-alive")) {
+            response.setHeader("Connection", "close");
+            baseRequest.setHandled(true);
+            response.getWriter().print("will close connection now.");
+            response.setStatus(HttpServletResponse.SC_OK);
         }
         // No match? Let ResourceHandler handle the request. See setup code.
     }
