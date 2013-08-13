@@ -1,5 +1,27 @@
 :max-width: 45em
 
+Gui & Font Improvements (Release 1.2.22)
+----------------------------------------
+_August 12, 2013_
+
+This release contains fixes regarding gui components and fonts, and some other goodies.
+
+Fixes
+~~~~~
+
+* Fonts now support utf8 encoding.
+  Use the new _extra_characters_ field in a font resource to specify which additional characters you need.
+* Text nodes in gui components support automatic line breaks.
+* Font rendering has been optimized a lot.
+  As a result, the default font shader does not render shadows (too expensive for mobile devices), but it's possible to enable in custom shaders.
+* Gui scenes are batch-rendered for higher performance.
+* The animation system has been extended with the same functions as the game object animation system, which are described link:/doc/properties[here].
+* Gui scripts support inclusion of lua modules through the lua "require" keyword.
+  link:/doc/scripting_debugging[This guide] provides more details on how it works.
+* Gui scenes have increased limits for the amounts of fonts and textures added.
+* Slight optimization of rendering on iOS devices.
+* Fix for the automatic discovery of mobile devices in the editor.
+
 Pre-multiplied alpha (Release 1.2.21)
 -------------------------------------
 _July 7, 2013_
