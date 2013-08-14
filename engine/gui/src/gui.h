@@ -6,6 +6,7 @@
 #include <ddf/ddf.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <dlib/easing.h>
 #include <hid/hid.h>
 
 #include <script/script.h>
@@ -13,6 +14,18 @@
 #include <vectormath/cpp/vectormath_aos.h>
 using namespace Vectormath::Aos;
 
+/**
+ * Defold GUI system
+ *
+ * About properties:
+ * Previously properties where referred to using the enum Property.
+ * When support for animating individual tracks was added a more generic access scheme
+ * was introduced (hash of a string).
+ * With the hash version of the property scalar components
+ * can be referred to with "PROPERTY.COMPONENT", e.g. "position.x".
+ * Note that when vector values are animated multiple tracks are created internally - one
+ * for each component.
+ */
 namespace dmGui
 {
     typedef struct Context* HContext;
@@ -118,14 +131,14 @@ namespace dmGui
         PROPERTY_COUNT      = 8,
     };
 
-    enum Easing
+    enum Playback
     {
-        EASING_NONE = 0,
-        EASING_IN = 1,
-        EASING_OUT = 2,
-        EASING_INOUT = 3,
-
-        EASING_COUNT = 4,
+        PLAYBACK_ONCE_FORWARD  = 0,
+        PLAYBACK_ONCE_BACKWARD = 1,
+        PLAYBACK_LOOP_FORWARD  = 2,
+        PLAYBACK_LOOP_BACKWARD = 3,
+        PLAYBACK_LOOP_PINGPONG = 4,
+        PLAYBACK_COUNT = 5,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -380,7 +393,34 @@ namespace dmGui
 
     void SetNodePosition(HScene scene, HNode node, const Point3& position);
 
+    /**
+     * Check if a property exists (by hash)
+     * @param scene scene
+     * @param node node
+     * @param property property hash
+     * @return true if the property exists
+     */
+    bool HasPropertyHash(HScene scene, HNode node, dmhash_t property);
+
+    /**
+     * Get property value. (vector)
+     * @param scene scene
+     * @param node node
+     * @param property property enum
+     * @return property value
+     */
     Vector4 GetNodeProperty(HScene scene, HNode node, Property property);
+
+    /**
+     * Get property from hash. As opposed to GetNodeProperty() this function
+     * can access individual components, e.g. hash("position.x"). For scalar
+     * properties the result is returned in the first element
+     * @param scene scene
+     * @param node node
+     * @param property property hash
+     * @return property value
+     */
+    Vector4 GetNodePropertyHash(HScene scene, HNode node, dmhash_t property);
 
     void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value);
 
@@ -411,17 +451,64 @@ namespace dmGui
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
 
+    /**
+     * Animate node vector property. Internally multiple tracks are created.
+     * This function is obsolete in favor for AnimateNodeHash
+     *
+     * @param scene
+     * @param node
+     * @param property
+     * @param to
+     * @param easing
+     * @param playback
+     * @param duration
+     * @param delay
+     * @param animation_complete
+     * @param userdata1
+     * @param userdata2
+     */
     void AnimateNode(HScene scene, HNode node,
                      Property property,
                      const Vector4& to,
-                     Easing easing,
+                     dmEasing::Type easing,
+                     Playback playback,
                      float duration,
                      float delay,
                      AnimationComplete animation_complete,
                      void* userdata1,
                      void* userdata2);
 
+    /**
+     * Animate property. The property parameter is the hash value of the property to animate.
+     * Could either be vector property, e.g. "position", or a scalar "position.x". For vector
+     * properties multiple animation-tracks are created internally but the call-back is only
+     * invoked for the first.
+     *
+     * @param scene
+     * @param node
+     * @param property
+     * @param to
+     * @param easing
+     * @param playback
+     * @param duration
+     * @param delay
+     * @param animation_complete
+     * @param userdata1
+     * @param userdata2
+     */
+    void AnimateNodeHash(HScene scene, HNode node,
+                         dmhash_t property,
+                         const Vector4& to,
+                         dmEasing::Type easing,
+                         Playback playback,
+                         float duration,
+                         float delay,
+                         AnimationComplete animation_complete,
+                         void* userdata1,
+                         void* userdata2);
+
     void CancelAnimation(HScene scene, HNode node, Property property);
+    void CancelAnimationHash(HScene scene, HNode node, dmhash_t property_hash);
 
     /** determines if a node can be picked
      * Reports if a node is picked by the supplied screen-space coordinates.

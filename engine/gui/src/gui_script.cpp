@@ -316,6 +316,7 @@ namespace dmGui
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
         lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
+        assert(lua_type(L, -3) == LUA_TFUNCTION);
 
         int ret = lua_pcall(L, 2, 0, 0);
         if (ret != 0)
@@ -333,27 +334,235 @@ namespace dmGui
         assert(top == lua_gettop(L));
     }
 
+    /*# once forward
+     *
+     * @name gui.PLAYBACK_ONCE_FORWARD
+     * @variable
+     */
+    /*# once backward
+     *
+     * @name gui.PLAYBACK_ONCE_BACKWARD
+     * @variable
+     */
+    /*# loop forward
+     *
+     * @name gui.PLAYBACK_LOOP_FORWARD
+     * @variable
+     */
+    /*# loop backward
+     *
+     * @name gui.PLAYBACK_LOOP_BACKWARD
+     * @variable
+     */
+    /*# ping pong loop
+     *
+     * @name gui.PLAYBACK_LOOP_PINGPONG
+     * @variable
+     */
+
     /*# linear interpolation
      *
-     * @name gui.EASING_NONE
+     * @name gui.EASING_LINEAR
      * @variable
      */
-
-    /*# in easing interpolation
+    /*# in-quadratic
      *
-     * @name gui.EASING_IN
+     * @name gui.EASING_INQUAD
      * @variable
      */
-
-    /*# out easing interpolation
+    /*# out-quadratic
      *
-     * @name gui.EASING_OUT
+     * @name gui.EASING_OUTQUAD
      * @variable
      */
-
-    /*# in and out easing interpolation
+    /*# in-out-quadratic
      *
-     * @name gui.EASING_INOUT
+     * @name gui.EASING_INOUTQUAD
+     * @variable
+     */
+    /*# out-in-quadratic
+     *
+     * @name gui.EASING_OUTINQUAD
+     * @variable
+     */
+    /*# in-cubic
+     *
+     * @name gui.EASING_INCUBIC
+     * @variable
+     */
+    /*# out-cubic
+     *
+     * @name gui.EASING_OUTCUBIC
+     * @variable
+     */
+    /*# in-out-cubic
+     *
+     * @name gui.EASING_INOUTCUBIC
+     * @variable
+     */
+    /*# out-in-cubic
+     *
+     * @name gui.EASING_OUTINCUBIC
+     * @variable
+     */
+    /*# in-quartic
+     *
+     * @name gui.EASING_INQUART
+     * @variable
+     */
+    /*# out-quartic
+     *
+     * @name gui.EASING_OUTQUART
+     * @variable
+     */
+    /*# in-out-quartic
+     *
+     * @name gui.EASING_INOUTQUART
+     * @variable
+     */
+    /*# out-in-quartic
+     *
+     * @name gui.EASING_OUTINQUART
+     * @variable
+     */
+    /*# in-quintic
+     *
+     * @name gui.EASING_INQUINT
+     * @variable
+     */
+    /*# out-quintic
+     *
+     * @name gui.EASING_OUTQUINT
+     * @variable
+     */
+    /*# in-out-quintic
+     *
+     * @name gui.EASING_INOUTQUINT
+     * @variable
+     */
+    /*# out-in-quintic
+     *
+     * @name gui.EASING_OUTINQUINT
+     * @variable
+     */
+    /*# in-sine
+     *
+     * @name gui.EASING_INSINE
+     * @variable
+     */
+    /*# out-sine
+     *
+     * @name gui.EASING_OUTSINE
+     * @variable
+     */
+    /*# in-out-sine
+     *
+     * @name gui.EASING_INOUTSINE
+     * @variable
+     */
+    /*# out-in-sine
+     *
+     * @name gui.EASING_OUTINSINE
+     * @variable
+     */
+    /*# in-exponential
+     *
+     * @name gui.EASING_INEXPO
+     * @variable
+     */
+    /*# out-exponential
+     *
+     * @name gui.EASING_OUTEXPO
+     * @variable
+     */
+    /*# in-out-exponential
+     *
+     * @name gui.EASING_INOUTEXPO
+     * @variable
+     */
+    /*# out-in-exponential
+     *
+     * @name gui.EASING_OUTINEXPO
+     * @variable
+     */
+    /*# in-circlic
+     *
+     * @name gui.EASING_INCIRC
+     * @variable
+     */
+    /*# out-circlic
+     *
+     * @name gui.EASING_OUTCIRC
+     * @variable
+     */
+    /*# in-out-circlic
+     *
+     * @name gui.EASING_INOUTCIRC
+     * @variable
+     */
+    /*# out-in-circlic
+     *
+     * @name gui.EASING_OUTINCIRC
+     * @variable
+     */
+    /*# in-elastic
+     *
+     * @name gui.EASING_INELASTIC
+     * @variable
+     */
+    /*# out-elastic
+     *
+     * @name gui.EASING_OUTELASTIC
+     * @variable
+     */
+    /*# in-out-elastic
+     *
+     * @name gui.EASING_INOUTELASTIC
+     * @variable
+     */
+    /*# out-in-elastic
+     *
+     * @name gui.EASING_OUTINELASTIC
+     * @variable
+     */
+    /*# in-back
+     *
+     * @name gui.EASING_INBACK
+     * @variable
+     */
+    /*# out-back
+     *
+     * @name gui.EASING_OUTBACK
+     * @variable
+     */
+    /*# in-out-back
+     *
+     * @name gui.EASING_INOUTBACK
+     * @variable
+     */
+    /*# out-in-back
+     *
+     * @name gui.EASING_OUTINBACK
+     * @variable
+     */
+    /*# in-bounce
+     *
+     * @name gui.EASING_INBOUNCE
+     * @variable
+     */
+    /*# out-bounce
+     *
+     * @name gui.EASING_OUTBOUNCE
+     * @variable
+     */
+    /*# in-out-bounce
+     *
+     * @name gui.EASING_INOUTBOUNCE
+     * @variable
+     */
+    /*# out-in-bounce
+     *
+     * @name gui.EASING_OUTINBOUNCE
      * @variable
      */
 
@@ -381,22 +590,17 @@ namespace dmGui
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * @param to target property value (vector3|vector4)
-     * @param easing easing to use during animation (constant)
-     * <ul>
-     *   <li><code>gui.EASING_NONE</code></li>
-     *   <li><code>gui.EASING_IN</code></li>
-     *   <li><code>gui.EASING_OUT</code></li>
-     *   <li><code>gui.EASING_INOUT</code></li>
-     * </ul>
+     * @param easing easing to use during animation (constant). See gui.EASING_* constants
      * @param duration duration of the animation (number)
      * @param [delay] delay before the animation starts (number)
      * @param [complete_function] function to call when the animation has completed (function)
+     * @param [playback] playback node (constant). Any of the gui.PLAYBACK_* constants
      * @examples
      * <p>
      * How to start a simple color animation, where the node fades in to white during 0.5 seconds:
      * <pre>
      * gui.set_color(node, vmath.vector4(0, 0, 0, 0)) -- node is fully transparent
-     * gui.animate(node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUT, 0.5) -- start animation
+     * gui.animate(node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5) -- start animation
      * </pre>
      * </p>
      * <p>
@@ -404,7 +608,7 @@ namespace dmGui
      * <pre>
      * local function on_animation_done(self, node)
      *     -- fade out node, but wait 2 seconds before the animation starts
-     *     gui.animate(node, gui.COLOR, vmath.vector4(0, 0, 0, 0), gui.EASING_OUT, 0.5, 2.0)
+     *     gui.animate(node, gui.COLOR, vmath.vector4(0, 0, 0, 0), gui.EASING_OUTQUAD, 0.5, 2.0)
      * end
      *
      * function init(self)
@@ -413,7 +617,7 @@ namespace dmGui
      *     -- node is initially set to fully transparent
      *     gui.set_color(my_node, vmath.vector4(0, 0, 0, 0))
      *     -- animate the node immediately and call on_animation_done when the animation has completed
-     *     gui.animate(my_node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUT, 0.5, 0.0, on_animation_done)
+     *     gui.animate(my_node, gui.COLOR, vmath.vector4(1, 1, 1, 1), gui.EASING_INOUTQUAD, 0.5, 0.0, on_animation_done)
      * end
      */
     int LuaAnimate(lua_State* L)
@@ -427,11 +631,25 @@ namespace dmGui
         InternalNode* node = LuaCheckNode(L, 1, &hnode);
         (void) node;
 
-        int property = (int) luaL_checknumber(L, 2);
+        dmhash_t property_hash;
+        if (dmScript::IsHash(L, 2)) {
+           property_hash = dmScript::CheckHash(L, 2);
+        } else {
+           property_hash = dmHashString64(luaL_checkstring(L, 2));
+        }
+
+        if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
+            luaL_error(L, "property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+        }
+
         Vector4 to;
-        if (dmScript::IsVector3(L, 3))
+        if (lua_isnumber(L, 3))
         {
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, (dmGui::Property)property);
+            to = Vector4(lua_tonumber(L, 3));
+        }
+        else if (dmScript::IsVector3(L, 3))
+        {
+            Vector4 original = dmGui::GetNodePropertyHash(scene, hnode, property_hash);
             to = Vector4(*dmScript::CheckVector3(L, 3), original.getW());
         }
         else
@@ -458,21 +676,20 @@ namespace dmGui
             luaL_typerror(L, 6, "number");
         }
 
-        if (property >= PROPERTY_COUNT)
-        {
-            luaL_error(L, "Invalid property index: %d", property);
+        Playback playback = PLAYBACK_ONCE_FORWARD;
+        if (lua_isnumber(L, 8)) {
+            playback = (Playback) luaL_checkinteger(L, 8);
         }
 
-        if (easing >= EASING_COUNT)
+        if (easing >= dmEasing::TYPE_COUNT)
         {
             luaL_error(L, "Invalid easing: %d", easing);
         }
 
-        if (animation_complete_ref == LUA_NOREF)
-            AnimateNode(scene, hnode, (Property) property, to, (Easing) easing, (float) duration, delay, 0, 0, 0);
-        else
-        {
-            AnimateNode(scene, hnode, (Property) property, to, (Easing) easing, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+        if (animation_complete_ref == LUA_NOREF) {
+            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, 0, 0, 0);
+        } else {
+            AnimateNodeHash(scene, hnode, property_hash, to, (dmEasing::Type) easing, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
         }
 
         assert(top== lua_gettop(L));
@@ -506,14 +723,18 @@ namespace dmGui
         InternalNode* node = LuaCheckNode(L, 1, &hnode);
         (void) node;
 
-        int property = (int) luaL_checknumber(L, 2);
-
-        if (property >= PROPERTY_COUNT)
-        {
-            luaL_error(L, "Invalid property index: %d", property);
+        dmhash_t property_hash;
+        if (dmScript::IsHash(L, 2)) {
+           property_hash = dmScript::CheckHash(L, 2);
+        } else {
+           property_hash = dmHashString64(luaL_checkstring(L, 2));
         }
 
-        CancelAnimation(scene, hnode, (Property) property);
+        if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
+            luaL_error(L, "property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+        }
+
+        CancelAnimationHash(scene, hnode, property_hash);
 
         assert(top== lua_gettop(L));
         return 0;
@@ -1621,11 +1842,7 @@ namespace dmGui
 
         int top = lua_gettop(L);
         (void)top;
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        //luaopen_debug(L);
+        luaL_openlibs(L);
 
         // Pop all stack values generated from luaopen_*
         lua_pop(L, lua_gettop(L));
@@ -1650,30 +1867,80 @@ namespace dmGui
 
         luaL_register(L, LIB_NAME, Gui_methods);
 
-#define SETPROP(name) \
-        lua_pushnumber(L, (lua_Number) PROPERTY_##name); \
-        lua_setfield(L, -2, "PROP_"#name);\
+#define SETPROP(name, prop) \
+        lua_pushliteral(L, #name);\
+        lua_setfield(L, -2, "PROP_"#prop);\
 
-        SETPROP(POSITION)
-        SETPROP(ROTATION)
-        SETPROP(SCALE)
-        SETPROP(COLOR)
-        SETPROP(OUTLINE)
-        SETPROP(SHADOW)
-        SETPROP(SIZE)
+        SETPROP(position, POSITION)
+        SETPROP(rotation, ROTATION)
+        SETPROP(scale, SCALE)
+        SETPROP(color, COLOR)
+        SETPROP(outline, OUTLINE)
+        SETPROP(shadow, SHADOW)
+        SETPROP(size, SIZE)
 
 #undef SETPROP
 
-#define SETEASING(name) \
-        lua_pushnumber(L, (lua_Number) EASING_##name); \
+// For backwards compatibility
+#define SETEASINGOLD(name, easing) \
+        lua_pushnumber(L, (lua_Number) easing); \
         lua_setfield(L, -2, "EASING_"#name);\
 
-        SETEASING(NONE)
-        SETEASING(IN)
-        SETEASING(OUT)
-        SETEASING(INOUT)
+        SETEASINGOLD(NONE, dmEasing::TYPE_LINEAR)
+        SETEASINGOLD(IN, dmEasing::TYPE_INCUBIC)
+        SETEASINGOLD(OUT,  dmEasing::TYPE_OUTCUBIC)
+        SETEASINGOLD(INOUT,  dmEasing::TYPE_INOUTCUBIC)
+
+#undef SETEASINGOLD
+
+#define SETEASING(name) \
+        lua_pushnumber(L, (lua_Number) dmEasing::TYPE_##name); \
+        lua_setfield(L, -2, "EASING_"#name);\
+
+        SETEASING(LINEAR)
+        SETEASING(INQUAD)
+        SETEASING(OUTQUAD)
+        SETEASING(INOUTQUAD)
+        SETEASING(OUTINQUAD)
+        SETEASING(INCUBIC)
+        SETEASING(OUTCUBIC)
+        SETEASING(INOUTCUBIC)
+        SETEASING(OUTINCUBIC)
+        SETEASING(INQUART)
+        SETEASING(OUTQUART)
+        SETEASING(INOUTQUART)
+        SETEASING(OUTINQUART)
+        SETEASING(INQUINT)
+        SETEASING(OUTQUINT)
+        SETEASING(INOUTQUINT)
+        SETEASING(OUTINQUINT)
+        SETEASING(INSINE)
+        SETEASING(OUTSINE)
+        SETEASING(INOUTSINE)
+        SETEASING(OUTINSINE)
+        SETEASING(INEXPO)
+        SETEASING(OUTEXPO)
+        SETEASING(INOUTEXPO)
+        SETEASING(OUTINEXPO)
+        SETEASING(INCIRC)
+        SETEASING(OUTCIRC)
+        SETEASING(INOUTCIRC)
+        SETEASING(OUTINCIRC)
+        SETEASING(INELASTIC)
+        SETEASING(OUTELASTIC)
+        SETEASING(INOUTELASTIC)
+        SETEASING(OUTINELASTIC)
+        SETEASING(INBACK)
+        SETEASING(OUTBACK)
+        SETEASING(INOUTBACK)
+        SETEASING(OUTINBACK)
+        SETEASING(INBOUNCE)
+        SETEASING(OUTBOUNCE)
+        SETEASING(INOUTBOUNCE)
+        SETEASING(OUTINBOUNCE)
 
 #undef SETEASING
+
 
 #define SETBLEND(name) \
         lua_pushnumber(L, (lua_Number) BLEND_MODE_##name); \
@@ -1734,6 +2001,18 @@ namespace dmGui
         SETADJUST(FIT)
         SETADJUST(ZOOM)
         SETADJUST(STRETCH)
+
+#undef SETADJUST
+
+#define SETPLAYBACK(name) \
+        lua_pushnumber(L, (lua_Number) PLAYBACK_##name); \
+        lua_setfield(L, -2, "PLAYBACK_"#name);\
+
+        SETPLAYBACK(ONCE_FORWARD)
+        SETPLAYBACK(ONCE_BACKWARD)
+        SETPLAYBACK(LOOP_FORWARD)
+        SETPLAYBACK(LOOP_BACKWARD)
+        SETPLAYBACK(LOOP_PINGPONG)
 
 #undef SETADJUST
 

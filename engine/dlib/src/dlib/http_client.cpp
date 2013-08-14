@@ -290,9 +290,13 @@ namespace dmHttpClient
         // handled specifically, e.g. ssl_handshake_status and RESULT_HANDSHAKE_FAILED
         // above.
         switch (r) {
+            case SSL_CLOSE_NOTIFY:
             case SSL_ERROR_CONN_LOST:
                 return dmSocket::RESULT_CONNRESET;
             default:
+                dmLogWarning("Unhandled ssl status code: %d", r);
+                // We interpret dmSocket::RESULT_UNKNOWN as something unexpected
+                // a abort the request
                 return dmSocket::RESULT_UNKNOWN;
         }
     }
@@ -565,11 +569,18 @@ bail:
 
     static Result DoTransfer(HClient client, Response* response, int to_transfer, HttpContent http_content, bool add_to_cache)
     {
+        // to_transfer can be set to -1 when the "Content-Length" is unknown
         int total_transferred = 0;
 
         while (true)
         {
-            int n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
+            int n;
+            if (to_transfer == -1) {
+                // Unknown "Content-Length". Read as much as we can.
+                n = response->m_TotalReceived - response->m_ContentOffset;
+            } else {
+                n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
+            }
             http_content(client, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n);
 
             if (response->m_CacheCreator && add_to_cache)
@@ -578,7 +589,7 @@ bail:
             }
 
             total_transferred += n;
-            assert(total_transferred <= to_transfer);
+            assert(total_transferred <= to_transfer || to_transfer == -1);
             response->m_ContentOffset += n;
 
             if (total_transferred == to_transfer)
@@ -609,16 +620,21 @@ bail:
             }
             else if (sock_res == dmSocket::RESULT_TRY_AGAIN)
             {
-
+                // Continue
+            }
+            else if (sock_res == dmSocket::RESULT_CONNRESET)
+            {
+                // Break out of loop and handle below
+                break;
             }
             else
             {
                 return RESULT_SOCKET_ERROR;
             }
         }
-        assert(total_transferred <= to_transfer);
+        assert(total_transferred <= to_transfer || to_transfer == -1);
 
-        if (total_transferred != to_transfer)
+        if (total_transferred != to_transfer && to_transfer != -1)
         {
             return RESULT_PARTIAL_CONTENT;
         }
@@ -806,10 +822,10 @@ bail:
         }
         else if (response.m_ContentLength == -1 && response.m_Status != 304)
         {
-            // If not chunked (and not 304) we require Content-Length attribute to be set.
-            dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-            return RESULT_INVALID_RESPONSE;
+            // When not chunked (and not 304) we used to require Content-Length attribute to be set
+            // but changed to support this behavior in order to be compatible with old/exotic web-servers.
+            // The connection is however closed as keep-alive isn't possible for this case.
+            response.m_CloseConnection = 1;
         }
 
         if (response.m_Status == 304 /* NOT MODIFIED */)

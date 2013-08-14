@@ -30,6 +30,53 @@ namespace dmGui
         "on_reload"
     };
 
+#define PROP(name, prop)\
+    { dmHashString64(#name), prop, 0xff }, \
+    { dmHashString64(#name ".x"), prop, 0 }, \
+    { dmHashString64(#name ".y"), prop, 1 }, \
+    { dmHashString64(#name ".z"), prop, 2 }, \
+    { dmHashString64(#name ".w"), prop, 3 },
+
+    struct PropDesc
+    {
+        dmhash_t m_Hash;
+        Property m_Property;
+        uint8_t  m_Component;
+    };
+
+    PropDesc g_Properties[] = {
+            PROP(position, PROPERTY_POSITION )
+            PROP(rotation, PROPERTY_ROTATION )
+            PROP(scale, PROPERTY_SCALE )
+            PROP(color, PROPERTY_COLOR )
+            PROP(size, PROPERTY_SIZE )
+            PROP(outline, PROPERTY_OUTLINE )
+            PROP(shadow, PROPERTY_SHADOW )
+    };
+#undef PROP
+
+    PropDesc g_PropTable[] = {
+            { dmHashString64("position"), PROPERTY_POSITION, 0xff },
+            { dmHashString64("rotation"), PROPERTY_ROTATION, 0xff },
+            { dmHashString64("scale"), PROPERTY_SCALE, 0xff },
+            { dmHashString64("color"), PROPERTY_COLOR, 0xff },
+            { dmHashString64("size"), PROPERTY_SIZE, 0xff },
+            { dmHashString64("outline"), PROPERTY_OUTLINE, 0xff },
+            { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
+    };
+
+    static PropDesc* GetPropertyDesc(dmhash_t property_hash)
+    {
+        int n_props = sizeof(g_Properties) / sizeof(g_Properties[0]);
+        for (int i = 0; i < n_props; ++i) {
+            PropDesc* pd = &g_Properties[i];
+            if (pd->m_Hash == property_hash) {
+                return pd;
+            }
+        }
+        return 0;
+    }
+
     Script::Script()
     : m_Context(0x0)
     {
@@ -306,24 +353,33 @@ namespace dmGui
                 anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
                 // Calculate normalized time if elapsed has not yet reached duration, otherwise it's set to 1 (animation complete)
                 float t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
+                float t2 = t;
+                if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
+                    t2 = 1.0f - t;
+                }
 
-                float x = (1-t) * (1-t) * (1-t) * anim->m_BezierControlPoints[0] +
-                          3 * (1-t) * (1-t) * t * anim->m_BezierControlPoints[1] +
-                          3 * (1-t) * t * t * anim->m_BezierControlPoints[2] +
-                          t * t * t * anim->m_BezierControlPoints[3];
+                float x = dmEasing::GetValue(anim->m_Easing, t2);
 
                 *anim->m_Value = anim->m_From * (1-x) + anim->m_To * x;
 
                 // Animation complete, see above
                 if (t >= 1.0f)
                 {
-                    if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
-                    {
-                        // NOTE: Very important to set m_AnimationCompleteCalled to 1
-                        // before invoking the call-back. The call-back could potentially
-                        // start a new animation that could reuse the same animation slot.
-                        anim->m_AnimationCompleteCalled = 1;
-                        anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
+                    bool looping = anim->m_Playback == PLAYBACK_LOOP_FORWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_PINGPONG;
+                    if (looping) {
+                        anim->m_Elapsed = anim->m_Elapsed - anim->m_Duration;
+                        if (anim->m_Playback == PLAYBACK_LOOP_PINGPONG) {
+                            anim->m_Backwards ^= 1;
+                        }
+                    } else {
+                        if (!anim->m_AnimationCompleteCalled && anim->m_AnimationComplete)
+                        {
+                            // NOTE: Very important to set m_AnimationCompleteCalled to 1
+                            // before invoking the call-back. The call-back could potentially
+                            // start a new animation that could reuse the same animation slot.
+                            anim->m_AnimationCompleteCalled = 1;
+                            anim->m_AnimationComplete(scene, anim->m_Node, anim->m_Userdata1, anim->m_Userdata2);
+                        }
                     }
                 }
             }
@@ -819,11 +875,34 @@ namespace dmGui
         n->m_Node.m_Properties[PROPERTY_POSITION] = Vector4(position);
     }
 
+    bool HasPropertyHash(HScene scene, HNode node, dmhash_t property)
+    {
+        PropDesc* pd = GetPropertyDesc(property);
+        return pd != 0;
+    }
+
     Vector4 GetNodeProperty(HScene scene, HNode node, Property property)
     {
         assert(property < PROPERTY_COUNT);
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_Properties[property];
+    }
+
+    Vector4 GetNodePropertyHash(HScene scene, HNode node, dmhash_t property)
+    {
+        InternalNode* n = GetNode(scene, node);
+        PropDesc* pd = GetPropertyDesc(property);
+        if (pd) {
+            Vector4* base_value = &n->m_Node.m_Properties[pd->m_Property];
+
+            if (pd->m_Component == 0xff) {
+                return *base_value;
+            } else {
+                return Vector4(base_value->getElem(pd->m_Component));
+            }
+        }
+        dmLogError("Property %s not found", (const char*) dmHashReverse64(property, 0));
+        return Vector4(0, 0, 0, 0);
     }
 
     void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value)
@@ -983,16 +1062,17 @@ namespace dmGui
         n->m_Node.m_AdjustMode = (uint32_t) adjust_mode;
     }
 
-    void AnimateNode(HScene scene,
-                     HNode node,
-                     Property property,
-                     const Vector4& to,
-                     Easing easing,
-                     float duration,
-                     float delay,
-                     AnimationComplete animation_complete,
-                     void* userdata1,
-                     void* userdata2)
+    static void AnimateComponent(HScene scene,
+                                 HNode node,
+                                 float* value,
+                                 float to,
+                                 dmEasing::Type easing,
+                                 Playback playback,
+                                 float duration,
+                                 float delay,
+                                 AnimationComplete animation_complete,
+                                 void* userdata1,
+                                 void* userdata2)
     {
         uint16_t version = (uint16_t) (node >> 16);
         uint16_t index = node & 0xffff;
@@ -1000,49 +1080,13 @@ namespace dmGui
         assert(n->m_Version == version);
 
         Animation animation;
-
-        switch (property)
-        {
-            case PROPERTY_POSITION:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_POSITION];
-                break;
-
-            case PROPERTY_ROTATION:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_ROTATION];
-                break;
-
-            case PROPERTY_SCALE:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_SCALE];
-                break;
-
-            case PROPERTY_COLOR:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_COLOR];
-                break;
-
-            case PROPERTY_OUTLINE:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_OUTLINE];
-                break;
-
-            case PROPERTY_SHADOW:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_SHADOW];
-                break;
-
-            case PROPERTY_SIZE:
-                animation.m_Value = &n->m_Node.m_Properties[PROPERTY_SIZE];
-                break;
-
-            default:
-                assert(0);
-                break;
-        }
-
         uint32_t animation_index = 0xffffffff;
 
         // Remove old animation for the same property
         for (uint32_t i = 0; i < scene->m_Animations.Size(); ++i)
         {
             const Animation* anim = &scene->m_Animations[i];
-            if (animation.m_Value == anim->m_Value)
+            if (value == anim->m_Value)
             {
                 //scene->m_Animations.EraseSwap(i);
                 animation_index = i;
@@ -1062,10 +1106,13 @@ namespace dmGui
         }
 
         animation.m_Node = node;
+        animation.m_Value = value;
         animation.m_To = to;
         animation.m_Delay = delay;
         animation.m_Elapsed = 0.0f;
         animation.m_Duration = duration;
+        animation.m_Easing = easing;
+        animation.m_Playback = playback;
         animation.m_AnimationComplete = animation_complete;
         animation.m_Userdata1 = userdata1;
         animation.m_Userdata2 = userdata2;
@@ -1073,43 +1120,62 @@ namespace dmGui
         animation.m_AnimationCompleteCalled = 0;
         animation.m_Cancelled = 0;
         animation.m_Enabled = n->m_Enabled;
-
-        switch (easing)
-        {
-            case EASING_NONE:
-                animation.m_BezierControlPoints[0] = 0.0f;
-                animation.m_BezierControlPoints[1] = 0.333333333f;
-                animation.m_BezierControlPoints[2] = 0.666666667f;
-                animation.m_BezierControlPoints[3] = 1.0f;
-                break;
-
-            case EASING_OUT:
-                animation.m_BezierControlPoints[0] = 0.0f;
-                animation.m_BezierControlPoints[1] = 1.0f;
-                animation.m_BezierControlPoints[2] = 1.0f;
-                animation.m_BezierControlPoints[3] = 1.0f;
-                break;
-
-            case EASING_IN:
-                animation.m_BezierControlPoints[0] = 0.0f;
-                animation.m_BezierControlPoints[1] = 0.0f;
-                animation.m_BezierControlPoints[2] = 0.0f;
-                animation.m_BezierControlPoints[3] = 1.0f;
-                break;
-
-            case EASING_INOUT:
-                animation.m_BezierControlPoints[0] = 0.0f;
-                animation.m_BezierControlPoints[1] = 0.0f;
-                animation.m_BezierControlPoints[2] = 1.0f;
-                animation.m_BezierControlPoints[3] = 1.0f;
-                break;
-
-            default:
-                assert(0);
-                break;
-        }
+        animation.m_Backwards = 0;
 
         scene->m_Animations[animation_index] = animation;
+    }
+
+    void AnimateNodeHash(HScene scene,
+                         HNode node,
+                         dmhash_t property,
+                         const Vector4& to,
+                         dmEasing::Type easing,
+                         Playback playback,
+                         float duration,
+                         float delay,
+                         AnimationComplete animation_complete,
+                         void* userdata1,
+                         void* userdata2)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        InternalNode* n = &scene->m_Nodes[index];
+        assert(n->m_Version == version);
+
+        PropDesc* pd = GetPropertyDesc(property);
+        if (pd) {
+            Vector4* base_value = &n->m_Node.m_Properties[pd->m_Property];
+
+            if (pd->m_Component == 0xff) {
+                for (int j = 0; j < 4; ++j) {
+                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+                    // Only run callback for the first component
+                    animation_complete = 0;
+                    userdata1 = 0;
+                    userdata2 = 0;
+                }
+            } else {
+                AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
+            }
+        } else {
+            dmLogError("property '%s' not found", (const char*) dmHashReverse64(property, 0));
+        }
+    }
+
+    void AnimateNode(HScene scene,
+                     HNode node,
+                     Property property,
+                     const Vector4& to,
+                     dmEasing::Type easing,
+                     Playback playback,
+                     float duration,
+                     float delay,
+                     AnimationComplete animation_complete,
+                     void* userdata1,
+                     void* userdata2)
+    {
+        dmhash_t prop_hash = g_PropTable[property].m_Hash;
+        AnimateNodeHash(scene, node, prop_hash, to, easing, playback, duration, delay, animation_complete, userdata1, userdata2);
     }
 
     void CancelAnimation(HScene scene, HNode node, Property property)
@@ -1122,12 +1188,51 @@ namespace dmGui
         for (uint32_t i = 0; i < n_animations; ++i)
         {
             Animation* anim = &(*animations)[i];
-            Vector4* value = &n->m_Node.m_Properties[property];
-            if (anim->m_Node == node && anim->m_Value == value)
-            {
-                anim->m_Cancelled = 1;
-                return;
+            float* value = (float*) &n->m_Node.m_Properties[property];
+            for (int j = 0; j < 4; ++j) {
+                if (anim->m_Node == node && anim->m_Value == (value + j))
+                {
+                    anim->m_Cancelled = 1;
+                    return;
+                }
             }
+        }
+    }
+
+    void CancelAnimationHash(HScene scene, HNode node, dmhash_t property_hash)
+    {
+        uint16_t version = (uint16_t) (node >> 16);
+        uint16_t index = node & 0xffff;
+        InternalNode* n = &scene->m_Nodes[index];
+        assert(n->m_Version == version);
+
+        dmArray<Animation>* animations = &scene->m_Animations;
+        uint32_t n_animations = animations->Size();
+
+        PropDesc* pd = GetPropertyDesc(property_hash);
+        if (pd) {
+            for (uint32_t i = 0; i < n_animations; ++i)
+            {
+                Animation* anim = &(*animations)[i];
+
+                int from = 0;
+                int to = 4; // NOTE: Exclusive range
+                if (pd->m_Component != 0xff) {
+                    from = pd->m_Component;
+                    to = pd->m_Component + 1;
+                }
+
+                float* value = (float*) &n->m_Node.m_Properties[pd->m_Property];
+                for (int j = from; j < to; ++j) {
+                    if (anim->m_Node == node && anim->m_Value == (value + j))
+                    {
+                        anim->m_Cancelled = 1;
+                        return;
+                    }
+                }
+            }
+        } else {
+            dmLogError("property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
         }
     }
 

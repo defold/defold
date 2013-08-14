@@ -4,8 +4,6 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CopyBuilder;
 
 public class CopyBuilders {
-    @BuilderParams(name = "GuiScript", inExts = ".gui_script", outExt = ".gui_scriptc")
-    public static class GuiScriptBuilder extends CopyBuilder {}
 
     @BuilderParams(name = "RenderScript", inExts = ".render_script", outExt = ".render_scriptc")
     public static class RenderScriptBuilder extends CopyBuilder {}

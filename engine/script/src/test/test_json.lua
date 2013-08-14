@@ -36,6 +36,7 @@ function test_json()
     test_syntax_error("[")
     test_syntax_error("]")
     test_syntax_error("{")
+    test_syntax_error("")
 end
 
 functions = { test_json = test_json }

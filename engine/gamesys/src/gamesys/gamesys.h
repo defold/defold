@@ -67,6 +67,7 @@ namespace dmGameSystem
         dmArray<void*>              m_Worlds;
         dmRender::HRenderContext    m_RenderContext;
         dmGui::HContext             m_GuiContext;
+        dmScript::HContext          m_ScriptContext;
     };
 
     struct SpriteContext
