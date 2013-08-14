@@ -14,6 +14,7 @@ function init(self)
 end
 
 function update(self)
+    render.set_depth_mask(true)
     render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color, [render.BUFFER_DEPTH_BIT] = 1})
 
     render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
