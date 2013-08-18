@@ -28,10 +28,10 @@ def build(bld):
                              target = 'sound',
                              source = 'sound.cpp stb_vorbis/stb_vorbis.c')
 
-    sound_null = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                              includes = '.',
                              target = 'sound_null',
-                             source = 'sound_null.cpp')
+                             source = 'sound_null.cpp stb_vorbis/stb_vorbis.c')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

@@ -1012,6 +1012,12 @@ int send_packet(SSL *ssl, uint8_t protocol, const uint8_t *in, int length)
 {
     int ret, msg_length = 0;
 
+    // Defold change for case 2284
+    if (IS_SET_SSL_FLAG(SSL_TX_ENCRYPTED) && ssl->cipher_info == 0) {
+        fprintf(stderr, "Unable to send encrypted packet. ssl->cipher_info is null. Bug in axTls\n");
+        return SSL_ERROR_CONN_LOST;
+    }
+
     /* if our state is bad, don't bother */
     if (ssl->hs_status == SSL_ERROR_DEAD)
         return SSL_ERROR_CONN_LOST;

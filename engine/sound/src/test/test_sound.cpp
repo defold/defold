@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include "../sound.h"
+#include "../stb_vorbis/stb_vorbis.h"
 
 extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
@@ -20,6 +21,8 @@ extern unsigned char OSC2_SIN_440HZ_WAV[];
 extern uint32_t OSC2_SIN_440HZ_WAV_SIZE;
 extern unsigned char DOOR_OPENING_WAV[];
 extern uint32_t DOOR_OPENING_WAV_SIZE;
+extern unsigned char TONE_MONO_22050_OGG[];
+extern uint32_t TONE_MONO_22050_OGG_SIZE;
 
 class dmSoundTest : public ::testing::Test
 {
@@ -444,6 +447,75 @@ TEST_F(dmSoundTest, DeletePlayingSound)
     // Update again to make sure it's cleaned (there was a crash here)
     r = dmSound::Update();
     ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_F(dmSoundTest, OggDecompressionRate)
+{
+    // Benchmark to test real performance on device
+    int error;
+    stb_vorbis* vorbis = stb_vorbis_open_memory((unsigned char*) TONE_MONO_22050_OGG, TONE_MONO_22050_OGG_SIZE, &error, NULL);
+    ASSERT_NE((stb_vorbis*) 0, vorbis);
+
+    const uint32_t buffer_size = 2 * 4096;
+    void* buffer = malloc(buffer_size);
+
+    stb_vorbis_info info = stb_vorbis_get_info(vorbis);
+
+    uint64_t start = dmTime::GetTime();
+    int total_read = 0;
+    while (total_read < (int) buffer_size)
+    {
+        int ret;
+        if (info.channels == 1)
+        {
+            ret = stb_vorbis_get_samples_short_interleaved(vorbis, 1, (short*) (((char*) buffer) + total_read), (buffer_size - total_read) / 2);
+        }
+        else if (info.channels == 2)
+        {
+            ret = stb_vorbis_get_samples_short_interleaved(vorbis, 2, (short*) (((char*) buffer) + total_read), (buffer_size - total_read) / 2);
+        }
+        else
+        {
+            assert(0);
+        }
+
+        if (ret < 0)
+        {
+            ASSERT_TRUE(false);
+        }
+        else if (ret == 0)
+        {
+            break;
+        }
+        else
+        {
+            if (info.channels == 1)
+            {
+                total_read += ret * 2;
+            }
+            else if (info.channels == 2)
+            {
+                total_read += ret * 4;
+            }
+            else
+            {
+                assert(0);
+            }
+        }
+    }
+    uint64_t end = dmTime::GetTime();
+    float elapsed = end - start;
+
+    printf("channels: %d\n", info.channels);
+    printf("sample rate: %d\n", info.sample_rate);
+    float rate = (1000000.0f * (buffer_size) / elapsed);
+    printf("rate: %.2f kb/s\n", rate / 1024.0f);
+    float bytes_per_60_frame = info.channels * 2 * info.sample_rate / 60.0f;
+    printf("bytes required/60-frame: %.2f\n", bytes_per_60_frame);
+    float time_per_60_frame = bytes_per_60_frame / rate;
+    printf("time/60-frame: %.2f ms\n", 1000.0f * time_per_60_frame);
+    printf("time for 8k buffer: %.2f ms\n", 1000.0f * 2 * 4096 / rate);
+    free(buffer);
 }
 
 int main(int argc, char **argv)
