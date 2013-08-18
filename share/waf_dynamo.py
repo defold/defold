@@ -439,7 +439,8 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
         <activity android:name="android.app.NativeActivity"
                 android:label="%(app_name)s"
-                android:configChanges="orientation|keyboardHidden">
+                android:configChanges="orientation|keyboardHidden"
+                android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
             <meta-data android:name="android.app.lib_name"
                     android:value="%(lib_name)s" />
             <intent-filter>
