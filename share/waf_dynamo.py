@@ -90,7 +90,7 @@ def default_flags(self):
             # NOTE: 
             # -mthumb and -funwind-tables removed from default flags
             # -fno-exceptions added
-            self.env.append_value(f, ['-g', '-Os', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
+            self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
                                       '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
@@ -434,8 +434,9 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         android:versionCode="1"
         android:versionName="1.0">
 
+    <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="9" />
-    <application android:label="%(app_name)s" android:hasCode="false" android:debuggable="true">
+    <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
         <activity android:name="android.app.NativeActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|keyboardHidden">
@@ -446,6 +447,9 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.NoDisplay">
+        </activity>
+        %(extra_activities)s
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -454,7 +458,10 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 ANDROID_STUB = """
+struct android_app;
+
 extern void _glfwPreMain(struct android_app* state);
+extern void app_dummy();
 
 void android_main(struct android_app* state)
 {
@@ -467,20 +474,60 @@ void android_main(struct android_app* state)
 def android_package(task):
     bld = task.generator.bld
 
+    activities = ''
+    for activity in task.activities:
+        activities += '<activity android:name="%s" />' % (activity)
+
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
-    manifest_file.write(ANDROID_MANIFEST % { 'package' : task.exe_name, 'app_name' : task.exe_name, 'lib_name' : task.exe_name })
+    manifest_file.write(ANDROID_MANIFEST % { 'package' : task.exe_name, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities })
     manifest_file.close()
 
     aapt = '%s/android-sdk/platform-tools/aapt' % (ANDROID_ROOT)
-    android_jar = '%s/android-sdk/platforms/android-%s/android.jar' % (ANDROID_ROOT, ANDROID_API_VERSION)
+    dynamo_home = task.env['DYNAMO_HOME']
+    android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
     manifest = task.manifest.abspath(task.env)
+    dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
+
+    libs = os.path.join(dme_and, 'libs')
+    bin = os.path.join(dme_and, 'bin')
+    bin_cls = os.path.join(bin, 'classes')
+    dx_libs = os.path.join(bin, 'dexedLibs')
+    gen = os.path.join(dme_and, 'gen')
     ap_ = task.ap_.abspath(task.env)
     native_lib = task.native_lib.abspath(task.env)
     gdbserver = task.gdbserver.abspath(task.env)
+
+    bld.exec_command('mkdir -p %s' % (libs))
+    bld.exec_command('mkdir -p %s' % (bin))
+    bld.exec_command('mkdir -p %s' % (bin_cls))
+    bld.exec_command('mkdir -p %s' % (dx_libs))
+    bld.exec_command('mkdir -p %s' % (gen))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
     shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
 
-    ret = bld.exec_command('%s package --no-crunch -f --debug-mode -M %s -I %s -F %s' % (aapt, manifest, android_jar, ap_))
+    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt')))
+    if ret != 0:
+        error('Error running aapt')
+        return 1
+
+    clspath = ':'.join(task.jars)
+    dx_jars = []
+    for jar in task.jars:
+        dx_jar = os.path.join(dx_libs, os.path.basename(jar))
+        dx_jars.append(dx_jar)
+        ret = bld.exec_command('dx --dex --output %s %s' % (dx_jar, jar))
+        if ret != 0:
+            error('Error running dx')
+            return 1
+
+    if dx_jars:
+        ret = bld.exec_command('dx --dex --output %s %s' % (os.path.join(bin, 'classes.dex'), ' '.join(dx_jars)))
+        if ret != 0:
+            error('Error running dx')
+            return 1
+
+    ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s -F %s' % (aapt, manifest, android_jar, ap_))
+
     if ret != 0:
         error('Error running aapt')
         return 1
@@ -488,7 +535,12 @@ def android_package(task):
     apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
-    ret = bld.exec_command('%s %s -v -z %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, libs_dir))
+
+    dx_arg = ''
+    if dx_jars:
+        dx_arg = '-f %s' % (os.path.join(bin, 'classes.dex'))
+    ret = bld.exec_command('%s %s -v -z %s %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, dx_arg, libs_dir))
+
     if ret != 0:
         error('Error running apkbuilder')
         return 1
@@ -525,6 +577,12 @@ def create_android_package(self):
 
     android_package_task = self.create_task('android_package', self.env)
     android_package_task.set_inputs(self.link_task.outputs)
+
+    Utils.def_attrs(self, activities=[])
+    android_package_task.activities = Utils.to_list(self.activities)
+
+    Utils.def_attrs(self, jars=[])
+    android_package_task.jars = Utils.to_list(self.jars)
 
     exe_name = self.name
     lib_name = self.link_task.outputs[0].name
@@ -586,7 +644,7 @@ def create_copy_glue(self):
 
     glue = self.path.find_or_declare('android_native_app_glue.c')
     self.allnodes.append(glue)
-    stub = self.path.find_or_declare('androd_stub.c')
+    stub = self.path.find_or_declare('android_stub.c')
     self.allnodes.append(stub)
 
     task = self.create_task('copy_glue')

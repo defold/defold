@@ -99,6 +99,11 @@ Run exec with:
 
 For interactive shell run "adb shell"
 
+Caveats
+-------
+
+If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new 
+create message being sent (onCreate/android_main). The normal case is for the app to continue through e.g. onStart.
 
 Android debugging
 -----------------
