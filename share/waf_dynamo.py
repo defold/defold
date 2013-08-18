@@ -484,6 +484,7 @@ def android_package(task):
     manifest_file.close()
 
     aapt = '%s/android-sdk/platform-tools/aapt' % (ANDROID_ROOT)
+    dx = '%s/android-sdk/platform-tools/dx' % (ANDROID_ROOT)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
     manifest = task.manifest.abspath(task.env)
@@ -516,13 +517,13 @@ def android_package(task):
     for jar in task.jars:
         dx_jar = os.path.join(dx_libs, os.path.basename(jar))
         dx_jars.append(dx_jar)
-        ret = bld.exec_command('dx --dex --output %s %s' % (dx_jar, jar))
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, dx_jar, jar))
         if ret != 0:
             error('Error running dx')
             return 1
 
     if dx_jars:
-        ret = bld.exec_command('dx --dex --output %s %s' % (os.path.join(bin, 'classes.dex'), ' '.join(dx_jars)))
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, os.path.join(bin, 'classes.dex'), ' '.join(dx_jars)))
         if ret != 0:
             error('Error running dx')
             return 1
