@@ -24,6 +24,8 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
+    elif 'js-web' in bld.env['PLATFORM']:
+        sound_lib = 'SOUND_NULL'
     else:
         sound_lib = 'SOUND OPENAL'
 

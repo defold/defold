@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "resource_archive.h"
 
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>

@@ -23,7 +23,7 @@ function cmi_do() {
     tar xfz ../../download/$FILE_URL --strip-components=1
     [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 
-    ./configure $CONFIGURE_ARGS $2 \
+    ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
         --disable-shared \
         --prefix=${PREFIX} \
         --bindir=${PREFIX}/bin/$1 \
@@ -34,13 +34,19 @@ function cmi_do() {
         --with-x=no
 
     set -e
-    make
+    make -j8
     make install
     set +e
 }
 
 function cmi_cross() {
-    cmi_do $1 "--host=$2"
+    local host=$2
+    if [[ $host -eq "js-web" ]]; then
+        # Cross compiling protobuf for js-web with --host doesn't work 
+        # Unknown host in reported by configure script
+        host=""
+    fi
+    cmi_do $1 "--host=${host}"
 
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
@@ -139,6 +145,10 @@ function cmi() {
             export CXX=i586-mingw32msvc-g++
             export AR=i586-mingw32msvc-ar
             export RANLIB=i586-mingw32msvc-ranlib
+            cmi_cross $1 $1
+            ;;
+        js-web)
+            export CONFIGURE_WRAPPER=emconfigure
             cmi_cross $1 $1
             ;;
 

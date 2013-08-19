@@ -121,6 +121,21 @@ Typically the getFactory and createExternalGLContext are in the same statement. 
 created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
 are unknown though.
 
+Emscripten
+----------
+
+**TODO**
+
+* Run all tests
+* In particular (LuaTableTest, Table01) and setjmp
+* Profiler (disable http-server)
+* Non-release (disable engine-service)
+
+Hack to compile an engine with archive:
+
+    /Users/chmu/local/emscripten/em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc
+
+
 Asset loading
 -------------
 

@@ -35,13 +35,14 @@ public class GameProjectBuilder extends Builder<Void> {
             builder.addOutput(input.changeExt(".arc"));
         }
 
+        project.buildResource(input, CopyCustomResourcesBuilder.class);
+
         for (Task<?> task : project.getTasks()) {
             for (IResource output : task.getOutputs()) {
                 builder.addInput(output);
             }
         }
 
-        project.buildResource(input, CopyCustomResourcesBuilder.class);
         return builder.build();
     }
 

@@ -201,6 +201,8 @@ namespace dmScript
 
     void InitializeHttp(lua_State* L)
     {
+// TODO: Port
+#ifndef __EMSCRIPTEN__
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
@@ -213,15 +215,18 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
+#endif
     }
 
     void FinalizeHttp(lua_State* L)
     {
+#ifndef __EMSCRIPTEN__
         assert(g_ServiceRefCount > 0);
         g_ServiceRefCount--;
         if (g_ServiceRefCount == 0) {
             dmHttpService::Delete(g_Service);
             g_Service = 0;
         }
+#endif
     }
 }

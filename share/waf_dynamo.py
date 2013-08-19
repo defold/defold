@@ -114,7 +114,9 @@ def default_flags(self):
                 '-L%s' % stl_lib])
     elif platform == "js-web":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O0', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+        # 128MB ram
+        self.env.append_value('LINKFLAGS', ['-s','TOTAL_MEMORY=134217728'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
@@ -694,6 +696,14 @@ def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'linux':
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
+
+@feature('cprogram', 'cxxprogram')
+@after('apply_obj_vars')
+def js_web_link_flags(self):
+    platform = self.env['PLATFORM']
+    if platform == 'js-web':
+        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
+        self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)

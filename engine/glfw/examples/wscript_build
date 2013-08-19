@@ -15,7 +15,7 @@ samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pon
 if re.match('arm.*?darwin', platform) or re.match('arm.*?android', platform):
     # Other examples are not compatible with OpenGLES
     samples = 'simple_gles2'
-elif platform == 'win32':
+elif platform == 'win32' or platform == 'js-web':
     # Disable all examples on win32 for now. Requires linking to some win32 libraries
     samples = ''
 

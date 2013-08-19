@@ -31,6 +31,9 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #define GL_BGRA GL_BGRA_EXT
+#elif defined (__EMSCRIPTEN__)
+#include <GL/gl.h>
+#include <GL/glext.h>
 #else
 #error "Platform not supported."
 #endif

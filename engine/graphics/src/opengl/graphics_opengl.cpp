@@ -104,6 +104,13 @@ PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
 PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
 PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
+#elif defined(__EMSCRIPTEN__)
+#include <GL/glext.h>
+#define glGenBuffersARB glGenBuffers
+#define glDeleteBuffersARB glDeleteBuffers
+#define glBindBufferARB glBindBuffer
+#define glBufferDataARB glBufferData
+#define glBufferSubDataARB glBufferSubData
 #else
 #error "Platform not supported."
 #endif
@@ -1379,7 +1386,7 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         assert(texture);
 
-#ifndef GL_ES_VERSION_2_0
+#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -1394,7 +1401,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
 
-#ifndef GL_ES_VERSION_2_0
+#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
