@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <GL/glfw.h>
 
 #define DEGREES_TO_RADIANS(ANGLE) ((ANGLE) / 180.0 * 3.14159265f)
@@ -14,7 +15,7 @@ int main(int argc, char** argv)
 {
     int width, height, touchx, touchy, angle;
     double t;
-
+    (void)t;
     angle = 0;
 
     // Initialise GLFW

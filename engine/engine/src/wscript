@@ -30,6 +30,8 @@ def build(bld):
         sound_lib = 'SOUND OPENAL'
 
     additional_libs = ' '.join(additional_libs)
+    
+    dynamo_home = os.getenv('DYNAMO_HOME')
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
@@ -42,7 +44,12 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine',
-        source=['main.cpp'])
+        source=['main.cpp'],
+        activities=['com.facebook.LoginActivity'],
+        jars=['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
+              '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
+              '%s/share/java/facebook_android.jar' % (dynamo_home),
+              '%s/share/java/gamesys_android.jar' % (dynamo_home)])
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
@@ -54,7 +61,12 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_release',
-        source=['main.cpp'])
+        source=['main.cpp'],
+        activities=['com.facebook.LoginActivity'],
+        jars=['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
+              '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
+              '%s/share/java/facebook_android.jar' % (dynamo_home),
+              '%s/share/java/gamesys_android.jar' % (dynamo_home)])
 
     if bld.env.BUILD_PLATFORM == 'win32':
         obj.source.append('engine.rc')

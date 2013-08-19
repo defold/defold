@@ -5,17 +5,36 @@ def configure(conf):
     pass
 
 def build(bld):
+    embed_source = ''
+    source = 'dummy.cpp'
+
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        source += ' facebook.mm'
+        embed_source += ' ../resources/ios/close.png ../resources/ios/close@2x.png'
+
+    if 'android' in bld.env['PLATFORM']:
+        source += ' facebook_android.cpp'
+
+        classpath = ['%s/ext/share/java/facebooksdk.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME,
+                     '%s/share/java/gamesys_android.jar' % bld.env.DYNAMO_HOME]
+        classpath = os.pathsep.join(classpath)
+
+        bld.new_task_gen(features='javac seq',
+                         classpath=classpath,
+                         source_root='java')
+
+        bld.env["JAVACFLAGS"] = '-g'
+
+        bld.new_task_gen(features='jar seq',
+                         basedir='java',
+                         destfile='facebook_android.jar')
+
+        bld.install_files('${PREFIX}/share/java', 'facebook_android.jar')
+
     facebook = bld.new_task_gen(features = 'cxx cstaticlib embed',
                                 includes = '.',
-                                embed_source = '../resources/ios/close.png ../resources/ios/close@2x.png',
+                                source = source,
+                                embed_source = embed_source,
                                 target = 'facebookext')
-    facebook.find_sources_in_dirs('.')
-
-    if not re.match('arm.*?darwin', bld.env.PLATFORM):
-        # NOTE: This is a hack required when cross compiling on
-        # darwin to linux platform
-        # Objective-c files are collected as we don't have a proper platform
-        # We patch CC, CXX, etc
-        if './facebook.mm' in facebook.source:
-            facebook.source.remove('./facebook.mm')
-

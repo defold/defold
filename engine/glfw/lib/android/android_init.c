@@ -30,7 +30,8 @@
 
 #include "internal.h"
 
-
+#include "android_log.h"
+#include "android_util.h"
 
 //************************************************************************
 //****                  GLFW internal functions                       ****
@@ -39,6 +40,10 @@
 //========================================================================
 // Initialize GLFW thread package
 //========================================================================
+
+struct android_app* g_AndroidApp;
+
+extern int main(int argc, char** argv);
 
 static void initThreads( void )
 {
@@ -107,28 +112,9 @@ static void terminateThreads( void )
 
 static void glfw_atexit( void )
 {
+    LOGV("glfw_atexit");
     glfwTerminate();
 }
-
-
-//========================================================================
-// Initialize X11 display
-//========================================================================
-
-static int initDisplay( void )
-{
-    return GL_TRUE;
-}
-
-
-//========================================================================
-// Terminate X11 display
-//========================================================================
-
-static void terminateDisplay( void )
-{
-}
-
 
 //************************************************************************
 //****               Platform implementation functions                ****
@@ -138,45 +124,128 @@ static void terminateDisplay( void )
 // Initialize various GLFW state
 //========================================================================
 
-static void handleCommand(struct android_app* app, int32_t cmd) {
-    switch (cmd) {
-        case APP_CMD_SAVE_STATE:
-            break;
-        case APP_CMD_INIT_WINDOW:
-            _glfwWin.iconified = GL_FALSE;
-            break;
-        case APP_CMD_TERM_WINDOW:
-            // TODO: Only a temporary solution
-            _exit(0);
-            break;
-        case APP_CMD_GAINED_FOCUS:
-            break;
-        case APP_CMD_LOST_FOCUS:
-            // TODO: Only a temporary solution
-            _exit(0);
-            break;
+#define CASE_RETURN(cmd)\
+    case cmd:\
+        return #cmd;
+
+static const char* GetCmdName(int32_t cmd)
+{
+    switch (cmd)
+    {
+    CASE_RETURN(APP_CMD_INPUT_CHANGED);
+    CASE_RETURN(APP_CMD_INIT_WINDOW);
+    CASE_RETURN(APP_CMD_TERM_WINDOW);
+    CASE_RETURN(APP_CMD_WINDOW_RESIZED);
+    CASE_RETURN(APP_CMD_WINDOW_REDRAW_NEEDED);
+    CASE_RETURN(APP_CMD_CONTENT_RECT_CHANGED);
+    CASE_RETURN(APP_CMD_GAINED_FOCUS);
+    CASE_RETURN(APP_CMD_LOST_FOCUS);
+    CASE_RETURN(APP_CMD_CONFIG_CHANGED);
+    CASE_RETURN(APP_CMD_LOW_MEMORY);
+    CASE_RETURN(APP_CMD_START);
+    CASE_RETURN(APP_CMD_RESUME);
+    CASE_RETURN(APP_CMD_SAVE_STATE);
+    CASE_RETURN(APP_CMD_PAUSE);
+    CASE_RETURN(APP_CMD_STOP);
+    CASE_RETURN(APP_CMD_DESTROY);
+    default:
+        return "unknown";
     }
 }
 
-struct android_app* g_AndroidApp;
+#undef CASE_RETURN
+
+static void handleCommand(struct android_app* app, int32_t cmd) {
+    LOGV("handleCommand: %s", GetCmdName(cmd));
+    switch (cmd)
+    {
+    case APP_CMD_SAVE_STATE:
+        break;
+    case APP_CMD_INIT_WINDOW:
+        if (_glfwWin.opened)
+        {
+            create_gl_surface(&_glfwWin);
+        }
+        _glfwWin.opened = 1;
+        break;
+    case APP_CMD_TERM_WINDOW:
+        if (_glfwWin.opened)
+        {
+            destroy_gl_surface(&_glfwWin);
+        }
+        break;
+    case APP_CMD_GAINED_FOCUS:
+        _glfwWin.active = 1;
+        break;
+    case APP_CMD_LOST_FOCUS:
+        _glfwWin.active = 0;
+        break;
+    case APP_CMD_START:
+        break;
+    case APP_CMD_STOP:
+        break;
+    case APP_CMD_RESUME:
+        _glfwWin.iconified = 0;
+        break;
+    case APP_CMD_WINDOW_RESIZED:
+    case APP_CMD_CONFIG_CHANGED:
+        break;
+    case APP_CMD_PAUSE:
+        _glfwWin.iconified = 1;
+        break;
+    case APP_CMD_DESTROY:
+        final_gl(&_glfwWin);
+        break;
+    }
+}
+
+static int32_t handleInput(struct android_app* app, AInputEvent* event)
+{
+    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION)
+    {
+        int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK ;
+        int32_t x = AMotionEvent_getX(event, 0);
+        int32_t y = AMotionEvent_getY(event, 0);
+        _glfwInput.MousePosX = x;
+        _glfwInput.MousePosY = y;
+
+        switch (action)
+        {
+        case AMOTION_EVENT_ACTION_DOWN:
+            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+            break;
+        case AMOTION_EVENT_ACTION_UP:
+            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+            break;
+        case AMOTION_EVENT_ACTION_MOVE:
+            if( _glfwWin.mousePosCallback )
+            {
+                _glfwWin.mousePosCallback(x, y);
+            }
+            break;
+        }
+        return 1;
+    }
+    return 0;
+}
 
 void _glfwPreMain(struct android_app* state)
 {
-    int i;
-    int ident;
-    int events;
-    struct android_poll_source* source;
+    LOGV("_glfwPreMain");
 
     g_AndroidApp = state;
-    _glfwWin.iconified = GL_TRUE;
-    _glfwAndrodApp = state;
 
     state->onAppCmd = handleCommand;
+    state->onInputEvent = handleInput;
 
-    while (_glfwWin.iconified)
+    _glfwWin.opened = 0;
+    while (_glfwWin.opened == 0)
     {
-        // Wait for APP_CMD_INIT_WINDOW
-        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        int ident;
+        int events;
+        struct android_poll_source* source;
+
+        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
         {
             // Process this event.
             if (source != NULL) {
@@ -189,31 +258,19 @@ void _glfwPreMain(struct android_app* state)
     argv[0] = strdup("defold-app");
     main(1, argv);
     free(argv[0]);
-
-    ANativeActivity_finish(state->activity);
-    for (i = 0; i < 10; ++i)
-    {
-        // Wait for application to really terminate..
-        if (state->destroyRequested != 0) {
-            return;
-        }
-        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
-        {
-            // Process this event.
-            if (source != NULL) {
-                source->process(state, source);
-            }
-        }
-    }
 }
 
 int _glfwPlatformInit( void )
 {
+    LOGV("_glfwPlatformInit");
+
+    _glfwWin.display = EGL_NO_DISPLAY;
+    _glfwWin.context = EGL_NO_CONTEXT;
+    _glfwWin.surface = EGL_NO_SURFACE;
+    _glfwWin.iconified = 1;
+
     // Initialize display
-    if( !initDisplay() )
-    {
-        return GL_FALSE;
-    }
+    init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
 
     // Initialize thread package
     initThreads();
@@ -224,6 +281,8 @@ int _glfwPlatformInit( void )
     // Start the timer
     _glfwInitTimer();
 
+    _glfwWin.app = g_AndroidApp;
+
     return GL_TRUE;
 }
 
@@ -233,6 +292,7 @@ int _glfwPlatformInit( void )
 
 int _glfwPlatformTerminate( void )
 {
+    LOGV("_glfwPlatformTerminate");
 #ifdef _GLFW_HAS_PTHREAD
     // Only the main thread is allowed to do this...
     if( pthread_self() != _glfwThrd.First.PosixID )
@@ -247,8 +307,6 @@ int _glfwPlatformTerminate( void )
     // Kill thread package
     terminateThreads();
 
-    // Terminate display
-    terminateDisplay();
     return GL_TRUE;
 }
 

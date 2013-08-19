@@ -10,3 +10,19 @@ def build(bld):
     bld.add_subdirs('gamesys')
     bld.install_files('${PREFIX}/lib/python', 'waf_gamesys.py')
     bld.install_files('${PREFIX}/lib/python/colladaImEx', 'colladaImEx/*.py')
+
+    if 'android' in bld.env['PLATFORM']:
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
+        classpath = os.pathsep.join(classpath)
+
+        bld.new_task_gen(features='javac seq',
+                         classpath=classpath,
+                         source_root='java')
+    
+        bld.env["JAVACFLAGS"] = '-g'
+    
+        bld.new_task_gen(features='jar seq',
+                         basedir='java',
+                         destfile='gamesys_android.jar')
+
+        bld.install_files('${PREFIX}/share/java', 'gamesys_android.jar')

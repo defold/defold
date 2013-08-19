@@ -42,6 +42,9 @@
 // the OpenGL rendering context is created
 //========================================================================
 
+#include "android_log.h"
+#include "android_util.h"
+
 extern struct android_app* g_AndroidApp;
 static int g_KeyboardActive = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
@@ -132,6 +135,8 @@ int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWwndconfig* wndconfig__,
                              const _GLFWfbconfig* fbconfig__ )
 {
+    LOGV("_glfwPlatformOpenWindow");
+
     ANativeActivity* activity = g_AndroidApp->activity;
     JNIEnv* env = 0;
     (*activity->vm)->AttachCurrentThread(activity->vm, &env, 0);
@@ -148,59 +153,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
     }
     (*activity->vm)->DetachCurrentThread(activity->vm);
 
-    _glfwWin.app = _glfwAndrodApp;
-    _glfwWin.app->onInputEvent = handleInput;
-
-    const EGLint attribs[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            EGL_BLUE_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_RED_SIZE, 8,
-            EGL_NONE
-    };
-
-    /*
-     * NOTE: The example simple_gles2 doesn't work with EGL_CONTEXT_CLIENT_VERSION
-     * set to 2 in emulator. Might work on real device though
-     */
-    const EGLint contextAttribs[] = {
-            EGL_CONTEXT_CLIENT_VERSION, 2,
-            EGL_NONE, EGL_NONE,
-    };
-
-    EGLint w, h, dummy, format;
-    EGLint numConfigs;
-    EGLConfig config;
-    EGLSurface surface;
-    EGLContext context;
-
-    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    eglInitialize(display, 0, 0);
-    eglChooseConfig(display, attribs, &config, 1, &numConfigs);
-    eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format);
-    ANativeWindow_setBuffersGeometry(_glfwWin.app->window, 0, 0, format);
-    surface = eglCreateWindowSurface(display, config, _glfwWin.app->window, NULL);
-    context = eglCreateContext(display, config, NULL, contextAttribs);
-    if (eglMakeCurrent(display, surface, surface, context) == EGL_FALSE) {
-        return GL_FALSE;
-    }
-
-    eglQuerySurface(display, surface, EGL_WIDTH, &w);
-    eglQuerySurface(display, surface, EGL_HEIGHT, &h);
-
-    _glfwWin.width = w;
-    _glfwWin.height = h;
-    if (_glfwWin.windowSizeCallback)
-    {
-        _glfwWin.windowSizeCallback(w, h);
-    }
-
-    _glfwWin.display = display;
-    _glfwWin.context = context;
-    _glfwWin.surface = surface;
-
-    _glfwWin.width = w;
-    _glfwWin.height = h;
+    create_gl_surface(&_glfwWin);
 
     return GL_TRUE;
 }
@@ -211,23 +164,8 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 
 void _glfwPlatformCloseWindow( void )
 {
-    if (_glfwWin.display != EGL_NO_DISPLAY)
-    {
-        eglMakeCurrent(_glfwWin.display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        if (_glfwWin.context != EGL_NO_CONTEXT)
-        {
-            eglDestroyContext(_glfwWin.display, _glfwWin.context);
-        }
-        if (_glfwWin.surface != EGL_NO_SURFACE)
-        {
-            eglDestroySurface(_glfwWin.display, _glfwWin.surface);
-        }
-        eglTerminate(_glfwWin.display);
-    }
-
-    _glfwWin.display = EGL_NO_DISPLAY;
-    _glfwWin.context = EGL_NO_CONTEXT;
-    _glfwWin.surface = EGL_NO_SURFACE;
+    // Do nothing since the window is kept open based on the android life cycle
+    LOGV("_glfwPlatformCloseWindow");
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -281,8 +219,10 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    if (!_glfwWin.iconified) {
+    if (_glfwWin.surface != EGL_NO_SURFACE)
+    {
         eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
+        CHECK_EGL_ERROR
     }
 }
 
@@ -292,7 +232,12 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
+    // eglSwapInterval is not supported on all devices, so clear the error here
+    // (yields EGL_BAD_PARAMETER when not supported for kindle and HTC desire)
+    // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
     eglSwapInterval(_glfwWin.display, interval);
+    EGLint error = eglGetError();
+    (void)error;
 }
 
 //========================================================================

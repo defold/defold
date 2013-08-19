@@ -125,8 +125,9 @@ struct _GLFWwin_struct {
 // ========= PLATFORM SPECIFIC PART ======================================
 
     EGLDisplay display;
-    EGLSurface surface;
     EGLContext context;
+    EGLConfig config;
+    EGLSurface surface;
     struct android_app* app;
 };
 
@@ -184,9 +185,6 @@ GLFWGLOBAL struct {
     } Timer;
 
 } _glfwLibrary;
-
-// NOTE: We can't keep this data in _glfwLibrary as it must survice glfwInit() (memset)
-GLFWGLOBAL struct android_app* _glfwAndrodApp;
 
 //------------------------------------------------------------------------
 // Thread record (one for each thread)
