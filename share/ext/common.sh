@@ -9,6 +9,8 @@ ANDROID_NDK_VERSION=8b
 ANDROID_VERSION=14
 ANDROID_GCC_VERSION='4.6'
 
+FLASCC=~/local/FlasCC1.0/sdk
+
 function download() {
     mkdir -p ../download
 	[ ! -f ../download/$FILE_URL ] && curl -O $BASE_URL/$FILE_URL && mv $FILE_URL ../download
@@ -40,13 +42,14 @@ function cmi_do() {
 }
 
 function cmi_cross() {
-    local host=$2
-    if [[ $host -eq "js-web" ]]; then
+    if [[ $2 == "js-web" ]]; then
         # Cross compiling protobuf for js-web with --host doesn't work 
         # Unknown host in reported by configure script
-        host=""
+        # TODO: Use another target, e.g. i386-freebsd as for as3-web?
+        cmi_do $1
+    else
+        cmi_do $1 "--host=$2"
     fi
-    cmi_do $1 "--host=${host}"
 
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
@@ -150,6 +153,15 @@ function cmi() {
         js-web)
             export CONFIGURE_WRAPPER=emconfigure
             cmi_cross $1 $1
+            ;;
+        as3-web)
+            export CPP="$FLASCC/usr/bin/cpp"
+            export CC=$FLASCC/usr/bin/gcc
+            export CXX=$FLASCC/usr/bin/g++
+            export AR=$FLASCC/usr/bin/ar
+            export RANLIB=$FLASCC/usr/bin/ranlib
+            # NOTE: We use a fake platform in order to make configure-scripts happy
+            cmi_cross $1 i386-freebsd 
             ;;
 
 		*)

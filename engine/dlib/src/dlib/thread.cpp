@@ -3,7 +3,7 @@
 
 namespace dmThread
 {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg)
     {
         pthread_attr_t attr;

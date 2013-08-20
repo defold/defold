@@ -17,7 +17,8 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.0.1 android-support-v4 android-4.2.2".split()
-PACKAGES_EMSCRIPTEN="gtest-1.5.0".split()
+PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
+PACKAGES_FLASH="gtest-1.5.0".split()
 
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
@@ -159,6 +160,9 @@ class Configuration(object):
 
         for p in PACKAGES_EMSCRIPTEN:
             self._extract_tgz(make_path('js-web'), self.ext)
+
+        for p in PACKAGES_FLASH:
+            self._extract_tgz(make_path('as3-web'), self.ext)
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
@@ -530,7 +534,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android', 'js-web'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android', 'js-web', 'as3-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',

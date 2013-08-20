@@ -10,6 +10,7 @@ function usage() {
     echo " * armv7-android"
     echo " * i586-mingw32msvc"
     echo " * js-web"
+    echo " * as3-web"
     exit $1
 }
 

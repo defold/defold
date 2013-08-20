@@ -113,7 +113,7 @@ TEST(dmMemProfile, TestRealloc)
 
 #ifndef _MSC_VER
 
-#ifndef __MACH__
+#if !defined(__MACH__) and !defined(__AVM2__)
 TEST(dmMemProfile, TestMemAlign)
 {
     // We assume that the memory (actual size) allocated is 1024 <= x <= 1044

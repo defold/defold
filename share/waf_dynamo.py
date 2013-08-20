@@ -15,6 +15,9 @@ ANDROID_GCC_VERSION='4.7'
 # TODO: HACK
 EMSCRIPTEN_ROOT=os.path.join(os.environ['HOME'], 'local', 'emscripten')
 
+# TODO: HACK
+FLASCC_ROOT=os.path.join(os.environ['HOME'], 'local', 'FlasCC1.0', 'sdk')
+
 def new_copy_task(name, input_ext, output_ext):
     def compile(task):
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
@@ -117,6 +120,9 @@ def default_flags(self):
             self.env.append_value(f, ['-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
         # 128MB ram
         self.env.append_value('LINKFLAGS', ['-s','TOTAL_MEMORY=134217728'])
+    elif platform == "as3-web":
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
@@ -148,6 +154,18 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+
+@taskgen
+@feature('cprogram', 'cxxprogram')
+@after('apply_link')
+def apply_unit_test(self):
+    # Do not execute unit-tests tasks (compile and link)
+    # when --skip-tests is set
+    # TODO: Broken for tests that "installs", test_engine
+    if hasattr(self, 'uselib') and str(self.uselib).find("GTEST") != -1:
+        if getattr(Options.options, 'skip_tests', False):
+            for t in self.tasks:
+                t.hasrun = True
 
 @feature('apk')
 @before('apply_core')
@@ -867,6 +885,20 @@ def detect(conf):
         conf.env['LD'] = '/usr/bin/ld'
         conf.env['program_PATTERN']='%s.js'
 
+    if platform == "as3-web":
+        bin = os.path.join(FLASCC_ROOT, 'usr', 'bin')
+        conf.env['CC'] = '%s/gcc' % (bin)
+        conf.env['CXX'] = '%s/g++' % (bin)
+        conf.env['LINK_CXX'] = '%s/g++' % (bin)
+        conf.env['CPP'] = '%s/cpp' % (bin)
+        conf.env['AR'] = '%s/ar' % (bin)
+        conf.env['RANLIB'] = '%s/ranlib' % (bin)
+        conf.env['LD'] = '%s/ld' % (bin)
+
+        # flascc got confused by -compatibility_version 1 and -current_version 1
+        conf.env['shlib_CCFLAGS'] = []
+        conf.env['shlib_CXXFLAGS'] = []
+
     if conf.env['CCACHE'] and not 'win32' == platform and not platform == 'js-web':
         if not Options.options.disable_ccache:
             # Prepend gcc/g++ with CCACHE
@@ -895,8 +927,10 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-    else:
+    elif platform == 'win32':
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
+    else:
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
 
 def configure(conf):
     detect(conf)

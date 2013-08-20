@@ -256,6 +256,20 @@ namespace dmSys
         }
     }
 
+#elif defined(__AVM2__)
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        // TODO: Hack
+        dmStrlCpy(path, ".", path_len);
+        return RESULT_OK;
+    }
+
+    Result OpenURL(const char* url)
+    {
+        // TODO:
+        return RESULT_UNKNOWN;
+    }
+
 #endif
 
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len)
@@ -308,7 +322,7 @@ namespace dmSys
         info->m_Territory[2] = '\0';
     }
 
-#if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__))
+#if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__)) || defined(__AVM2__)
     void GetSystemInfo(SystemInfo* info)
     {
         struct utsname uts;

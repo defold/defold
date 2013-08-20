@@ -202,7 +202,7 @@ namespace dmScript
     void InitializeHttp(lua_State* L)
     {
 // TODO: Port
-#ifndef __EMSCRIPTEN__
+#if !(defined(__EMSCRIPTEN__) || defined(__AVM2__))
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
@@ -220,7 +220,7 @@ namespace dmScript
 
     void FinalizeHttp(lua_State* L)
     {
-#ifndef __EMSCRIPTEN__
+#if !(defined(__EMSCRIPTEN__) || defined(__AVM2__))
         assert(g_ServiceRefCount > 0);
         g_ServiceRefCount--;
         if (g_ServiceRefCount == 0) {

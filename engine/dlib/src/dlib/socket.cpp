@@ -8,7 +8,7 @@
 #include <linux/if.h>
 #endif
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -20,7 +20,7 @@
 
 namespace dmSocket
 {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
     #define DM_SOCKET_ERRNO errno
     #define DM_SOCKET_HERRNO h_errno
 #else
@@ -193,7 +193,7 @@ namespace dmSocket
 
     Result Delete(Socket socket)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
         int ret = close(socket);
 #else
         int ret = closesocket(socket);
@@ -541,7 +541,7 @@ namespace dmSocket
 
     Result SetBlocking(Socket socket, bool blocking)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
         int flags = fcntl(socket, F_GETFL, 0);
         if (flags < 0)
         {
