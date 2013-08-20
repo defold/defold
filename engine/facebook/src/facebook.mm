@@ -63,11 +63,11 @@ struct Facebook
     Facebook() {
         memset(this, 0, sizeof(*this));
         m_Callback = LUA_NOREF;
-        m_First = true;
+        m_InitCount = 0;
     }
     FBSession* m_Session;
     NSDictionary* m_Me;
-    bool m_First;
+    int m_InitCount;
     int m_Callback;
     id<UIApplicationDelegate> m_EngineDelegate;
     id<UIApplicationDelegate> m_Delegate;
@@ -408,12 +408,11 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
     // TODO: Life-cycle managaemnt is *budget*. No notion of "static initalization"
     // Extend extension functionality with per system initalization?
-    if (g_Facebook.m_First) {
+    if (g_Facebook.m_InitCount == 0) {
         g_Facebook.m_EngineDelegate = [UIApplication sharedApplication].delegate;
         g_Facebook.m_Delegate = [[FacebookAppDelegate alloc] init];
 
         SwizzleImageNamed();
-        g_Facebook.m_First = false;
 
         // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
         // Better solution?
@@ -424,6 +423,7 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
         [permissions release];
     }
+    g_Facebook.m_InitCount++;
 
     lua_State*L = params->m_L;
     int top = lua_gettop(L);
@@ -453,7 +453,8 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 
 dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
 {
-    if (g_Facebook.m_Session) {
+    --g_Facebook.m_InitCount;
+    if (g_Facebook.m_InitCount == 0 && g_Facebook.m_Session) {
         [g_Facebook.m_Session release];
         g_Facebook.m_Session = 0;
     }
