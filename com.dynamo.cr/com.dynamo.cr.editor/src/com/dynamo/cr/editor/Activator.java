@@ -4,10 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
-import java.net.InetAddress;
+import java.net.SocketException;
 import java.net.URI;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -75,6 +74,7 @@ import com.dynamo.cr.client.IUsersClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.ProtobufProviders;
+import com.dynamo.cr.common.util.NetworkUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
@@ -608,8 +608,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     public URL getHttpServerURL() {
         String localAddress = "127.0.0.1";
         try {
-            localAddress = InetAddress.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
+            localAddress = NetworkUtil.getHostAddress();
+        } catch (SocketException e) {
             logException(e);
         }
 
