@@ -137,6 +137,8 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 {
     LOGV("_glfwPlatformOpenWindow");
 
+    _glfwWin.app = g_AndroidApp;
+
     // Initialize display
     init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
 
