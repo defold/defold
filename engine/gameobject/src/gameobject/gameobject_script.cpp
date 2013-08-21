@@ -15,6 +15,7 @@
 
 #include "gameobject.h"
 #include "gameobject_script.h"
+#include "gameobject_script_util.h"
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
@@ -1235,18 +1236,11 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    static void FreeModule(void* user_context, void* user_data)
-    {
-        dmResource::HFactory factory = (dmResource::HFactory) user_context;
-        LuaScript* lua_script = (LuaScript*) user_data;
-        dmResource::Release(factory, lua_script);
-    }
-
     void FinalizeScript(dmScript::HContext context, dmResource::HFactory factory)
     {
         if (g_ScriptContext)
         {
-            dmScript::IterateModules(g_ScriptContext, factory, FreeModule);
+            dmGameObject::FreeModules(factory, g_ScriptContext);
         }
         if (g_LuaState)
         {

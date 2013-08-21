@@ -4,6 +4,7 @@
 namespace dmGameObject
 {
     bool LoadModules(dmResource::HFactory factory, dmScript::HContext script_context, lua_State* L, dmLuaDDF::LuaModule* lua_module);
+    void FreeModules(dmResource::HFactory factory, dmScript::HContext script_context);
 }
 
 #endif // #ifndef DM_GAMEOBJECT_SCRIPT_UTIL_H

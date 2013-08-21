@@ -450,7 +450,7 @@ namespace dmGameSystem
 
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
-        void* prev_texture;
+        void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
 
         uint32_t i = 0;
         uint32_t start = 0;
