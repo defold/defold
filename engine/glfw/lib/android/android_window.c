@@ -137,6 +137,11 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 {
     LOGV("_glfwPlatformOpenWindow");
 
+    _glfwWin.app = g_AndroidApp;
+
+    // Initialize display
+    init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
+
     ANativeActivity* activity = g_AndroidApp->activity;
     JNIEnv* env = 0;
     (*activity->vm)->AttachCurrentThread(activity->vm, &env, 0);
@@ -164,8 +169,11 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 
 void _glfwPlatformCloseWindow( void )
 {
-    // Do nothing since the window is kept open based on the android life cycle
     LOGV("_glfwPlatformCloseWindow");
+
+    destroy_gl_surface(&_glfwWin);
+
+    final_gl(&_glfwWin);
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )

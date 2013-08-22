@@ -191,6 +191,9 @@ namespace dmEngine
         if (engine->m_Factory)
             dmResource::DeleteFactory(engine->m_Factory);
 
+        if (engine->m_GuiContext.m_GuiContext)
+            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
+
         if (engine->m_GOScriptContext)
             dmScript::DeleteContext(engine->m_GOScriptContext);
         if (engine->m_RenderScriptContext)
@@ -204,8 +207,6 @@ namespace dmEngine
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
         }
 
-        if (engine->m_GuiContext.m_GuiContext)
-            dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
         if (engine->m_SystemSocket)
             dmMessage::DeleteSocket(engine->m_SystemSocket);
 

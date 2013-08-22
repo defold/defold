@@ -33,15 +33,9 @@ namespace dmScript
         return context;
     }
 
-    static void FreeModuleCallback(void* context, const uint64_t* key, Module* value)
-    {
-        free(value->m_Name);
-        free(value->m_Script);
-    }
-
     void DeleteContext(HContext context)
     {
-        context->m_Modules.Iterate(&FreeModuleCallback, (void*) 0);
+        ClearModules(context);
         delete context;
     }
 

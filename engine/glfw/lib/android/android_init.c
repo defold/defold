@@ -269,9 +269,6 @@ int _glfwPlatformInit( void )
     _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
 
-    // Initialize display
-    init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
-
     // Initialize thread package
     initThreads();
 

@@ -177,6 +177,18 @@ namespace dmScript
         context->m_Modules.Iterate(DoIterate, &id);
     }
 
+    static void FreeModuleCallback(void* context, const uint64_t* key, Module* value)
+    {
+        free(value->m_Name);
+        free(value->m_Script);
+    }
+
+    void ClearModules(HContext context)
+    {
+        context->m_Modules.Iterate(&FreeModuleCallback, (void*) 0);
+        context->m_Modules.Clear();
+    }
+
     bool ModuleLoaded(HContext context, const char* script_name)
     {
         dmhash_t module_hash = dmHashString64(script_name);

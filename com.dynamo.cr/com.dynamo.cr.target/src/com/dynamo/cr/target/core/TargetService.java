@@ -4,13 +4,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,6 +32,7 @@ import org.jdom2.input.SAXBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.common.util.NetworkUtil;
 import com.dynamo.cr.editor.core.IConsole;
 import com.dynamo.cr.editor.core.IConsoleFactory;
 import com.dynamo.upnp.DeviceInfo;
@@ -57,9 +57,9 @@ public class TargetService implements ITargetService, Runnable {
     private static ITarget createLocalTarget() {
         String localAddress = "127.0.0.1";
         try {
-            localAddress = InetAddress.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
-            logger.error("Local host address not found", e);
+            localAddress = NetworkUtil.getHostAddress();
+        } catch (SocketException e) {
+            logger.error("Could not get host address", e);
         }
 
         String name = String.format("Local (%s)", localAddress);
@@ -167,8 +167,8 @@ public class TargetService implements ITargetService, Runnable {
         Map<String, String> descriptionCache = new HashMap<String, String>();
         String localAddress = "127.0.0.1";
         try {
-            localAddress = InetAddress.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
+            localAddress = NetworkUtil.getHostAddress();
+        } catch (SocketException e) {
             logger.error("Failed to get local address", e);
         }
 
