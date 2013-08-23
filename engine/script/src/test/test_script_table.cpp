@@ -35,7 +35,7 @@ protected:
     static int AtPanic(lua_State *L)
     {
         if (g_LuaTableTest->accept_panic)
-            longjmp(g_LuaTableTest->env, 0);
+            longjmp(g_LuaTableTest->env, 1);
         dmLogError("Unexpected error: %s", lua_tostring(L, -1));
         exit(5);
         return 0;

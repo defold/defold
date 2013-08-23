@@ -121,8 +121,12 @@ def default_flags(self):
         # 128MB ram
         self.env.append_value('LINKFLAGS', ['-s','TOTAL_MEMORY=134217728'])
     elif platform == "as3-web":
+        # NOTE: -g set on both C*FLAGS and LINKFLAGS
+        # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-O2', '-g', '-fno-exceptions', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+        self.env.append_value('LINKFLAGS', ['-g'])
+
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
@@ -774,6 +778,20 @@ def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'linux':
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
+
+@feature('swf')
+@after('apply_link')
+def as3_link_flags_emit(self):
+    platform = self.env['PLATFORM']
+    if platform == 'as3-web' and 'swf' in self.features:
+        self.link_task.env.append_value('LINKFLAGS', ['-emit-swf'])
+
+@feature('swf')
+@before('apply_link')
+def as3_link_flags_pattern(self):
+    platform = self.env['PLATFORM']
+    if platform == 'as3-web' and 'swf' in self.features:
+        self.env['program_PATTERN']='%s.swf'
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')

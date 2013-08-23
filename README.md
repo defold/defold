@@ -135,10 +135,21 @@ Emscripten
 * In particular (LuaTableTest, Table01) and setjmp
 * Profiler (disable http-server)
 * Non-release (disable engine-service)
+* Verify that exceptions are disabled
+* Alignments. Alignment to natural boundary is required for emscripten. uint16_t to 2, uint32_t to 4, etc
+  However, unaligned loads/stores of floats seems to be valid though.
 
 Hack to compile an engine with archive:
 
     /Users/chmu/local/emscripten/em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc
+
+Flash
+-----
+
+**TODO**
+
+* Investigate mutex and dmProfile overhead. Removing DM_PROFILE, DM_COUNTER_HASH, dmMutex::Lock and dmMutex::Unlock from dmMessage::Post resulted in 4x improvement
+* Verify that exceptions are disabled
 
 
 Asset loading
