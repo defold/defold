@@ -337,6 +337,13 @@ namespace dmScript
     void IterateModules(HContext context, void* user_context, void (*call_back)(void* user_context, void* user_data));
 
     /**
+     * Remove all modules.
+     * @note In order to free related resource use IterateModules before calling this function
+     * @param context script context
+     */
+    void ClearModules(HContext context);
+
+    /**
      * Check if a module is loaded
      * @param context script context
      * @param script_name script name, see AddModule

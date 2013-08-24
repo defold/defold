@@ -38,9 +38,10 @@ namespace dmGameObject
                 dmResource::SResourceDescriptor desc;
                 r = dmResource::GetDescriptor(factory, module_resource, &desc);
                 assert(r == dmResource::RESULT_OK);
-                dmhash_t module_id = desc.m_NameHash;
+                dmhash_t module_id = module_script->m_ModuleHash;
                 if (dmScript::ModuleLoaded(script_context, module_id))
                 {
+                    dmResource::Release(factory, module_script);
                     continue;
                 }
 
@@ -75,6 +76,19 @@ namespace dmGameObject
             }
         }
         return true;
+    }
+
+    static void FreeModule(void* user_context, void* user_data)
+    {
+        dmResource::HFactory factory = (dmResource::HFactory) user_context;
+        LuaScript* lua_script = (LuaScript*) user_data;
+        dmResource::Release(factory, lua_script);
+    }
+
+    void FreeModules(dmResource::HFactory factory, dmScript::HContext script_context)
+    {
+        dmScript::IterateModules(script_context, factory, FreeModule);
+        dmScript::ClearModules(script_context);
     }
 
 }
