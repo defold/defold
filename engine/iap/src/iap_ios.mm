@@ -319,8 +319,9 @@ int IAP_List(lua_State* L)
  *     if error == nil then
  *         print(transaction.ident)
  *         print(transaction.state)
- *         print(transaction.identifier) -- only available when state == TRANS_STATE_PURCHASED or state == TRANS_STATE_RESTORED
- *         print(transaction.receipt)    -- only available when state == TRANS_STATE_PURCHASED
+ *         print(transaction.date)
+ *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED or state == TRANS_STATE_RESTORED
+ *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED
  *     else
  *         print(error.error)
  *     end
@@ -361,6 +362,17 @@ int IAP_Restore(lua_State* L)
 
 /*# set transaction listener
  *
+ * The listener callback has the following signature: function(self, transaction, error) where transaction is a table
+ * describing the transaction and error is a table. The error parameter is nil on success.
+ * The transaction table has the following members:
+ * <ul>
+ * <li> ident: product identifier
+ * <li> state: transaction state
+ * <li> trans_ident: transaction identifier (only set when state == TRANS_STATE_RESTORED or state == TRANS_STATE_PURCHASED)
+ * <li> receipt: receipt (only set when state == TRANS_STATE_PURCHASED)
+ * <li> date: transaction date
+ * <li> original_trans: original transaction (only set when state == TRANS_STATE_RESTORED)
+ * </ul>
  * @name iap.set_listener
  * @param listener listener function
  */
