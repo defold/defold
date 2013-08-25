@@ -153,6 +153,7 @@ namespace dmGui
     Vector4 CalculateReferenceScale(HContext context);
 
     HNode GetNodeHandle(InternalNode* node);
+    Vector4 CalculateReferenceScale(HContext context);
 }
 
 #endif
