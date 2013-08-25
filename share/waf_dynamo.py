@@ -231,7 +231,7 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         <key>CFBundleExecutable</key>
         <string>%(executable)s</string>
         <key>CFBundleIdentifier</key>
-        <string>TODO_PREFIX.%(executable)s</string>
+        <string>%(bundleid)s</string>
         <key>CFBundleInfoDictionaryVersion</key>
         <string>6.0</string>
         <key>CFBundleName</key>
@@ -341,7 +341,10 @@ Task.task_type_from_func('codesign',
 
 def app_bundle(task):
     info_plist_file = open(task.info_plist.bldpath(task.env), 'wb')
-    info_plist_file.write(INFO_PLIST % { 'executable' : task.exe_name })
+    bundleid = 'com.defold.%s' % task.exe_name
+    if task.bundleid:
+        bundleid = task.bundleid
+    info_plist_file.write(INFO_PLIST % { 'executable' : task.exe_name, 'bundleid' : bundleid })
     info_plist_file.close()
 
     resource_rules_plist_file = open(task.resource_rules_plist.bldpath(task.env), 'wb')
@@ -399,8 +402,10 @@ Task.task_type_from_func('app_bundle',
 def create_app_bundle(self):
     if not re.match('arm.*?darwin', self.env['PLATFORM']):
         return
+    Utils.def_attrs(self, bundleid = None)
 
     app_bundle_task = self.create_task('app_bundle', self.env)
+    app_bundle_task.bundleid = self.bundleid
     app_bundle_task.set_inputs(self.link_task.outputs)
 
     exe_name = self.link_task.outputs[0].name
