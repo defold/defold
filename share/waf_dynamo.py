@@ -42,7 +42,7 @@ ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.p
 IOS_SDK_VERSION="6.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
-MIN_IOS_SDK_VERSION="4.3"
+MIN_IOS_SDK_VERSION="5.0"
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
@@ -82,9 +82,10 @@ def default_flags(self):
             # Linux only
             pass
     elif platform == "armv7-darwin":
+        #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-lobjc', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     elif platform == 'armv7-android':
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
@@ -261,7 +262,7 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         <key>CFBundleExecutable</key>
         <string>%(executable)s</string>
         <key>CFBundleIdentifier</key>
-        <string>TODO_PREFIX.%(executable)s</string>
+        <string>%(bundleid)s</string>
         <key>CFBundleInfoDictionaryVersion</key>
         <string>6.0</string>
         <key>CFBundleName</key>
@@ -299,7 +300,7 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
-        <string>4.3</string>
+        <string>5.0</string>
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>
@@ -371,7 +372,10 @@ Task.task_type_from_func('codesign',
 
 def app_bundle(task):
     info_plist_file = open(task.info_plist.bldpath(task.env), 'wb')
-    info_plist_file.write(INFO_PLIST % { 'executable' : task.exe_name })
+    bundleid = 'com.defold.%s' % task.exe_name
+    if task.bundleid:
+        bundleid = task.bundleid
+    info_plist_file.write(INFO_PLIST % { 'executable' : task.exe_name, 'bundleid' : bundleid })
     info_plist_file.close()
 
     resource_rules_plist_file = open(task.resource_rules_plist.bldpath(task.env), 'wb')
@@ -429,8 +433,10 @@ Task.task_type_from_func('app_bundle',
 def create_app_bundle(self):
     if not re.match('arm.*?darwin', self.env['PLATFORM']):
         return
+    Utils.def_attrs(self, bundleid = None)
 
     app_bundle_task = self.create_task('app_bundle', self.env)
+    app_bundle_task.bundleid = self.bundleid
     app_bundle_task.set_inputs(self.link_task.outputs)
 
     exe_name = self.link_task.outputs[0].name

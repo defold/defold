@@ -442,10 +442,17 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
     if (g_Facebook.m_FB == NULL)
     {
-        assert(pipe(g_Facebook.m_Pipefd) == 0);
+        int result = pipe(g_Facebook.m_Pipefd);
+        if (result != 0)
+        {
+            dmLogFatal("Could not open pipe for communication: %d", result);
+        }
 
-        int result = ALooper_addFd(g_AndroidApp->looper, g_Facebook.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &g_Facebook);
-        assert(result == 1);
+        result = ALooper_addFd(g_AndroidApp->looper, g_Facebook.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &g_Facebook);
+        if (result != 1)
+        {
+            dmLogFatal("Could not add file descriptor to looper: %d", result);
+        }
 
         JNIEnv* env = Attach();
 
@@ -513,8 +520,16 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
         Detach();
         g_Facebook.m_FB = NULL;
 
+        int result = ALooper_removeFd(g_AndroidApp->looper, g_Facebook.m_Pipefd[0]);
+        if (result != 1)
+        {
+            dmLogFatal("Could not remove fd from looper: %d", result);
+        }
+
         close(g_Facebook.m_Pipefd[0]);
         close(g_Facebook.m_Pipefd[1]);
+
+        g_Facebook = Facebook();
     }
     return dmExtension::RESULT_OK;
 }
