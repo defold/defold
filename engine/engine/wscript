@@ -51,7 +51,7 @@ def configure(conf):
     elif re.match('arm.*?darwin', platform):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'IOKit'])
         # For Facebook SDK...
-        conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-framework', 'Accounts', '-framework', 'Social', '-framework', 'AdSupport'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif re.match('arm.*?android', platform):
