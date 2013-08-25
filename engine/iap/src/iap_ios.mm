@@ -164,7 +164,7 @@ static void PushTransaction(lua_State* L, SKPaymentTransaction* transaction)
     lua_rawset(L, -3);
 
     if (transaction.transactionState == SKPaymentTransactionStatePurchased || transaction.transactionState == SKPaymentTransactionStateRestored) {
-        lua_pushstring(L, "identifier");
+        lua_pushstring(L, "trans_ident");
         lua_pushstring(L, [transaction.transactionIdentifier UTF8String]);
         lua_rawset(L, -3);
     }
