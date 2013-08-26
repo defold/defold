@@ -23,4 +23,7 @@ elif platform == 'win32':
 elif platform == 'js-web':
     dmglfw.find_sources_in_dirs('js-web')
     dmglfw.includes = 'js-web .'
+elif platform == 'as3-web':
+    dmglfw.find_sources_in_dirs('flash')
+    dmglfw.includes = 'flash .'
 

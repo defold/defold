@@ -4,7 +4,11 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#if defined(__AVM2__)
+#include "flash/graphics_flash_defines.h"
+#else
 #include "opengl/graphics_opengl_defines.h"
+#endif
 
 namespace dmGraphics
 {

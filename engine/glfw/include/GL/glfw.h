@@ -172,7 +172,14 @@ extern "C" {
 #elif defined(ANDROID)
 #include <EGL/egl.h>
 #include <GLES/gl.h>
- #else
+#elif defined(__AVM2__)
+
+// Minimal GL compatibility (no GL in flash)
+#define GL_FALSE                                0x0
+#define GL_TRUE                                 0x1
+typedef unsigned char   GLubyte;
+
+#else
  #include <GL/gl.h>
  #ifndef GLFW_NO_GLU
   #include <GL/glu.h>

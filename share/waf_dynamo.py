@@ -124,8 +124,9 @@ def default_flags(self):
     elif platform == "as3-web":
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
+        # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-O2', '-g', '-fno-exceptions', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-O2', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
 
     else:
