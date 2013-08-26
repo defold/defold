@@ -524,6 +524,7 @@ def android_package(task):
     dx = '%s/android-sdk/platform-tools/dx' % (ANDROID_ROOT)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
+    res_dir = '%s/ext/share/java/res' % (dynamo_home)
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
 
@@ -565,7 +566,7 @@ def android_package(task):
             error('Error running dx')
             return 1
 
-    ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s -F %s' % (aapt, manifest, android_jar, ap_))
+    ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s -S %s -F %s' % (aapt, manifest, android_jar, res_dir, ap_))
 
     if ret != 0:
         error('Error running aapt')

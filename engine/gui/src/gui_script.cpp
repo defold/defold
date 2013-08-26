@@ -1600,6 +1600,18 @@ namespace dmGui
         params->m_PhysicalHeight = 960;
     }
 
+    int LuaGetScreenPosition(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        Scene* scene = GetScene(L);
+        Vector4 scale = CalculateReferenceScale(scene->m_Context);
+        Matrix4 node_transform;
+        CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
+        Vector4 p = node_transform * Vector4(0.5f, 0.5f, 0.0f, 1.0f);
+        dmScript::PushVector3(L, Vector3(p.getX(), p.getY(), p.getZ()));
+        return 1;
+    }
+
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
         {"set_"#luaname, LuaSet##name},\
@@ -1641,6 +1653,7 @@ namespace dmGui
         {"move_below",      LuaMoveBelow},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
+        {"get_screen_position", LuaGetScreenPosition},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
