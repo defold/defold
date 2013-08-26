@@ -167,6 +167,7 @@ public class AndroidBundler {
                 "-f",
                 //"--debug-mode",
                 "-S", resDir.getAbsolutePath(),
+                "-S", plugin.getFacebookResPath(),
                 "-M", manifestFile.getAbsolutePath(),
                 "-I", plugin.getAndroirJarPath(),
                 "-F", ap1.getAbsolutePath());
@@ -174,6 +175,20 @@ public class AndroidBundler {
         if (res.ret != 0) {
             throw new IOException(new String(res.stdOutErr));
         }
+
+        File tmpClassesDex = new File("classes.dex");
+        FileUtils.copyFile(new File(plugin.getClassesDexPath()), tmpClassesDex);
+
+        res = Exec.execResult(plugin.getAaptPath(),
+                "add",
+                ap1.getAbsolutePath(),
+                tmpClassesDex.getPath());
+
+        if (res.ret != 0) {
+            throw new IOException(new String(res.stdOutErr));
+        }
+
+        tmpClassesDex.delete();
 
         File ap2 = new File(appDir, title + ".ap2");
         ZipInputStream zipIn = null;

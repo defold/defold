@@ -10,12 +10,6 @@ import com.facebook.SessionState;
 
 class FacebookJNI {
 
-    static {
-        // TEMP fix to load shared lib, should preferably not be hard coded
-        // https://defold.fogbugz.com/default.asp?2298
-        System.loadLibrary("dmengine");
-    }
-
     private static final String TAG = "defold.facebook";
 
     private native void onLogin(long userData, int state, String error);

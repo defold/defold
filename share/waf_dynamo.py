@@ -443,7 +443,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="9" />
     <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
-        <activity android:name="android.app.NativeActivity"
+        <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|keyboardHidden"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
@@ -530,7 +530,7 @@ def android_package(task):
             return 1
 
     if dx_jars:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, os.path.join(bin, 'classes.dex'), ' '.join(dx_jars)))
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, 'classes.dex', ' '.join(dx_jars)))
         if ret != 0:
             error('Error running dx')
             return 1
@@ -541,14 +541,18 @@ def android_package(task):
         error('Error running aapt')
         return 1
 
+    if dx_jars:
+        ret = bld.exec_command('%s add %s %s' % (aapt, ap_, 'classes.dex'))
+
+        if ret != 0:
+            error('Error running aapt')
+            return 1
+
     apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
 
-    dx_arg = ''
-    if dx_jars:
-        dx_arg = '-f %s' % (os.path.join(bin, 'classes.dex'))
-    ret = bld.exec_command('%s %s -v -z %s %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, dx_arg, libs_dir))
+    ret = bld.exec_command('%s %s -v -z %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, libs_dir))
 
     if ret != 0:
         error('Error running apkbuilder')

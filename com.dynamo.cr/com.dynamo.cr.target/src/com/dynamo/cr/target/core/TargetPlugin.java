@@ -66,6 +66,14 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
         return getUtilPath("lib/android.jar");
     }
 
+    public String getClassesDexPath() {
+        return getUtilPath("lib/classes.dex");
+    }
+
+    public String getFacebookResPath() {
+        return getUtilPath("facebook/res");
+    }
+
     public String getAaptPath() {
         return getExePath("aapt");
     }
