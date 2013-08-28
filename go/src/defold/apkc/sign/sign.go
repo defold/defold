@@ -353,6 +353,7 @@ func (s *Signer) SignZip(inFile, outFile string) error {
 		if !skipFiles[f.Name] {
 			h := zip.FileHeader{
 				Name: f.Name,
+				Method: zip.Deflate,
 			}
 			h.SetModTime(now)
 			ze, _ := w.CreateHeader(&h)
