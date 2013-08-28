@@ -52,7 +52,8 @@ def build(bld):
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/iap_android.jar' % (dynamo_home)])
 
-    bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
+    if 'android' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
