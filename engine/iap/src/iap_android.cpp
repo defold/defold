@@ -23,6 +23,18 @@ enum TransactionState
     TRANS_STATE_RESTORED,
 };
 
+enum BillingResponse
+{
+    BILLING_RESPONSE_RESULT_OK = 0,
+    BILLING_RESPONSE_RESULT_USER_CANCELED = 1,
+    BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE = 3,
+    BILLING_RESPONSE_RESULT_ITEM_UNAVAILABLE = 4,
+    BILLING_RESPONSE_RESULT_DEVELOPER_ERROR = 5,
+    BILLING_RESPONSE_RESULT_ERROR = 6,
+    BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED = 7,
+    BILLING_RESPONSE_RESULT_ITEM_NOT_OWNED = 8,
+};
+
 #define CMD_PRODUCT_RESULT (0)
 #define CMD_PURCHASE_RESULT (1)
 
@@ -87,7 +99,6 @@ IAP g_IAP;
 
 int IAP_List(lua_State* L)
 {
-    dmLogInfo("IAP_List!");
     int top = lua_gettop(L);
     if (g_IAP.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
@@ -103,14 +114,13 @@ int IAP_List(lua_State* L)
     lua_pushnil(L);
     while (lua_next(L, 1) != 0) {
         if (i > 0) {
-            dmStrlCpy(buf, ",", sizeof(buf));
+            dmStrlCat(buf, ",", sizeof(buf));
         }
         const char* p = luaL_checkstring(L, -1);
         dmStrlCat(buf, p, sizeof(buf));
         lua_pop(L, 1);
         ++i;
     }
-    dmLogInfo("%s", buf);
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
@@ -295,20 +305,27 @@ void HandleProductResult(const Command* cmd)
         return;
     }
 
-    dmJson::Document doc;
-    dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
-
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
     // TODO: How to get self-reference? See case 2247
     lua_pushnil(L);
 
-    if (r == dmJson::RESULT_OK) {
-        ToLua(L, &doc, (const char*) cmd->m_Data1, 0);
-        lua_pushnil(L);
+    if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
+        dmJson::Document doc;
+        dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
+        if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
+            ToLua(L, &doc, (const char*) cmd->m_Data1, 0);
+            lua_pushnil(L);
+        } else {
+            dmLogError("Failed to parse product response (%d)", r);
+            lua_pushnil(L);
+            PushError(L, "failed to parse product response");
+        }
+        dmJson::Free(&doc);
     } else {
-        dmLogError("Failed to parse product response (%d)", r);
+        dmLogError("Google Play error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
-        PushError(L, "failed to parse product response");
+        // TODO: Add error code to table
+        PushError(L, "failed to fetch product");
     }
 
     int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
@@ -320,7 +337,6 @@ void HandleProductResult(const Command* cmd)
     luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
     g_IAP.m_Callback = LUA_NOREF;
 
-    dmJson::Free(&doc);
 
     assert(top == lua_gettop(L));
 }
@@ -335,21 +351,29 @@ void HandlePurchaseResult(const Command* cmd)
         return;
     }
 
-    dmJson::Document doc;
-    dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
     // TODO: How to get self-reference? See case 2247
     lua_pushnil(L);
 
     // TODO: Pass data-signature? (cmd.m_Data2)
-    if (r == dmJson::RESULT_OK) {
-        ToLua(L, &doc, (const char*) cmd->m_Data1, 0);
-        lua_pushnil(L);
+    if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
+        dmJson::Document doc;
+        dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
+        if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
+            ToLua(L, &doc, (const char*) cmd->m_Data1, 0);
+            lua_pushnil(L);
+        } else {
+            dmLogError("Failed to parse purchase response (%d)", r);
+            lua_pushnil(L);
+            PushError(L, "failed to parse purchase response");
+        }
+        dmJson::Free(&doc);
     } else {
-        dmLogError("Failed to parse purchase response (%d)", r);
+        dmLogError("Google Play error %d", cmd->m_ResponseCode);
         lua_pushnil(L);
-        PushError(L, "failed to parse purchase response");
+        // TODO: Add error code to table
+        PushError(L, "failed to buy product");
     }
 
     int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
@@ -358,7 +382,6 @@ void HandlePurchaseResult(const Command* cmd)
         lua_pop(L, 1);
     }
 
-    dmJson::Free(&doc);
     assert(top == lua_gettop(L));
 }
 
@@ -431,10 +454,10 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
         g_IAP.m_Stop = env->GetMethodID(iap_class, "stop", "()V");
 
         jmethodID jni_constructor = env->GetMethodID(iap_class, "<init>", "(Landroid/app/Activity;)V");
-        g_IAP.m_IAP = env->NewObject(iap_class, jni_constructor, g_AndroidApp->activity->clazz);
+        g_IAP.m_IAP = env->NewGlobalRef(env->NewObject(iap_class, jni_constructor, g_AndroidApp->activity->clazz));
 
         jni_constructor = env->GetMethodID(iap_jni_class, "<init>", "()V");
-        g_IAP.m_IAPJNI = env->NewObject(iap_jni_class, jni_constructor);
+        g_IAP.m_IAPJNI = env->NewGlobalRef(env->NewObject(iap_jni_class, jni_constructor));
 
         Detach();
     }
@@ -474,8 +497,8 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
     if (g_IAP.m_InitCount == 0) {
         JNIEnv* env = Attach();
         env->CallVoidMethod(g_IAP.m_IAP, g_IAP.m_Stop);
-        env->DeleteLocalRef(g_IAP.m_IAP);
-        env->DeleteLocalRef(g_IAP.m_IAPJNI);
+        env->DeleteGlobalRef(g_IAP.m_IAP);
+        env->DeleteGlobalRef(g_IAP.m_IAPJNI);
         Detach();
         g_IAP.m_IAP = NULL;
 

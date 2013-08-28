@@ -239,7 +239,10 @@ public class IapActivity extends Activity {
 			bundle.putString(Iap.RESPONSE_INAPP_SIGNATURE, dataSignature);
 			
 			// We always consume products
-			consume(purchaseData);
+			if (purchaseData != null) {
+				// Can be null if the store isn't configured correctly
+				consume(purchaseData);				
+			}
 		}
 
 		Message msg = new Message();

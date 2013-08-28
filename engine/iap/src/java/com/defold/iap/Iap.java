@@ -197,6 +197,14 @@ public class Iap implements Handler.Callback {
 		sb.append("[");
 		
 		try {
+			if (service == null) {
+				Log.wtf(TAG,  "service is null");
+				return "[]";
+			}
+			if (activity == null) {
+				Log.wtf(TAG,  "activity is null");
+				return "[]";
+			}
 			Bundle skuDetails = service.getSkuDetails(3, activity.getPackageName(), "inapp", querySkus);
 			int response = skuDetails.getInt("RESPONSE_CODE");
 
@@ -301,14 +309,15 @@ public class Iap implements Handler.Callback {
 			String purchaseData = bundle.getString(RESPONSE_INAPP_PURCHASE_DATA);
 			String dataSignature = bundle.getString(RESPONSE_INAPP_SIGNATURE);
 			
-			String pd = "";
-			if (purchaseData != null) {
-				pd = convertPurchase(purchaseData);
+			if (purchaseData != null && dataSignature != null) {
+				purchaseData = convertPurchase(purchaseData);
 			} else {
-				responseCode = BILLING_RESPONSE_RESULT_ERROR;				
+				responseCode = BILLING_RESPONSE_RESULT_ERROR;
+				purchaseData = "";
+				dataSignature = "";
 			}
 			
-			purchaseListener.onResult(responseCode, pd, dataSignature);
+			purchaseListener.onResult(responseCode, purchaseData, dataSignature);
 			this.purchaseListener = null;
 		} else if (action == Action.RESTORE) {
 			Bundle items = bundle.getBundle("items");

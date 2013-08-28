@@ -11,6 +11,10 @@ from java keystore with keytool and openssl.
 	openssl x509 -req -days 9999 -in request.pem -signkey key.pem -out certificate.pem
 	openssl pkcs8 -topk8 -outform DER -in key.pem -inform PEM -out key.pk8 -nocrypt
 
+	Convert certificate for facebook:
+	openssl x509 -in certificate.pem -inform PEM -out certificate.der -outform DER
+	cat certificate.der | openssl sha1 -binary | openssl base64
+
 
 	Various usefull links read when creating this lib:
 	http://qistoph.blogspot.se/2012/01/manual-verify-pkcs7-signed-data-with.html

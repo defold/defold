@@ -390,6 +390,7 @@ int Facebook_AccessToken(lua_State* L)
         lua_pushnil(L);
     }
     env->ReleaseStringUTFChars(str_access_token, access_token);
+    Detach();
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
@@ -479,7 +480,7 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 
         jmethodID jni_constructor = env->GetMethodID(fb_class, "<init>", "(Landroid/app/Activity;Ljava/lang/String;)V");
         jstring str_app_id = env->NewStringUTF(app_id);
-        g_Facebook.m_FB = env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id);
+        g_Facebook.m_FB = env->NewGlobalRef(env->NewObject(fb_class, jni_constructor, g_AndroidApp->activity->clazz, str_app_id));
         env->DeleteLocalRef(str_app_id);
 
         Detach();
@@ -516,7 +517,7 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
     if (g_Facebook.m_FB != NULL)
     {
         JNIEnv* env = Attach();
-        env->DeleteLocalRef(g_Facebook.m_FB);
+        env->DeleteGlobalRef(g_Facebook.m_FB);
         Detach();
         g_Facebook.m_FB = NULL;
 
