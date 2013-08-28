@@ -229,6 +229,12 @@ class Configuration(object):
             self.exec_command(['scp', engine,
                                '%s/%sdmengine_release%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
 
+        if 'android' in self.target_platform:
+            self._log('Archiving %s' % 'classes.dex')
+            classes_dex = join(dynamo_home, 'share/java/classes.dex')
+            self.exec_command(['scp', classes_dex,
+                               '%s/classes.dex.%s' % (full_archive_path, sha1)])
+
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
             libs.append('texc')

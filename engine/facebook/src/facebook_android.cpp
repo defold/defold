@@ -138,7 +138,7 @@ static void RunCallback()
     }
 }
 
-int LooperCallback(int fd, int events, void* data)
+static int LooperCallback(int fd, int events, void* data)
 {
     Facebook* fb = (Facebook*)data;
     (void)fb;
@@ -251,14 +251,14 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIteratePer
 }
 #endif
 
-JNIEnv* Attach()
+static JNIEnv* Attach()
 {
     JNIEnv* env;
     g_AndroidApp->activity->vm->AttachCurrentThread(&env, NULL);
     return env;
 }
 
-void Detach()
+static void Detach()
 {
     g_AndroidApp->activity->vm->DetachCurrentThread();
 }

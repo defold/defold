@@ -523,17 +523,7 @@ def android_package(task):
     dx_jars = []
     for jar in task.jars:
         dx_jar = os.path.join(dx_libs, os.path.basename(jar))
-        dx_jars.append(dx_jar)
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, dx_jar, jar))
-        if ret != 0:
-            error('Error running dx')
-            return 1
-
-    if dx_jars:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, 'classes.dex', ' '.join(dx_jars)))
-        if ret != 0:
-            error('Error running dx')
-            return 1
+        dx_jars.append(jar)
 
     ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s -S %s -F %s' % (aapt, manifest, android_jar, res_dir, ap_))
 
@@ -542,11 +532,14 @@ def android_package(task):
         return 1
 
     if dx_jars:
-        ret = bld.exec_command('%s add %s %s' % (aapt, ap_, 'classes.dex'))
-
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dx_jars)))
         if ret != 0:
-            error('Error running aapt')
+            error('Error running dx')
             return 1
+
+        from zipfile import ZipFile
+        with ZipFile(ap_, 'a') as f:
+            f.write(task.classes_dex.abspath(task.env), 'classes.dex')
 
     apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
@@ -621,6 +614,8 @@ def create_android_package(self):
     apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
     android_package_task.apk = apk
 
+    android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
+
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))
     android_package_task.application_mk = self.path.exclusive_build_node("%s.android/jni/Application.mk" % (exe_name))
@@ -691,6 +686,24 @@ unsigned char %s[] =
 
     task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
     return 0
+
+Task.simple_task_type('dex', '${DX} --dex --output ${TGT} ${SRC}',
+                      color='YELLOW',
+                      after='jar_create',
+                      shell=True)
+
+@taskgen
+@after('apply_java')
+@feature('dex')
+def apply_dex(self):
+    if not re.match('arm.*?android', self.env['PLATFORM']):
+        return
+
+    jar = self.path.find_or_declare(self.destfile)
+    dex = jar.change_ext('.dex')
+    task = self.create_task('dex')
+    task.set_inputs(jar)
+    task.set_outputs(dex)
 
 Task.task_type_from_func('embed_file',
                          func = embed_build,
@@ -846,6 +859,8 @@ def detect(conf):
         conf.env['AR'] = '%s/arm-linux-androideabi-ar' % (bin)
         conf.env['RANLIB'] = '%s/arm-linux-androideabi-ranlib' % (bin)
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
+
+        conf.env['DX'] =  '%s/android-sdk/platform-tools/dx' % (ANDROID_ROOT)
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')

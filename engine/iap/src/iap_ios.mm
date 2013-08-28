@@ -217,7 +217,6 @@ void RunTransactionCallback(lua_State* L, int cb, SKPaymentTransaction* transact
     {
         for (SKPaymentTransaction * transaction in transactions) {
 
-
             bool has_listener = false;
             if (self.m_IAP->m_Listener.m_Callback != LUA_NOREF) {
                 const IAPListener& l = self.m_IAP->m_Listener;
@@ -354,6 +353,9 @@ int IAP_Buy(lua_State* L)
  */
 int IAP_Restore(lua_State* L)
 {
+    // TODO: Missing callback here for completion/error
+    // See callback under "Handling Restored Transactions"
+    // https://developer.apple.com/library/ios/documentation/StoreKit/Reference/SKPaymentTransactionObserver_Protocol/Reference/Reference.html
     int top = lua_gettop(L);
     [[SKPaymentQueue defaultQueue] restoreCompletedTransactions];
     assert(top == lua_gettop(L));
