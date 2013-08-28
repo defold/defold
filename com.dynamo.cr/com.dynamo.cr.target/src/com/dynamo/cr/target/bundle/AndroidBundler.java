@@ -109,7 +109,7 @@ public class AndroidBundler {
         packageDir = new File(outputDir);
         this.title = projectProperties.getStringValue("project", "title", "Unnamed");
         this.version = projectProperties.getStringValue("project", "version", "1.0");
-        this.versionCode = projectProperties.getStringValue("android", "versionCode", "1");
+        this.versionCode = projectProperties.getStringValue("android", "version_code", "1");
         this.androidPackage = projectProperties.getStringValue("android", "package", "com.example.todo");
         appDir = new File(packageDir, title);
         resDir = new File(packageDir, title + "/res");
