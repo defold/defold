@@ -18,6 +18,8 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup.LayoutParams;
 
 import com.android.vending.billing.IInAppBillingService;
 import com.defold.iap.Iap.Action;
@@ -170,6 +172,10 @@ public class IapActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		View view = new View(this);
+		view.setBackgroundColor(0x10ffffff);
+		setContentView(view, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
 		Intent intent = getIntent();
 		final Bundle extras = intent.getExtras();
 		this.messenger = (Messenger) extras.getParcelable(Iap.PARAM_MESSENGER);

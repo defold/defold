@@ -482,8 +482,8 @@ def android_package(task):
     bld = task.generator.bld
 
     activities = ''
-    for activity in task.activities:
-        activities += '<activity android:name="%s" />' % (activity)
+    for activity, attr in task.activities:
+        activities += '<activity android:name="%s" %s/>' % (activity, attr)
 
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
     manifest_file.write(ANDROID_MANIFEST % { 'package' : task.exe_name, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities })

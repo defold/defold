@@ -32,6 +32,7 @@ def build(bld):
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
+    activities=[('com.facebook.LoginActivity', ''), ('com.defold.iap.IapActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
         uselib = 'FACEBOOKEXT IAPEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
@@ -45,7 +46,7 @@ def build(bld):
         target = 'dmengine',
         bundleid = 'com.defold.engine',
         source=['main.cpp'],
-        activities=['com.facebook.LoginActivity', 'com.defold.iap.IapActivity'],
+        activities = activities,
         jars=['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
               '%s/share/java/facebook_android.jar' % (dynamo_home),
@@ -66,7 +67,7 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine_release',
         source=['main.cpp'],
-        activities=['com.facebook.LoginActivity', 'com.defold.iap.IapActivity'],
+        activities = activities,
         jars=['%s/ext/share/java/facebooksdk.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
               '%s/share/java/facebook_android.jar' % (dynamo_home),
