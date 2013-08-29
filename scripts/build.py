@@ -226,7 +226,7 @@ class Configuration(object):
             self._log('Archiving %s' % engine)
             self.exec_command(['scp', engine,
                                '%s/%sdmengine%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
-            self.exec_command(['scp', engine,
+            self.exec_command(['scp', engine_release,
                                '%s/%sdmengine_release%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
 
         if 'android' in self.target_platform:
