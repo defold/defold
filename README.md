@@ -66,6 +66,24 @@ iOS Debugging
 * Select executable (dmengine.app)
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
+iOS Crashdumps
+--------------
+
+From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
+
+
+* The slide value is the value of vmaddr in LC_SEGMENT cmd (Mostly this is 0x1000). Run the following to get it:
+
+      otool -arch ARCHITECTURE -l "APP_BUNDLE/APP_EXECUTABLE" | grep -B 3 -A 8 -m 2 "__TEXT"
+
+  Replace ARCHITECTURE with the actual architecture the crash report shows, e.g. armv7. Replace APP_BUNDLE/APP_EXECUTABLE with the path to the actual executable.
+
+* The stack address is the hex value from the crash report.
+
+* The load address can be is the first address showing in the Binary Images section at the very front of the line which contains your executable. (Usually the first entry).
+
+
+
 Android
 -------
 
