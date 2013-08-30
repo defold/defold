@@ -16,6 +16,24 @@
  * convert src/test/data/color_check_2x2.png -depth 16 -define png:color-type='2' -define png:bit-depth=16 src/test/color16_check_2x2.png
  */
 
+TEST(dmImage, Empty)
+{
+    dmImage::Image image;
+    dmImage::Result r =  dmImage::Load(0, 0, &image);
+    ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
+}
+
+TEST(dmImage, Corrupt)
+{
+    uint32_t size = 256 * 256 * 4;
+    void* b = malloc(size);
+    memset(b, 0, size);
+    dmImage::Image image;
+    dmImage::Result r =  dmImage::Load(b, size, &image);
+    free(b);
+    ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
+}
+
 TEST(dmImage, PngColor)
 {
     dmImage::Image image;
