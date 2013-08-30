@@ -1,0 +1,60 @@
+#ifndef DM_IMAGE_H
+#define DM_IMAGE_H
+
+#include <stdint.h>
+#include <string.h>
+
+namespace dmImage
+{
+    enum Result
+    {
+        RESULT_OK                   = 0,
+        RESULT_UNSUPPORTED_FORMAT   = -1,
+        RESULT_IMAGE_ERROR          = -2,
+    };
+
+    enum Type
+    {
+        TYPE_RGB        = 0,
+        TYPE_RGBA       = 1,
+        TYPE_LUMINANCE  = 2,
+    };
+
+    struct Image
+    {
+        Image()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+
+        uint32_t m_Width;
+        uint32_t m_Height;
+        Type     m_Type;
+        void*    m_Buffer;
+    };
+
+    /**
+     * Load image from buffer.
+     *
+     * <pre>
+     *   Supported formats:
+     *   png gray, gray + alpha, rgb and rgba
+     *   jpg
+     * </pre>
+     * 16-bit (or higher) channels are not supported.
+     *
+     * @param buffer image buffer
+     * @param buffer_size image buffer size
+     * @param image output
+     * @return RESULT_OK on success
+     */
+    Result Load(const void* buffer, uint32_t buffer_size, Image* image);
+
+    /**
+     * Free loaded image
+     * @param image image to free
+     */
+    void Free(Image* image);
+}
+
+#endif // #ifndef DM_IMAGE_H
