@@ -18,6 +18,31 @@ namespace dmScript
 {
     #define LIB_NAME "image"
 
+    /*# RGB image type
+     *
+     * @name gui.TYPE_RGB
+     * @variable
+     */
+
+    /*# RGBA image type
+     *
+     * @name gui.TYPE_RGBA
+     * @variable
+     */
+
+    /*# Luminance image type
+     *
+     * @name gui.TYPE_LUMINANCE
+     * @variable
+     */
+
+    /*# load image from buffer
+    * Load image (png and jpeg) from buffer
+    *
+    * @name image.load
+    * @param buffer image data buffer
+    * @return object with the following fields: width, height, type and buffer (raw data). nil is returned if loading fails.
+    */
     int Image_Load(lua_State* L)
     {
         int top = lua_gettop(L);
