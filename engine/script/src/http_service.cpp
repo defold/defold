@@ -36,6 +36,7 @@ namespace dmHttpService
         int                   m_Status;
         dmArray<char>         m_Response;
         dmArray<char>         m_Headers;
+        const HttpService*    m_Service;
     };
 
     void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
@@ -119,7 +120,11 @@ namespace dmHttpService
         resp.m_Response = (uint64_t) malloc(response_length);
         memcpy((void*) resp.m_Response, response, response_length);
 
-        dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp));
+        if (dmMessage::IsSocketValid(requester->m_Socket)) {
+            dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp));
+        } else {
+            dmLogWarning("Failed to return http-response. Requester deleted?");
+        }
     }
 
     void HandleRequest(Worker* worker, const dmMessage::URL* requester, dmHttpDDF::HttpRequest* request)
@@ -181,6 +186,9 @@ namespace dmHttpService
     void Dispatch(dmMessage::Message *message, void* user_ptr)
     {
         Worker* worker = (Worker*) user_ptr;
+        if (!worker->m_Service->m_Run) {
+            return;
+        }
 
         if (message->m_Descriptor)
         {
@@ -223,6 +231,7 @@ namespace dmHttpService
         memset(&worker.m_CurrentURL, 0, sizeof(worker.m_CurrentURL));
         worker.m_Request = 0;
         worker.m_Status = 0;
+        worker.m_Service = service;
 
         while (service->m_Run)
         {

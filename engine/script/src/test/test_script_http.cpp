@@ -111,7 +111,9 @@ protected:
     virtual void TearDown()
     {
         dmWebServer::Delete(m_WebServer);
-        dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
+        if (m_DefaultURL.m_Socket) {
+            dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
+        }
         dmScript::Finalize(L, m_ScriptContext);
         lua_close(L);
         dmScript::DeleteContext(m_ScriptContext);
@@ -211,6 +213,44 @@ TEST_F(ScriptHttpTest, TestPost)
         if (elapsed / 1000000 > 2) {
             ASSERT_TRUE(0);
         }
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptHttpTest, TestDeletedSocket)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(RunFile(L, "test_http.luac"));
+
+    char buf[1024];
+    DM_SNPRINTF(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
+    RunString(L, buf);
+
+    lua_getglobal(L, "functions");
+    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
+    lua_getfield(L, -1, "test_http");
+    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+    int result = lua_pcall(L, 0, LUA_MULTRET, 0);
+    if (result == LUA_ERRRUN)
+    {
+        dmLogError("Error running script: %s", lua_tostring(L,-1));
+        ASSERT_TRUE(false);
+        lua_pop(L, 1);
+    }
+    else
+    {
+        ASSERT_EQ(0, result);
+    }
+    lua_pop(L, 1);
+
+    dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
+    m_DefaultURL.m_Socket = 0;
+
+    for (int i = 0; i < 10; ++i) {
+        dmWebServer::Update(m_WebServer);
+        dmTime::Sleep(10 * 1000);
     }
 
     ASSERT_EQ(top, lua_gettop(L));
