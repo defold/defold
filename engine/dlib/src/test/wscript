@@ -342,11 +342,12 @@ def build(bld):
 
     test_easing.install_path = None
 
-    test_json = bld.new_task_gen(features = 'cxx cprogram',
+    test_json = bld.new_task_gen(features = 'cxx cprogram embed',
                                 source = 'test_json.cpp',
+                                embed_source = 'data/flickr.json',
                                 uselib = 'GTEST THREAD',
                                 uselib_local = "dlib",
-                                includes = ['../../src'],
+                                includes = ['../../src', '.'],
                                 target = 'test_json')
 
     test_json.install_path = None

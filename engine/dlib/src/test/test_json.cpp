@@ -3,6 +3,7 @@
 #include <string.h>
 #include <string>
 #include "../dlib/json.h"
+#include "data/flickr.json.embed.h"
 
 class dmJsonTest: public ::testing::Test
 {
@@ -169,6 +170,16 @@ TEST_F(dmJsonTest, Large)
             json += ",";
     }
     json += "]";
+    dmJson::Result r = dmJson::Parse(json.c_str(), &doc);
+    ASSERT_EQ(dmJson::RESULT_OK, r);
+}
+
+TEST_F(dmJsonTest, Flickr)
+{
+    // Flickr escape ' with \'
+    // This is invalid json so we replace \' with ' before parsing
+    std::string json((const char*) FLICKR_JSON, (size_t) FLICKR_JSON_SIZE);
+    json = json.replace(json.begin(), json.end(), "\\'", "'");
     dmJson::Result r = dmJson::Parse(json.c_str(), &doc);
     ASSERT_EQ(dmJson::RESULT_OK, r);
 }
