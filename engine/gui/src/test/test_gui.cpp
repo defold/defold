@@ -101,8 +101,10 @@ public:
             Vector4 o = node_transforms[i] * origin;
             Vector4 u = node_transforms[i] * unit;
             const char* text = dmGui::GetNodeText(scene, nodes[i]);
-            self->m_NodeTextToRenderedPosition[text] = Point3(o.getXYZ());
-            self->m_NodeTextToRenderedSize[text] = Vector3((u - o).getXYZ());
+            if (text) {
+                self->m_NodeTextToRenderedPosition[text] = Point3(o.getXYZ());
+                self->m_NodeTextToRenderedSize[text] = Vector3((u - o).getXYZ());
+            }
         }
     }
 
@@ -265,6 +267,82 @@ TEST_F(dmGuiTest, TextureFont)
     dmGui::DeleteNode(m_Scene, node);
 }
 
+static void* DynamicNewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+{
+    return malloc(16);
+}
+
+static void DynamicDeleteTexture(dmGui::HScene scene, void* texture, void* context)
+{
+    free(texture);
+}
+
+static void DynamicSetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+{
+}
+
+static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+{
+    uint32_t* count = (uint32_t*) context;
+    for (uint32_t i = 0; i < node_count; ++i) {
+        dmGui::HNode node = nodes[i];
+        dmhash_t id = dmGui::GetNodeTextureId(scene, node);
+        if ((id == dmHashString64("t1") || id == dmHashString64("t2")) && dmGui::GetNodeTexture(scene, node)) {
+            *count = *count + 1;
+        }
+    }
+}
+
+TEST_F(dmGuiTest, DynamicTexture)
+{
+    const int width = 2;
+    const int height = 2;
+    char data[width * height * 3] = { 0 };
+
+    dmGui::Result r;
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "foo");
+    ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
+
+    r = dmGui::SetNodeTexture(m_Scene, node, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    uint32_t count = 0;
+
+    dmGui::RenderSceneParams rp;
+    rp.m_RenderNodes = DynamicRenderNodes;
+    rp.m_NewTexture = DynamicNewTexture;
+    rp.m_DeleteTexture = DynamicDeleteTexture;
+    rp.m_SetTextureData = DynamicSetTextureData;
+
+    dmGui::RenderScene(m_Scene, rp, &count);
+    ASSERT_EQ(1U, count);
+
+    r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Recreate the texture again (without RenderScene)
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    // Set data on deleted texture
+    r = dmGui::SetDynamicTextureData(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
+
+    dmGui::DeleteNode(m_Scene, node);
+}
+
 TEST_F(dmGuiTest, ScriptTextureFont)
 {
     int t;
@@ -294,6 +372,35 @@ TEST_F(dmGuiTest, ScriptTextureFont)
 
     ASSERT_TRUE(SetScript(m_Script, s));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+}
+
+TEST_F(dmGuiTest, ScriptDynamicTexture)
+{
+    const char* id = "n";
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    dmGui::SetNodeId(m_Scene, node, id);
+
+    const char* s = "function init(self)\n"
+                    "    local r = gui.new_texture('t', 2, 2, 'rgb', string.rep('\\0', 2 * 2 * 3))\n"
+                    "    assert(r == true)\n"
+                    "    local r = gui.set_texture_data('t', 2, 2, 'rgb', string.rep('\\0', 2 * 2 * 3))\n"
+                    "    assert(r == true)\n"
+                    "    local n = gui.get_node('n')\n"
+                    "    gui.set_texture(n, 't')\n"
+                    "    gui.delete_texture('t')\n"
+                    "end\n";
+
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 60.0f));
+
+    dmGui::RenderSceneParams rp;
+    rp.m_RenderNodes = DynamicRenderNodes;
+    rp.m_NewTexture = DynamicNewTexture;
+    rp.m_DeleteTexture = DynamicDeleteTexture;
+    rp.m_SetTextureData = DynamicSetTextureData;
+    dmGui::RenderScene(m_Scene, rp, this);
 }
 
 TEST_F(dmGuiTest, ScriptIndex)

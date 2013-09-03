@@ -503,6 +503,62 @@ namespace dmGameSystem
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
+    static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {
+        switch (type) {
+            case dmImage::TYPE_RGB:
+                return dmGraphics::TEXTURE_FORMAT_RGB;
+                break;
+            case dmImage::TYPE_RGBA:
+                return dmGraphics::TEXTURE_FORMAT_RGBA;
+                break;
+            case dmImage::TYPE_LUMINANCE:
+                return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+                break;
+            default:
+                assert(false);
+        }
+        return (dmGraphics::TextureFormat) 0; // Never reached
+    }
+
+    static void* NewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+    {
+        RenderGuiContext* gui_context = (RenderGuiContext*) context;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
+
+        dmGraphics::TextureParams tparams;
+        tparams.m_Width = width;
+        tparams.m_Height = height;
+        tparams.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tparams.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tparams.m_Data = buffer;
+        tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
+        tparams.m_Format = ToGraphicsFormat(type);
+
+        dmGraphics::HTexture t =  dmGraphics::NewTexture(gcontext, tparams);
+        return (void*) t;
+    }
+
+    static void DeleteTexture(dmGui::HScene scene, void* texture, void* context)
+    {
+        dmGraphics::DeleteTexture((dmGraphics::HTexture) texture);
+    }
+
+    static void SetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+    {
+        RenderGuiContext* gui_context = (RenderGuiContext*) context;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
+
+        dmGraphics::TextureParams tparams;
+        tparams.m_Width = width;
+        tparams.m_Height = height;
+        tparams.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tparams.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
+        tparams.m_Data = buffer;
+        tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
+        tparams.m_Format = ToGraphicsFormat(type);
+        dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
+    }
+
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
@@ -543,8 +599,14 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled)
-                dmGui::RenderScene(c->m_Scene, &RenderNodes, &render_gui_context);
+            if (c->m_Enabled) {
+                dmGui::RenderSceneParams rp;
+                rp.m_RenderNodes = &RenderNodes;
+                rp.m_NewTexture = &NewTexture;
+                rp.m_DeleteTexture = &DeleteTexture;
+                rp.m_SetTextureData = &SetTextureData;
+                dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
+            }
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

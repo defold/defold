@@ -51,5 +51,19 @@ namespace dmImage
         free(image->m_Buffer);
         memset(image, 0, sizeof(*image));
     }
+
+    uint32_t BytesPerPixel(Type type)
+    {
+        switch (type)
+        {
+        case dmImage::TYPE_RGB:
+            return 3;
+        case dmImage::TYPE_RGBA:
+            return 4;
+        case dmImage::TYPE_LUMINANCE:
+            return 1;
+        }
+        return 0;
+    }
 }
 

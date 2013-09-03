@@ -54,19 +54,8 @@ namespace dmScript
         dmImage::Result r = dmImage::Load(buffer, buffer_len, &image);
         if (r == dmImage::RESULT_OK) {
 
-            int bytes_per_pixel = 1;
-            switch (image.m_Type)
-            {
-            case dmImage::TYPE_RGB:
-                bytes_per_pixel = 3;
-                break;
-            case dmImage::TYPE_RGBA:
-                bytes_per_pixel = 4;
-                break;
-            case dmImage::TYPE_LUMINANCE:
-                bytes_per_pixel = 1;
-                break;
-            default:
+            int bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
+            if (bytes_per_pixel == 0) {
                 dmImage::Free(&image);
                 luaL_error(L, "unknown image type %d", image.m_Type);
             }
@@ -82,7 +71,19 @@ namespace dmScript
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "type");
-            lua_pushinteger(L, image.m_Type);
+            switch (image.m_Type) {
+                case dmImage::TYPE_RGB:
+                    lua_pushliteral(L, "rgb");
+                    break;
+                case dmImage::TYPE_RGBA:
+                    lua_pushliteral(L, "rgba");
+                    break;
+                case dmImage::TYPE_LUMINANCE:
+                    lua_pushliteral(L, "l");
+                    break;
+                default:
+                    assert(false);
+            }
             lua_rawset(L, -3);
 
             lua_pushliteral(L, "buffer");
@@ -112,13 +113,13 @@ namespace dmScript
 
         luaL_register(L, LIB_NAME, ScriptImage_methods);
 
-#define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) dmImage::name); \
+#define SETCONSTANT(name, val) \
+        lua_pushliteral(L, val); \
         lua_setfield(L, -2, #name);\
 
-        SETCONSTANT(TYPE_RGB)
-        SETCONSTANT(TYPE_RGBA)
-        SETCONSTANT(TYPE_LUMINANCE)
+        SETCONSTANT(TYPE_RGB, "rgb")
+        SETCONSTANT(TYPE_RGBA, "rgba")
+        SETCONSTANT(TYPE_LUMINANCE, "l")
 
 #undef SETCONSTANT
 

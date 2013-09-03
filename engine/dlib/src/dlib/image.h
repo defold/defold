@@ -55,6 +55,14 @@ namespace dmImage
      * @param image image to free
      */
     void Free(Image* image);
+
+    /**
+     * Get bytes per pixel
+     * @param type
+     * @return bytes per pixel. zero if the type is unknown
+     */
+    uint32_t BytesPerPixel(Type type);
+
 }
 
 #endif // #ifndef DM_IMAGE_H
