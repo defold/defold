@@ -21,15 +21,12 @@ namespace dmHttpService
     const uint32_t DEFAULT_RESPONSE_BUFFER_SIZE = 64 * 1024;
     const uint32_t DEFAULT_HEADER_BUFFER_SIZE = 16 * 1024;
 
-    struct HttpService
-    {
-        dmArray<dmThread::Thread> m_Threads;
-        dmMessage::HSocket        m_Socket;
-        volatile bool             m_Run;
-    };
+    struct HttpService;
 
     struct Worker
     {
+        dmThread::Thread      m_Thread;
+        dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
         dmHttpDDF::HttpRequest*   m_Request;
@@ -37,6 +34,14 @@ namespace dmHttpService
         dmArray<char>         m_Response;
         dmArray<char>         m_Headers;
         const HttpService*    m_Service;
+        int                   m_LoadBalanceCount;
+    };
+
+    struct HttpService
+    {
+        dmArray<Worker*>          m_Workers;
+        dmMessage::HSocket        m_Socket;
+        volatile bool             m_Run;
     };
 
     void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
@@ -223,22 +228,32 @@ namespace dmHttpService
         }
     }
 
+    void LoadBalance(dmMessage::Message *message, void* user_ptr)
+    {
+        Worker* worker = (Worker*) user_ptr;
+        dmMessage::URL r = message->m_Receiver;
+        r.m_Socket = worker->m_Service->m_Workers[worker->m_LoadBalanceCount % THREAD_COUNT]->m_Socket;
+        dmMessage::Post(&message->m_Sender,
+                        &r,
+                        message->m_Id,
+                        message->m_UserData,
+                        message->m_Descriptor,
+                        message->m_Data,
+                        message->m_DataSize);
+        worker->m_LoadBalanceCount++;
+    }
+
     void Loop(void* arg)
     {
-        HttpService* service = (HttpService*) arg;
-        Worker worker;
-        worker.m_Client = 0;
-        memset(&worker.m_CurrentURL, 0, sizeof(worker.m_CurrentURL));
-        worker.m_Request = 0;
-        worker.m_Status = 0;
-        worker.m_Service = service;
+        Worker* worker = (Worker*) arg;
 
-        while (service->m_Run)
+        while (worker->m_Service->m_Run)
         {
             // TODO: We should add blocking support in dmMessage
             // See also dmLog for similar "sleep-issue"
             dmTime::Sleep(30 * 1000);
-            dmMessage::Dispatch(service->m_Socket, &Dispatch, &worker);
+            dmMessage::Dispatch(worker->m_Service->m_Socket, &LoadBalance, worker);
+            dmMessage::Dispatch(worker->m_Socket, &Dispatch, worker);
         }
     }
 
@@ -247,11 +262,23 @@ namespace dmHttpService
         HttpService* service = new HttpService;
         service->m_Run = true;
         dmMessage::NewSocket(HTTP_SOCKET_NAME, &service->m_Socket);
-        service->m_Threads.SetCapacity(THREAD_COUNT);
+        service->m_Workers.SetCapacity(THREAD_COUNT);
         for (uint32_t i = 0; i < THREAD_COUNT; ++i)
         {
-            dmThread::Thread t = dmThread::New(&Loop, 0x4000, service);
-            service->m_Threads.Push(t);
+            Worker* worker = new Worker();
+            char tmp[128];
+            DM_SNPRINTF(tmp, sizeof(tmp), "@__http_worker_%d", i);
+            dmMessage::NewSocket(tmp, &worker->m_Socket);
+            worker->m_Client = 0;
+            memset(&worker->m_CurrentURL, 0, sizeof(worker->m_CurrentURL));
+            worker->m_Request = 0;
+            worker->m_Status = 0;
+            worker->m_Service = service;
+            worker->m_LoadBalanceCount = 0;
+            service->m_Workers.Push(worker);
+
+            dmThread::Thread t = dmThread::New(&Loop, 0x4000, worker);
+            worker->m_Thread = t;
         }
 
         return service;
@@ -267,7 +294,9 @@ namespace dmHttpService
         http_service->m_Run = false;
         for (uint32_t i = 0; i < THREAD_COUNT; ++i)
         {
-            dmThread::Join(http_service->m_Threads[i]);
+            dmThread::Join(http_service->m_Workers[i]->m_Thread);
+            dmMessage::DeleteSocket(http_service->m_Workers[i]->m_Socket);
+            delete http_service->m_Workers[i];
         }
         dmMessage::DeleteSocket(http_service->m_Socket);
         delete http_service;
