@@ -29,6 +29,7 @@ static void LogThread(void* arg)
     }
     const char* msg = "Very large message";
     memcpy(s, msg, strlen(msg));
+    s[n-1] = '\0';
     dmLogInfo(s);
     delete[] s;
 }
