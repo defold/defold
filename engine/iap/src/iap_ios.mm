@@ -132,6 +132,7 @@ static void PushError(lua_State*L, NSError* error)
     }
 
     // TODO: How to get self-reference? See case 2247
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
     lua_pushnil(L);
     lua_pushnil(L);
     PushError(L, error);
