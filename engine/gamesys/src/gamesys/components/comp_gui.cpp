@@ -657,6 +657,9 @@ namespace dmGameSystem
                 gui_input_action.m_Touch[i] = params.m_InputAction->m_Touch[i];
             }
 
+            size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
+            gui_input_action.m_TextCount = text_count;
+
             bool consumed;
             dmGui::Result gui_result = dmGui::DispatchInput(scene, &gui_input_action, 1, &consumed);
             if (gui_result != dmGui::RESULT_OK)
