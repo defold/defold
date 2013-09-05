@@ -78,6 +78,8 @@ static void PushError(lua_State*L, NSError* error)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
 
     if (!dmScript::IsInstanceValid(L))
     {
@@ -86,8 +88,6 @@ static void PushError(lua_State*L, NSError* error)
         assert(top == lua_gettop(L));
         return;
     }
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
 
     lua_newtable(L);
     for (SKProduct * p in skProducts) {
@@ -154,6 +154,8 @@ static void PushError(lua_State*L, NSError* error)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
 
     if (!dmScript::IsInstanceValid(L))
     {
@@ -162,8 +164,6 @@ static void PushError(lua_State*L, NSError* error)
         assert(top == lua_gettop(L));
         return;
     }
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
 
     lua_pushnil(L);
     PushError(L, error);
@@ -230,6 +230,8 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, self);
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
 
     if (!dmScript::IsInstanceValid(L))
     {
@@ -238,8 +240,6 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
         assert(top == lua_gettop(L));
         return;
     }
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
 
     PushTransaction(L, transaction);
 

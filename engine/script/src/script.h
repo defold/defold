@@ -57,6 +57,12 @@ namespace dmScript
      */
     typedef void (*GetURLCallback)(lua_State* L, dmMessage::URL* out_url);
 
+    /**
+     * Callback used to validate the state instance, assumed to be fetchable by GetInstance.
+     * This callback is mandatory, it must be supplied in order for the IsInstanceValid function to be callable.
+     * @param L lua state
+     * @return whether the instance is valid or not
+     */
     typedef bool (*ValidateInstanceCallback)(lua_State* L);
 
     /**
@@ -373,7 +379,7 @@ namespace dmScript
      */
     void SetInstance(lua_State* L);
     /**
-     * Check if the value on the top of the stack is valid as an instance, relies on the callback ValidateInstanceCallback being set.
+     * Check if the instance in the lua state is valid. The instance is assumed to have been previously set by SetInstance.
      * @param lua state
      * @return whether the instance is valid
      */

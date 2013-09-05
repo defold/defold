@@ -330,6 +330,8 @@ void HandleProductResult(const Command* cmd)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
 
     if (!dmScript::IsInstanceValid(L))
     {
@@ -338,8 +340,6 @@ void HandleProductResult(const Command* cmd)
         assert(top == lua_gettop(L));
         return;
     }
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
 
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
         dmJson::Document doc;
@@ -389,6 +389,8 @@ void HandlePurchaseResult(const Command* cmd)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
 
     if (!dmScript::IsInstanceValid(L))
     {
@@ -397,8 +399,6 @@ void HandlePurchaseResult(const Command* cmd)
         assert(top == lua_gettop(L));
         return;
     }
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
 
     // TODO: Pass data-signature? (cmd.m_Data2)
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {

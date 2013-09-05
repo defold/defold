@@ -165,13 +165,13 @@ namespace dmScript
         (void)top;
         lua_getglobal(L, SCRIPT_VALIDATE_INSTANCE_CALLBACK);
         ValidateInstanceCallback callback = (ValidateInstanceCallback)lua_touserdata(L, -1);
+        lua_pop(L, 1);
         if (callback == 0x0)
         {
             dmLogFatal("ValidateInstanceCallback not set, impossible to validate.");
         }
         assert(callback != 0x0);
         bool result = callback(L);
-        lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return result;
     }

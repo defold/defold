@@ -102,6 +102,8 @@ static void RunStateCallback()
 
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
 
         if (!dmScript::IsInstanceValid(L))
         {
@@ -110,8 +112,6 @@ static void RunStateCallback()
             assert(top == lua_gettop(L));
             return;
         }
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
 
         lua_pushnumber(L, (lua_Number) state);
         PushError(L, error);
@@ -141,6 +141,8 @@ static void RunCallback()
 
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
 
         if (!dmScript::IsInstanceValid(L))
         {
@@ -149,8 +151,6 @@ static void RunCallback()
             assert(top == lua_gettop(L));
             return;
         }
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
 
         lua_pushnil(L);
         PushError(L, error);

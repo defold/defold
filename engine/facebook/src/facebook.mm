@@ -146,6 +146,8 @@ static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
 
         if (!dmScript::IsInstanceValid(L))
         {
@@ -154,8 +156,7 @@ static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
             assert(top == lua_gettop(L));
             return;
         }
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
+
         lua_pushnumber(L, (lua_Number) status);
         PushError(L, error);
 
@@ -182,6 +183,8 @@ static void RunCallback(lua_State*L, NSError* error)
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
 
         if (!dmScript::IsInstanceValid(L))
         {
@@ -190,8 +193,7 @@ static void RunCallback(lua_State*L, NSError* error)
             assert(top == lua_gettop(L));
             return;
         }
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
+
         PushError(L, error);
 
         int ret = lua_pcall(L, 2, LUA_MULTRET, 0);

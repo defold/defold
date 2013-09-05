@@ -1846,7 +1846,6 @@ namespace dmGui
     uintptr_t ScriptGetUserDataCallback(lua_State* L)
     {
         Scene* scene = GetScene(L);
-
         return scene->m_Context->m_GetUserDataCallback(scene);
     }
 
