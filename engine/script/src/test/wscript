@@ -116,3 +116,13 @@ def build(bld):
 
     test_script_zlib.install_path = None
 
+    test_script_image = bld.new_task_gen(features = 'cxx cprogram',
+                                       includes = '..',
+                                       uselib = libs,
+                                       uselib_local = 'script',
+                                       proto_gen_py = True,
+                                       target = 'test_script_image',
+                                       source = 'test_script_image.cpp test_image.lua')
+
+    test_script_image.install_path = None
+

@@ -1049,6 +1049,93 @@ namespace dmGui
         return 0;
     }
 
+    static dmImage::Type ToImageType(lua_State*L, const char* type_str)
+    {
+        if (strcmp(type_str, "rgb") == 0) {
+            return dmImage::TYPE_RGB;
+        } else if (strcmp(type_str, "rgba") == 0) {
+            return dmImage::TYPE_RGBA;
+        } else if (strcmp(type_str, "l") == 0) {
+            return dmImage::TYPE_LUMINANCE;
+        } else {
+            luaL_error(L, "unsupported texture format '%s'", type_str);
+        }
+
+        // never reached
+        return (dmImage::Type) 0;
+    }
+
+    static int LuaNewTexture(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        const char* name = luaL_checkstring(L, 1);
+        int width = luaL_checkinteger(L, 2);
+        int height = luaL_checkinteger(L, 3);
+        const char* type_str = luaL_checkstring(L, 4);
+        size_t buffer_size;
+        luaL_checktype(L, 5, LUA_TSTRING);
+        const char* buffer = lua_tolstring(L, 5, &buffer_size);
+        Scene* scene = GetScene(L);
+
+        dmImage::Type type = ToImageType(L, type_str);
+        Result r = NewDynamicTexture(scene, name, width, height, type, buffer, buffer_size);
+        if (r == RESULT_OK) {
+            lua_pushboolean(L, 1);
+        } else {
+            dmLogWarning("Failed to create dynamic gui texture (%d)", r);
+            lua_pushboolean(L, 0);
+        }
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    static int LuaDeleteTexture(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        const char* name = luaL_checkstring(L, 1);
+
+        Scene* scene = GetScene(L);
+
+        Result r = DeleteDynamicTexture(scene, name);
+        if (r != RESULT_OK) {
+            luaL_error(L, "failed to delete texture '%s' (%d)", name, r);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    static int LuaSetTextureData(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        const char* name = luaL_checkstring(L, 1);
+        int width = luaL_checkinteger(L, 2);
+        int height = luaL_checkinteger(L, 3);
+        const char* type_str = luaL_checkstring(L, 4);
+        size_t buffer_size;
+        luaL_checktype(L, 5, LUA_TSTRING);
+        const char* buffer = lua_tolstring(L, 5, &buffer_size);
+        Scene* scene = GetScene(L);
+
+        dmImage::Type type = ToImageType(L, type_str);
+        Result r = SetDynamicTextureData(scene, name, width, height, type, buffer, buffer_size);
+        if (r == RESULT_OK) {
+            lua_pushboolean(L, 1);
+        } else {
+            dmLogWarning("Failed to set texture data (%d)", r);
+            lua_pushboolean(L, 0);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# gets the node font
      * This is only useful for text nodes. The font must be mapped to the gui scene in the gui editor.
      *
@@ -1702,6 +1789,9 @@ namespace dmGui
         {"set_blend_mode",  LuaSetBlendMode},
         {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
+        {"new_texture",     LuaNewTexture},
+        {"delete_texture",  LuaDeleteTexture},
+        {"set_texture_data",LuaSetTextureData},
         {"get_font",        LuaGetFont},
         {"set_font",        LuaSetFont},
         {"get_xanchor",     LuaGetXAnchor},

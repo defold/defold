@@ -7,6 +7,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/easing.h>
+#include <dlib/image.h>
 #include <hid/hid.h>
 
 #include <script/script.h>
@@ -114,6 +115,8 @@ namespace dmGui
         RESULT_SCRIPT_ERROR = -2,
         RESULT_OUT_OF_RESOURCES = -4,
         RESULT_RESOURCE_NOT_FOUND = -5,
+        RESULT_TEXTURE_ALREADY_EXISTS = -6,
+        RESULT_INVAL_ERROR = -7,
     };
 
     enum Property
@@ -236,11 +239,50 @@ namespace dmGui
         uint16_t m_PositionSet : 1;
     };
 
+    /**
+     * Render nodes callback
+     * @param scene
+     * @param nodes
+     * @param node_transforms
+     * @param node_count
+     * @param context
+     */
     typedef void (*RenderNodes)(HScene scene,
                                HNode* nodes,
                                const Vectormath::Aos::Matrix4* node_transforms,
                                uint32_t node_count,
                                void* context);
+
+    /**
+     * New texture callback
+     * @param scene
+     * @param width
+     * @param height
+     * @param type
+     * @param buffer
+     * @param context
+     */
+    typedef void* (*NewTexture)(HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context);
+
+    /**
+     * Delete texture callback
+     * @param scene
+     * @param texture
+     * @param context
+     */
+    typedef void (*DeleteTexture)(HScene scene, void* texture, void* context);
+
+    /**
+     * Set texture (update) callback
+     * @param scene
+     * @param texture
+     * @param width
+     * @param height
+     * @param type
+     * @param buffer
+     * @param context
+     */
+    typedef void (*SetTextureData)(HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context);
 
     typedef void (*AnimationComplete)(HScene scene,
                                       HNode node,
@@ -272,6 +314,7 @@ namespace dmGui
      * @return Outcome of the operation
      */
     Result AddTexture(HScene scene, const char* texture_name, void* texture);
+
     /**
      * Removes a texture with the specified name from the scene.
      * @note Any nodes connected to the same texture_name will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
@@ -279,12 +322,48 @@ namespace dmGui
      * @param texture_name Name of the texture that will be used in the gui scripts
      */
     void RemoveTexture(HScene scene, const char* texture_name);
+
     /**
-     * Remove all textures from the scene.
+     * Remove all static textures from the scene.
+     * @note User created textures are not removed
      * @note Every node will also be disconnected from the texture they are already connected to, if any. This makes this function O(n), where n is #nodes.
      * @param scene Scene to clear from textures
      */
     void ClearTextures(HScene scene);
+
+    /**
+     * Create a new dynamic texture
+     * @param scene
+     * @param texture_name
+     * @param width
+     * @param height
+     * @param type
+     * @param buffer
+     * @param buffer_size
+     * @return
+     */
+    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Delete dynamic texture
+     * @param scene
+     * @param texture_name
+     * @return
+     */
+    Result DeleteDynamicTexture(HScene scene, const char* texture_name);
+
+    /**
+     * Update dynamic texture
+     * @param scene
+     * @param texture_name
+     * @param width
+     * @param height
+     * @param type
+     * @param buffer
+     * @param buffer_size
+     * @return
+     */
+    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
 
     /**
      * Adds a font with the specified name to the scene.
@@ -318,6 +397,21 @@ namespace dmGui
      * @param context User-defined context that will be passed to the callback function
      */
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context);
+
+    struct RenderSceneParams
+    {
+        RenderSceneParams()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+
+        RenderNodes     m_RenderNodes;
+        NewTexture      m_NewTexture;
+        DeleteTexture   m_DeleteTexture;
+        SetTextureData  m_SetTextureData;
+    };
+
+    void RenderScene(HScene scene, const RenderSceneParams& params, void* context);
 
     /**
      * Run the init-function of the scene script.

@@ -5,6 +5,7 @@
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
 #include <dlib/easing.h>
+#include <dlib/image.h>
 
 #include "gui.h"
 
@@ -112,6 +113,23 @@ namespace dmGui
         Context*    m_Context;
     };
 
+    struct DynamicTexture
+    {
+        DynamicTexture(void* handle)
+        {
+            memset(this, 0, sizeof(*this));
+            m_Handle = handle;
+            m_Type = (dmImage::Type) -1;
+        }
+        void*           m_Handle;
+        uint32_t        m_Created : 1;
+        uint32_t        m_Deleted : 1;
+        uint32_t        m_Width;
+        uint32_t        m_Height;
+        void*           m_Buffer;
+        dmImage::Type   m_Type;
+    };
+
     struct Scene
     {
         Scene();
@@ -125,6 +143,8 @@ namespace dmGui
         dmArray<Animation>      m_Animations;
         dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
+        dmHashTable64<DynamicTexture> m_DynamicTextures;
+        dmArray<dmhash_t>       m_DeletedDynamicTextures;
         void*                   m_DefaultFont;
         void*                   m_UserData;
         uint16_t                m_RenderHead;

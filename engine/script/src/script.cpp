@@ -10,6 +10,7 @@
 #include "script_vmath.h"
 #include "script_sys.h"
 #include "script_module.h"
+#include "script_image.h"
 #include "script_json.h"
 #include "script_http.h"
 #include "script_zlib.h"
@@ -55,6 +56,7 @@ namespace dmScript
         InitializeVmath(L);
         InitializeSys(L);
         InitializeModule(L);
+        InitializeImage(L);
         InitializeJson(L);
         InitializeHttp(L);
         InitializeZlib(L);

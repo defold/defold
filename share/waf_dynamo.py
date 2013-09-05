@@ -662,24 +662,29 @@ def create_copy_glue(self):
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
     in_file = open(task.inputs[0].bldpath(task.env), 'rb')
-    out_file = open(task.outputs[0].bldpath(task.env), 'wb')
+    cpp_out_file = open(task.outputs[0].bldpath(task.env), 'wb')
+    h_out_file = open(task.outputs[1].bldpath(task.env), 'wb')
 
     cpp_str = """
 #include <stdint.h>
 unsigned char %s[] =
 """
-    out_file.write(cpp_str % (symbol))
-    out_file.write('{\n    ')
+    cpp_out_file.write(cpp_str % (symbol))
+    cpp_out_file.write('{\n    ')
 
     data = in_file.read()
     for i,x in enumerate(data):
-        out_file.write('0x%X, ' % ord(x))
+        cpp_out_file.write('0x%X, ' % ord(x))
         if i > 0 and i % 4 == 0:
-            out_file.write('\n    ')
-    out_file.write('\n};\n')
-    out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
+            cpp_out_file.write('\n    ')
+    cpp_out_file.write('\n};\n')
+    cpp_out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
 
-    out_file.close()
+    h_out_file.write('extern unsigned char %s[];\n' % (symbol))
+    h_out_file.write('extern uint32_t %s_SIZE;\n' % (symbol))
+
+    cpp_out_file.close()
+    h_out_file.close()
 
     m = Utils.md5()
     m.update(data)
@@ -718,10 +723,11 @@ def embed_file(self):
     for name in Utils.to_list(self.embed_source):
         node = self.path.find_resource(name)
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
+        h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
         task = self.create_task('embed_file')
         task.set_inputs(node)
-        task.set_outputs(cc_out)
+        task.set_outputs([cc_out, h_out])
         self.allnodes.append(cc_out)
 
 def do_find_file(file_name, path_list):

@@ -342,11 +342,12 @@ def build(bld):
 
     test_easing.install_path = None
 
-    test_json = bld.new_task_gen(features = 'cxx cprogram',
+    test_json = bld.new_task_gen(features = 'cxx cprogram embed',
                                 source = 'test_json.cpp',
+                                embed_source = 'data/flickr.json',
                                 uselib = 'GTEST THREAD',
                                 uselib_local = "dlib",
-                                includes = ['../../src'],
+                                includes = ['../../src', '.'],
                                 target = 'test_json')
 
     test_json.install_path = None
@@ -370,3 +371,12 @@ def build(bld):
 
     test_zlib.install_path = None
 
+    test_image = bld.new_task_gen(features = 'cxx cprogram embed',
+                                 source = 'test_image.cpp',
+                                 embed_source = 'data/color_check_2x2.png data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = '../../src .',
+                                 target = 'test_image')
+
+    test_image.install_path = None
