@@ -146,7 +146,14 @@ static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        lua_push(L, -1);
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+        lua_pushvalue(L, -1);
         dmScript::SetInstance(L);
         lua_pushnumber(L, (lua_Number) status);
         PushError(L, error);
@@ -174,7 +181,14 @@ static void RunCallback(lua_State*L, NSError* error)
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        lua_push(L, -1);
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+        lua_pushvalue(L, -1);
         dmScript::SetInstance(L);
         PushError(L, error);
 
