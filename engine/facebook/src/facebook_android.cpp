@@ -5,7 +5,6 @@
 #include <extension/extension.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <script/script.h>
 
 #include <pthread.h>
 #include <unistd.h>
@@ -54,7 +53,6 @@ struct Facebook
     {
         memset(this, 0, sizeof(*this));
         m_Callback = LUA_NOREF;
-        m_Self = LUA_NOREF;
     }
 
     jobject m_FB;
@@ -66,7 +64,6 @@ struct Facebook
     jmethodID m_RequestReadPermissions;
     jmethodID m_RequestPublishPermissions;
     int m_Callback;
-    int m_Self;
     int m_Pipefd[2];
     CBData m_CBData;
 };
@@ -90,28 +87,16 @@ static void RunStateCallback()
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         lua_State* L = g_Facebook.m_CBData.m_L;
-
         int state = g_Facebook.m_CBData.m_State;
         const char* error = g_Facebook.m_CBData.m_Error;
 
         int top = lua_gettop(L);
 
+        // TODO: How to get self-reference? See case 2247
         int callback = g_Facebook.m_Callback;
         g_Facebook.m_Callback = LUA_NOREF;
         lua_rawgeti(L, LUA_REGISTRYINDEX, callback);
-
-        // Setup self
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        if (!dmScript::IsInstanceValid(L))
-        {
-            dmLogError("Could not run facebook callback because the instance has been deleted.");
-            lua_pop(L, 2);
-            assert(top == lua_gettop(L));
-            return;
-        }
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
-
+        lua_pushnil(L);
         lua_pushnumber(L, (lua_Number) state);
         PushError(L, error);
 
@@ -135,21 +120,9 @@ static void RunCallback()
 
         int top = lua_gettop(L);
 
+        // TODO: How to get self-reference? See case 2247
         int callback = g_Facebook.m_Callback;
         lua_rawgeti(L, LUA_REGISTRYINDEX, callback);
-
-        // Setup self
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        if (!dmScript::IsInstanceValid(L))
-        {
-            dmLogError("Could not run facebook callback because the instance has been deleted.");
-            lua_pop(L, 2);
-            assert(top == lua_gettop(L));
-            return;
-        }
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
-
         lua_pushnil(L);
         PushError(L, error);
 
@@ -290,14 +263,12 @@ static void Detach()
     g_AndroidApp->activity->vm->DetachCurrentThread();
 }
 
-static void VerifyCallback(lua_State* L)
+void VerifyCallback(lua_State* L)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
         luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
-        g_Facebook.m_Self = LUA_NOREF;
     }
 }
 
@@ -309,9 +280,6 @@ int Facebook_Login(lua_State* L)
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     JNIEnv* env = Attach();
 
@@ -364,9 +332,6 @@ int Facebook_RequestReadPermissions(lua_State* L)
     lua_pushvalue(L, top);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
-
     char permissions[512];
     AppendArray(L, permissions, 512, top-1);
 
@@ -392,9 +357,6 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     luaL_checktype(L, top, LUA_TFUNCTION);
     lua_pushvalue(L, top);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
-
-    dmScript::GetInstance(L);
-    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     char permissions[512];
     AppendArray(L, permissions, 512, top-2);

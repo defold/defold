@@ -69,7 +69,8 @@ namespace dmGameObject
 
     static ScriptInstance* GetScriptInstance(lua_State *L)
     {
-        dmScript::GetInstance(L);
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
         return i;
@@ -148,7 +149,7 @@ namespace dmGameObject
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
     {
         ScriptInstance* i = GetScriptInstance(L);
-        if (i == NULL) luaL_error(L, "Lua state did not contain any script component.");
+        if (i == NULL) luaL_error(L, "Lua state did not contain any '%s'.", SCRIPT_INSTANCE_NAME);
         return i;
     }
 
@@ -700,8 +701,9 @@ namespace dmGameObject
 
         if (finished)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            dmScript::SetInstance(L);
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+            lua_pushlightuserdata(L, (void*) script_instance);
+            lua_rawset(L, LUA_GLOBALSINDEX);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
@@ -715,8 +717,9 @@ namespace dmGameObject
                 lua_pop(L, 1);
             }
 
+            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
-            dmScript::SetInstance(L);
+            lua_rawset(L, LUA_GLOBALSINDEX);
         }
 
         lua_unref(L, ref);
@@ -1057,7 +1060,8 @@ namespace dmGameObject
 
     void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        dmScript::GetInstance(L);
+        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
+        lua_rawget(L, LUA_GLOBALSINDEX);
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
 
@@ -1109,12 +1113,6 @@ namespace dmGameObject
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         return (uintptr_t)i->m_Instance;
-    }
-
-    bool ValidateInstanceCallback(lua_State* L)
-    {
-        ScriptInstance* i = GetScriptInstance(L);
-        return i != 0x0 && i->m_Instance != 0x0;
     }
 
     static const luaL_reg Script_methods[] =
@@ -1233,7 +1231,6 @@ namespace dmGameObject
         params.m_GetURLCallback = GetURLCallback;
         params.m_ResolvePathCallback = ResolvePathCallback;
         params.m_GetUserDataCallback = GetUserDataCallback;
-        params.m_ValidateInstanceCallback = ValidateInstanceCallback;
         dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
@@ -1535,8 +1532,6 @@ bail:
         luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         DeleteProperties(script_instance->m_Properties);
-
-        *script_instance = ScriptInstance();
 
         assert(top == lua_gettop(L));
     }

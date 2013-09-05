@@ -21,85 +21,6 @@ namespace dmGui
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
-    static Scene* GetScene(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        (void) top;
-        dmScript::GetInstance(L);
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
-        return scene;
-    }
-
-    static Scene* GuiScriptInstance_Check(lua_State *L, int index)
-    {
-        Scene* i;
-        luaL_checktype(L, index, LUA_TUSERDATA);
-        i = (Scene*)luaL_checkudata(L, index, GUI_SCRIPT_INSTANCE);
-        if (i == NULL) luaL_typerror(L, index, GUI_SCRIPT_INSTANCE);
-        return i;
-    }
-
-    static int GuiScriptInstance_gc (lua_State *L)
-    {
-        Scene* i = GuiScriptInstance_Check(L, 1);
-        memset(i, 0, sizeof(*i));
-        (void) i;
-        assert(i);
-        return 0;
-    }
-
-    static int GuiScriptInstance_tostring (lua_State *L)
-    {
-        lua_pushfstring(L, "GuiScript: %p", lua_touserdata(L, 1));
-        return 1;
-    }
-
-    static int GuiScriptInstance_index(lua_State *L)
-    {
-        Scene* i = GuiScriptInstance_Check(L, 1);
-        assert(i);
-
-        // Try to find value in instance data
-        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_DataReference);
-        lua_pushvalue(L, 2);
-        lua_gettable(L, -2);
-        return 1;
-    }
-
-    static int GuiScriptInstance_newindex(lua_State *L)
-    {
-        int top = lua_gettop(L);
-
-        Scene* i = GuiScriptInstance_Check(L, 1);
-        assert(i);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_DataReference);
-        lua_pushvalue(L, 2);
-        lua_pushvalue(L, 3);
-        lua_settable(L, -3);
-        lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
-
-        return 0;
-    }
-
-    static const luaL_reg GuiScriptInstance_methods[] =
-    {
-        {0,0}
-    };
-
-    static const luaL_reg GuiScriptInstance_meta[] =
-    {
-        {"__gc",        GuiScriptInstance_gc},
-        {"__tostring",  GuiScriptInstance_tostring},
-        {"__index",     GuiScriptInstance_index},
-        {"__newindex",  GuiScriptInstance_newindex},
-        {0, 0}
-    };
-
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
         NodeProxy* n;
@@ -107,6 +28,17 @@ namespace dmGui
         n = (NodeProxy*)luaL_checkudata(L, index, NODE_PROXY_TYPE_NAME);
         if (n == NULL) luaL_typerror(L, index, NODE_PROXY_TYPE_NAME);
         return n;
+    }
+
+    static Scene* GetScene(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+        lua_getglobal(L, "__scene__");
+        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return scene;
     }
 
     static bool LuaIsNode(lua_State *L, int ud)
@@ -376,13 +308,13 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-        dmScript::SetInstance(L);
+        lua_pushlightuserdata(L, (void*) scene);
+        lua_setglobal(L, "__scene__");
 
         int ref = (int) userdata1;
         int node_ref = (int) userdata2;
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
         lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
         assert(lua_type(L, -3) == LUA_TFUNCTION);
 
@@ -396,8 +328,8 @@ namespace dmGui
         lua_unref(L, ref);
         lua_unref(L, node_ref);
 
-        lua_pushnil(L);
-        dmScript::SetInstance(L);
+        lua_pushlightuserdata(L, (void*) 0x0);
+        lua_setglobal(L, "__scene__");
 
         assert(top == lua_gettop(L));
     }
@@ -1850,12 +1782,6 @@ namespace dmGui
         return scene->m_Context->m_GetUserDataCallback(scene);
     }
 
-    bool ScriptValidateInstanceCallback(lua_State* L)
-    {
-        Scene* scene = GetScene(L);
-        return scene != 0x0 && scene->m_Context != 0x0;
-    }
-
     /*# position property
      *
      * @name gui.PROP_POSITION
@@ -2029,19 +1955,7 @@ namespace dmGui
         params.m_GetURLCallback = ScriptGetURLCallback;
         params.m_GetUserDataCallback = ScriptGetUserDataCallback;
         params.m_ResolvePathCallback = ScriptResolvePathCallback;
-        params.m_ValidateInstanceCallback = ScriptValidateInstanceCallback;
         dmScript::Initialize(L, params);
-
-        luaL_register(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods);   // create methods table, add it to the globals
-        lua_pop(L, 1);
-
-        luaL_newmetatable(L, GUI_SCRIPT_INSTANCE);                         // create metatable for Image, add it to the Lua registry
-        luaL_register(L, 0, GuiScriptInstance_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, -3);                       // dup methods table
-        lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
-        lua_pop(L, 1);                              // drop metatable
 
         luaL_register(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods);   // create methods table, add it to the globals
         lua_pop(L, 1);
