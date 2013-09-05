@@ -5,6 +5,7 @@
 #include <extension/extension.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <script/script.h>
 
 #include <pthread.h>
 #include <unistd.h>
@@ -101,7 +102,15 @@ static void RunStateCallback()
 
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        lua_push(L, -1);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+        lua_pushvalue(L, -1);
         dmScript::SetInstance(L);
 
         lua_pushnumber(L, (lua_Number) state);
@@ -132,7 +141,15 @@ static void RunCallback()
 
         // Setup self
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
-        lua_push(L, -1);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+        lua_pushvalue(L, -1);
         dmScript::SetInstance(L);
 
         lua_pushnil(L);
@@ -275,7 +292,7 @@ static void Detach()
     g_AndroidApp->activity->vm->DetachCurrentThread();
 }
 
-void VerifyCallback(lua_State* L)
+static void VerifyCallback(lua_State* L)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");

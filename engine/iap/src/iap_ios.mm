@@ -5,6 +5,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <extension/extension.h>
+#include <script/script.h>
 
 #define LIB_NAME "iap"
 
@@ -77,7 +78,15 @@ static void PushError(lua_State*L, NSError* error)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
-    lua_push(L, -1);
+
+    if (!dmScript::IsInstanceValid(L))
+    {
+        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        lua_pop(L, 2);
+        assert(top == lua_gettop(L));
+        return;
+    }
+    lua_pushvalue(L, -1);
     dmScript::SetInstance(L);
 
     lua_newtable(L);
@@ -145,7 +154,15 @@ static void PushError(lua_State*L, NSError* error)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
-    lua_push(L, -1);
+
+    if (!dmScript::IsInstanceValid(L))
+    {
+        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        lua_pop(L, 2);
+        assert(top == lua_gettop(L));
+        return;
+    }
+    lua_pushvalue(L, -1);
     dmScript::SetInstance(L);
 
     lua_pushnil(L);
@@ -213,7 +230,15 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, self);
-    lua_push(L, -1);
+
+    if (!dmScript::IsInstanceValid(L))
+    {
+        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        lua_pop(L, 2);
+        assert(top == lua_gettop(L));
+        return;
+    }
+    lua_pushvalue(L, -1);
     dmScript::SetInstance(L);
 
     PushTransaction(L, transaction);

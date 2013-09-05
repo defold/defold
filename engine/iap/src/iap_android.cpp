@@ -5,6 +5,7 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/json.h>
+#include <script/script.h>
 #include <extension/extension.h>
 #include <android_native_app_glue.h>
 
@@ -102,7 +103,7 @@ struct IAP
 
 IAP g_IAP;
 
-void VerifyCallback(lua_State* L)
+static void VerifyCallback(lua_State* L)
 {
     if (g_IAP.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
@@ -329,7 +330,15 @@ void HandleProductResult(const Command* cmd)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
-    lua_push(L, -1);
+
+    if (!dmScript::IsInstanceValid(L))
+    {
+        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        lua_pop(L, 2);
+        assert(top == lua_gettop(L));
+        return;
+    }
+    lua_pushvalue(L, -1);
     dmScript::SetInstance(L);
 
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
@@ -380,7 +389,15 @@ void HandlePurchaseResult(const Command* cmd)
 
     // Setup self
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
-    lua_push(L, -1);
+
+    if (!dmScript::IsInstanceValid(L))
+    {
+        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        lua_pop(L, 2);
+        assert(top == lua_gettop(L));
+        return;
+    }
+    lua_pushvalue(L, -1);
     dmScript::SetInstance(L);
 
     // TODO: Pass data-signature? (cmd.m_Data2)
