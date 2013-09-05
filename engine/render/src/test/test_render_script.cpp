@@ -555,6 +555,54 @@ TEST_F(dmRenderScriptTest, TestDrawText)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+#define REF_VALUE "__ref_value"
+
+int TestRef(lua_State* L)
+{
+    lua_getglobal(L, REF_VALUE);
+    int* ref = (int*)lua_touserdata(L, -1);
+    dmScript::GetInstance(L);
+    *ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pop(L, 1);
+    return 0;
+}
+
+TEST_F(dmRenderScriptTest, TestInstanceCallback)
+{
+    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+
+    lua_register(L, "test_ref", TestRef);
+
+    int ref = LUA_NOREF;
+
+    lua_pushlightuserdata(L, &ref);
+    lua_setglobal(L, REF_VALUE);
+
+    const char* script =
+        "function init(self)\n"
+        "    test_ref()\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    ASSERT_NE(ref, LUA_NOREF);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    dmScript::SetInstance(L);
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    dmScript::SetInstance(L);
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+}
+
+#undef REF_VALUE
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

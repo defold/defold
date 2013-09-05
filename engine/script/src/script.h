@@ -57,6 +57,8 @@ namespace dmScript
      */
     typedef void (*GetURLCallback)(lua_State* L, dmMessage::URL* out_url);
 
+    typedef bool (*ValidateInstanceCallback)(lua_State* L);
+
     /**
      * Callback used to retrieve message user data
      * Implementations of this callback are expected to return appropriate user data given the lua state.
@@ -87,6 +89,7 @@ namespace dmScript
         ResolvePathCallback m_ResolvePathCallback;
         GetURLCallback m_GetURLCallback;
         GetUserDataCallback m_GetUserDataCallback;
+        ValidateInstanceCallback m_ValidateInstanceCallback;
     };
 
     /**
@@ -359,6 +362,22 @@ namespace dmScript
      */
     bool ModuleLoaded(HContext context, dmhash_t module_hash);
 
+    /**
+     * Retrieve current instance from the global table and place it on the top of the stack, only valid when set.
+     * @param lua state
+     */
+    void GetInstance(lua_State* L);
+    /**
+     * Set the value on the top of the stack as the instance into the global table.
+     * @param lua state
+     */
+    void SetInstance(lua_State* L);
+    /**
+     * Check if the value on the top of the stack is valid as an instance, relies on the callback ValidateInstanceCallback being set.
+     * @param lua state
+     * @return whether the instance is valid
+     */
+    bool IsInstanceValid(lua_State* L);
 }
 
 #endif // DM_SCRIPT_H

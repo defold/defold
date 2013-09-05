@@ -68,9 +68,11 @@ struct IAPListener
     {
         m_L = 0;
         m_Callback = LUA_NOREF;
+        m_Self = LUA_NOREF;
     }
     lua_State* m_L;
     int        m_Callback;
+    int        m_Self;
 };
 
 struct IAP
@@ -79,10 +81,13 @@ struct IAP
     {
         memset(this, 0, sizeof(*this));
         m_Callback = LUA_NOREF;
+        m_Self = LUA_NOREF;
         m_Listener.m_Callback = LUA_NOREF;
+        m_Listener.m_Self = LUA_NOREF;
     }
     int                  m_InitCount;
     int                  m_Callback;
+    int                  m_Self;
     lua_State*           m_L;
     IAPListener          m_Listener;
 
@@ -97,15 +102,22 @@ struct IAP
 
 IAP g_IAP;
 
-int IAP_List(lua_State* L)
+void VerifyCallback(lua_State* L)
 {
-    int top = lua_gettop(L);
     if (g_IAP.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
         luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+        luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
         g_IAP.m_Callback = LUA_NOREF;
+        g_IAP.m_Self = LUA_NOREF;
         g_IAP.m_L = 0;
     }
+}
+
+int IAP_List(lua_State* L)
+{
+    int top = lua_gettop(L);
+    VerifyCallback(L);
 
     char buf[1024];
     buf[0] = '\0';
@@ -125,6 +137,10 @@ int IAP_List(lua_State* L)
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
     g_IAP.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    g_IAP.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+
     g_IAP.m_L = L;
 
     JNIEnv* env = Attach();
@@ -177,10 +193,14 @@ int IAP_SetListener(lua_State* L)
 
     if (iap->m_Listener.m_Callback != LUA_NOREF) {
         luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Callback);
+        luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
     }
 
     iap->m_Listener.m_L = L;
     iap->m_Listener.m_Callback = cb;
+
+    dmScript::GetInstance(L);
+    iap->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     return 0;
 }
@@ -306,8 +326,11 @@ void HandleProductResult(const Command* cmd)
     }
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    // TODO: How to get self-reference? See case 2247
-    lua_pushnil(L);
+
+    // Setup self
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    lua_push(L, -1);
+    dmScript::SetInstance(L);
 
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
         dmJson::Document doc;
@@ -335,8 +358,9 @@ void HandleProductResult(const Command* cmd)
     }
 
     luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
     g_IAP.m_Callback = LUA_NOREF;
-
+    g_IAP.m_Self = LUA_NOREF;
 
     assert(top == lua_gettop(L));
 }
@@ -353,8 +377,11 @@ void HandlePurchaseResult(const Command* cmd)
 
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
-    // TODO: How to get self-reference? See case 2247
-    lua_pushnil(L);
+
+    // Setup self
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
+    lua_push(L, -1);
+    dmScript::SetInstance(L);
 
     // TODO: Pass data-signature? (cmd.m_Data2)
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
@@ -490,8 +517,10 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
 
     if (params->m_L == g_IAP.m_Listener.m_L && g_IAP.m_Listener.m_Callback != LUA_NOREF) {
         luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
+        luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
         g_IAP.m_Listener.m_L = 0;
         g_IAP.m_Listener.m_Callback = LUA_NOREF;
+        g_IAP.m_Listener.m_Self = LUA_NOREF;
     }
 
     if (g_IAP.m_InitCount == 0) {

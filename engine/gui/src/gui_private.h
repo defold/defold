@@ -19,6 +19,8 @@ namespace dmGui
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
     extern const uint16_t INVALID_INDEX;
 
+    #define GUI_SCRIPT_INSTANCE "GuiScriptInstance"
+
     enum ScriptFunction
     {
         SCRIPT_FUNCTION_INIT,
@@ -130,7 +132,10 @@ namespace dmGui
 
     struct Scene
     {
-        int                     m_SelfReference;
+        Scene();
+
+        int                     m_InstanceReference;
+        int                     m_DataReference;
         Context*                m_Context;
         Script*                 m_Script;
         dmIndexPool16           m_NodePool;

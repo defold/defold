@@ -20,9 +20,11 @@ struct IAPListener
     {
         m_L = 0;
         m_Callback = LUA_NOREF;
+        m_Self = LUA_NOREF;
     }
     lua_State* m_L;
     int        m_Callback;
+    int        m_Self;
 };
 
 struct IAP
@@ -30,10 +32,12 @@ struct IAP
     IAP()
     {
         m_Callback = LUA_NOREF;
+        m_Self = LUA_NOREF;
         m_InitCount = 0;
     }
     int                  m_InitCount;
     int                  m_Callback;
+    int                  m_Self;
     IAPListener          m_Listener;
     SKPaymentTransactionObserver* m_Observer;
 };
@@ -70,8 +74,12 @@ static void PushError(lua_State*L, NSError* error)
     int top = lua_gettop(L);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    // TODO: How to get self-reference? See case 2247
-    lua_pushnil(L);
+
+    // Setup self
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    lua_push(L, -1);
+    dmScript::SetInstance(L);
+
     lua_newtable(L);
     for (SKProduct * p in skProducts) {
 
@@ -114,7 +122,9 @@ static void PushError(lua_State*L, NSError* error)
     }
 
     luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
     g_IAP.m_Callback = LUA_NOREF;
+    g_IAP.m_Self = LUA_NOREF;
 
     assert(top == lua_gettop(L));
     [self release];
@@ -131,9 +141,13 @@ static void PushError(lua_State*L, NSError* error)
         return;
     }
 
-    // TODO: How to get self-reference? See case 2247
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    lua_pushnil(L);
+
+    // Setup self
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    lua_push(L, -1);
+    dmScript::SetInstance(L);
+
     lua_pushnil(L);
     PushError(L, error);
 
@@ -144,7 +158,9 @@ static void PushError(lua_State*L, NSError* error)
     }
 
     luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+    luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
     g_IAP.m_Callback = LUA_NOREF;
+    g_IAP.m_Self = LUA_NOREF;
 
     assert(top == lua_gettop(L));
     [self release];
@@ -189,13 +205,17 @@ static void PushTransaction(lua_State* L, SKPaymentTransaction* transaction)
     }
 }
 
-void RunTransactionCallback(lua_State* L, int cb, SKPaymentTransaction* transaction)
+void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction* transaction)
 {
     int top = lua_gettop(L);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, cb);
-    // TODO: How to get self-reference? See case 2247
-    lua_pushnil(L);
+
+    // Setup self
+    lua_rawgeti(L, LUA_REGISTRYINDEX, self);
+    lua_push(L, -1);
+    dmScript::SetInstance(L);
+
     PushTransaction(L, transaction);
 
     if (transaction.transactionState == SKPaymentTransactionStateFailed) {
@@ -221,7 +241,7 @@ void RunTransactionCallback(lua_State* L, int cb, SKPaymentTransaction* transact
             bool has_listener = false;
             if (self.m_IAP->m_Listener.m_Callback != LUA_NOREF) {
                 const IAPListener& l = self.m_IAP->m_Listener;
-                RunTransactionCallback(l.m_L, l.m_Callback, transaction);
+                RunTransactionCallback(l.m_L, l.m_Callback, l.m_Self, transaction);
                 has_listener = true;
             }
 
@@ -281,7 +301,9 @@ int IAP_List(lua_State* L)
     if (g_IAP.m_Callback != LUA_NOREF) {
         dmLogError("Unexpected callback set");
         luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
+        luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
         g_IAP.m_Callback = LUA_NOREF;
+        g_IAP.m_Self = LUA_NOREF;
     }
 
     NSCountedSet* product_identifiers = [[[NSCountedSet alloc] init] autorelease];
@@ -296,6 +318,9 @@ int IAP_List(lua_State* L)
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
     g_IAP.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    g_IAP.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     SKProductsRequest* products_request = [[SKProductsRequest alloc] initWithProductIdentifiers: product_identifiers];
     SKProductsRequestDelegate* delegate = [SKProductsRequestDelegate alloc];
@@ -388,10 +413,14 @@ int IAP_SetListener(lua_State* L)
 
     if (iap->m_Listener.m_Callback != LUA_NOREF) {
         luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Callback);
+        luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
     }
 
     iap->m_Listener.m_L = L;
     iap->m_Listener.m_Callback = cb;
+
+    dmScript::GetInstance(L);
+    iap->m_Listener.m_Self = self;
 
     if (g_IAP.m_Observer == 0) {
         SKPaymentTransactionObserver* observer = [[SKPaymentTransactionObserver alloc] init];
@@ -475,8 +504,10 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
 
     if (params->m_L == g_IAP.m_Listener.m_L && g_IAP.m_Listener.m_Callback != LUA_NOREF) {
         luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
+        luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
         g_IAP.m_Listener.m_L = 0;
         g_IAP.m_Listener.m_Callback = LUA_NOREF;
+        g_IAP.m_Listener.m_Self = LUA_NOREF;
     }
 
     if (g_IAP.m_InitCount == 0) {

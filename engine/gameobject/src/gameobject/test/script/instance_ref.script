@@ -1,0 +1,3 @@
+function init(self)
+    test_ref()
+end
