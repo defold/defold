@@ -1,6 +1,7 @@
 #include "gui.h"
 
 #include <string.h>
+#include <new>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -148,10 +149,25 @@ namespace dmGui
         params->m_MaxFonts = 4;
     }
 
+    Scene::Scene()
+    {
+        memset(this, 0, sizeof(Scene));
+    }
+
     HScene NewScene(HContext context, const NewSceneParams* params)
     {
-        Scene* scene = new Scene();
-        scene->m_SelfReference = LUA_NOREF;
+        lua_State* L = context->m_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = new (lua_newuserdata(L, sizeof(Scene))) Scene();
+
+        lua_pushvalue(L, -1);
+        scene->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+
+        lua_newtable(L);
+        scene->m_DataReference = luaL_ref(L, LUA_REGISTRYINDEX);
+
         scene->m_Context = context;
         scene->m_Script = 0x0;
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
@@ -173,11 +189,11 @@ namespace dmGui
             n->m_Index = INVALID_INDEX;
         }
 
-        lua_State* L = scene->m_Context->m_LuaState;
-        int top = lua_gettop(L);
-        (void) top;
-        lua_newtable(L);
-        scene->m_SelfReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
+        lua_setmetatable(L, -2);
+
+        lua_pop(L, 1);
+
         assert(top == lua_gettop(L));
 
         return scene;
@@ -194,8 +210,12 @@ namespace dmGui
                 free((void*) n->m_Node.m_Text);
         }
 
-        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
-        delete scene;
+        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
+
+        scene->~Scene();
+
+        memset(scene, 0, sizeof(Scene));
     }
 
     void SetSceneUserData(HScene scene, void* user_data)
@@ -426,12 +446,12 @@ namespace dmGui
 
         if (lua_ref != LUA_NOREF)
         {
-            lua_pushlightuserdata(L, (void*) scene);
-            lua_setglobal(L, "__scene__");
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+            dmScript::SetInstance(L);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
             assert(lua_isfunction(L, -1));
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
 
             uint32_t arg_count = 1;
             uint32_t ret_count = 0;
@@ -618,8 +638,8 @@ namespace dmGui
                     break;
                 }
             }
-            lua_pushlightuserdata(L, (void*) 0x0);
-            lua_setglobal(L, "__scene__");
+            lua_pushnil(L);
+            dmScript::SetInstance(L);
             return result;
         }
         assert(top == lua_gettop(L));

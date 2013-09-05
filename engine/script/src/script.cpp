@@ -22,6 +22,8 @@ extern "C"
 
 namespace dmScript
 {
+    const char* INSTANCE_NAME = "__dm_script_instance__";
+
     HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory)
     {
         Context* context = new Context();
@@ -40,12 +42,8 @@ namespace dmScript
     }
 
     ScriptParams::ScriptParams()
-    : m_Context(0x0)
-    , m_ResolvePathCallback(0x0)
-    , m_GetURLCallback(0x0)
-    , m_GetUserDataCallback(0x0)
     {
-
+        memset(this, 0, sizeof(ScriptParams));
     }
 
     int LuaPrint(lua_State* L);
@@ -74,6 +72,9 @@ namespace dmScript
 
         lua_pushlightuserdata(L, (void*)params.m_GetUserDataCallback);
         lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
+
+        lua_pushlightuserdata(L, (void*)params.m_ValidateInstanceCallback);
+        lua_setglobal(L, SCRIPT_VALIDATE_INSTANCE_CALLBACK);
 
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
@@ -146,4 +147,30 @@ namespace dmScript
         return 0;
     }
 
+    void GetInstance(lua_State* L)
+    {
+        lua_getglobal(L, INSTANCE_NAME);
+    }
+
+    void SetInstance(lua_State* L)
+    {
+        lua_setglobal(L, INSTANCE_NAME);
+    }
+
+    bool IsInstanceValid(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+        lua_getglobal(L, SCRIPT_VALIDATE_INSTANCE_CALLBACK);
+        ValidateInstanceCallback callback = (ValidateInstanceCallback)lua_touserdata(L, -1);
+        if (callback == 0x0)
+        {
+            dmLogFatal("ValidateInstanceCallback not set, impossible to validate.");
+        }
+        assert(callback != 0x0);
+        bool result = callback(L);
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return result;
+    }
 }
