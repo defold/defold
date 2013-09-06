@@ -108,6 +108,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 // TODO: Cooldown "timer" *hack* for backspace and enter release
 #define TEXT_KEY_COOLDOWN (10)
 @property (nonatomic) int textkeyActive;
+@property (nonatomic) int autoCloseKeyboard;
 
 - (BOOL) createFramebuffer;
 - (void) destroyFramebuffer;
@@ -303,10 +304,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    if (self.keyboardActive) {
+    if (self.keyboardActive && self.autoCloseKeyboard) {
         // Implicitly hide keyboard
-        _glfwShowKeyboard(0, 0);
-        return;
+        _glfwShowKeyboard(0, 0, 0);
     }
 
     _glfwInput.TouchCount = [self fillTouch: event];
@@ -869,7 +869,7 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 {
 }
 
-void _glfwShowKeyboard( int show, int type )
+void _glfwShowKeyboard( int show, int type, int auto_close )
 {
     EAGLView* view = (EAGLView*) _glfwWin.view;
     switch (type) {
@@ -886,6 +886,7 @@ void _glfwShowKeyboard( int show, int type )
             view.keyboardType = UIKeyboardTypeDefault;
     }
     view.textkeyActive = -1;
+    view.autoCloseKeyboard = auto_close;
     if (show) {
         view.keyboardActive = YES;
         [_glfwWin.view becomeFirstResponder];

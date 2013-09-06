@@ -1897,7 +1897,7 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
     XWarpPointer( _glfwLibrary.display, None, _glfwWin.window, 0,0,0,0, x, y );
 }
 
-void _glfwShowKeyboard( int show, int type )
+void _glfwShowKeyboard( int show, int type, int auto_close )
 {
 }
 
