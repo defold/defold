@@ -371,16 +371,11 @@ namespace dmMessage
         return Dispatch(socket, &ConsumeCallback, 0);
     }
 
-    Result ParseURL(const char* uri, const char** out_socket, uint32_t* out_socket_size, const char** out_path, uint32_t* out_path_size, const char** out_fragment, uint32_t* out_fragment_size)
+    Result ParseURL(const char* uri, StringURL* out_url)
     {
         if (uri == 0x0)
         {
-            *out_socket = 0x0;
-            *out_socket_size = 0;
-            *out_path = 0x0;
-            *out_path_size = 0;
-            *out_fragment = 0x0;
-            *out_fragment_size = 0;
+            *out_url = StringURL();
             return RESULT_OK;
         }
         const char* socket = 0x0;
@@ -426,12 +421,12 @@ namespace dmMessage
         {
             path_size = strlen(uri) - (path - uri);
         }
-        *out_socket = socket;
-        *out_socket_size = socket_size;
-        *out_path = path;
-        *out_path_size = path_size;
-        *out_fragment = fragment;
-        *out_fragment_size = fragment_size;
+        out_url->m_Socket = socket;
+        out_url->m_SocketSize = socket_size;
+        out_url->m_Path = path;
+        out_url->m_PathSize = path_size;
+        out_url->m_Fragment = fragment;
+        out_url->m_FragmentSize = fragment_size;
         return RESULT_OK;
     }
 }
