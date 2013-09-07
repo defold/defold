@@ -210,7 +210,7 @@ TEST_F(ScriptHttpTest, TestPost)
 
         uint64_t now = dmTime::GetTime();
         uint64_t elapsed = now - start;
-        if (elapsed / 1000000 > 2) {
+        if (elapsed / 1000000 > 4) {
             ASSERT_TRUE(0);
         }
     }
