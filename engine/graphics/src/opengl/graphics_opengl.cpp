@@ -1249,6 +1249,28 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
+        int unpackAlignment = 4;
+        /*
+         * For RGA-textures the row-alignment may not be a multiple of 4.
+         * OpenGL doesn't like this by default
+         */
+        if (params.m_Format == TEXTURE_FORMAT_RGB)
+        {
+            uint32_t bytes_per_row = params.m_Width * 3;
+            if (bytes_per_row % 4 == 0) {
+                // Ok
+            } else if (bytes_per_row % 2 == 0) {
+                unpackAlignment = 2;
+            } else {
+                unpackAlignment = 1;
+            }
+        }
+
+        if (unpackAlignment != 4) {
+            glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
+            CHECK_GL_ERROR
+        }
+
         glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
         CHECK_GL_ERROR
 
@@ -1359,6 +1381,12 @@ static void LogFrameBufferError(GLenum status)
 
         glBindTexture(GL_TEXTURE_2D, 0);
         CHECK_GL_ERROR
+
+        if (unpackAlignment != 4) {
+            // Restore to default
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            CHECK_GL_ERROR
+        }
     }
 
     uint16_t GetTextureWidth(HTexture texture)

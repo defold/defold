@@ -47,6 +47,7 @@
 
 extern struct android_app* g_AndroidApp;
 static int g_KeyboardActive = 0;
+static int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
 static int g_SpecialKeyActive = -1;
 
@@ -58,10 +59,9 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
 
     if (event_type == AINPUT_EVENT_TYPE_MOTION)
     {
-        if (g_KeyboardActive) {
+        if (g_KeyboardActive && g_autoCloseKeyboard) {
             // Implicitly hide keyboard
-            _glfwShowKeyboard(0, 0);
-            return;
+            _glfwShowKeyboard(0, 0, 0);
         }
 
         int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK ;
@@ -138,6 +138,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
     LOGV("_glfwPlatformOpenWindow");
 
     _glfwWin.app = g_AndroidApp;
+    _glfwWin.app->onInputEvent = handleInput;
 
     // Initialize display
     init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
@@ -317,12 +318,13 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 {
 }
 
-void _glfwShowKeyboard( int show, int type )
+void _glfwShowKeyboard( int show, int type, int auto_close )
 {
     // JNI implemntation as ANativeActivity_showSoftInput seems to be broken...
     // https://code.google.com/p/android/issues/detail?id=35991
 
     g_KeyboardActive = show;
+    g_autoCloseKeyboard = auto_close;
 
     jint result;
 
@@ -358,14 +360,14 @@ void _glfwShowKeyboard( int show, int type )
 
     if (show) {
         jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, input_manager_class, "showSoftInput", "(Landroid/view/View;I)Z");
-        (*lJNIEnv)->CallBooleanMethod(lJNIEnv, input_manager, show_soft_input_method, decor_view, ANATIVEACTIVITY_SHOW_SOFT_INPUT_FORCED);
+        (*lJNIEnv)->CallBooleanMethod(lJNIEnv, input_manager, show_soft_input_method, decor_view, 0);
     } else {
         jclass view_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/View");
         jmethodID get_window_token_method = (*lJNIEnv)->GetMethodID(lJNIEnv, view_class, "getWindowToken", "()Landroid/os/IBinder;");
         jobject binder = (*lJNIEnv)->CallObjectMethod(lJNIEnv, decor_view, get_window_token_method);
 
         jmethodID hide_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, input_manager_class, "hideSoftInputFromWindow", "(Landroid/os/IBinder;I)Z");
-        (*lJNIEnv)->CallBooleanMethod(lJNIEnv, input_manager, hide_soft_input_method, binder, ANATIVEACTIVITY_HIDE_SOFT_INPUT_NOT_ALWAYS);
+        (*lJNIEnv)->CallBooleanMethod(lJNIEnv, input_manager, hide_soft_input_method, binder, 0);
     }
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);

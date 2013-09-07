@@ -205,9 +205,9 @@ GLFWAPI void GLFWAPIENTRY glfwSetCharCallback( GLFWcharfun cbfun )
     _glfwWin.charCallback = cbfun;
 }
 
-GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type )
+GLFWAPI void GLFWAPIENTRY glfwShowKeyboard( int show, int type, int auto_close )
 {
-    _glfwShowKeyboard(show, type);
+    _glfwShowKeyboard(show, type, auto_close);
 }
 
 //========================================================================

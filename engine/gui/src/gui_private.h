@@ -5,6 +5,7 @@
 #include <dlib/array.h>
 #include <dlib/hashtable.h>
 #include <dlib/easing.h>
+#include <dlib/image.h>
 
 #include "gui.h"
 
@@ -17,6 +18,8 @@ namespace dmGui
 {
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
     extern const uint16_t INVALID_INDEX;
+
+    #define GUI_SCRIPT_INSTANCE "GuiScriptInstance"
 
     enum ScriptFunction
     {
@@ -110,9 +113,29 @@ namespace dmGui
         Context*    m_Context;
     };
 
+    struct DynamicTexture
+    {
+        DynamicTexture(void* handle)
+        {
+            memset(this, 0, sizeof(*this));
+            m_Handle = handle;
+            m_Type = (dmImage::Type) -1;
+        }
+        void*           m_Handle;
+        uint32_t        m_Created : 1;
+        uint32_t        m_Deleted : 1;
+        uint32_t        m_Width;
+        uint32_t        m_Height;
+        void*           m_Buffer;
+        dmImage::Type   m_Type;
+    };
+
     struct Scene
     {
-        int                     m_SelfReference;
+        Scene();
+
+        int                     m_InstanceReference;
+        int                     m_DataReference;
         Context*                m_Context;
         Script*                 m_Script;
         dmIndexPool16           m_NodePool;
@@ -120,6 +143,8 @@ namespace dmGui
         dmArray<Animation>      m_Animations;
         dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
+        dmHashTable64<DynamicTexture> m_DynamicTextures;
+        dmArray<dmhash_t>       m_DeletedDynamicTextures;
         void*                   m_DefaultFont;
         void*                   m_UserData;
         uint16_t                m_RenderHead;

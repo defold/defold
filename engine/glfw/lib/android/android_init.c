@@ -199,36 +199,6 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     }
 }
 
-static int32_t handleInput(struct android_app* app, AInputEvent* event)
-{
-    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION)
-    {
-        int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK ;
-        int32_t x = AMotionEvent_getX(event, 0);
-        int32_t y = AMotionEvent_getY(event, 0);
-        _glfwInput.MousePosX = x;
-        _glfwInput.MousePosY = y;
-
-        switch (action)
-        {
-        case AMOTION_EVENT_ACTION_DOWN:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
-            break;
-        case AMOTION_EVENT_ACTION_UP:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
-            break;
-        case AMOTION_EVENT_ACTION_MOVE:
-            if( _glfwWin.mousePosCallback )
-            {
-                _glfwWin.mousePosCallback(x, y);
-            }
-            break;
-        }
-        return 1;
-    }
-    return 0;
-}
-
 void _glfwPreMain(struct android_app* state)
 {
     LOGV("_glfwPreMain");
@@ -236,7 +206,6 @@ void _glfwPreMain(struct android_app* state)
     g_AndroidApp = state;
 
     state->onAppCmd = handleCommand;
-    state->onInputEvent = handleInput;
 
     _glfwWin.opened = 0;
     while (_glfwWin.opened == 0)

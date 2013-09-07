@@ -109,7 +109,7 @@ public class AndroidBundler {
         packageDir = new File(outputDir);
         this.title = projectProperties.getStringValue("project", "title", "Unnamed");
         this.version = projectProperties.getStringValue("project", "version", "1.0");
-        this.versionCode = projectProperties.getStringValue("android", "versionCode", "1");
+        this.versionCode = projectProperties.getStringValue("android", "version_code", "1");
         this.androidPackage = projectProperties.getStringValue("android", "package", "com.example.todo");
         appDir = new File(packageDir, title);
         resDir = new File(packageDir, title + "/res");
@@ -167,6 +167,7 @@ public class AndroidBundler {
                 "-f",
                 //"--debug-mode",
                 "-S", resDir.getAbsolutePath(),
+                "-S", plugin.getFacebookResPath(),
                 "-M", manifestFile.getAbsolutePath(),
                 "-I", plugin.getAndroirJarPath(),
                 "-F", ap1.getAbsolutePath());
@@ -174,6 +175,20 @@ public class AndroidBundler {
         if (res.ret != 0) {
             throw new IOException(new String(res.stdOutErr));
         }
+
+        File tmpClassesDex = new File("classes.dex");
+        FileUtils.copyFile(new File(plugin.getClassesDexPath()), tmpClassesDex);
+
+        res = Exec.execResult(plugin.getAaptPath(),
+                "add",
+                ap1.getAbsolutePath(),
+                tmpClassesDex.getPath());
+
+        if (res.ret != 0) {
+            throw new IOException(new String(res.stdOutErr));
+        }
+
+        tmpClassesDex.delete();
 
         File ap2 = new File(appDir, title + ".ap2");
         ZipInputStream zipIn = null;

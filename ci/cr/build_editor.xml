@@ -39,6 +39,11 @@
               <arg value="scripts/copy_apkc.sh"/>
         </exec>
 
+        <exec dir="${buildDirectory}/plugins/com.dynamo.cr.target"
+              executable="sh" failonerror="true">
+              <arg value="scripts/copy_classes_dex.sh"/>
+        </exec>
+
         <ant dir="${buildDirectory}/plugins/com.dynamo.cr.rlog" antfile="build_proto.xml"/>
         <ant dir="${buildDirectory}/plugins/com.dynamo.cr.common" antfile="build.xml"/>
         <ant dir="${buildDirectory}/plugins/com.dynamo.cr.builtins" antfile="build.xml"/>

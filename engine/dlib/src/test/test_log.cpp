@@ -21,6 +21,17 @@ static void LogThread(void* arg)
 {
     dmLogWarning("a warning %d", 123);
     dmLogError("an error %d", 456);
+
+    int n = 1024 * 1024;
+    char* s = new char[n];
+    for (int i = 0; i < n; ++i) {
+        s[i] = '.';
+    }
+    const char* msg = "Very large message";
+    memcpy(s, msg, strlen(msg));
+    s[n-1] = '\0';
+    dmLogInfo(s);
+    delete[] s;
 }
 
 TEST(dmLog, Client)

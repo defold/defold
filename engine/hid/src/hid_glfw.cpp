@@ -191,7 +191,7 @@ namespace dmHID
         glfwGetJoystickDeviceId(gamepad->m_Index, (char**)device_name);
     }
 
-    void ShowKeyboard(HContext context, KeyboardType type)
+    void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
     {
         int t = GLFW_KEYBOARD_DEFAULT;
         switch (type) {
@@ -207,12 +207,12 @@ namespace dmHID
             default:
                 dmLogWarning("Unknown keyboard type %d\n", type);
         }
-        glfwShowKeyboard(1, type);
+        glfwShowKeyboard(1, type, (int) autoclose);
     }
 
     void HideKeyboard(HContext context)
     {
-        glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT);
+        glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT, 0);
     }
 
 }

@@ -88,9 +88,8 @@ namespace dmGameObject
             int top = lua_gettop(L);
             (void) top;
 
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-            lua_pushlightuserdata(L, (void*) script_instance);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dmScript::SetInstance(L);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
@@ -117,9 +116,8 @@ namespace dmGameObject
                 result = SCRIPT_RESULT_FAILED;
             }
 
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            dmScript::SetInstance(L);
 
             assert(top == lua_gettop(L));
         }
@@ -222,9 +220,8 @@ namespace dmGameObject
             (void) top;
             int ret;
 
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-            lua_pushlightuserdata(L, (void*) script_instance);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dmScript::SetInstance(L);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             if (is_callback) {
@@ -270,9 +267,8 @@ namespace dmGameObject
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
 
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            dmScript::SetInstance(L);
 
             assert(top == lua_gettop(L));
         }
@@ -292,9 +288,8 @@ namespace dmGameObject
             int top = lua_gettop(L);
             (void)top;
 
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-            lua_pushlightuserdata(L, (void*) script_instance);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dmScript::SetInstance(L);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
@@ -444,9 +439,8 @@ namespace dmGameObject
                 lua_pop(L, 1);
             }
 
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            dmScript::SetInstance(L);
 
             assert(top == lua_gettop(L));
         }
@@ -464,17 +458,15 @@ namespace dmGameObject
 
         lua_State* L = g_LuaState;
 
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-        lua_pushlightuserdata(L, (void*) script_instance);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
         PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
 
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
         lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        dmScript::SetInstance(L);
 
         RunScriptParams run_params;
         RunScript(script_instance->m_Script, SCRIPT_FUNCTION_ONRELOAD, script_instance, run_params);
@@ -491,17 +483,15 @@ namespace dmGameObject
 
         lua_State* L = g_LuaState;
 
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-        lua_pushlightuserdata(L, (void*) script_instance);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
         PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
 
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
         lua_pushnil(L);
-        lua_rawset(L, LUA_GLOBALSINDEX);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(g_LuaState));
     }
@@ -642,15 +632,13 @@ namespace dmGameObject
         (void)top;
 
         // Only push the script instance if it's not present already
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-        lua_rawget(L, LUA_GLOBALSINDEX);
+        dmScript::GetInstance(L);
         bool push_instance = lua_isnil(L, -1);
         lua_pop(L, 1);
         if (push_instance)
         {
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-            lua_pushlightuserdata(L, (void*) script_instance);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dmScript::SetInstance(L);
         }
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
@@ -676,9 +664,8 @@ namespace dmGameObject
 
         if (push_instance)
         {
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            dmScript::SetInstance(L);
         }
 
         assert(lua_gettop(L) == top);
@@ -706,15 +693,13 @@ namespace dmGameObject
 
         // Only push the script instance if it's not present already
         bool pushed_instance = false;
-        lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-        lua_rawget(L, LUA_GLOBALSINDEX);
+        dmScript::GetInstance(L);
         pushed_instance = lua_isnil(L, -1);
         lua_pop(L, 1);
         if (pushed_instance)
         {
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
-            lua_pushlightuserdata(L, (void*) script_instance);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dmScript::SetInstance(L);
         }
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
@@ -748,9 +733,8 @@ namespace dmGameObject
 
         if (pushed_instance)
         {
-            lua_pushliteral(L, SCRIPT_INSTANCE_NAME);
             lua_pushnil(L);
-            lua_rawset(L, LUA_GLOBALSINDEX);
+            dmScript::SetInstance(L);
         }
 
         assert(lua_gettop(L) == top);

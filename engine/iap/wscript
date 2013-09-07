@@ -17,6 +17,7 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
+    conf.check_tool('java')
     conf.sub_config('src')
 
     conf.env.append_value('CPPPATH', "default/src")
@@ -26,8 +27,8 @@ def configure(conf):
     conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="FACEBOOK"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="FACEBOOK"')
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="IAP"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="IAP"')
 
     if re.match('arm.*?android', conf.env.PLATFORM):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])

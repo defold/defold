@@ -1,9 +1,10 @@
+#include <dlib/log.h>
+#include <extension/extension.h>
+#include <script/script.h>
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <FacebookSDK/FacebookSDK.h>
 #import <objc/runtime.h>
-#include <extension/extension.h>
-#include <dlib/log.h>
 
 // Facebook resources
 extern unsigned char CLOSE_PNG[];
@@ -63,12 +64,14 @@ struct Facebook
     Facebook() {
         memset(this, 0, sizeof(*this));
         m_Callback = LUA_NOREF;
+        m_Self = LUA_NOREF;
         m_InitCount = 0;
     }
     FBSession* m_Session;
     NSDictionary* m_Me;
     int m_InitCount;
     int m_Callback;
+    int m_Self;
     id<UIApplicationDelegate> m_EngineDelegate;
     id<UIApplicationDelegate> m_Delegate;
 };
@@ -124,14 +127,36 @@ static void PushError(lua_State*L, NSError* error)
     }
 }
 
+static void VerifyCallback(lua_State* L)
+{
+    if (g_Facebook.m_Callback != LUA_NOREF) {
+        dmLogError("Unexpected callback set");
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        g_Facebook.m_Callback = LUA_NOREF;
+        g_Facebook.m_Self = LUA_NOREF;
+    }
+}
+
 static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
 
-        // TODO: How to get self-reference? See case 2247
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        lua_pushnil(L);
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+
         lua_pushnumber(L, (lua_Number) status);
         PushError(L, error);
 
@@ -142,7 +167,9 @@ static void RunStateCallback(lua_State*L, FBSessionState status, NSError* error)
         }
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
+        g_Facebook.m_Self = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }
@@ -153,9 +180,20 @@ static void RunCallback(lua_State*L, NSError* error)
     if (g_Facebook.m_Callback != LUA_NOREF) {
         int top = lua_gettop(L);
 
-        // TODO: How to get self-reference? See case 2247
         lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        lua_pushnil(L);
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+
         PushError(L, error);
 
         int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
@@ -165,7 +203,9 @@ static void RunCallback(lua_State*L, NSError* error)
         }
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
         g_Facebook.m_Callback = LUA_NOREF;
+        g_Facebook.m_Self = LUA_NOREF;
     } else {
         dmLogError("No callback set");
     }
@@ -184,15 +224,14 @@ static void AppendArray(lua_State*L, NSMutableArray* array, int table)
 int Facebook_Login(lua_State* L)
 {
     int top = lua_gettop(L);
-    if (g_Facebook.m_Callback != LUA_NOREF) {
-        dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        g_Facebook.m_Callback = LUA_NOREF;
-    }
+    VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     if (!g_Facebook.m_Session.isOpen) {
         [g_Facebook.m_Session release];
@@ -220,7 +259,7 @@ int Facebook_Login(lua_State* L)
                 // when closeAndClearTokenInformation is invoked
 
                 // NOTE: Callback is executed on all state changes.
-                // We are only interested in FBSessionStateOpen
+                // We are only interested in FBSessionStateOpen and FBSessionStateClosedLoginFailed
                 if (status == FBSessionStateOpen) {
                     [[FBRequest requestForMe] startWithCompletionHandler:
                      ^(FBRequestConnection *connection, NSDictionary<FBGraphUser> *user, NSError *error) {
@@ -235,6 +274,8 @@ int Facebook_Login(lua_State* L)
                              RunStateCallback(L, status, error);
                          }
                      }];
+                } else if (status == FBSessionStateClosedLoginFailed) {
+                    RunStateCallback(L, status, error);
                 }
 
                 // Restore original AppDelegate
@@ -265,16 +306,15 @@ int Facebook_Logout(lua_State* L)
 int Facebook_RequestReadPermissions(lua_State* L)
 {
     int top = lua_gettop(L);
-    if (g_Facebook.m_Callback != LUA_NOREF) {
-        dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        g_Facebook.m_Callback = LUA_NOREF;
-    }
+    VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     if (g_Facebook.m_Session.isOpen) {
         NSMutableArray *permissions = [[NSMutableArray alloc] init];
@@ -302,17 +342,16 @@ int Facebook_RequestReadPermissions(lua_State* L)
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
     int top = lua_gettop(L);
-    if (g_Facebook.m_Callback != LUA_NOREF) {
-        dmLogError("Unexpected callback set");
-        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
-        g_Facebook.m_Callback = LUA_NOREF;
-    }
+    VerifyCallback(L);
 
     luaL_checktype(L, 1, LUA_TTABLE);
     FBSessionDefaultAudience audience = (FBSessionDefaultAudience) luaL_checkinteger(L, 2);
     luaL_checktype(L, 3, LUA_TFUNCTION);
     lua_pushvalue(L, 3);
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     if (g_Facebook.m_Session.isOpen) {
         NSMutableArray *permissions = [[NSMutableArray alloc] init];

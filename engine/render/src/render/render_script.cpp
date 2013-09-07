@@ -16,7 +16,6 @@
 namespace dmRender
 {
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
-    #define RENDER_SCRIPT_INSTANCE_SELF "__render_script_instance"
 
     #define RENDER_SCRIPT_CONSTANTBUFFER "RenderScriptConstantBuffer"
 
@@ -239,10 +238,10 @@ namespace dmRender
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
     {
-        lua_getglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
+        dmScript::GetInstance(L);
         RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
-        if (i == NULL) luaL_error(L, "Lua state did not contain '%s'.", RENDER_SCRIPT_INSTANCE_SELF);
+        if (i == NULL) luaL_error(L, "Lua state did not contain a render script instance.");
         return i;
     }
 
@@ -1384,6 +1383,14 @@ namespace dmRender
         return 0;
     }
 
+    bool ValidateInstanceCallback(lua_State* L)
+    {
+        dmScript::GetInstance(L);
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return i != 0x0 && i->m_RenderContext != 0x0;
+    }
+
     void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
     {
         context.m_CommandBufferSize = command_buffer_size;
@@ -1525,6 +1532,7 @@ namespace dmRender
         params.m_GetURLCallback = GetURLCallback;
         params.m_ResolvePathCallback = ResolvePathCallback;
         params.m_GetUserDataCallback = GetUserDataCallback;
+        params.m_ValidateInstanceCallback = ValidateInstanceCallback;
         dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
@@ -1664,8 +1672,6 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
-        lua_getglobal(L, "__instances__");
-
         RenderScriptInstance* i = new (lua_newuserdata(L, sizeof(RenderScriptInstance))) RenderScriptInstance();
         i->m_PredicateCount = 0;
         i->m_RenderScript = render_script;
@@ -1682,7 +1688,6 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
-        lua_pop(L, 1);
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
@@ -1703,6 +1708,7 @@ bail:
         assert(top == lua_gettop(L));
 
         render_script_instance->~RenderScriptInstance();
+        memset(render_script_instance, 0, sizeof(RenderScriptInstance));
     }
 
     void SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script)
@@ -1755,8 +1761,8 @@ bail:
             int top = lua_gettop(L);
             (void) top;
 
-            lua_pushlightuserdata(L, (void*)script_instance);
-            lua_setglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            dmScript::SetInstance(L);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[script_function]);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
@@ -1797,8 +1803,8 @@ bail:
                 result = RENDER_SCRIPT_RESULT_FAILED;
             }
 
-            lua_pushlightuserdata(L, (void*)0x0);
-            lua_setglobal(L, RENDER_SCRIPT_INSTANCE_SELF);
+            lua_pushnil(L);
+            dmScript::SetInstance(L);
 
             assert(top == lua_gettop(L));
         }

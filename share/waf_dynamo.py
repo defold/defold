@@ -97,7 +97,7 @@ def default_flags(self):
             # NOTE: 
             # -mthumb and -funwind-tables removed from default flags
             # -fno-exceptions added
-            self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
+            self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
                                       '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
@@ -474,7 +474,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="9" />
     <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
-        <activity android:name="android.app.NativeActivity"
+        <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|keyboardHidden"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
@@ -513,8 +513,8 @@ def android_package(task):
     bld = task.generator.bld
 
     activities = ''
-    for activity in task.activities:
-        activities += '<activity android:name="%s" />' % (activity)
+    for activity, attr in task.activities:
+        activities += '<activity android:name="%s" %s/>' % (activity, attr)
 
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
     manifest_file.write(ANDROID_MANIFEST % { 'package' : task.exe_name, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities })
@@ -554,17 +554,7 @@ def android_package(task):
     dx_jars = []
     for jar in task.jars:
         dx_jar = os.path.join(dx_libs, os.path.basename(jar))
-        dx_jars.append(dx_jar)
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, dx_jar, jar))
-        if ret != 0:
-            error('Error running dx')
-            return 1
-
-    if dx_jars:
-        ret = bld.exec_command('%s --dex --output %s %s' % (dx, os.path.join(bin, 'classes.dex'), ' '.join(dx_jars)))
-        if ret != 0:
-            error('Error running dx')
-            return 1
+        dx_jars.append(jar)
 
     ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s -S %s -F %s' % (aapt, manifest, android_jar, res_dir, ap_))
 
@@ -572,14 +562,21 @@ def android_package(task):
         error('Error running aapt')
         return 1
 
+    if dx_jars:
+        ret = bld.exec_command('%s --dex --output %s %s' % (dx, task.classes_dex.abspath(task.env), ' '.join(dx_jars)))
+        if ret != 0:
+            error('Error running dx')
+            return 1
+
+        from zipfile import ZipFile
+        with ZipFile(ap_, 'a') as f:
+            f.write(task.classes_dex.abspath(task.env), 'classes.dex')
+
     apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
 
-    dx_arg = ''
-    if dx_jars:
-        dx_arg = '-f %s' % (os.path.join(bin, 'classes.dex'))
-    ret = bld.exec_command('%s %s -v -z %s %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, dx_arg, libs_dir))
+    ret = bld.exec_command('%s %s -v -z %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, libs_dir))
 
     if ret != 0:
         error('Error running apkbuilder')
@@ -648,6 +645,8 @@ def create_android_package(self):
     apk = self.path.exclusive_build_node("%s.android/%s.apk" % (exe_name, exe_name))
     android_package_task.apk = apk
 
+    android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
+
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))
     android_package_task.application_mk = self.path.exclusive_build_node("%s.android/jni/Application.mk" % (exe_name))
@@ -694,30 +693,53 @@ def create_copy_glue(self):
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
     in_file = open(task.inputs[0].bldpath(task.env), 'rb')
-    out_file = open(task.outputs[0].bldpath(task.env), 'wb')
+    cpp_out_file = open(task.outputs[0].bldpath(task.env), 'wb')
+    h_out_file = open(task.outputs[1].bldpath(task.env), 'wb')
 
     cpp_str = """
 #include <stdint.h>
 unsigned char %s[] =
 """
-    out_file.write(cpp_str % (symbol))
-    out_file.write('{\n    ')
+    cpp_out_file.write(cpp_str % (symbol))
+    cpp_out_file.write('{\n    ')
 
     data = in_file.read()
     for i,x in enumerate(data):
-        out_file.write('0x%X, ' % ord(x))
+        cpp_out_file.write('0x%X, ' % ord(x))
         if i > 0 and i % 4 == 0:
-            out_file.write('\n    ')
-    out_file.write('\n};\n')
-    out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
+            cpp_out_file.write('\n    ')
+    cpp_out_file.write('\n};\n')
+    cpp_out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
 
-    out_file.close()
+    h_out_file.write('extern unsigned char %s[];\n' % (symbol))
+    h_out_file.write('extern uint32_t %s_SIZE;\n' % (symbol))
+
+    cpp_out_file.close()
+    h_out_file.close()
 
     m = Utils.md5()
     m.update(data)
 
     task.generator.bld.node_sigs[task.inputs[0].variant(task.env)][task.inputs[0].id] = m.digest()
     return 0
+
+Task.simple_task_type('dex', '${DX} --dex --output ${TGT} ${SRC}',
+                      color='YELLOW',
+                      after='jar_create',
+                      shell=True)
+
+@taskgen
+@after('apply_java')
+@feature('dex')
+def apply_dex(self):
+    if not re.match('arm.*?android', self.env['PLATFORM']):
+        return
+
+    jar = self.path.find_or_declare(self.destfile)
+    dex = jar.change_ext('.dex')
+    task = self.create_task('dex')
+    task.set_inputs(jar)
+    task.set_outputs(dex)
 
 Task.task_type_from_func('embed_file',
                          func = embed_build,
@@ -732,10 +754,11 @@ def embed_file(self):
     for name in Utils.to_list(self.embed_source):
         node = self.path.find_resource(name)
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
+        h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
         task = self.create_task('embed_file')
         task.set_inputs(node)
-        task.set_outputs(cc_out)
+        task.set_outputs([cc_out, h_out])
         self.allnodes.append(cc_out)
 
 def do_find_file(file_name, path_list):
@@ -895,6 +918,8 @@ def detect(conf):
         conf.env['AR'] = '%s/arm-linux-androideabi-ar' % (bin)
         conf.env['RANLIB'] = '%s/arm-linux-androideabi-ranlib' % (bin)
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
+
+        conf.env['DX'] =  '%s/android-sdk/platform-tools/dx' % (ANDROID_ROOT)
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')

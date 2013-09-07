@@ -1,6 +1,7 @@
 #include "gui.h"
 
 #include <string.h>
+#include <new>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -148,10 +149,25 @@ namespace dmGui
         params->m_MaxFonts = 4;
     }
 
+    Scene::Scene()
+    {
+        memset(this, 0, sizeof(Scene));
+    }
+
     HScene NewScene(HContext context, const NewSceneParams* params)
     {
-        Scene* scene = new Scene();
-        scene->m_SelfReference = LUA_NOREF;
+        lua_State* L = context->m_LuaState;
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = new (lua_newuserdata(L, sizeof(Scene))) Scene();
+
+        lua_pushvalue(L, -1);
+        scene->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
+
+        lua_newtable(L);
+        scene->m_DataReference = luaL_ref(L, LUA_REGISTRYINDEX);
+
         scene->m_Context = context;
         scene->m_Script = 0x0;
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
@@ -159,6 +175,7 @@ namespace dmGui
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
+        scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_DefaultFont = 0;
         scene->m_UserData = params->m_UserData;
@@ -173,11 +190,11 @@ namespace dmGui
             n->m_Index = INVALID_INDEX;
         }
 
-        lua_State* L = scene->m_Context->m_LuaState;
-        int top = lua_gettop(L);
-        (void) top;
-        lua_newtable(L);
-        scene->m_SelfReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
+        lua_setmetatable(L, -2);
+
+        lua_pop(L, 1);
+
         assert(top == lua_gettop(L));
 
         return scene;
@@ -194,8 +211,12 @@ namespace dmGui
                 free((void*) n->m_Node.m_Text);
         }
 
-        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
-        delete scene;
+        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        luaL_unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
+
+        scene->~Scene();
+
+        memset(scene, 0, sizeof(Scene));
     }
 
     void SetSceneUserData(HScene scene, void* user_data)
@@ -241,6 +262,86 @@ namespace dmGui
         {
             scene->m_Nodes[i].m_Node.m_Texture = 0;
         }
+    }
+
+    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    {
+        dmhash_t texture_hash = dmHashString64(texture_name);
+        uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
+        if (buffer_size != expected_buffer_size) {
+            dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
+            return RESULT_INVAL_ERROR;
+        }
+
+        if (DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash)) {
+            if (t->m_Deleted) {
+                t->m_Deleted = 0;
+                return RESULT_OK;
+            } else {
+                return RESULT_TEXTURE_ALREADY_EXISTS;
+            }
+        }
+
+        if (scene->m_DynamicTextures.Full()) {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
+        DynamicTexture t(0);
+        t.m_Buffer = malloc(buffer_size);
+        memcpy(t.m_Buffer, buffer, buffer_size);
+        t.m_Width = width;
+        t.m_Height = height;
+        t.m_Type = type;
+
+        scene->m_DynamicTextures.Put(texture_hash, t);
+
+        return RESULT_OK;
+    }
+
+    Result DeleteDynamicTexture(HScene scene, const char* texture_name)
+    {
+        dmhash_t texture_hash = dmHashString64(texture_name);
+        DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
+
+        if (!t) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        t->m_Deleted = 1U;
+
+        if (t->m_Buffer) {
+            free(t->m_Buffer);
+            t->m_Buffer = 0;
+        }
+
+        return RESULT_OK;
+    }
+
+    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    {
+        dmhash_t texture_hash = dmHashString64(texture_name);
+        DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
+
+        if (!t) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if (t->m_Deleted) {
+            dmLogError("Can't set texture data for deleted texture");
+            return RESULT_INVAL_ERROR;
+        }
+
+        if (t->m_Buffer) {
+            free(t->m_Buffer);
+            t->m_Buffer = 0;
+        }
+
+        t->m_Buffer = malloc(buffer_size);
+        memcpy(t->m_Buffer, buffer, buffer_size);
+        t->m_Width = width;
+        t->m_Height = height;
+        t->m_Type = type;
+
+        return RESULT_OK;
     }
 
     Result AddFont(HScene scene, const char* font_name, void* font)
@@ -293,9 +394,92 @@ namespace dmGui
         return Vector4(scale_x, scale_y, 1, 1);
     }
 
-    void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
+    struct UpdateDynamicTexturesParams
+    {
+        UpdateDynamicTexturesParams()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        HScene m_Scene;
+        void*  m_Context;
+        const RenderSceneParams* m_Params;
+        int    m_NewCount;
+    };
+
+    static void UpdateDynamicTextures(UpdateDynamicTexturesParams* params, const dmhash_t* key, DynamicTexture* texture)
+    {
+        dmGui::Scene* const scene = params->m_Scene;
+        void* const context = params->m_Context;
+
+        if (texture->m_Deleted) {
+            params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
+            if (scene->m_DeletedDynamicTextures.Full()) {
+                scene->m_DeletedDynamicTextures.OffsetCapacity(16);
+            }
+            scene->m_DeletedDynamicTextures.Push(*key);
+        } else {
+            if (!texture->m_Handle && texture->m_Buffer) {
+                texture->m_Handle = params->m_Params->m_NewTexture(scene, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
+                params->m_NewCount++;
+                free(texture->m_Buffer);
+                texture->m_Buffer = 0;
+            } else if (texture->m_Handle && texture->m_Buffer) {
+                params->m_Params->m_SetTextureData(scene, texture->m_Handle, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
+                free(texture->m_Buffer);
+                texture->m_Buffer = 0;
+            }
+        }
+    }
+
+    static void UpdateDynamicTextures(HScene scene, const RenderSceneParams& params, void* context)
+    {
+        UpdateDynamicTexturesParams p;
+        p.m_Scene = scene;
+        p.m_Context = context;
+        p.m_Params = &params;
+        scene->m_DeletedDynamicTextures.SetSize(0);
+        scene->m_DynamicTextures.Iterate(UpdateDynamicTextures, &p);
+
+        if (p.m_NewCount > 0) {
+            dmArray<InternalNode>& nodes = scene->m_Nodes;
+            uint32_t n = nodes.Size();
+            for (uint32_t j = 0; j < n; ++j) {
+                Node& node = nodes[j].m_Node;
+                if (DynamicTexture* texture = scene->m_DynamicTextures.Get(node.m_TextureHash)) {
+                    node.m_Texture = texture->m_Handle;
+                }
+            }
+        }
+    }
+
+    static void DeferredDeleteDynamicTextures(HScene scene, const RenderSceneParams& params, void* context)
+    {
+        for (uint32_t i = 0; i < scene->m_DeletedDynamicTextures.Size(); ++i) {
+            dmhash_t texture_hash = scene->m_DeletedDynamicTextures[i];
+            scene->m_DynamicTextures.Erase(texture_hash);
+
+            dmArray<InternalNode>& nodes = scene->m_Nodes;
+            uint32_t n = nodes.Size();
+            bool found = false;
+            for (uint32_t j = 0; j < n; ++j) {
+                Node& node = nodes[j].m_Node;
+                if (node.m_TextureHash == texture_hash) {
+                    node.m_Texture = 0;
+                    found = true;
+                    // Do not break here. Texture may be used multiple times.
+                }
+            }
+            assert(found);
+        }
+    }
+
+    void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
     {
         Context* c = scene->m_Context;
+
+        UpdateDynamicTextures(scene, params, context);
+        DeferredDeleteDynamicTextures(scene, params, context);
+
         Vector4 scale = CalculateReferenceScale(c);
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
@@ -319,7 +503,14 @@ namespace dmGui
             }
             index = n->m_NextIndex;
         }
-        render_nodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderNodes.Size(), context);
+        params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderNodes.Size(), context);
+    }
+
+    void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
+    {
+        RenderSceneParams p;
+        p.m_RenderNodes = render_nodes;
+        RenderScene(scene, p, context);
     }
 
     void UpdateAnimations(HScene scene, float dt)
@@ -426,12 +617,12 @@ namespace dmGui
 
         if (lua_ref != LUA_NOREF)
         {
-            lua_pushlightuserdata(L, (void*) scene);
-            lua_setglobal(L, "__scene__");
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+            dmScript::SetInstance(L);
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
             assert(lua_isfunction(L, -1));
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_SelfReference);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
 
             uint32_t arg_count = 1;
             uint32_t ret_count = 0;
@@ -618,8 +809,8 @@ namespace dmGui
                     break;
                 }
             }
-            lua_pushlightuserdata(L, (void*) 0x0);
-            lua_setglobal(L, "__scene__");
+            lua_pushnil(L);
+            dmScript::SetInstance(L);
             return result;
         }
         assert(top == lua_gettop(L));
@@ -956,16 +1147,17 @@ namespace dmGui
 
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)
     {
-        void** texture = scene->m_Textures.Get(texture_id);
-        if (texture)
-        {
+        if (void** texture = scene->m_Textures.Get(texture_id)) {
             InternalNode* n = GetNode(scene, node);
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = *texture;
             return RESULT_OK;
-        }
-        else
-        {
+        } else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(texture_id)) {
+            InternalNode* n = GetNode(scene, node);
+            n->m_Node.m_TextureHash = texture_id;
+            n->m_Node.m_Texture = texture->m_Handle;
+            return RESULT_OK;
+        } else {
             return RESULT_RESOURCE_NOT_FOUND;
         }
     }

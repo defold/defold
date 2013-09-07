@@ -19,7 +19,6 @@ extern "C"
 namespace dmGameObject
 {
 #define SCRIPT_NAME "__script__"
-#define SCRIPT_INSTANCE_NAME "__script_instance__"
 
     extern const char* ID_SEPARATOR;
 
