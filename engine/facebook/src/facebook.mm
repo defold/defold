@@ -259,7 +259,7 @@ int Facebook_Login(lua_State* L)
                 // when closeAndClearTokenInformation is invoked
 
                 // NOTE: Callback is executed on all state changes.
-                // We are only interested in FBSessionStateOpen
+                // We are only interested in FBSessionStateOpen and FBSessionStateClosedLoginFailed
                 if (status == FBSessionStateOpen) {
                     [[FBRequest requestForMe] startWithCompletionHandler:
                      ^(FBRequestConnection *connection, NSDictionary<FBGraphUser> *user, NSError *error) {
@@ -274,6 +274,8 @@ int Facebook_Login(lua_State* L)
                              RunStateCallback(L, status, error);
                          }
                      }];
+                } else if (status == FBSessionStateClosedLoginFailed) {
+                    RunStateCallback(L, status, error);
                 }
 
                 // Restore original AppDelegate

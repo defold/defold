@@ -128,6 +128,8 @@ namespace dmHttpService
         if (dmMessage::IsSocketValid(requester->m_Socket)) {
             dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, 0, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp));
         } else {
+            free((void*) resp.m_Headers);
+            free((void*) resp.m_Response);
             dmLogWarning("Failed to return http-response. Requester deleted?");
         }
     }
@@ -294,9 +296,13 @@ namespace dmHttpService
         http_service->m_Run = false;
         for (uint32_t i = 0; i < THREAD_COUNT; ++i)
         {
-            dmThread::Join(http_service->m_Workers[i]->m_Thread);
-            dmMessage::DeleteSocket(http_service->m_Workers[i]->m_Socket);
-            delete http_service->m_Workers[i];
+            dmHttpService::Worker* worker = http_service->m_Workers[i];
+            dmThread::Join(worker->m_Thread);
+            dmMessage::DeleteSocket(worker->m_Socket);
+            if (worker->m_Client) {
+                dmHttpClient::Delete(worker->m_Client);
+            }
+            delete worker;
         }
         dmMessage::DeleteSocket(http_service->m_Socket);
         delete http_service;

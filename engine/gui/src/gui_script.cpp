@@ -1581,12 +1581,15 @@ namespace dmGui
      *
      * @name gui.show_keyboard
      * @param type keyboard type
+     * @param autoclose close keyboard automatically when clicking outside
      */
     static int LuaShowKeyboard(lua_State* L)
     {
         Scene* scene = GetScene(L);
         int type = luaL_checkinteger(L, 1);
-        dmHID::ShowKeyboard(scene->m_Context->m_HidContext, (dmHID::KeyboardType) type);
+        luaL_checktype(L, 2, LUA_TBOOLEAN);
+        bool autoclose = lua_toboolean(L, 2);
+        dmHID::ShowKeyboard(scene->m_Context->m_HidContext, (dmHID::KeyboardType) type, autoclose);
         return 0;
     }
 

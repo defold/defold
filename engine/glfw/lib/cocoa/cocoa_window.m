@@ -954,7 +954,7 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
     CGDisplayMoveCursorToPoint( CGMainDisplayID(), targetPoint );
 }
 
-void _glfwShowKeyboard( int show, int type )
+void _glfwShowKeyboard( int show, int type, int auto_close )
 {
 }
 

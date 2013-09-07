@@ -449,8 +449,9 @@ namespace dmHID
      * Show keyboard if applicable
      * @param context context
      * @param type keyboard type
+     * @param autoclose close keyboard automatically when outside
      */
-    void ShowKeyboard(HContext context, KeyboardType type);
+    void ShowKeyboard(HContext context, KeyboardType type, bool autoclose);
 
     /**
      * Hide keyboard
