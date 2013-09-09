@@ -1,10 +1,10 @@
+#include <dlib/log.h>
+#include <extension/extension.h>
+#include <script/script.h>
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <FacebookSDK/FacebookSDK.h>
 #import <objc/runtime.h>
-#include <extension/extension.h>
-#include <dlib/log.h>
-#include <script/script.h>
 
 // Facebook resources
 extern unsigned char CLOSE_PNG[];

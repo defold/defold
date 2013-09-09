@@ -1,11 +1,11 @@
-#import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
-#import <StoreKit/StoreKit.h>
-
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <extension/extension.h>
 #include <script/script.h>
+
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <StoreKit/StoreKit.h>
 
 #define LIB_NAME "iap"
 
@@ -445,7 +445,7 @@ int IAP_SetListener(lua_State* L)
     iap->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
-    iap->m_Listener.m_Self = self;
+    iap->m_Listener.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
     if (g_IAP.m_Observer == 0) {
         SKPaymentTransactionObserver* observer = [[SKPaymentTransactionObserver alloc] init];
