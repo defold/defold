@@ -16,6 +16,8 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
+#define DEFAULT_URL "__default_url"
+
 dmhash_t ResolvePathCallback(uintptr_t user_data, const char* path, uint32_t path_size)
 {
     return dmHashBuffer64(path, path_size);
@@ -23,14 +25,14 @@ dmhash_t ResolvePathCallback(uintptr_t user_data, const char* path, uint32_t pat
 
 void GetURLCallback(lua_State* L, dmMessage::URL* url)
 {
-    lua_getglobal(L, "__default_url");
+    lua_getglobal(L, DEFAULT_URL);
     *url = *dmScript::CheckURL(L, -1);
     lua_pop(L, 1);
 }
 
 uintptr_t GetUserDataCallback(lua_State* L)
 {
-    lua_getglobal(L, "__default_url");
+    lua_getglobal(L, DEFAULT_URL);
     uintptr_t default_url = (uintptr_t)dmScript::CheckURL(L, -1);
     lua_pop(L, 1);
     return default_url;
@@ -55,7 +57,7 @@ protected:
         m_DefaultURL.m_Path = dmHashString64("default_path");
         m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
         dmScript::PushURL(L, m_DefaultURL);
-        lua_setglobal(L, "__default_url");
+        lua_setglobal(L, DEFAULT_URL);
     }
 
     virtual void TearDown()
@@ -387,6 +389,21 @@ TEST_F(ScriptMsgTest, TestURLEq)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptMsgTest, TestURLGlobal)
+{
+    lua_pushnil(L);
+    lua_setglobal(L, DEFAULT_URL);
+
+    ASSERT_TRUE(RunString(L,
+            "local url1 = msg.url(\"default_socket:/path#fragment\")\n"
+            "assert(url1.path == hash(\"/path\"))\n"
+            "print(url1.fragment)\n"
+            "assert(url1.fragment == hash(\"fragment\"))\n"));
+
+    ASSERT_FALSE(RunString(L,
+            "local url1 = msg.url(\"path#fragment\")\n"));
 }
 
 void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
