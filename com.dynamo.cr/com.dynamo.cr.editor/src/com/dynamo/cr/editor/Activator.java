@@ -500,6 +500,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
                         p.create(monitor);
                         p.open(monitor);
+                        p.setDefaultCharset("UTF-8", monitor);
 
                         URI uri = UriBuilder.fromUri(branchClient.getURI()).scheme("crepo").build();
                         EditorUtil.getContentRoot(p).createLink(uri, IResource.REPLACE, monitor);
