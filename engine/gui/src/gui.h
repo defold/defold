@@ -223,6 +223,14 @@ namespace dmGui
         float m_DX;
         /// Cursor dy since last frame, in virtual screen space
         float m_DY;
+        /// Cursor X coordinate, in screen space
+        float m_ScreenX;
+        /// Cursor Y coordinate, in screen space
+        float m_ScreenY;
+        /// Cursor dx since last frame, in screen space
+        float m_ScreenDX;
+        /// Cursor dy since last frame, in screen space
+        float m_ScreenDY;
         /// Touch data
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch

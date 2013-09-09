@@ -650,6 +650,10 @@ namespace dmGameSystem
             gui_input_action.m_Y = params.m_InputAction->m_Y;
             gui_input_action.m_DX = params.m_InputAction->m_DX;
             gui_input_action.m_DY = params.m_InputAction->m_DY;
+            gui_input_action.m_ScreenX = params.m_InputAction->m_ScreenX;
+            gui_input_action.m_ScreenY = params.m_InputAction->m_ScreenY;
+            gui_input_action.m_ScreenDX = params.m_InputAction->m_ScreenDX;
+            gui_input_action.m_ScreenDY = params.m_InputAction->m_ScreenDY;
 
             gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
             int tc = params.m_InputAction->m_TouchCount;

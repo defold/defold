@@ -635,6 +635,10 @@ bail:
         input_action.m_Y = engine->m_Height - (action->m_Y + 0.5f) * height_ratio;
         input_action.m_DX = action->m_DX * width_ratio;
         input_action.m_DY = -action->m_DY * height_ratio;
+        input_action.m_ScreenX = action->m_X;
+        input_action.m_ScreenY = (int32_t)dmGraphics::GetWindowHeight(engine->m_GraphicsContext) - action->m_Y;
+        input_action.m_ScreenDX = action->m_DX;
+        input_action.m_ScreenDY = -action->m_DY;
         input_action.m_AccX = action->m_AccX;
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
