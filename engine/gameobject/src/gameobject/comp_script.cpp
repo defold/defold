@@ -344,6 +344,22 @@ namespace dmGameObject
                 lua_pushliteral(L, "dy");
                 lua_pushnumber(L, params.m_InputAction->m_DY);
                 lua_settable(L, action_table);
+
+                lua_pushliteral(L, "screen_x");
+                lua_pushnumber(L, params.m_InputAction->m_ScreenX);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "screen_y");
+                lua_pushnumber(L, params.m_InputAction->m_ScreenY);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "screen_dx");
+                lua_pushnumber(L, params.m_InputAction->m_ScreenDX);
+                lua_settable(L, action_table);
+
+                lua_pushliteral(L, "screen_dy");
+                lua_pushnumber(L, params.m_InputAction->m_ScreenDY);
+                lua_settable(L, action_table);
             }
 
             if (params.m_InputAction->m_AccelerationSet)

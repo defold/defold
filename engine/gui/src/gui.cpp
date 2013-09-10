@@ -710,6 +710,22 @@ namespace dmGui
                         lua_pushstring(L, "dy");
                         lua_pushnumber(L, ia->m_DY);
                         lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_x");
+                        lua_pushnumber(L, ia->m_ScreenX);
+                        lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_y");
+                        lua_pushnumber(L, ia->m_ScreenY);
+                        lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_dx");
+                        lua_pushnumber(L, ia->m_ScreenDX);
+                        lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_dy");
+                        lua_pushnumber(L, ia->m_ScreenDY);
+                        lua_rawset(L, -3);
                     }
 
                     if (ia->m_TouchCount > 0)
