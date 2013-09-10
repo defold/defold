@@ -606,6 +606,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 @end
 
+_GLFWwin g_Savewin;
 
 @implementation AppDelegate
 
@@ -613,20 +614,24 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)reinit:(UIApplication *)application
 {
-    // Recreation of view-controller and view. When a view-controller and view is associated with an window
-    // the orientation logic is triggered, supportedInterfaceOrientations, etc.
-    // Ideally we should not re-create view-controller and view but
-    // triggering that logic was difficult/impossible. We could use a private method in UIScreen to force orientation
-    // but that method is private and not documented. This is simple and works.
+
+    // We used to recreate the view-controller and view here in order to trigger orientation logic.
+    // The new method is to create a temporary view-contoller. See below.
 
     // NOTE: This code is *not* invoked from the built-in/traditional event-loop
     // hence *no* NSAutoreleasePool is setup. Without a pool here
-    // the application would leak and specifcally the ViewController
+    // the application would leak and specifically the ViewController
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
-    window.rootViewController = nil;
-    window.rootViewController = [[[ViewController alloc] init] autorelease];
+    // Restore window data
+    _glfwWin = g_Savewin;
 
+    UIViewController *viewController = [[UIViewController alloc] init];
+    [viewController setModalPresentationStyle:UIModalPresentationCurrentContext];
+    viewController.view.frame = CGRectZero;
+    [window.rootViewController presentModalViewController:viewController animated:NO];
+    [window.rootViewController dismissModalViewControllerAnimated:YES];
+    [viewController release];
     [pool release];
 }
 
@@ -695,6 +700,8 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
     _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;
 
+    // The desired orientation might have changed when rebooting to a new game
+    g_Savewin.portrait = _glfwWin.portrait;
     /*
      * This is somewhat of a hack. We can't recreate the application here.
      * Instead we reinit the app and return and keep application and windows as is
@@ -740,6 +747,8 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
 void _glfwPlatformCloseWindow( void )
 {
+    // Save window as glfw clears the memory on close
+    g_Savewin = _glfwWin;
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
