@@ -211,7 +211,7 @@ public class AndroidBundler {
             int prefixLen = normalize(new File(contentRoot).getPath(), true).length();
             for (File r : resources) {
                 String p = normalize(r.getPath(), true).substring(prefixLen);
-                if (!(p.startsWith("/builtins") || p.equals("/game.arc"))) {
+                if (!(p.startsWith("/builtins") || p.equals("/game.darc"))) {
                     String ap = normalize("assets" + p, true);
                     zipOut.putNextEntry(new ZipEntry(ap));
                     FileUtils.copyFile(r, zipOut);

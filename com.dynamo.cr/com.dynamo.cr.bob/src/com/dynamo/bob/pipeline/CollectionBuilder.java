@@ -77,7 +77,28 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             taskBuilder.addOutput(genResource);
         }
 
-        return taskBuilder.build();
+        Task<Void> task = taskBuilder.build();
+        int embedIndex = 0;
+        for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
+            IResource genResource = task.getOutputs().get(embedIndex+1);
+            // TODO: This is a hack!
+            // If the file isn't created here GameObjectBuilder#create
+            // can't run as the generated file is loaded in GameObjectBuilder#create
+            // to search for embedded components.
+            // How to solve?
+            genResource.setContent(desc.getData().getBytes());
+
+            Task<?> embedTask = project.buildResource(genResource);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", desc.getId()));
+            }
+            embedTask.setProductOf(task);
+            ++embedIndex;
+        }
+
+        return task;
     }
 
     private Map<String, Map<String, PropertyDesc>> toMap(List<ComponentPropertyDesc> compProps) {
@@ -228,14 +249,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
             IResource genResource = task.getOutputs().get(embedIndex+1);
+            // TODO: We have to set content again here as distclean might have removed everything at this point
+            // See comment in create. Should tasks be recreated after distclean (or before actual build?). See Project.java
             genResource.setContent(desc.getData().getBytes());
-            Task<?> embedTask = project.buildResource(genResource);
-            if (embedTask == null) {
-                throw new CompileExceptionError(resource,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", desc.getId()));
-            }
-            embedTask.setProductOf(task);
 
             int buildDirLen = project.getBuildDirectory().length();
             String path = genResource.getPath().substring(buildDirLen);

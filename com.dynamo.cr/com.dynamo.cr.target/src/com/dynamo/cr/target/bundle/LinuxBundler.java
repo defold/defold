@@ -37,7 +37,7 @@ public class LinuxBundler {
         appDir.mkdirs();
 
         // Copy archive and game.projectc
-        for (String name : Arrays.asList("game.projectc", "game.arc")) {
+        for (String name : Arrays.asList("game.projectc", "game.darc")) {
             FileUtils.copyFile(new File(contentRoot, name), new File(appDir, name));
         }
 

@@ -30,7 +30,7 @@ public class OSXBundlerTest {
         outputDir = tempDir();
         projectProperties = new ProjectProperties();
         createFile(contentRoot, "game.projectc", "");
-        createFile(contentRoot, "game.arc", "");
+        createFile(contentRoot, "game.darc", "");
     }
 
     @After

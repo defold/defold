@@ -335,11 +335,11 @@ namespace dmEngine
             dmStrlCpy(tmp, content_root, sizeof(tmp));
             if (content_root[0])
             {
-                dmStrlCat(tmp, "/game.arc", sizeof(tmp));
+                dmStrlCat(tmp, "/game.darc", sizeof(tmp));
             }
             else
             {
-                dmStrlCat(tmp, "game.arc", sizeof(tmp));
+                dmStrlCat(tmp, "game.darc", sizeof(tmp));
             }
             if (dmSys::ResourceExists(tmp))
             {
