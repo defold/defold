@@ -9,9 +9,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -28,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.sign.IIdentityLister;
 import com.dynamo.cr.target.sign.ISignView;
@@ -103,10 +106,21 @@ public class SignHandler extends AbstractHandler {
                 String identity = presenter.getIdentity();
                 String profile = presenter.getProfile();
 
+                IProject project = EditorUtil.getProject();
+                InputStream projectIS = EditorUtil.getContentRoot(project).getFile("game.project").getContents();
+
+                ProjectProperties projectProperties = new ProjectProperties();
+                try {
+                    projectProperties.load(projectIS);
+                } finally {
+                    IOUtils.closeQuietly(projectIS);
+                }
+
                 Signer signer = new Signer();
                 Map<String, String> properties = new HashMap<String, String>();
-                properties.put("CFBundleDisplayName", "Defold");
+                properties.put("CFBundleDisplayName", projectProperties.getStringValue("project", "title", "Unnamed"));
                 properties.put("CFBundleExecutable", "dmengine");
+                properties.put("CFBundleIdentifier", projectProperties.getStringValue("ios", "bundle_identifier", "dmengine"));
 
                 String engine = Engine.getDefault().getEnginePath("ios");
                 String ipaPath = signer.sign(identity, profile, engine, properties);
