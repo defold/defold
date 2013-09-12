@@ -344,6 +344,7 @@ namespace dmHttpService
             delete worker;
         }
         dmMessage::DeleteSocket(http_service->m_Socket);
+        dmHttpCache::Close(http_service->m_HttpCache);
         delete http_service;
     }
 
