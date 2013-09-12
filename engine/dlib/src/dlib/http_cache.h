@@ -22,6 +22,8 @@ namespace dmHttpCache
         RESULT_INVALID_PATH = -1,
         RESULT_IO_ERROR = -2,
         RESULT_OUT_OF_RESOURCES = -3,
+        RESULT_NO_ETAG = -4,
+        RESULT_INVAL = -5,
     };
 
     /**
@@ -49,10 +51,15 @@ namespace dmHttpCache
         uint64_t m_IdentifierHash;
         /// Last accessed time
         uint64_t m_LastAccessed;
+        /// Expires
+        uint64_t m_Expires;
         /// Checksum
         uint64_t m_Checksum;
         /// True if the entry is verified, ie the cached version is valid, during the session
         uint8_t  m_Verified : 1;
+        /// Valid in terms of Cache-Control expires
+        /// NOTE: For etag-entries this always set to false as max-age is implicitly set to 0 for etag-entries
+        uint8_t  m_Valid : 1;
     };
 
     void SetDefaultParams(struct NewParams* params);
@@ -91,7 +98,14 @@ namespace dmHttpCache
     Result Close(HCache cache);
 
     /**
-     * Begin creation of cache entry
+     * Flush index to disk. Flush will only write to disk when the index is dirty.
+     * @param cache http cache handle
+     * @return RESULT_OK on success
+     */
+    Result Flush(HCache cache);
+
+    /**
+     * Begin creation of cache entry with etag
      * @param cache cache
      * @param uri uri
      * @param etag etag
@@ -99,6 +113,16 @@ namespace dmHttpCache
      * @return RESULT_OK on success
      */
     Result Begin(HCache cache, const char* uri, const char* etag, HCacheCreator* cache_creator);
+
+    /**
+     * Begin creation of cache entry with max-age time
+     * @param cache cache
+     * @param uri uri
+     * @param max_age max-age from http-header "Cache-Control"
+     * @param cache_creator cache creator handle (out)
+     * @return RESULT_OK on success
+     */
+    Result Begin(HCache cache, const char* uri, uint32_t max_age, HCacheCreator* cache_creator);
 
     /**
      * Add data to cache entry

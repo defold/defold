@@ -7,7 +7,9 @@
 #include <dlib/time.h>
 #include <dlib/message.h>
 #include <dlib/http_client.h>
+#include <dlib/http_cache.h>
 #include <dlib/log.h>
+#include <dlib/sys.h>
 #include <dlib/uri.h>
 #include <dlib/math.h>
 #include <ddf/ddf.h>
@@ -35,12 +37,20 @@ namespace dmHttpService
         dmArray<char>         m_Headers;
         const HttpService*    m_Service;
         int                   m_LoadBalanceCount;
+        bool                  m_CacheFlusher;
     };
 
     struct HttpService
     {
+        HttpService()
+        {
+            m_Socket = 0;
+            m_HttpCache = 0;
+            m_Run = false;
+        }
         dmArray<Worker*>          m_Workers;
         dmMessage::HSocket        m_Socket;
+        dmHttpCache::HCache       m_HttpCache;
         volatile bool             m_Run;
     };
 
@@ -165,6 +175,7 @@ namespace dmHttpService
             params.m_HttpWrite = &HttpWrite;
             params.m_HttpWriteHeaders = &HttpWriteHeaders;
             params.m_Userdata = worker;
+            params.m_HttpCache = worker->m_Service->m_HttpCache;
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
@@ -249,6 +260,8 @@ namespace dmHttpService
     {
         Worker* worker = (Worker*) arg;
 
+        uint64_t flush_period = 5 * 1000000U;
+        uint64_t next_flush = dmTime::GetTime() + flush_period;
         while (worker->m_Service->m_Run)
         {
             // TODO: We should add blocking support in dmMessage
@@ -256,12 +269,37 @@ namespace dmHttpService
             dmTime::Sleep(30 * 1000);
             dmMessage::Dispatch(worker->m_Service->m_Socket, &LoadBalance, worker);
             dmMessage::Dispatch(worker->m_Socket, &Dispatch, worker);
+
+            if (worker->m_CacheFlusher &&  dmTime::GetTime() > next_flush) {
+                dmHttpCache::Flush(worker->m_Service->m_HttpCache);
+                next_flush = dmTime::GetTime() + flush_period;
+            }
         }
     }
 
     HHttpService New()
     {
         HttpService* service = new HttpService;
+
+        dmHttpCache::NewParams cache_params;
+        char path[1024];
+        dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+        if (sys_result == dmSys::RESULT_OK)
+        {
+            // NOTE: The other cache (streaming) is called /cache
+            dmStrlCat(path, "/http-cache", sizeof(path));
+            cache_params.m_Path = path;
+            dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &service->m_HttpCache);
+            if (cache_r != dmHttpCache::RESULT_OK)
+            {
+                dmLogWarning("Unable to open http cache (%d)", cache_r);
+            }
+        }
+        else
+        {
+            dmLogWarning("Unable to locate application support path (%d)", sys_result);
+        }
+
         service->m_Run = true;
         dmMessage::NewSocket(HTTP_SOCKET_NAME, &service->m_Socket);
         service->m_Workers.SetCapacity(THREAD_COUNT);
@@ -277,6 +315,7 @@ namespace dmHttpService
             worker->m_Status = 0;
             worker->m_Service = service;
             worker->m_LoadBalanceCount = 0;
+            worker->m_CacheFlusher = i == 0;
             service->m_Workers.Push(worker);
 
             dmThread::Thread t = dmThread::New(&Loop, 0x4000, worker);

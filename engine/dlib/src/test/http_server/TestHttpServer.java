@@ -156,6 +156,12 @@ public class TestHttpServer extends AbstractHandler
             if (status == HttpServletResponse.SC_OK)
                 response.getWriter().print("cached_content");
         }
+        else if (target.equals("/max-age-cached")) {
+            response.setHeader("Cache-Control", "max-age=1");
+            response.getWriter().print(System.currentTimeMillis());
+            response.setStatus(HttpServletResponse.SC_OK);
+            baseRequest.setHandled(true);
+        }
         else if (target.startsWith("/tmp/http_files"))
         {
             String tag = String.format("W/\"" + calculateSHA1(new File(target.substring(1))) + "\"");
