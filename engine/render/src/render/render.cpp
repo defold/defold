@@ -248,16 +248,15 @@ namespace dmRender
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
         GenerateKey(render_context, GetViewProjectionMatrix(render_context));
 
-        if (render_context->m_RenderObjects.Size() > 0)
-        {
-            std::sort(&render_context->m_RenderObjects[0],
-                      &render_context->m_RenderObjects[0] + render_context->m_RenderObjects.Size(),
-                      &SortPred);
-        }
 
         // TODO: Move to "BeginFrame()" or similar? See case 2261
         FlushTexts(render_context);
         FlushDebug(render_context);
+
+        // TODO: Move to "BeginFrame()" or similar? See case 2261
+        std::sort(render_context->m_RenderObjects.Begin(),
+                  render_context->m_RenderObjects.End(),
+                  &SortPred);
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
