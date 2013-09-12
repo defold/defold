@@ -341,6 +341,8 @@ TEST_F(dmGuiTest, DynamicTexture)
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
     dmGui::DeleteNode(m_Scene, node);
+
+    dmGui::RenderScene(m_Scene, rp, &count);
 }
 
 TEST_F(dmGuiTest, ScriptTextureFont)

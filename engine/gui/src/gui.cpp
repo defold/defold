@@ -460,16 +460,13 @@ namespace dmGui
 
             dmArray<InternalNode>& nodes = scene->m_Nodes;
             uint32_t n = nodes.Size();
-            bool found = false;
             for (uint32_t j = 0; j < n; ++j) {
                 Node& node = nodes[j].m_Node;
                 if (node.m_TextureHash == texture_hash) {
                     node.m_Texture = 0;
-                    found = true;
                     // Do not break here. Texture may be used multiple times.
                 }
             }
-            assert(found);
         }
     }
 
