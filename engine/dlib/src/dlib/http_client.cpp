@@ -404,7 +404,7 @@ namespace dmHttpClient
         else if (dmStrCaseCmp(key, "Cache-Control") == 0)
         {
             const char* substr = "max-age=";
-            char* max_age = strstr(value, "max-age=");
+            const char* max_age = strstr(value, "max-age=");
             if (max_age) {
                 max_age += strlen(substr);
                 resp->m_MaxAge = atoi(max_age);
