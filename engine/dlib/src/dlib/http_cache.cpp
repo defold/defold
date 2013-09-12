@@ -337,7 +337,6 @@ namespace dmHttpCache
                 {
                     return RESULT_IO_ERROR;
                 }
-                fclose(f);
             }
         }
         return RESULT_OK;
