@@ -516,6 +516,7 @@ TEST_F(dmSoundTest, OggDecompressionRate)
     printf("time/60-frame: %.2f ms\n", 1000.0f * time_per_60_frame);
     printf("time for 8k buffer: %.2f ms\n", 1000.0f * 2 * 4096 / rate);
     free(buffer);
+    stb_vorbis_close(vorbis);
 }
 
 int main(int argc, char **argv)
