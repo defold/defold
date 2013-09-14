@@ -671,6 +671,11 @@ namespace dmScript
                                 out_url->m_Socket = socket;
                                 out_url->m_Path = dmHashBuffer64(string_url.m_Path, string_url.m_PathSize);
                                 out_url->m_Fragment = dmHashBuffer64(string_url.m_Fragment, string_url.m_FragmentSize);
+                                if (out_default_url != 0x0)
+                                {
+                                    dmMessage::ResetURL(*out_default_url);
+                                    GetURL(L, out_default_url);
+                                }
                                 return 0;
                             case dmMessage::RESULT_INVALID_SOCKET_NAME:
                                 return luaL_error(L, "The socket '%s' is invalid.", socket_name);
