@@ -114,20 +114,16 @@ public class IOSBundler {
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 
-        /*
-         * NOTE: Archive is currently disabled on iOS due to compression problems
-         * It seems that game.arc isn't compressed in the final ipa. File size limitation?
-         */
-        boolean useArchive = false;
+        final boolean useArchive = true;
 
         if (useArchive) {
             // Copy archive and game.projectc
-            for (String name : Arrays.asList("game.projectc", "game.arc")) {
+            for (String name : Arrays.asList("game.projectc", "game.darc")) {
                 FileUtils.copyFile(new File(contentRoot, name), new File(appDir, name));
             }
         } else {
             FileUtils.copyDirectory(new File(contentRoot), appDir);
-            new File(appDir, "game.arc").delete();
+            new File(appDir, "game.darc").delete();
         }
 
         // Create Info.plist

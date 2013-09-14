@@ -32,7 +32,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc"));
         if (project.option("build_disk_archive", "false").equals("true")) {
-            builder.addOutput(input.changeExt(".arc"));
+            builder.addOutput(input.changeExt(".darc"));
         }
 
         project.buildResource(input, CopyCustomResourcesBuilder.class);
@@ -48,7 +48,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private File createArchive(Task<Void> task) throws IOException {
         RandomAccessFile outFile = null;
-        File tempArchiveFile = File.createTempFile("tmp", "arc");
+        File tempArchiveFile = File.createTempFile("tmp", "darc");
         tempArchiveFile.deleteOnExit();
         outFile = new RandomAccessFile(tempArchiveFile, "rw");
         outFile.setLength(0);

@@ -229,6 +229,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
             if (sys_result == dmSys::RESULT_OK)
             {
+                // NOTE: The other http-service cache is called /http-cache
                 dmStrlCat(path, "/cache", sizeof(path));
                 cache_params.m_Path = path;
                 dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &factory->m_HttpCache);

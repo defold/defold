@@ -33,7 +33,7 @@ public class IOSBundlerTest {
         outputDir = tempDir();
         projectProperties = new ProjectProperties();
         createFile(contentRoot, "game.projectc", "game.projectc data");
-        createFile(contentRoot, "game.arc", "game.arc data");
+        createFile(contentRoot, "game.darc", "game.darc data");
         provisioningProfile = createFile(contentRoot, "test.mobileprovision", "test provision");
         isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
     }
@@ -67,10 +67,10 @@ public class IOSBundlerTest {
             assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
             if (useArchive) {
                 assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());
-                assertEquals("game.arc data", readFile(concat(outputDir, "MyApp.app"), "game.arc"));
+                assertEquals("game.darc data", readFile(concat(outputDir, "MyApp.app"), "game.darc"));
             } else {
                 assertTrue(new File(concat(outputDir, "MyApp.app/test.png")).exists());
-                assertFalse(new File(concat(outputDir, "MyApp.app/game.arc")).exists());
+                assertFalse(new File(concat(outputDir, "MyApp.app/game.darc")).exists());
             }
             assertExe();
             assertPList();

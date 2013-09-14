@@ -16,13 +16,14 @@
 #include "index_pool.h"
 #include "array.h"
 #include "poolallocator.h"
+#include "path.h"
 
 namespace dmHttpCache
 {
     // Magic file header for index file
     const uint32_t MAGIC = 0xCAAAAAAC;
     // Current index file version
-    const uint32_t VERSION = 4;
+    const uint32_t VERSION = 5;
 
     // Maximum number of cache entry creations in flight
     const uint32_t MAX_CACHE_CREATORS = 16;
@@ -66,6 +67,8 @@ namespace dmHttpCache
         uint64_t m_IdentifierHash;
         // Last accessed time
         uint64_t m_LastAccessed;
+        // Expires
+        uint64_t m_Expires;
         // Checksum
         uint64_t m_Checksum;
     };
@@ -97,6 +100,7 @@ namespace dmHttpCache
             m_Mutex = dmMutex::New();
             m_Policy = CONSISTENCY_POLICY_VERIFY;
             m_StringAllocator = dmPoolAllocator::New(4096);
+            m_Dirty = false;
         }
 
         ~Cache()
@@ -114,7 +118,7 @@ namespace dmHttpCache
         dmArray<CacheCreator> m_CacheCreators;
         ConsistencyPolicy    m_Policy;
         dmPoolAllocator::HPool m_StringAllocator;
-
+        bool                 m_Dirty;
     };
 
     void SetDefaultParams(NewParams* params)
@@ -147,9 +151,9 @@ namespace dmHttpCache
                     &identifier_string[2]);
     }
 
-    void RemoveCachedContentFile(HCache cache, uint64_t identifier_hash)
+    static void RemoveCachedContentFile(HCache cache, uint64_t identifier_hash)
     {
-        char path[512];
+        char path[DMPATH_MAX_PATH];
         ContentFilePath(cache, identifier_hash, path, sizeof(path));
         dmSys::Result r = dmSys::Unlink(path);
         if (r != dmSys::RESULT_OK)
@@ -192,7 +196,7 @@ namespace dmHttpCache
             memset(h, 0, sizeof(*h));
         }
 
-        char cache_file[512];
+        char cache_file[DMPATH_MAX_PATH];
         DM_SNPRINTF(cache_file, sizeof(cache_file), "%s/%s", path, "index");
         FILE* f = fopen(cache_file, "rb");
         if (f)
@@ -233,6 +237,7 @@ namespace dmHttpCache
                             e.m_Info.m_URI = dmPoolAllocator::Duplicate(c->m_StringAllocator, entries[i].m_URI);
                             e.m_Info.m_IdentifierHash = entries[i].m_IdentifierHash;
                             e.m_Info.m_LastAccessed = entries[i].m_LastAccessed;
+                            e.m_Info.m_Expires = entries[i].m_Expires;
                             e.m_Info.m_Checksum = entries[i].m_Checksum;
                             c->m_CacheTable.Put(entries[i].m_UriHash, e);
                         }
@@ -263,18 +268,16 @@ namespace dmHttpCache
     {
         FILE* m_File;
         bool m_Error;
-        const char* m_Filename;
         HashState64 m_HashState;
-        WriteEntryContext(FILE* f, const char* file_name)
+        WriteEntryContext(FILE* f)
         {
             m_File = f;
-            m_Filename = file_name;
             m_Error = false;
             dmHashInit64(&m_HashState, false);
         }
     };
 
-    void WriteEntry(WriteEntryContext* context, const uint64_t* key, Entry* entry)
+    static void WriteEntry(WriteEntryContext* context, const uint64_t* key, Entry* entry)
     {
         if (context->m_Error)
             return;
@@ -293,15 +296,79 @@ namespace dmHttpCache
         dmStrlCpy(file_entry.m_URI, entry->m_Info.m_URI, sizeof(file_entry.m_URI));
         file_entry.m_IdentifierHash = entry->m_Info.m_IdentifierHash;
         file_entry.m_LastAccessed = entry->m_Info.m_LastAccessed;
+        file_entry.m_Expires = entry->m_Info.m_Expires;
         file_entry.m_Checksum = entry->m_Info.m_Checksum;
 
         dmHashUpdateBuffer64(&context->m_HashState, &file_entry, sizeof(file_entry));
         size_t n_written = fwrite(&file_entry, 1, sizeof(file_entry), context->m_File);
         if (n_written != sizeof(file_entry))
         {
-            dmLogError("Error writing to index file '%s'", context->m_Filename);
             context->m_Error = true;
         }
+    }
+
+    static Result WriteIndex(HCache cache, FILE* f)
+    {
+        IndexHeader header;
+
+        header.m_Magic = MAGIC;
+        header.m_Version = VERSION;
+        header.m_Checksum = 0;
+        size_t n_written = fwrite(&header, 1, sizeof(header), f);
+        if (n_written != sizeof(header))
+        {
+            return RESULT_IO_ERROR;
+        }
+        else
+        {
+            WriteEntryContext context(f);
+            cache->m_CacheTable.Iterate(&WriteEntry, &context);
+            if (context.m_Error)
+            {
+                return RESULT_IO_ERROR;
+            }
+            else
+            {
+                // Rewrite header with checksum
+                fseek(f, 0, SEEK_SET);
+                header.m_Checksum = dmHashFinal64(&context.m_HashState);
+                size_t n_written = fwrite(&header, 1, sizeof(header), f);
+                if (n_written != sizeof(header))
+                {
+                    return RESULT_IO_ERROR;
+                }
+            }
+        }
+        return RESULT_OK;
+    }
+
+    Result Flush(HCache cache)
+    {
+        dmMutex::ScopedLock lock(cache->m_Mutex);
+        if (!cache->m_Dirty) {
+            return RESULT_OK;
+        }
+
+        cache->m_Dirty = false;
+        dmLogInfo("Flushing http cache to disk");
+
+        char cache_file[DMPATH_MAX_PATH];
+        DM_SNPRINTF(cache_file, sizeof(cache_file), "%s/%s", cache->m_Path, "index");
+        FILE* f = fopen(cache_file, "wb");
+        if (f) {
+            Result r = WriteIndex(cache, f);
+            fclose(f);
+            if (r != RESULT_OK) {
+                dmLogError("Error writing to index file '%s'", cache_file);
+                dmSys::Unlink(cache_file);
+                return RESULT_IO_ERROR;
+            }
+        } else {
+            dmLogError("Unable to open index file '%s'", cache_file);
+            return RESULT_IO_ERROR;
+        }
+
+        return RESULT_OK;
     }
 
     Result Close(HCache cache)
@@ -320,64 +387,20 @@ namespace dmHttpCache
             }
         }
 
-        char cache_file[512];
-        DM_SNPRINTF(cache_file, sizeof(cache_file), "%s/%s", cache->m_Path, "index");
-        FILE* f = fopen(cache_file, "wb");
-        if (f)
-        {
-            IndexHeader header;
-
-            header.m_Magic = MAGIC;
-            header.m_Version = VERSION;
-            header.m_Checksum = 0;
-            size_t n_written = fwrite(&header, 1, sizeof(header), f);
-            if (n_written != sizeof(header))
-            {
-                dmLogError("Error writing to index file '%s'", cache_file);
-                fclose(f);
-                dmSys::Unlink(cache_file);
-                return RESULT_IO_ERROR;
-            }
-            else
-            {
-                WriteEntryContext context(f, cache_file);
-                cache->m_CacheTable.Iterate(&WriteEntry, &context);
-                if (context.m_Error)
-                {
-                    dmLogError("Error writing to index file '%s'", cache_file);
-                    fclose(f);
-                    dmSys::Unlink(cache_file);
-                    return RESULT_IO_ERROR;
-                }
-                else
-                {
-                    // Rewrite header with checksum
-                    fseek(f, 0, SEEK_SET);
-                    header.m_Checksum = dmHashFinal64(&context.m_HashState);
-                    size_t n_written = fwrite(&header, 1, sizeof(header), f);
-                    if (n_written != sizeof(header))
-                    {
-                        dmLogError("Error writing to index file '%s'", cache_file);
-                        fclose(f);
-                        dmSys::Unlink(cache_file);
-                        return RESULT_IO_ERROR;
-                    }
-                    fclose(f);
-                }
-            }
-        }
-        else
-        {
-            dmLogError("Unable to open index file '%s'", cache_file);
-        }
+        Flush(cache);
         delete cache;
         return RESULT_OK;
     }
 
-    Result Begin(HCache cache, const char* uri, const char* etag, HCacheCreator* cache_creator)
+    Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age, HCacheCreator* cache_creator)
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
         *cache_creator = 0;
+
+        if (etag[0] == '\0' && max_age == 0) {
+            dmLogError("Trying to cache an entry with no tag and max-age set to 0");
+            return RESULT_INVAL;
+        }
 
         uint64_t uri_hash = dmHashString64(uri);
 
@@ -390,7 +413,8 @@ namespace dmHttpCache
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry)
         {
-            if (entry->m_Info.m_IdentifierHash == identifier_hash)
+            // NOTE: Empty string is "no" etag so cache updates with identical tag is valid only for empty etag
+            if (entry->m_Info.m_IdentifierHash == identifier_hash && etag[0])
             {
                 dmLogWarning("Trying to update existing cache entry for uri: '%s' with etag: '%s'.", uri, etag);
                 return RESULT_ALREADY_CACHED;
@@ -426,6 +450,12 @@ namespace dmHttpCache
         entry->m_Info.m_URI = dmPoolAllocator::Duplicate(cache->m_StringAllocator, uri);
         entry->m_Info.m_IdentifierHash = identifier_hash;
         entry->m_Info.m_LastAccessed = dmTime::GetTime();
+        if (max_age > 0) {
+            entry->m_Info.m_Expires = dmTime::GetTime() + max_age * 1000000U;
+        } else {
+            // For clarity set m_Expries to 0 when max_age is 0 (i.e expires 1970..)
+            entry->m_Info.m_Expires = 0;
+        }
         entry->m_WriteLock = 1;
 
         if (cache->m_CacheCreatorsPool.Remaining() == 0)
@@ -457,6 +487,16 @@ namespace dmHttpCache
         *cache_creator = handle;
 
         return RESULT_OK;
+    }
+
+    Result Begin(HCache cache, const char* uri, const char* etag, HCacheCreator* cache_creator)
+    {
+        return Begin(cache, uri, etag, 0, cache_creator);
+    }
+
+    Result Begin(HCache cache, const char* uri, uint32_t max_age, HCacheCreator* cache_creator)
+    {
+        return Begin(cache, uri, "", max_age, cache_creator);
     }
 
     static void FreeCacheCreator(HCache cache, HCacheCreator cache_creator)
@@ -521,7 +561,7 @@ namespace dmHttpCache
             return RESULT_IO_ERROR;
         }
 
-        char path[512];
+        char path[DMPATH_MAX_PATH];
         ContentFilePath(cache, identifier_hash, path, sizeof(path));
         struct stat stat_data;
         if (stat(path, &stat_data) == 0)
@@ -575,6 +615,7 @@ namespace dmHttpCache
         }
 
         FreeCacheCreator(cache, cache_creator);
+        cache->m_Dirty = true;
 
         return RESULT_OK;
     }
@@ -587,8 +628,12 @@ namespace dmHttpCache
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry != 0)
         {
-            dmStrlCpy(tag_buffer, entry->m_Info.m_ETag, tag_buffer_len);
-            return RESULT_OK;
+            if (entry->m_Info.m_ETag[0]) {
+                dmStrlCpy(tag_buffer, entry->m_Info.m_ETag, tag_buffer_len);
+                return RESULT_OK;
+            } else {
+                return RESULT_NO_ETAG;
+            }
         }
         else
         {
@@ -605,6 +650,7 @@ namespace dmHttpCache
         if (entry != 0)
         {
             memcpy(info, &entry->m_Info, sizeof(*info));
+            info->m_Valid = dmTime::GetTime() < info->m_Expires;
             return RESULT_OK;
         }
         else
@@ -635,7 +681,7 @@ namespace dmHttpCache
 
             entry->m_Info.m_LastAccessed = dmTime::GetTime();
 
-            char path[512];
+            char path[DMPATH_MAX_PATH];
             ContentFilePath(cache, identifier_hash, path, sizeof(path));
             FILE* f = fopen(path, "rb");
             if (f)
@@ -723,16 +769,19 @@ namespace dmHttpCache
 
     void SetConsistencyPolicy(HCache cache, ConsistencyPolicy policy)
     {
+        dmMutex::ScopedLock lock(cache->m_Mutex);
         cache->m_Policy = policy;
     }
 
     ConsistencyPolicy GetConsistencyPolicy(HCache cache)
     {
+        dmMutex::ScopedLock lock(cache->m_Mutex);
         return cache->m_Policy;
     }
 
     void Iterate(HCache cache, void* context, void (*call_back)(void* context, const EntryInfo* entry_info))
     {
+        dmMutex::ScopedLock lock(cache->m_Mutex);
         IterateContext iterate_context(cache, context, call_back);
         cache->m_CacheTable.Iterate(&IterateCallback, &iterate_context);
     }

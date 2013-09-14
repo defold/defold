@@ -608,16 +608,33 @@ namespace dmSocket
 
     Result GetHostByName(const char* name, Address* address)
     {
+#ifdef __linux__
+        // gethostbyname is *not* reentrant on linux
+
+        struct hostent hbuf, *host;
+        char tmp[1024];
+        int gh_errno;
+        int r = gethostbyname_r(name, &hbuf, tmp, sizeof(tmp), &host, &gh_errno);
+        if (r == 0) {
+            if (host) {
+                *address = ntohl(*((unsigned long *) host->h_addr_list[0]));
+                return RESULT_OK;
+            } else {
+                // gethostbyname_r is strange. Might return ok but with no host
+                return RESULT_HOST_NOT_FOUND;
+            }
+        } else {
+            return HNativeToResult(gh_errno);
+        }
+#else
         struct hostent* host = gethostbyname(name);
-        if (host)
-        {
+        if (host) {
             *address = ntohl(*((unsigned long *) host->h_addr_list[0]));
             return RESULT_OK;
-        }
-        else
-        {
+        } else {
             return HNativeToResult(DM_SOCKET_HERRNO);
         }
+#endif
     }
 
     #define DM_SOCKET_RESULT_TO_STRING_CASE(x) case RESULT_##x: return #x;

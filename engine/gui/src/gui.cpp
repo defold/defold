@@ -460,16 +460,13 @@ namespace dmGui
 
             dmArray<InternalNode>& nodes = scene->m_Nodes;
             uint32_t n = nodes.Size();
-            bool found = false;
             for (uint32_t j = 0; j < n; ++j) {
                 Node& node = nodes[j].m_Node;
                 if (node.m_TextureHash == texture_hash) {
                     node.m_Texture = 0;
-                    found = true;
                     // Do not break here. Texture may be used multiple times.
                 }
             }
-            assert(found);
         }
     }
 
@@ -709,6 +706,22 @@ namespace dmGui
 
                         lua_pushstring(L, "dy");
                         lua_pushnumber(L, ia->m_DY);
+                        lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_x");
+                        lua_pushnumber(L, ia->m_ScreenX);
+                        lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_y");
+                        lua_pushnumber(L, ia->m_ScreenY);
+                        lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_dx");
+                        lua_pushnumber(L, ia->m_ScreenDX);
+                        lua_rawset(L, -3);
+
+                        lua_pushstring(L, "screen_dy");
+                        lua_pushnumber(L, ia->m_ScreenDY);
                         lua_rawset(L, -3);
                     }
 

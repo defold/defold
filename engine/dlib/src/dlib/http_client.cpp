@@ -40,6 +40,7 @@ namespace dmHttpClient
         char     m_ETag[64];
         uint32_t m_Chunked : 1;
         uint32_t m_CloseConnection : 1;
+        uint32_t m_MaxAge;
 
         // Cache
         dmHttpCache::HCacheCreator m_CacheCreator;
@@ -47,12 +48,16 @@ namespace dmHttpClient
         Response(HClient client)
         {
             m_Client = client;
+            m_Major = 0;
+            m_Minor = 0;
+            m_Status = 0;
             m_ContentLength = -1;
             m_ETag[0] = '\0';
             m_ContentOffset = -1;
             m_TotalReceived = 0;
             m_Chunked = 0;
             m_CloseConnection = 0;
+            m_MaxAge = 0;
             m_CacheCreator = 0;
         }
     };
@@ -395,6 +400,20 @@ namespace dmHttpClient
         else if (dmStrCaseCmp(key, "ETag") == 0)
         {
             dmStrlCpy(resp->m_ETag, value, sizeof(resp->m_ETag));
+        }
+        else if (dmStrCaseCmp(key, "Cache-Control") == 0)
+        {
+            const char* substr = "max-age=";
+            const char* max_age = strstr(value, "max-age=");
+            if (max_age) {
+                max_age += strlen(substr);
+                resp->m_MaxAge = atoi(max_age);
+                // This logic is questionable...
+                if (resp->m_MaxAge > 60U * 60U * 24U * 30U) {
+                    dmLogWarning("max-age > 30 days - ignoring. Bad response?");
+                    resp->m_MaxAge = 0;
+                }
+            }
         }
 
         HClient c = resp->m_Client;
@@ -847,9 +866,13 @@ bail:
         else
         {
             // Non-cached response
-            if (client->m_HttpCache && response.m_Status == 200 /* OK */ && response.m_ETag[0] != '\0')
+            if (client->m_HttpCache && response.m_Status == 200 /* OK */)
             {
-                dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, &response.m_CacheCreator);
+                if (response.m_ETag[0] != '\0') {
+                    dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, &response.m_CacheCreator);
+                } else if (response.m_MaxAge > 0) {
+                    dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_MaxAge, &response.m_CacheCreator);
+                }
             }
 
             r = HandleResponse(client, path, &response);
@@ -918,17 +941,21 @@ bail:
 
         Result r;
 
-        if (client->m_HttpCache && dmHttpCache::GetConsistencyPolicy(client->m_HttpCache) == dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE)
+        if (client->m_HttpCache)
         {
-            // We have a cache and trust the content of the cache
+            dmHttpCache::ConsistencyPolicy policy = dmHttpCache::GetConsistencyPolicy(client->m_HttpCache);
             dmHttpCache::EntryInfo info;
             dmHttpCache::Result cache_r = dmHttpCache::GetInfo(client->m_HttpCache, client->m_URI, &info);
-            if (cache_r == dmHttpCache::RESULT_OK && info.m_Verified)
-            {
-                r = HandleCachedVerified(client, &info);
-                if (r == RESULT_NOT_200_OK)
-                {
-                    return r;
+            if (cache_r == dmHttpCache::RESULT_OK) {
+                bool ok_etag = info.m_Verified && policy == dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE;
+                if ((ok_etag || info.m_Valid)) {
+                    // We have a cache and trust the content of the cache
+                    // OR
+                    // the entry is valid in terms of max-age
+                    r = HandleCachedVerified(client, &info);
+                    if (r == RESULT_NOT_200_OK) {
+                        return r;
+                    }
                 }
             }
         }

@@ -30,6 +30,20 @@ public:
         return r;
     }
 
+    dmHttpCache::Result Put(dmHttpCache::HCache cache, const char* uri, uint32_t max_age, const void* content, uint32_t content_len)
+    {
+        dmHttpCache::Result r;
+        dmHttpCache::HCacheCreator cache_creator;
+        r = dmHttpCache::Begin(cache, uri, max_age, &cache_creator);
+        if (r != dmHttpCache::RESULT_OK)
+            return r;
+        r = dmHttpCache::Add(cache, cache_creator, content, content_len);
+        if (r != dmHttpCache::RESULT_OK)
+            return r;
+        r = dmHttpCache::End(cache, cache_creator);
+        return r;
+    }
+
     dmHttpCache::Result Get(dmHttpCache::HCache cache, const char* uri, const char* etag, void** content, uint64_t* checksum, uint32_t* size_out = 0)
     {
         FILE* f = 0;
@@ -118,6 +132,53 @@ TEST_F(dmHttpCacheTest, Simple)
     ASSERT_EQ(dmHashString64("data"), checksum);
     ASSERT_TRUE(memcmp("data", buffer, strlen("data")) == 0);
     free(buffer);
+
+    // Free
+    r = dmHttpCache::Close(cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+}
+
+TEST_F(dmHttpCacheTest, MaxAge)
+{
+    dmHttpCache::HCache cache;
+    dmHttpCache::NewParams params;
+    params.m_Path = "tmp/cache";
+    dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    uint32_t max_age = 10U;
+
+    r = Put(cache, "uri", max_age, "data", strlen("data"));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    // Get etag
+    char tag_buffer[16];
+    r = dmHttpCache::GetETag(cache, "uri", tag_buffer, sizeof(tag_buffer));
+    ASSERT_EQ(dmHttpCache::RESULT_NO_ETAG, r);
+
+    // Get content
+    void* buffer;
+    uint64_t checksum;
+    r = Get(cache, "uri", "", &buffer, &checksum);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_EQ(dmHashString64("data"), checksum);
+    ASSERT_TRUE(memcmp("data", buffer, strlen("data")) == 0);
+    free(buffer);
+
+    dmHttpCache::EntryInfo info;
+    r = dmHttpCache::GetInfo(cache, "uri", &info);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_EQ(0U, info.m_Verified);
+    ASSERT_EQ(1U, info.m_Valid);
+    ASSERT_NEAR(info.m_Expires, dmTime::GetTime() + max_age * 1000000U, 1U * 1000000U);
+
+    r = Put(cache, "uri", 1U, "data", strlen("data"));
+    dmTime::Sleep(1000000U);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    r = dmHttpCache::GetInfo(cache, "uri", &info);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    ASSERT_EQ(0U, info.m_Verified);
+    ASSERT_EQ(0U, info.m_Valid);
 
     // Free
     r = dmHttpCache::Close(cache);

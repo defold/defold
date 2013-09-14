@@ -48,6 +48,26 @@ namespace dmMessage
         dmhash_t    m_Fragment;
     };
 
+    struct StringURL
+    {
+        StringURL()
+        {
+            memset(this, 0, sizeof(StringURL));
+        }
+        /// Socket part of the URL, not null-terminated
+        const char* m_Socket;
+        /// Size of m_Socket
+        uint32_t m_SocketSize;
+        /// Path part of the URL, not null-terminated
+        const char* m_Path;
+        /// Size of m_Path
+        uint32_t m_PathSize;
+        /// Fragment part of the URL, not null-terminated
+        const char* m_Fragment;
+        /// Size of m_Fragment
+        uint32_t m_FragmentSize;
+    };
+
     /**
      * Message data desc used at dispatch callback. When a message is posted,
      * the actual object is copied into the sockets internal buffer.
@@ -151,17 +171,12 @@ namespace dmMessage
     /**
      * Convert a string to a URL struct
      * @param uri string of the format [socket:][path][#fragment]
-     * @param socket Socket out parameter, must not be 0x0
-     * @param socket_size Socket size out parameter, must not be 0x0
-     * @param path Path out parameter, must not be 0x0
-     * @param path_size Path size out parameter, must not be 0x0
-     * @param fragment Fragment out parameter, must not be 0x0
-     * @param fragment_size Fragment size out parameter, must not be 0x0
+     * @param parsed url in string format, must not be 0x0
      * @return
      * - RESULT_OK on success
      * - RESULT_MALFORMED_URL if the uri could not be parsed
      */
-    Result ParseURL(const char* uri, const char** out_socket, uint32_t* out_socket_size, const char** out_path, uint32_t* out_path_size, const char** out_fragment, uint32_t* out_fragment_size);
+    Result ParseURL(const char* uri, StringURL* out_url);
 };
 
 #endif // DM_MESSAGE_H
