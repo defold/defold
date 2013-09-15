@@ -21,12 +21,11 @@ public interface IGuiRenderer {
     public void drawQuad(double x0, double y0, double x1, double y1, double r,
             double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform);
 
-    public void drawString(TextRenderer textRenderer, String text, double x0, double y0,
-            double width, boolean lineBreak, double r, double g, double b,
-            double a, BlendMode blendMode, Texture texture, Matrix4d transform);
+    public void drawTextLines(TextRenderer textRenderer, List<TextLine> lines, double x0, double y0, double r,
+                              double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform);
 
-    public void drawStringBounds(TextRenderer textRenderer, String text, double x0,
-            double y0, double width, boolean lineBreak, double r, double g, double b, double a, Matrix4d transform);
+    public void drawTextLinesBounds(TextRenderer textRenderer, List<TextLine> lines, double x0, double y0, double r,
+                                    double g, double b, double a, Matrix4d transform);
 
     public Rectangle2D getStringBounds(TextRenderer textRenderer, String text);
 
@@ -52,7 +51,17 @@ public interface IGuiRenderer {
 
     public TextRenderer getDebugTextRenderer();
 
-    List<String> layout(TextRenderer textRenderer, String text, double width,
+    public static class TextLine {
+        public TextLine(String text, double width) {
+            this.text = text;
+            this.width = width;
+        }
+
+        public String text;
+        public double width;
+    }
+
+    List<TextLine> layout(TextRenderer textRenderer, String text, double width,
             boolean lineBreak);
 
 }

@@ -15,6 +15,7 @@ import org.eclipse.swt.graphics.RGB;
 import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
+import com.dynamo.cr.guieditor.render.IGuiRenderer.TextLine;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.gui.proto.Gui.NodeDesc;
@@ -225,10 +226,10 @@ public class TextGuiNode extends GuiNode {
 
         FontMetrics metrics = renderer.getFontMetrics(textRenderer.getFont());
 
-        List<String> lines = renderer.layout(textRenderer, text, size.getX(), lineBreak);
-        int width = 0;
-        for (String l : lines) {
-            width = Math.max(width, metrics.stringWidth(l));
+        List<TextLine> lines = renderer.layout(textRenderer, actualText, size.getX(), lineBreak);
+        double width = 0;
+        for (TextLine l : lines) {
+            width = Math.max(width, l.width);
         }
 
         int ascent = metrics.getMaxAscent();
@@ -242,7 +243,7 @@ public class TextGuiNode extends GuiNode {
 
         Matrix4d transform = new Matrix4d();
         calculateWorldTransform(transform);
-        renderer.drawString(textRenderer, actualText, x0, y0, this.getSize().x, lineBreak, r, g, b, alpha, blendMode, texture, transform);
+        renderer.drawTextLines(textRenderer, lines, x0, y0, r, g, b, alpha, blendMode, texture, transform);
     }
 
     @Override
@@ -259,10 +260,15 @@ public class TextGuiNode extends GuiNode {
         }
 
         FontMetrics metrics = renderer.getFontMetrics(textRenderer.getFont());
+
+        List<TextLine> lines = renderer.layout(textRenderer, actualText, size.getX(), lineBreak);
+        double width = 0;
+        for (TextLine l : lines) {
+            width = Math.max(width, l.width);
+        }
         int ascent = metrics.getMaxAscent();
         int descent = metrics.getMaxDescent();
 
-        int width = metrics.stringWidth(actualText);
         pivotOffsetX = pivotOffsetX(width);
         pivotOffsetY = pivotOffsetY(ascent, descent);
 
@@ -271,7 +277,8 @@ public class TextGuiNode extends GuiNode {
 
         Matrix4d transform = new Matrix4d();
         calculateWorldTransform(transform);
-        renderer.drawStringBounds(textRenderer, actualText, x0, y0, this.size.getX(), lineBreak, 1, 1, 1, 1, transform);
+        renderer.drawTextLinesBounds(textRenderer, lines, x0, y0, 1, 1, 1, 1,
+                transform);
     }
 
     @Override
