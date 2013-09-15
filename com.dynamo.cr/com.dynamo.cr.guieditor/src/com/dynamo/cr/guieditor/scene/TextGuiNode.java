@@ -176,14 +176,23 @@ public class TextGuiNode extends GuiNode {
         return Double.MAX_VALUE;
     }
 
-    private double pivotOffsetY(double ascent, double descent) {
+    private double[] lineOffsets(List<TextLine> lines, double width) {
+        double[] result = new double[lines.size()];
+        for (int i = 0; i < result.length; ++i) {
+            result[i] = pivotOffsetX(width - lines.get(i).width);
+        }
+
+        return result;
+    }
+
+    private double pivotOffsetY(double ascent, double descent, int lineCount) {
         Pivot p = getPivot();
 
         switch (p) {
         case PIVOT_CENTER:
         case PIVOT_E:
         case PIVOT_W:
-            return -descent * 0.5 + ascent * 0.5;
+            return -(ascent + descent) * (lineCount) * 0.5 + ascent;
 
         case PIVOT_N:
         case PIVOT_NE:
@@ -193,7 +202,7 @@ public class TextGuiNode extends GuiNode {
         case PIVOT_S:
         case PIVOT_SW:
         case PIVOT_SE:
-            return -descent;
+            return -(ascent + descent) * (lineCount - 1) - descent;
         }
 
         assert false;
@@ -236,14 +245,15 @@ public class TextGuiNode extends GuiNode {
         int descent = metrics.getMaxDescent();
 
         pivotOffsetX = pivotOffsetX(width);
-        pivotOffsetY = pivotOffsetY(ascent, descent);
+        pivotOffsetY = pivotOffsetY(ascent, descent, lines.size());
 
         double x0 = -pivotOffsetX;
         double y0 = -pivotOffsetY;
 
         Matrix4d transform = new Matrix4d();
         calculateWorldTransform(transform);
-        renderer.drawTextLines(textRenderer, lines, x0, y0, r, g, b, alpha, blendMode, texture, transform);
+        renderer.drawTextLines(textRenderer, lines, lineOffsets(lines, width), x0, y0, r, g, b, alpha, blendMode,
+                texture, transform);
     }
 
     @Override
@@ -270,7 +280,7 @@ public class TextGuiNode extends GuiNode {
         int descent = metrics.getMaxDescent();
 
         pivotOffsetX = pivotOffsetX(width);
-        pivotOffsetY = pivotOffsetY(ascent, descent);
+        pivotOffsetY = pivotOffsetY(ascent, descent, lines.size());
 
         double x0 = -pivotOffsetX;
         double y0 = -pivotOffsetY;
@@ -287,7 +297,7 @@ public class TextGuiNode extends GuiNode {
         calculateWorldTransform(transform);
 
         double x0 = -pivotOffsetX(size.x);
-        double y0 = -pivotOffsetY(size.y, 0);
+        double y0 = -pivotOffsetY(size.y, 0, 1);
         double x1 = x0 + size.x;
         double y1 = y0 + size.y;
         Vector4d points[] = new Vector4d[] {

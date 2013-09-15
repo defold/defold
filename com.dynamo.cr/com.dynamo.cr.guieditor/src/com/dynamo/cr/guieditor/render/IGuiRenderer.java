@@ -21,7 +21,8 @@ public interface IGuiRenderer {
     public void drawQuad(double x0, double y0, double x1, double y1, double r,
             double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform);
 
-    public void drawTextLines(TextRenderer textRenderer, List<TextLine> lines, double x0, double y0, double r,
+    public void drawTextLines(TextRenderer textRenderer, List<TextLine> lines, double[] xOffsets, double x0, double y0,
+                              double r,
                               double g, double b, double a, BlendMode blendMode, Texture texture, Matrix4d transform);
 
     public void drawTextLinesBounds(TextRenderer textRenderer, List<TextLine> lines, double x0, double y0, double r,

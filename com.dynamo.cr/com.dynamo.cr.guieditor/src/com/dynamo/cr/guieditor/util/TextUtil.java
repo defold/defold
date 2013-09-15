@@ -1,6 +1,6 @@
 package com.dynamo.cr.guieditor.util;
 
-import java.awt.geom.Rectangle2D;
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,11 +10,15 @@ import com.dynamo.cr.guieditor.render.IGuiRenderer.TextLine;
 
 public class TextUtil {
     public interface ITextMetric {
-        Rectangle2D getVisualBounds(String text);
+        Rectangle getVisualBounds(String text);
+        float getLSB(char c);
     }
 
     private static double getWidth(ITextMetric metric, String text) {
-        return metric.getVisualBounds(text).getWidth();
+        if (!text.isEmpty()) {
+            return metric.getVisualBounds(text).getWidth() + metric.getLSB(text.charAt(0));
+        }
+        return 0;
     }
 
     public static List<TextLine> layout(ITextMetric metric, String text, double width, boolean lineBreak) {
@@ -34,6 +38,7 @@ public class TextUtil {
             do {
                 char c = 0;
                 double w = 0.0;
+                double lastW = 0.0;
                 int j = i;
                 int lastFit = 0;
                 do {
@@ -46,6 +51,7 @@ public class TextUtil {
                     w = getWidth(metric, line.substring(i, j));
                     if (w <= width) {
                         lastFit = j;
+                        lastW = w;
                         for (; j < length; ++j) {
                             c = line.charAt(j);
                             if (c == 0 || !Character.isWhitespace(c))
@@ -55,8 +61,9 @@ public class TextUtil {
                 } while (w <= width && j < length);
                 if (lastFit == 0) {
                     lastFit = j;
+                    lastW = w;
                 }
-                textLines.add(new TextLine(line.substring(i, lastFit), w));
+                textLines.add(new TextLine(line.substring(i, lastFit), lastW));
                 if (lastFit < length) {
                     line = StringUtils.stripStart(line.substring(lastFit), null);
                     length = line.length();

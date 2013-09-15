@@ -2,7 +2,7 @@ package com.dynamo.cr.guieditor.test;
 
 import static org.junit.Assert.assertEquals;
 
-import java.awt.geom.Rectangle2D;
+import java.awt.Rectangle;
 import java.util.List;
 
 import org.junit.Before;
@@ -14,15 +14,20 @@ import com.dynamo.cr.guieditor.util.TextUtil;
 import com.dynamo.cr.guieditor.util.TextUtil.ITextMetric;
 
 public class TextUtilTest {
-    private static final double CHAR_SIZE = 10.0f;
+    private static final int CHAR_SIZE = 10;
     ITextMetric metric;
 
     @Before
     public void setUp() throws Exception {
         metric = new ITextMetric() {
             @Override
-            public Rectangle2D getVisualBounds(String text) {
-                return new Rectangle2D.Double(0, 0, text.length() * CHAR_SIZE, CHAR_SIZE);
+            public Rectangle getVisualBounds(String text) {
+                return new Rectangle(0, 0, text.length() * CHAR_SIZE, CHAR_SIZE);
+            }
+
+            @Override
+            public float getLSB(char c) {
+                return 0;
             }
         };
     }
@@ -60,6 +65,7 @@ public class TextUtilTest {
         assertEquals(words.length, lines.size());
         for (int i = 0; i < words.length; ++i) {
             assertEquals(words[i], lines.get(i).text);
+            assertEquals(words[i].length() * CHAR_SIZE, lines.get(i).width, 0);
         }
     }
 

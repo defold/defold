@@ -3,8 +3,10 @@ package com.dynamo.cr.guieditor.render;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.font.TextLayout;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
@@ -134,15 +136,17 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
 
     private class TextRenderCommmand extends RenderCommmand {
         private List<TextLine> lines;
+        private double[] xOffsets;
         private double x0, y0;
         private TextRenderer textRenderer;
 
-        public TextRenderCommmand(TextRenderer textRenderer, List<TextLine> lines, double x0, double y0, double r,
-                double g, double b, double a, BlendMode blendMode, Texture texture,
+        public TextRenderCommmand(TextRenderer textRenderer, List<TextLine> lines, double[] xOffsets, double x0,
+                double y0, double r, double g, double b, double a, BlendMode blendMode, Texture texture,
                 Matrix4d transform) {
             super(r, g, b, a, blendMode, texture, transform);
             this.textRenderer = textRenderer;
             this.lines = lines;
+            this.xOffsets = xOffsets;
             this.x0 = x0;
             this.y0 = y0;
         }
@@ -161,8 +165,9 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
 
             double x = x0;
             double y = y0;
-            for (TextLine t : lines) {
-                textRenderer.draw3D(t.text, (float) x, (float) y, 0, 1);
+            for (int i = 0; i < this.xOffsets.length; ++i) {
+                TextLine l = lines.get(i);
+                textRenderer.draw3D(l.text, (float) (x + xOffsets[i]), (float) y, 0, 1);
                 y -= ascent + descent;
             }
 
@@ -261,13 +266,13 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
      * @see com.dynamo.cr.guieditor.render.IGuiRenderer#drawString(java.lang.String, java.lang.String, double, double, double, double, double, double, com.dynamo.gui.proto.Gui.NodeDesc.BlendMode, java.lang.String)
      */
     @Override
-    public void drawTextLines(TextRenderer textRenderer, List<TextLine> lines, double x0, double y0, double r,
-            double g, double b, double a, BlendMode blendMode, Texture texture,
+    public void drawTextLines(TextRenderer textRenderer, List<TextLine> lines, double[] xOffsets, double x0, double y0,
+                              double r, double g, double b, double a, BlendMode blendMode, Texture texture,
             Matrix4d transform) {
         if (textRenderer == null)
             textRenderer = debugTextRenderer;
 
-        TextRenderCommmand command = new TextRenderCommmand(textRenderer, lines, x0, y0, r, g, b, a,
+        TextRenderCommmand command = new TextRenderCommmand(textRenderer, lines, xOffsets, x0, y0, r, g, b, a,
                 blendMode, texture, transform);
         if (currentName != -1) {
             command.name = currentName;
@@ -288,7 +293,7 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         int ascent = metrics.getMaxAscent();
         int descent = metrics.getMaxDescent();
 
-        double h = y0;
+        double h = 0;
         double w = 0;
         for (TextLine t : lines) {
             h += ascent + descent;
@@ -296,8 +301,9 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
         }
 
         double x = x0;
-        double y = y0;
-        QuadRenderCommand command = new QuadRenderCommand(x, y, x + w, y + h, r, g, b, a, null, null, transform);
+        double y = y0 + ascent;
+        QuadRenderCommand command = new QuadRenderCommand(x, y, x + w, y - h, r, g, b, a, null, null,
+                transform);
         if (currentName != -1) {
             command.name = currentName;
         }
@@ -317,15 +323,24 @@ public class GuiRenderer implements IDisposable, IGuiRenderer {
 
     private static class TextMetric implements ITextMetric {
         public TextMetric(TextRenderer textRenderer) {
-            this.textRenderer = textRenderer;
+            this.font = textRenderer.getFont();
+            this.fontRenderContext = textRenderer.getFontRenderContext();
         }
 
         @Override
-        public Rectangle2D getVisualBounds(String text) {
-            return new TextLayout(text, textRenderer.getFont(), textRenderer.getFontRenderContext()).getBounds();
+        public Rectangle getVisualBounds(String text) {
+            GlyphVector glyphVector = font.createGlyphVector(this.fontRenderContext, text);
+            return glyphVector.getOutline().getBounds();
         }
 
-        private TextRenderer textRenderer;
+        @Override
+        public float getLSB(char c) {
+            GlyphVector glyphVector = font.createGlyphVector(this.fontRenderContext, "" + c);
+            return glyphVector.getGlyphMetrics(0).getLSB();
+        }
+
+        private Font font;
+        private FontRenderContext fontRenderContext;
     }
 
     @Override
