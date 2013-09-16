@@ -55,6 +55,36 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return count;
     }
 
+    private int buildEmbedded(IResource input, CollectionDesc.Builder builder, Task<Void> task, int embedIndex) throws IOException, CompileExceptionError {
+        for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
+            IResource genResource = task.getOutputs().get(embedIndex+1);
+            // TODO: This is a hack!
+            // If the file isn't created here GameObjectBuilder#create
+            // can't run as the generated file is loaded in GameObjectBuilder#create
+            // to search for embedded components.
+            // How to solve?
+            genResource.setContent(desc.getData().getBytes());
+
+            Task<?> embedTask = project.buildResource(genResource);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", desc.getId()));
+            }
+            embedTask.setProductOf(task);
+            ++embedIndex;
+        }
+
+        for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
+            IResource collResource = this.project.getResource(c.getCollection());
+            CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
+            ProtoUtil.merge(collResource, subCollBuilder);
+            embedIndex = buildEmbedded(input, subCollBuilder, task, embedIndex);
+        }
+
+        return embedIndex;
+    }
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -78,26 +108,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         Task<Void> task = taskBuilder.build();
-        int embedIndex = 0;
-        for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
-            IResource genResource = task.getOutputs().get(embedIndex+1);
-            // TODO: This is a hack!
-            // If the file isn't created here GameObjectBuilder#create
-            // can't run as the generated file is loaded in GameObjectBuilder#create
-            // to search for embedded components.
-            // How to solve?
-            genResource.setContent(desc.getData().getBytes());
-
-            Task<?> embedTask = project.buildResource(genResource);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", desc.getId()));
-            }
-            embedTask.setProductOf(task);
-            ++embedIndex;
-        }
-
+        buildEmbedded(input, builder, task, 0);
         return task;
     }
 
