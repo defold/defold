@@ -483,7 +483,6 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
         {
             if (factory->m_HttpStatus == 404)
             {
-                dmLogError("Resource not found: %s", path);
                 return RESULT_RESOURCE_NOT_FOUND;
             }
             else
@@ -615,8 +614,12 @@ Result DoGet(HFactory factory, const char* name, void** resource)
 
         uint32_t file_size;
         Result result = LoadResource(factory, canonical_path, name, &file_size);
-        if (result != RESULT_OK)
+        if (result != RESULT_OK) {
+            if (result == RESULT_RESOURCE_NOT_FOUND) {
+                dmLogWarning("Resource not found: %s", name);
+            }
             return result;
+        }
 
         // TODO: We should *NOT* allocate SResource dynamically...
         SResourceDescriptor tmp_resource;
