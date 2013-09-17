@@ -7,16 +7,37 @@
 
 namespace dmRender
 {
+    static bool IsBreaking(uint32_t c)
+    {
+        return c == ' ' || c == '\n';
+    }
+
     static uint32_t NextBreak(const char** cursor, int* n) {
-        uint32_t c = dmUtf8::NextChar(cursor);
-        while (c != 0) {
-            *n = *n + 1;
-            if (c == ' ' || c == '\n')
-                return c;
+        uint32_t c = 0;
+        do {
             c = dmUtf8::NextChar(cursor);
-        }
+            if (c != 0)
+                *n = *n + 1;
+        } while (c != 0 && !IsBreaking(c));
         return c;
     }
+
+    static uint32_t SkipWS(const char** cursor, int* n) {
+        uint32_t c = 0;
+        do {
+            c = dmUtf8::NextChar(cursor);
+            if (c != 0)
+                *n = *n + 1;
+        } while (c != 0 && c == ' ');
+
+        return c;
+    }
+
+    struct TextLine {
+        float m_Width;
+        uint16_t m_Index;
+        uint16_t m_Count;
+    };
 
     /*
      * Simple text-layout.
@@ -25,9 +46,9 @@ namespace dmRender
      * and should be skipped when rendering
      */
     template <typename Metric>
-    int Layout(const char* str,
+    uint32_t Layout(const char* str,
                float width,
-               uint16_t* lines, uint16_t lines_count,
+               TextLine* lines, uint16_t lines_count,
                float* text_width,
                Metric metrics)
     {
@@ -35,27 +56,53 @@ namespace dmRender
 
         float max_width = 0;
 
-        int l = 0;
+        uint32_t l = 0;
         uint32_t c;
         do {
-            int n = 0;
+            int n = 0, last_n = 0;
             const char* row_start = cursor;
-            int row_count = 0;
-            float w, trimmed_w;
+            const char* last_cursor = cursor;
+            float w = 0.0f, last_w = 0.0f;
             do {
                 c = NextBreak(&cursor, &n);
-                int trim = 0;
-                // Skip single trailing white-space in actual width
-                if (c == ' ' || c == '\n')
-                    trim = 1;
-                w = metrics(row_start, row_count + n);
-                trimmed_w = metrics(row_start, row_count + n - trim);
+                if (n > 0)
+                {
+                    int trim = 0;
+                    if (c != 0)
+                        trim = 1;
+                    w = metrics(row_start, n-trim);
+                    if (w <= width)
+                    {
+                        last_n = n-trim;
+                        last_w = w;
+                        last_cursor = cursor;
+                        if (c != '\n')
+                            c = SkipWS(&cursor, &n);
+                    }
+                    else if (last_n != 0)
+                    {
+                        // rewind if we have more to scan
+                        cursor = last_cursor;
+                        c = dmUtf8::NextChar(&last_cursor);
+                    }
+                }
             } while (w <= width && c != 0 && c != '\n');
+            if (w > width && last_n == 0)
+            {
+                int trim = 0;
+                if (c != 0)
+                    trim = 1;
+                last_n = n-trim;
+                last_w = w;
+            }
 
-            if (l < lines_count) {
-                lines[l] = n;
+            if (l < lines_count && (c != 0 || last_n > 0)) {
+                TextLine& tl = lines[l];
+                tl.m_Width = last_w;
+                tl.m_Index = (row_start - str);
+                tl.m_Count = last_n;
                 l++;
-                max_width = dmMath::Max(max_width, trimmed_w);
+                max_width = dmMath::Max(max_width, last_w);
             } else {
                 // Out of lines
             }

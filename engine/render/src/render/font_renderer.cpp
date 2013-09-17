@@ -226,7 +226,7 @@ namespace dmRender
     {
         HFontMap m_FontMap;
         LayoutMetrics(HFontMap font_map) : m_FontMap(font_map) {}
-        float operator()(const char* text, int n)
+        float operator()(const char* text, uint32_t n)
         {
             return GetLineTextMetrics(m_FontMap, text, n);
         }
@@ -333,8 +333,8 @@ namespace dmRender
         Vector4 texture_size_recip(im_recip, ih_recip, 0, 0);
         EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, texture_size_recip);
 
-        const uint32_t max_lines = 512;
-        uint16_t lines[max_lines];
+        const uint32_t max_lines = 128;
+        TextLine lines[max_lines];
 
         while (entry_key != -1) {
             const TextEntry& te = text_context.m_TextEntries[entry_key];
@@ -353,20 +353,15 @@ namespace dmRender
             uint32_t outline_color = te.m_OutlineColor;
             uint32_t shadow_color = te.m_ShadowColor;
 
-            const char* cursor = text;
-
             for (int line = 0; line < line_count; ++line) {
                 int16_t x = 0;
                 int16_t y = (int16_t) (-line * (font_map->m_MaxAscent + font_map->m_MaxDescent) - 0.5f);
-                int n = lines[line];
+                TextLine& l = lines[line];
+                const char* cursor = &text[l.m_Index];
+                int n = l.m_Count;
                 for (int j = 0; j < n; ++j)
                 {
                     uint16_t c = (uint16_t) dmUtf8::NextChar(&cursor);
-
-                    if (j == n - 1 && (c == ' ' || c == '\n')) {
-                        // Skip single trailing white-space
-                        continue;
-                    }
 
                     const Glyph* g = font_map->m_Glyphs.Get(c);
                     if (!g)
@@ -496,8 +491,8 @@ namespace dmRender
             width = FLT_MAX;
         }
 
-        const uint32_t max_lines = 512;
-        uint16_t lines[max_lines];
+        const uint32_t max_lines = 128;
+        dmRender::TextLine lines[max_lines];
 
         LayoutMetrics lm(font_map);
         float layout_width;
