@@ -43,6 +43,20 @@ namespace dmRender
         RENDER_SCRIPT_RESULT_OK = 1
     };
 
+    enum TextAlign
+    {
+        TEXT_ALIGN_LEFT = 0,
+        TEXT_ALIGN_CENTER = 1,
+        TEXT_ALIGN_RIGHT = 2
+    };
+
+    enum TextVAlign
+    {
+        TEXT_VALIGN_TOP = 0,
+        TEXT_VALIGN_MIDDLE = 1,
+        TEXT_VALIGN_BOTTOM = 2
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
