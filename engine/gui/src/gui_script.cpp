@@ -1761,6 +1761,12 @@ namespace dmGui
         params->m_PhysicalHeight = 960;
     }
 
+    /*# gets the node screen position
+     *
+     * @name gui.get_screen_position
+     * @param node node to get the screen position from (node)
+     * @return node screen position (vector3)
+     */
     int LuaGetScreenPosition(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
