@@ -140,70 +140,85 @@ static float Metric(const char* text, int n)
     return n * 4;
 }
 
+#define ASSERT_LINE(index, count, lines, i)\
+    ASSERT_EQ(char_width * count, lines[i].m_Width);\
+    ASSERT_EQ(index, lines[i].m_Index);\
+    ASSERT_EQ(count, lines[i].m_Count);
+
 TEST(dmFontRenderer, Layout)
 {
     const uint32_t lines_count = 256;
-    uint16_t lines[lines_count];
+    dmRender::TextLine lines[lines_count];
     int total_lines;
     const float char_width = 4;
     float w;
+    total_lines = dmRender::Layout("", 100, lines, lines_count, &w, Metric);
+    ASSERT_EQ(0, total_lines);
+    ASSERT_EQ(0, w);
+
     total_lines = dmRender::Layout("x", 100, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);
-    ASSERT_EQ(1, lines[0]);
+    ASSERT_LINE(0, 1, lines, 0);
     ASSERT_EQ(char_width * 1, w);
 
     total_lines = dmRender::Layout("x\x00 123", 100, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);
-    ASSERT_EQ(1, lines[0]);
+    ASSERT_LINE(0, 1, lines, 0);
     ASSERT_EQ(char_width * 1, w);
 
     total_lines = dmRender::Layout("x", 0, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);
-    ASSERT_EQ(1, lines[0]);
+    ASSERT_LINE(0, 1, lines, 0);
     ASSERT_EQ(char_width * 1, w);
 
     total_lines = dmRender::Layout("foo", 3 * char_width, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);
-    ASSERT_EQ(3, lines[0]);
+    ASSERT_LINE(0, 3, lines, 0);
     ASSERT_EQ(char_width * 3, w);
 
     total_lines = dmRender::Layout("foo", 3 * char_width - 1, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);
-    ASSERT_EQ(3, lines[0]);
+    ASSERT_LINE(0, 3, lines, 0);
     ASSERT_EQ(char_width * 3, w);
 
     total_lines = dmRender::Layout("foo bar", 3 * char_width, lines, lines_count, &w, Metric);
     ASSERT_EQ(2, total_lines);
-    ASSERT_EQ(4, lines[0]);
-    ASSERT_EQ(3, lines[1]);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(4, 3, lines, 1);
     ASSERT_EQ(char_width * 3, w);
 
     total_lines = dmRender::Layout("foo bar", 1000, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);
-    ASSERT_EQ(7, lines[0]);
+    ASSERT_LINE(0, 7, lines, 0);
     ASSERT_EQ(char_width * 7, w);
+
+    total_lines = dmRender::Layout("foo  bar", 1000, lines, lines_count, &w, Metric);
+    ASSERT_EQ(1, total_lines);
+    ASSERT_LINE(0, 8, lines, 0);
+    ASSERT_EQ(char_width * 8, w);
 
     total_lines = dmRender::Layout("foo\n\nbar", 3 * char_width, lines, lines_count, &w, Metric);
     ASSERT_EQ(3, total_lines);
-    ASSERT_EQ(4, lines[0]);
-    ASSERT_EQ(1, lines[1]);
-    ASSERT_EQ(3, lines[2]);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(4, 0, lines, 1);
+    ASSERT_LINE(5, 3, lines, 2);
     ASSERT_EQ(char_width * 3, w);
 
     // åäö
     total_lines = dmRender::Layout("\xc3\xa5\xc3\xa4\xc3\xb6", 3 * char_width, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);
-    ASSERT_EQ(3, lines[0]);
+    ASSERT_EQ(char_width * 3, lines[0].m_Width);
+    ASSERT_LINE(0, 3, lines, 0);
     ASSERT_EQ(char_width * 3, w);
 
     total_lines = dmRender::Layout("Welcome to the Kingdom of Games...", 0, lines, lines_count, &w, Metric);
     ASSERT_EQ(6, total_lines);
-    ASSERT_EQ(8, lines[0]);
-    ASSERT_EQ(3, lines[1]);
-    ASSERT_EQ(4, lines[2]);
-    ASSERT_EQ(8, lines[3]);
-    ASSERT_EQ(3, lines[4]);
-    ASSERT_EQ(8, lines[5]);
+    ASSERT_LINE(0, 7, lines, 0);
+    ASSERT_LINE(8, 2, lines, 1);
+    ASSERT_LINE(11, 3, lines, 2);
+    ASSERT_LINE(15, 7, lines, 3);
+    ASSERT_LINE(23, 2, lines, 4);
+    ASSERT_LINE(26, 8, lines, 5);
     ASSERT_EQ(char_width * 8, w);
 }
 

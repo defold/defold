@@ -1621,16 +1621,6 @@ namespace dmGui
 
         float width = size.getX();
         float height = size.getY();
-        TextMetrics metrics;
-        if (node.m_NodeType == dmGui::NODE_TYPE_TEXT)
-        {
-            if (scene->m_Context->m_GetTextMetricsCallback != 0x0)
-            {
-                scene->m_Context->m_GetTextMetricsCallback(node.m_Font, node.m_Text, node.m_Properties[PROPERTY_SIZE].getX(), node.m_LineBreak, &metrics);
-            }
-            width = metrics.m_Width;
-            height = metrics.m_MaxAscent + metrics.m_MaxDescent;
-        }
 
         Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -1653,31 +1643,22 @@ namespace dmGui
             case dmGui::PIVOT_NW:
                 break;
         }
-        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
         switch (pivot) {
             case dmGui::PIVOT_CENTER:
             case dmGui::PIVOT_E:
             case dmGui::PIVOT_W:
-                if (render_text)
-                    delta_pivot.setY(-metrics.m_MaxDescent * 0.5f + metrics.m_MaxAscent * 0.5f);
-                else
-                    delta_pivot.setY(height * 0.5f);
+                delta_pivot.setY(height * 0.5f);
                 break;
 
             case dmGui::PIVOT_N:
             case dmGui::PIVOT_NE:
             case dmGui::PIVOT_NW:
-                if (render_text)
-                    delta_pivot.setY(metrics.m_MaxAscent);
-                else
-                    delta_pivot.setY(height);
+                delta_pivot.setY(height);
                 break;
 
             case dmGui::PIVOT_S:
             case dmGui::PIVOT_SW:
             case dmGui::PIVOT_SE:
-                if (render_text)
-                    delta_pivot.setY(-metrics.m_MaxDescent);
                 break;
         }
 
@@ -1688,6 +1669,7 @@ namespace dmGui
         t = offset + position.getXYZ() + rotate(r, mulPerElem(s, t));
         *out_transform = Matrix4::rotation(r) * Matrix4::scale(s);
         out_transform->setTranslation(t);
+        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
         if (!render_text)
         {
             *out_transform *= Matrix4::scale(Vector3(width, height, 1));

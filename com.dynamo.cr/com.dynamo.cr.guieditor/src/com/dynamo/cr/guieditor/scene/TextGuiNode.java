@@ -15,6 +15,7 @@ import org.eclipse.swt.graphics.RGB;
 import com.dynamo.cr.guieditor.Activator;
 import com.dynamo.cr.guieditor.DrawContext;
 import com.dynamo.cr.guieditor.render.IGuiRenderer;
+import com.dynamo.cr.guieditor.render.IGuiRenderer.TextLine;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.gui.proto.Gui.NodeDesc;
@@ -175,14 +176,23 @@ public class TextGuiNode extends GuiNode {
         return Double.MAX_VALUE;
     }
 
-    private double pivotOffsetY(double ascent, double descent) {
+    private double[] lineOffsets(List<TextLine> lines, double width) {
+        double[] result = new double[lines.size()];
+        for (int i = 0; i < result.length; ++i) {
+            result[i] = pivotOffsetX(width - lines.get(i).width);
+        }
+
+        return result;
+    }
+
+    private double pivotOffsetY(double ascent, double descent, int lineCount) {
         Pivot p = getPivot();
 
         switch (p) {
         case PIVOT_CENTER:
         case PIVOT_E:
         case PIVOT_W:
-            return -descent * 0.5 + ascent * 0.5;
+            return -(ascent + descent) * (lineCount) * 0.5 + ascent;
 
         case PIVOT_N:
         case PIVOT_NE:
@@ -192,7 +202,7 @@ public class TextGuiNode extends GuiNode {
         case PIVOT_S:
         case PIVOT_SW:
         case PIVOT_SE:
-            return -descent;
+            return -(ascent + descent) * (lineCount - 1) - descent;
         }
 
         assert false;
@@ -225,24 +235,25 @@ public class TextGuiNode extends GuiNode {
 
         FontMetrics metrics = renderer.getFontMetrics(textRenderer.getFont());
 
-        List<String> lines = renderer.layout(textRenderer, text, size.getX(), lineBreak);
-        int width = 0;
-        for (String l : lines) {
-            width = Math.max(width, metrics.stringWidth(l));
+        List<TextLine> lines = renderer.layout(textRenderer, actualText, size.getX(), lineBreak);
+        double width = 0;
+        for (TextLine l : lines) {
+            width = Math.max(width, l.width);
         }
 
         int ascent = metrics.getMaxAscent();
         int descent = metrics.getMaxDescent();
 
         pivotOffsetX = pivotOffsetX(width);
-        pivotOffsetY = pivotOffsetY(ascent, descent);
+        pivotOffsetY = pivotOffsetY(ascent, descent, lines.size());
 
         double x0 = -pivotOffsetX;
         double y0 = -pivotOffsetY;
 
         Matrix4d transform = new Matrix4d();
         calculateWorldTransform(transform);
-        renderer.drawString(textRenderer, actualText, x0, y0, this.getSize().x, lineBreak, r, g, b, alpha, blendMode, texture, transform);
+        renderer.drawTextLines(textRenderer, lines, lineOffsets(lines, width), x0, y0, r, g, b, alpha, blendMode,
+                texture, transform);
     }
 
     @Override
@@ -259,19 +270,25 @@ public class TextGuiNode extends GuiNode {
         }
 
         FontMetrics metrics = renderer.getFontMetrics(textRenderer.getFont());
+
+        List<TextLine> lines = renderer.layout(textRenderer, actualText, size.getX(), lineBreak);
+        double width = 0;
+        for (TextLine l : lines) {
+            width = Math.max(width, l.width);
+        }
         int ascent = metrics.getMaxAscent();
         int descent = metrics.getMaxDescent();
 
-        int width = metrics.stringWidth(actualText);
         pivotOffsetX = pivotOffsetX(width);
-        pivotOffsetY = pivotOffsetY(ascent, descent);
+        pivotOffsetY = pivotOffsetY(ascent, descent, lines.size());
 
         double x0 = -pivotOffsetX;
         double y0 = -pivotOffsetY;
 
         Matrix4d transform = new Matrix4d();
         calculateWorldTransform(transform);
-        renderer.drawStringBounds(textRenderer, actualText, x0, y0, this.size.getX(), lineBreak, 1, 1, 1, 1, transform);
+        renderer.drawTextLinesBounds(textRenderer, lines, x0, y0, 1, 1, 1, 1,
+                transform);
     }
 
     @Override
@@ -280,7 +297,7 @@ public class TextGuiNode extends GuiNode {
         calculateWorldTransform(transform);
 
         double x0 = -pivotOffsetX(size.x);
-        double y0 = -pivotOffsetY(size.y, 0);
+        double y0 = -pivotOffsetY(size.y, 0, 1);
         double x1 = x0 + size.x;
         double y1 = y0 + size.y;
         Vector4d points[] = new Vector4d[] {

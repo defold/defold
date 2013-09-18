@@ -98,9 +98,12 @@ namespace dmRender
         uint32_t m_ShadowColor;
         uint32_t m_Depth;
         float    m_Width;
+        float    m_Height;
         bool     m_LineBreak;
         int32_t  m_Next;
         int32_t  m_Tail;
+        uint32_t m_Align : 2;
+        uint32_t m_VAlign : 2;
     };
 
     struct TextContext

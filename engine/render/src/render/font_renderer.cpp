@@ -219,6 +219,8 @@ namespace dmRender
     , m_Depth(0)
     , m_Width(FLT_MAX)
     , m_LineBreak(false)
+    , m_Align(TEXT_ALIGN_LEFT)
+    , m_VAlign(TEXT_VALIGN_TOP)
     {
     }
 
@@ -226,7 +228,7 @@ namespace dmRender
     {
         HFontMap m_FontMap;
         LayoutMetrics(HFontMap font_map) : m_FontMap(font_map) {}
-        float operator()(const char* text, int n)
+        float operator()(const char* text, uint32_t n)
         {
             return GetLineTextMetrics(m_FontMap, text, n);
         }
@@ -286,7 +288,10 @@ namespace dmRender
         te.m_ShadowColor = dmGraphics::PackRGBA(params.m_ShadowColor);
         te.m_Depth = params.m_Depth;
         te.m_Width = params.m_Width;
+        te.m_Height = params.m_Height;
         te.m_LineBreak = params.m_LineBreak;
+        te.m_Align = params.m_Align;
+        te.m_VAlign = params.m_VAlign;
 
         int32_t index = text_context->m_TextEntries.Size();
         if (head_entry) {
@@ -301,6 +306,36 @@ namespace dmRender
         }
 
         text_context->m_TextEntries.Push(te);
+    }
+
+    static float OffsetX(uint32_t align, float width)
+    {
+        switch (align)
+        {
+            case TEXT_ALIGN_LEFT:
+                return 0.0f;
+            case TEXT_ALIGN_CENTER:
+                return width * 0.5f;
+            case TEXT_ALIGN_RIGHT:
+                return width;
+            default:
+                return 0.0f;
+        }
+    }
+
+    static float OffsetY(uint32_t valign, float height, float ascent, float descent, uint32_t line_count)
+    {
+        switch (valign)
+        {
+            case TEXT_VALIGN_TOP:
+                return height - ascent;
+            case TEXT_VALIGN_MIDDLE:
+                return height * 0.5f + (ascent + descent) * line_count * 0.5f - ascent;
+            case TEXT_VALIGN_BOTTOM:
+                return (ascent + descent) * (line_count - 1) + descent;
+            default:
+                return height - ascent;
+        }
     }
 
     void CreateFontVertexData(HRenderContext render_context, const uint64_t* key, int32_t* batch)
@@ -333,8 +368,8 @@ namespace dmRender
         Vector4 texture_size_recip(im_recip, ih_recip, 0, 0);
         EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, texture_size_recip);
 
-        const uint32_t max_lines = 512;
-        uint16_t lines[max_lines];
+        const uint32_t max_lines = 128;
+        TextLine lines[max_lines];
 
         while (entry_key != -1) {
             const TextEntry& te = text_context.m_TextEntries[entry_key];
@@ -348,25 +383,22 @@ namespace dmRender
             LayoutMetrics lm(font_map);
             float layout_width;
             int line_count = Layout(text, width, lines, max_lines, &layout_width, lm);
+            float x_offset = OffsetX(te.m_Align, te.m_Width);
+            float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, line_count);
 
             uint32_t face_color = te.m_FaceColor;
             uint32_t outline_color = te.m_OutlineColor;
             uint32_t shadow_color = te.m_ShadowColor;
 
-            const char* cursor = text;
-
             for (int line = 0; line < line_count; ++line) {
-                int16_t x = 0;
-                int16_t y = (int16_t) (-line * (font_map->m_MaxAscent + font_map->m_MaxDescent) - 0.5f);
-                int n = lines[line];
+                TextLine& l = lines[line];
+                int16_t x = (int16_t)(x_offset - OffsetX(te.m_Align, l.m_Width) + 0.5f);
+                int16_t y = (int16_t) (y_offset - line * (font_map->m_MaxAscent + font_map->m_MaxDescent) + 0.5f);
+                const char* cursor = &text[l.m_Index];
+                int n = l.m_Count;
                 for (int j = 0; j < n; ++j)
                 {
                     uint16_t c = (uint16_t) dmUtf8::NextChar(&cursor);
-
-                    if (j == n - 1 && (c == ' ' || c == '\n')) {
-                        // Skip single trailing white-space
-                        continue;
-                    }
 
                     const Glyph* g = font_map->m_Glyphs.Get(c);
                     if (!g)
@@ -477,11 +509,9 @@ namespace dmRender
         }
         if (n > 0)
         {
-            width = width - first->m_LeftBearing - (last->m_Advance - last->m_LeftBearing - last->m_Width);
-            if (last->m_Width == 0.0f)
-            {
-                width += last->m_Advance;
-            }
+            float last_end_point = last->m_LeftBearing + last->m_Width;
+            float last_right_bearing = last->m_Advance - last_end_point;
+            width = width - last_right_bearing;
         }
 
         return width;
@@ -496,8 +526,8 @@ namespace dmRender
             width = FLT_MAX;
         }
 
-        const uint32_t max_lines = 512;
-        uint16_t lines[max_lines];
+        const uint32_t max_lines = 128;
+        dmRender::TextLine lines[max_lines];
 
         LayoutMetrics lm(font_map);
         float layout_width;
