@@ -274,7 +274,7 @@ namespace dmScript
      * language is in ISO-639 format (two characters) and territory in
      * ISO-3166 format (two characters)
      *
-     * @name get_sys_info
+     * @name sys.get_sys_info
      * @return table with system information
      */
     int Sys_GetSysInfo(lua_State* L)
