@@ -1,5 +1,35 @@
 :max-width: 45em
 
+iOS 7 & More Gui Improvements (Release 1.2.23)
+----------------------------------------------
+_September 18, 2013_
+
+Fixes
+~~~~~
+
+* Support for iOS 7
+* Text and box nodes can be interleaved in Gui scenes, without render order problems
+* The actual screen position of Gui nodes can be obtained through link:/ref/gui#gui.get_screen_position[gui.get_screen_position]
+* Gui animations can be created for individual properties by specifying "position.x" instead of gui.PROP_POSITION
+* Gui text nodes inherit their text alignment from the pivot, e.g. North West meaning halign LEFT and valign TOP
+* Fixes for picking text nodes in the Gui editor
+
+Other fixes
+~~~~~~~~~~~
+
+* Missing resources are properly logged
+* Fix for compiling sub-collections with embedded game objects
+* Project title and bundle-identifier from game.project is used for the iOS simulator app when signing
+* Changed archive extension to .darc (from .arc)
+* Absolute URL:s can be declared globally in scripts, outside of the callback-functions
+* Default encoding for text files is now UTF-8
+* Unaligned texture support (rows not multiple of four bytes)
+* Fix for very long log messages (capped to 1024)
+* More reliable discovery of local ip-address in editor
+* Depth-mask is enabled before clear in default render-script (builtins)
+* link:/ref/builtins#hash_to_hex[hash_to_hex] function, which returns the string representation of a hash value
+* link:/ref/sys#sys.get_sys_info[sys.get_sys_info] function, which returns information about the system, such as device and language settings
+
 Gui & Font Improvements (Release 1.2.22)
 ----------------------------------------
 _August 12, 2013_
