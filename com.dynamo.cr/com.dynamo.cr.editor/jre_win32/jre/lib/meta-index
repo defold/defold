@@ -90,6 +90,7 @@ sun/print
 sun/dc
 com/sun/management/
 com/sun/awt/
+sun/usagetracker
 sun/security
 sun/jdbc
 sun/net
