@@ -657,6 +657,9 @@ namespace dmGui
      *   <li><code>gui.PROP_SHADOW</code></li>
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
+     * <p>
+     * Single values can also be animated by specifying e.g. "position.x" as the property.
+     * </p>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant). See gui.EASING_* constants
      * @param duration duration of the animation (number)

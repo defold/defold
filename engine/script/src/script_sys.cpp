@@ -36,7 +36,7 @@ namespace dmScript
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
-     * Use <code>sys.get_save_file</code> to obtain a good location for the file.
+     * Use <code>sys.get_save_file</code> to obtain a valid location for the file.
      *
      * @name sys.save
      * @param filename file to write to (string)
@@ -85,7 +85,7 @@ namespace dmScript
     }
 
     /*# loads a lua table from a file on disk
-     * The file must have been created by <code>sys.save</code>
+     * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
      *
      * @name sys.load
      * @param filename file to read from (string)
