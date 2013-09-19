@@ -2,6 +2,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <extension/extension.h>
 
 #include "script_private.h"
@@ -49,8 +50,60 @@ namespace dmScript
 
     int LuaPrint(lua_State* L);
 
+#define RANDOM_SEED "__random_seed"
+
+    static int Lua_Math_Random (lua_State *L)
+    {
+        // More or less from lmathlib.c
+        int top = lua_gettop(L);
+
+        lua_getglobal(L, RANDOM_SEED);
+        uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        lua_Number r = (lua_Number)dmMath::Rand(seed) / (lua_Number)DM_RAND_MAX;
+        switch (lua_gettop(L)) {
+            case 0: {
+                lua_pushnumber(L, r);
+                break;
+            }
+            case 1: {
+                int u = luaL_checkint(L, 1);
+                luaL_argcheck(L, 1<=u, 1, "interval is empty");
+                lua_pushnumber(L, floor(r*u)+1);  /* int between 1 and `u' */
+                break;
+            }
+            case 2: {
+                int l = luaL_checkint(L, 1);
+                int u = luaL_checkint(L, 2);
+                luaL_argcheck(L, l<=u, 2, "interval is empty");
+                lua_pushnumber(L, floor(r*(u-l+1))+l);  /* int between `l' and `u' */
+                break;
+            }
+            default:
+                return luaL_error(L, "wrong number of arguments");
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    static int Lua_Math_Randomseed (lua_State *L)
+    {
+        // More or less from lmathlib.c
+        int top = lua_gettop(L);
+        lua_getglobal(L, RANDOM_SEED);
+        uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
+        *seed = luaL_checkint(L, 1);
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     void Initialize(lua_State* L, const ScriptParams& params)
     {
+        int top = lua_gettop(L);
+
         InitializeHash(L);
         InitializeMsg(L);
         InitializeVmath(L);
@@ -62,6 +115,20 @@ namespace dmScript
         InitializeZlib(L);
 
         lua_register(L, "print", LuaPrint);
+
+        lua_getglobal(L, "math");
+        uint32_t *seed = (uint32_t*) malloc(sizeof(uint32_t));
+        *seed = 0;
+        lua_pushlightuserdata(L, seed);
+        lua_setglobal(L, RANDOM_SEED);
+
+        lua_pushcfunction(L, Lua_Math_Random);
+        lua_setfield(L, -2, "random");
+
+        lua_pushcfunction(L, Lua_Math_Randomseed);
+        lua_setfield(L, -2, "randomseed");
+
+        lua_pop(L, 1);
 
         lua_pushlightuserdata(L, (void*)params.m_Context);
         lua_setglobal(L, SCRIPT_CONTEXT);
@@ -96,6 +163,8 @@ namespace dmScript
             ++i;
             ed = ed->m_Next;
         }
+
+        assert(top == lua_gettop(L));
     }
 
     void Finalize(lua_State* L, HContext context)
@@ -121,6 +190,10 @@ namespace dmScript
             // context might be NULL in tests. Should probably be forbidden though
             memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         }
+
+        lua_getglobal(L, RANDOM_SEED);
+        uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
+        free(seed);
     }
 #undef BIT_INDEX
 #undef BIT_OFFSET
