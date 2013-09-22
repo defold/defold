@@ -117,16 +117,20 @@ namespace dmScript
         lua_register(L, "print", LuaPrint);
 
         lua_getglobal(L, "math");
-        uint32_t *seed = (uint32_t*) malloc(sizeof(uint32_t));
-        *seed = 0;
-        lua_pushlightuserdata(L, seed);
-        lua_setglobal(L, RANDOM_SEED);
+        if (!lua_isnil(L, -1)) {
+            uint32_t *seed = (uint32_t*) malloc(sizeof(uint32_t));
+            *seed = 0;
+            lua_pushlightuserdata(L, seed);
+            lua_setglobal(L, RANDOM_SEED);
 
-        lua_pushcfunction(L, Lua_Math_Random);
-        lua_setfield(L, -2, "random");
+            lua_pushcfunction(L, Lua_Math_Random);
+            lua_setfield(L, -2, "random");
 
-        lua_pushcfunction(L, Lua_Math_Randomseed);
-        lua_setfield(L, -2, "randomseed");
+            lua_pushcfunction(L, Lua_Math_Randomseed);
+            lua_setfield(L, -2, "randomseed");
+        } else {
+            dmLogWarning("math library not loaded")
+        }
 
         lua_pop(L, 1);
 
