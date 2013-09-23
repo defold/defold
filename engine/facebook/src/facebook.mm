@@ -431,6 +431,62 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
+/*# show facebook web dialog
+ *  Note that for certain dialogs, e.g. apprequests, both "title" and "message" are mandatory. If not
+ *  specified a generic error will be presented in the dialog. See https://developers.facebook.com/docs/dialogs for more
+ *  information about parameters.
+ * @name show_dialog
+ * @param dialog dialog to show, "feed", "apprequests", etc
+ * @param param table with dialog parameters, "title", "message", etc
+ * @param callback function called, with parameters (self, error), when the dialog is closed.
+ */
+static int Facebook_ShowDialog(lua_State* L)
+{
+    int top = lua_gettop(L);
+    VerifyCallback(L);
+
+    const char* dialog = luaL_checkstring(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+    lua_pushvalue(L, 3);
+    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    dmScript::GetInstance(L);
+    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    if (g_Facebook.m_Session) {
+        FBSession* s = g_Facebook.m_Session;
+
+        // NOTE: +dictionary is for temporary dictionaries and is autoreleased
+        NSMutableDictionary *params = [NSMutableDictionary dictionary];
+
+        lua_pushnil(L);
+        while (lua_next(L, 2) != 0) {
+            const char* v = luaL_checkstring(L, -1);
+            const char* k = luaL_checkstring(L, -2);
+            [params setObject: [NSString stringWithUTF8String: v] forKey: [NSString stringWithUTF8String: k]];
+            lua_pop(L, 1);
+        }
+
+        // Workaround for a bug in the current SDK...
+        [params setObject:s.accessTokenData.accessToken ? : @"" forKey:@"access_token"];
+        [params setObject:s.appID ? : @"" forKey:@"app_id"];
+
+        [FBWebDialogs
+             presentDialogModallyWithSession: s
+             dialog: [NSString stringWithUTF8String: dialog]
+             parameters: params
+             handler:^(FBWebDialogResult result, NSURL *resultURL, NSError *error) {
+                 RunCallback(L, error);
+             }
+        ];
+    } else {
+        dmLogWarning("No facebook session active");
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 static const luaL_reg Facebook_methods[] =
 {
     {"login", Facebook_Login},
@@ -440,6 +496,7 @@ static const luaL_reg Facebook_methods[] =
     {"request_read_permissions", Facebook_RequestReadPermissions},
     {"request_publish_permissions", Facebook_RequestPublishPermissions},
     {"me", Facebook_Me},
+    {"show_dialog", Facebook_ShowDialog},
     {0, 0}
 };
 
