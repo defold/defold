@@ -11,6 +11,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
+#include <dlib/profile.h>
 
 #include <script/script.h>
 
@@ -515,6 +516,8 @@ namespace dmGui
         dmArray<Animation>* animations = &scene->m_Animations;
         uint32_t n = animations->Size();
 
+        uint32_t active_animations = 0;
+
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
@@ -523,6 +526,7 @@ namespace dmGui
             {
                 continue;
             }
+            ++active_animations;
 
             if (anim->m_Delay < dt)
             {
@@ -590,6 +594,9 @@ namespace dmGui
                 continue;
             }
         }
+
+        DM_COUNTER("Gui.Animations", n);
+        DM_COUNTER("Gui.ActiveAnimations", active_animations);
     }
 
     struct InputArgs
@@ -861,6 +868,8 @@ namespace dmGui
 
         UpdateAnimations(scene, dt);
 
+        uint32_t total_nodes = 0;
+        uint32_t active_nodes = 0;
         // Deferred deletion of nodes
         uint32_t n = scene->m_Nodes.Size();
         for (uint32_t i = 0; i < n; ++i)
@@ -874,7 +883,19 @@ namespace dmGui
                 DeleteNode(scene, hnode);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
             }
+            else if (node->m_Index != INVALID_INDEX)
+            {
+                ++total_nodes;
+                if (node->m_Enabled)
+                    ++active_nodes;
+            }
         }
+
+        DM_COUNTER("Gui.Nodes", total_nodes);
+        DM_COUNTER("Gui.ActiveNodes", active_nodes);
+        DM_COUNTER("Gui.StaticTextures", scene->m_Textures.Size());
+        DM_COUNTER("Gui.DynamicTextures", scene->m_DynamicTextures.Size());
+        DM_COUNTER("Gui.Textures", scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
 
         return result;
     }
