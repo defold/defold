@@ -1894,12 +1894,12 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     const char* s = "function init(self)\n"
                     "    assert (1024 == gui.get_width())\n"
                     "    assert (768 == gui.get_height())\n"
-                    "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")\n"
+                    "    self.n1 = gui.new_text_node(vmath.vector3(10, 10, 0), \"n1\")"
                     "    gui.set_xanchor(self.n1, gui.ANCHOR_LEFT)\n"
                     "    assert(gui.get_xanchor(self.n1) == gui.ANCHOR_LEFT)\n"
                     "    gui.set_yanchor(self.n1, gui.ANCHOR_BOTTOM)\n"
                     "    assert(gui.get_yanchor(self.n1) == gui.ANCHOR_BOTTOM)\n"
-                    "    self.n2 = gui.new_text_node(vmath.vector3(gui.get_width() - 10, gui.get_height()-10, 0), \"n2\")\n"
+                    "    self.n2 = gui.new_text_node(vmath.vector3(gui.get_width() - 10, gui.get_height()-10, 0), \"n2\")"
                     "    gui.set_xanchor(self.n2, gui.ANCHOR_RIGHT)\n"
                     "    assert(gui.get_xanchor(self.n2) == gui.ANCHOR_RIGHT)\n"
                     "    gui.set_yanchor(self.n2, gui.ANCHOR_TOP)\n"
@@ -1923,12 +1923,12 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     // These tests the actual position of the cursor when rendering text so we need to adjust with the ref-scaled text metrics
     float ref_factor = dmMath::Min(ref_scale.getX(), ref_scale.getY());
     Point3 pos1 = m_NodeTextToRenderedPosition["n1"];
-    ASSERT_NEAR(10 * ref_scale.getX(), pos1.getX() + ref_factor * 0.5f, EPSILON);
-    ASSERT_NEAR(10 * ref_scale.getY(), pos1.getY() + ref_factor * 0.5f, EPSILON);
+    ASSERT_EQ(10 * ref_scale.getX(), pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
 
     Point3 pos2 = m_NodeTextToRenderedPosition["n2"];
-    ASSERT_NEAR(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * 0.5f, 0.0001f);
-    ASSERT_NEAR(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * 0.5f, 0.0001f);
+    ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
+    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
 }
 
 TEST_F(dmGuiTest, ScriptPivot)
@@ -2104,7 +2104,6 @@ TEST_F(dmGuiTest, ScriptPicking)
                     "    local size = vmath.vector3(string.len(id) * %.2f, %.2f + %.2f, 0)\n"
                     "    local position = size * 0.5\n"
                     "    local n1 = gui.new_text_node(position, id)\n"
-                    "    gui.set_size(n1, size)\n"
                     "    assert(gui.pick_node(n1, 0, 0))\n"
                     "    assert(gui.pick_node(n1, 0, size.y))\n"
                     "    assert(gui.pick_node(n1, size.x, 0))\n"
