@@ -41,6 +41,34 @@ TEST_F(dmGuiScriptTest, URLOutsideFunctions)
     DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, GetScreenPos)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src = "function init(self)\n"
+                      "    local p = vmath.vector3(10, 10, 0)\n"
+                      "    local s = vmath.vector3(20, 20, 0)\n"
+                      "    local n1 = gui.new_box_node(p, s)\n"
+                      "    local n2 = gui.new_text_node(p, \"text\")\n"
+                      "    gui.set_size(n2, s)\n"
+                      "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n2))\n"
+                      "end\n";
+    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
+
+    dmGui::DeleteScene(scene);
+
+    DeleteScript(script);
+}
 
 #define REF_VALUE "__ref_value"
 
