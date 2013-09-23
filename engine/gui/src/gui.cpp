@@ -492,7 +492,7 @@ namespace dmGui
         while (index != INVALID_INDEX)
         {
             InternalNode* n = &scene->m_Nodes[index];
-            if (n->m_Enabled)
+            if (n->m_Node.m_Enabled)
             {
                 CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
                 HNode node = GetNodeHandle(n);
@@ -886,7 +886,7 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
-                if (node->m_Enabled)
+                if (node->m_Node.m_Enabled)
                     ++active_nodes;
             }
         }
@@ -981,14 +981,22 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_OUTLINE] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SHADOW] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
+            node->m_Node.m_BlendMode = 0;
             node->m_Node.m_NodeType = (uint32_t) node_type;
+            node->m_Node.m_XAnchor = 0;
+            node->m_Node.m_YAnchor = 0;
+            node->m_Node.m_Pivot = 0;
+            node->m_Node.m_AdjustMode = 0;
+            node->m_Node.m_LineBreak = 0;
+            node->m_Node.m_Enabled = 1;
+
+            node->m_Node.m_HasResetPoint = false;
             node->m_Node.m_TextureHash = 0;
             node->m_Node.m_Texture = 0;
             node->m_Node.m_FontHash = 0;
             node->m_Node.m_Font = 0;
             node->m_Version = version;
             node->m_Index = index;
-            node->m_Enabled = 1;
             node->m_PrevIndex = INVALID_INDEX;
             node->m_NextIndex = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
@@ -1082,6 +1090,19 @@ namespace dmGui
         scene->m_Animations.SetSize(0);
     }
 
+    void ResetNodes(HScene scene)
+    {
+        uint32_t n_nodes = scene->m_Nodes.Size();
+        for (uint32_t i = 0; i < n_nodes; ++i) {
+            Node* n = &scene->m_Nodes[i].m_Node;
+            if (n->m_HasResetPoint) {
+                memcpy(n->m_Properties, n->m_ResetPointProperties, sizeof(n->m_Properties));
+                n->m_State = n->m_ResetPointState;
+            }
+        }
+        scene->m_Animations.SetSize(0);
+    }
+
     NodeType GetNodeType(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -1135,6 +1156,14 @@ namespace dmGui
         assert(property < PROPERTY_COUNT);
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Properties[property] = value;
+    }
+
+    void SetNodeResetPoint(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
+        n->m_Node.m_ResetPointState = n->m_Node.m_State;
+        n->m_Node.m_HasResetPoint = true;
     }
 
     const char* GetNodeText(HScene scene, HNode node)
@@ -1345,7 +1374,7 @@ namespace dmGui
         animation.m_FirstUpdate = 1;
         animation.m_AnimationCompleteCalled = 0;
         animation.m_Cancelled = 0;
-        animation.m_Enabled = n->m_Enabled;
+        animation.m_Enabled = n->m_Node.m_Enabled;
         animation.m_Backwards = 0;
 
         scene->m_Animations[animation_index] = animation;
@@ -1492,13 +1521,13 @@ namespace dmGui
     bool IsNodeEnabled(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
-        return n->m_Enabled;
+        return n->m_Node.m_Enabled;
     }
 
     void SetNodeEnabled(HScene scene, HNode node, bool enabled)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_Enabled = enabled;
+        n->m_Node.m_Enabled = enabled;
         dmArray<Animation>& anims = scene->m_Animations;
         uint32_t anim_count = anims.Size();
         for (uint32_t i = 0; i < anim_count; ++i)

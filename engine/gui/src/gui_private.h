@@ -51,14 +51,28 @@ namespace dmGui
     struct Node
     {
         Vector4     m_Properties[PROPERTY_COUNT];
-        uint32_t    m_BlendMode : 4;
-        uint32_t    m_NodeType : 4;
-        uint32_t    m_XAnchor : 2;
-        uint32_t    m_YAnchor : 2;
-        uint32_t    m_Pivot : 4;
-        uint32_t    m_AdjustMode : 2;
-        uint32_t    m_LineBreak : 1;
-        uint32_t    m_Reserved : 13;
+        Vector4     m_ResetPointProperties[PROPERTY_COUNT];
+        uint32_t    m_ResetPointState;
+
+        union
+        {
+            struct
+            {
+                uint32_t    m_BlendMode : 4;
+                uint32_t    m_NodeType : 4;
+                uint32_t    m_XAnchor : 2;
+                uint32_t    m_YAnchor : 2;
+                uint32_t    m_Pivot : 4;
+                uint32_t    m_AdjustMode : 2;
+                uint32_t    m_LineBreak : 1;
+                uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
+                uint32_t    m_Reserved : 12;
+            };
+
+            uint32_t m_State;
+        };
+
+        bool        m_HasResetPoint;
         const char* m_Text;
         uint64_t    m_TextureHash;
         void*       m_Texture;
@@ -75,7 +89,6 @@ namespace dmGui
         uint16_t m_PrevIndex;
         uint16_t m_NextIndex;
         uint16_t m_Deleted : 1; // Set to true for deferred deletion
-        uint16_t m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
     };
 
     struct NodeProxy

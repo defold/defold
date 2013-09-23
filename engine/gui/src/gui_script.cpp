@@ -1562,6 +1562,18 @@ namespace dmGui
         return 0;
     }
 
+    /*# reset all nodes to initial state
+     * reset only applies to static node loaded from the scene. Nodes created dynamically from script are not affected
+     *
+     * @name gui.reset_nodes
+     */
+    static int LuaResetNodes(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        ResetNodes(scene);
+        return 0;
+    }
+
     /*# default keyboard
      *
      * @name gui.KEYBOARD_TYPE_DEFAULT
@@ -1831,6 +1843,7 @@ namespace dmGui
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
+        {"reset_nodes",     LuaResetNodes},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)

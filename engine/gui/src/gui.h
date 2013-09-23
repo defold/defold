@@ -489,6 +489,12 @@ namespace dmGui
 
     void ClearNodes(HScene scene);
 
+    /**
+     * Reset all nodes to initial state created by SetNodeResetPoint()
+     * @param scene
+     */
+    void ResetNodes(HScene scene);
+
     NodeType GetNodeType(HScene scene, HNode node);
 
     Point3 GetNodePosition(HScene scene, HNode node);
@@ -525,6 +531,13 @@ namespace dmGui
     Vector4 GetNodePropertyHash(HScene scene, HNode node, dmhash_t property);
 
     void SetNodeProperty(HScene scene, HNode node, Property property, const Vector4& value);
+
+    /**
+     * Save state to reset to. See ResetNodes
+     * @param scene
+     * @param node
+     */
+    void SetNodeResetPoint(HScene scene, HNode node);
 
     const char* GetNodeText(HScene scene, HNode node);
     void SetNodeText(HScene scene, HNode node, const char* text);

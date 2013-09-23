@@ -721,6 +721,24 @@ TEST_F(dmGuiTest, PingPong)
     dmGui::DeleteNode(m_Scene, node);
 }
 
+TEST_F(dmGuiTest, Reset)
+{
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 20, 30), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(100, 200, 300), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    // Set reset point only for the first node
+    dmGui::SetNodeResetPoint(m_Scene, n1);
+    dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_POSITION, Vector4(1, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, n2, dmGui::PROPERTY_POSITION, Vector4(101, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+
+    dmGui::ResetNodes(m_Scene);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n1).getX(), 10.0f, EPSILON);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n2).getX(), 100.0f + 1.0f / 60.0f, EPSILON);
+
+    dmGui::DeleteNode(m_Scene, n1);
+    dmGui::DeleteNode(m_Scene, n2);
+}
+
 TEST_F(dmGuiTest, ScriptAnimate)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -2121,7 +2139,7 @@ TEST_F(dmGuiTest, EnableDisable)
 
     // Initially enabled
     dmGui::InternalNode* node = dmGui::GetNode(m_Scene, n1);
-    ASSERT_TRUE(node->m_Enabled);
+    ASSERT_TRUE(node->m_Node.m_Enabled);
 
     // Test rendering
     bool rendered = false;
@@ -2179,7 +2197,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     // Retrieve node
     dmGui::InternalNode* node = &m_Scene->m_Nodes[0];
     ASSERT_STREQ("node_1", node->m_Node.m_Text); // make sure we found the right one
-    ASSERT_FALSE(node->m_Enabled);
+    ASSERT_FALSE(node->m_Node.m_Enabled);
 }
 
 static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)

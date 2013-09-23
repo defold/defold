@@ -203,6 +203,7 @@ namespace dmGameSystem
                 dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
                 dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
                 dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
+                dmGui::SetNodeResetPoint(scene, n);
             }
             else
             {
