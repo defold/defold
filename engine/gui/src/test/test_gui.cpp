@@ -81,6 +81,8 @@ public:
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
 
         m_Context = dmGui::NewContext(&context_params);
+        // Bogus font for the metric callback to be run (not actually using the default font)
+        dmGui::SetDefaultFont(m_Context, (void*)0x1);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
@@ -1924,11 +1926,11 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     float ref_factor = dmMath::Min(ref_scale.getX(), ref_scale.getY());
     Point3 pos1 = m_NodeTextToRenderedPosition["n1"];
     ASSERT_EQ(10 * ref_scale.getX(), pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
+    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT));
 
     Point3 pos2 = m_NodeTextToRenderedPosition["n2"];
     ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
+    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT));
 }
 
 TEST_F(dmGuiTest, ScriptPivot)

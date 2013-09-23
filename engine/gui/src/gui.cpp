@@ -141,6 +141,11 @@ namespace dmGui
         context->m_PhysicalHeight = height;
     }
 
+    void SetDefaultFont(HContext context, void* font)
+    {
+        context->m_DefaultFont = font;
+    }
+
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));

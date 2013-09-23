@@ -305,6 +305,8 @@ namespace dmGui
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
 
+    void SetDefaultFont(HContext context, void* font);
+
     HScene NewScene(HContext context, const NewSceneParams* params);
 
     void DeleteScene(HScene scene);
