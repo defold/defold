@@ -19,6 +19,7 @@ extern struct android_app* g_AndroidApp;
 #define CMD_LOGIN 1
 #define CMD_REQUEST_READ 2
 #define CMD_REQUEST_PUBLISH 3
+#define CMD_DIALOG_COMPLETE 4
 
 // Must match iOS for now
 enum State
@@ -65,6 +66,7 @@ struct Facebook
     jmethodID m_GetAccessToken;
     jmethodID m_RequestReadPermissions;
     jmethodID m_RequestPublishPermissions;
+    jmethodID m_ShowDialog;
     int m_Callback;
     int m_Self;
     int m_Pipefd[2];
@@ -152,7 +154,6 @@ static void RunCallback()
             return;
         }
 
-        lua_pushnil(L);
         PushError(L, error);
 
         int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
@@ -181,6 +182,9 @@ static int LooperCallback(int fd, int events, void* data)
             break;
         case CMD_REQUEST_READ:
         case CMD_REQUEST_PUBLISH:
+            RunCallback();
+            break;
+        case CMD_DIALOG_COMPLETE:
             RunCallback();
             break;
         }
@@ -247,6 +251,14 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPub
     g_Facebook.m_CBData.m_L = (lua_State*)userData;
     g_Facebook.m_CBData.m_Error = StrDup(env, error);
     PostToCallback(CMD_REQUEST_PUBLISH);
+}
+
+JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComplete
+  (JNIEnv *env, jobject, jlong userData, jstring error)
+{
+    g_Facebook.m_CBData.m_L = (lua_State*)userData;
+    g_Facebook.m_CBData.m_Error = StrDup(env, error);
+    PostToCallback(CMD_DIALOG_COMPLETE);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeEntry
@@ -467,6 +479,53 @@ int Facebook_Me(lua_State* L)
     return 1;
 }
 
+int Facebook_ShowDialog(lua_State* L)
+{
+    int top = lua_gettop(L);
+    VerifyCallback(L);
+
+    const char* dialog = luaL_checkstring(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+    lua_pushvalue(L, 3);
+    g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
+    dmScript::GetInstance(L);
+    g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    JNIEnv* env = Attach();
+
+    char params_json[1024];
+    params_json[0] = '{';
+    params_json[1] = '\0';
+    char tmp[128];
+
+    lua_pushnil(L);
+    int i = 0;
+    while (lua_next(L, 2) != 0) {
+        const char* v = luaL_checkstring(L, -1);
+        const char* k = luaL_checkstring(L, -2);
+        DM_SNPRINTF(tmp, sizeof(tmp), "\"%s\": \"%s\"", k, v);
+        if (i > 0) {
+            dmStrlCat(params_json, ",", sizeof(params_json));
+        }
+        dmStrlCat(params_json, tmp, sizeof(params_json));
+        lua_pop(L, 1);
+        ++i;
+    }
+    dmStrlCat(params_json, "}", sizeof(params_json));
+
+    jstring str_dialog = env->NewStringUTF(dialog);
+    jstring str_params = env->NewStringUTF(params_json);
+    env->CallVoidMethod(g_Facebook.m_FB, g_Facebook.m_ShowDialog, (jlong)L, str_dialog, str_params);
+    env->DeleteLocalRef(str_dialog);
+    env->DeleteLocalRef(str_params);
+
+    Detach();
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 static const luaL_reg Facebook_methods[] =
 {
     {"login", Facebook_Login},
@@ -476,6 +535,7 @@ static const luaL_reg Facebook_methods[] =
     {"request_read_permissions", Facebook_RequestReadPermissions},
     {"request_publish_permissions", Facebook_RequestPublishPermissions},
     {"me", Facebook_Me},
+    {"show_dialog", Facebook_ShowDialog},
     {0, 0}
 };
 
@@ -513,6 +573,7 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         g_Facebook.m_GetAccessToken = env->GetMethodID(fb_class, "getAccessToken", "()Ljava/lang/String;");
         g_Facebook.m_RequestReadPermissions = env->GetMethodID(fb_class, "requestReadPermissions", "(JLjava/lang/String;)V");
         g_Facebook.m_RequestPublishPermissions = env->GetMethodID(fb_class, "requestPublishPermissions", "(JILjava/lang/String;)V");
+        g_Facebook.m_ShowDialog = env->GetMethodID(fb_class, "showDialog", "(JLjava/lang/String;Ljava/lang/String;)V");
 
         // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
         // Better solution?
