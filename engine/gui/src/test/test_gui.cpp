@@ -276,6 +276,7 @@ static void* DynamicNewTexture(dmGui::HScene scene, uint32_t width, uint32_t hei
 
 static void DynamicDeleteTexture(dmGui::HScene scene, void* texture, void* context)
 {
+    assert(texture);
     free(texture);
 }
 
@@ -297,11 +298,25 @@ static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const V
 
 TEST_F(dmGuiTest, DynamicTexture)
 {
+    uint32_t count = 0;
+    dmGui::RenderSceneParams rp;
+    rp.m_RenderNodes = DynamicRenderNodes;
+    rp.m_NewTexture = DynamicNewTexture;
+    rp.m_DeleteTexture = DynamicDeleteTexture;
+    rp.m_SetTextureData = DynamicSetTextureData;
+
     const int width = 2;
     const int height = 2;
     char data[width * height * 3] = { 0 };
 
+    // Test creation/deletion in the same frame (case 2355)
     dmGui::Result r;
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    dmGui::RenderScene(m_Scene, rp, &count);
+
     r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
@@ -316,14 +331,6 @@ TEST_F(dmGuiTest, DynamicTexture)
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
-
-    uint32_t count = 0;
-
-    dmGui::RenderSceneParams rp;
-    rp.m_RenderNodes = DynamicRenderNodes;
-    rp.m_NewTexture = DynamicNewTexture;
-    rp.m_DeleteTexture = DynamicDeleteTexture;
-    rp.m_SetTextureData = DynamicSetTextureData;
 
     dmGui::RenderScene(m_Scene, rp, &count);
     ASSERT_EQ(1U, count);
