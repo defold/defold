@@ -811,7 +811,7 @@ namespace dmGui
         return 0;
     }
 
-    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text)
+    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -823,7 +823,7 @@ namespace dmGui
         {
             luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
-        GetNode(scene, node)->m_Node.m_Font = scene->m_DefaultFont;
+        GetNode(scene, node)->m_Node.m_Font = font;
         SetNodeText(scene, node, text);
 
         NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
@@ -857,7 +857,7 @@ namespace dmGui
             pos = *dmScript::CheckVector3(L, 1);
         }
         Vector3 size = *dmScript::CheckVector3(L, 2);
-        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0);
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
     }
 
     /*# creates a new text node
@@ -879,9 +879,21 @@ namespace dmGui
         {
             pos = *dmScript::CheckVector3(L, 1);
         }
-        Vector3 size = Vector3(1,1,1);
         const char* text = luaL_checkstring(L, 2);
-        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text);
+        Scene* scene = GetScene(L);
+        void* font = scene->m_DefaultFont;
+        if (font == 0x0)
+            font = scene->m_Context->m_DefaultFont;
+        Vector3 size = Vector3(1,1,1);
+        if (font != 0x0)
+        {
+            dmGui::TextMetrics metrics;
+            scene->m_Context->m_GetTextMetricsCallback(font, text, 0.0f, false, &metrics);
+            size.setX(metrics.m_Width);
+            size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
+        }
+
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text, font);
     }
 
     /*# gets the node text

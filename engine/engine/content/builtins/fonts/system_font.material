@@ -1,5 +1,5 @@
-name: "font"
-tags: "gui"
+name: "system_font"
+tags: "text"
 vertex_program: "/builtins/fonts/font.vp"
 fragment_program: "/builtins/fonts/font.fp"
 vertex_constants {

@@ -563,6 +563,8 @@ namespace dmEngine
             goto bail;
         }
 
+        dmGui::SetDefaultFont(engine->m_GuiContext.m_GuiContext, engine->m_SystemFontMap);
+
         if (engine->m_RenderScriptPrototype)
             InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
 

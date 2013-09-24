@@ -46,6 +46,7 @@ namespace dmGui
         dmArray<HNode>          m_RenderNodes;
         dmArray<Matrix4>        m_RenderTransforms;
         dmHID::HContext         m_HidContext;
+        void*                   m_DefaultFont;
     };
 
     struct Node
