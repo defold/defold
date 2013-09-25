@@ -180,9 +180,10 @@ namespace dmGui
      * @param node node for which to calculate the transform
      * @param reference_scale the reference scale of the scene which is the ratio between physical and reference dimensions
      * @param boundary true calculates the boundary transform, false calculates the render transform
+     * @param offset_pivot If the transform should be offseted by the pivot or not
      * @param out_transform out-parameter to write the calculated transform to
      */
-    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform);
+    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, bool offset_pivot, Matrix4* out_transform);
 
     /** calculates the reference scale for a context
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.

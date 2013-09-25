@@ -59,6 +59,9 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
                       "    local n2 = gui.new_text_node(p, \"text\")\n"
                       "    gui.set_size(n2, s)\n"
                       "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n2))\n"
+                      "    local n3 = gui.new_text_node(p, \"text\")\n"
+                      "    gui.set_pivot(n3, gui.PIVOT_NW)\n"
+                      "    assert(gui.get_screen_position(n2) == gui.get_screen_position(n3))\n"
                       "end\n";
     dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
     ASSERT_EQ(dmGui::RESULT_OK, result);

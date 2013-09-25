@@ -503,7 +503,7 @@ namespace dmGui
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled)
             {
-                CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
+                CalculateNodeTransform(scene, n->m_Node, scale, false, true, &node_transform);
                 HNode node = GetNodeHandle(n);
                 c->m_RenderNodes.Push(node);
                 c->m_RenderTransforms.Push(node_transform);
@@ -1510,7 +1510,7 @@ namespace dmGui
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 transform;
         const Node& n = GetNode(scene, node)->m_Node;
-        CalculateNodeTransform(scene, n, scale, true, &transform);
+        CalculateNodeTransform(scene, n, scale, true, true, &transform);
         transform = inverse(transform);
         Vector4 screen_pos(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
@@ -1632,7 +1632,7 @@ namespace dmGui
                 cx*cy*cz + sx*sy*sz);
     }
 
-    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform)
+    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, bool offset_pivot, Matrix4* out_transform)
     {
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
         const Vector4& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION];
@@ -1688,42 +1688,45 @@ namespace dmGui
 
         Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
 
-        switch (pivot)
+        if (offset_pivot)
         {
-            case dmGui::PIVOT_CENTER:
-            case dmGui::PIVOT_S:
-            case dmGui::PIVOT_N:
-                delta_pivot.setX(width * 0.5f);
-                break;
+            switch (pivot)
+            {
+                case dmGui::PIVOT_CENTER:
+                case dmGui::PIVOT_S:
+                case dmGui::PIVOT_N:
+                    delta_pivot.setX(width * 0.5f);
+                    break;
 
-            case dmGui::PIVOT_NE:
-            case dmGui::PIVOT_E:
-            case dmGui::PIVOT_SE:
-                delta_pivot.setX(width);
-                break;
+                case dmGui::PIVOT_NE:
+                case dmGui::PIVOT_E:
+                case dmGui::PIVOT_SE:
+                    delta_pivot.setX(width);
+                    break;
 
-            case dmGui::PIVOT_SW:
-            case dmGui::PIVOT_W:
-            case dmGui::PIVOT_NW:
-                break;
-        }
-        switch (pivot) {
-            case dmGui::PIVOT_CENTER:
-            case dmGui::PIVOT_E:
-            case dmGui::PIVOT_W:
-                delta_pivot.setY(height * 0.5f);
-                break;
+                case dmGui::PIVOT_SW:
+                case dmGui::PIVOT_W:
+                case dmGui::PIVOT_NW:
+                    break;
+            }
+            switch (pivot) {
+                case dmGui::PIVOT_CENTER:
+                case dmGui::PIVOT_E:
+                case dmGui::PIVOT_W:
+                    delta_pivot.setY(height * 0.5f);
+                    break;
 
-            case dmGui::PIVOT_N:
-            case dmGui::PIVOT_NE:
-            case dmGui::PIVOT_NW:
-                delta_pivot.setY(height);
-                break;
+                case dmGui::PIVOT_N:
+                case dmGui::PIVOT_NE:
+                case dmGui::PIVOT_NW:
+                    delta_pivot.setY(height);
+                    break;
 
-            case dmGui::PIVOT_S:
-            case dmGui::PIVOT_SW:
-            case dmGui::PIVOT_SE:
-                break;
+                case dmGui::PIVOT_S:
+                case dmGui::PIVOT_SW:
+                case dmGui::PIVOT_SE:
+                    break;
+            }
         }
 
         const float deg_to_rad = 3.1415926f / 180.0f;

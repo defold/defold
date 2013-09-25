@@ -1812,14 +1812,8 @@ namespace dmGui
         Scene* scene = GetScene(L);
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 node_transform;
-        Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
-        HNode handle = GetNodeHandle(n);
-        if (GetNodeType(scene, handle) == NODE_TYPE_TEXT)
-        {
-            center = GetNodeProperty(scene, handle, PROPERTY_SIZE) * 0.5f;
-            center.setW(1.0f);
-        }
-        CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
+        Vector4 center(0.0f, 0.0f, 0.0f, 1.0f);
+        CalculateNodeTransform(scene, n->m_Node, scale, true, false, &node_transform);
         Vector4 p = node_transform * center;
         dmScript::PushVector3(L, Vector3(p.getX(), p.getY(), p.getZ()));
         return 1;
