@@ -188,6 +188,7 @@ namespace dmGui
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
+        scene->m_RenderOrder = 0;
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -1109,6 +1110,11 @@ namespace dmGui
             }
         }
         scene->m_Animations.SetSize(0);
+    }
+
+    uint16_t GetRenderOrder(HScene scene)
+    {
+        return scene->m_RenderOrder;
     }
 
     NodeType GetNodeType(HScene scene, HNode node)

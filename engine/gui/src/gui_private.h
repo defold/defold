@@ -164,6 +164,7 @@ namespace dmGui
         uint16_t                m_RenderHead;
         uint16_t                m_RenderTail;
         uint16_t                m_NextVersionNumber;
+        uint16_t                m_RenderOrder; // For the render-key
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

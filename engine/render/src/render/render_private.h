@@ -97,6 +97,7 @@ namespace dmRender
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         uint32_t m_Depth;
+        uint16_t m_RenderOrder;
         float    m_Width;
         float    m_Height;
         bool     m_LineBreak;

@@ -138,6 +138,8 @@ namespace dmRender
         const char* m_Text;
         /// Render depth value. Passed to the render-key depth
         uint32_t    m_Depth;
+        /// Render order value. Passed to the render-key
+        uint16_t    m_RenderOrder;
         /// Text render box width. Used for alignment and when m_LineBreak is true
         float       m_Width;
         /// Text render box height. Used for vertical alignment
