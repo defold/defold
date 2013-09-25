@@ -36,6 +36,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
         node.setTileHeight(ddf.getTileHeight());
         node.setTileMargin(ddf.getTileMargin());
         node.setTileSpacing(ddf.getTileSpacing());
+        node.setExtrudeBorders(ddf.getExtrudeBorders());
         node.setCollision(ddf.getCollision());
         node.setMaterialTag(ddf.getMaterialTag());
         // Load collision groups
@@ -81,6 +82,7 @@ public class TileSetLoader implements INodeLoader<TileSetNode> {
                 .setTileHeight(node.getTileHeight())
                 .setTileMargin(node.getTileMargin())
                 .setTileSpacing(node.getTileSpacing())
+                .setExtrudeBorders(node.getExtrudeBorders())
                 .setCollision(node.getCollision())
                 .setMaterialTag(node.getMaterialTag());
         // Save tile collision groups
