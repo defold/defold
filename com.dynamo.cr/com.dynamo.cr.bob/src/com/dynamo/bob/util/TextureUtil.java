@@ -21,6 +21,11 @@ public class TextureUtil {
             return prevPower2;
     }
 
+    /**
+     * Util method to get the image type from an image, or best guess when it's lacking (0).
+     * 
+     * The current java version fails for new BufferedImage(..., 0), which is 0 as image type
+     */
     public static int getImageType(BufferedImage image) {
         int type = image.getType();
         if (type == 0) {
