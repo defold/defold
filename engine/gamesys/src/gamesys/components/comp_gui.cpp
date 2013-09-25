@@ -349,6 +349,7 @@ namespace dmGameSystem
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
             params.m_Depth = gui_context->m_NextZ;
+            params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
@@ -426,6 +427,7 @@ namespace dmGameSystem
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = 6 * node_count;
         ro.m_Material = gui_world->m_Material;
+        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);

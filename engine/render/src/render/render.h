@@ -76,6 +76,8 @@ namespace dmRender
             struct
             {
                 uint64_t    m_Depth:32;
+                // NOTE: The order-range is hard-coded in gui_script.cpp
+                // Any changes here must be reflected in dmGui
                 uint64_t    m_Order:3;
                 uint64_t    m_Translucency:1;
                 uint64_t    m_MaterialId:28;

@@ -497,6 +497,13 @@ namespace dmGui
      */
     void ResetNodes(HScene scene);
 
+    /**
+     * Get scene render-order. The value is typically used for a render-key when sorting
+     * @param scene
+     * @return
+     */
+    uint16_t GetRenderOrder(HScene scene);
+
     NodeType GetNodeType(HScene scene, HNode node);
 
     Point3 GetNodePosition(HScene scene, HNode node);

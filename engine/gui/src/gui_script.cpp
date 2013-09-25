@@ -1586,6 +1586,20 @@ namespace dmGui
         return 0;
     }
 
+    // Currently a private function
+    static int LuaSetRenderOrder(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        int order = luaL_checkinteger(L, 1);
+        // NOTE: The range reflects the current bits allocated in RenderKey for order
+        if (order < 0 || order > 7) {
+            dmLogWarning("Render must be in range [0,7]");
+        }
+        order = dmMath::Clamp(order, 0, 7);
+        scene->m_RenderOrder = (uint16_t) order;
+        return 0;
+    }
+
     /*# default keyboard
      *
      * @name gui.KEYBOARD_TYPE_DEFAULT
@@ -1856,6 +1870,7 @@ namespace dmGui
         {"hide_keyboard",   LuaHideKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
+        {"set_render_order",LuaSetRenderOrder},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)

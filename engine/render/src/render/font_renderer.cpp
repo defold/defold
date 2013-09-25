@@ -217,6 +217,7 @@ namespace dmRender
     , m_ShadowColor(0.0f, 0.0f, 0.0f, -1.0f)
     , m_Text(0x0)
     , m_Depth(0)
+    , m_RenderOrder(0)
     , m_Width(FLT_MAX)
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
@@ -246,6 +247,7 @@ namespace dmRender
         dmHashInit64(&key_state, false);
         dmHashUpdateBuffer64(&key_state, &font_map, sizeof(&font_map));
         dmHashUpdateBuffer64(&key_state, &params.m_Depth, sizeof(&params.m_Depth));
+        dmHashUpdateBuffer64(&key_state, &params.m_RenderOrder, sizeof(&params.m_RenderOrder));
         uint64_t key = dmHashFinal64(&key_state);
 
         int32_t* head = text_context->m_Batches.Get(key);
@@ -287,6 +289,7 @@ namespace dmRender
         te.m_OutlineColor = dmGraphics::PackRGBA(params.m_OutlineColor);
         te.m_ShadowColor = dmGraphics::PackRGBA(params.m_ShadowColor);
         te.m_Depth = params.m_Depth;
+        te.m_RenderOrder = params.m_RenderOrder;
         te.m_Width = params.m_Width;
         te.m_Height = params.m_Height;
         te.m_LineBreak = params.m_LineBreak;
@@ -360,7 +363,7 @@ namespace dmRender
         ro->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         ro->m_SetBlendFactors = 1;
         ro->m_RenderKey.m_Depth = first_te.m_Depth;
-        ro->m_RenderKey.m_Order = 0;
+        ro->m_RenderKey.m_Order = first_te.m_RenderOrder;
         ro->m_Material = font_map->m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
         ro->m_VertexStart = text_context.m_VertexIndex;
