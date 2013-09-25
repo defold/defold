@@ -9,6 +9,12 @@ extern "C"
 #include "lua/lauxlib.h"
 }
 
+static const float TEXT_GLYPH_WIDTH = 1.0f;
+static const float TEXT_MAX_ASCENT = 0.75f;
+static const float TEXT_MAX_DESCENT = 0.25f;
+
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics);
+
 class dmGuiScriptTest : public ::testing::Test
 {
 public:
@@ -21,6 +27,7 @@ public:
 
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
+        context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
         m_Context = dmGui::NewContext(&context_params);
     }
 
@@ -30,6 +37,13 @@ public:
         dmScript::DeleteContext(m_ScriptContext);
     }
 };
+
+void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, dmGui::TextMetrics* out_metrics)
+{
+    out_metrics->m_Width = strlen(text) * TEXT_GLYPH_WIDTH;
+    out_metrics->m_MaxAscent = TEXT_MAX_ASCENT;
+    out_metrics->m_MaxDescent = TEXT_MAX_DESCENT;
+}
 
 TEST_F(dmGuiScriptTest, URLOutsideFunctions)
 {
