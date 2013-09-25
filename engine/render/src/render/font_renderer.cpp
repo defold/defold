@@ -245,9 +245,9 @@ namespace dmRender
         TextContext* text_context = &render_context->m_TextContext;
         HashState64 key_state;
         dmHashInit64(&key_state, false);
-        dmHashUpdateBuffer64(&key_state, &font_map, sizeof(&font_map));
-        dmHashUpdateBuffer64(&key_state, &params.m_Depth, sizeof(&params.m_Depth));
-        dmHashUpdateBuffer64(&key_state, &params.m_RenderOrder, sizeof(&params.m_RenderOrder));
+        dmHashUpdateBuffer64(&key_state, &font_map, sizeof(font_map));
+        dmHashUpdateBuffer64(&key_state, &params.m_Depth, sizeof(params.m_Depth));
+        dmHashUpdateBuffer64(&key_state, &params.m_RenderOrder, sizeof(params.m_RenderOrder));
         uint64_t key = dmHashFinal64(&key_state);
 
         int32_t* head = text_context->m_Batches.Get(key);
