@@ -418,7 +418,10 @@ namespace dmGui
         void* const context = params->m_Context;
 
         if (texture->m_Deleted) {
-            params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
+            if (texture->m_Handle) {
+                // handle might be null if the texture is created/destroyed in the same frame
+                params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
+            }
             if (scene->m_DeletedDynamicTextures.Full()) {
                 scene->m_DeletedDynamicTextures.OffsetCapacity(16);
             }

@@ -1,12 +1,20 @@
 package com.dynamo.android.facebook;
 
 import java.util.Map;
+import java.util.Iterator;
 
 import android.app.Activity;
 import android.util.Log;
+import android.os.Bundle;
 
 import com.facebook.SessionDefaultAudience;
 import com.facebook.SessionState;
+import com.facebook.widget.WebDialog;
+import com.facebook.FacebookException;
+import com.facebook.Session;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 class FacebookJNI {
 
@@ -17,6 +25,8 @@ class FacebookJNI {
     private native void onRequestRead(long userData, String error);
 
     private native void onRequestPublish(long userData, String error);
+
+    private native void onDialogComplete(long userData, String error);
 
     private native void onIterateMeEntry(long userData, String key, String value);
 
@@ -138,4 +148,55 @@ class FacebookJNI {
             }
         });
     }
+
+    public void showDialog(final long userData, final String action, final String paramsJson) {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Session session = Session.getActiveSession();
+                if (session == null || !session.isOpened()) {
+                    String err = "No active facebook session";
+                    Log.e(TAG, err);
+                    onDialogComplete(userData, err);
+                    return;
+                }
+
+                Bundle params = new Bundle();
+                JSONObject o = null;
+                try {
+                    o = new JSONObject(paramsJson);
+                    Iterator iter = o.keys();
+                    while (iter.hasNext()) {
+                        String key = (String) iter.next();
+                        String value = (String) o.get(key);
+                        params.putString(key, value);
+                    }
+                } catch (Exception e) {
+                    String err = "Failed to get json value";
+                    Log.wtf(TAG, err, e);
+                    onDialogComplete(userData, err);
+                    return;
+                }
+
+                params.putString("app_id", session.getApplicationId());
+                params.putString("access_token", session.getAccessToken());
+                params.putString("redirect_uri", "fbconnect://success");
+
+                WebDialog.OnCompleteListener listener = new WebDialog.OnCompleteListener() {
+                    @Override
+                    public void onComplete(Bundle values, FacebookException error) {
+                        String err = null;
+                        if (error != null) {
+                            err = error.getMessage();
+                        }
+                        onDialogComplete(userData, err);
+                    }
+                };
+
+                WebDialog dialog = new WebDialog(activity, action, params, android.R.style.Theme_Translucent_NoTitleBar, listener);
+                dialog.show();
+            }
+        });
+    }
+
 }
