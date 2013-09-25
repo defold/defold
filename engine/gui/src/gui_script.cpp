@@ -3,6 +3,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/math.h>
 
 #include <script/script.h>
 
