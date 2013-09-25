@@ -11,6 +11,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile;
 import com.dynamo.tile.proto.Tile.Animation;
@@ -121,7 +122,8 @@ public class TileSetGenerator {
         int tileHeight = tileSet.getTileHeight();
         List<BufferedImage> result = new ArrayList<BufferedImage>(count);
         for (int i = 0; i < count; ++i) {
-            BufferedImage tgt = new BufferedImage(tileWidth, tileHeight, image.getType());
+            int type = TextureUtil.getImageType(image);
+            BufferedImage tgt = new BufferedImage(tileWidth, tileHeight, type);
             Graphics g = tgt.getGraphics();
             int tileX = i % metrics.tilesPerRow;
             int tileY = i / metrics.tilesPerRow;

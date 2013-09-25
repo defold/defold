@@ -21,6 +21,27 @@ public class TextureUtil {
             return prevPower2;
     }
 
+    public static int getImageType(BufferedImage image) {
+        int type = image.getType();
+        if (type == 0) {
+            switch (image.getColorModel().getNumComponents()) {
+            case 4:
+                type = BufferedImage.TYPE_4BYTE_ABGR;
+                break;
+            case 3:
+                type = BufferedImage.TYPE_3BYTE_BGR;
+                break;
+            case 1:
+                type = BufferedImage.TYPE_BYTE_GRAY;
+                break;
+            default:
+                type = BufferedImage.TYPE_4BYTE_ABGR;
+                break;
+            }
+        }
+        return type;
+    }
+
     public static List<BufferedImage> extrudeBorders(List<BufferedImage> srcImages, int extrudeBorders) {
         List<BufferedImage> result = srcImages;
         if (extrudeBorders > 0) {
@@ -38,7 +59,8 @@ public class TextureUtil {
             int origHeight = src.getHeight();
             int newWidth = origWidth + extrudeBorders * 2;
             int newHeight = origHeight + extrudeBorders * 2;
-            BufferedImage tgt = new BufferedImage(newWidth, newHeight, src.getType());
+            int type = getImageType(src);
+            BufferedImage tgt = new BufferedImage(newWidth, newHeight, type);
             int numComponents = src.getColorModel().getNumComponents();
             int[] srcPixels = new int[origWidth * origHeight * numComponents];
             src.getRaster().getPixels(0, 0, origWidth, origHeight, srcPixels);

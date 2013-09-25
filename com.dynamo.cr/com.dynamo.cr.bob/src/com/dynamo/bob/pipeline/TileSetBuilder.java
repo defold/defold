@@ -92,7 +92,7 @@ public class TileSetBuilder extends Builder<Void>  {
             BufferedImage origImage = ImageIO.read(new ByteArrayInputStream(collisionRes.getContent()));
             collisionImage = new BufferedImage(origImage.getWidth(), origImage.getHeight(),
                     BufferedImage.TYPE_4BYTE_ABGR);
-            Graphics2D g2d = image.createGraphics();
+            Graphics2D g2d = collisionImage.createGraphics();
             g2d.drawImage(origImage, 0, 0, null);
             g2d.dispose();
         }
