@@ -1,5 +1,19 @@
 :max-width: 45em
 
+Fixed Tile Bleeding (Release 1.2.24)
+------------------------------------
+_September 25, 2013_
+
+We have added a property to atlas and tile source resources called _Extrude Borders_, which fixes the problem of tile bleeding.
+Read more about it in the bottom of the link:/doc/tiles[2D Graphics Guide].
+
+Other Fixes
+~~~~~~~~~~~
+
+* math.random() (Lua) behaves the same on all target platforms
+* link:/ref/gui#gui.get_screen_position[gui.get_screen_position] did not work correctly for text nodes
+* Counters for gui nodes, animations and textures are included in the profiler
+
 iOS 7 & More Gui Improvements (Release 1.2.23)
 ----------------------------------------------
 _September 18, 2013_
