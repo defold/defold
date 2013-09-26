@@ -327,6 +327,7 @@ namespace dmProfile
 
         g_StringTable.Clear();
         dmStringPool::Delete(g_StringPool);
+        g_StringPool = 0;
         g_IsInitialized = false;
     }
 
@@ -619,7 +620,14 @@ namespace dmProfile
 
     const char* Internalize(const char* string)
     {
-        return dmStringPool::Add(g_StringPool, string);
+        dmSpinlock::Lock(&g_ProfileLock);
+        if (g_StringPool) {
+            dmSpinlock::Unlock(&g_ProfileLock);
+            return dmStringPool::Add(g_StringPool, string);
+        } else {
+            dmSpinlock::Unlock(&g_ProfileLock);
+            return "PROFILER NOT INITIALIZED";
+        }
     }
 
     static inline bool CounterPred(const Counter& c1, const Counter& c2)
