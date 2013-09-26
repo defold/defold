@@ -5,6 +5,7 @@
 #include "hashtable.h"
 #include "hash.h"
 #include "spinlock.h"
+#include "stringpool.h"
 #include "math.h"
 #include "time.h"
 #include "thread.h"
@@ -43,6 +44,7 @@ namespace dmProfile
 
     // Mapping of strings. Use when sending profiling data over HTTP
     dmHashTable<uintptr_t, const char*> g_StringTable;
+    dmStringPool::HPool g_StringPool = 0;
 
     uint32_t g_BeginTime = 0;
     uint64_t g_TicksPerSecond = 1000000;
@@ -226,6 +228,7 @@ namespace dmProfile
         }
 
         g_StringTable.SetCapacity(1024, 1200); // Rather arbitrary...
+        g_StringPool = dmStringPool::New();
 
         dmHttpServer::NewParams params;
         params.m_HttpHeader = HttpHeader;
@@ -322,6 +325,8 @@ namespace dmProfile
             g_HttpServer = 0;
         }
 
+        g_StringTable.Clear();
+        dmStringPool::Delete(g_StringPool);
         g_IsInitialized = false;
     }
 
@@ -610,6 +615,11 @@ namespace dmProfile
             dmSpinlock::Unlock(&g_ProfileLock);
             return ret;
         }
+    }
+
+    const char* Internalize(const char* string)
+    {
+        return dmStringPool::Add(g_StringPool, string);
     }
 
     static inline bool CounterPred(const Counter& c1, const Counter& c2)
