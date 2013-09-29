@@ -3,6 +3,7 @@
 #include <dlib/log.h>
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
+#include <dlib/profile.h>
 #include "sound.h"
 
 #if defined(__MACH__)
@@ -419,6 +420,8 @@ namespace dmSound
 
     static uint32_t FillBufferOggVorbis(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
     {
+        DM_PROFILE(Sound, "Ogg")
+
         SoundSystem* sound = g_SoundSystem;
 
         int total_read = 0;
@@ -533,6 +536,8 @@ namespace dmSound
 
     Result Update()
     {
+        DM_PROFILE(Sound, "Update")
+
         SoundSystem* sound = g_SoundSystem;
 
         for (uint32_t i = 0; i < sound->m_Instances.Size(); ++i)
