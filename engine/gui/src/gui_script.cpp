@@ -3,6 +3,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/math.h>
 
 #include <script/script.h>
 
@@ -657,6 +658,9 @@ namespace dmGui
      *   <li><code>gui.PROP_SHADOW</code></li>
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
+     * <p>
+     * Single values can also be animated by specifying e.g. "position.x" as the property.
+     * </p>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant). See gui.EASING_* constants
      * @param duration duration of the animation (number)
@@ -808,7 +812,7 @@ namespace dmGui
         return 0;
     }
 
-    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text)
+    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -820,7 +824,7 @@ namespace dmGui
         {
             luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
-        GetNode(scene, node)->m_Node.m_Font = scene->m_DefaultFont;
+        GetNode(scene, node)->m_Node.m_Font = font;
         SetNodeText(scene, node, text);
 
         NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
@@ -854,7 +858,7 @@ namespace dmGui
             pos = *dmScript::CheckVector3(L, 1);
         }
         Vector3 size = *dmScript::CheckVector3(L, 2);
-        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0);
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
     }
 
     /*# creates a new text node
@@ -876,9 +880,21 @@ namespace dmGui
         {
             pos = *dmScript::CheckVector3(L, 1);
         }
-        Vector3 size = Vector3(1,1,1);
         const char* text = luaL_checkstring(L, 2);
-        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text);
+        Scene* scene = GetScene(L);
+        void* font = scene->m_DefaultFont;
+        if (font == 0x0)
+            font = scene->m_Context->m_DefaultFont;
+        Vector3 size = Vector3(1,1,1);
+        if (font != 0x0)
+        {
+            dmGui::TextMetrics metrics;
+            scene->m_Context->m_GetTextMetricsCallback(font, text, 0.0f, false, &metrics);
+            size.setX(metrics.m_Width);
+            size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
+        }
+
+        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text, font);
     }
 
     /*# gets the node text
@@ -1559,6 +1575,32 @@ namespace dmGui
         return 0;
     }
 
+    /*# reset all nodes to initial state
+     * reset only applies to static node loaded from the scene. Nodes created dynamically from script are not affected
+     *
+     * @name gui.reset_nodes
+     */
+    static int LuaResetNodes(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        ResetNodes(scene);
+        return 0;
+    }
+
+    // Currently a private function
+    static int LuaSetRenderOrder(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+        int order = luaL_checkinteger(L, 1);
+        // NOTE: The range reflects the current bits allocated in RenderKey for order
+        if (order < 0 || order > 7) {
+            dmLogWarning("Render must be in range [0,7]");
+        }
+        order = dmMath::Clamp(order, 0, 7);
+        scene->m_RenderOrder = (uint16_t) order;
+        return 0;
+    }
+
     /*# default keyboard
      *
      * @name gui.KEYBOARD_TYPE_DEFAULT
@@ -1758,14 +1800,21 @@ namespace dmGui
         params->m_PhysicalHeight = 960;
     }
 
+    /*# gets the node screen position
+     *
+     * @name gui.get_screen_position
+     * @param node node to get the screen position from (node)
+     * @return node screen position (vector3)
+     */
     int LuaGetScreenPosition(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
         Scene* scene = GetScene(L);
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 node_transform;
-        CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
-        Vector4 p = node_transform * Vector4(0.5f, 0.5f, 0.0f, 1.0f);
+        Vector4 center(0.0f, 0.0f, 0.0f, 1.0f);
+        CalculateNodeTransform(scene, n->m_Node, scale, true, false, &node_transform);
+        Vector4 p = node_transform * center;
         dmScript::PushVector3(L, Vector3(p.getX(), p.getY(), p.getZ()));
         return 1;
     }
@@ -1815,6 +1864,8 @@ namespace dmGui
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
         {"get_screen_position", LuaGetScreenPosition},
+        {"reset_nodes",     LuaResetNodes},
+        {"set_render_order",LuaSetRenderOrder},
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)

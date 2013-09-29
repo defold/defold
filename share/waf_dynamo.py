@@ -467,7 +467,7 @@ def create_app_bundle(self):
 ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 <!-- BEGIN_INCLUDE(manifest) -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-        package="com.defold.%(package)s"
+        package="%(package)s"
         android:versionCode="1"
         android:versionName="1.0">
 
@@ -516,8 +516,12 @@ def android_package(task):
     for activity, attr in task.activities:
         activities += '<activity android:name="%s" %s/>' % (activity, attr)
 
+    package = 'com.defold.%s' % task.exe_name
+    if task.android_package:
+        package = task.android_package
+
     manifest_file = open(task.manifest.bldpath(task.env), 'wb')
-    manifest_file.write(ANDROID_MANIFEST % { 'package' : task.exe_name, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities })
+    manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities })
     manifest_file.close()
 
     aapt = '%s/android-sdk/platform-tools/aapt' % (ANDROID_ROOT)
@@ -611,9 +615,11 @@ Task.task_type_from_func('android_package',
 def create_android_package(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
         return
+    Utils.def_attrs(self, android_package = None)
 
     android_package_task = self.create_task('android_package', self.env)
     android_package_task.set_inputs(self.link_task.outputs)
+    android_package_task.android_package = self.android_package
 
     Utils.def_attrs(self, activities=[])
     android_package_task.activities = Utils.to_list(self.activities)

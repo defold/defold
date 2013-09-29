@@ -275,9 +275,9 @@ Linear Filtering and Edge Bleeding
 
 If you use linear filtering and a tile source where each tile lies immediately next to the others (no borders), there is a risk you will experience edge bleeding.
 If a neighboring tile has colored pixels on its edges, they might appear from time to time at the edges of your tiles, distorting the graphics.
-The easiest solution to this is to make a transparent border between the tiles in the texture.
-You then make sure that no tiles will bleed over to the other ones when doing this kind of sub-pixel sampling.
-A better solution is to extend each tile with a border of pixels which are identical to the ones at the edges.
+The easiest way to fix this problem is to use the property _Extrude Borders_, available in both atlases and tile sources.
+_Extrude Borders_ specifies how many times the edge pixels will be replicated in the final texture used when running the game.
 
-We are currently looking at different ways to solve these problems in the engine, so you don’t have to.
-Until we find solutions we are happy with, you will have to manually fix your textures for this problem to go away.
+A good measure is to specify a number which corresponds to how much you scale the view of your game world.
+If you display the game world in a scale such that twice as much is visible, set _Extrude Borders_ to +2+.
+This is for mipmapping reasons; the texture used in that scale is half the width and height of the original.

@@ -38,6 +38,7 @@ import com.dynamo.bob.tile.ConvexHull;
 import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.cr.properties.Entity;
+import com.dynamo.cr.properties.GreaterEqualThanZero;
 import com.dynamo.cr.properties.IPropertyModel;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
@@ -74,6 +75,9 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
     @Property
     @Range(min=0)
     int tileSpacing;
+    @Property
+    @GreaterEqualThanZero
+    int extrudeBorders;
     @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
     @NotEmpty
@@ -204,6 +208,20 @@ public class TileSetModel extends Model implements ITileWorld, IAdaptable {
             int oldTileSpacing = this.tileSpacing;
             this.tileSpacing = tileSpacing;
             firePropertyChangeEvent(new PropertyChangeEvent(this, "tileSpacing", new Integer(oldTileSpacing), new Integer(tileSpacing)));
+            updateConvexHulls();
+        }
+    }
+
+    public int getExtrudeBorders() {
+        return this.extrudeBorders;
+    }
+
+    public void setExtrudeBorders(int extrudeBorders) {
+        if (this.extrudeBorders != extrudeBorders) {
+            int oldExtrudeBorders = this.extrudeBorders;
+            this.extrudeBorders = extrudeBorders;
+            firePropertyChangeEvent(new PropertyChangeEvent(this, "extrudeBorders", new Integer(oldExtrudeBorders),
+                    new Integer(extrudeBorders)));
             updateConvexHulls();
         }
     }

@@ -203,6 +203,7 @@ namespace dmGameSystem
                 dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
                 dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
                 dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
+                dmGui::SetNodeResetPoint(scene, n);
             }
             else
             {
@@ -348,8 +349,51 @@ namespace dmGameSystem
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
             params.m_Depth = gui_context->m_NextZ;
+            params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
-            params.m_Width = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE).getX();
+            Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+            params.m_Width = size.getX();
+            params.m_Height = size.getY();
+            dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
+            switch (pivot)
+            {
+            case dmGui::PIVOT_NW:
+                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
+                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_N:
+                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
+                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_NE:
+                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
+                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_W:
+                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
+                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_CENTER:
+                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
+                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_E:
+                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
+                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_SW:
+                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
+                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+            case dmGui::PIVOT_S:
+                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
+                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+            case dmGui::PIVOT_SE:
+                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
+                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+            }
             dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), params);
         }
     }
@@ -383,6 +427,7 @@ namespace dmGameSystem
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = 6 * node_count;
         ro.m_Material = gui_world->m_Material;
+        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -546,7 +591,6 @@ namespace dmGameSystem
     static void SetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
-        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
 
         dmGraphics::TextureParams tparams;
         tparams.m_Width = width;

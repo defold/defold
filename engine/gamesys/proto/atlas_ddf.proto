@@ -25,7 +25,8 @@ message AtlasAnimation
 
 message Atlas
 {
-    repeated AtlasImage images = 1;
-    repeated AtlasAnimation animations = 2;
-    optional uint32 margin = 3 [default = 0];
+    repeated AtlasImage images          = 1;
+    repeated AtlasAnimation animations  = 2;
+    optional uint32 margin              = 3 [default = 0];
+    optional uint32 extrude_borders     = 4 [default = 0];
 }

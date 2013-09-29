@@ -16,11 +16,20 @@ import java.io.Reader;
 
 import javax.imageio.ImageIO;
 
-import com.dynamo.bob.atlas.TileSetGenerator;
+import org.apache.commons.lang3.Pair;
+
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
 
+/**
+ * This class is only kept for legacy reasons (used by gamesys to build
+ * content). It has been completely replaced by TileSetBuilder +
+ * TileSetGenerator inside bob.
+ * 
+ * @author rasv
+ * 
+ */
 public class TileSetc {
 
     private File contentRoot;
@@ -62,20 +71,24 @@ public class TileSetc {
 
             String imagePath = tileSet.getImage();
             BufferedImage image = loadImageFile(imagePath);
-            if (image != null && (image.getWidth() < tileSet.getTileWidth() || image.getHeight() < tileSet.getTileHeight())) {
+            if (image != null
+                    && (image.getWidth() < tileSet.getTileWidth() || image.getHeight() < tileSet.getTileHeight())) {
                 throw new RuntimeException("Invalid tile dimensions");
             }
-            if (image != null && collisionImage != null && (image.getWidth() != collisionImage.getWidth() || image.getHeight() != collisionImage.getHeight())) {
+            if (image != null
+                    && collisionImage != null
+                    && (image.getWidth() != collisionImage.getWidth() || image.getHeight() != collisionImage
+                            .getHeight())) {
                 throw new RuntimeException("Image dimensions differ");
             }
             String compiledImageName = imagePath;
             int index = compiledImageName.lastIndexOf('.');
             compiledImageName = compiledImageName.substring(0, index) + ".texturec";
-            TextureSet.Builder textureSetBuilder = TileSetGenerator.generate(tileSet, image, collisionImage, false);
-            textureSetBuilder
-                .setTexture(compiledImageName)
-                .setTileWidth(tileSet.getTileWidth())
-                .setTileHeight(tileSet.getTileHeight());
+            Pair<TextureSet.Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet, image, collisionImage,
+                    false);
+            TextureSet.Builder textureSetBuilder = pair.left;
+            textureSetBuilder.setTexture(compiledImageName).setTileWidth(tileSet.getTileWidth())
+                    .setTileHeight(tileSet.getTileHeight());
             textureSetBuilder.build().writeTo(output);
         } finally {
             reader.close();
@@ -84,12 +97,10 @@ public class TileSetc {
     }
 
     static File locateGameProjectDirectory(String start) throws IOException {
-
         File current = new File(start).getCanonicalFile();
         File game_project;
         while (true) {
-            game_project = new File(current.getPath() + File.separator
-                    + "game.project");
+            game_project = new File(current.getPath() + File.separator + "game.project");
             if (game_project.exists()) {
                 return current;
             }
@@ -114,4 +125,5 @@ public class TileSetc {
         TileSetc tileSetC = new TileSetc(contentRoot);
         tileSetC.compile(inFile, outFile);
     }
+
 }

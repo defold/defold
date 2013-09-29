@@ -851,7 +851,7 @@ namespace dmParticle
         // texture animation
         uint32_t start_tile = anim_data.m_StartTile;
         uint32_t end_tile = anim_data.m_EndTile;
-        uint32_t tile_count = end_tile - start_tile + 1;
+        uint32_t tile_count = end_tile - start_tile;
         float inv_anim_length = anim_data.m_FPS / (float)tile_count;
         float* tex_coords = anim_data.m_TexCoords;
         float width_factor = 1.0f;
@@ -881,7 +881,7 @@ namespace dmParticle
         {
             tex_coords = unit_tex_coords;
             start_tile = 0;
-            end_tile = 0;
+            end_tile = 1;
             tile_count = 1;
         }
 

@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.apache.commons.lang3.Pair;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -18,11 +19,12 @@ import org.eclipse.osgi.util.NLS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.bob.atlas.TileSetGenerator;
 import com.dynamo.bob.tile.ConvexHull;
+import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.cr.editor.ui.EditorUIPlugin;
+import com.dynamo.cr.properties.GreaterEqualThanZero;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
@@ -63,6 +65,10 @@ public class TileSetNode extends TextureSetNode {
     @Property
     @Range(min=0)
     private int tileSpacing;
+
+    @Property
+    @GreaterEqualThanZero
+    private int extrudeBorders;
 
     @Property(editorType=EditorType.RESOURCE, extensions={"jpg", "png"})
     @Resource
@@ -179,6 +185,17 @@ public class TileSetNode extends TextureSetNode {
         }
     }
 
+    public int getExtrudeBorders() {
+        return this.extrudeBorders;
+    }
+
+    public void setExtrudeBorders(int extrudeBorders) {
+        if (this.extrudeBorders != extrudeBorders) {
+            this.extrudeBorders = extrudeBorders;
+            updateData();
+        }
+    }
+
     public String getCollision() {
         return this.collision;
     }
@@ -286,10 +303,15 @@ public class TileSetNode extends TextureSetNode {
         TileSetLoader loader = new TileSetLoader();
         try {
             TileSet tileSet = (TileSet) loader.buildMessage(null, this, new NullProgressMonitor());
-            Builder textureSetBuilder = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true);
-            if (textureSetBuilder != null) {
+            Pair<Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true);
+            if (pair != null) {
+                Builder textureSetBuilder = pair.left;
                 TextureSet textureSet = textureSetBuilder.setTexture("").build();
                 runtimeTextureSet.update(textureSet);
+                if (this.textureHandle == null) {
+                    this.textureHandle = new TextureHandle();
+                }
+                this.textureHandle.setImage(pair.right);
             }
         } catch (Exception e) {
             logger.error("Error occurred while creating tile source vertex-data", e);
@@ -309,7 +331,6 @@ public class TileSetNode extends TextureSetNode {
     private void updateImage() {
         if (!this.image.isEmpty() && getModel() != null) {
             this.loadedImage = getModel().getImage(this.image);
-            this.textureHandle = getModel().getTexture(this.image);
         }
     }
 
@@ -366,8 +387,10 @@ public class TileSetNode extends TextureSetNode {
     }
 
     public void updateData() {
-        updateConvexHulls();
-        updateVertexData();
+        if (getModel() != null) {
+            updateConvexHulls();
+            updateVertexData();
+        }
     }
 
     public void updateConvexHulls() {

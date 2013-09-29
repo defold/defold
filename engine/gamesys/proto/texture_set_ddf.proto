@@ -23,7 +23,7 @@ message TextureSetAnimation
     optional Playback playback      = 7 [default = PLAYBACK_ONCE_FORWARD];
     optional uint32 flip_horizontal = 8 [default = 0];
     optional uint32 flip_vertical   = 9 [default = 0];
-    optional uint32 is_animation    = 10 [default = 0]; // Not set for primary images. Only used for atlasmap-editor
+    optional uint32 is_animation    = 10 [default = 0]; // Deprecated
 }
 
 /*
@@ -63,4 +63,5 @@ message TextureSet
 
     // min/max uv, 4 floats. Legacy and the vertex-buffer should be used instead.
     required bytes tex_coords               = 14;
+    required uint32 tile_count              = 15;
 }

@@ -71,6 +71,16 @@ TEST_F(ScriptTest, TestPrint)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptTest, TestRandom)
+{
+    int top = lua_gettop(L);
+    ASSERT_TRUE(RunString(L, "math.randomseed(123)"));
+    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 1)"));
+    ASSERT_TRUE(RunString(L, "assert(math.random(0,100) == 58)"));
+    ASSERT_TRUE(RunString(L, "assert(math.abs(math.random() - 0.70421460615864) < 0.0000001)"));
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

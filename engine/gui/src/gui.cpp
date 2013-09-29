@@ -11,6 +11,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
+#include <dlib/profile.h>
 
 #include <script/script.h>
 
@@ -140,6 +141,11 @@ namespace dmGui
         context->m_PhysicalHeight = height;
     }
 
+    void SetDefaultFont(HContext context, void* font)
+    {
+        context->m_DefaultFont = font;
+    }
+
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));
@@ -182,6 +188,7 @@ namespace dmGui
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
+        scene->m_RenderOrder = 0;
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -412,7 +419,10 @@ namespace dmGui
         void* const context = params->m_Context;
 
         if (texture->m_Deleted) {
-            params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
+            if (texture->m_Handle) {
+                // handle might be null if the texture is created/destroyed in the same frame
+                params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
+            }
             if (scene->m_DeletedDynamicTextures.Full()) {
                 scene->m_DeletedDynamicTextures.OffsetCapacity(16);
             }
@@ -491,9 +501,9 @@ namespace dmGui
         while (index != INVALID_INDEX)
         {
             InternalNode* n = &scene->m_Nodes[index];
-            if (n->m_Enabled)
+            if (n->m_Node.m_Enabled)
             {
-                CalculateNodeTransform(scene, n->m_Node, scale, false, &node_transform);
+                CalculateNodeTransform(scene, n->m_Node, scale, false, true, &node_transform);
                 HNode node = GetNodeHandle(n);
                 c->m_RenderNodes.Push(node);
                 c->m_RenderTransforms.Push(node_transform);
@@ -515,6 +525,8 @@ namespace dmGui
         dmArray<Animation>* animations = &scene->m_Animations;
         uint32_t n = animations->Size();
 
+        uint32_t active_animations = 0;
+
         for (uint32_t i = 0; i < n; ++i)
         {
             Animation* anim = &(*animations)[i];
@@ -523,6 +535,7 @@ namespace dmGui
             {
                 continue;
             }
+            ++active_animations;
 
             if (anim->m_Delay < dt)
             {
@@ -590,6 +603,9 @@ namespace dmGui
                 continue;
             }
         }
+
+        DM_COUNTER("Gui.Animations", n);
+        DM_COUNTER("Gui.ActiveAnimations", active_animations);
     }
 
     struct InputArgs
@@ -861,6 +877,8 @@ namespace dmGui
 
         UpdateAnimations(scene, dt);
 
+        uint32_t total_nodes = 0;
+        uint32_t active_nodes = 0;
         // Deferred deletion of nodes
         uint32_t n = scene->m_Nodes.Size();
         for (uint32_t i = 0; i < n; ++i)
@@ -874,7 +892,19 @@ namespace dmGui
                 DeleteNode(scene, hnode);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
             }
+            else if (node->m_Index != INVALID_INDEX)
+            {
+                ++total_nodes;
+                if (node->m_Node.m_Enabled)
+                    ++active_nodes;
+            }
         }
+
+        DM_COUNTER("Gui.Nodes", total_nodes);
+        DM_COUNTER("Gui.ActiveNodes", active_nodes);
+        DM_COUNTER("Gui.StaticTextures", scene->m_Textures.Size());
+        DM_COUNTER("Gui.DynamicTextures", scene->m_DynamicTextures.Size());
+        DM_COUNTER("Gui.Textures", scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
 
         return result;
     }
@@ -960,14 +990,22 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_OUTLINE] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SHADOW] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
+            node->m_Node.m_BlendMode = 0;
             node->m_Node.m_NodeType = (uint32_t) node_type;
+            node->m_Node.m_XAnchor = 0;
+            node->m_Node.m_YAnchor = 0;
+            node->m_Node.m_Pivot = 0;
+            node->m_Node.m_AdjustMode = 0;
+            node->m_Node.m_LineBreak = 0;
+            node->m_Node.m_Enabled = 1;
+
+            node->m_Node.m_HasResetPoint = false;
             node->m_Node.m_TextureHash = 0;
             node->m_Node.m_Texture = 0;
             node->m_Node.m_FontHash = 0;
             node->m_Node.m_Font = 0;
             node->m_Version = version;
             node->m_Index = index;
-            node->m_Enabled = 1;
             node->m_PrevIndex = INVALID_INDEX;
             node->m_NextIndex = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
@@ -1061,6 +1099,24 @@ namespace dmGui
         scene->m_Animations.SetSize(0);
     }
 
+    void ResetNodes(HScene scene)
+    {
+        uint32_t n_nodes = scene->m_Nodes.Size();
+        for (uint32_t i = 0; i < n_nodes; ++i) {
+            Node* n = &scene->m_Nodes[i].m_Node;
+            if (n->m_HasResetPoint) {
+                memcpy(n->m_Properties, n->m_ResetPointProperties, sizeof(n->m_Properties));
+                n->m_State = n->m_ResetPointState;
+            }
+        }
+        scene->m_Animations.SetSize(0);
+    }
+
+    uint16_t GetRenderOrder(HScene scene)
+    {
+        return scene->m_RenderOrder;
+    }
+
     NodeType GetNodeType(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -1114,6 +1170,14 @@ namespace dmGui
         assert(property < PROPERTY_COUNT);
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Properties[property] = value;
+    }
+
+    void SetNodeResetPoint(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
+        n->m_Node.m_ResetPointState = n->m_Node.m_State;
+        n->m_Node.m_HasResetPoint = true;
     }
 
     const char* GetNodeText(HScene scene, HNode node)
@@ -1324,7 +1388,7 @@ namespace dmGui
         animation.m_FirstUpdate = 1;
         animation.m_AnimationCompleteCalled = 0;
         animation.m_Cancelled = 0;
-        animation.m_Enabled = n->m_Enabled;
+        animation.m_Enabled = n->m_Node.m_Enabled;
         animation.m_Backwards = 0;
 
         scene->m_Animations[animation_index] = animation;
@@ -1446,7 +1510,7 @@ namespace dmGui
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 transform;
         const Node& n = GetNode(scene, node)->m_Node;
-        CalculateNodeTransform(scene, n, scale, true, &transform);
+        CalculateNodeTransform(scene, n, scale, true, true, &transform);
         transform = inverse(transform);
         Vector4 screen_pos(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
@@ -1471,13 +1535,13 @@ namespace dmGui
     bool IsNodeEnabled(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
-        return n->m_Enabled;
+        return n->m_Node.m_Enabled;
     }
 
     void SetNodeEnabled(HScene scene, HNode node, bool enabled)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_Enabled = enabled;
+        n->m_Node.m_Enabled = enabled;
         dmArray<Animation>& anims = scene->m_Animations;
         uint32_t anim_count = anims.Size();
         for (uint32_t i = 0; i < anim_count; ++i)
@@ -1568,7 +1632,7 @@ namespace dmGui
                 cx*cy*cz + sx*sy*sz);
     }
 
-    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform)
+    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, bool offset_pivot, Matrix4* out_transform)
     {
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
         const Vector4& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION];
@@ -1621,64 +1685,48 @@ namespace dmGui
 
         float width = size.getX();
         float height = size.getY();
-        TextMetrics metrics;
-        if (node.m_NodeType == dmGui::NODE_TYPE_TEXT)
-        {
-            if (scene->m_Context->m_GetTextMetricsCallback != 0x0)
-            {
-                scene->m_Context->m_GetTextMetricsCallback(node.m_Font, node.m_Text, node.m_Properties[PROPERTY_SIZE].getX(), node.m_LineBreak, &metrics);
-            }
-            width = metrics.m_Width;
-            height = metrics.m_MaxAscent + metrics.m_MaxDescent;
-        }
 
         Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
 
-        switch (pivot)
+        if (offset_pivot)
         {
-            case dmGui::PIVOT_CENTER:
-            case dmGui::PIVOT_S:
-            case dmGui::PIVOT_N:
-                delta_pivot.setX(width * 0.5f);
-                break;
+            switch (pivot)
+            {
+                case dmGui::PIVOT_CENTER:
+                case dmGui::PIVOT_S:
+                case dmGui::PIVOT_N:
+                    delta_pivot.setX(width * 0.5f);
+                    break;
 
-            case dmGui::PIVOT_NE:
-            case dmGui::PIVOT_E:
-            case dmGui::PIVOT_SE:
-                delta_pivot.setX(width);
-                break;
+                case dmGui::PIVOT_NE:
+                case dmGui::PIVOT_E:
+                case dmGui::PIVOT_SE:
+                    delta_pivot.setX(width);
+                    break;
 
-            case dmGui::PIVOT_SW:
-            case dmGui::PIVOT_W:
-            case dmGui::PIVOT_NW:
-                break;
-        }
-        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
-        switch (pivot) {
-            case dmGui::PIVOT_CENTER:
-            case dmGui::PIVOT_E:
-            case dmGui::PIVOT_W:
-                if (render_text)
-                    delta_pivot.setY(-metrics.m_MaxDescent * 0.5f + metrics.m_MaxAscent * 0.5f);
-                else
+                case dmGui::PIVOT_SW:
+                case dmGui::PIVOT_W:
+                case dmGui::PIVOT_NW:
+                    break;
+            }
+            switch (pivot) {
+                case dmGui::PIVOT_CENTER:
+                case dmGui::PIVOT_E:
+                case dmGui::PIVOT_W:
                     delta_pivot.setY(height * 0.5f);
-                break;
+                    break;
 
-            case dmGui::PIVOT_N:
-            case dmGui::PIVOT_NE:
-            case dmGui::PIVOT_NW:
-                if (render_text)
-                    delta_pivot.setY(metrics.m_MaxAscent);
-                else
+                case dmGui::PIVOT_N:
+                case dmGui::PIVOT_NE:
+                case dmGui::PIVOT_NW:
                     delta_pivot.setY(height);
-                break;
+                    break;
 
-            case dmGui::PIVOT_S:
-            case dmGui::PIVOT_SW:
-            case dmGui::PIVOT_SE:
-                if (render_text)
-                    delta_pivot.setY(-metrics.m_MaxDescent);
-                break;
+                case dmGui::PIVOT_S:
+                case dmGui::PIVOT_SW:
+                case dmGui::PIVOT_SE:
+                    break;
+            }
         }
 
         const float deg_to_rad = 3.1415926f / 180.0f;
@@ -1688,6 +1736,7 @@ namespace dmGui
         t = offset + position.getXYZ() + rotate(r, mulPerElem(s, t));
         *out_transform = Matrix4::rotation(r) * Matrix4::scale(s);
         out_transform->setTranslation(t);
+        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
         if (!render_text)
         {
             *out_transform *= Matrix4::scale(Vector3(width, height, 1));

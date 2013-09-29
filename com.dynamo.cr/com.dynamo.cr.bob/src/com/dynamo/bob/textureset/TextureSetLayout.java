@@ -1,4 +1,4 @@
-package com.dynamo.bob.atlas;
+package com.dynamo.bob.textureset;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +8,7 @@ import java.util.List;
  * @author chmu
  *
  */
-public class AtlasLayout {
+public class TextureSetLayout {
     public static class Rect {
         public Object id;
         public int x, y, width, height;
@@ -66,7 +66,7 @@ public class AtlasLayout {
     }
 
     private static List<Rect> doLayout(int width, int height, int margin, List<Rect> rectangles) {
-        List<Rect> result = new ArrayList<AtlasLayout.Rect>(rectangles.size());
+        List<Rect> result = new ArrayList<TextureSetLayout.Rect>(rectangles.size());
 
         int x = 0, y = 0;
         int rowHeight = 0;
@@ -91,7 +91,6 @@ public class AtlasLayout {
             rowHeight = Math.max(rowHeight, rect.height);
         }
 
-
         return result;
     }
 
@@ -106,7 +105,7 @@ public class AtlasLayout {
      */
     public static Layout layout(LayoutType layout, int margin, List<Rect> rectangles) {
         if (rectangles.size() == 0) {
-            return new Layout(1, 1, new ArrayList<AtlasLayout.Rect>());
+            return new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>());
         }
         int totalArea = 0;
         for (Rect rect : rectangles) {
@@ -132,10 +131,15 @@ public class AtlasLayout {
             }
         }
 
-        // Adjust height if possible
+        // Adjust size if possible
+        int maxWidth = 0;
         int maxHeight = 0;
         for (Rect rect : result) {
+            maxWidth = Math.max(maxWidth, rect.x + rect.width);
             maxHeight = Math.max(maxHeight, rect.y + rect.height);
+        }
+        while (maxWidth <= width / 2) {
+            width /= 2;
         }
         while (maxHeight <= height / 2) {
             height /= 2;

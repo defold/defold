@@ -176,29 +176,55 @@ public class RuntimeTextureSet {
      * @return center x
      */
     public float getCenterX(TextureSetAnimation anim) {
+        return getCenterX(anim.getStart());
+    }
+
+    /**
+     * Get tile-image center x in uv-space
+     * 
+     * @param tile
+     *            tile to get center x for
+     * @return center x
+     */
+    public float getCenterX(int tile) {
         // NOTE: The texcoords-buffer is in little endian
         FloatBuffer tc = getTexCoords().asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        int start = anim.getStart() * 4;
+        int start = tile * 4;
         float c = (tc.get(start) + tc.get(start + 2)) * 0.5f;
         return c;
     }
 
     /**
      * Get atlas-image center y in uv-space
-     * @param anim animation to get center y for
+     * 
+     * @param anim
+     *            animation to get center y for
      * @return center y
      */
     public float getCenterY(TextureSetAnimation anim) {
+        return getCenterY(anim.getStart());
+    }
+
+    /**
+     * Get tile-image center y in uv-space
+     * 
+     * @param tile
+     *            tile to get center y for
+     * @return center y
+     */
+    public float getCenterY(int tile) {
         // NOTE: The texcoords-buffer is in little endian
         FloatBuffer tc = getTexCoords().asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        int start = anim.getStart() * 4;
+        int start = tile * 4;
         float c = (tc.get(start + 1) + tc.get(start + 3)) * 0.5f;
         return c;
     }
 
     /**
      * Get bounds for an image/animation
-     * @param id identifier
+     * 
+     * @param id
+     *            identifier
      * @return {@link AABB}
      */
     public AABB getTextureBounds(String id) {

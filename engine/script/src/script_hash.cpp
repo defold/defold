@@ -66,8 +66,7 @@ namespace dmScript
         return 1;
     }
 
-    /*#
-     * get hex representation of a hash value as a string
+    /*# get hex representation of a hash value as a string
      * The returned string is always padded with leading zeros
      *
      * @name hash_to_hex

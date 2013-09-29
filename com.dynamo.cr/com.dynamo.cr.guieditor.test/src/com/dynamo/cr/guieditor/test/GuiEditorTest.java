@@ -501,5 +501,4 @@ public class GuiEditorTest {
         sendBackward.execute(executionEvent);
         checkNodeOrder(nodes, 0, 1, 2);
     }
-
 }

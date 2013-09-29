@@ -318,7 +318,7 @@ namespace dmMessage
     {
         uint16_t id;
         MessageSocket*s = GetSocketInternal(socket, id);
-        DM_PROFILE(Message, s->m_Name);
+        DM_PROFILE(Message, dmProfile::Internalize(s->m_Name));
 
         dmMutex::Lock(s->m_Mutex);
         MemoryAllocator* allocator = &s->m_Allocator;

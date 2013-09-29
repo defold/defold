@@ -1,4 +1,4 @@
-package com.dynamo.bob.atlas.test;
+package com.dynamo.bob.textureset.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -9,26 +9,26 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.dynamo.bob.atlas.AtlasLayout;
-import com.dynamo.bob.atlas.AtlasLayout.Layout;
-import com.dynamo.bob.atlas.AtlasLayout.Rect;
+import com.dynamo.bob.textureset.TextureSetLayout;
+import com.dynamo.bob.textureset.TextureSetLayout.Layout;
+import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 
-public class AtlasLayoutTest {
+public class TextureSetLayoutTest {
 
     @Test
     public void testClosestPowerTwo() {
-        assertEquals(64, AtlasLayout.closestPowerTwoDown(127));
-        assertEquals(128, AtlasLayout.closestPowerTwoDown(129));
+        assertEquals(64, TextureSetLayout.closestPowerTwoDown(127));
+        assertEquals(128, TextureSetLayout.closestPowerTwoDown(129));
 
-        assertEquals(1, AtlasLayout.closestPowerTwoDown(1));
-        assertEquals(2, AtlasLayout.closestPowerTwoDown(2));
-        assertEquals(2, AtlasLayout.closestPowerTwoDown(3));
-        assertEquals(4, AtlasLayout.closestPowerTwoDown(5));
-        assertEquals(4, AtlasLayout.closestPowerTwoDown(6));
-        assertEquals(4, AtlasLayout.closestPowerTwoDown(7));
-        assertEquals(8, AtlasLayout.closestPowerTwoDown(8));
-        assertEquals(8, AtlasLayout.closestPowerTwoDown(9));
-        assertEquals(8, AtlasLayout.closestPowerTwoDown(10));
+        assertEquals(1, TextureSetLayout.closestPowerTwoDown(1));
+        assertEquals(2, TextureSetLayout.closestPowerTwoDown(2));
+        assertEquals(2, TextureSetLayout.closestPowerTwoDown(3));
+        assertEquals(4, TextureSetLayout.closestPowerTwoDown(5));
+        assertEquals(4, TextureSetLayout.closestPowerTwoDown(6));
+        assertEquals(4, TextureSetLayout.closestPowerTwoDown(7));
+        assertEquals(8, TextureSetLayout.closestPowerTwoDown(8));
+        assertEquals(8, TextureSetLayout.closestPowerTwoDown(9));
+        assertEquals(8, TextureSetLayout.closestPowerTwoDown(10));
     }
 
     void assertRect(Layout layout, int i, int x, int y, Object id) {
@@ -40,10 +40,10 @@ public class AtlasLayoutTest {
 
     @Test
     public void testEmpty() {
-        List<AtlasLayout.Rect> rectangles
+        List<TextureSetLayout.Rect> rectangles
             = Arrays.asList();
 
-        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 0, rectangles);
         assertThat(layout.getWidth(), is(1));
         assertThat(layout.getHeight(), is(1));
         assertThat(layout.getRectangles().size(), is(0));
@@ -51,13 +51,13 @@ public class AtlasLayoutTest {
 
     @Test
     public void testBasic1() {
-        List<AtlasLayout.Rect> rectangles
+        List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect(0, 16, 16),
                             rect(1, 16, 16),
                             rect(2, 16, 16),
                             rect(3, 16, 16));
 
-        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 0, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
@@ -68,7 +68,7 @@ public class AtlasLayoutTest {
 
     @Test
     public void testBasic2() {
-        List<AtlasLayout.Rect> rectangles
+        List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect(0, 16, 16),
                             rect(1, 8, 8),
                             rect(2, 8, 8),
@@ -77,7 +77,7 @@ public class AtlasLayoutTest {
                             rect(5, 8, 8),
                             rect(6, 8, 8));
 
-        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 0, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
@@ -91,10 +91,10 @@ public class AtlasLayoutTest {
 
     @Test
     public void testBasic3() {
-        List<AtlasLayout.Rect> rectangles
+        List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect(0, 512, 128));
 
-        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 0, rectangles);
         assertThat(layout.getWidth(), is(512));
         assertThat(layout.getHeight(), is(128));
         assertRect(layout, 0, 0, 0, 0);
@@ -102,12 +102,12 @@ public class AtlasLayoutTest {
 
     @Test
     public void testBasic4() {
-        List<AtlasLayout.Rect> rectangles
+        List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect(0, 32, 12),
                             rect(1, 16, 2),
                             rect(2, 16, 2));
 
-        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 0, rectangles);
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 0, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(16));
         assertRect(layout, 0, 0, 0, 0);
@@ -117,13 +117,13 @@ public class AtlasLayoutTest {
 
     @Test
     public void testBasicMargin1() {
-        List<AtlasLayout.Rect> rectangles
+        List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect(0, 16, 16),
                             rect(1, 16, 16),
                             rect(2, 16, 16),
                             rect(3, 16, 16));
 
-        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 2, rectangles);
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 2, rectangles);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(64));
         assertRect(layout, 0, 0, 0, 0);
@@ -134,19 +134,29 @@ public class AtlasLayoutTest {
 
     @Test
     public void testBasicMargin2() {
-        List<AtlasLayout.Rect> rectangles
+        List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect(0, 15, 15),
                             rect(1, 15, 15),
                             rect(2, 15, 15),
                             rect(3, 15, 15));
 
-        Layout layout = AtlasLayout.layout(AtlasLayout.LayoutType.BASIC, 2, rectangles);
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 2, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
         assertRect(layout, 1, 15 + 2, 0, 1);
         assertRect(layout, 2, 0, 15 + 2, 2);
         assertRect(layout, 3, 15 + 2, 15 + 2, 3);
+    }
+
+    @Test
+    public void testThinStrip() {
+        List<TextureSetLayout.Rect> rectangles = Arrays.asList(rect(0, 1, 16));
+
+        Layout layout = TextureSetLayout.layout(TextureSetLayout.LayoutType.BASIC, 0, rectangles);
+        assertThat(layout.getWidth(), is(1));
+        assertThat(layout.getHeight(), is(16));
+        assertRect(layout, 0, 0, 0, 0);
     }
 
     private Rect rect(Object id, int w, int h) {

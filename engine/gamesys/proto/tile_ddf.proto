@@ -57,6 +57,7 @@ message TileSet
     repeated float convex_hull_points   = 9;
     repeated string collision_groups    = 10;
     repeated Animation animations       = 11;
+    optional uint32 extrude_borders     = 12 [default = 0];
 }
 
 message TileCell

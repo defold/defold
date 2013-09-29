@@ -18,7 +18,8 @@
 /**
  * Profile macro.
  * scope_name is the scope name. Must be a literal
- * name is the sample name. An arbitrary constant string
+ * name is the sample name. An arbitrary constant string and *must* be valid during the life-time
+ * of the application. If not, use dmProfile::Internalize()
  */
 #define DM_PROFILE(scope_name, name)
 #undef DM_PROFILE
@@ -211,6 +212,14 @@ namespace dmProfile
      * @return #Sample
      */
     Sample* AllocateSample();
+
+    /**
+     * Create an internalized string. Use this function in DM_PROFILE if the
+     * name isn't valid for the life-time of the application
+     * @param string string to internalize
+     * @return internalized string
+     */
+    const char* Internalize(const char* string);
 
     /**
      * Add #amount to counter with #name

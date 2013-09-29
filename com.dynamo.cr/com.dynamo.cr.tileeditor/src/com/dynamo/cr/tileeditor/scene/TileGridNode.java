@@ -3,6 +3,7 @@ package com.dynamo.cr.tileeditor.scene;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -194,17 +195,15 @@ public class TileGridNode extends ComponentTypeNode {
             totalCellCount += cells.size();
         }
 
-        final float recipImageWidth = 1.0f / metrics.tileSetWidth;
-        final float recipImageHeight = 1.0f / metrics.tileSetHeight;
-
         final int tileWidth = this.tileSetNode.getTileWidth();
         final int tileHeight = this.tileSetNode.getTileHeight();
-        final int tileMargin = this.tileSetNode.getTileMargin();
-        final int tileSpacing = this.tileSetNode.getTileSpacing();
 
         final int vertexCount = totalCellCount * 4;
         final int componentCount = 5;
         this.vertexData = FloatBuffer.allocate(vertexCount * componentCount);
+
+        FloatBuffer texCoordBuffer = tileSetNode.getRuntimeTextureSet().getTexCoords().order(ByteOrder.LITTLE_ENDIAN)
+                .asFloatBuffer();
 
         AABB aabb = new AABB();
         FloatBuffer v = this.vertexData;
@@ -221,12 +220,11 @@ public class TileGridNode extends ComponentTypeNode {
                     float y0 = y * tileHeight;
                     float y1 = y0 + tileHeight;
                     int tile = entry.getValue();
-                    x = tile % metrics.tilesPerRow;
-                    y = tile / metrics.tilesPerRow;
-                    float u0 = (x * (tileSpacing + 2*tileMargin + tileWidth) + tileMargin) * recipImageWidth;
-                    float u1 = u0 + tileWidth * recipImageWidth;
-                    float v0 = (y * (tileSpacing + 2*tileMargin + tileHeight) + tileMargin) * recipImageHeight;
-                    float v1 = v0 + tileHeight * recipImageHeight;
+                    int texCoordIndex = tile * 4;
+                    float u0 = texCoordBuffer.get(texCoordIndex);
+                    float v0 = texCoordBuffer.get(texCoordIndex + 1);
+                    float u1 = texCoordBuffer.get(texCoordIndex + 2);
+                    float v1 = texCoordBuffer.get(texCoordIndex + 3);
 
                     v.put(u0); v.put(v1); v.put(x0); v.put(y0); v.put(z);
                     v.put(u0); v.put(v0); v.put(x0); v.put(y1); v.put(z);

@@ -26,6 +26,8 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
         Atlas atlas = atlasBuilder.build();
 
         AtlasNode node = new AtlasNode();
+        node.setMargin(atlas.getMargin());
+        node.setExtrudeBorders(atlas.getExtrudeBorders());
         for (AtlasImage image : atlas.getImagesList()) {
             node.addChild(new AtlasImageNode(image.getImage()));
         }
@@ -53,6 +55,7 @@ public class AtlasLoader implements INodeLoader<AtlasNode> {
 
         Atlas.Builder atlasBuilder = Atlas.newBuilder();
         atlasBuilder.setMargin(node.getMargin());
+        atlasBuilder.setExtrudeBorders(node.getExtrudeBorders());
 
         for (Node n : node.getChildren()) {
             if (n instanceof AtlasImageNode) {

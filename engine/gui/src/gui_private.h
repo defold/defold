@@ -46,19 +46,34 @@ namespace dmGui
         dmArray<HNode>          m_RenderNodes;
         dmArray<Matrix4>        m_RenderTransforms;
         dmHID::HContext         m_HidContext;
+        void*                   m_DefaultFont;
     };
 
     struct Node
     {
         Vector4     m_Properties[PROPERTY_COUNT];
-        uint32_t    m_BlendMode : 4;
-        uint32_t    m_NodeType : 4;
-        uint32_t    m_XAnchor : 2;
-        uint32_t    m_YAnchor : 2;
-        uint32_t    m_Pivot : 4;
-        uint32_t    m_AdjustMode : 2;
-        uint32_t    m_LineBreak : 1;
-        uint32_t    m_Reserved : 13;
+        Vector4     m_ResetPointProperties[PROPERTY_COUNT];
+        uint32_t    m_ResetPointState;
+
+        union
+        {
+            struct
+            {
+                uint32_t    m_BlendMode : 4;
+                uint32_t    m_NodeType : 4;
+                uint32_t    m_XAnchor : 2;
+                uint32_t    m_YAnchor : 2;
+                uint32_t    m_Pivot : 4;
+                uint32_t    m_AdjustMode : 2;
+                uint32_t    m_LineBreak : 1;
+                uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
+                uint32_t    m_Reserved : 12;
+            };
+
+            uint32_t m_State;
+        };
+
+        bool        m_HasResetPoint;
         const char* m_Text;
         uint64_t    m_TextureHash;
         void*       m_Texture;
@@ -75,7 +90,6 @@ namespace dmGui
         uint16_t m_PrevIndex;
         uint16_t m_NextIndex;
         uint16_t m_Deleted : 1; // Set to true for deferred deletion
-        uint16_t m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
     };
 
     struct NodeProxy
@@ -150,6 +164,7 @@ namespace dmGui
         uint16_t                m_RenderHead;
         uint16_t                m_RenderTail;
         uint16_t                m_NextVersionNumber;
+        uint16_t                m_RenderOrder; // For the render-key
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
@@ -165,9 +180,10 @@ namespace dmGui
      * @param node node for which to calculate the transform
      * @param reference_scale the reference scale of the scene which is the ratio between physical and reference dimensions
      * @param boundary true calculates the boundary transform, false calculates the render transform
+     * @param offset_pivot If the transform should be offseted by the pivot or not
      * @param out_transform out-parameter to write the calculated transform to
      */
-    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, Matrix4* out_transform);
+    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, bool offset_pivot, Matrix4* out_transform);
 
     /** calculates the reference scale for a context
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.

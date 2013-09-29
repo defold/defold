@@ -81,6 +81,8 @@ public:
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
 
         m_Context = dmGui::NewContext(&context_params);
+        // Bogus font for the metric callback to be run (not actually using the default font)
+        dmGui::SetDefaultFont(m_Context, (void*)0x1);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
@@ -274,6 +276,7 @@ static void* DynamicNewTexture(dmGui::HScene scene, uint32_t width, uint32_t hei
 
 static void DynamicDeleteTexture(dmGui::HScene scene, void* texture, void* context)
 {
+    assert(texture);
     free(texture);
 }
 
@@ -295,11 +298,25 @@ static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const V
 
 TEST_F(dmGuiTest, DynamicTexture)
 {
+    uint32_t count = 0;
+    dmGui::RenderSceneParams rp;
+    rp.m_RenderNodes = DynamicRenderNodes;
+    rp.m_NewTexture = DynamicNewTexture;
+    rp.m_DeleteTexture = DynamicDeleteTexture;
+    rp.m_SetTextureData = DynamicSetTextureData;
+
     const int width = 2;
     const int height = 2;
     char data[width * height * 3] = { 0 };
 
+    // Test creation/deletion in the same frame (case 2355)
     dmGui::Result r;
+    r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::DeleteDynamicTexture(m_Scene, "t1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    dmGui::RenderScene(m_Scene, rp, &count);
+
     r = dmGui::NewDynamicTexture(m_Scene, "t1", width, height, dmImage::TYPE_RGB, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
@@ -314,14 +331,6 @@ TEST_F(dmGuiTest, DynamicTexture)
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t1");
     ASSERT_EQ(r, dmGui::RESULT_OK);
-
-    uint32_t count = 0;
-
-    dmGui::RenderSceneParams rp;
-    rp.m_RenderNodes = DynamicRenderNodes;
-    rp.m_NewTexture = DynamicNewTexture;
-    rp.m_DeleteTexture = DynamicDeleteTexture;
-    rp.m_SetTextureData = DynamicSetTextureData;
 
     dmGui::RenderScene(m_Scene, rp, &count);
     ASSERT_EQ(1U, count);
@@ -719,6 +728,24 @@ TEST_F(dmGuiTest, PingPong)
 
     ASSERT_EQ(10U, PingPongCount);
     dmGui::DeleteNode(m_Scene, node);
+}
+
+TEST_F(dmGuiTest, Reset)
+{
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(10, 20, 30), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(100, 200, 300), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    // Set reset point only for the first node
+    dmGui::SetNodeResetPoint(m_Scene, n1);
+    dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_POSITION, Vector4(1, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::AnimateNode(m_Scene, n2, dmGui::PROPERTY_POSITION, Vector4(101, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+
+    dmGui::ResetNodes(m_Scene);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n1).getX(), 10.0f, EPSILON);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n2).getX(), 100.0f + 1.0f / 60.0f, EPSILON);
+
+    dmGui::DeleteNode(m_Scene, n1);
+    dmGui::DeleteNode(m_Scene, n2);
 }
 
 TEST_F(dmGuiTest, ScriptAnimate)
@@ -1906,11 +1933,11 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     float ref_factor = dmMath::Min(ref_scale.getX(), ref_scale.getY());
     Point3 pos1 = m_NodeTextToRenderedPosition["n1"];
     ASSERT_EQ(10 * ref_scale.getX(), pos1.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * TEXT_MAX_DESCENT);
+    ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT));
 
     Point3 pos2 = m_NodeTextToRenderedPosition["n2"];
     ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * TEXT_MAX_DESCENT);
+    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT));
 }
 
 TEST_F(dmGuiTest, ScriptPivot)
@@ -2120,7 +2147,7 @@ TEST_F(dmGuiTest, EnableDisable)
 
     // Initially enabled
     dmGui::InternalNode* node = dmGui::GetNode(m_Scene, n1);
-    ASSERT_TRUE(node->m_Enabled);
+    ASSERT_TRUE(node->m_Node.m_Enabled);
 
     // Test rendering
     bool rendered = false;
@@ -2178,7 +2205,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     // Retrieve node
     dmGui::InternalNode* node = &m_Scene->m_Nodes[0];
     ASSERT_STREQ("node_1", node->m_Node.m_Text); // make sure we found the right one
-    ASSERT_FALSE(node->m_Enabled);
+    ASSERT_FALSE(node->m_Node.m_Enabled);
 }
 
 static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)

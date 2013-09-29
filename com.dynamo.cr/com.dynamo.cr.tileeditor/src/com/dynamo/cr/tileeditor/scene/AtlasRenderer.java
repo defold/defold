@@ -139,50 +139,47 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             break;
         }
 
-        AtlasImageNode imageNode = (AtlasImageNode) children.get(frame);
-        String id = imageNode.getId();
-        TextureSetAnimation tileToRender = runtimeTextureSet.getAnimation(id);
+        String id = playBackNode.getId();
+        TextureSetAnimation animation = runtimeTextureSet.getAnimation(id);
 
-        if (tileToRender != null) {
+        if (animation != null) {
             float centerX = texture.getWidth() * 0.5f;
             float centerY = texture.getHeight() * 0.5f;
             float scaleX = playBackNode.isFlipHorizontally() ? - 1 : 1;
             float scaleY = playBackNode.isFlipVertically() ? - 1 : 1;
 
             shader.setUniforms(gl, "color", new float[] {1, 1, 1, 1});
-            renderTile(gl, runtimeTextureSet, tileToRender, centerX, centerY, scaleX, scaleY);
+            renderTile(gl, runtimeTextureSet, animation.getStart() + frame, centerX, centerY, scaleX, scaleY);
             texture.disable(gl);
         }
     }
 
     private void renderTiles(RuntimeTextureSet runtimeTextureSet, GL2 gl, float alpha, Texture texture) {
-        List<TextureSetAnimation> tiles = runtimeTextureSet.getTextureSet().getAnimationsList();
+
+        int tileCount = runtimeTextureSet.getTextureSet().getTileCount();
         bindTexture(gl, texture);
 
-        shader.setUniforms(gl, "color", new float[] {1, 1, 1, alpha});
-        for (TextureSetAnimation tile : tiles) {
-            if (tile.getIsAnimation() == 0) {
-                renderTile(gl, runtimeTextureSet, tile,
-                           texture.getWidth() * runtimeTextureSet.getCenterX(tile),
-                           texture.getHeight() * runtimeTextureSet.getCenterY(tile), 1, 1);
-            }
+        shader.setUniforms(gl, "color", new float[] { 1, 1, 1, alpha });
+        for (int tile = 0; tile < tileCount; ++tile) {
+            renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * runtimeTextureSet.getCenterX(tile),
+                    texture.getHeight() * (1.0f - runtimeTextureSet.getCenterY(tile)), 1, 1);
         }
         texture.disable(gl);
 
-        shader.setUniforms(gl, "color", new float[] {1, 1, 1, 0.1f * alpha});
-        for (TextureSetAnimation tile : tiles) {
-            if (tile.getIsAnimation() == 0) {
-                renderTile(gl, runtimeTextureSet, tile,
-                          texture.getWidth() * runtimeTextureSet.getCenterX(tile),
-                          texture.getHeight() * runtimeTextureSet.getCenterY(tile), 1, 1);
-            }
+        shader.setUniforms(gl, "color", new float[] { 1, 1, 1, 0.1f * alpha });
+        for (int tile = 0; tile < tileCount; ++tile) {
+            renderTile(gl, runtimeTextureSet, tile, texture.getWidth() * runtimeTextureSet.getCenterX(tile),
+                    texture.getHeight() * (1.0f - runtimeTextureSet.getCenterY(tile)), 1, 1);
         }
     }
 
-    private void renderTile(GL2 gl, RuntimeTextureSet runtimeTextureSet, TextureSetAnimation tile, float offsetX, float offsetY, float scaleX, float scaleY) {
+    private void renderTile(GL2 gl, RuntimeTextureSet runtimeTextureSet, int tile, float offsetX, float offsetY,
+            float scaleX, float scaleY) {
         gl.glTranslatef(offsetX, offsetY, 0);
         gl.glScalef(scaleX, scaleY, 1);
-        gl.glDrawArrays(GL.GL_TRIANGLES, runtimeTextureSet.getVertexStart(tile, 0), runtimeTextureSet.getVertexCount(tile, 0));
+        gl.glDrawArrays(GL.GL_TRIANGLES, runtimeTextureSet.getTextureSet().getVertexStart(tile),
+ runtimeTextureSet
+                .getTextureSet().getVertexCount(tile));
         gl.glScalef(scaleX, scaleY, 1);
         gl.glTranslatef(-offsetX, -offsetY, 0);
     }
