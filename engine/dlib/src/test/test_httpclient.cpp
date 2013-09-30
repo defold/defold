@@ -276,8 +276,8 @@ TEST_P(dmHttpClientTest, Timeout1)
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
 
-        // NOTE: MaxIdleTime is set to 100ms
-        dmTime::Sleep(1000 * 150);
+        // NOTE: MaxIdleTime is set to 300ms
+        dmTime::Sleep(1000 * 350);
 
         m_Content = "";
         r = dmHttpClient::Get(m_Client, "/add/100/20");
@@ -297,8 +297,8 @@ TEST_P(dmHttpClientTest, Timeout2)
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
 
-        // NOTE: MaxIdleTime is set to 100ms
-        dmTime::Sleep(1000 * 150);
+        // NOTE: MaxIdleTime is set to 300ms
+        dmTime::Sleep(1000 * 350);
 
         m_Content = "";
         r = dmHttpClient::Get(m_Client, "/add/100/20");
