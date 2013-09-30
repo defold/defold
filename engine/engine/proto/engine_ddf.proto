@@ -118,3 +118,20 @@ message Reboot
     optional string arg5 = 5;
     optional string arg6 = 6;
 }
+
+/*# set update frequency
+ * Set game update-frequency. This option is equivalent to display.update_frequency but
+ * set in run-time
+ *
+ * @message
+ * @name set_update_frequency
+ * @param frequency target frequency. 60 for 60 fps
+ * @examples
+ * <pre>
+ * msg.post("@system:", "set_update_frequency", { frequency = 60 } )
+ * </pre>
+ */
+message SetUpdateFrequency
+{
+    required int32 frequency = 1;
+}
