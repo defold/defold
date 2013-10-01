@@ -48,7 +48,6 @@ namespace dmSys
             {
                 r = RESULT_UNKNOWN;
             }
-            [ns_path release];
             return r;
         }
         else
