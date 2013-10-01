@@ -1006,6 +1006,11 @@ bail:
                     dmLogError("No recording in progress");
                 }
             }
+            else if (descriptor == dmEngineDDF::SetUpdateFrequency::m_DDFDescriptor)
+            {
+                dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
+                SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
+            }
             else
             {
                 const dmMessage::URL* sender = &message->m_Sender;
