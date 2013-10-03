@@ -176,6 +176,9 @@ public class ChargifyService implements IBillingProvider {
         ObjectNode migration = mapper.createObjectNode();
         migration.put("product_id", product.getId());
         root.put("migration", migration);
+        // Only for debug purposes
+        logger.warn(BILLING_MARKER, "Migration input");
+        logger.warn(BILLING_MARKER, root.toString());
         ClientResponse response = chargifyResource
                 .path(String.format("/subscriptions/%d/migrations.json", subscription.getExternalId()))
                 .type(MediaType.APPLICATION_JSON_TYPE).accept(MediaType.APPLICATION_JSON_TYPE)

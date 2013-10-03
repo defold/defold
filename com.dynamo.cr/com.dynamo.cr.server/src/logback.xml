@@ -24,7 +24,7 @@
 
     <encoder>
       <!-- NOTE: %nopex suppress stack-trace output -->
-      <pattern>%date %level [%thread] %logger{10} [%file:%line] %nopex %msg%n</pattern>
+      <pattern>%date %level [%thread] %logger{10} [%file:%line] %ex %msg%n</pattern>
     </encoder>
     <target>System.err</target>
   </appender>
