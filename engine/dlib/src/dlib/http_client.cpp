@@ -277,6 +277,8 @@ namespace dmHttpClient
                         dmLogWarning("SSL handshake failed (%d)", hs);
                         ssl_free(ssl);
                         ssl = 0;
+                        dmSocket::Delete(client->m_Socket);
+                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                     }
                     client->m_SSLConnection = ssl;
                 }
