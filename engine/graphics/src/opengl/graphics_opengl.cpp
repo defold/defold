@@ -560,7 +560,7 @@ static void LogFrameBufferError(GLenum status)
 
     void Flip(HContext context)
     {
-        DM_PROFILE(Graphics, "Flip");
+        DM_PROFILE(VSync, "Wait");
         glfwSwapBuffers();
         CHECK_GL_ERROR
     }
