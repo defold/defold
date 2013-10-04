@@ -88,7 +88,7 @@ def default_flags(self):
         stl_arch="%s/include" % stl_lib
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            # NOTE: 
+            # NOTE:
             # -mthumb and -funwind-tables removed from default flags
             # -fno-exceptions added
             self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
@@ -267,6 +267,8 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         <string>0402</string>
         <key>DTXcodeBuild</key>
         <string>4A2002a</string>
+        <key>UIFileSharingEnabled</key>
+        <true/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
@@ -301,7 +303,7 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
                                 <string>fb355198514515820</string>
                         </array>
                 </dict>
-        </array>        
+        </array>
 </dict>
 </plist>
 """
@@ -459,6 +461,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         %(extra_activities)s
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->

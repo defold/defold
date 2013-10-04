@@ -111,6 +111,20 @@ namespace dmSys
     Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len);
 
     /**
+     * Get path to where log-files should be written.
+     * Platform notes:
+     * <ul>
+     * <li>iOS: Saved to documents folder. To sync with iTunes UIFileSharingEnabled must be set to true
+     * <li>Android: Saved to external storage. android.permission.WRITE_EXTERNAL_STORAGE must be set in AndroidManifest.xml
+     * <li>Other: Saved to current working directory
+     * </ul>
+     * @param path
+     * @param path_len
+     * @return
+     */
+    Result GetLogPath(char* path, uint32_t path_len);
+
+    /**
      * Get system information
      * @param info input data
      */

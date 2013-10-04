@@ -54,8 +54,6 @@ struct dmLogServer
         m_Port = port;
         m_MessgeSocket = message_socket;
         m_Thread = 0;
-        m_LogFile = 0;
-        m_TotalBytesLogged = 0;
     }
 
     dmArray<dmLogConnection> m_Connections;
@@ -63,13 +61,12 @@ struct dmLogServer
     uint16_t                 m_Port;
     dmMessage::HSocket       m_MessgeSocket;
     dmThread::Thread         m_Thread;
-    FILE*                    m_LogFile;
-    uint32_t                 m_TotalBytesLogged;
 };
 
 dmLogServer* g_dmLogServer = 0;
-
 dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
+int g_TotalBytesLogged = 0;
+FILE* g_LogFile = 0;
 
 static dmSocket::Result SendAll(dmSocket::Socket socket, const char* buffer, int length)
 {
@@ -147,17 +144,6 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
     }
     int msg_len = (int) strlen(log_message->m_Message);
 
-    self->m_TotalBytesLogged += msg_len;
-
-    if (self->m_LogFile && self->m_TotalBytesLogged < DM_LOG_MAX_LOG_FILE_SIZE)
-    {
-        size_t n = fwrite(log_message->m_Message, 1, msg_len, self->m_LogFile);
-        if (n >= 0)
-        {
-            fflush(self->m_LogFile);
-        }
-    }
-
     // NOTE: Keep i as signed! See --i below after EraseSwap
     int n = (int) self->m_Connections.Size();
     for (int i = 0; i < n; ++i)
@@ -206,6 +192,8 @@ static void dmLogThread(void* args)
 
 void dmLogInitialize(const dmLogParams* params)
 {
+    g_TotalBytesLogged = 0;
+
     if (!dLib::IsDebugMode())
         return;
 
@@ -260,18 +248,6 @@ void dmLogInitialize(const dmLogParams* params)
     thread = dmThread::New(dmLogThread, 0x80000, 0);
     g_dmLogServer->m_Thread = thread;
 
-    if (params->m_LogToFile)
-    {
-        char log_path[DMPATH_MAX_PATH];
-        dmSys::GetApplicationSupportPath("defold", log_path, sizeof(log_path));
-        dmStrlCat(log_path, "/log.txt", sizeof(log_path));
-        g_dmLogServer->m_LogFile = fopen(log_path, "wb");
-        if (g_dmLogServer->m_LogFile == 0)
-        {
-            fprintf(stderr, "ERROR:DLIB: Unable to open log file%s\n", log_path);
-        }
-    }
-
     return;
 
 bail:
@@ -316,13 +292,12 @@ void dmLogFinalize()
         dmMessage::DeleteSocket(self->m_MessgeSocket);
     }
 
-    if (self->m_LogFile)
-    {
-        fclose(self->m_LogFile);
-    }
-
     delete self;
     g_dmLogServer = 0;
+    if (g_LogFile) {
+        fclose(g_LogFile);
+        g_LogFile = 0;
+    }
 }
 
 uint16_t dmLogGetPort()
@@ -422,13 +397,21 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
         n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "\n");
     }
     str_buf[str_buf_size-1] = '\0';
+    int actual_n = dmMath::Min(n, str_buf_size-1);
+
+    g_TotalBytesLogged += actual_n;
 
 #ifdef ANDROID
     __android_log_print(ToAndroidPriority(severity), "defold", str_buf);
 #else
-    fwrite(str_buf, 1, dmMath::Min(n, str_buf_size-1), stderr);
+    fwrite(str_buf, 1, actual_n, stderr);
 #endif
     va_end(lst);
+
+    if (g_LogFile && g_TotalBytesLogged < DM_LOG_MAX_LOG_FILE_SIZE) {
+        fwrite(str_buf, 1, actual_n, g_LogFile);
+        fflush(g_LogFile);
+    }
 
     dmLogServer* self = g_dmLogServer;
     if (self)
@@ -439,5 +422,19 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
         dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLogMessage) + n + 1, sizeof(tmp_buf)));
+    }
+}
+
+void dmSetLogFile(const char* path)
+{
+    if (g_LogFile) {
+        fclose(g_LogFile);
+        g_LogFile = 0;
+    }
+    g_LogFile = fopen(path, "wb");
+    if (g_LogFile) {
+        dmLogInfo("Writing log to: %s", path);
+    } else {
+        dmLogFatal("Failed to open log-file '%s'", path);
     }
 }

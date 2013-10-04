@@ -356,6 +356,19 @@ namespace dmEngine
                 return false;
             }
         }
+
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
+        if (write_log) {
+            char path[DMPATH_MAX_PATH];
+            if (dmSys::GetLogPath(path, sizeof(path)) == dmSys::RESULT_OK) {
+                char full[DMPATH_MAX_PATH];
+                dmPath::Concat(path, "log.txt", full, sizeof(full));
+                dmSetLogFile(full);
+            } else {
+                dmLogFatal("Unable to get log-file path");
+            }
+        }
+
         const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
 
         // This scope is mainly here to make sure the "Main" scope is created first
