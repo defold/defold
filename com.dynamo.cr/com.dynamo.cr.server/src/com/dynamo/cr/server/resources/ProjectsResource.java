@@ -100,7 +100,7 @@ public class ProjectsResource extends BaseResource {
         catch (Throwable e) {
             logger.error(e.getMessage(), e);
             ModelUtil.removeProject(em, project);
-            throw new ServerException("Unable to create project. Internal error.", Status.INTERNAL_SERVER_ERROR);
+            throw new ServerException("Unable to create project. Internal error.", e, Status.INTERNAL_SERVER_ERROR);
         }
 
         return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project,
