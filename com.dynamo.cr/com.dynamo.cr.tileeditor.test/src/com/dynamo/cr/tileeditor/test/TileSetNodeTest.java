@@ -229,7 +229,7 @@ public class TileSetNodeTest extends AbstractNodeTest {
         ddf.append("image: \"").append(img).append("\" tile_width: 16 tile_height: 16 tile_margin: 0 tile_spacing: 1 ")
             .append("collision: \"").append(img).append("\" material_tag: \"tile\" collision_groups: \"default\" ")
             .append("animations: {id: \"anim\" start_tile: 1 end_tile: 4 playback: PLAYBACK_ONCE_FORWARD ")
-                .append("fps: 30 flip_horizontal: 1 flip_vertical: 1}");
+                .append("fps: 30 flip_horizontal: 1 flip_vertical: 1} extrude_borders: 0");
 
         registerFile(path, ddf.toString());
 
