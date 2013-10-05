@@ -61,6 +61,8 @@
         <string>0402</string>
         <key>DTXcodeBuild</key>
         <string>4A2002a</string>
+        <key>UIFileSharingEnabled</key>
+        <true/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
