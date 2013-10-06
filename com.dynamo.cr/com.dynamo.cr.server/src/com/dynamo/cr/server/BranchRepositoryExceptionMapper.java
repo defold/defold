@@ -18,7 +18,7 @@ public class BranchRepositoryExceptionMapper implements ExceptionMapper<BranchRe
     protected static Logger logger = LoggerFactory.getLogger(BranchRepositoryExceptionMapper.class);
 
     public Response toResponse(BranchRepositoryException e) {
-        logger.warn(e.getMessage(), e);
+        logger.error(e.getMessage(), e);
         return Response.
                 status(e.getStatus()).
                 type("text/plain").

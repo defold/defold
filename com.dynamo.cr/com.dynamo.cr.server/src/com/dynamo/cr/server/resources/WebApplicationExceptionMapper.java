@@ -20,6 +20,7 @@ public class WebApplicationExceptionMapper implements
 
     @Override
     public Response toResponse(WebApplicationException e) {
+        logger.error(e.getMessage(), e);
         try {
             MDC.put("status", Integer.toString(e.getResponse().getStatus()));
             Response r = e.getResponse();
@@ -30,7 +31,6 @@ public class WebApplicationExceptionMapper implements
                 }
                 return Response.fromResponse(r).entity(message).build();
             } else {
-                logger.error(e.getMessage(), e);
                 return r;
             }
         } finally {
