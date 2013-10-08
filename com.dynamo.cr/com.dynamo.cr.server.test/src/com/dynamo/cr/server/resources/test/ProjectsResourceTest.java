@@ -211,10 +211,10 @@ public class ProjectsResourceTest extends AbstractResourceTest {
                 .accept(ProtobufProviders.APPLICATION_XPROTOBUF).type(ProtobufProviders.APPLICATION_XPROTOBUF)
                 .post(ProjectInfo.class, newProject);
 
+        @SuppressWarnings("unused")
         ClientResponse response;
         response = joeProjectsWebResource.path(
                 String.format("/%d/%d/project_info", joeUser.getId(), projectInfo.getId())).get(ClientResponse.class);
-        response.getEntity(ProjectInfo.class);
     }
 
     @Test
