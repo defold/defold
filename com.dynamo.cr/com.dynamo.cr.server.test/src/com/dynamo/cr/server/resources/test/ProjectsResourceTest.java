@@ -203,18 +203,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     };
 
     @Test
-    public void testProjectInfoFake() throws Exception {
-        NewProject newProject = NewProject.newBuilder().setName("test project").setDescription("New test project")
-                .build();
-
-        ProjectInfo projectInfo = joeProjectsWebResource.path(joeUser.getId().toString())
-                .accept(ProtobufProviders.APPLICATION_XPROTOBUF).type(ProtobufProviders.APPLICATION_XPROTOBUF)
-                .post(ProjectInfo.class, newProject);
-
-        @SuppressWarnings("unused")
-        ClientResponse response;
-        response = joeProjectsWebResource.path(
-                String.format("/%d/%d/project_info", joeUser.getId(), projectInfo.getId())).get(ClientResponse.class);
+    public void testFakeBootup() throws Exception {
     }
 
     @Test
