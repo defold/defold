@@ -202,8 +202,26 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         }
     };
 
+    /**
+     * The sole purpose of this test is too boot everything up, since the actual test below sometimes fail on the server
+     * due to time out exceptions.
+     * 
+     * @see https://defold.fogbugz.com/default.asp?2376
+     * @throws Exception
+     */
     @Test
     public void testFakeBootup() throws Exception {
+        NewProject newProject = NewProject.newBuilder().setName("test project").setDescription("New test project")
+                .build();
+
+        try {
+            @SuppressWarnings("unused")
+            ProjectInfo projectInfo = joeProjectsWebResource.path(joeUser.getId().toString())
+                    .accept(ProtobufProviders.APPLICATION_XPROTOBUF).type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                    .post(ProjectInfo.class, newProject);
+        } catch (Throwable t) {
+            // silent pass
+        }
     }
 
     @Test
