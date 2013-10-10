@@ -88,15 +88,15 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            v->setX(luaL_checknumber(L, 3));
+            v->setX((float) luaL_checknumber(L, 3));
         }
         else if (key[0] == 'y')
         {
-            v->setY(luaL_checknumber(L, 3));
+            v->setY((float) luaL_checknumber(L, 3));
         }
         else if (key[0] == 'z')
         {
-            v->setZ(luaL_checknumber(L, 3));
+            v->setZ((float) luaL_checknumber(L, 3));
         }
         else
         {
@@ -128,11 +128,11 @@ namespace dmScript
         if (IsVector3(L, 1))
         {
             v = CheckVector3(L, 1);
-            s = luaL_checknumber(L, 2);
+            s = (float) luaL_checknumber(L, 2);
         }
         else
         {
-            s = luaL_checknumber(L, 1);
+            s = (float) luaL_checknumber(L, 1);
             v = CheckVector3(L, 2);
         }
         PushVector3(L, *v * s);
@@ -258,19 +258,19 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            v->setX(luaL_checknumber(L, 3));
+            v->setX((float) luaL_checknumber(L, 3));
         }
         else if (key[0] == 'y')
         {
-            v->setY(luaL_checknumber(L, 3));
+            v->setY((float) luaL_checknumber(L, 3));
         }
         else if (key[0] == 'z')
         {
-            v->setZ(luaL_checknumber(L, 3));
+            v->setZ((float) luaL_checknumber(L, 3));
         }
         else if (key[0] == 'w')
         {
-            v->setW(luaL_checknumber(L, 3));
+            v->setW((float) luaL_checknumber(L, 3));
         }
         else
         {
@@ -302,11 +302,11 @@ namespace dmScript
         if (IsVector4(L, 1))
         {
             v = CheckVector4(L, 1);
-            s = luaL_checknumber(L, 2);
+            s = (float) luaL_checknumber(L, 2);
         }
         else
         {
-            s = luaL_checknumber(L, 1);
+            s = (float) luaL_checknumber(L, 1);
             v = CheckVector4(L, 2);
         }
         PushVector4(L, *v * s);
@@ -433,19 +433,19 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (key[0] == 'x')
         {
-            q->setX(luaL_checknumber(L, -1));
+            q->setX((float) luaL_checknumber(L, -1));
         }
         else if (key[0] == 'y')
         {
-            q->setY(luaL_checknumber(L, -1));
+            q->setY((float) luaL_checknumber(L, -1));
         }
         else if (key[0] == 'z')
         {
-            q->setZ(luaL_checknumber(L, -1));
+            q->setZ((float) luaL_checknumber(L, -1));
         }
         else if (key[0] == 'w')
         {
-            q->setW(luaL_checknumber(L, -1));
+            q->setW((float) luaL_checknumber(L, -1));
         }
         else
         {
@@ -575,7 +575,7 @@ namespace dmScript
             int col = key[2] - (char)'0';
             if (0 <= row && row < 4 && 0 <= col && col < 4)
             {
-                m->setElem(col, row, luaL_checknumber(L, -1));
+                m->setElem(col, row, (float) luaL_checknumber(L, -1));
                 return 0;
             }
         }
@@ -597,7 +597,7 @@ namespace dmScript
         Vectormath::Aos::Matrix4 m1;
         if (lua_isnumber(L, 1))
         {
-            float f = lua_tonumber(L, 1);
+            float f = (float) lua_tonumber(L, 1);
             m1 = *CheckMatrix4(L, 2);
             PushMatrix4(L, m1 * f);
         }
@@ -616,7 +616,7 @@ namespace dmScript
             }
             else if (lua_isnumber(L, 2))
             {
-                float f = luaL_checknumber(L, 2);
+                float f = (float) luaL_checknumber(L, 2);
                 PushMatrix4(L, m1 * f);
             }
             else
@@ -723,9 +723,9 @@ namespace dmScript
         }
         else
         {
-            v.setX(luaL_checknumber(L, 1));
-            v.setY(luaL_checknumber(L, 2));
-            v.setZ(luaL_checknumber(L, 3));
+            v.setX((float) luaL_checknumber(L, 1));
+            v.setY((float) luaL_checknumber(L, 2));
+            v.setZ((float) luaL_checknumber(L, 3));
         }
         PushVector3(L, v);
         return 1;
@@ -788,10 +788,10 @@ namespace dmScript
         }
         else
         {
-            v.setX(luaL_checknumber(L, 1));
-            v.setY(luaL_checknumber(L, 2));
-            v.setZ(luaL_checknumber(L, 3));
-            v.setW(luaL_checknumber(L, 4));
+            v.setX((float) luaL_checknumber(L, 1));
+            v.setY((float) luaL_checknumber(L, 2));
+            v.setZ((float) luaL_checknumber(L, 3));
+            v.setW((float) luaL_checknumber(L, 4));
         }
         PushVector4(L, v);
         return 1;
@@ -832,10 +832,10 @@ namespace dmScript
         }
         else
         {
-            q.setX(luaL_checknumber(L, 1));
-            q.setY(luaL_checknumber(L, 2));
-            q.setZ(luaL_checknumber(L, 3));
-            q.setW(luaL_checknumber(L, 4));
+            q.setX((float) luaL_checknumber(L, 1));
+            q.setY((float) luaL_checknumber(L, 2));
+            q.setZ((float) luaL_checknumber(L, 3));
+            q.setW((float) luaL_checknumber(L, 4));
         }
         PushQuat(L, q);
         return 1;
@@ -867,7 +867,7 @@ namespace dmScript
     static int Quat_AxisAngle(lua_State* L)
     {
         Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
-        float angle = luaL_checknumber(L, 2);
+        float angle = (float) luaL_checknumber(L, 2);
         PushQuat(L, Vectormath::Aos::Quat::rotation(angle, *axis));
         return 1;
     }
@@ -901,7 +901,7 @@ namespace dmScript
      */
     static int Quat_RotationX(lua_State* L)
     {
-        float angle = luaL_checknumber(L, 1);
+        float angle = (float) luaL_checknumber(L, 1);
         PushQuat(L, Vectormath::Aos::Quat::rotationX(angle));
         return 1;
     }
@@ -914,7 +914,7 @@ namespace dmScript
      */
     static int Quat_RotationY(lua_State* L)
     {
-        float angle = luaL_checknumber(L, 1);
+        float angle = (float) luaL_checknumber(L, 1);
         PushQuat(L, Vectormath::Aos::Quat::rotationY(angle));
         return 1;
     }
@@ -927,7 +927,7 @@ namespace dmScript
      */
     static int Quat_RotationZ(lua_State* L)
     {
-        float angle = luaL_checknumber(L, 1);
+        float angle = (float) luaL_checknumber(L, 1);
         PushQuat(L, Vectormath::Aos::Quat::rotationZ(angle));
         return 1;
     }
@@ -977,12 +977,12 @@ namespace dmScript
      */
     static int Matrix4_Frustum(lua_State* L)
     {
-        float left = luaL_checknumber(L, 1);
-        float right = luaL_checknumber(L, 2);
-        float bottom = luaL_checknumber(L, 3);
-        float top = luaL_checknumber(L, 4);
-        float near_z = luaL_checknumber(L, 5);
-        float far_z = luaL_checknumber(L, 6);
+        float left = (float) luaL_checknumber(L, 1);
+        float right = (float) luaL_checknumber(L, 2);
+        float bottom = (float) luaL_checknumber(L, 3);
+        float top = (float) luaL_checknumber(L, 4);
+        float near_z = (float) luaL_checknumber(L, 5);
+        float far_z = (float) luaL_checknumber(L, 6);
         PushMatrix4(L, Vectormath::Aos::Matrix4::frustum(left, right, bottom, top, near_z, far_z));
         return 1;
     }
@@ -1016,12 +1016,12 @@ namespace dmScript
      */
     static int Matrix4_Orthographic(lua_State* L)
     {
-        float left = luaL_checknumber(L, 1);
-        float right = luaL_checknumber(L, 2);
-        float bottom = luaL_checknumber(L, 3);
-        float top = luaL_checknumber(L, 4);
-        float near_z = luaL_checknumber(L, 5);
-        float far_z = luaL_checknumber(L, 6);
+        float left = (float) luaL_checknumber(L, 1);
+        float right = (float) luaL_checknumber(L, 2);
+        float bottom = (float) luaL_checknumber(L, 3);
+        float top = (float) luaL_checknumber(L, 4);
+        float near_z = (float) luaL_checknumber(L, 5);
+        float far_z = (float) luaL_checknumber(L, 6);
         PushMatrix4(L, Vectormath::Aos::Matrix4::orthographic(left, right, bottom, top, near_z, far_z));
         return 1;
     }
@@ -1038,10 +1038,10 @@ namespace dmScript
      */
     static int Matrix4_Perspective(lua_State* L)
     {
-        float fov = luaL_checknumber(L, 1);
-        float aspect = luaL_checknumber(L, 2);
-        float near_z = luaL_checknumber(L, 3);
-        float far_z = luaL_checknumber(L, 4);
+        float fov = (float) luaL_checknumber(L, 1);
+        float aspect = (float) luaL_checknumber(L, 2);
+        float near_z = (float) luaL_checknumber(L, 3);
+        float far_z = (float) luaL_checknumber(L, 4);
         PushMatrix4(L, Vectormath::Aos::Matrix4::perspective(fov, aspect, near_z, far_z));
         return 1;
     }
@@ -1070,7 +1070,7 @@ namespace dmScript
     static int Matrix4_AxisAngle(lua_State* L)
     {
         Vectormath::Aos::Vector3* axis = CheckVector3(L, 1);
-        float angle = luaL_checknumber(L, 2);
+        float angle = (float) luaL_checknumber(L, 2);
         PushMatrix4(L, Vectormath::Aos::Matrix4::rotation(angle, *axis));
         return 1;
     }
@@ -1083,7 +1083,7 @@ namespace dmScript
      */
     static int Matrix4_RotationX(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationX(luaL_checknumber(L, 1)));
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationX((float) luaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1095,7 +1095,7 @@ namespace dmScript
      */
     static int Matrix4_RotationY(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationY(luaL_checknumber(L, 1)));
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationY((float) luaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1107,7 +1107,7 @@ namespace dmScript
      */
     static int Matrix4_RotationZ(lua_State* L)
     {
-        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationZ(luaL_checknumber(L, 1)));
+        PushMatrix4(L, Vectormath::Aos::Matrix4::rotationZ((float) luaL_checknumber(L, 1)));
         return 1;
     }
 
@@ -1275,7 +1275,7 @@ namespace dmScript
 
     static int Lerp(lua_State* L)
     {
-        float t = luaL_checknumber(L, 1);
+        float t = (float) luaL_checknumber(L, 1);
         if (IsVector4(L, 2) && IsVector4(L, 3))
         {
             Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
@@ -1299,8 +1299,8 @@ namespace dmScript
         }
         else if (lua_isnumber(L, 2) && lua_isnumber(L, 3))
         {
-            lua_Number n1 = luaL_checknumber(L, 2);
-            lua_Number n2 = luaL_checknumber(L, 3);
+            lua_Number n1 = (float) luaL_checknumber(L, 2);
+            lua_Number n2 = (float) luaL_checknumber(L, 3);
             lua_pushnumber(L, n1 + t * (n2 - n1));
             return 1;
         }
@@ -1326,7 +1326,7 @@ namespace dmScript
      */
     static int Slerp(lua_State* L)
     {
-        float t = luaL_checknumber(L, 1);
+        float t = (float) luaL_checknumber(L, 1);
         if (IsVector4(L, 2) && IsVector4(L, 3))
         {
             Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);

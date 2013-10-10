@@ -312,7 +312,7 @@ namespace dmProfile
 #endif
             uint64_t diff = end - m_Start;
             m_Sample->m_Start = (uint32_t) (m_Start - g_BeginTime);
-            m_Sample->m_Elapsed = diff;
+            m_Sample->m_Elapsed = (uint32_t) diff;
         }
     };
 

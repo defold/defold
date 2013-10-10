@@ -30,7 +30,7 @@ namespace dmParticle
     const char* MAX_PARTICLE_COUNT_KEY          = "particle_fx.max_particle_count";
 
     /// Used for degree to radian conversion
-    const float DEG_RAD = M_PI / 180.0f;
+    const float DEG_RAD = (float) (M_PI / 180.0);
 
     AnimationData::AnimationData()
     {
