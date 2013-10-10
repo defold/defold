@@ -354,10 +354,17 @@ namespace dmSys
 
     void FillTimeZone(struct SystemInfo* info)
     {
+#if defined(_WIN32)
+        // tm_gmtoff not available on windows..
+        TIME_ZONE_INFORMATION t;
+        GetTimeZoneInformation(&t);
+        info->m_GmtOffset = -t.Bias;
+#else
         time_t t;
         time(&t);
         struct tm* lt = localtime(&t);
         info->m_GmtOffset = lt->tm_gmtoff / 60;
+#endif
     }
 
 #if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__))
