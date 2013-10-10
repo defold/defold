@@ -517,13 +517,13 @@ namespace dmSys
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
-            if (file_stat.st_size > buffer_size) {
+            if ((uint32_t) file_stat.st_size > buffer_size) {
                 return RESULT_INVAL;
             }
             FILE* f = fopen(path, "rb");
             size_t nread = fread(buffer, 1, file_stat.st_size, f);
             fclose(f);
-            if (nread != file_stat.st_size) {
+            if (nread != (size_t) file_stat.st_size) {
                 return RESULT_IO;
             }
             *resource_size = file_stat.st_size;

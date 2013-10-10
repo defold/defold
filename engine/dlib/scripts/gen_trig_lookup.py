@@ -16,7 +16,7 @@ def generate(path, bits):
     size = 2**bits
     data = ""
     table = "\n    {"
-    entry = "\n        {value},"
+    entry = "\n        {value}f,"
     table = table + "".join([entry.format(value = math.cos(v*2.0*math.pi/size)) for v in range(0, size)]) + "\n    }"
     table_mask = size - 1
     remainder = 2**(16-bits)

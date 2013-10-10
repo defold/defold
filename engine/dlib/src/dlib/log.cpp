@@ -18,7 +18,7 @@
 #include <android/log.h>
 #endif
 
-const uint32_t DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
+const int DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
 {

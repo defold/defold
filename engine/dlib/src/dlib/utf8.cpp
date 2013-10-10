@@ -47,13 +47,11 @@ namespace dmUtf8
         if (chr < 0x80) {
             buf[0] = (char) chr;
             return 1;
-        }
-        if (chr < 0x800) {
+        } else if (chr < 0x800) {
             buf[0] = (chr >> 6) | 0xc0;
             buf[1] = (chr & 0x3f) | 0x80;
             return 2;
-        }
-        if (chr < 0x10000) {
+        } else {
             buf[0] = (chr >> 12) | 0xe0;
             buf[1] = ((chr >> 6) & 0x3f) | 0x80;
             buf[2] = (chr & 0x3f) | 0x80;

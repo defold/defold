@@ -590,8 +590,6 @@ namespace dmGameSystem
 
     static void SetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
-
         dmGraphics::TextureParams tparams;
         tparams.m_Width = width;
         tparams.m_Height = height;
