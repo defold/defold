@@ -351,6 +351,14 @@ namespace dmSys
         info->m_Territory[2] = '\0';
     }
 
+    void FillTimeZone(struct SystemInfo* info)
+    {
+        time_t t;
+        time(&t);
+        struct tm* lt = localtime(&t);
+        info->m_GmtOffset = lt->tm_gmtoff / 60;
+    }
+
 #if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__))
     void GetSystemInfo(SystemInfo* info)
     {
@@ -369,6 +377,7 @@ namespace dmSys
             lang = default_lang;
         }
         FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
     }
 
 #elif defined(__ANDROID__)
@@ -439,6 +448,7 @@ namespace dmSys
             *index = '_';
         }
         FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
     }
 #endif
 

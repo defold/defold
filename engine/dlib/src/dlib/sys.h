@@ -59,6 +59,8 @@ namespace dmSys
         char m_Language[8];
         ///  ISO 3166 country code
         char m_Territory[8];
+        /// Offset to GMT in minutes
+        int  m_GmtOffset;
     };
 
     /**

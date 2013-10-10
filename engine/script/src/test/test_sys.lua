@@ -39,6 +39,7 @@ function test_sys()
     print("system_version: " .. info.system_version)
     print("language: " .. info.language)
     print("territory: " .. info.territory)
+    print("gmt_offset: " .. info.gmt_offset)
 end
 
 functions = { test_sys = test_sys }

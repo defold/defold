@@ -95,6 +95,7 @@ namespace dmSys
         NSLocale* locale = [NSLocale currentLocale];
         const char* lang = [locale.localeIdentifier UTF8String];
         FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
     }
 
 #else
