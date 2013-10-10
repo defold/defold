@@ -797,7 +797,8 @@ def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
 
     s = '#!/bin/sh\n'
-    s += "%s $@\n" % os.path.join(IOS_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
+    # NOTE:  -Qunused-arguments to make clang happy (clang: warning: argument unused during compilation)
+    s += "%s -Qunused-arguments $@\n" % os.path.join(IOS_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
     if os.path.exists(clang_wrapper_path):
         # Keep existing script if equal
         # The cache in ccache consistency control relies on the timestamp
