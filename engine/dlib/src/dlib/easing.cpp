@@ -12,7 +12,7 @@ namespace dmEasing
     float GetValue(Type type, float t)
     {
         t = dmMath::Clamp(t, 0.0f, 1.0f);
-        int index1 = t * (EASING_SAMPLES-1);
+        int index1 = (int) (t * (EASING_SAMPLES-1));
         int index2 = index1 + 1;
         float diff = (t - index1 * EASING_SAMPLES_MINUS_ONE_RECIP) * (EASING_SAMPLES-1);
 

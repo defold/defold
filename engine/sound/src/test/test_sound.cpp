@@ -504,7 +504,7 @@ TEST_F(dmSoundTest, OggDecompressionRate)
         }
     }
     uint64_t end = dmTime::GetTime();
-    float elapsed = end - start;
+    float elapsed = (float) (end - start);
 
     printf("channels: %d\n", info.channels);
     printf("sample rate: %d\n", info.sample_rate);

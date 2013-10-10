@@ -21,7 +21,7 @@ TEST(dmMath, TestQuatToEuler)
 
     Vector3 euler;
 
-    float half_rad_factor = M_PI / 360.0f;
+    float half_rad_factor = (float) (M_PI / 360.0);
     // different degrees around different single axis
     for (uint32_t i = 0; i < 3; ++i)
     {
@@ -53,7 +53,7 @@ TEST(dmMath, TestEulerToQuat)
 
     Vector3 euler;
 
-    float half_rad_factor = M_PI / 360.0f;
+    float half_rad_factor = (float) (M_PI / 360.0);
     // different degrees around different single axis
     for (uint32_t i = 0; i < 3; ++i)
     {

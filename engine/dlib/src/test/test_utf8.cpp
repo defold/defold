@@ -16,11 +16,11 @@ Unicode: U+00E4, UTF-8: C3 A4
 LATIN SMALL LETTER O WITH DIAERESIS
 Unicode: U+00F6, UTF-8: C3 B6
 */
-const char seq1[] = {0xc3, 0xa5, 0xc3, 0xa4, 0xc3, 0xb6, 0 };
+const char seq1[] = {(char) 0xc3, (char) 0xa5, (char) 0xc3, (char) 0xa4, (char) 0xc3, (char) 0xb6, 0 };
 
 // WHITE RIGHT POINTING INDEX
 // Unicode: U+261E, UTF-8: E2 98 9E
-const char seq2[] = {0xe2, 0x98, 0x9e, 0};
+const char seq2[] = {(char) 0xe2, (char) 0x98, (char) 0x9e, 0};
 
 TEST(dmUtf8, StrLen)
 {

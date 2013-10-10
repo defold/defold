@@ -170,7 +170,7 @@ TEST_F(dmHttpCacheTest, MaxAge)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     ASSERT_EQ(0U, info.m_Verified);
     ASSERT_EQ(1U, info.m_Valid);
-    ASSERT_NEAR(info.m_Expires, dmTime::GetTime() + max_age * 1000000U, 1U * 1000000U);
+    ASSERT_NEAR(info.m_Expires, (uint64_t) (dmTime::GetTime() + max_age * 1000000U), (uint64_t) 1U * 1000000U);
 
     r = Put(cache, "uri", 1U, "data", strlen("data"));
     dmTime::Sleep(1000000U);
@@ -656,7 +656,7 @@ TEST_F(dmHttpCacheTest, Persist)
     dmHttpCache::Close(cache);
     // Set max age to 1 seconds and sleep for 1.5 seconds
     params.m_MaxCacheEntryAge = 1;
-    dmTime::Sleep(1000000 * 1.5);
+    dmTime::Sleep((1000000 * 3) / 2);
     r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(0U, dmHttpCache::GetEntryCount(cache));
     dmHttpCache::Close(cache);

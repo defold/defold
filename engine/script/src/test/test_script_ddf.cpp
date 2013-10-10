@@ -136,7 +136,7 @@ TEST_F(ScriptDDFTest, MessageInMessageToDDF)
     Vectormath::Aos::Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
-            m.setElem(i, j, i * 4 + j);
+            m.setElem((float) i, (float) j, (float) (i * 4 + j));
     dmScript::PushMatrix4(L, m);
     lua_setfield(L, -2, "matrix4_value");
 
@@ -401,12 +401,12 @@ TEST_F(ScriptDDFTest, Uint64ToDDF)
 
     int res = lua_cpcall(L, Test::TestString, &test);
     ASSERT_NE(0, res);
-    ASSERT_TRUE(lua_isstring(L, -1));
+    ASSERT_TRUE((bool) lua_isstring(L, -1));
     lua_pop(L, 1);
 
     res = lua_cpcall(L, Test::TestNumber, &test);
     ASSERT_NE(0, res);
-    ASSERT_TRUE(lua_isstring(L, -1));
+    ASSERT_TRUE((bool) lua_isstring(L, -1));
     lua_pop(L, 1);
 
     res = lua_cpcall(L, Test::TestHash, &test);

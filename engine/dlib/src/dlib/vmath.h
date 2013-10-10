@@ -52,13 +52,13 @@ namespace dmVMath
         if (test > limit)
         {
             r0 = 2.0f * atan2(q0, q3);
-            r1 = M_PI_2;
+            r1 = (float) M_PI_2;
             r2 = 0.0f;
         }
         else if (test < -limit)
         {
             r0 = -2.0f * atan2(q0, q3);
-            r1 = -M_PI_2;
+            r1 = (float) -M_PI_2;
             r2 = 0.0f;
         }
         else

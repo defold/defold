@@ -194,7 +194,7 @@ public:
             entry->m_Value = value;
             entry->m_Next = 0xffffffff;
 
-            uint32_t bucket_index = key % m_HashTableSize;
+            uint32_t bucket_index = (uint32_t) (key % m_HashTableSize);
             uint32_t entry_ptr = m_HashTable[bucket_index];
             if (entry_ptr == 0xffffffff)
             {
@@ -390,7 +390,7 @@ private:
         if (!m_HashTableSize)
             return 0;
 
-        uint32_t bucket_index = key % m_HashTableSize;
+        uint32_t bucket_index = (uint32_t) (key % m_HashTableSize);
         uint32_t bucket = m_HashTable[bucket_index];
 
         uint32_t entry_ptr = bucket;

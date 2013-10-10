@@ -70,7 +70,7 @@ TEST(dmTransform, Inverse)
     i.SetIdentity();
 
     TransformS1 t0(Vector3(1.0f, 0.0f, 0.0f),
-            Quat::rotationZ(M_PI_2),
+            Quat::rotationZ((float) M_PI_2),
             2.0f);
 
     // Identity inverse is identity

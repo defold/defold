@@ -717,7 +717,7 @@ namespace dmGui
         Vector4 to;
         if (lua_isnumber(L, 3))
         {
-            to = Vector4(lua_tonumber(L, 3));
+            to = Vector4((float) lua_tonumber(L, 3));
         }
         else if (dmScript::IsVector3(L, 3))
         {
@@ -954,7 +954,7 @@ namespace dmGui
     {
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        bool line_break = lua_toboolean(L, 2);
+        bool line_break = (bool) lua_toboolean(L, 2);
         n->m_Node.m_LineBreak = line_break;
         return 0;
     }
@@ -1262,7 +1262,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        int anchor = luaL_checknumber(L, 2);
+        int anchor = luaL_checkint(L, 2);
         if (anchor != XANCHOR_NONE && anchor != XANCHOR_LEFT && anchor != XANCHOR_RIGHT)
         {
             luaL_error(L, "Invalid x-anchor: %d", anchor);
@@ -1319,7 +1319,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        int anchor = luaL_checknumber(L, 2);
+        int anchor = luaL_checkint(L, 2);
         if (anchor != YANCHOR_NONE && anchor != YANCHOR_TOP && anchor != YANCHOR_BOTTOM)
         {
             luaL_error(L, "Invalid y-anchor: %d", anchor);
@@ -1387,7 +1387,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        int pivot = luaL_checknumber(L, 2);
+        int pivot = luaL_checkint(L, 2);
         if (pivot < PIVOT_CENTER || pivot > PIVOT_NW)
         {
             luaL_error(L, "Invalid pivot: %d", pivot);
@@ -1445,7 +1445,7 @@ namespace dmGui
 
         Scene* scene = GetScene(L);
 
-        lua_pushboolean(L, PickNode(scene, hnode, x, y));
+        lua_pushboolean(L, PickNode(scene, hnode, (float) x, (float) y));
         return 1;
     }
 
@@ -1630,7 +1630,7 @@ namespace dmGui
         Scene* scene = GetScene(L);
         int type = luaL_checkinteger(L, 1);
         luaL_checktype(L, 2, LUA_TBOOLEAN);
-        bool autoclose = lua_toboolean(L, 2);
+        bool autoclose = (bool) lua_toboolean(L, 2);
         dmHID::ShowKeyboard(scene->m_Context->m_HidContext, (dmHID::KeyboardType) type, autoclose);
         return 0;
     }

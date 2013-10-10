@@ -8,7 +8,7 @@
 #include "dlib/time.h"
 #include "dlib/thread.h"
 
-#if not defined(_WIN32)
+#if !defined(_WIN32)
 
 void ProfileSampleCallback(void* context, const dmProfile::Sample* sample)
 {

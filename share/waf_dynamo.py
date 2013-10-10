@@ -118,10 +118,15 @@ def default_flags(self):
 
     if platform == build_platform:
         # Host libraries are installed to $PREFIX/lib
-        self.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
+        libpath = os.path.join(dynamo_home, "lib")
     else:
         # Cross libraries are installed to $PREFIX/lib/PLATFORM
-        self.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib", platform))
+        libpath = os.path.join(dynamo_home, "lib", platform)
+
+    # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
+    if not os.path.exists(libpath):
+        os.mkdir(libpath)
+    self.env.append_value('LIBPATH', libpath)
 
     self.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))

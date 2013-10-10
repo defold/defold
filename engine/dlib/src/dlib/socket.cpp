@@ -402,7 +402,7 @@ namespace dmSocket
 
     bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        return FD_ISSET(socket, &selector->m_FdSets[selector_kind]);
+        return (bool) FD_ISSET(socket, &selector->m_FdSets[selector_kind]);
     }
 
     void SelectorZero(Selector* selector)

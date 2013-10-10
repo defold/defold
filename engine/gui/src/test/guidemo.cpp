@@ -216,7 +216,7 @@ int main(void)
         glfwSetKeyCallback(&OnKey);
         dmGui::UpdateScene(scene, 1.0f / 60.0f);
 
-        t = glfwGetTime();
+        t = (float) glfwGetTime();
         glfwGetMousePos(&x, &y);
 
         int width, height;

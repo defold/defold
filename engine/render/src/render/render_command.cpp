@@ -122,7 +122,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_DEPTH_MASK:
                 {
-                    dmGraphics::SetDepthMask(context, c->m_Operands[0]);
+                    dmGraphics::SetDepthMask(context, (bool) c->m_Operands[0]);
                     break;
                 }
                 case COMMAND_TYPE_SET_STENCIL_MASK:
