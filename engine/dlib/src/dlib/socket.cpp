@@ -498,6 +498,8 @@ namespace dmSocket
             return RESULT_OK;
         }
 
+        // NOTE: This is not compatible with BSD. You can't assume
+        // equivalent size for all items
         int numif = ifc.ifc_len / sizeof(struct ifreq);
         for (int i = 0; i < numif; i++) {
           struct ifreq *r = &ifr[i];
