@@ -6,9 +6,21 @@ Repository for engine, editor and server.
 Licenses
 ========
 
-* **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src)
-* **zlib**: [http://www.zlib.net]() - zlib
-* **axTLS**: [http://axtls.sourceforge.net]() - BSD
+* **Sony Vectormath Library**: [http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary](http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary) - **BSD**
+* **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
+* **zlib**: [http://www.zlib.net](http://www.zlib.net) - **zlib**
+* **axTLS**: [http://axtls.sourceforge.net](http://axtls.sourceforge.net) - **BSD**
+* **stb_image** [http://nothings.org/](http://nothings.org) **Public domain**
+* **stb_vorbis** [http://nothings.org/](http://nothings.org) **Public domain**
+* **facebook** [https://github.com/facebook/facebook-ios-sdk](https://github.com/facebook/facebook-ios-sdk) **Apache**
+* **glfw** [http://www.glfw.org](http://www.glfw.org) **zlib/libpng**
+* **lua** [http://www.lua.org](http://www.lua.org) **MIT**
+* **box2d** [http://box2d.org](http://box2d.org) **zlib**
+* **bullet** [http://bulletphysics.org](http://bulletphysics.org) **zlib**
+* **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
+* **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
+* **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
+
 
 Tagging
 -------
