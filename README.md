@@ -83,6 +83,7 @@ iOS Crashdumps
 
 From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
 
+    symbol address = slide + stack address - load address
 
 * The slide value is the value of vmaddr in LC_SEGMENT cmd (Mostly this is 0x1000). Run the following to get it:
 
