@@ -1,14 +1,18 @@
 #! /usr/bin/env python
-import os
+import os, re
 
 def configure(conf):
     pass
 
 def build(bld):
+    source = ['extension.cpp']
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        source += ['extension_ios.cpp']
+
     extension = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                  includes = '.',
+                                 source = source,
                                  target = 'extension')
-    extension.find_sources_in_dirs('.')
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/extension', 'extension.h')

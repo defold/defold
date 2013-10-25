@@ -1,3 +1,4 @@
+#include <dlib/log.h>
 #include "extension.h"
 
 namespace dmExtension
@@ -13,5 +14,64 @@ namespace dmExtension
     {
         return g_FirstExtension;
     }
+
+    Result AppInitialize(AppParams* params)
+    {
+        dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+        uint32_t i = 0;
+        Result ret = RESULT_OK;
+        while (ed) {
+            if (ed->AppInitialize) {
+                dmExtension::Result r = ed->AppInitialize(params);
+                if (r != dmExtension::RESULT_OK) {
+                    dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
+                    ret = r;
+                    break;
+                } else {
+                    ed->m_AppInitialzed = true;
+                }
+            }
+            ++i;
+            ed = (dmExtension::Desc*) ed->m_Next;
+        }
+
+        if (ret != RESULT_OK) {
+            ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            uint32_t n = i;
+            while (ed && i < n) {
+                if (ed->AppFinalize) {
+                    dmExtension::Result r = ed->AppFinalize(params);
+                    if (r != dmExtension::RESULT_OK) {
+                        dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
+                    }
+                }
+                ++i;
+                ed = (dmExtension::Desc*) ed->m_Next;
+            }
+        }
+
+        return ret;
+    }
+
+    Result AppFinalize(AppParams* params)
+    {
+        dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+        uint32_t i = 0;
+        while (ed) {
+            if (ed->AppFinalize && ed->m_AppInitialzed) {
+                ed->m_AppInitialzed = false;
+                dmExtension::Result r = ed->AppFinalize(params);
+                if (r != dmExtension::RESULT_OK) {
+                    dmLogError("Failed to finalize (app-level) extension: %s", ed->m_Name);
+                }
+            }
+            ++i;
+            ed = (dmExtension::Desc*) ed->m_Next;
+        }
+
+        return RESULT_OK;
+    }
+
 }
 

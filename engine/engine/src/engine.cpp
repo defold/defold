@@ -218,6 +218,10 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
+        dmExtension::AppParams app_params;
+        app_params.m_ConfigFile = engine->m_Config;
+        dmExtension::AppFinalize(&app_params);
+
         if (engine->m_Config)
         {
             dmConfigFile::Delete(engine->m_Config);
@@ -355,6 +359,14 @@ namespace dmEngine
                 dmLogFatal("Unable to load builtin connect project");
                 return false;
             }
+        }
+
+        dmExtension::AppParams app_params;
+        app_params.m_ConfigFile = engine->m_Config;
+        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        if (er != dmExtension::RESULT_OK) {
+            dmLogFatal("Failed to initialize extensions (%d)", er);
+            return false;
         }
 
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);

@@ -559,11 +559,4 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Desc IAPExtDesc = {
-        "IAP",
-        InitializeIAP,
-        FinalizeIAP,
-        0,
-};
-
-DM_REGISTER_EXTENSION(IAPExt, IAPExtDesc);
+DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, 0, InitializeIAP, FinalizeIAP)

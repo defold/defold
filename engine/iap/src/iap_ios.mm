@@ -527,6 +527,8 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
 {
     --g_IAP.m_InitCount;
 
+    // TODO: Should we support one listener per lua-state?
+    // Or just use a single lua-state...?
     if (params->m_L == g_IAP.m_Listener.m_L && g_IAP.m_Listener.m_Callback != LUA_NOREF) {
         luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
         luaL_unref(g_IAP.m_Listener.m_L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
@@ -545,11 +547,5 @@ dmExtension::Result FinalizeIAP(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Desc IAPExtDesc = {
-        "IAP",
-        InitializeIAP,
-        FinalizeIAP,
-        0,
-};
 
-DM_REGISTER_EXTENSION(IAPExt, IAPExtDesc);
+DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, 0, InitializeIAP, FinalizeIAP)

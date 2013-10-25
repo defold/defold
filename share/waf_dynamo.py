@@ -325,13 +325,15 @@ def codesign(task):
     if not identity:
         identity = 'iPhone Developer'
 
-    mobileprovision = task.env.MOBILE_PROVISION
+    mobileprovision = task.provision
     if not mobileprovision:
         mobileprovision = 'engine_profile.mobileprovision'
     mobileprovision_path = os.path.join(task.env['DYNAMO_HOME'], 'share', mobileprovision)
     shutil.copyfile(mobileprovision_path, os.path.join(signed_exe_dir, 'embedded.mobileprovision'))
 
-    entitlements = 'engine_profile.xcent'
+    entitlements = task.entitlements
+    if not entitlements:
+        entitlements = 'engine_profile.xcent'
     entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
@@ -410,7 +412,7 @@ Task.task_type_from_func('app_bundle',
 def create_app_bundle(self):
     if not re.match('arm.*?darwin', self.env['PLATFORM']):
         return
-    Utils.def_attrs(self, bundleid = None)
+    Utils.def_attrs(self, bundleid = None, provision = None, entitlements = None)
 
     app_bundle_task = self.create_task('app_bundle', self.env)
     app_bundle_task.bundleid = self.bundleid
@@ -433,6 +435,8 @@ def create_app_bundle(self):
         signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign', self.env)
+        codesign.provision = self.provision
+        codesign.entitlements = self.entitlements
         codesign.resource_rules_plist = resource_rules_plist
         codesign.set_inputs(self.link_task.outputs)
         codesign.set_outputs(signed_exe)
