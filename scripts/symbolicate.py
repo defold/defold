@@ -23,7 +23,7 @@ def parse_stacktrace(cd, slide, load_addr):
 
 def get_address_map(stack_trace):
     addresses = reduce(lambda x,y: x + y,  [ [ y[1] for y in x ] for x in stack_trace ], [])
-    out = run_cmd('atos -arch armv7 -o %s %s' % (sys.argv[2], ['0x%x' % a for a in addresses]))[1:-2]
+    out = run_cmd('atos -arch armv7 -o "%s" %s' % (sys.argv[2], ' '.join(['0x%x' % a for a in addresses])))[1:-2]
     lst = [ s.strip().replace(',', '') for s in  out.split('\n') ]
     address_map = {}
     for i,s in enumerate(lst):
@@ -34,10 +34,9 @@ def symbolicate(cd):
     id = re.search(r'^Identifier:[ ]*(.*?)$', cd, re.MULTILINE | re.DOTALL).groups()[0]
     load_addr = int(re.search(r'^Binary Images:.*?0x(.*?)[ ]', cd, re.MULTILINE | re.DOTALL).groups()[0], 16)
     uuid = re.search(r'^Binary Images:.*?<(.*?)>[ ]', cd, re.MULTILINE | re.DOTALL).groups()[0].lower()
-    slide = 0x1000
-
-    load_cmds = run_cmd('otool -l %s' % sys.argv[2])
+    load_cmds = run_cmd('otool -l "%s"' % sys.argv[2])
     exe_uuid = re.search(r'^\s*?uuid\s*?(.*?)$', load_cmds, re.MULTILINE | re.DOTALL).groups()[0].strip().replace('-', '').lower()
+    slide = int(re.search(r'segname __TEXT.*?vmaddr (.*?)$', load_cmds, re.MULTILINE | re.DOTALL).groups()[0].lower().strip(), 16)
 
     if uuid != exe_uuid:
         print 'FATAL: uuid mismatch. %s != %s' % (uuid, exe_uuid)
