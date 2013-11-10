@@ -17,7 +17,7 @@ There is also a URL type (link:/ref/msg#msg.url[msg.url]) which provides more wa
 "player#script" -- script component of a player object
 ----
 
-_Socket_ is the name of the socket (or "port") in the system, which can also be thought of as a domain of objects.
+_Socket_ is the name of the socket (or "port") in the system, which can also be thought of as a domain or system.
 The path is unique and specifies an object inside that domain.
 The fragment is also unique and specifies a sub object inside the object specified by the path.
 
@@ -104,15 +104,15 @@ function on_input(self, action_id, action)
     elseif action_id == hash("fire") then
         if self.inside_cannon then
             -- fire the cannon
-            msg.post("fire", "cannon/controller#script")
+            msg.post("cannon/controller#script", "fire")
         end
     elseif action_id == hash("aim_up") then
         if self.inside_cannon then
-            msg.post("aim_up", "cannon/controller#script")
+            msg.post("cannon/controller#script", "aim_up")
         end
     elseif action_id == hash("aim_down") then
         if self.inside_cannon then
-            msg.post("aim_down", "cannon/controller#script")
+            msg.post("cannon/controller#script", "aim_down")
         end
     end
 end

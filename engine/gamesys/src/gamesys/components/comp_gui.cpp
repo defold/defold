@@ -496,6 +496,7 @@ namespace dmGameSystem
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
         void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
+        void* prev_font = dmGui::GetNodeFont(scene, first_node);
 
         uint32_t i = 0;
         uint32_t start = 0;
@@ -504,8 +505,9 @@ namespace dmGameSystem
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             void* texture = dmGui::GetNodeTexture(scene, node);
+            void* font = dmGui::GetNodeFont(scene, node);
 
-            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture);
+            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font);
             bool flush = (i > 0 && batch_change);
 
             if (flush) {
