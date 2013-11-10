@@ -112,6 +112,7 @@
         </array>
 
         <key>UILaunchImages</key>
+        <array>
                 <dict>
                         <key>UILaunchImageMinimumOSVersion</key>
                         <string>6.0</string>
@@ -122,7 +123,7 @@
                         <key>UILaunchImageSize</key>
                         <string>{320, 568}</string>
                 </dict>
-        </key>
+        </array>
 
 </dict>
 </plist>
