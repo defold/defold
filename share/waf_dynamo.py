@@ -69,23 +69,31 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions',])
             if platform == "darwin":
+                self.env.append_value(f, ['-m32'])
+            if platform == "darwin" or platform == "x86_64-darwin":
                 # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
                 # see corresponding flag in build_gtest.sh
-                self.env.append_value(f, ['-m32', '-DGTEST_USE_OWN_TR1_TUPLE=1'])
+                self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+                # Force libstdc++ for now
+                self.env.append_value(f, ['-stdlib=libstdc++'])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if platform == "darwin":
             self.env.append_value('LINKFLAGS', ['-m32'])
         if platform == "darwin" or platform == "x86_64-darwin":
             # OSX only
-            self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-framework', 'Carbon'])
         elif platform == "linux":
             # Linux only
             pass
     elif platform == "armv7-darwin":
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     elif platform == 'armv7-android':
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
