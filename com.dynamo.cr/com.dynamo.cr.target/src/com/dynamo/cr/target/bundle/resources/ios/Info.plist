@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
         <key>BuildMachineOSBuild</key>
-        <string>10K540</string>
+        <string>13A603</string>
         <key>CFBundleDevelopmentRegion</key>
         <string>en</string>
         <key>CFBundleDisplayName</key>
@@ -53,27 +53,27 @@
         <key>CFBundleVersion</key>
         <string>{{CFBundleVersion}}</string>
         <key>DTCompiler</key>
-        <string>com.apple.compilers.llvmgcc42</string>
+        <string>com.apple.compilers.llvm.clang.1_0</string>
         <key>DTPlatformBuild</key>
-        <string>8H7</string>
+        <string>11B508</string>
         <key>DTPlatformName</key>
         <string>iphoneos</string>
         <key>DTPlatformVersion</key>
-        <string>6.0</string>
+        <string>7.0</string>
         <key>DTSDKBuild</key>
-        <string>8H7</string>
+        <string>11B508</string>
         <key>DTSDKName</key>
-        <string>iphoneos6.0</string>
+        <string>iphoneos7.0</string>
         <key>DTXcode</key>
-        <string>0402</string>
+        <string>0501</string>
         <key>DTXcodeBuild</key>
-        <string>4A2002a</string>
+        <string>5A2053</string>
         <key>UIFileSharingEnabled</key>
         <true/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
-        <string>4.3</string>
+        <string>5.0</string>
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>
@@ -110,6 +110,19 @@
                         </array>
                 </dict>
         </array>
+
+        <key>UILaunchImages</key>
+                <dict>
+                        <key>UILaunchImageMinimumOSVersion</key>
+                        <string>6.0</string>
+                        <key>UILaunchImageName</key>
+                        <string>Default-568h</string>
+                        <key>UILaunchImageOrientation</key>
+                        <string>Portrait</string>
+                        <key>UILaunchImageSize</key>
+                        <string>{320, 568}</string>
+                </dict>
+        </key>
 
 </dict>
 </plist>
