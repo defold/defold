@@ -122,12 +122,17 @@ function cmi() {
             ;;
 
         darwin)
+			# NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+			# Force libstdc++ for now
             export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32"
+            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libstdc++ "
             cmi_buildplatform $1
             ;;
 
         x86_64-darwin)
+			# NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+			# Force libstdc++ for now
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++"
             cmi_buildplatform $1
             ;;
 
