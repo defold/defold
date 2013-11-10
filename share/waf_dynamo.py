@@ -74,12 +74,15 @@ def default_flags(self):
                 # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
                 # see corresponding flag in build_gtest.sh
                 self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+                # Force libstdc++ for now
+                self.env.append_value(f, ['-stdlib=libstdc++'])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if platform == "darwin":
             self.env.append_value('LINKFLAGS', ['-m32'])
         if platform == "darwin" or platform == "x86_64-darwin":
             # OSX only
-            self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-framework', 'Carbon'])
         elif platform == "linux":
             # Linux only
             pass
