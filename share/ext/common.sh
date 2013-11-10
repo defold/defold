@@ -2,7 +2,7 @@
 
 IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
 ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=6.0
+IOS_SDK_VERSION=7.0
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=8b
@@ -86,7 +86,9 @@ function cmi() {
             export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CFLAGS="${CFLAGS} -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            export CXXFLAGS="${CXXFLAGS} -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+			# NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+			# Force libstdc++ for now
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
