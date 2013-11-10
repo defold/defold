@@ -26,11 +26,13 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"bool\", true)\n");
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
+        src.append("go.property(\"semi_colon\", 1); \n");
         LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
         PropertyDeclarations properties = luaModule.getProperties();
-        assertEquals(2, properties.getNumberEntriesCount());
+        assertEquals(3, properties.getNumberEntriesCount());
         PropertiesTestUtil.assertNumber(properties, 1, 0);
         PropertiesTestUtil.assertNumber(properties, 1, 1);
+        PropertiesTestUtil.assertNumber(properties, 1, 2);
         PropertiesTestUtil.assertHash(properties, MurmurHash.hash64("hash"), 0);
         PropertiesTestUtil.assertURL(properties, "", 0);
         PropertiesTestUtil.assertVector3(properties, 1, 2, 3, 0);

@@ -460,7 +460,7 @@ IRenderView {
                 beginSelect(gl, pass, x, y, width, height);
 
                 List<Pass> passes = Arrays.asList(pass);
-                RenderContext renderContext = renderNodes(gl, glu, passes, true);
+                RenderContext renderContext = renderNodes(gl, glu, passes, new Rectangle(x, y, width, height));
 
                 SelectResult result = endSelect(gl);
 
@@ -621,34 +621,6 @@ IRenderView {
     private void beginSelect(GL2 gl, Pass pass, int x, int y, int w, int h) {
         gl.glSelectBuffer(PICK_BUFFER_SIZE, selectBuffer);
         gl.glRenderMode(GL2.GL_SELECT);
-
-        GLU glu = new GLU();
-        gl.glMatrixMode(GL2.GL_PROJECTION);
-        gl.glLoadIdentity();
-
-        if (pass == Pass.SELECTION) {
-            glu.gluPickMatrix(x, viewPort[3] - y, w, h, viewPort, 0);
-        } else {
-            glu.gluOrtho2D(x - w / 2, x + w /2, y + h / 2, y - h / 2);
-        }
-
-        if (pass == Pass.SELECTION) {
-            Matrix4d projection = new Matrix4d();
-            camera.getProjectionMatrix(projection);
-            if (pass.transformModel()) {
-                RenderUtil.multMatrix(gl, projection);
-            }
-        }
-
-        gl.glMatrixMode(GL2.GL_MODELVIEW);
-        if (pass == Pass.SELECTION) {
-            Matrix4d view = new Matrix4d();
-            camera.getViewMatrix(view);
-            RenderUtil.loadMatrix(gl, view);
-        } else {
-            gl.glLoadIdentity();
-        }
-
         gl.glInitNames();
     }
 
@@ -754,7 +726,7 @@ IRenderView {
         }
 
         List<Pass> passes = Arrays.asList(Pass.BACKGROUND, Pass.OUTLINE, Pass.ICON_OUTLINE, Pass.TRANSPARENT, Pass.ICON, Pass.MANIPULATOR, Pass.OVERLAY);
-        renderNodes(gl, glu, passes, false);
+        renderNodes(gl, glu, passes, null);
     }
 
     /*
@@ -767,7 +739,7 @@ IRenderView {
         renderer.render(renderContext, node, renderData);
     }
 
-    private RenderContext renderNodes(GL2 gl, GLU glu, List<Pass> passes, boolean pick) {
+    private RenderContext renderNodes(GL2 gl, GLU glu, List<Pass> passes, Rectangle pickRect) {
         double dt = 0;
         if (simulating) {
             dt = 1.0 / 60.0;
@@ -792,11 +764,11 @@ IRenderView {
             Pass pass = renderData.getPass();
 
             if (currentPass != pass) {
-                setupPass(renderContext.getGL(), renderContext.getGLU(), pass);
+                setupPass(renderContext.getGL(), renderContext.getGLU(), pass, pickRect);
                 currentPass = pass;
             }
             renderContext.setPass(currentPass);
-            if (pick) {
+            if (pickRect != null) {
                 gl.glPushName(nextName++);
             }
             Node node = renderData.getNode();
@@ -807,7 +779,7 @@ IRenderView {
             }
             doRender(renderContext, renderData);
             gl.glPopMatrix();
-            if (pick) {
+            if (pickRect != null) {
                 gl.glPopName();
             }
         }
@@ -815,22 +787,34 @@ IRenderView {
         return renderContext;
     }
 
-    private void setupPass(GL2 gl, GLU glu, Pass pass) {
+    private void setupPass(GL2 gl, GLU glu, Pass pass, Rectangle pickRect) {
 
         // Default projection
         // TODO: Temp camera
 
-        if (!pass.isSelectionPass()) {
-            gl.glMatrixMode(GL2.GL_PROJECTION);
+        gl.glMatrixMode(GL2.GL_PROJECTION);
+        gl.glLoadIdentity();
+
+        if (pickRect != null) {
+            glu.gluPickMatrix(pickRect.x, viewPort[3] - pickRect.y, pickRect.width, pickRect.height, viewPort, 0);
+        }
+
+        if (pass.transformModel()) {
             Matrix4d projection = new Matrix4d();
             camera.getProjectionMatrix(projection );
-            RenderUtil.loadMatrix(gl, projection);
+            RenderUtil.multMatrix(gl, projection);
+        } else {
+            glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
         }
 
         gl.glMatrixMode(GL2.GL_MODELVIEW);
-        Matrix4d view = new Matrix4d();
-        camera.getViewMatrix(view);
-        RenderUtil.loadMatrix(gl, view);
+        gl.glLoadIdentity();
+
+        if (pass.transformModel()) {
+            Matrix4d view = new Matrix4d();
+            camera.getViewMatrix(view);
+            RenderUtil.loadMatrix(gl, view);
+        }
 
         switch (pass) {
         case BACKGROUND:
@@ -862,6 +846,7 @@ IRenderView {
             break;
 
         case TRANSPARENT:
+        case SELECTION:
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
@@ -877,13 +862,6 @@ IRenderView {
             break;
 
         case OVERLAY:
-            gl.glMatrixMode(GL2.GL_PROJECTION);
-            gl.glLoadIdentity();
-            glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
-
-            gl.glMatrixMode(GL2.GL_MODELVIEW);
-            gl.glLoadIdentity();
-
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
@@ -892,13 +870,7 @@ IRenderView {
             break;
 
         case ICON:
-            gl.glMatrixMode(GL2.GL_PROJECTION);
-            gl.glLoadIdentity();
-            glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
-
-            gl.glMatrixMode(GL2.GL_MODELVIEW);
-            gl.glLoadIdentity();
-
+        case ICON_SELECTION:
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
@@ -907,23 +879,10 @@ IRenderView {
             break;
 
         case ICON_OUTLINE:
-            gl.glMatrixMode(GL2.GL_PROJECTION);
-            gl.glLoadIdentity();
-            glu.gluOrtho2D(this.viewPort[0], this.viewPort[2], this.viewPort[3], this.viewPort[1]);
-
-            gl.glMatrixMode(GL2.GL_MODELVIEW);
-            gl.glLoadIdentity();
-
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_LINE);
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            break;
-
-        case ICON_SELECTION:
-            break;
-
-        case SELECTION:
             break;
 
         default:
