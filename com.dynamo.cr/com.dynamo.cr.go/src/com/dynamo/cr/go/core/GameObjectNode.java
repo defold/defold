@@ -9,20 +9,26 @@ import com.dynamo.cr.sceneed.core.Node;
 @SuppressWarnings("serial")
 public class GameObjectNode extends GameObjectInstanceNode {
 
+    public GameObjectNode() {
+        super();
+        setTransformable(false);
+        clearFlags(Flags.SCALABLE);
+    }
+
+    @Override
+    public void parentSet() {
+        super.parentSet();
+        if (getParent() != null) {
+            setTransformable(true);
+            setFlags(Flags.SCALABLE);
+        } else {
+            setTransformable(false);
+            clearFlags(Flags.SCALABLE);
+        }
+    }
+
     public boolean isIdVisible() {
         return getParent() != null;
-    }
-
-    public boolean isTranslationVisible() {
-        return getParent() != null && super.isTranslationVisible();
-    }
-
-    public boolean isEulerVisible() {
-        return getParent() != null && super.isEulerVisible();
-    }
-
-    public boolean isScaleVisible() {
-        return getParent() != null && super.isScaleVisible();
     }
 
     @Override
