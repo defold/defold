@@ -134,7 +134,6 @@ public class Bob {
         if (texcLibDir == null) {
             try {
                 setTexcLibDir();
-                texcLibDir = texcLibDir.replace(" ", "\\ ");
             } catch (ZipException e) {
                 throw new RuntimeException(e);
             } catch (URISyntaxException e) {
