@@ -705,14 +705,14 @@ bail:
 
     RunResult Run(HEngine engine)
     {
-        const float fps = engine->m_UpdateFrequency;
-        float fixed_dt = 1.0f / fps;
-
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
         while (engine->m_Alive)
         {
+            const float fps = engine->m_UpdateFrequency;
+            const float fixed_dt = 1.0f / fps;
+
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
                 // NOTE: Polling the event queue is crucial on iOS for life-cycle management
