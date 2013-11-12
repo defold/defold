@@ -4,6 +4,7 @@
 namespace dmSys
 {
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
+    void FillTimeZone(struct SystemInfo* info);
 }
 
 #endif // #ifndef DM_SYS_PRIVATE_H

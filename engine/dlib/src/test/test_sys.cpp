@@ -76,6 +76,7 @@ TEST(dmSys, GetSystemInfo)
     dmLogInfo("SystemVersion: '%s'", info.m_SystemVersion);
     dmLogInfo("Language: '%s'", info.m_Language);
     dmLogInfo("Territory: '%s'", info.m_Territory);
+    dmLogInfo("GMT offset: '%d'", info.m_GmtOffset);
 }
 
 TEST(dmSys, LoadResource)

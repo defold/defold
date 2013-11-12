@@ -106,7 +106,7 @@ namespace dmGameObject
         float m_DT;
     };
 
-    extern const uint32_t UNNAMED_IDENTIFIER;
+    extern const dmhash_t UNNAMED_IDENTIFIER;
 
     /**
      * Container of input related information.

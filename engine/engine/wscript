@@ -49,7 +49,7 @@ def configure(conf):
         # In order to get accurate result from the memory profiler this is necessary
         conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
     elif re.match('arm.*?darwin', platform):
-        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'IOKit'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL'])
         # For Facebook SDK...
         conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
@@ -89,8 +89,8 @@ def configure(conf):
     conf.env['STATICLIB_FACEBOOK'] = 'FacebookSDK'
     conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
+    conf.env['STATICLIB_PUSHEXT'] = 'pushext'
 
     if conf.env.PLATFORM.find('arm') == -1:
         conf.env['STATICLIB_RECORD'] = 'record'

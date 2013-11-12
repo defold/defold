@@ -820,7 +820,7 @@ namespace dmGui
                         int ret_count = lua_gettop(L) - top;
                         if (ret_count == 1 && lua_isboolean(L, -1))
                         {
-                            input_args->m_Consumed = lua_toboolean(L, -1);
+                            input_args->m_Consumed = (bool) lua_toboolean(L, -1);
                         }
                         else if (ret_count != 0)
                         {
@@ -1654,9 +1654,9 @@ namespace dmGui
             float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
             adjust_scale = Vector3(uniform, uniform, 1.0f);
         }
-        Vector3 screen_dims = Vector3(context->m_Width, context->m_Height, 0.0f);
+        Vector3 screen_dims = Vector3((float) context->m_Width, (float) context->m_Height, 0.0f);
         Vector3 adjusted_dims = mulPerElem(screen_dims, adjust_scale);
-        Vector3 offset = (Vector3(context->m_PhysicalWidth, context->m_PhysicalHeight, 0.0f) - adjusted_dims) * 0.5f;
+        Vector3 offset = (Vector3((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f) - adjusted_dims) * 0.5f;
         // Apply anchoring
         Vector4 scaled_position = mulPerElem(position, Vector4(adjust_scale, 1.0f));
         if (node.m_XAnchor == XANCHOR_LEFT)

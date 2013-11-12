@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 #include "sys.h"
 #include "log.h"
 #include "dstrings.h"
@@ -302,6 +303,49 @@ namespace dmSys
 #endif
     }
 
+#if (defined(__arm__) && defined(__MACH__))
+    // NOTE: iOS implementation in sys_cocoa.mm
+
+#elif defined(__ANDROID__)
+    Result GetLogPath(char* path, uint32_t path_len)
+    {
+        ANativeActivity* activity = g_AndroidApp->activity;
+        JNIEnv* env = 0;
+        activity->vm->AttachCurrentThread( &env, 0);
+        Result res = RESULT_OK;
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_files_dir_method = env->GetMethodID(activity_class, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;");
+        jobject files_dir_obj = env->CallObjectMethod(activity->clazz, get_files_dir_method, 0);
+        if (!files_dir_obj) {
+            dmLogError("Failed to get log directory. Is android.permission.WRITE_EXTERNAL_STORAGE set in AndroidManifest.xml?");
+            res = RESULT_UNKNOWN;
+        } else {
+            jclass file_class = env->FindClass("java/io/File");
+            jmethodID getPathMethod = env->GetMethodID(file_class, "getPath", "()Ljava/lang/String;");
+            jstring path_obj = (jstring) env->CallObjectMethod(files_dir_obj, getPathMethod);
+            const char* filesDir = env->GetStringUTFChars(path_obj, NULL);
+
+            if (dmStrlCpy(path, filesDir, path_len) >= path_len) {
+                res = RESULT_INVAL;
+            }
+            env->ReleaseStringUTFChars(path_obj, filesDir);
+        }
+        activity->vm->DetachCurrentThread();
+        return res;
+    }
+
+#else
+    // Default
+    Result GetLogPath(char* path, uint32_t path_len)
+    {
+        if (dmStrlCpy(path, ".", path_len) >= path_len)
+            return RESULT_INVAL;
+
+        return RESULT_OK;
+    }
+#endif
+
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
     {
         const char* default_lang = "en_US";
@@ -322,6 +366,21 @@ namespace dmSys
         info->m_Territory[2] = '\0';
     }
 
+    void FillTimeZone(struct SystemInfo* info)
+    {
+#if defined(_WIN32)
+        // tm_gmtoff not available on windows..
+        TIME_ZONE_INFORMATION t;
+        GetTimeZoneInformation(&t);
+        info->m_GmtOffset = -t.Bias;
+#else
+        time_t t;
+        time(&t);
+        struct tm* lt = localtime(&t);
+        info->m_GmtOffset = lt->tm_gmtoff / 60;
+#endif
+    }
+
 #if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__)) || defined(__AVM2__)
     void GetSystemInfo(SystemInfo* info)
     {
@@ -340,6 +399,7 @@ namespace dmSys
             lang = default_lang;
         }
         FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
     }
 
 #elif defined(__ANDROID__)
@@ -410,6 +470,7 @@ namespace dmSys
             *index = '_';
         }
         FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
     }
 #endif
 
@@ -470,13 +531,13 @@ namespace dmSys
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
-            if (file_stat.st_size > buffer_size) {
+            if ((uint32_t) file_stat.st_size > buffer_size) {
                 return RESULT_INVAL;
             }
             FILE* f = fopen(path, "rb");
             size_t nread = fread(buffer, 1, file_stat.st_size, f);
             fclose(f);
-            if (nread != file_stat.st_size) {
+            if (nread != (size_t) file_stat.st_size) {
                 return RESULT_IO;
             }
             *resource_size = file_stat.st_size;

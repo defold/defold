@@ -385,8 +385,6 @@ bail:
         if (internal_req->m_Result != RESULT_OK)
             return internal_req->m_Result;
 
-        dmSocket::Result r;
-
         uint32_t total_sent = 0;
         internal_req->m_Result = RESULT_OK;
 

@@ -112,6 +112,7 @@ public class AbstractResourceTest {
 
     void setupUpTest() throws Exception {
         // Clear all tables as we keep the database over tests
+        emf.getCache().evictAll();
         Util.clearAllTables();
         mailer.emails.clear();
     }

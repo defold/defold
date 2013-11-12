@@ -77,10 +77,7 @@ struct dmLogParams
 {
     dmLogParams()
     {
-        m_LogToFile = false;
     }
-
-    bool m_LogToFile;
 };
 
 /**
@@ -108,5 +105,13 @@ uint16_t dmLogGetPort();
  * @param severity Log severity
  */
 void dmLogSetlevel(dmLogSeverity severity);
+
+/**
+ * Set log file. The file will be created and truncated.
+ * Subsequent invocations to this function will close previous opened file.
+ * If the file can't be created a message will be logged to the "console"
+ * @param path log path
+ */
+void dmSetLogFile(const char* path);
 
 #endif // DM_LOG_H

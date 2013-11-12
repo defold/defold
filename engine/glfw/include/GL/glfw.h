@@ -543,6 +543,9 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTexture2D( const char *name, int flags );
 GLFWAPI int  GLFWAPIENTRY glfwLoadMemoryTexture2D( const void *data, long size, int flags );
 GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 
+// Defold extension
+GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
+GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 
 #ifdef __cplusplus
 }

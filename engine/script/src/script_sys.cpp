@@ -269,7 +269,7 @@ namespace dmScript
 
     /*# get system information
      * returns a table with the following members:
-     * device_model, system_name, system_version, language and territory.
+     * device_model, system_name, system_version, language, territory and gmt_offset (minutes).
      * model is currently only available on iOS and Android.
      * language is in ISO-639 format (two characters) and territory in
      * ISO-3166 format (two characters)
@@ -299,6 +299,9 @@ namespace dmScript
         lua_rawset(L, -3);
         lua_pushliteral(L, "territory");
         lua_pushstring(L, info.m_Territory);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "gmt_offset");
+        lua_pushinteger(L, info.m_GmtOffset);
         lua_rawset(L, -3);
 
         assert(top + 1 == lua_gettop(L));

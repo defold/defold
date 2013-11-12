@@ -796,10 +796,10 @@ namespace dmGameObject
         lua_Integer easing = luaL_checkinteger(L, 5);
         if (easing >= dmEasing::TYPE_COUNT)
             return luaL_error(L, "invalid playback mode when starting an animation");
-        float duration = luaL_checknumber(L, 6);
+        float duration = (float) luaL_checknumber(L, 6);
         float delay = 0.0f;
         if (top > 6)
-            delay = luaL_checknumber(L, 7);
+            delay = (float) luaL_checknumber(L, 7);
         AnimationStopped stopped = 0x0;
         void* userdata1 = i;
         void* userdata2 = 0x0;
@@ -967,7 +967,7 @@ namespace dmGameObject
         lua_Number y = luaL_checknumber(L, 2);
         // TODO: This temporarily assumes the worldspace is simply screen space
         // Should be fixed in a more robust way.
-        Vector3 p(x, y, 1.0f);
+        Vector3 p((float) x, (float) y, 1.0f);
         Vector3 d(0.0f, 0.0f, -1.0f);
         dmScript::PushVector3(L, p);
         dmScript::PushVector3(L, d);

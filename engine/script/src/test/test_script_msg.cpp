@@ -436,7 +436,7 @@ void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
     TableUserData* user_data = (TableUserData*)user_ptr;
     dmScript::PushTable(user_data->L, (const char*)message->m_Data);
     lua_getfield(user_data->L, -1, "uint_value");
-    user_data->m_TestValue = lua_tonumber(user_data->L, -1);
+    user_data->m_TestValue = (uint32_t) lua_tonumber(user_data->L, -1);
     lua_pop(user_data->L, 2);
     assert(user_data->m_URL.m_Socket == message->m_Receiver.m_Socket);
     assert(user_data->m_URL.m_Path == message->m_Receiver.m_Path);

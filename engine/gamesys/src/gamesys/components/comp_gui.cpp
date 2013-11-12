@@ -50,7 +50,7 @@ namespace dmGameSystem
             dmLogWarning("The gui world could not be stored since the buffer is full (%d). Reload will not work for the scenes in this world.", gui_context->m_Worlds.Size());
         }
 
-        gui_world->m_Components.SetCapacity(16);
+        gui_world->m_Components.SetCapacity(64);
 
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
@@ -496,6 +496,7 @@ namespace dmGameSystem
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
         void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
+        void* prev_font = dmGui::GetNodeFont(scene, first_node);
 
         uint32_t i = 0;
         uint32_t start = 0;
@@ -504,8 +505,9 @@ namespace dmGameSystem
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             void* texture = dmGui::GetNodeTexture(scene, node);
+            void* font = dmGui::GetNodeFont(scene, node);
 
-            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture);
+            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font);
             bool flush = (i > 0 && batch_change);
 
             if (flush) {
@@ -590,8 +592,6 @@ namespace dmGameSystem
 
     static void SetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
-
         dmGraphics::TextureParams tparams;
         tparams.m_Width = width;
         tparams.m_Height = height;

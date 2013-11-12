@@ -49,7 +49,7 @@ namespace dmMemProfile
     {
         if (!dLib::IsDebugMode())
             return;
-#if defined(__MACH__) or defined(__linux__) and !defined(ANDROID) and !defined(__EMSCRIPTEN__) and !defined(__AVM2__)
+#if defined(__MACH__) || defined(__linux__) && !defined(ANDROID) && !defined(__EMSCRIPTEN__) && !defined(__AVM2__)
         void (*init)(dmMemProfile::InternalData*) = (void (*)(dmMemProfile::InternalData*)) dlsym(RTLD_DEFAULT, "dmMemProfileInitializeLibrary");
         if (init)
         {

@@ -23,7 +23,7 @@ namespace dmGameObject
             return true;
         case LUA_TBOOLEAN:
             out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
-            out_var.m_Bool = lua_toboolean(L, index);
+            out_var.m_Bool = (bool) lua_toboolean(L, index);
             return true;
         case LUA_TUSERDATA:
             if (dmScript::IsHash(L, index))

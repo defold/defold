@@ -403,7 +403,7 @@ namespace dmSocket
 
     bool SelectorIsSet(Selector* selector, SelectorKind selector_kind, Socket socket)
     {
-        return FD_ISSET(socket, &selector->m_FdSets[selector_kind]);
+        return (bool) FD_ISSET(socket, &selector->m_FdSets[selector_kind]);
     }
 
     void SelectorZero(Selector* selector)
@@ -499,6 +499,8 @@ namespace dmSocket
             return RESULT_OK;
         }
 
+        // NOTE: This is not compatible with BSD. You can't assume
+        // equivalent size for all items
         int numif = ifc.ifc_len / sizeof(struct ifreq);
         for (int i = 0; i < numif; i++) {
           struct ifreq *r = &ifr[i];

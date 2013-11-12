@@ -1840,7 +1840,7 @@ TEST_F(dmGuiTest, Scaling)
     Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
 
     const char* n1_name = "n1";
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2, height/2,0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2.0f, height/2.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n1, n1_name);
 
     dmGui::RenderScene(m_Scene, &RenderNodes, this);
@@ -1870,7 +1870,7 @@ TEST_F(dmGuiTest, Anchoring)
     dmGui::SetNodeYAnchor(m_Scene, n1, dmGui::YANCHOR_BOTTOM);
 
     const char* n2_name = "n2";
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10, height - 10, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(width - 10.0f, height - 10.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeText(m_Scene, n2, n2_name);
     dmGui::SetNodeXAnchor(m_Scene, n2, dmGui::XANCHOR_RIGHT);
     dmGui::SetNodeYAnchor(m_Scene, n2, dmGui::YANCHOR_TOP);
@@ -2076,7 +2076,7 @@ TEST_F(dmGuiTest, Picking)
     uint32_t physical_width = 640;
     uint32_t physical_height = 320;
     float ref_scale = 0.5f;
-    dmGui::SetResolution(m_Context, physical_width * ref_scale, physical_height * ref_scale);
+    dmGui::SetResolution(m_Context, (uint32_t) (physical_width * ref_scale), (uint32_t) (physical_height * ref_scale));
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
 
     Vector3 size(10, 10, 0);
@@ -2091,7 +2091,7 @@ TEST_F(dmGuiTest, Picking)
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
     Vector3 ext(pos);
-    ext.setX(ext.getX() * cosf(M_PI * 0.25f));
+    ext.setX(ext.getX() * cosf((float) (M_PI * 0.25)));
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), pos.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX()), pos.getY()));
 

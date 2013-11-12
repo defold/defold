@@ -636,11 +636,4 @@ dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Desc FacebookExtDesc = {
-        "Facebook",
-        InitializeFacebook,
-        FinalizeFacebook,
-        0,
-};
-
-DM_REGISTER_EXTENSION(FacebookExt, FacebookExtDesc);
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", 0, 0, InitializeFacebook, FinalizeFacebook)

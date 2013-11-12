@@ -196,7 +196,7 @@ namespace dmRecord
                 uint8_t G = rgba[i+1];
                 uint8_t R = rgba[i+2];
                 float y = (float)( R*66 + G*129 + B*25 + 128 ) / 256 + 16;
-                *y_plane_row = y;
+                *y_plane_row = (char) y;
                 ++y_plane_row;
             }
         }
@@ -222,8 +222,8 @@ namespace dmRecord
                 float u = (float)( R*-38 + G*-74 + B*112 + 128 ) / 256 + 128;
                 float v = (float)( R*112 + G*-94 + B*-18 + 128 ) / 256 + 128;
 
-                *v_plane_row = v;
-                *u_plane_row = u;
+                *v_plane_row = (uint8_t) v;
+                *u_plane_row = (uint8_t) u;
                 ++u_plane_row;
                 ++v_plane_row;
 

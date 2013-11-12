@@ -218,6 +218,10 @@ namespace dmEngine
                 dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
         }
 
+        dmExtension::AppParams app_params;
+        app_params.m_ConfigFile = engine->m_Config;
+        dmExtension::AppFinalize(&app_params);
+
         if (engine->m_Config)
         {
             dmConfigFile::Delete(engine->m_Config);
@@ -356,6 +360,27 @@ namespace dmEngine
                 return false;
             }
         }
+
+        dmExtension::AppParams app_params;
+        app_params.m_ConfigFile = engine->m_Config;
+        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        if (er != dmExtension::RESULT_OK) {
+            dmLogFatal("Failed to initialize extensions (%d)", er);
+            return false;
+        }
+
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
+        if (write_log) {
+            char path[DMPATH_MAX_PATH];
+            if (dmSys::GetLogPath(path, sizeof(path)) == dmSys::RESULT_OK) {
+                char full[DMPATH_MAX_PATH];
+                dmPath::Concat(path, "log.txt", full, sizeof(full));
+                dmSetLogFile(full);
+            } else {
+                dmLogFatal("Unable to get log-file path");
+            }
+        }
+
         const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
 
         // This scope is mainly here to make sure the "Main" scope is created first
@@ -383,7 +408,7 @@ namespace dmEngine
         window_params.m_Height = engine->m_Height;
         window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
         window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
-        window_params.m_Fullscreen = dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
+        window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_PrintDeviceInfo = false;
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
@@ -515,7 +540,7 @@ namespace dmEngine
         }
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
-        engine->m_PhysicsContext.m_Debug = dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
+        engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
         dmPhysics::DebugCallbacks debug_callbacks;
         debug_callbacks.m_UserData = engine->m_RenderContext;
@@ -681,16 +706,21 @@ bail:
     void Step(HEngine engine)
     {
         const float fps = engine->m_UpdateFrequency;
-        float fixed_dt = 1.0f / fps;
+        const float fixed_dt = 1.0f / fps;
 
-        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+        engine->m_Alive = true;
+        engine->m_RunResult.m_ExitCode = 0;
+
+        while (engine->m_Alive)
         {
-            // NOTE: Polling the event queue is crucial on iOS for life-cycle management
-            // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
-            dmHID::Update(engine->m_HidContext);
-            dmTime::Sleep(1000 * 100);
-            return;
-        }
+            if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+            {
+                // NOTE: Polling the event queue is crucial on iOS for life-cycle management
+                // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
+                dmHID::Update(engine->m_HidContext);
+                dmTime::Sleep(1000 * 100);
+                continue;
+            }
 
         dmProfile::HProfile profile = dmProfile::Begin();
         {

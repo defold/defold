@@ -18,6 +18,10 @@ EMSCRIPTEN_ROOT=os.path.join(os.environ['HOME'], 'local', 'emscripten')
 # TODO: HACK
 FLASCC_ROOT=os.path.join(os.environ['HOME'], 'local', 'FlasCC1.0', 'sdk')
 
+# Workaround for a strange bug with the combination of ccache and clang
+# Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
+os.environ['CCACHE_CPP2'] = 'yes'
+
 def new_copy_task(name, input_ext, output_ext):
     def compile(task):
         with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
@@ -39,7 +43,7 @@ def new_copy_task(name, input_ext, output_ext):
 
 IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
 ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
-IOS_SDK_VERSION="6.1"
+IOS_SDK_VERSION="7.0"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="5.0"
@@ -72,20 +76,30 @@ def default_flags(self):
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions',])
             if platform == "darwin":
                 self.env.append_value(f, ['-m32'])
+            if platform == "darwin" or platform == "x86_64-darwin":
+                # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
+                # see corresponding flag in build_gtest.sh
+                self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+                # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+                # Force libstdc++ for now
+                self.env.append_value(f, ['-stdlib=libstdc++'])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if platform == "darwin":
             self.env.append_value('LINKFLAGS', ['-m32'])
         if platform == "darwin" or platform == "x86_64-darwin":
             # OSX only
-            self.env.append_value('LINKFLAGS', ['-framework', 'Carbon'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-framework', 'Carbon'])
         elif platform == "linux":
             # Linux only
             pass
     elif platform == "armv7-darwin":
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     elif platform == 'armv7-android':
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
@@ -94,7 +108,7 @@ def default_flags(self):
         stl_arch="%s/include" % stl_lib
 
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            # NOTE: 
+            # NOTE:
             # -mthumb and -funwind-tables removed from default flags
             # -fno-exceptions added
             self.env.append_value(f, ['-g', '-O2', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
@@ -131,16 +145,21 @@ def default_flags(self):
 
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS'])
+            self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
 
     if platform == build_platform:
         # Host libraries are installed to $PREFIX/lib
-        self.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib"))
+        libpath = os.path.join(dynamo_home, "lib")
     else:
         # Cross libraries are installed to $PREFIX/lib/PLATFORM
-        self.env.append_value('LIBPATH', os.path.join(dynamo_home, "lib", platform))
+        libpath = os.path.join(dynamo_home, "lib", platform)
+
+    # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
+    if not os.path.exists(libpath):
+        os.mkdir(libpath)
+    self.env.append_value('LIBPATH', libpath)
 
     self.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
     self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
@@ -298,6 +317,8 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         <string>0402</string>
         <key>DTXcodeBuild</key>
         <string>4A2002a</string>
+        <key>UIFileSharingEnabled</key>
+        <true/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>
@@ -332,7 +353,7 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
                                 <string>fb355198514515820</string>
                         </array>
                 </dict>
-        </array>        
+        </array>
 </dict>
 </plist>
 """
@@ -349,13 +370,15 @@ def codesign(task):
     if not identity:
         identity = 'iPhone Developer'
 
-    mobileprovision = task.env.MOBILE_PROVISION
+    mobileprovision = task.provision
     if not mobileprovision:
         mobileprovision = 'engine_profile.mobileprovision'
     mobileprovision_path = os.path.join(task.env['DYNAMO_HOME'], 'share', mobileprovision)
     shutil.copyfile(mobileprovision_path, os.path.join(signed_exe_dir, 'embedded.mobileprovision'))
 
-    entitlements = 'engine_profile.xcent'
+    entitlements = task.entitlements
+    if not entitlements:
+        entitlements = 'engine_profile.xcent'
     entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
@@ -434,7 +457,7 @@ Task.task_type_from_func('app_bundle',
 def create_app_bundle(self):
     if not re.match('arm.*?darwin', self.env['PLATFORM']):
         return
-    Utils.def_attrs(self, bundleid = None)
+    Utils.def_attrs(self, bundleid = None, provision = None, entitlements = None)
 
     app_bundle_task = self.create_task('app_bundle', self.env)
     app_bundle_task.bundleid = self.bundleid
@@ -457,6 +480,8 @@ def create_app_bundle(self):
         signed_exe = self.path.exclusive_build_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign', self.env)
+        codesign.provision = self.provision
+        codesign.entitlements = self.entitlements
         codesign.resource_rules_plist = resource_rules_plist
         codesign.set_inputs(self.link_task.outputs)
         codesign.set_outputs(signed_exe)
@@ -490,6 +515,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         %(extra_activities)s
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->
@@ -842,7 +868,8 @@ def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
 
     s = '#!/bin/sh\n'
-    s += "%s $@\n" % os.path.join(IOS_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
+    # NOTE:  -Qunused-arguments to make clang happy (clang: warning: argument unused during compilation)
+    s += "%s -Qunused-arguments $@\n" % os.path.join(IOS_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
     if os.path.exists(clang_wrapper_path):
         # Keep existing script if equal
         # The cache in ccache consistency control relies on the timestamp
@@ -884,8 +911,8 @@ def detect(conf):
     if platform == 'darwin' or platform == 'x86_64-darwin':
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
-        os.environ['CC'] = 'gcc-4.2'
-        os.environ['CXX'] = 'g++-4.2'
+        os.environ['CC'] = 'clang'
+        os.environ['CXX'] = 'clang++'
 
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform

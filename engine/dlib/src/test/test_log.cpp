@@ -9,6 +9,8 @@
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
 #include "../dlib/time.h"
+#include "../dlib/path.h"
+#include "../dlib/sys.h"
 
 TEST(dmLog, Init)
 {
@@ -38,7 +40,6 @@ TEST(dmLog, Client)
 {
     char buf[256];
     dmLogParams params;
-    params.m_LogToFile = true;
     dmLogInitialize(&params);
     uint16_t port = dmLogGetPort();
     ASSERT_GT(port, 0);
@@ -71,6 +72,27 @@ TEST(dmLog, Client)
 #endif
     dmThread::Join(log_thread);
     dmLogFinalize();
+}
+
+TEST(dmLog, LogFile)
+{
+    char path[DMPATH_MAX_PATH];
+    dmSys::GetLogPath(path, sizeof(path));
+    dmStrlCat(path, "/log.txt", sizeof(path));
+
+    dmLogParams params;
+    dmLogInitialize(&params);
+    dmSetLogFile(path);
+    dmLogInfo("TESTING_LOG");
+    dmLogFinalize();
+
+    char tmp[1024];
+    FILE* f = fopen(path, "rb");
+    ASSERT_NE((FILE*) 0, f);
+    fread(tmp, 1, sizeof(tmp), f);
+    ASSERT_TRUE(strstr(tmp, "TESTING_LOG") != 0);
+    dmSys::Unlink(path);
+    fclose(f);
 }
 
 int main(int argc, char **argv)

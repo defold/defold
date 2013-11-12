@@ -57,6 +57,17 @@ namespace dmSys
         }
     }
 
+    Result GetLogPath(char* path, uint32_t path_len)
+    {
+        NSString* p = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
+        const char* s = [p UTF8String];
+
+        if (dmStrlCpy(path, s, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        return RESULT_OK;
+    }
+
     Result OpenURL(const char* url)
     {
         NSString* ns_url = [NSString stringWithUTF8String: url];
@@ -84,6 +95,7 @@ namespace dmSys
         NSLocale* locale = [NSLocale currentLocale];
         const char* lang = [locale.localeIdentifier UTF8String];
         FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
     }
 
 #else

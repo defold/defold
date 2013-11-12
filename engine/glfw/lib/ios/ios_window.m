@@ -76,6 +76,91 @@ static void LogGLError(GLint err)
     }\
 
 
+#define MAX_APP_DELEGATES (32)
+id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
+int g_AppDelegatesCount = 0;
+id<UIApplicationDelegate> g_ApplicationDelegate = 0;
+
+@interface AppDelegateProxy : NSObject <UIApplicationDelegate>
+
+@end
+
+@implementation AppDelegateProxy
+
+- (void)forwardInvocation:(NSInvocation *)anInvocation {
+    BOOL invoked = NO;
+    if ([g_ApplicationDelegate respondsToSelector: [anInvocation selector]]) {
+        [anInvocation invokeWithTarget: g_ApplicationDelegate];
+        invoked = YES;
+    }
+
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: [anInvocation selector]]) {
+            [anInvocation invokeWithTarget: g_AppDelegates[i]];
+            invoked = YES;
+        }
+    }
+
+    if (!invoked) {
+        [super forwardInvocation:anInvocation];
+    }
+}
+
+- (BOOL)respondsToSelector:(SEL)aSelector {
+    if ([g_ApplicationDelegate respondsToSelector: aSelector]) {
+        return YES;
+    }
+
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: aSelector]) {
+            return YES;
+        }
+    }
+
+    return [super respondsToSelector: aSelector];
+}
+
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
+{
+    NSMethodSignature* signature = [super methodSignatureForSelector:aSelector];
+
+    if (!signature)
+    {
+        for (int i = 0; i < g_AppDelegatesCount; ++i) {
+            if ([g_AppDelegates[i] respondsToSelector: aSelector]) {
+                return [g_AppDelegates[i] methodSignatureForSelector:aSelector];
+            }
+        }
+    }
+    return signature;
+}
+
+@end
+
+GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate)
+{
+    if (g_AppDelegatesCount >= MAX_APP_DELEGATES) {
+        printf("Max UIApplicationDelegates reached (%d)", MAX_APP_DELEGATES);
+    } else {
+        g_AppDelegates[g_AppDelegatesCount++] = (id<UIApplicationDelegate>) delegate;
+    }
+}
+
+GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate)
+{
+    assert(g_AppDelegatesCount > 0);
+    for (int i = 0; i < g_AppDelegatesCount; ++i)
+    {
+        if (g_AppDelegates[i] == delegate)
+        {
+            g_AppDelegates[i] = g_AppDelegates[g_AppDelegatesCount - 1];
+            g_AppDelegatesCount--;
+            return;
+        }
+    }
+    assert(false && "app delegate not found");
+}
+
 /*
 This class wraps the CAEAGLLayer from CoreAnimation into a convenient UIView subclass.
 The view content is basically an EAGL surface you render your OpenGL scene into.
@@ -647,9 +732,20 @@ _GLFWwin g_Savewin;
     [window makeKeyAndVisible];
     [application setIdleTimerDisabled: YES];
 
+    UIApplication* app = [UIApplication sharedApplication];
+    AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
+    g_ApplicationDelegate = [app.delegate retain];
+    app.delegate = proxy;
+
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: @selector(applicationDidFinishLaunching:)]) {
+            [g_AppDelegates[i] applicationDidFinishLaunching: application];
+        }
+    }
+
     // We can't hijack the event loop here. We post-pone it to ensure that the application is
     // completely initialized
-    [NSTimer scheduledTimerWithTimeInterval:0.001 target:self selector:@selector(hijackEventLoop) userInfo:nil repeats:NO];
+    [NSTimer scheduledTimerWithTimeInterval:0.001 target:g_ApplicationDelegate selector:@selector(hijackEventLoop) userInfo:nil repeats:NO];
 }
 
 - (void)hijackEventLoop
@@ -710,8 +806,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     UIApplication* app = [UIApplication sharedApplication];
     if (app)
     {
-        AppDelegate* delegate = app.delegate;
-        [delegate reinit: app];
+        [g_ApplicationDelegate reinit: app];
         return GL_TRUE;
     }
 

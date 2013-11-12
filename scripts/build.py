@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re
+import os, sys, shutil, zipfile, re, itertools
 import optparse, subprocess, urllib, urlparse
 from tarfile import TarFile
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
@@ -171,8 +171,8 @@ class Configuration(object):
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
 
-        for n in 'valgrind-libasound.supp valgrind-libdlib.supp valgrind-python.supp engine_profile.mobileprovision engine_profile.xcent'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
+        for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
+            self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
     def _git_sha1(self, dir = '.'):
         process = subprocess.Popen('git log --oneline -n1'.split(), stdout = subprocess.PIPE)
@@ -263,7 +263,7 @@ class Configuration(object):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
-            libs="dlib ddf particle glfw graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record facebook iap engine".split()
+            libs="dlib ddf particle glfw graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record facebook iap push engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code

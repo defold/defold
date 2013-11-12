@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#if defined(__linux__) and !defined(ANDROID)
+#if defined(__linux__) && !defined(ANDROID)
 #include <pthread.h>
 namespace dmSpinlock
 {

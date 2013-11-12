@@ -114,7 +114,7 @@ TEST_F(dmGraphicsTest, CloseOpenWindow)
 
 TEST_F(dmGraphicsTest, TestWindowState)
 {
-    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_TRUE((bool) dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
     dmGraphics::CloseWindow(m_Context);
     ASSERT_FALSE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
 }
@@ -442,7 +442,7 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
     // Request close
     m_Context->m_RequestWindowClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_TRUE(dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
+    ASSERT_TRUE((bool) dmGraphics::GetWindowState(m_Context, dmGraphics::WINDOW_STATE_OPENED));
     // Accept close
     m_CloseData.m_ShouldClose = 1;
     dmGraphics::Flip(m_Context);

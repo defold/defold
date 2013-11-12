@@ -384,7 +384,7 @@ TEST_F(LuaTableTest, Matrix4)
     Vectormath::Aos::Matrix4 m;
     for (uint32_t i = 0; i < 4; ++i)
         for (uint32_t j = 0; j < 4; ++j)
-            m.setElem(i, j, i * 4 + j);
+            m.setElem((float) i, (float) j, (float) (i * 4 + j));
     dmScript::PushMatrix4(L, m);
     lua_setfield(L, -2, "v");
 

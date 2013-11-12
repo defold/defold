@@ -2,6 +2,7 @@ package com.dynamo.cr.tileeditor.scene;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.lang3.Pair;
@@ -17,6 +18,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder;
+import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
 public class AtlasNode extends TextureSetNode {
@@ -98,6 +100,20 @@ public class AtlasNode extends TextureSetNode {
                 }
                 animations.add(new AtlasBuilder.MappedAnimDesc(animNode.getId(), ids, animNode.getPlayback(), animNode
                         .getFps(), animNode.isFlipHorizontally(), animNode.isFlipVertically()));
+            } else if (n instanceof AtlasImageNode) {
+                AtlasImageNode imageNode = (AtlasImageNode) n;
+                String id = imageNode.getId();
+                boolean found = false;
+                for (AtlasBuilder.MappedAnimDesc animDesc : animations) {
+                    if (animDesc.getId().equals(id)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    List<String> ids = Collections.singletonList(id);
+                    animations.add(new AtlasBuilder.MappedAnimDesc(id, ids, Playback.PLAYBACK_NONE, 30, false, false));
+                }
             }
         }
     }

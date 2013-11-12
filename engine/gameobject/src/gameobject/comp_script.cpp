@@ -730,7 +730,7 @@ namespace dmGameObject
             {
                 if (LuaToVar(L, -1, var))
                 {
-                    var.m_V4[element_index] = params.m_Value.m_Number;
+                    var.m_V4[element_index] = (float) params.m_Value.m_Number;
                     result = PROPERTY_RESULT_OK;
                 }
                 else

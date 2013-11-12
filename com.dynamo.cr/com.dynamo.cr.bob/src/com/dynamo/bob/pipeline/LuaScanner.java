@@ -23,7 +23,7 @@ public class LuaScanner {
     private static Pattern requirePattern2 = Pattern.compile("require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$",
             Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern propertyDeclPattern = Pattern.compile("go.property\\((.*?)\\)(\\s*?--.*?)?$");
+    private static Pattern propertyDeclPattern = Pattern.compile("go.property\\((.*?)\\);?(\\s*?--.*?)?$");
     private static Pattern propertyArgsPattern = Pattern.compile("[\"'](.*?)[\"']\\s*,(.*)");
 
     // http://docs.python.org/dev/library/re.html#simulating-scanf

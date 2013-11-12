@@ -483,7 +483,7 @@ namespace dmGameSystem
      * Post this message to a collection-proxy-component to finalize the referenced collection, which in turn finalizes the contained game objects and components.
      *
      * @message
-     * @name finalize
+     * @name final
      * @examples
      * <p>In this example we use a collection proxy to load/unload a level (collection).</p>
      * <p>The examples assumes the script belongs to an instance with a collection-proxy-component with id "proxy".</p>

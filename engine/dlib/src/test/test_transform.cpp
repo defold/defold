@@ -23,7 +23,7 @@ using namespace dmTransform;
 TEST(dmTransform, Apply)
 {
     TransformS1 t(Vector3(1.0f, 0.0f, 0.0f),
-            Quat::rotationZ(M_PI_2),
+            Quat::rotationZ((float) M_PI_2),
             2.0f);
 
     ASSERT_V3_NEAR(Vector3(0.0f, 2.0f, 0.0f), dmTransform::Apply(t, Vector3(1.0f, 0.0f, 0.0f)));
@@ -43,12 +43,12 @@ TEST(dmTransform, ApplyNoScaleZ)
 TEST(dmTransform, Multiply)
 {
     TransformS1 t0(Vector3(1.0f, 0.0f, 0.0f),
-            Quat::rotationZ(M_PI_2),
+            Quat::rotationZ((float) M_PI_2),
             2.0f);
 
     TransformS1 res = Mul(t0, t0);
     ASSERT_V3_NEAR(Vector3(1.0f, 2.0f, 0.0f), res.GetTranslation());
-    ASSERT_V4_NEAR(Quat::rotationZ(M_PI), res.GetRotation());
+    ASSERT_V4_NEAR(Quat::rotationZ((float) M_PI), res.GetRotation());
     ASSERT_EQ(4.0f, res.GetScale());
 }
 
@@ -70,7 +70,7 @@ TEST(dmTransform, Inverse)
     i.SetIdentity();
 
     TransformS1 t0(Vector3(1.0f, 0.0f, 0.0f),
-            Quat::rotationZ(M_PI_2),
+            Quat::rotationZ((float) M_PI_2),
             2.0f);
 
     // Identity inverse is identity

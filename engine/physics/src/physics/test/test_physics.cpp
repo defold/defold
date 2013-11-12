@@ -294,7 +294,7 @@ TYPED_TEST(PhysicsTest, WorldTransformCallbacks)
     // Dynamic RB
 
     Vectormath::Aos::Point3 start_pos(1.0f, 2.0f, 0.0f);
-    float pi_4 = M_PI * 0.25f;
+    float pi_4 = (float) (M_PI * 0.25);
     Vectormath::Aos::Quat start_rot(0.0f, 0.0f, sin(pi_4), cos(pi_4));
     vo.m_Position = start_pos;
     vo.m_Rotation = start_rot;
@@ -442,7 +442,7 @@ TYPED_TEST(PhysicsTest, ShapeTransform)
     typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
     box_data.m_UserData = &box_visual_object;
     Vectormath::Aos::Vector3 trans(0, 0, 0);
-    Vectormath::Aos::Quat rot = Vectormath::Aos::Quat::rotationZ(0.25f * M_PI);
+    Vectormath::Aos::Quat rot = Vectormath::Aos::Quat::rotationZ((float) (0.25 * M_PI));
     typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc2)(TestFixture::m_World, box_data, &box_shape, &trans, &rot, 1u);
 
     for (int i = 0; i < 200; ++i)
@@ -1576,7 +1576,7 @@ TYPED_TEST(PhysicsTest, ScaledImpulses)
     steps = 10;
     float y = vo_a.m_Position.getY();
     for (int i = 0; i < steps; ++i) {
-        (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5 / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
+        (*TestFixture::m_Test.m_ApplyForceFunc)(TestFixture::m_Context, box_co_a, Vector3(0, -applied_impulse * 0.5f / TestFixture::m_StepWorldContext.m_DT + 10, 0), vo_a.m_Position);
         applied_impulse = 0.0f;
         (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
         ASSERT_NEAR(y, vo_a.m_Position.getY(), 0.00001f);
@@ -1820,8 +1820,8 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitExpansion)
         {
             uint32_t i = y + x * y_dim;
             VisualObject vo_b;
-            vo_b.m_Position.setX(x);
-            vo_b.m_Position.setY(y);
+            vo_b.m_Position.setX((float) x);
+            vo_b.m_Position.setY((float) y);
             trigger_vos[i] = vo_b;
             dmPhysics::CollisionObjectData data_b;
             trigger_shapes[i] = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);

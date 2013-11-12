@@ -20,7 +20,7 @@ def build(bld):
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
         additional_libs.append('FACEBOOK')
         additional_libs.append('SQLLITE')
-        exported_symbols = ['FacebookExt', 'IAPExt']
+        exported_symbols = ['FacebookExt', 'IAPExt', 'PushExt']
 
     if 'android' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
@@ -37,7 +37,7 @@ def build(bld):
     activities=[('com.facebook.LoginActivity', ''), ('com.defold.iap.IapActivity', 'android:theme="@android:style/Theme.Translucent.NoTitleBar"')]
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'FACEBOOKEXT IAPEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
+        uselib = 'FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto .',
@@ -60,7 +60,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk',
-        uselib = 'FACEBOOKEXT IAPEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
+        uselib = 'FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s ALUT X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto .',

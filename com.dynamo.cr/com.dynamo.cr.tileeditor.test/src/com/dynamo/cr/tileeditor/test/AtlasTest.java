@@ -113,7 +113,9 @@ public class AtlasTest extends AbstractNodeTest {
         TextureSet textureSet = node.getRuntimeTextureSet().getTextureSet();
 
         List<TextureSetAnimation> tiles = textureSet.getAnimationsList();
-        assertThat(tiles.size(), is(2));
+        assertThat(tiles.size(), is(1));
+        TextureSetAnimation anim = tiles.get(0);
+        assertThat(anim.getEnd() - anim.getStart(), is(2));
     }
 
     @Test

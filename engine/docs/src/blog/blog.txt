@@ -1,5 +1,20 @@
 :max-width: 45em
 
+Various fixes (Release 1.2.25)
+------------------------------
+_November 10, 2013_
+
+1.2.25 brings various smaller fixes:
+
+* More accurately measured scopes in the profiler
+* Update frequency (FPS) can be set at run-time through link:/ref/sys#set_update_frequency[scripts]
+* Lose images in an atlas files now appear in the animation drop-down menus in e.g. sprite components
+* link:/ref/sys#sys.get_sys_info[sys.get_sys_info] also returns the time zone
+* Text nodes in gui components could be rendered in the wrong order
+* Various fixes in the online documentation
+* Icons could not be selected in the scene view
+* go.property failed to be detected when terminated with a semi-colon
+
 Fixed Tile Bleeding (Release 1.2.24)
 ------------------------------------
 _September 25, 2013_
