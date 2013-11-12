@@ -991,6 +991,63 @@ TYPED_TEST(PhysicsTest, ClearGridShapeHull)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
+// Test that a grid shape hull cell set to an empty hull is treated as a cleared cell
+TYPED_TEST(PhysicsTest, GridShapeEmptyHull)
+{
+    /*
+     * Simplified version of GridShapePolygon
+     */
+    int32_t rows = 1;
+    int32_t columns = 1;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(0, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    const float hull_vertices[] = {  // 1x1 around origo
+                                    -0.5f, -0.5f,
+                                     0.5f, -0.5f,
+                                     0.5f,  0.5f,
+                                    -0.5f,  0.5f };
+
+    // Single empty hull
+    const dmPhysics::HullDesc hulls[] = { {0, 0} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 1);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    // A single cell pointing to the empty hull above
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0);
+
+    VisualObject vo_b;
+    // the box is slightly above, half way inside the empty hull
+    vo_b.m_Position = Point3(0.0f, 8.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_b;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(8.0f, 8.0f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0, TestFixture::m_CollisionCount);
+    ASSERT_EQ(0, TestFixture::m_ContactPointCount);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
