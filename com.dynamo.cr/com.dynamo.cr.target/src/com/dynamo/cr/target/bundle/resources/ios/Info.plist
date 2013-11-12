@@ -81,6 +81,8 @@
         </array>
         <key>UIStatusBarHidden</key>
         <true/>
+        <key>UIViewControllerBasedStatusBarAppearance</key>
+        <false/>
         <key>UIRequiredDeviceCapabilities</key>
         <array>
                 <string>armv7</string>
