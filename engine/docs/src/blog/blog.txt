@@ -2,7 +2,7 @@
 
 Various fixes (Release 1.2.25)
 ------------------------------
-_November 10, 2013_
+_November 12, 2013_
 
 1.2.25 brings various smaller fixes:
 
