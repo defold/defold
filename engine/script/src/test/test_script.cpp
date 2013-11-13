@@ -71,6 +71,13 @@ TEST_F(ScriptTest, TestPrint)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptTest, TestPPrint)
+{
+    int top = lua_gettop(L);
+    ASSERT_TRUE(RunFile(L, "test_script.luac"));
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(ScriptTest, TestRandom)
 {
     int top = lua_gettop(L);
