@@ -42,6 +42,8 @@ IOS_SDK_VERSION="7.0"
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 MIN_IOS_SDK_VERSION="5.0"
 
+MIN_OSX_SDK_VERSION="10.7"
+
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
 # Otherwise will .mm-files not be compiled with -arch armv7 etc.
@@ -77,12 +79,13 @@ def default_flags(self):
                 # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
                 # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
+                self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if platform == "darwin":
             self.env.append_value('LINKFLAGS', ['-m32'])
         if platform == "darwin" or platform == "x86_64-darwin":
             # OSX only
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-framework', 'Carbon'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon'])
         elif platform == "linux":
             # Linux only
             pass
