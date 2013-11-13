@@ -51,7 +51,7 @@ namespace dmScript
     static int Vector3_tostring(lua_State *L)
     {
         Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-        lua_pushfstring(L, "%s: [%f, %f, %f]", SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
+        lua_pushfstring(L, "vmath.%s(%f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR3, v->getX(), v->getY(), v->getZ());
         return 1;
     }
 
@@ -216,7 +216,7 @@ namespace dmScript
     static int Vector4_tostring(lua_State *L)
     {
         Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
-        lua_pushfstring(L, "%s: [%f, %f, %f, %f]", SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
+        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_VECTOR4, v->getX(), v->getY(), v->getZ(), v->getW());
         return 1;
     }
 
@@ -390,7 +390,7 @@ namespace dmScript
     static int Quat_tostring(lua_State *L)
     {
         Vectormath::Aos::Quat* q = CheckQuat(L, 1);
-        lua_pushfstring(L, "%s: [%f, %f, %f, %f]", SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
+        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f)", SCRIPT_TYPE_NAME_QUAT, q->getX(), q->getY(), q->getZ(), q->getW());
         return 1;
     }
 
@@ -529,7 +529,7 @@ namespace dmScript
     static int Matrix4_tostring(lua_State *L)
     {
         Vectormath::Aos::Matrix4* m = CheckMatrix4(L, 1);
-        lua_pushfstring(L, "%s: [%f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f| %f, %f, %f, %f]", SCRIPT_TYPE_NAME_MATRIX4,
+        lua_pushfstring(L, "vmath.%s(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", SCRIPT_TYPE_NAME_MATRIX4,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),

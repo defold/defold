@@ -380,3 +380,12 @@ def build(bld):
                                  target = 'test_image')
 
     test_image.install_path = None
+
+    test_pprint = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_pprint.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_pprint')
+
+    test_pprint.install_path = None

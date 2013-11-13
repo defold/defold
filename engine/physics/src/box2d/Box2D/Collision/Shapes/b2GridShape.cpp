@@ -351,6 +351,13 @@ void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hu
     b2Assert(index < m_rowCount * m_columnCount);
     b2GridShape::Cell* cell = &m_cells[index];
     cell->m_Index = hull;
+    // treat cells with an empty hull as an empty cell
+    if (hull != B2GRIDSHAPE_EMPTY_CELL)
+    {
+        b2HullSet::Hull& h = m_hullSet->m_hulls[hull];
+        if (h.m_Count == 0)
+            cell->m_Index = B2GRIDSHAPE_EMPTY_CELL;
+    }
 
     body->SynchronizeSingle(this, index);
 }

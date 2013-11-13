@@ -72,7 +72,7 @@ def build(bld):
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script',
-                                       source = 'test_script.cpp')
+                                       source = 'test_script.cpp test_script.lua')
 
     test_script.install_path = None
 

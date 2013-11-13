@@ -31,6 +31,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
