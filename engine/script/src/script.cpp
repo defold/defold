@@ -281,6 +281,12 @@ namespace dmScript
         return 0;
     }
 
+    /*# pretty printing
+     * Pretty printing of lua values
+     *
+     * @name pprint
+     * @param v value to print
+     */
     int LuaPPrint(lua_State* L)
     {
         int n = lua_gettop(L);
