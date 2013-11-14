@@ -936,7 +936,7 @@ def detect(conf):
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     else:
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
+        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
 
 def configure(conf):
     detect(conf)

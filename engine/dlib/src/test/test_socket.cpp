@@ -184,6 +184,50 @@ TEST(Socket, ClientServer1)
     dmThread::Join(thread);
 }
 
+static void PrintFlags(uint32_t f) {
+    if (f & dmSocket::FLAGS_UP) {
+        printf("UP ");
+    }
+    if (f & dmSocket::FLAGS_RUNNING) {
+        printf("RUNNING ");
+    }
+}
+
+TEST(Socket, Convert)
+{
+    dmSocket::Address a = dmSocket::AddressFromIPString("127.0.0.1");
+    char* ip = dmSocket::AddressToIPString(a);
+    ASSERT_STREQ("127.0.0.1", ip);
+    free(ip);
+}
+
+TEST(Socket, GetIfAddrs)
+{
+    uint32_t count;
+    dmSocket::GetIfAddresses(0, 0, &count);
+    ASSERT_EQ(0U, count);
+
+    dmSocket::IfAddr as[16];
+    dmSocket::GetIfAddresses(as, 16, &count);
+
+    for (uint32_t i = 0; i < count; ++i) {
+        const dmSocket::IfAddr& a = as[i];
+        printf("%s ", a.m_Name);
+
+        if (a.m_Flags & dmSocket::FLAGS_LINK) {
+            printf("LINK %02x:%02x:%02x:%02x:%02x:%02x ",
+                    a.m_MacAddress[0],a.m_MacAddress[1],a.m_MacAddress[2],a.m_MacAddress[3],a.m_MacAddress[4],a.m_MacAddress[5]);
+        }
+
+        if (a.m_Flags & dmSocket::FLAGS_INET) {
+            dmSocket::Address ia = a.m_Address;
+            printf("INET %d.%d.%d.%d ", (ia >> 24) & 0xff, (ia >> 16) & 0xff, (ia >> 8) & 0xff, (ia >> 0) & 0xff);
+        }
+
+        PrintFlags(a.m_Flags);
+        printf("\n");
+    }
+}
 
 int main(int argc, char **argv)
 {

@@ -40,6 +40,14 @@ function test_sys()
     print("language: " .. info.language)
     print("territory: " .. info.territory)
     print("gmt_offset: " .. info.gmt_offset)
+
+    -- get_ifaddrs
+    local addresses = sys.get_ifaddrs()
+    for i, a in ipairs(addresses) do
+        local s = string.format("%d ip:%16s mac:%20s up:%s running:%s name:%s", i, tostring(a.address), tostring(a.mac), tostring(a.up), tostring(a.running), a.name)
+        print(s)
+    end
+
 end
 
 functions = { test_sys = test_sys }
