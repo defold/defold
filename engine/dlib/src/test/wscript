@@ -381,6 +381,16 @@ def build(bld):
 
     test_image.install_path = None
 
+    test_connection_pool = bld.new_task_gen(features = 'cxx cprogram embed',
+                                 source = 'test_connection_pool.cpp',
+                                 embed_source = 'data/color_check_2x2.png data/case2319.jpg data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = '../../src .',
+                                 target = 'test_connection_pool')
+
+    test_connection_pool.install_path = None
+
     test_pprint = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_pprint.cpp',
                                  uselib = 'GTEST THREAD',

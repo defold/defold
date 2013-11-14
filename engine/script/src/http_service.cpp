@@ -54,7 +54,7 @@ namespace dmHttpService
         volatile bool             m_Run;
     };
 
-    void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
+    void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
@@ -70,7 +70,7 @@ namespace dmHttpService
         h.Push('\n');
     }
 
-    void HttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
@@ -82,19 +82,19 @@ namespace dmHttpService
         r.PushArray((char*) content_data, content_data_size);
     }
 
-    uint32_t HttpSendContentLength(dmHttpClient::HClient client, void* user_data)
+    uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
         return worker->m_Request->m_RequestLength;
     }
 
-    dmHttpClient::Result HttpWrite(dmHttpClient::HClient client, void* user_data)
+    dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
-        return dmHttpClient::Write(client, (const void*) worker->m_Request->m_Request, worker->m_Request->m_RequestLength);
+        return dmHttpClient::Write(response, (const void*) worker->m_Request->m_Request, worker->m_Request->m_RequestLength);
     }
 
-    dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HClient client, void* user_data)
+    dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
         char* headers = (char*) worker->m_Request->m_Headers;
@@ -106,7 +106,7 @@ namespace dmHttpService
             while (s) {
                 char* colon = strchr(s, ':');
                 *colon = '\0';
-                dmHttpClient::Result r = dmHttpClient::WriteHeader(client, s, colon + 1);
+                dmHttpClient::Result r = dmHttpClient::WriteHeader(response, s, colon + 1);
                 if (r != dmHttpClient::RESULT_OK) {
                     return r;
                 }

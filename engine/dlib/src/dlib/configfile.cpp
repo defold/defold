@@ -320,16 +320,16 @@ namespace dmConfigFile
         dmArray<char> m_Buffer;
     };
 
-    void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
+    void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
-        (void) client;
+        (void) response;
         (void) user_data;
         (void) status_code;
         (void) key;
         (void) value;
     }
 
-    void HttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
         HttpContext* context = (HttpContext*) user_data;
         if (status_code != 200)

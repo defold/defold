@@ -61,13 +61,15 @@ namespace dmSocksProxy
         }
 
         Request request = { 0x04, 0x01, htons(port), htonl(address), 0 };
+        // NOTE: Due to alignment calculate size. Do *not* use sizeof(.)
+        int request_size = 1 + 1 + 2 + 4 + 1;
 
         const char* buf = (const char*) &request;
         int total_sent = 0;
-        while (total_sent < (int) sizeof(request))
+        while (total_sent < request_size)
         {
             int sent_bytes;
-            sock_res = dmSocket::Send(*socket, buf + total_sent, sizeof(request) - total_sent, &sent_bytes);
+            sock_res = dmSocket::Send(*socket, buf + total_sent, request_size - total_sent, &sent_bytes);
             if (sock_res == dmSocket::RESULT_TRY_AGAIN || sock_res == dmSocket::RESULT_OK)
             {
                 total_sent += sent_bytes;

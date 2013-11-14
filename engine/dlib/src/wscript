@@ -59,7 +59,7 @@ def build(bld):
 
     source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl'
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
-    extra_defines = ['ZLIB_CONST']
+    extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING']
     if bld.env.PLATFORM != 'win32':
         extra_defines.append('Z_HAVE_UNISTD_H')
         extra_defines.append('HAVE_HIDDEN')

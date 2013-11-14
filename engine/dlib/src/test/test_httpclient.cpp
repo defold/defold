@@ -6,6 +6,7 @@
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
 #include "dlib/log.h"
+#include "dlib/thread.h"
 #include "dlib/uri.h"
 #include "dlib/http_client.h"
 #include "dlib/http_client_private.h"
@@ -24,39 +25,39 @@ public:
     int m_XScale;
     dmURI::Parts m_URI;
 
-    static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
+    static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         self->m_Headers[key] = value;
     }
 
-    static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         self->m_StatusCode = status_code;
         self->m_Content.append((const char*) content_data, content_data_size);
     }
 
-    static uint32_t HttpSendContentLength(dmHttpClient::HClient client, void* user_data)
+    static uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         const char* s = self->m_ToPost.c_str();
         return strlen(s);
     }
 
-    static dmHttpClient::Result HttpWrite(dmHttpClient::HClient client, void* user_data)
+    static dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, void* user_data)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         const char* s = self->m_ToPost.c_str();
-        return dmHttpClient::Write(client, s, strlen(s));
+        return dmHttpClient::Write(response, s, strlen(s));
     }
 
-    static dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HClient client, void* user_data)
+    static dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         char scale[128];
         DM_SNPRINTF(scale, sizeof(scale), "%d", self->m_XScale);
-        return dmHttpClient::WriteHeader(client, "X-Scale", scale);
+        return dmHttpClient::WriteHeader(response, "X-Scale", scale);
     }
 
 
@@ -87,6 +88,7 @@ public:
         ASSERT_NE((void*) 0, m_Client);
 
         m_XScale = 1;
+        m_StatusCode = -1;
     }
 
     virtual void TearDown()
@@ -235,7 +237,70 @@ TEST_P(dmHttpClientTest, Simple)
     }
 }
 
-TEST_P(dmHttpClientTest, NoKeepAliave)
+struct HttpStressHelper
+{
+    int m_StatusCode;
+    std::string m_Content;
+    dmHttpClient::HClient m_Client;
+
+    HttpStressHelper(const dmURI::Parts& uri)
+    {
+        bool secure = strcmp(uri.m_Scheme, "https") == 0;
+        m_StatusCode = 0;
+        dmHttpClient::NewParams params;
+        params.m_Userdata = this;
+        params.m_HttpContent = HttpStressHelper::HttpContent;
+        m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure);
+        ASSERT_NE((void*) 0, m_Client);
+    }
+
+    ~HttpStressHelper()
+    {
+        dmHttpClient::Delete(m_Client);
+    }
+
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    {
+        HttpStressHelper* self = (HttpStressHelper*) user_data;
+        self->m_StatusCode = status_code;
+        self->m_Content.append((const char*) content_data, content_data_size);
+    }
+};
+
+static void HttpStressThread(void* param)
+{
+    char buf[128];
+    int c = rand() % 3359;
+    HttpStressHelper* h = (HttpStressHelper*) param;
+    for (int i = 0; i < 100; ++i) {
+        h->m_Content = "";
+        sprintf(buf, "/add/%d/1000", i * c);
+        dmHttpClient::Result r;
+        r = dmHttpClient::Get(h->m_Client, buf);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(1000 + i * c, strtol(h->m_Content.c_str(), 0, 10));
+    }
+}
+
+TEST_P(dmHttpClientTest, ThreadStress)
+{
+    const int thread_count = 16;
+    dmThread::Thread threads[thread_count];
+    HttpStressHelper* helpers[thread_count];
+
+    for (int i = 0; i < thread_count; ++i) {
+        helpers[i] = new HttpStressHelper(m_URI);
+        dmThread::Thread t = dmThread::New(HttpStressThread, 0x80000, helpers[i]);
+        threads[i] = t;
+    }
+
+    for (int i = 0; i < thread_count; ++i) {
+        dmThread::Join(threads[i]);
+        delete helpers[i];
+    }
+}
+
+TEST_P(dmHttpClientTest, NoKeepAlive)
 {
     char buf[128];
 
@@ -266,7 +331,7 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
     }
 }
 
-TEST_P(dmHttpClientTest, Timeout1)
+TEST_P(dmHttpClientTest, Timeout)
 {
     for (int i = 0; i < 10; ++i)
     {
@@ -286,22 +351,14 @@ TEST_P(dmHttpClientTest, Timeout1)
     }
 }
 
-TEST_P(dmHttpClientTest, Timeout2)
+TEST_P(dmHttpClientTest, ServerClose)
 {
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 1);
     for (int i = 0; i < 10; ++i)
     {
         dmHttpClient::Result r;
         m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/add/10/20");
-        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
-        ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
-
-        // NOTE: MaxIdleTime is set to 300ms
-        dmTime::Sleep(1000 * 350);
-
-        m_Content = "";
-        r = dmHttpClient::Get(m_Client, "/add/100/20");
+        r = dmHttpClient::Get(m_Client, "/close");
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         dmSocket::Result sock_r = dmHttpClient::GetLastSocketResult(m_Client);
         ASSERT_TRUE(r == dmHttpClient::RESULT_UNEXPECTED_EOF || sock_r == dmSocket::RESULT_CONNRESET || sock_r == dmSocket::RESULT_PIPE);

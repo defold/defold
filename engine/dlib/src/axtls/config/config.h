@@ -51,7 +51,9 @@
 #define CONFIG_SSL_EXPIRY_TIME 24
 #define CONFIG_X509_MAX_CA_CERTS 150
 #define CONFIG_SSL_MAX_CERTS 3
-#undef CONFIG_SSL_CTX_MUTEXING
+// NOTE: CONFIG_SSL_CTX_MUTEXING enabled in wscript. Seems to be problems with axTLS and
+// the CONFIG_SSL_CTX_MUTEXING define (missing #include of config.h)
+//#undef CONFIG_SSL_CTX_MUTEXING
 // CONFIG_USE_DEV_URANDOM is controlled from wscript
 //#define CONFIG_USE_DEV_URANDOM 1
 // CONFIG_WIN32_USE_CRYPTO_LIB is controlled from wscript
