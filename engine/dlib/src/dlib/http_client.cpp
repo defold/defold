@@ -16,6 +16,7 @@
 #include "uri.h"
 #include "path.h"
 #include "connection_pool.h"
+#include "mutex.h"
 #include "../axtls/ssl/os_port.h"
 #include "../axtls/ssl/ssl.h"
 
@@ -31,13 +32,17 @@ namespace dmHttpClient
         PoolCreator()
         {
             m_Pool = 0;
+            m_Mutex = dmMutex::New();
         }
 
         ~PoolCreator()
         {
+            dmMutex::Lock(m_Mutex);
             if (m_Pool) {
                 dmConnectionPool::Delete(m_Pool);
             }
+            dmMutex::Unlock(m_Mutex);
+            dmMutex::Delete(m_Mutex);
         }
 
         // Create the pool lazily for two resons
@@ -47,6 +52,7 @@ namespace dmHttpClient
         // 2. Startup performance. Minor in this context
         dmConnectionPool::HPool GetPool()
         {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
             if (m_Pool == 0) {
                 dmConnectionPool::Params params;
                 params.m_MaxConnections = MAX_POOL_CONNECTIONS;
@@ -58,6 +64,7 @@ namespace dmHttpClient
 
     private:
         dmConnectionPool::HPool m_Pool;
+        dmMutex::Mutex          m_Mutex;
     };
 
     PoolCreator g_PoolCreator;
