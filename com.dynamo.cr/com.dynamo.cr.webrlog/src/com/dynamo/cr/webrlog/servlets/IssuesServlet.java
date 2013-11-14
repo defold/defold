@@ -83,7 +83,7 @@ public class IssuesServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        List<Issue> issues = LogModel.getActiveIssues();
+        List<Issue> issues = LogModel.getActiveIssues(30);
         IssueList issueList = IssueList.newBuilder().addAllIssue(issues).build();
 
         StringWriter writer = new StringWriter();
