@@ -2,12 +2,14 @@
 #include "../dstrings.h"
 #include "../log.h"
 
+#include <sys/ioctl.h>
+#include <string.h>
 #include <fcntl.h>
 #include <net/if.h>
 
 namespace dmSocket
 {
-    Result GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
+    void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
         *count = 0;
 
@@ -38,7 +40,6 @@ namespace dmSocket
                 continue;
             }
 
-            struct sockaddr_in *sin = (struct sockaddr_in *)&r->ifr_addr;
             IfAddr* a = &addresses[*count];
             memset(a, 0, sizeof(*a));
 
