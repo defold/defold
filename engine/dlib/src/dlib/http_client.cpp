@@ -30,17 +30,33 @@ namespace dmHttpClient
     {
         PoolCreator()
         {
-            dmConnectionPool::Params params;
-            params.m_MaxConnections = MAX_POOL_CONNECTIONS;
-            dmConnectionPool::Result r = dmConnectionPool::New(&params, &m_Pool);
-            assert(r == dmConnectionPool::RESULT_OK);
+            m_Pool = 0;
         }
 
         ~PoolCreator()
         {
-            dmConnectionPool::Delete(m_Pool);
+            if (m_Pool) {
+                dmConnectionPool::Delete(m_Pool);
+            }
         }
 
+        // Create the pool lazily for two resons
+        // 1. If dlib is imported from loaded from python it will crash and burn
+        //    in OpenSSL as the we several symbol conflics, e.g. RSA_free, and
+        //    the version from OpenSSL will be used instead of axTLS!
+        // 2. Startup performance. Minor in this context
+        dmConnectionPool::HPool GetPool()
+        {
+            if (m_Pool == 0) {
+                dmConnectionPool::Params params;
+                params.m_MaxConnections = MAX_POOL_CONNECTIONS;
+                dmConnectionPool::Result r = dmConnectionPool::New(&params, &m_Pool);
+                assert(r == dmConnectionPool::RESULT_OK);
+            }
+            return m_Pool;
+        }
+
+    private:
         dmConnectionPool::HPool m_Pool;
     };
 
@@ -135,7 +151,7 @@ namespace dmHttpClient
 
     Result Response::Connect(const char* host, uint16_t port, bool secure)
     {
-        m_Pool = g_PoolCreator.m_Pool;
+        m_Pool = g_PoolCreator.GetPool();
 
         dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, &m_Connection, &m_Client->m_SocketResult);
         if (r == dmConnectionPool::RESULT_OK) {
