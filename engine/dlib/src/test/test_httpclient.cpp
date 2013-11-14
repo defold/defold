@@ -251,7 +251,6 @@ struct HttpStressHelper
         params.m_Userdata = this;
         params.m_HttpContent = HttpStressHelper::HttpContent;
         m_Client = dmHttpClient::New(&params, uri.m_Hostname, uri.m_Port, secure);
-        ASSERT_NE((void*) 0, m_Client);
     }
 
     ~HttpStressHelper()
