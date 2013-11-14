@@ -56,7 +56,7 @@ namespace dmSocket
             }
         } else {
             if (ret != ERROR_NO_DATA) {
-                dmLogError("GetAdaptersAddresses failed (%d)\n", dwRetVal);
+                dmLogError("GetAdaptersAddresses failed (%d)\n", ret);
             }
         }
         return;
