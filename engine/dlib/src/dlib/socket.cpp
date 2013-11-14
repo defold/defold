@@ -16,11 +16,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
-#include <net/if.h>
-#if !defined(__ANDROID__)
-#include <ifaddrs.h>
-#include <net/if_dl.h>
-#endif
 
 #endif
 #include "log.h"

@@ -8,7 +8,7 @@
 
 namespace dmSocket
 {
-    Result GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
+    void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
         *count = 0;
         unsigned int i = 0;
