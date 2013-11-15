@@ -27,6 +27,9 @@ namespace dmHttpClient
 
     const uint32_t MAX_POOL_CONNECTIONS = 32;
 
+    // TODO: This is not good. Singleton like stuff
+    // that requires a lock for initialization
+    // See comment in GetPool()
     struct PoolCreator
     {
         PoolCreator()
