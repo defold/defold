@@ -41,6 +41,10 @@ TEST_F(dmConnectionPoolTest, Basic)
 {
 }
 
+#ifndef _WIN32
+
+// NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
+
 TEST_F(dmConnectionPoolTest, Connect)
 {
     dmConnectionPool::HConnection c;
@@ -206,6 +210,8 @@ TEST_F(dmConnectionPoolTest, KeepAliveTimeout)
     SCOPED_TRACE("");
     CheckStats(MAX_CONNECTIONS, 0, 0);
 }
+
+#endif
 
 TEST_F(dmConnectionPoolTest, ConnectFailed)
 {
