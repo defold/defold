@@ -20,6 +20,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.common.util.Exec;
 import com.dynamo.cr.target.core.TargetPlugin;
 import com.google.common.io.Files;
 
@@ -62,9 +63,24 @@ public class Signer {
         // Copy Executable
         FileUtils.copyFile(new File(exe), new File(appDir, FilenameUtils.getBaseName(exe)));
 
+        // Extract entitlements
+        File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
+        textProvisionFile.deleteOnExit();
+
+        Exec.exec("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
+
+        XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
+        decodedProvision.load(textProvisionFile);
+        XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
+        entitlements.append(decodedProvision.configurationAt("Entitlements"));
+        File entitlementOut = File.createTempFile("entitlement", ".xcent");
+        entitlementOut.deleteOnExit();
+        entitlements.save(entitlementOut);
+
         // Sign
         ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity,
                                              "--resource-rules=" + resourceRulesOutFile.getAbsolutePath(),
+                                             "--entitlements", entitlementOut.getAbsolutePath(),
                                              appDir.getAbsolutePath());
         processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");
         processBuilder.environment().put("CODESIGN_ALLOCATE", TargetPlugin.getDefault().getCodeSignAllocatePath());
