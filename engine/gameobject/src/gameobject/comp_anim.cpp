@@ -227,6 +227,7 @@ namespace dmGameObject
             {
             case PLAYBACK_ONCE_FORWARD:
             case PLAYBACK_ONCE_BACKWARD:
+            case PLAYBACK_ONCE_PINGPONG:
                 if (anim.m_Cursor >= anim.m_Duration)
                 {
                     anim.m_Cursor = anim.m_Duration;
@@ -258,6 +259,12 @@ namespace dmGameObject
                     t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
                 if (anim.m_Backwards)
                     t = 1.0f - t;
+                if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG) {
+                    t *= 2.0f;
+                    if (t > 1.0f) {
+                        t = 2.0f - t;
+                    }
+                }
                 t = dmEasing::GetValue(anim.m_Easing, t);
                 float v = anim.m_From + (anim.m_To - anim.m_From) * t;
                 if (anim.m_Value != 0x0)
