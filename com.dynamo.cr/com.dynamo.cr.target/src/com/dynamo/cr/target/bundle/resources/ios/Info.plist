@@ -69,7 +69,7 @@
         <key>DTXcodeBuild</key>
         <string>5A2053</string>
         <key>UIFileSharingEnabled</key>
-        <true/>
+        <{{UIFileSharingEnabled}}/>
         <key>LSRequiresIPhoneOS</key>
         <true/>
         <key>MinimumOSVersion</key>

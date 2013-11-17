@@ -177,6 +177,8 @@ public class IOSBundler {
         }
         infoData.put("CFBundleURLSchemes", urlSchemes);
 
+        infoData.put("UIFileSharingEnabled", projectProperties.getBooleanValue("project", "write_log", false));
+
         // Save updated Info.plist
         File infoFile = new File(appDir, "Info.plist");
         String compiledInfo = infoTemplate.execute(infoData);
