@@ -708,17 +708,26 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
+        uint64_t time = dmTime::GetTime();
+        uint64_t prev_time = time;
+        float fps = engine->m_UpdateFrequency;
+        float fixed_dt = 1.0f / fps;
+        float dt = fixed_dt;
+        bool variable_dt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
+
         while (engine->m_Alive)
         {
-            const float fps = engine->m_UpdateFrequency;
-            const float fixed_dt = 1.0f / fps;
-
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
                 // NOTE: Polling the event queue is crucial on iOS for life-cycle management
                 // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
                 dmHID::Update(engine->m_HidContext);
                 dmTime::Sleep(1000 * 100);
+                // Update time again after the sleep to avoid big leaps after iconified.
+                // In practice, it makes the delta time 1/freq even though we slept for long
+                time = dmTime::GetTime();
+                prev_time = time - fixed_dt * 1000000;
+                dt = fixed_dt;
                 continue;
             }
 
@@ -762,7 +771,7 @@ bail:
                         break;
                     }
 
-                    dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
+                    dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
 
                     engine->m_InputBuffer.SetSize(0);
                     dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
@@ -774,7 +783,7 @@ bail:
                     }
 
                     dmGameObject::UpdateContext update_context;
-                    update_context.m_DT = fixed_dt;
+                    update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                     if (engine->m_RenderScriptPrototype)
@@ -833,6 +842,22 @@ bail:
             dmProfile::Release(profile);
 
             ++engine->m_Stats.m_FrameCount;
+
+            prev_time = time;
+            time = dmTime::GetTime();
+
+            // set fps continuously in case it changes during runtime
+            fps = engine->m_UpdateFrequency;
+
+            if (variable_dt)
+            {
+                // go through double to save precision
+                dt = (float)((time - prev_time) * 0.000001);
+            }
+            else
+            {
+                dt = 1.0f / fps;
+            }
         }
         return engine->m_RunResult;
     }
