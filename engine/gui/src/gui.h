@@ -138,10 +138,11 @@ namespace dmGui
     {
         PLAYBACK_ONCE_FORWARD  = 0,
         PLAYBACK_ONCE_BACKWARD = 1,
-        PLAYBACK_LOOP_FORWARD  = 2,
-        PLAYBACK_LOOP_BACKWARD = 3,
-        PLAYBACK_LOOP_PINGPONG = 4,
-        PLAYBACK_COUNT = 5,
+        PLAYBACK_ONCE_PINGPONG = 2,
+        PLAYBACK_LOOP_FORWARD  = 3,
+        PLAYBACK_LOOP_BACKWARD = 4,
+        PLAYBACK_LOOP_PINGPONG = 5,
+        PLAYBACK_COUNT = 6,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)

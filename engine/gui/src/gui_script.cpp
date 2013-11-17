@@ -413,6 +413,11 @@ namespace dmGui
      * @name gui.PLAYBACK_ONCE_BACKWARD
      * @variable
      */
+    /*# once forward and then backward
+     *
+     * @name gui.PLAYBACK_ONCE_PINGPONG
+     * @variable
+     */
     /*# loop forward
      *
      * @name gui.PLAYBACK_LOOP_FORWARD
@@ -666,7 +671,15 @@ namespace dmGui
      * @param duration duration of the animation (number)
      * @param [delay] delay before the animation starts (number)
      * @param [complete_function] function to call when the animation has completed (function)
-     * @param [playback] playback node (constant). Any of the gui.PLAYBACK_* constants
+     * @param [playback] playback mode (constant)
+     * <ul>
+     *   <li><code>gui.PLAYBACK_ONCE_FORWARD</code></li>
+     *   <li><code>gui.PLAYBACK_ONCE_BACKWARD</code></li>
+     *   <li><code>gui.PLAYBACK_ONCE_PINGPONG</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_FORWARD</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_BACKWARD</code></li>
+     *   <li><code>gui.PLAYBACK_LOOP_PINGPONG</code></li>
+     * </ul>
      * @examples
      * <p>
      * How to start a simple color animation, where the node fades in to white during 0.5 seconds:
@@ -2252,6 +2265,7 @@ namespace dmGui
 
         SETPLAYBACK(ONCE_FORWARD)
         SETPLAYBACK(ONCE_BACKWARD)
+        SETPLAYBACK(ONCE_PINGPONG)
         SETPLAYBACK(LOOP_FORWARD)
         SETPLAYBACK(LOOP_BACKWARD)
         SETPLAYBACK(LOOP_PINGPONG)
