@@ -542,13 +542,14 @@ namespace dmGameObject
 
     dmhash_t GenerateUniqueInstanceId(HCollection collection)
     {
-        const char* id_format = "instance%d";
+        // global path
+        const char* id_format = "%sinstance%d";
         char id_s[16];
         uint32_t index = 0;
         dmMutex::Lock(collection->m_Mutex);
         index = collection->m_GenInstanceCounter++;
         dmMutex::Unlock(collection->m_Mutex);
-        DM_SNPRINTF(id_s, sizeof(id_s), id_format, index);
+        DM_SNPRINTF(id_s, sizeof(id_s), id_format, ID_SEPARATOR, index);
         return dmHashString64(id_s);
     }
 

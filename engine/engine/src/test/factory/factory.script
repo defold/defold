@@ -4,6 +4,9 @@ function init(self)
 end
 
 function update(self, dt)
+    local url_a = msg.url(nil, self.id_a, nil)
+    local s = go.get(url_a, "scale")
+    assert(s == 1.0)
     msg.post(self.id_a, "hello", {id_b = self.id_b})
     assert(not self.updated)
     self.updated = true
