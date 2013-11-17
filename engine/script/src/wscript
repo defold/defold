@@ -19,7 +19,7 @@ def build(bld):
 
     bld.add_group()
 
-    for d, source in [('builtins', ('script_hash.cpp')),
+    for d, source in [('builtins', ('script_hash.cpp script.cpp')),
                       ('sys', ('script_sys.cpp')),
                       ('msg', ('script_msg.cpp')),
                       ('json', ('script_json.cpp')),

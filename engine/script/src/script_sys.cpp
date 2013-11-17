@@ -16,6 +16,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
 #include <dlib/log.h>
+#include <dlib/socket.h>
 #include <resource/resource.h>
 #include "script.h"
 
@@ -308,6 +309,71 @@ namespace dmScript
         return 1;
     }
 
+    /*# enumerate network cards
+     * returns an array of tables with the following members:
+     * name, address (ip-string), mac (hardware address, colon separated string), up (bool), running (bool). NOTE: ip and mac might be nil if not available
+     *
+     * @name sys.get_ifaddrs
+     * @return an array of tables
+     */
+    int Sys_GetIfaddrs(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        const uint32_t max_count = 16;
+        dmSocket::IfAddr addresses[max_count];
+
+        uint32_t count = 0;
+        dmSocket::GetIfAddresses(addresses, max_count, &count);
+        lua_createtable(L, count, 0);
+        for (uint32_t i = 0; i < count; ++i) {
+            dmSocket::IfAddr* ifa = &addresses[i];
+            lua_newtable(L);
+
+            lua_pushliteral(L, "name");
+            lua_pushstring(L, ifa->m_Name);
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "address");
+            if (ifa->m_Flags & dmSocket::FLAGS_INET) {
+                char* ip = dmSocket::AddressToIPString(ifa->m_Address);
+                lua_pushstring(L, ip);
+                free(ip);
+            } else {
+                lua_pushnil(L);
+            }
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "mac");
+            if (ifa->m_Flags & dmSocket::FLAGS_LINK) {
+                char tmp[64];
+                DM_SNPRINTF(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
+                        ifa->m_MacAddress[0],
+                        ifa->m_MacAddress[1],
+                        ifa->m_MacAddress[2],
+                        ifa->m_MacAddress[3],
+                        ifa->m_MacAddress[4],
+                        ifa->m_MacAddress[5]);
+                lua_pushstring(L, tmp);
+            } else {
+                lua_pushnil(L);
+            }
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "up");
+            lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_UP) != 0);
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "running");
+            lua_pushboolean(L, (ifa->m_Flags & dmSocket::FLAGS_RUNNING) != 0);
+            lua_rawset(L, -3);
+
+            lua_rawseti(L, -2, i + 1);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -317,6 +383,7 @@ namespace dmScript
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
+        {"get_ifaddrs", Sys_GetIfaddrs},
         {0, 0}
     };
 

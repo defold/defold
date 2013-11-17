@@ -15,12 +15,62 @@
 #include "dstrings.h"
 #include "uri.h"
 #include "path.h"
+#include "connection_pool.h"
+#include "mutex.h"
+#include "../axtls/ssl/os_port.h"
 #include "../axtls/ssl/ssl.h"
 
 namespace dmHttpClient
 {
     // Be careful with this buffer. See comment in Receive about ssl_read.
     const int BUFFER_SIZE = 64 * 1024;
+
+    const uint32_t MAX_POOL_CONNECTIONS = 32;
+
+    // TODO: This is not good. Singleton like stuff
+    // that requires a lock for initialization
+    // See comment in GetPool()
+    struct PoolCreator
+    {
+        PoolCreator()
+        {
+            m_Pool = 0;
+            m_Mutex = dmMutex::New();
+        }
+
+        ~PoolCreator()
+        {
+            dmMutex::Lock(m_Mutex);
+            if (m_Pool) {
+                dmConnectionPool::Delete(m_Pool);
+            }
+            dmMutex::Unlock(m_Mutex);
+            dmMutex::Delete(m_Mutex);
+        }
+
+        // Create the pool lazily for two resons
+        // 1. If dlib is imported from loaded from python it will crash and burn
+        //    in OpenSSL as the we several symbol conflics, e.g. RSA_free, and
+        //    the version from OpenSSL will be used instead of axTLS!
+        // 2. Startup performance. Minor in this context
+        dmConnectionPool::HPool GetPool()
+        {
+            DM_MUTEX_SCOPED_LOCK(m_Mutex);
+            if (m_Pool == 0) {
+                dmConnectionPool::Params params;
+                params.m_MaxConnections = MAX_POOL_CONNECTIONS;
+                dmConnectionPool::Result r = dmConnectionPool::New(&params, &m_Pool);
+                assert(r == dmConnectionPool::RESULT_OK);
+            }
+            return m_Pool;
+        }
+
+    private:
+        dmConnectionPool::HPool m_Pool;
+        dmMutex::Mutex          m_Mutex;
+    };
+
+    PoolCreator g_PoolCreator;
 
     struct Response
     {
@@ -45,6 +95,12 @@ namespace dmHttpClient
         // Cache
         dmHttpCache::HCacheCreator m_CacheCreator;
 
+        // Connection
+        dmConnectionPool::HPool         m_Pool;
+        dmConnectionPool::HConnection   m_Connection;
+        dmSocket::Socket                m_Socket;
+        SSL*                            m_SSLConnection;
+
         Response(HClient client)
         {
             m_Client = client;
@@ -59,7 +115,13 @@ namespace dmHttpClient
             m_CloseConnection = 0;
             m_MaxAge = 0;
             m_CacheCreator = 0;
+            m_Pool = 0;
+            m_Connection = 0;
+            m_Socket = 0;
+            m_SSLConnection = 0;
         }
+        Result Connect(const char* host, uint16_t port, bool secure);
+        ~Response();
     };
 
     /*
@@ -77,11 +139,6 @@ namespace dmHttpClient
     {
         char*               m_Hostname;
         char                m_URI[1024];
-        dmSocket::Socket    m_Socket;
-        dmSocket::Address   m_Address;
-        uint16_t            m_Port;
-        bool                m_UseSocksProxy;
-        bool                m_Secure;
         dmSocket::Result    m_SocketResult;
 
         void*               m_Userdata;
@@ -95,17 +152,43 @@ namespace dmHttpClient
 
         dmHttpCache::HCache m_HttpCache;
 
-        SSL_CTX*            m_SSLContext;
-        SSL*                m_SSLConnection;
-        uint8_t             m_SSLSessionID[SSL_SESSION_ID_SIZE];
+        bool                m_Secure;
+        uint16_t            m_Port;
 
         // Used both for reading header and content. NOTE: Extra byte for null-termination
         char                m_Buffer[BUFFER_SIZE + 1];
     };
 
-    static void DefaultHttpContentData(HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    Result Response::Connect(const char* host, uint16_t port, bool secure)
     {
-        (void) client;
+        m_Pool = g_PoolCreator.GetPool();
+
+        dmConnectionPool::Result r = dmConnectionPool::Dial(m_Pool, host, port, secure, &m_Connection, &m_Client->m_SocketResult);
+        if (r == dmConnectionPool::RESULT_OK) {
+
+            m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
+            m_SSLConnection = (SSL*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
+
+            return RESULT_OK;
+        } else {
+            return RESULT_SOCKET_ERROR;
+        }
+    }
+
+    Response::~Response()
+    {
+        if (m_Connection) {
+            if (m_CloseConnection || m_Client->m_SocketResult != dmSocket::RESULT_OK) {
+                dmConnectionPool::Close(m_Pool, m_Connection);
+            } else {
+                dmConnectionPool::Return(m_Pool, m_Connection);
+            }
+        }
+    }
+
+    static void DefaultHttpContentData(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    {
+        (void) response;
         (void) user_data;
         (void) status_code;
         (void) content_data;
@@ -144,9 +227,6 @@ namespace dmHttpClient
         Client* client = new Client();
 
         client->m_Hostname = strdup(hostname);
-        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-        client->m_Address = address;
-        client->m_Port = port;
         client->m_SocketResult = dmSocket::RESULT_OK;
 
         client->m_Userdata = params->m_Userdata;
@@ -158,25 +238,8 @@ namespace dmHttpClient
         client->m_MaxGetRetries = 4;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
-
-        client->m_UseSocksProxy = getenv("DMSOCKS_PROXY") != 0;
         client->m_Secure = secure;
-        if (secure) {
-            // We set SSL_SERVER_VERIFY_LATER to handle self-signed certificates
-            // We should manually and optionally verify certificates
-            // with ssl_verify_cert() but it require that root-certs
-            // are bundled in the engine and some kind of lazy loading
-            // mechanism as we can't load every possible certificate for
-            // every connections. It's possible to introspect the SSL object
-            // to find out which certificates to load.
-            int options = SSL_SERVER_VERIFY_LATER;
-
-            // We create a context per client as axTLS isn't configured as thread-safe.
-            client->m_SSLContext = ssl_ctx_new(options, 4); // 4 is number of sessions to cache and currently arbitrary
-        } else {
-            client->m_SSLContext = 0;
-        }
-        client->m_SSLConnection = 0;
+        client->m_Port = port;
 
         return client;
     }
@@ -203,89 +266,13 @@ namespace dmHttpClient
 
     void Delete(HClient client)
     {
-        if (client->m_Socket != dmSocket::INVALID_SOCKET_HANDLE)
-        {
-            dmSocket::Delete(client->m_Socket);
-        }
         free(client->m_Hostname);
-
-        if (client->m_SSLConnection != 0) {
-            ssl_free(client->m_SSLConnection);
-        }
-
-        if (client->m_SSLContext) {
-            ssl_ctx_free(client->m_SSLContext);
-        }
         delete client;
     }
 
     dmSocket::Result GetLastSocketResult(HClient client)
     {
         return client->m_SocketResult;
-    }
-
-    static Result ConnectSocket(HClient client)
-    {
-        if (client->m_UseSocksProxy)
-        {
-            dmSocksProxy::Result socks_result = dmSocksProxy::Connect(client->m_Address, client->m_Port, &client->m_Socket, &client->m_SocketResult);
-            if (socks_result != dmSocksProxy::RESULT_OK)
-            {
-                return RESULT_SOCKET_ERROR;
-            }
-        }
-        else
-        {
-            dmSocket::Result sock_result = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client->m_Socket);
-            if (sock_result != dmSocket::RESULT_OK)
-            {
-                client->m_SocketResult = sock_result;
-                return RESULT_SOCKET_ERROR;
-            }
-
-            sock_result = dmSocket::Connect(client->m_Socket, client->m_Address, client->m_Port);
-            if (sock_result != dmSocket::RESULT_OK)
-            {
-                client->m_SocketResult = sock_result;
-                dmSocket::Delete(client->m_Socket);
-                return RESULT_SOCKET_ERROR;
-            }
-        }
-
-        return RESULT_OK;
-    }
-
-    static Result Connect(HClient client)
-    {
-        if (client->m_Socket == dmSocket::INVALID_SOCKET_HANDLE) {
-            if (client->m_SSLConnection != 0) {
-                ssl_free(client->m_SSLConnection);
-                client->m_SSLConnection = 0;
-            }
-
-            Result r = ConnectSocket(client);
-            if (r == RESULT_OK) {
-                if (client->m_Secure) {
-                    SSL* ssl = ssl_client_new(client->m_SSLContext,
-                                              dmSocket::GetFD(client->m_Socket),
-                                              client->m_SSLSessionID,
-                                              sizeof(client->m_SSLSessionID));
-
-                    int hs = ssl_handshake_status(ssl);
-                    if (hs != SSL_OK) {
-                        r = RESULT_HANDSHAKE_FAILED;
-                        dmLogWarning("SSL handshake failed (%d)", hs);
-                        ssl_free(ssl);
-                        ssl = 0;
-                        dmSocket::Delete(client->m_Socket);
-                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-                    }
-                    client->m_SSLConnection = ssl;
-                }
-            }
-            return r;
-        }
-        return RESULT_OK;
     }
 
     static dmSocket::Result SSLToSocket(int r) {
@@ -308,10 +295,10 @@ namespace dmHttpClient
         }
     }
 
-    static dmSocket::Result SendAll(HClient client, const char* buffer, int length)
+    static dmSocket::Result SendAll(Response* response, const char* buffer, int length)
     {
-        if (client->m_Secure) {
-            int r = ssl_write(client->m_SSLConnection, (const uint8_t*) buffer, length);
+        if (response->m_SSLConnection != 0) {
+            int r = ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length);
             if (r != length) {
                 return SSLToSocket(r);
             }
@@ -321,7 +308,7 @@ namespace dmHttpClient
             int sent_bytes = 0;
 
             while (total_sent_bytes < length) {
-                dmSocket::Result r = dmSocket::Send(client->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
+                dmSocket::Result r = dmSocket::Send(response->m_Socket, buffer + total_sent_bytes, length - total_sent_bytes, &sent_bytes);
                 if (r == dmSocket::RESULT_TRY_AGAIN)
                     continue;
 
@@ -335,14 +322,14 @@ namespace dmHttpClient
         }
     }
 
-    static dmSocket::Result Receive(HClient client, void* buffer, int length, int* received_bytes)
+    static dmSocket::Result Receive(Response* response, void* buffer, int length, int* received_bytes)
     {
-        if (client->m_Secure) {
+        if (response->m_SSLConnection != 0) {
             uint8_t* buf = 0;
 
             int r;
             do {
-                r = ssl_read(client->m_SSLConnection, &buf);
+                r = ssl_read(response->m_SSLConnection, &buf);
             } while (r == SSL_OK);
 
             if (r >= 0) {
@@ -365,7 +352,7 @@ namespace dmHttpClient
                 return SSLToSocket(r);
             }
         } else {
-            return dmSocket::Receive(client->m_Socket, buffer, length, received_bytes);
+            return dmSocket::Receive(response->m_Socket, buffer, length, received_bytes);
         }
     }
 
@@ -421,7 +408,7 @@ namespace dmHttpClient
         HClient c = resp->m_Client;
         if (c->m_HttpHeader)
         {
-            resp->m_Client->m_HttpHeader(c, c->m_Userdata, resp->m_Status, key, value);
+            resp->m_Client->m_HttpHeader(resp, c->m_Userdata, resp->m_Status, key, value);
         }
     }
 
@@ -434,11 +421,10 @@ namespace dmHttpClient
     static Result RecvAndParseHeaders(HClient client, Response* response)
     {
         response->m_TotalReceived = 0;
-        int total_recv = 0;
 
         while (1)
         {
-            int max_to_recv = BUFFER_SIZE - total_recv;
+            int max_to_recv = BUFFER_SIZE - response->m_TotalReceived;
 
             if (max_to_recv <= 0)
             {
@@ -446,7 +432,7 @@ namespace dmHttpClient
             }
 
             int recv_bytes;
-            dmSocket::Result r = Receive(client, client->m_Buffer + total_recv, max_to_recv, &recv_bytes);
+            dmSocket::Result r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
             if (r == dmSocket::RESULT_TRY_AGAIN)
                 continue;
 
@@ -456,10 +442,10 @@ namespace dmHttpClient
                 return RESULT_SOCKET_ERROR;
             }
 
-            total_recv += recv_bytes;
+            response->m_TotalReceived += recv_bytes;
 
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
-            client->m_Buffer[total_recv] = '\0';
+            client->m_Buffer[response->m_TotalReceived] = '\0';
 
             dmHttpClientPrivate::ParseResult parse_res;
             parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, &HandleVersion, &HandleHeader, &HandleContent);
@@ -486,16 +472,16 @@ namespace dmHttpClient
             }
         }
 
-        response->m_TotalReceived = total_recv;
         return RESULT_OK;
     }
 
-    Result Write(HClient client, const void* buffer, uint32_t buffer_size)
+    Result Write(HResponse response, const void* buffer, uint32_t buffer_size)
     {
+        HClient client = response->m_Client;
         if (client->m_SocketResult != dmSocket::RESULT_OK) {
             return RESULT_SOCKET_ERROR;
         }
-        dmSocket::Result sock_res = SendAll(client, (const char*) buffer, buffer_size);
+        dmSocket::Result sock_res = SendAll(response, (const char*) buffer, buffer_size);
         if (sock_res != dmSocket::RESULT_OK)
         {
             client->m_SocketResult = sock_res;
@@ -505,8 +491,9 @@ namespace dmHttpClient
         return RESULT_OK;
     }
 
-    Result WriteHeader(HClient client, const char* name, const char* value)
+    Result WriteHeader(HResponse response, const char* name, const char* value)
     {
+        HClient client = response->m_Client;
         if (client->m_SocketResult != dmSocket::RESULT_OK) {
             return RESULT_SOCKET_ERROR;
         }
@@ -515,7 +502,7 @@ namespace dmHttpClient
         char buf[1024];
         DM_SNPRINTF(buf, sizeof(buf), "%s: %s\r\n", name, value);
 
-        sock_res = SendAll(client, buf, strlen(buf));
+        sock_res = SendAll(response, buf, strlen(buf));
         if (sock_res != dmSocket::RESULT_OK) {
             client->m_SocketResult = sock_res;
             return RESULT_SOCKET_ERROR;
@@ -524,7 +511,7 @@ namespace dmHttpClient
     }
 
 #define HTTP_CLIENT_SENDALL_AND_BAIL(s) \
-sock_res = SendAll(client, s, strlen(s));\
+sock_res = SendAll(response, s, strlen(s));\
 if (sock_res != dmSocket::RESULT_OK)\
 {\
     client->m_SocketResult = sock_res;\
@@ -532,7 +519,7 @@ if (sock_res != dmSocket::RESULT_OK)\
 }\
 
 
-    static dmSocket::Result SendRequest(HClient client, const char* encoded_path, const char* method)
+    static dmSocket::Result SendRequest(HClient client, HResponse response, const char* encoded_path, const char* method)
     {
         dmSocket::Result sock_res;
         uint32_t send_content_length = 0;
@@ -545,7 +532,7 @@ if (sock_res != dmSocket::RESULT_OK)\
         HTTP_CLIENT_SENDALL_AND_BAIL(client->m_Hostname);
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
         if (client->m_HttpWriteHeaders) {
-            Result header_result = client->m_HttpWriteHeaders(client, client->m_Userdata);
+            Result header_result = client->m_HttpWriteHeaders(response, client->m_Userdata);
             if (header_result != RESULT_OK) {
                 goto bail;
             }
@@ -563,7 +550,7 @@ if (sock_res != dmSocket::RESULT_OK)\
         }
 
         if (strcmp(method, "POST") == 0) {
-            send_content_length = client->m_HttpSendContentLength(client, client->m_Userdata);
+            send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
             HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
             char buf[64];
             DM_SNPRINTF(buf, sizeof(buf), "%d", send_content_length);
@@ -575,7 +562,7 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         if (strcmp(method, "POST") == 0)
         {
-            Result post_result = client->m_HttpWrite(client, client->m_Userdata);
+            Result post_result = client->m_HttpWrite(response, client->m_Userdata);
             if (post_result != RESULT_OK) {
                 goto bail;
             }
@@ -583,8 +570,6 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         return client->m_SocketResult;
 bail:
-        dmSocket::Delete(client->m_Socket);
-        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
         return client->m_SocketResult;
     }
 
@@ -602,7 +587,7 @@ bail:
             } else {
                 n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
             }
-            http_content(client, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n);
+            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n);
 
             if (response->m_CacheCreator && add_to_cache)
             {
@@ -627,7 +612,7 @@ bail:
             response->m_TotalReceived = 0;
 
             int recv_bytes;
-            dmSocket::Result sock_res = Receive(client, client->m_Buffer, BUFFER_SIZE, &recv_bytes);
+            dmSocket::Result sock_res = Receive(response, client->m_Buffer, BUFFER_SIZE, &recv_bytes);
             if (sock_res == dmSocket::RESULT_OK)
             {
                 if (recv_bytes == 0)
@@ -665,16 +650,16 @@ bail:
         }
     }
 
-    static void HttpContentConsume(HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void HttpContentConsume(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
-        (void) client;
+        (void) response;
         (void) user_data;
         (void) status_code;
         (void) content_data;
         (void) content_data_size;
     }
 
-    static Result HandleCached(HClient client, const char* path, const Response* response)
+    static Result HandleCached(HClient client, const char* path, Response* response)
     {
         client->m_Statistics.m_CachedResponses++;
 
@@ -706,7 +691,7 @@ bail:
             {
                 nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
                 client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(client, client->m_Userdata, response->m_Status, client->m_Buffer, nread);
+                client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread);
             }
             while (nread > 0);
             dmHttpCache::Release(client->m_HttpCache, client->m_URI, response->m_ETag, file);
@@ -776,20 +761,16 @@ bail:
 
                     if (max_to_recv <= 0)
                     {
-                        dmSocket::Delete(client->m_Socket);
-                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                         return RESULT_HTTP_HEADERS_ERROR;
                     }
 
                     int recv_bytes;
-                    dmSocket::Result sock_r = Receive(client, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
+                    dmSocket::Result sock_r = Receive(response, client->m_Buffer + response->m_TotalReceived, max_to_recv, &recv_bytes);
                     if (sock_r == dmSocket::RESULT_TRY_AGAIN)
                         continue;
 
                     if (sock_r != dmSocket::RESULT_OK)
                     {
-                        dmSocket::Delete(client->m_Socket);
-                        client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                         return RESULT_SOCKET_ERROR;
                     }
                     response->m_TotalReceived += recv_bytes;
@@ -806,34 +787,23 @@ bail:
         return r;
     }
 
-    Result DoRequest(HClient client, const char* path, const char* method)
+    Result DoDoRequest(HClient client, Response& response, const char* path, const char* method)
     {
-        Response response(client);
-        client->m_Statistics.m_Responses++;
-
-        client->m_SocketResult = dmSocket::RESULT_OK;
-        Result r = Connect(client);
-        if (r != RESULT_OK)
-            return r;
-
         dmSocket::Result sock_res;
 
         char encoded_path[DMPATH_MAX_PATH];
         dmURI::Encode(path, encoded_path, DMPATH_MAX_PATH);
-        sock_res = SendRequest(client, encoded_path, method);
+        sock_res = SendRequest(client, &response, encoded_path, method);
 
         if (sock_res != dmSocket::RESULT_OK)
         {
-            dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_SOCKET_ERROR;
         }
 
-        r = RecvAndParseHeaders(client, &response);
+        Result r = RecvAndParseHeaders(client, &response);
         if (r != RESULT_OK)
         {
-            dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+            response.m_CloseConnection = 1;
             return r;
         }
 
@@ -890,27 +860,61 @@ bail:
 
         if (r == RESULT_OK)
         {
-            if (response.m_CloseConnection)
-            {
-                dmSocket::Delete(client->m_Socket);
-                client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-            }
-
             if (response.m_Status == 200)
                 return RESULT_OK;
             else
                 return RESULT_NOT_200_OK;
         }
-        else
-        {
-            dmSocket::Delete(client->m_Socket);
-            client->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
-        }
         return r;
+    }
+
+    Result DoRequest(HClient client, const char* path, const char* method)
+    {
+        // Theoretically we can be in a state where every
+        // connections in the pool is closed by the remote peer
+        // but not yet closed on the client side (max-keep-alive)
+        // Therefore we must loop MAX_POOL_CONNECTIONS + 1 times.
+        // The assumption holds only for a single-threaded environment though
+        // but as network errors will occur in practice the heuristic is probably
+        // "good enough".
+        for (int i = 0; i < MAX_POOL_CONNECTIONS + 1; ++i) {
+            Response response(client);
+            client->m_Statistics.m_Responses++;
+
+            client->m_SocketResult = dmSocket::RESULT_OK;
+            Result r = response.Connect(client->m_Hostname, client->m_Port, client->m_Secure);
+            if (r != RESULT_OK)
+                return r;
+
+            r = DoDoRequest(client, response, path, method);
+            if (r != RESULT_OK && r != RESULT_NOT_200_OK) {
+                response.m_CloseConnection = 1;
+                uint32_t count = dmConnectionPool::GetReuseCount(response.m_Pool, response.m_Connection);
+
+                if (count > 0 && response.m_TotalReceived == 0) {
+                    client->m_Statistics.m_Reconnections++;
+                    // We assume that the connection was closed by remote peer
+                    // as the total received data is zero bytes.
+                    // Moreover, the case when the connection was closed by the remote
+                    // peer is only interesting if the connection is reused, i.e. count > 0
+                    // Otherwise, we have to regard this type of connection shutdown as
+                    // an error.
+
+                    // implicit continue here
+                } else {
+                    return r;
+                }
+            } else {
+                return r;
+            }
+        }
+        dmLogWarning("All connection attempts to remote host are prematurely closed. This error is very unlikely.");
+        return RESULT_UNKNOWN;
     }
 
     static Result HandleCachedVerified(HClient client, const dmHttpCache::EntryInfo* info)
     {
+        Response response(client);
         client->m_Statistics.m_DirectFromCache++;
 
         FILE* file = 0;
@@ -925,7 +929,7 @@ bail:
             {
                 nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
                 client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(client, client->m_Userdata, 304, client->m_Buffer, nread);
+                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread);
             }
             while (nread > 0);
             dmHttpCache::Release(client->m_HttpCache, client->m_URI, info->m_ETag, file);
@@ -969,8 +973,10 @@ bail:
                (r == RESULT_SOCKET_ERROR && (client->m_SocketResult == dmSocket::RESULT_CONNRESET || client->m_SocketResult == dmSocket::RESULT_PIPE)))
             {
                 // Try again
-                client->m_Statistics.m_Reconnections++;
-                dmLogInfo("HTTPCLIENT: Connection lost, reconnecting.");
+                if (i < client->m_MaxGetRetries - 1) {
+                    client->m_Statistics.m_Reconnections++;
+                    dmLogInfo("HTTPCLIENT: Connection lost, reconnecting.");
+                }
             }
             else
             {

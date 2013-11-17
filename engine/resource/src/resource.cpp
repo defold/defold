@@ -154,7 +154,7 @@ void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
     params->m_BuiltinsArchiveSize = 0;
 }
 
-static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
+static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
 {
     SResourceFactory* factory = (SResourceFactory*) user_data;
     factory->m_HttpStatus = status_code;
@@ -165,7 +165,7 @@ static void HttpHeader(dmHttpClient::HClient client, void* user_data, int status
     }
 }
 
-static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
 {
     SResourceFactory* factory = (SResourceFactory*) user_data;
     (void) status_code;

@@ -69,13 +69,6 @@ def configure(conf):
     conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_EXTENSION'] = 'extension'
 
-    if sys.platform == "linux2":
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    elif platform == "darwin":
-        conf.env['LIB_PLATFORM_SOCKET'] = ''
-    else:
-        conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32'
-
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="RENDER"')
 

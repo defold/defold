@@ -31,6 +31,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
@@ -56,9 +57,19 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
-    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl'
+    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl'.split(' ')
+
+    if re.match('arm.*?android', bld.env.PLATFORM):
+        source_dirs.append('dlib/linux')
+    elif 'darwin' in bld.env.PLATFORM:
+        source_dirs.append('dlib/darwin')
+    elif 'win32' in bld.env.PLATFORM:
+        source_dirs.append('dlib/win32')
+    elif ('linux'  in bld.env.PLATFORM) or ('android' in bld.env.PLATFORM):
+        source_dirs.append('dlib/linux')
+
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
-    extra_defines = ['ZLIB_CONST']
+    extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING']
     if bld.env.PLATFORM != 'win32':
         extra_defines.append('Z_HAVE_UNISTD_H')
         extra_defines.append('HAVE_HIDDEN')

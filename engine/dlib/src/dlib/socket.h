@@ -85,6 +85,22 @@ namespace dmSocket
         SELECTOR_KIND_EXCEPT = 2,
     };
 
+    enum Flags
+    {
+        FLAGS_UP = (1 << 0),
+        FLAGS_RUNNING = (1 << 1),
+        FLAGS_INET = (1 << 2),
+        FLAGS_LINK = (1 << 3),
+    };
+
+    struct IfAddr
+    {
+        char     m_Name[128];
+        uint32_t m_Flags;
+        Address  m_Address;
+        uint8_t  m_MacAddress[6];
+    };
+
     struct Selector;
     void SelectorZero(Selector* selector);
 
@@ -398,6 +414,16 @@ namespace dmSocket
      * @return RESULT_OK on success
      */
     Result GetHostByName(const char* name, Address* address);
+
+    /**
+     * Get information about network adapters (loopback devices are not included)
+     * @note Make sure that addresses is large enough. If too small
+     * the result is capped.
+     * @param addresses array of if-addresses
+     * @param addresses_count count
+     * @param count actual count
+     */
+    void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count);
 
     /**
      * Convert result value to string

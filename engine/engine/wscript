@@ -46,8 +46,6 @@ def configure(conf):
 
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-        # In order to get accurate result from the memory profiler this is necessary
-        conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
     elif re.match('arm.*?darwin', platform):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL'])
         # For Facebook SDK...

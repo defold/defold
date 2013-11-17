@@ -3,6 +3,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/pprint.h>
 #include <extension/extension.h>
 
 #include "script_private.h"
@@ -49,6 +50,7 @@ namespace dmScript
     }
 
     int LuaPrint(lua_State* L);
+    int LuaPPrint(lua_State* L);
 
 #define RANDOM_SEED "__random_seed"
 
@@ -115,6 +117,7 @@ namespace dmScript
         InitializeZlib(L);
 
         lua_register(L, "print", LuaPrint);
+        lua_register(L, "pprint", LuaPPrint);
 
         lua_getglobal(L, "math");
         if (!lua_isnil(L, -1)) {
@@ -223,6 +226,89 @@ namespace dmScript
             lua_pop(L, 1);
         }
         dmLogUserDebug("%s", buffer);
+        lua_pop(L, 1);
+        assert(n == lua_gettop(L));
+        return 0;
+    }
+
+    static int DoLuaPPrintTable(lua_State*L, int index, dmPPrint::Printer* printer) {
+        int top = lua_gettop(L);
+
+        lua_pushvalue(L, index);
+        lua_pushnil(L);
+
+        printer->Printf("{\n");
+        printer->Indent(2);
+
+        while (lua_next(L, -2) != 0) {
+            int key_type = lua_type(L, -2);
+            int value_type = lua_type(L, -1);
+
+            lua_pushvalue(L, -2);
+            const char *s1;
+            const char *s2;
+            lua_getglobal(L, "tostring");
+            lua_pushvalue(L, -2);
+            lua_call(L, 1, 1);
+            s1 = lua_tostring(L, -1);
+            if (s1 == 0x0)
+                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+            lua_pop(L, 1);
+
+            lua_getglobal(L, "tostring");
+            lua_pushvalue(L, -3);
+            lua_call(L, 1, 1);
+            s2 = lua_tostring(L, -1);
+            if (s2 == 0x0)
+                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+            lua_pop(L, 1);
+
+            if (value_type == LUA_TTABLE) {
+                printer->Printf("%s = ", s1);
+                DoLuaPPrintTable(L, -2, printer);
+            } else {
+                printer->Printf("%s = %s,\n", s1, s2);
+            }
+
+            lua_pop(L, 2);
+        }
+
+        printer->Indent(-2);
+        printer->Printf("}\n");
+
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# pretty printing
+     * Pretty printing of lua values
+     *
+     * @name pprint
+     * @param v value to print
+     */
+    int LuaPPrint(lua_State* L)
+    {
+        int n = lua_gettop(L);
+
+        char buf[2048];
+        dmPPrint::Printer printer(buf, sizeof(buf));
+        if (lua_type(L, 1) == LUA_TTABLE) {
+            printer.Printf("\n");
+            DoLuaPPrintTable(L, 1, &printer);
+        } else {
+            lua_getglobal(L, "tostring");
+            lua_pushvalue(L, 1);
+            lua_call(L, 1, 1);
+            const char* s = lua_tostring(L, -1);
+            if (s == 0x0)
+                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+            printer.Printf("%s", s);
+            lua_pop(L, 1);
+        }
+
+        dmLogUserDebug("%s", buf);
+        assert(n == lua_gettop(L));
         return 0;
     }
 
