@@ -71,6 +71,7 @@ namespace dmParticle
         ANIM_PLAYBACK_LOOP_FORWARD = 3,
         ANIM_PLAYBACK_LOOP_BACKWARD = 4,
         ANIM_PLAYBACK_LOOP_PINGPONG = 5,
+        ANIM_PLAYBACK_ONCE_PINGPONG = 6,
     };
 
     struct AnimationData

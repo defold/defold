@@ -146,7 +146,10 @@ namespace dmGameSystem
             component->m_CurrentAnimation = animation_id;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             component->m_PlayBackwards = 0;
-            component->m_AnimInvDuration = (float)animation->m_Fps / (animation->m_End - animation->m_Start);
+            uint32_t frame_count = animation->m_End - animation->m_Start;
+            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG)
+                frame_count = frame_count * 2 - 1;
+            component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;
             component->m_AnimTimer = 0.0f;
             component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
         }
@@ -275,6 +278,12 @@ namespace dmGameSystem
         if (backwards)
             t = 1.0f - t;
         uint32_t frame_count = anim_ddf->m_End - anim_ddf->m_Start;
+        if (anim_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG)
+        {
+            if (t > 0.5f)
+                t = 1.0f - t;
+            frame_count = frame_count * 2 - 1;
+        }
         uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
         return frame + anim_ddf->m_Start;
     }
@@ -535,7 +544,8 @@ namespace dmGameSystem
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
 
             bool once = animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
-                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD;
+                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
+                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG;
             // Stop once-animation and broadcast animation_done
             if (once && component->m_AnimTimer >= 1.0f)
             {
@@ -614,6 +624,7 @@ namespace dmGameSystem
                 {
                     case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
                     case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
+                    case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG:
                         component->m_AnimTimer = 1.0f;
                         break;
                     default:

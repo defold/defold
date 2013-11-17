@@ -852,6 +852,9 @@ namespace dmParticle
         uint32_t start_tile = anim_data.m_StartTile;
         uint32_t end_tile = anim_data.m_EndTile;
         uint32_t tile_count = end_tile - start_tile;
+        AnimPlayback playback = anim_data.m_Playback;
+        if (playback == ANIM_PLAYBACK_ONCE_PINGPONG)
+            tile_count = tile_count * 2 - 1;
         float inv_anim_length = anim_data.m_FPS / (float)tile_count;
         float* tex_coords = anim_data.m_TexCoords;
         float width_factor = 1.0f;
@@ -866,9 +869,8 @@ namespace dmParticle
         }
         bool hFlip = anim_data.m_HFlip != 0;
         bool vFlip = anim_data.m_VFlip != 0;
-        AnimPlayback playback = anim_data.m_Playback;
         bool anim_playing = playback != ANIM_PLAYBACK_NONE && tile_count > 1;
-        bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD;
+        bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_ONCE_PINGPONG;
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
         bool anim_ping_pong = playback == ANIM_PLAYBACK_LOOP_PINGPONG;
         // Extent for each vertex, scale by half
@@ -924,6 +926,8 @@ namespace dmParticle
                 if (anim_once) // stretch over particle life
                 {
                     float anim_t = anim_cursor * particle->GetooMaxLifeTime();
+                    if (playback == ANIM_PLAYBACK_ONCE_PINGPONG && anim_t > 0.5f)
+                        anim_t = 1.0f - anim_t;
                     tile = (uint32_t)(tile_count * anim_t);
                 }
                 else // use anim FPS

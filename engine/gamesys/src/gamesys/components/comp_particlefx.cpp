@@ -425,6 +425,9 @@ namespace dmGameSystem
             case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
                 out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
                 break;
+            case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG:
+                out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_PINGPONG;
+                break;
             case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD:
                 out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
                 break;
