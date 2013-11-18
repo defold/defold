@@ -488,6 +488,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->

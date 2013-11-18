@@ -61,6 +61,8 @@ namespace dmSys
         char m_Territory[8];
         /// Offset to GMT in minutes
         int  m_GmtOffset;
+        /// Unique device identifier, e.g. "identifierForVendor" on iOS
+        char m_DeviceIdentifier[64];
     };
 
     /**
