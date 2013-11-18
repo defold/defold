@@ -20,6 +20,7 @@ Licenses
 * **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
 * **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
 * **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
+* **md5** Based on md5 in axTLS
 
 
 Tagging
