@@ -557,6 +557,7 @@ namespace dmGameSystem
                     dmGameSystemDDF::AnimationDone message;
                     // Engine has 0-based indices, scripts use 1-based
                     message.m_CurrentTile = GetCurrentTile(component, animation_ddf) - animation_ddf->m_Start + 1;
+                    message.m_Id = component->m_CurrentAnimation;
                     dmMessage::URL receiver;
                     receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
                     dmMessage::URL sender;

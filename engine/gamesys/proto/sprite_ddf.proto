@@ -67,10 +67,12 @@ message PlayAnimation
  * @message
  * @name animation_done
  * @param current_tile the current tile of the sprite (number)
+ * @param id id of the animation that was completed (hash)
  */
 message AnimationDone
 {
     required uint32 current_tile = 1;
+    required uint64 id = 2;
 }
 
 /* Function wrapper documented in gamesys_script.cpp */
