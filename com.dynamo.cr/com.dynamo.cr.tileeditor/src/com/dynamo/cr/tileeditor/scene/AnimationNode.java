@@ -152,31 +152,40 @@ public class AnimationNode extends Node implements Identifiable {
         return this.currentTile;
     }
 
+    public int getTileCount() {
+        int tileCount = this.endTile - this.startTile + 1;
+        if (this.playback == Playback.PLAYBACK_ONCE_PINGPONG || this.playback == Playback.PLAYBACK_LOOP_PINGPONG) {
+            tileCount = Math.max(1, 2 * tileCount - 2);
+        }
+        return tileCount;
+    }
+
     public void setCursor(float cursor) {
         this.cursor = cursor;
         if (this.playback != Playback.PLAYBACK_NONE) {
-            int tile = (int)(cursor * this.fps);
-            int tileCount = this.endTile - this.startTile + 1;
-            boolean once = this.playback == Playback.PLAYBACK_ONCE_FORWARD || this.playback == Playback.PLAYBACK_ONCE_BACKWARD;
+            int tileCount = getTileCount();
+            float duration = tileCount / this.fps;
+            float t = cursor / duration;
+            boolean once = this.playback == Playback.PLAYBACK_ONCE_FORWARD
+                    || this.playback == Playback.PLAYBACK_ONCE_BACKWARD
+                    || this.playback == Playback.PLAYBACK_ONCE_PINGPONG;
             if (once) {
-                if (tile < 0) {
-                    tile = 0;
-                } else if (tile >= tileCount) {
-                    tile = tileCount - 1;
-                }
-            } else if (this.playback == Playback.PLAYBACK_LOOP_PINGPONG) {
-                // Length of one cycle, forward and backward
-                int cycleLength = tileCount * 2 - 2;
-                tile %= cycleLength;
-                if (tile >= tileCount) {
-                    tile = cycleLength - tile;
-                }
+                t = Math.min(1.0f, t);
             } else {
-                tile %= tileCount;
+                int lap = (int) Math.floor(t);
+                t -= lap;
             }
-            boolean backwards = this.playback == Playback.PLAYBACK_ONCE_BACKWARD || this.playback == Playback.PLAYBACK_LOOP_BACKWARD;
+            boolean backwards = this.playback == Playback.PLAYBACK_ONCE_BACKWARD
+                    || this.playback == Playback.PLAYBACK_LOOP_BACKWARD;
             if (backwards) {
-                tile = tileCount - 1 - tile;
+                t = 1.0f - t;
+            }
+            int tile = (int) Math.min(tileCount - 1, Math.floor(t * tileCount));
+            if (this.playback == Playback.PLAYBACK_ONCE_PINGPONG || this.playback == Playback.PLAYBACK_LOOP_PINGPONG) {
+                int interval = Math.max(1, tileCount / 2);
+                if (tile > interval) {
+                    tile = 2 * interval - tile;
+                }
             }
             this.currentTile = this.startTile + tile;
         } else {
@@ -185,11 +194,12 @@ public class AnimationNode extends Node implements Identifiable {
     }
 
     public boolean hasFinished() {
-        boolean once = this.playback == Playback.PLAYBACK_ONCE_FORWARD || this.playback == Playback.PLAYBACK_ONCE_BACKWARD;
+        boolean once = this.playback == Playback.PLAYBACK_ONCE_FORWARD
+                || this.playback == Playback.PLAYBACK_ONCE_BACKWARD || this.playback == Playback.PLAYBACK_ONCE_PINGPONG;
         if (once) {
-            int delta = (int)(cursor * this.fps);
-            int tileCount = this.endTile - this.startTile + 1;
-            return delta >= tileCount;
+            int tileCount = getTileCount();
+            float duration = tileCount / this.fps;
+            return this.cursor >= duration;
         } else if (this.playback == Playback.PLAYBACK_NONE) {
             return true;
         }

@@ -885,7 +885,7 @@ TEST_F(ParticleTest, Animation)
             {1, 1, 1, 1, 1, 0, 0, 0, 0, 0}, // none, 5-frame particle
             {1, 2, 3, 4, 5, 0, 0, 0, 0, 0}, // once fwd, 5-frame particle
             {5, 4, 3, 2, 1, 0, 0, 0, 0, 0}, // once bwd, 5-frame particle
-            {1, 2, 3, 4, 5, 4, 3, 2, 1, 0}, // once pingpong, 9-frame particle
+            {1, 2, 3, 4, 5, 4, 3, 2, 0, 0}, // once pingpong, 8-frame particle
             {1, 2, 3, 4, 5, 1, 2, 3, 4, 5}, // loop fwd, 10-frame particle
             {5, 4, 3, 2, 1, 5, 4, 3, 2, 1}, // loop bwd, 10-frame particle
             {1, 2, 3, 4, 5, 4, 3, 2, 1, 2}, // loop pingpong, 10-frame particle
