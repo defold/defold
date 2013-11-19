@@ -395,3 +395,12 @@ def build(bld):
                                  target = 'test_pprint')
 
     test_pprint.install_path = None
+
+    test_md5 = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_md5.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_md5')
+
+    test_md5.install_path = None

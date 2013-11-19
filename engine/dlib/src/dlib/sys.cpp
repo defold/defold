@@ -370,6 +370,7 @@ namespace dmSys
 #if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__))
     void GetSystemInfo(SystemInfo* info)
     {
+        memset(info, 0, sizeof(*info));
         struct utsname uts;
         uname(&uts);
 
@@ -392,6 +393,7 @@ namespace dmSys
 
     void GetSystemInfo(SystemInfo* info)
     {
+        memset(info, 0, sizeof(*info));
         dmStrlCpy(info->m_SystemName, "Android", sizeof(info->m_SystemName));
 
         ANativeActivity* activity = g_AndroidApp->activity;
@@ -426,6 +428,22 @@ namespace dmSys
         env->ReleaseStringUTFChars(modelObj, model);
         env->ReleaseStringUTFChars(releaseObj, release);
 
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_content_resolver_method = env->GetMethodID(activity_class, "getContentResolver", "()Landroid/content/ContentResolver;");
+        jobject content_resolver = env->CallObjectMethod(activity->clazz, get_content_resolver_method);
+
+        jclass secure_class = env->FindClass("android/provider/Settings$Secure");
+        if (secure_class) {
+            jstring android_id_string = env->NewStringUTF("android_id");
+            jmethodID get_string_method = env->GetStaticMethodID(secure_class, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
+            jstring android_id_obj = (jstring) env->CallStaticObjectMethod(secure_class, get_string_method, content_resolver, android_id_string);
+            const char* android_id = env->GetStringUTFChars(android_id_obj, NULL);
+            dmStrlCpy(info->m_DeviceIdentifier, android_id, sizeof(info->m_DeviceIdentifier));
+            env->ReleaseStringUTFChars(android_id_obj, android_id);
+        } else {
+            dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
+        }
+
         activity->vm->DetachCurrentThread();
     }
 #elif defined(_WIN32)
@@ -433,6 +451,7 @@ namespace dmSys
 
     void GetSystemInfo(SystemInfo* info)
     {
+        memset(info, 0, sizeof(*info));
         PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandle("kernel32.dll"), "GetUserDefaultLocaleName");
         dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));

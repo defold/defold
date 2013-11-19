@@ -84,6 +84,8 @@ namespace dmSys
 
     void GetSystemInfo(struct SystemInfo* info)
     {
+        memset(info, 0, sizeof(*info));
+
         UIDevice* d = [UIDevice currentDevice];
         struct utsname uts;
         uname(&uts);
@@ -96,6 +98,7 @@ namespace dmSys
         const char* lang = [locale.localeIdentifier UTF8String];
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+        dmStrlCpy(info->m_DeviceIdentifier, [[d.identifierForVendor UUIDString] UTF8String], sizeof(info->m_DeviceIdentifier));
     }
 
 #else
