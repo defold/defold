@@ -168,6 +168,7 @@ public class AndroidBundler {
                 //"--debug-mode",
                 "-S", resDir.getAbsolutePath(),
                 "-S", plugin.getFacebookResPath(),
+                "-S", plugin.getGooglePlayResPath(),
                 "-M", manifestFile.getAbsolutePath(),
                 "-I", plugin.getAndroirJarPath(),
                 "-F", ap1.getAbsolutePath());

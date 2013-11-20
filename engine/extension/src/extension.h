@@ -18,6 +18,7 @@ namespace dmExtension
     enum Result
     {
         RESULT_OK = 0,//!< RESULT_OK
+        RESULT_INIT_ERROR = -1,//!< RESULT_INIT_ERROR
     };
 
     /**
