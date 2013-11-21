@@ -640,9 +640,11 @@ def android_package(task):
             error('Error running dx')
             return 1
 
+        # We can't use with statement here due to http://bugs.python.org/issue5511
         from zipfile import ZipFile
-        with ZipFile(ap_, 'a') as f:
-            f.write(task.classes_dex.abspath(task.env), 'classes.dex')
+        f = ZipFile(ap_, 'a')
+        f.write(task.classes_dex.abspath(task.env), 'classes.dex')
+        f.close()
 
     apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
