@@ -90,6 +90,7 @@ namespace dmSys
         struct utsname uts;
         uname(&uts);
 
+        dmStrlCpy(info->m_Manufacturer, "Apple", sizeof(info->m_Manufacturer));
         dmStrlCpy(info->m_DeviceModel, uts.machine, sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, [d.systemName UTF8String], sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, [d.systemVersion UTF8String], sizeof(info->m_SystemVersion));

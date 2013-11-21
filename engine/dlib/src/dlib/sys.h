@@ -51,6 +51,8 @@ namespace dmSys
     {
         /// Device model where applicable, e.g. iPhone3,1
         char m_DeviceModel[32];
+        /// Device manufacturer if available
+        char m_Manufacturer[32];
         /// System name, i.e. OS name, e.g. "Darwin", "iPhone OS", "Linux", etc
         char m_SystemName[32];
         /// System version, e.g. 12.0.1
