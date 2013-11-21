@@ -302,6 +302,8 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         </array>
         <key>UIStatusBarHidden</key>
         <true/>
+        <key>UIViewControllerBasedStatusBarAppearance</key>
+        <false/>
         <key>UISupportedInterfaceOrientations</key>
         <array>
                 <string>UIInterfaceOrientationPortrait</string>
