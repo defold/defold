@@ -290,6 +290,9 @@ namespace dmScript
         lua_pushliteral(L, "device_model");
         lua_pushstring(L, info.m_DeviceModel);
         lua_rawset(L, -3);
+        lua_pushliteral(L, "manufacturer");
+        lua_pushstring(L, info.m_Manufacturer);
+        lua_rawset(L, -3);
         lua_pushliteral(L, "system_name");
         lua_pushstring(L, info.m_SystemName);
         lua_rawset(L, -3);

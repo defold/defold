@@ -105,9 +105,19 @@ By convention we currently have a weak reference to struct android\_app \* calle
 g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c. 
 Life-cycle support should probably be moved to dlib at some point.
 
+### Android Resources and R.java
 
-Android SDK/NDK
----------------
+Long story short. Static resources on Android are referred by an integer identifier. These identifiers are generated to a file R.java.
+The id:s generated are conceptually a serial number and with no guarantees about uniqueness. Due to this limitations **all** identifiers
+must be generated when the final application is built. As a consequence all resources must be available and it's not possible to package
+library resources in a jar. Moreover, one identical *R.java* must be generated for every package/library linked with the final application.
+
+This is a known limitation on Android.
+
+**NOTE:** Never ever package compiled **R*.class-files** with third party libraries as it doesn't work in general.
+
+### Android SDK/NDK
+
 
 * Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
   Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1.. 
@@ -117,8 +127,8 @@ Android SDK/NDK
 * Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
 * Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively 
 
-Android testing
----------------
+### Android testing
+
 Copy executable (or directory) with
 
     # adb push <DIR_OR_DIR> /data/local/tmp
@@ -131,14 +141,12 @@ Run exec with:
 
 For interactive shell run "adb shell"
 
-Caveats
--------
+### Caveats
 
 If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new 
 create message being sent (onCreate/android_main). The normal case is for the app to continue through e.g. onStart.
 
-Android debugging
------------------
+### Android debugging
 
 * Go to application bundle-dir in build/default/...,  e.g. build/default/examples/simple_gles2.android
 * Install and launch application

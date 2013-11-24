@@ -87,6 +87,27 @@ id<UIApplicationDelegate> g_ApplicationDelegate = 0;
 
 @implementation AppDelegateProxy
 
+// NOTE: Don't understand why this special case is required. "forwardInvocation" et al
+// should be able to intercept all invocations but for some unknown reason not handleOpenURL
+-(BOOL) application:(UIApplication *)application handleOpenURL:(NSURL *)url {
+    SEL sel = @selector(application:handleOpenURL:);
+    BOOL handled = NO;
+
+    if ([g_ApplicationDelegate respondsToSelector:sel]) {
+        if ([g_ApplicationDelegate application: application handleOpenURL: url])
+            handled = YES;
+    }
+
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if ([g_AppDelegates[i] respondsToSelector: sel]) {
+            if ([g_AppDelegates[i] application: application handleOpenURL: url])
+                handled = YES;
+        }
+    }
+
+    return handled;
+}
+
 - (void)forwardInvocation:(NSInvocation *)anInvocation {
     BOOL invoked = NO;
     if ([g_ApplicationDelegate respondsToSelector: [anInvocation selector]]) {

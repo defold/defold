@@ -1,4 +1,4 @@
-import os, sys, subprocess, shutil, re, stat
+import os, sys, subprocess, shutil, re, stat, glob
 import Build, Options, Utils, Task, Logs
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
@@ -302,6 +302,8 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
         </array>
         <key>UIStatusBarHidden</key>
         <true/>
+        <key>UIViewControllerBasedStatusBarAppearance</key>
+        <false/>
         <key>UISupportedInterfaceOrientations</key>
         <array>
                 <string>UIInterfaceOrientationPortrait</string>
@@ -461,6 +463,8 @@ def create_app_bundle(self):
         codesign.exe = self.link_task.outputs[0]
         codesign.signed_exe = signed_exe
 
+# TODO: We should support a custom AndroidManifest.xml-file in waf
+# Or at least a decent templating system, e.g. mustache
 ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 <!-- BEGIN_INCLUDE(manifest) -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -471,6 +475,12 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="9" />
     <application android:label="%(app_name)s" android:hasCode="true" android:debuggable="true">
+
+        <!-- For GCM (push) -->
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
                 android:configChanges="orientation|keyboardHidden"
@@ -484,11 +494,39 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
         </activity>
         <activity android:name="com.dynamo.android.DispatcherActivity" android:theme="@android:style/Theme.NoDisplay">
         </activity>
+
+        <!-- For GCM (push) -->
+        <activity android:name="com.defold.push.PushDispatchActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="com.defold.push.FORWARD" />
+                <category android:name="com.defold.push" />
+            </intent-filter>
+        </activity>
+        <receiver
+            android:name="com.defold.push.GcmBroadcastReceiver"
+            android:permission="com.google.android.c2dm.permission.SEND" >
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+                <action android:name="com.defold.push.FORWARD" />
+                <category android:name="com.defold.push" />
+            </intent-filter>
+        </receiver>
+
         %(extra_activities)s
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- For GCM (push) -->
+    <!-- NOTE: Package name from actual app here! -->
+    <permission android:name="%(package)s.permission.C2D_MESSAGE" android:protectionLevel="signature" />
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <!-- NOTE: Package name from actual app here! -->
+    <uses-permission android:name="%(package)s.permission.C2D_MESSAGE" />
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
 
 </manifest>
 <!-- END_INCLUDE(manifest) -->
@@ -509,6 +547,8 @@ void android_main(struct android_app* state)
 """
 
 def android_package(task):
+    # TODO: This is a complete mess and should be split in several smaller tasks!
+
     bld = task.generator.bld
 
     activities = ''
@@ -527,9 +567,11 @@ def android_package(task):
     dx = '%s/android-sdk/platform-tools/dx' % (ANDROID_ROOT)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
-    res_dir = '%s/ext/share/java/res' % (dynamo_home)
+    res_dirs = glob.glob('%s/ext/share/java/res/*' % (dynamo_home))
     manifest = task.manifest.abspath(task.env)
     dme_and = os.path.normpath(os.path.join(os.path.dirname(task.manifest.abspath(task.env)), '..', '..'))
+    r_java_gen_dir = task.r_java_gen_dir.abspath(task.env)
+    r_jar = task.r_jar.abspath(task.env)
 
     libs = os.path.join(dme_and, 'libs')
     bin = os.path.join(dme_and, 'bin')
@@ -545,10 +587,15 @@ def android_package(task):
     bld.exec_command('mkdir -p %s' % (bin_cls))
     bld.exec_command('mkdir -p %s' % (dx_libs))
     bld.exec_command('mkdir -p %s' % (gen))
+    bld.exec_command('mkdir -p %s' % (r_java_gen_dir))
     shutil.copy(task.native_lib_in.abspath(task.env), native_lib)
     shutil.copy('%s/android-ndk-r%s/prebuilt/android-arm/gdbserver/gdbserver' % (ANDROID_ROOT, ANDROID_NDK_VERSION), gdbserver)
 
-    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt')))
+    res_args = ""
+    for d in res_dirs:
+        res_args += ' -S %s' % d
+
+    ret = bld.exec_command('%s package -f -m --output-text-symbols %s --auto-add-overlay -M %s -I %s -J %s --generate-dependencies -G %s %s' % (aapt, bin, manifest, android_jar, gen, os.path.join(bin, 'proguard.txt'), res_args))
     if ret != 0:
         error('Error running aapt')
         return 1
@@ -558,11 +605,35 @@ def android_package(task):
     for jar in task.jars:
         dx_jar = os.path.join(dx_libs, os.path.basename(jar))
         dx_jars.append(jar)
+    dx_jars.append(r_jar)
 
-    ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s -S %s -F %s' % (aapt, manifest, android_jar, res_dir, ap_))
+    if task.extra_packages:
+        extra_packages_cmd = '--extra-packages %s' % task.extra_packages[0]
+    else:
+        extra_packages_cmd = ''
 
+    ret = bld.exec_command('%s package --no-crunch -f --debug-mode --auto-add-overlay -M %s -I %s %s -F %s -m -J %s %s' % (aapt, manifest, android_jar, res_args, ap_, r_java_gen_dir, extra_packages_cmd))
     if ret != 0:
         error('Error running aapt')
+        return 1
+
+    r_java_files = []
+    for root, dirs, files in os.walk(r_java_gen_dir):
+        for f in files:
+            p = os.path.join(root, f)
+            r_java_files.append(p)
+
+    ret = bld.exec_command('%s %s' % (task.env['JAVAC'][0], ' '.join(r_java_files)))
+    if ret != 0:
+        error('Error compiling R.java files')
+        return 1
+
+    for p in r_java_files:
+        os.unlink(p)
+
+    ret = bld.exec_command('%s cf %s -C %s .' % (task.env['JAR'][0], r_jar, r_java_gen_dir))
+    if ret != 0:
+        error('Error creating jar of compiled R.java files')
         return 1
 
     if dx_jars:
@@ -571,9 +642,11 @@ def android_package(task):
             error('Error running dx')
             return 1
 
+        # We can't use with statement here due to http://bugs.python.org/issue5511
         from zipfile import ZipFile
-        with ZipFile(ap_, 'a') as f:
-            f.write(task.classes_dex.abspath(task.env), 'classes.dex')
+        f = ZipFile(ap_, 'a')
+        f.write(task.classes_dex.abspath(task.env), 'classes.dex')
+        f.close()
 
     apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
@@ -620,8 +693,9 @@ def create_android_package(self):
     android_package_task.set_inputs(self.link_task.outputs)
     android_package_task.android_package = self.android_package
 
-    Utils.def_attrs(self, activities=[])
+    Utils.def_attrs(self, activities=[], extra_packages = "")
     android_package_task.activities = Utils.to_list(self.activities)
+    android_package_task.extra_packages = Utils.to_list(self.extra_packages)
 
     Utils.def_attrs(self, jars=[])
     android_package_task.jars = Utils.to_list(self.jars)
@@ -651,6 +725,9 @@ def create_android_package(self):
     android_package_task.apk = apk
 
     android_package_task.classes_dex = self.path.exclusive_build_node("%s.android/classes.dex" % (exe_name))
+
+    android_package_task.r_java_gen_dir = self.path.exclusive_build_node("%s.android/gen" % (exe_name))
+    android_package_task.r_jar = self.path.exclusive_build_node("%s.android/r.jar" % (exe_name))
 
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.exclusive_build_node("%s.android/jni/Android.mk" % (exe_name))

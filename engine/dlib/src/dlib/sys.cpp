@@ -416,15 +416,19 @@ namespace dmSys
         env->ReleaseStringUTFChars(languageObj, language);
 
         jclass build_class = env->FindClass("android/os/Build");
+        jstring manufacturerObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MANUFACTURER", "Ljava/lang/String;"));
         jstring modelObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MODEL", "Ljava/lang/String;"));
 
         jclass build_version_class = env->FindClass("android/os/Build$VERSION");
         jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
 
+        const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);
         const char* model = env->GetStringUTFChars(modelObj, NULL);
         const char* release = env->GetStringUTFChars(releaseObj, NULL);
+        dmStrlCpy(info->m_Manufacturer, manufacturer, sizeof(info->m_Manufacturer));
         dmStrlCpy(info->m_DeviceModel, model, sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
+        env->ReleaseStringUTFChars(manufacturerObj, manufacturer);
         env->ReleaseStringUTFChars(modelObj, model);
         env->ReleaseStringUTFChars(releaseObj, release);
 
