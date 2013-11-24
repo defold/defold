@@ -13,31 +13,32 @@ namespace dmGameObject
         PropertyVar m_Var;
     };
 
-    bool LuaToVar(lua_State* L, int index, PropertyVar& out_var)
+    PropertyResult LuaToVar(lua_State* L, int index, PropertyVar& out_var)
     {
-        switch (lua_type(L, index))
+        int type = lua_type(L, index);
+        switch (type)
         {
         case LUA_TNUMBER:
             out_var.m_Type = PROPERTY_TYPE_NUMBER;
             out_var.m_Number = lua_tonumber(L, index);
-            return true;
+            return PROPERTY_RESULT_OK;
         case LUA_TBOOLEAN:
             out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
             out_var.m_Bool = (bool) lua_toboolean(L, index);
-            return true;
+            return PROPERTY_RESULT_OK;
         case LUA_TUSERDATA:
             if (dmScript::IsHash(L, index))
             {
                 out_var.m_Type = PROPERTY_TYPE_HASH;
                 out_var.m_Hash = dmScript::CheckHash(L, index);
-                return true;
+                return PROPERTY_RESULT_OK;
             }
             else if (dmScript::IsURL(L, index))
             {
                 out_var.m_Type = PROPERTY_TYPE_URL;
                 dmMessage::URL* url = (dmMessage::URL*) out_var.m_URL;
                 *url = *dmScript::CheckURL(L, index);
-                return true;
+                return PROPERTY_RESULT_OK;
             }
             else if (dmScript::IsVector3(L, index))
             {
@@ -46,7 +47,7 @@ namespace dmGameObject
                 out_var.m_V4[0] = v.getX();
                 out_var.m_V4[1] = v.getY();
                 out_var.m_V4[2] = v.getZ();
-                return true;
+                return PROPERTY_RESULT_OK;
             }
             else if (dmScript::IsVector4(L, index))
             {
@@ -56,7 +57,7 @@ namespace dmGameObject
                 out_var.m_V4[1] = v.getY();
                 out_var.m_V4[2] = v.getZ();
                 out_var.m_V4[3] = v.getW();
-                return true;
+                return PROPERTY_RESULT_OK;
             }
             else if (dmScript::IsQuat(L, index))
             {
@@ -66,13 +67,17 @@ namespace dmGameObject
                 out_var.m_V4[1] = q.getY();
                 out_var.m_V4[2] = q.getZ();
                 out_var.m_V4[3] = q.getW();
-                return true;
+                return PROPERTY_RESULT_OK;
+            }
+            else
+            {
+                return PROPERTY_RESULT_UNSUPPORTED_TYPE;
             }
             break;
         default:
-            break;
+            dmLogError("Properties can not be of type '%s'.", lua_typename(L, type));
+            return PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
-        return false;
     }
 
     void LuaPushVar(lua_State* L, const PropertyVar& var)
@@ -108,7 +113,7 @@ namespace dmGameObject
         }
     }
 
-    bool CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
+    PropertyResult CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -123,9 +128,9 @@ namespace dmGameObject
                 if (lua_isstring(L, -2))
                 {
                     PropertyVar var;
-                    bool valid = LuaToVar(L, -1, var);
+                    PropertyResult result = LuaToVar(L, -1, var);
                     lua_pop(L, 1);
-                    if (valid)
+                    if (result == PROPERTY_RESULT_OK)
                     {
                         if (props.Full())
                             props.SetCapacity(props.Capacity() + 4);
@@ -136,9 +141,9 @@ namespace dmGameObject
                     }
                     else
                     {
-                        lua_pop(L, 1);
+                        lua_pop(L, 2);
                         assert(top == lua_gettop(L));
-                        return false;
+                        return result;
                     }
                 }
             }
@@ -151,7 +156,7 @@ namespace dmGameObject
             }
         }
         assert(top == lua_gettop(L));
-        return true;
+        return PROPERTY_RESULT_OK;
     }
 
     void DestroyPropertySetUserDataLua(uintptr_t user_data)

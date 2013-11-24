@@ -388,8 +388,8 @@ namespace dmGameObject
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
             return luaL_error(L, "could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
-        dmGameObject::PropertyResult result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
-        if (dmGameObject::LuaToVar(L, 3, property_var))
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+        if (result == PROPERTY_RESULT_OK)
         {
             result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_var);
         }
@@ -789,7 +789,8 @@ namespace dmGameObject
         if (playback >= PLAYBACK_COUNT)
             return luaL_error(L, "invalid playback mode when starting an animation");
         dmGameObject::PropertyVar property_var;
-        if (!dmGameObject::LuaToVar(L, 4, property_var))
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 4, property_var);
+        if (result != PROPERTY_RESULT_OK)
         {
             return luaL_error(L, "only numerical values can be used as target values for animation");
         }
@@ -813,8 +814,7 @@ namespace dmGameObject
             }
         }
 
-
-        dmGameObject::PropertyResult result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
+        result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
                 (Playback)playback, property_var, (dmEasing::Type)easing, duration, delay, stopped, userdata1, userdata2);
         switch (result)
         {
@@ -1542,7 +1542,28 @@ bail:
         assert(top == lua_gettop(L));
     }
 
-    void PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index)
+const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
+        "number", // PROPERTY_TYPE_NUMBER
+        "hash", // PROPERTY_TYPE_HASH
+        "msg.url", // PROPERTY_TYPE_URL
+        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
+        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
+        "vmath.quat", // PROPERTY_TYPE_QUAT
+        "boolean", // PROPERTY_TYPE_BOOLEAN
+};
+
+#define CHECK_PROP_RESULT(key, type, expected_type, result)\
+    if (result == PROPERTY_RESULT_OK) {\
+        if (type != expected_type) {\
+            dmLogError("The property '%s' must be of type '%s'.", key, TYPE_NAMES[expected_type]);\
+            result = PROPERTY_RESULT_TYPE_MISMATCH;\
+        }\
+    }\
+    if (result != PROPERTY_RESULT_OK) {\
+        return result;\
+    }
+
+    PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index)
     {
         const PropertyDeclarations* declarations = &script->m_LuaModule->m_Properties;
         PropertyVar var;
@@ -1550,11 +1571,9 @@ bail:
         for (uint32_t i = 0; i < count; ++i)
         {
             const PropertyDeclarationEntry& entry = declarations->m_NumberEntries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_NUMBER, result)
             lua_pushstring(L, entry.m_Key);
-            bool result = GetProperty(properties, entry.m_Id, var);
-            (void)result;
-            assert(result);
-            assert(var.m_Type == PROPERTY_TYPE_NUMBER);
             lua_pushnumber(L, var.m_Number);
             lua_settable(L, index - 2);
         }
@@ -1562,11 +1581,9 @@ bail:
         for (uint32_t i = 0; i < count; ++i)
         {
             const PropertyDeclarationEntry& entry = declarations->m_HashEntries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_HASH, result)
             lua_pushstring(L, entry.m_Key);
-            bool result = GetProperty(properties, entry.m_Id, var);
-            (void)result;
-            assert(result);
-            assert(var.m_Type == PROPERTY_TYPE_HASH);
             dmScript::PushHash(L, var.m_Hash);
             lua_settable(L, index - 2);
         }
@@ -1581,11 +1598,9 @@ bail:
              */
             var = PropertyVar();
             const PropertyDeclarationEntry& entry = declarations->m_UrlEntries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_URL, result)
             lua_pushstring(L, entry.m_Key);
-            bool result = GetProperty(properties, entry.m_Id, var);
-            (void)result;
-            assert(result);
-            assert(var.m_Type == PROPERTY_TYPE_URL);
             dmMessage::URL* url = (dmMessage::URL*) var.m_URL;
             dmScript::PushURL(L, *url);
             lua_settable(L, index - 2);
@@ -1594,11 +1609,9 @@ bail:
         for (uint32_t i = 0; i < count; ++i)
         {
             const PropertyDeclarationEntry& entry = declarations->m_Vector3Entries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_VECTOR3, result)
             lua_pushstring(L, entry.m_Key);
-            bool result = GetProperty(properties, entry.m_Id, var);
-            (void)result;
-            assert(result);
-            assert(var.m_Type == PROPERTY_TYPE_VECTOR3);
             dmScript::PushVector3(L, Vector3(var.m_V4[0], var.m_V4[1], var.m_V4[2]));
             lua_settable(L, index - 2);
         }
@@ -1606,11 +1619,9 @@ bail:
         for (uint32_t i = 0; i < count; ++i)
         {
             const PropertyDeclarationEntry& entry = declarations->m_Vector4Entries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_VECTOR4, result)
             lua_pushstring(L, entry.m_Key);
-            bool result = GetProperty(properties, entry.m_Id, var);
-            (void)result;
-            assert(result);
-            assert(var.m_Type == PROPERTY_TYPE_VECTOR4);
             dmScript::PushVector4(L, Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
             lua_settable(L, index - 2);
         }
@@ -1618,11 +1629,9 @@ bail:
         for (uint32_t i = 0; i < count; ++i)
         {
             const PropertyDeclarationEntry& entry = declarations->m_QuatEntries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_QUAT, result)
             lua_pushstring(L, entry.m_Key);
-            bool result = GetProperty(properties, entry.m_Id, var);
-            (void)result;
-            assert(result);
-            assert(var.m_Type == PROPERTY_TYPE_QUAT);
             dmScript::PushQuat(L, Quat(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]));
             lua_settable(L, index - 2);
         }
@@ -1630,14 +1639,13 @@ bail:
         for (uint32_t i = 0; i < count; ++i)
         {
             const PropertyDeclarationEntry& entry = declarations->m_BoolEntries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_BOOLEAN, result)
             lua_pushstring(L, entry.m_Key);
-            bool result = GetProperty(properties, entry.m_Id, var);
-            (void)result;
-            assert(result);
-            assert(var.m_Type == PROPERTY_TYPE_BOOLEAN);
             lua_pushboolean(L, var.m_Bool);
             lua_settable(L, index - 2);
         }
+        return PROPERTY_RESULT_OK;
     }
 
     // Documentation for the scripts

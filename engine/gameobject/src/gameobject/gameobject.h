@@ -492,7 +492,7 @@ namespace dmGameObject
     /**
      * Set a property set for the component.
      */
-    typedef void (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
+    typedef PropertyResult (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
 
     /**
      * Parameters to ComponentGetProperty callback.

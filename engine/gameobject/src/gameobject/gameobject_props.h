@@ -53,7 +53,7 @@ namespace dmGameObject
 
     void SetPropertySet(HProperties properties, PropertyLayer layer, const PropertySet& set);
 
-    bool GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
+    PropertyResult GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
 }
 
 #endif // GAMEOBJECT_PROPS_H

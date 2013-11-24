@@ -489,7 +489,7 @@ namespace dmGameObject
         assert(top == lua_gettop(g_LuaState));
     }
 
-    void CompScriptSetProperties(const ComponentSetPropertiesParams& params)
+    PropertyResult CompScriptSetProperties(const ComponentSetPropertiesParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
@@ -503,13 +503,14 @@ namespace dmGameObject
         dmScript::SetInstance(L);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
-        PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
+        PropertyResult result = PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
 
         lua_pushnil(L);
         dmScript::SetInstance(L);
 
         assert(top == lua_gettop(g_LuaState));
+        return result;
     }
 
     static bool FindPropertyNameFromEntries(dmPropertiesDDF::PropertyDeclarationEntry* entries, uint32_t entry_count, dmhash_t id, const char** out_key, dmhash_t** out_element_ids)
@@ -664,16 +665,14 @@ namespace dmGameObject
         lua_rawget(L, -2);
         if (!lua_isnil(L, -1))
         {
-            if (LuaToVar(L, -1, out_value.m_Variant))
+            result = LuaToVar(L, -1, out_value.m_Variant);
+            if (result == PROPERTY_RESULT_OK)
             {
                 if (is_element)
                 {
                     out_value.m_Variant = PropertyVar(out_value.m_Variant.m_V4[element_index]);
                 }
-                result = PROPERTY_RESULT_OK;
             }
-            else
-                result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
 
         lua_pop(L, 2);
@@ -728,14 +727,10 @@ namespace dmGameObject
             lua_rawget(L, -2);
             if (!lua_isnil(L, -1))
             {
-                if (LuaToVar(L, -1, var))
+                result = LuaToVar(L, -1, var);
+                if (result == PROPERTY_RESULT_OK)
                 {
                     var.m_V4[element_index] = (float) params.m_Value.m_Number;
-                    result = PROPERTY_RESULT_OK;
-                }
-                else
-                {
-                    result = PROPERTY_RESULT_UNSUPPORTED_TYPE;
                 }
             }
 

@@ -99,7 +99,7 @@ namespace dmGameObject
         }
     }
 
-    bool GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var)
+    PropertyResult GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var)
     {
         for (uint32_t i = 0; i < MAX_PROPERTY_LAYER_COUNT; ++i)
         {
@@ -107,13 +107,13 @@ namespace dmGameObject
             if (set.m_GetPropertyCallback != 0x0)
             {
                 PropertyResult result = set.m_GetPropertyCallback(properties, set.m_UserData, id, var);
-                if (result == PROPERTY_RESULT_OK)
+                if (result != PROPERTY_RESULT_NOT_FOUND)
                 {
-                    return true;
+                    return result;
                 }
             }
         }
         LogNotFound(id);
-        return false;
+        return PROPERTY_RESULT_NOT_FOUND;
     }
 }
