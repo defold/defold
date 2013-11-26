@@ -22,7 +22,7 @@ namespace dmScript
 #define SCRIPT_LIB_NAME "msg"
 #define SCRIPT_TYPE_NAME_URL "url"
 
-    const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
+    const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
 
     bool IsURL(lua_State *L, int index)
     {
