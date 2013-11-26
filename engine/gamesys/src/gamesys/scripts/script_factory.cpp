@@ -33,7 +33,7 @@ namespace dmGameSystem
      * @param [rotation] the rotation of the new game object, the rotation of the game object containing the factory is used by default (quat)
      * @param [properties] the properties defined in a script attached to the new game object (table)
      * @param [scale] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default (number)
-     * @return the id of the spawned game object (hash)
+     * @return the global id of the spawned game object (hash)
      * @examples
      * <p>
      * How to create a new game object:
