@@ -9,8 +9,8 @@ _November 26, 2013_
 * pprint, which is similar to link:http://docs.python.org/2/library/pprint.html[pprint] in Python
 * New playback mode for all types of animation, PLAYBACK_ONCE_PINGPONG, which animates once back and forth
 * Variable frame time step, which can be enabled in link:/doc/game_project[game.project]
-* The instance id returned from factory.create is in global form
-* Improved error handling when supplying properties to factory.create
+* The instance id returned from link:/ref/factory#factory.create[factory.create] is in global form
+* Improved error handling when supplying properties to link:/ref/factory#factory.create[factory.create]
 * Device identifier (device_ident) returned from link:/ref/sys#sys.get_sys_info[sys.get_sys_info] for iOS and Android
 * link:http://www.defold.com/ref/sprite#animation_done[animation_done] contains the id of the animation
 * Increased max message buffer size (2 kb)
