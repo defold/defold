@@ -145,6 +145,48 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
 
 #undef REF_VALUE
 
+TEST_F(dmGuiScriptTest, TestGlobalNodeFail)
+{
+    lua_State* L = dmGui::GetLuaState(m_Context);
+
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::HScene scene2 = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+    dmGui::SetSceneScript(scene2, script);
+
+    const char* src =
+            "local n = nil\n"
+            ""
+            "function init(self)\n"
+            "    n = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "end\n"
+            ""
+            "function update(self, dt)\n"
+            "    -- should produce lua error since update is called with another scene\n"
+            "    assert(gui.get_position(n).x == 1)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::UpdateScene(scene2, 1.0f / 60);
+    ASSERT_NE(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScene(scene2);
+
+    dmGui::DeleteScript(script);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

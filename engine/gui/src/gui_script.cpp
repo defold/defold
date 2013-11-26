@@ -150,6 +150,8 @@ namespace dmGui
     static InternalNode* LuaCheckNode(lua_State*L, int index, HNode* hnode)
     {
         NodeProxy* np = NodeProxy_Check(L, index);
+        if (np->m_Scene != GetScene(L))
+            luaL_error(L, "Node used in the wrong scene");
         if (IsValidNode(np->m_Scene, np->m_Node))
         {
             InternalNode*n = GetNode(np->m_Scene, np->m_Node);
