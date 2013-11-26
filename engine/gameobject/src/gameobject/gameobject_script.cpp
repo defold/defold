@@ -741,6 +741,14 @@ namespace dmGameObject
      * @param url url of the game object or component having the property (hash|string|url)
      * @param property name of the property to animate (hash|string)
      * @param playback playback mode of the animation (constant)
+     * <ul>
+     *   <li><code>go.PLAYBACK_ONCE_FORWARD</code></li>
+     *   <li><code>go.PLAYBACK_ONCE_BACKWARD</code></li>
+     *   <li><code>go.PLAYBACK_ONCE_PINGPONG</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_FORWARD</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
+     * </ul>
      * @param to target property value (number|vmath.vec3|vmath.vec4|vmath.quat)
      * @param easing easing to use during animation (constant), see the <a href="/doc/properties">properties guide</a> for a complete list
      * @param duration duration of the animation in seconds (number)
