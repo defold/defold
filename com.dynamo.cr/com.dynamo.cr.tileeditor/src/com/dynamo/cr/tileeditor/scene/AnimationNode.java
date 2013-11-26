@@ -164,13 +164,13 @@ public class AnimationNode extends Node implements Identifiable {
         this.cursor = cursor;
         if (this.playback != Playback.PLAYBACK_NONE) {
             int tileCount = getTileCount();
-            float duration = tileCount / this.fps;
+            float duration = tileCount / (float) this.fps;
             float t = cursor / duration;
             boolean once = this.playback == Playback.PLAYBACK_ONCE_FORWARD
                     || this.playback == Playback.PLAYBACK_ONCE_BACKWARD
                     || this.playback == Playback.PLAYBACK_ONCE_PINGPONG;
             if (once) {
-                t = Math.min(1.0f, t);
+                t = Math.max(0.0f, Math.min(1.0f, t));
             } else {
                 int lap = (int) Math.floor(t);
                 t -= lap;
@@ -198,7 +198,7 @@ public class AnimationNode extends Node implements Identifiable {
                 || this.playback == Playback.PLAYBACK_ONCE_BACKWARD || this.playback == Playback.PLAYBACK_ONCE_PINGPONG;
         if (once) {
             int tileCount = getTileCount();
-            float duration = tileCount / this.fps;
+            float duration = tileCount / (float) this.fps;
             return this.cursor >= duration;
         } else if (this.playback == Playback.PLAYBACK_NONE) {
             return true;
