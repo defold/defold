@@ -1,6 +1,9 @@
 package com.dynamo.android.facebook;
 
+import java.net.URLEncoder;
+
 import java.util.Map;
+import java.util.Set;
 import java.util.Iterator;
 
 import android.app.Activity;
@@ -26,7 +29,7 @@ class FacebookJNI {
 
     private native void onRequestPublish(long userData, String error);
 
-    private native void onDialogComplete(long userData, String error);
+    private native void onDialogComplete(long userData, String url, String error);
 
     private native void onIterateMeEntry(long userData, String key, String value);
 
@@ -157,7 +160,7 @@ class FacebookJNI {
                 if (session == null || !session.isOpened()) {
                     String err = "No active facebook session";
                     Log.e(TAG, err);
-                    onDialogComplete(userData, err);
+                    onDialogComplete(userData, null, err);
                     return;
                 }
 
@@ -174,7 +177,7 @@ class FacebookJNI {
                 } catch (Exception e) {
                     String err = "Failed to get json value";
                     Log.wtf(TAG, err, e);
-                    onDialogComplete(userData, err);
+                    onDialogComplete(userData, null, err);
                     return;
                 }
 
@@ -185,11 +188,33 @@ class FacebookJNI {
                 WebDialog.OnCompleteListener listener = new WebDialog.OnCompleteListener() {
                     @Override
                     public void onComplete(Bundle values, FacebookException error) {
+
+                        StringBuilder sb = new StringBuilder(1024);
+                        sb.append("fbconnect://success?");
+
+                        Set<String> keys = values.keySet();
+                        int n = keys.size();
+                        int i = 0;
+                        for (String k : keys) {
+                            try {
+                                String v = URLEncoder.encode(values.getString(k), "UTF-8");
+                                sb.append(URLEncoder.encode(k, "UTF-8"));
+                                sb.append("=");
+                                sb.append(v);
+                                if (i < n - 1) {
+                                    sb.append("&");
+                                }
+                                ++i;
+                            } catch (java.io.UnsupportedEncodingException e) {
+                                Log.e(TAG, "Failed to create url", e);
+                            }
+                        }
+
                         String err = null;
                         if (error != null) {
                             err = error.getMessage();
                         }
-                        onDialogComplete(userData, err);
+                        onDialogComplete(userData, sb.toString(), err);
                     }
                 };
 

@@ -46,6 +46,7 @@ struct CBData
 {
     lua_State* m_L;
     int m_State;
+    const char* m_Url;
     const char* m_Error;
 };
 
@@ -70,6 +71,9 @@ struct Facebook
     int m_Callback;
     int m_Self;
     int m_Pipefd[2];
+    // TODO: See case 2424
+    // Really bad design and broken in terms of thread
+    // Data should be part of the command
     CBData m_CBData;
 };
 
@@ -168,6 +172,53 @@ static void RunCallback()
     }
 }
 
+static void RunDialogResultCallback()
+{
+    if (g_Facebook.m_Callback != LUA_NOREF) {
+        lua_State* L = g_Facebook.m_CBData.m_L;
+        const char* error = g_Facebook.m_CBData.m_Error;
+
+        int top = lua_gettop(L);
+
+        int callback = g_Facebook.m_Callback;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback);
+
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+
+        lua_createtable(L, 0, 1);
+        lua_pushliteral(L, "url");
+        if (g_Facebook.m_CBData.m_Url) {
+            lua_pushstring(L, g_Facebook.m_CBData.m_Url);
+        } else {
+            lua_pushnil(L);
+        }
+        lua_rawset(L, -3);
+
+        PushError(L, error);
+
+        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        if (ret != 0) {
+            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+        assert(top == lua_gettop(L));
+        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+    } else {
+        dmLogError("No callback set");
+    }
+}
+
 static int LooperCallback(int fd, int events, void* data)
 {
     Facebook* fb = (Facebook*)data;
@@ -185,8 +236,13 @@ static int LooperCallback(int fd, int events, void* data)
             RunCallback();
             break;
         case CMD_DIALOG_COMPLETE:
-            RunCallback();
+            RunDialogResultCallback();
             break;
+        }
+        if (fb->m_CBData.m_Url != 0x0)
+        {
+            free((void*)fb->m_CBData.m_Url);
+            fb->m_CBData.m_Url = 0x0;
         }
         if (fb->m_CBData.m_Error != 0x0)
         {
@@ -254,9 +310,10 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPub
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComplete
-  (JNIEnv *env, jobject, jlong userData, jstring error)
+  (JNIEnv *env, jobject, jlong userData, jstring url, jstring error)
 {
     g_Facebook.m_CBData.m_L = (lua_State*)userData;
+    g_Facebook.m_CBData.m_Url = StrDup(env, url);
     g_Facebook.m_CBData.m_Error = StrDup(env, error);
     PostToCallback(CMD_DIALOG_COMPLETE);
 }

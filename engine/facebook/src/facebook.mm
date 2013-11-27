@@ -202,6 +202,51 @@ static void RunCallback(lua_State*L, NSError* error)
     }
 }
 
+static void RunDialogResultCallback(lua_State*L, const char* url, NSError* error)
+{
+    if (g_Facebook.m_Callback != LUA_NOREF) {
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+
+        lua_createtable(L, 0, 1);
+        lua_pushliteral(L, "url");
+        if (url) {
+            lua_pushstring(L, url);
+        } else {
+            lua_pushnil(L);
+        }
+        lua_rawset(L, -3);
+
+        PushError(L, error);
+
+        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        if (ret != 0) {
+            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+        assert(top == lua_gettop(L));
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        g_Facebook.m_Callback = LUA_NOREF;
+        g_Facebook.m_Self = LUA_NOREF;
+    } else {
+        dmLogError("No callback set");
+    }
+}
+
 static void AppendArray(lua_State*L, NSMutableArray* array, int table)
 {
     lua_pushnil(L);
@@ -413,7 +458,7 @@ int Facebook_Me(lua_State* L)
  * @name show_dialog
  * @param dialog dialog to show, "feed", "apprequests", etc
  * @param param table with dialog parameters, "title", "message", etc
- * @param callback function called, with parameters (self, error), when the dialog is closed.
+ * @param callback function called, with parameters (self, result, error), when the dialog is closed. Result is table with an url-field set.
  */
 static int Facebook_ShowDialog(lua_State* L)
 {
@@ -451,11 +496,18 @@ static int Facebook_ShowDialog(lua_State* L)
              dialog: [NSString stringWithUTF8String: dialog]
              parameters: params
              handler:^(FBWebDialogResult result, NSURL *resultURL, NSError *error) {
-                 RunCallback(L, error);
+                 RunDialogResultCallback(L, [[resultURL absoluteString] UTF8String], error);
              }
         ];
     } else {
-        dmLogWarning("No facebook session active");
+        const char* msg = "No facebook session active";
+        dmLogWarning(msg);
+
+        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:@"Failed to do something wicked" forKey:NSLocalizedDescriptionKey];
+        NSError* error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
+
+        RunDialogResultCallback(L, 0, error);
     }
 
     assert(top == lua_gettop(L));
