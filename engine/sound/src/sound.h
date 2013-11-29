@@ -87,6 +87,9 @@ namespace dmSound
 
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vector4& value);
+
+    bool IsMusicPlaying();
+
 }
 
 #endif // DM_SOUND_H

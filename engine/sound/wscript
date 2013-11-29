@@ -34,7 +34,7 @@ def configure(conf):
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenAL', '-framework', 'IOKit'])
     elif platform == "armv7-darwin":
-        conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'OpenAL', '-framework', 'AudioToolbox'])
     elif platform == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])

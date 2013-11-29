@@ -7,9 +7,15 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('openal')
 
+    source =  'sound.cpp stb_vorbis/stb_vorbis.c'.split()
     include = ''
     if re.match('arm.*?android', bld.env['PLATFORM']):
         include = 'openal/include'
+
+    if re.match('arm.*?darwin', bld.env['PLATFORM']):
+        source.append('sound_ios.cpp')
+    else:
+        source.append('sound_generic.cpp')
 
     alut = bld.new_task_gen(features = 'cc cstaticlib',
                             includes = '. alut %s' % include ,
@@ -26,12 +32,12 @@ def build(bld):
     sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                              includes = '. alut vorbis_tremor %s' % include,
                              target = 'sound',
-                             source = 'sound.cpp stb_vorbis/stb_vorbis.c')
+                             source = source)
 
     sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                              includes = '.',
                              target = 'sound_null',
-                             source = 'sound_null.cpp stb_vorbis/stb_vorbis.c')
+                             source = 'sound_null.cpp sound_generic.cpp stb_vorbis/stb_vorbis.c')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
