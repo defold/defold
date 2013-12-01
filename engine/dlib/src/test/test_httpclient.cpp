@@ -847,6 +847,103 @@ TEST(dmHttpClient, ConnectionRefused)
     dmHttpClient::Delete(client);
 }
 
+TEST(dmHttpClient, Escape)
+{
+    char src[1024];
+    char dst[1024];
+#define CPY_TO_BUF(s) strcpy(src, s);
+
+    CPY_TO_BUF("")
+    dmHttpClient::Escape(src, dst, sizeof(dst));
+    ASSERT_STREQ("", dst);
+
+    CPY_TO_BUF(" ")
+    dmHttpClient::Escape(src, dst, sizeof(dst));
+    ASSERT_STREQ("%20", dst);
+
+    CPY_TO_BUF("foo")
+    dmHttpClient::Escape(src, dst, sizeof(dst));
+    ASSERT_STREQ("foo", dst);
+
+    CPY_TO_BUF("foo bar")
+    dmHttpClient::Escape(src, dst, sizeof(dst));
+    ASSERT_STREQ("foo%20bar", dst);
+
+    CPY_TO_BUF("to[0]")
+    dmHttpClient::Escape(src, dst, sizeof(dst));
+    ASSERT_STREQ("to%5B0%5D", dst);
+
+#undef CPY_TO_BUF
+}
+
+TEST(dmHttpClient, EscapeBufferSize)
+{
+    char src[1024];
+    char dst[1024];
+#define CPY_TO_BUF(s) strcpy(src, s);
+    dmHttpClient::Result r;
+
+    CPY_TO_BUF("")
+    r = dmHttpClient::Escape(src, dst, 1);
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_STREQ("", dst);
+
+    dst[1] = '!';
+    CPY_TO_BUF(" ")
+    r = dmHttpClient::Escape(src, dst, 1);
+    ASSERT_EQ(dmHttpClient::RESULT_INVAL, r);
+    ASSERT_EQ('!', dst[1]);
+
+    dst[2] = '!';
+    CPY_TO_BUF(" ")
+    r = dmHttpClient::Escape(src, dst, 2);
+    ASSERT_EQ(dmHttpClient::RESULT_INVAL, r);
+    ASSERT_EQ('!', dst[2]);
+
+    dst[3] = '!';
+    CPY_TO_BUF(" ")
+    r = dmHttpClient::Escape(src, dst, 3);
+    ASSERT_EQ(dmHttpClient::RESULT_INVAL, r);
+    ASSERT_EQ('!', dst[3]);
+
+    dst[4] = '!';
+    CPY_TO_BUF(" ")
+    r = dmHttpClient::Escape(src, dst, 4);
+    ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+    ASSERT_STREQ("%20", dst);
+    ASSERT_EQ('!', dst[4]);
+
+#undef CPY_TO_BUF
+}
+
+TEST(dmHttpClient, Unescape)
+{
+    char buf[1024];
+#define CPY_TO_BUF(s) strcpy(buf, s);
+
+    CPY_TO_BUF("")
+    dmHttpClient::Unescape(buf, buf);
+    ASSERT_STREQ("", buf);
+
+    CPY_TO_BUF("foo")
+    dmHttpClient::Unescape(buf, buf);
+    ASSERT_STREQ("foo", buf);
+
+    CPY_TO_BUF("%20")
+    dmHttpClient::Unescape(buf, buf);
+    ASSERT_STREQ(" ", buf);
+
+    CPY_TO_BUF("fbconnect://success?request=575262345875717&to%5B0%5D=100006469467942&to%5B1%5D=100006622931864&to%5B2%5D=100006677888489&to%5B3%5D=100006751147236&to%5B4%5D=100006793533882")
+    dmHttpClient::Unescape(buf, buf);
+    ASSERT_STREQ("fbconnect://success?request=575262345875717&to[0]=100006469467942&to[1]=100006622931864&to[2]=100006677888489&to[3]=100006751147236&to[4]=100006793533882", buf);
+
+    CPY_TO_BUF("foo+bar")
+    dmHttpClient::Unescape(buf, buf);
+    ASSERT_STREQ("foo bar", buf);
+
+#undef CPY_TO_BUF
+}
+
 int main(int argc, char **argv)
 {
     dmLogSetlevel(DM_LOG_SEVERITY_INFO);

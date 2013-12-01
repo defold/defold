@@ -9,6 +9,7 @@
 #include "scripts/script_particlefx.h"
 #include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
+#include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
 #include "scripts/script_factory.h"
 
@@ -40,6 +41,7 @@ namespace dmGameSystem
         ScriptPhysicsRegister(context);
         ScriptFactoryRegister(context);
         ScriptSpriteRegister(context);
+        ScriptSoundRegister(context);
 
         assert(top == lua_gettop(L));
         return result;

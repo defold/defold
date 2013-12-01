@@ -138,4 +138,9 @@ namespace dmSound
         value = sound_instance->m_Parameters[parameter];
         return RESULT_OK;
     }
+
+    bool IsMusicPlaying()
+    {
+        return false;
+    }
 }

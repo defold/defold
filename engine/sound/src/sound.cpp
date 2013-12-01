@@ -5,6 +5,7 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 #include "sound.h"
+#include "sound_private.h"
 
 #if defined(__MACH__)
 #include <OpenAL/al.h>
@@ -99,6 +100,11 @@ namespace dmSound
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
+        Result r = PlatformInitialize(config, params);
+        if (r != RESULT_OK) {
+            return r;
+        }
+
         if (!alutInit(0, 0))
         {
             CheckAndPrintError();
@@ -175,6 +181,8 @@ namespace dmSound
 
     Result Finalize()
     {
+        PlatformFinalize();
+
         Result result = RESULT_OK;
 
         if (g_SoundSystem)
@@ -728,5 +736,11 @@ namespace dmSound
         }
         return RESULT_OK;
     }
+
+    bool IsMusicPlaying()
+    {
+        return PlatformIsMusicPlaying();
+    }
+
 
 }

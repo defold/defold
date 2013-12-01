@@ -23,6 +23,7 @@ namespace dmHttpClient
         RESULT_UNEXPECTED_EOF = -7,               //!< RESULT_UNEXPECTED_EOF
         RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
         RESULT_HANDSHAKE_FAILED = -9,             //!< RESULT_HANDSHAKE_FAILED
+        RESULT_INVAL = -10,                       //!< RESULT_INVAL
         RESULT_UNKNOWN = -1000,                   //!< RESULT_UNKNOWN
     };
 
@@ -227,7 +228,7 @@ namespace dmHttpClient
     void GetStatistics(HClient client, Statistics* statistics);
 
     /**
-     * Get HTTP-cache associaed with this client
+     * Get HTTP-cache associated with this client
      * @param client client
      * @return dmHttpCache::HCache handle
      */
@@ -238,6 +239,23 @@ namespace dmHttpClient
      * @param client Client handle
      */
     void Delete(HClient client);
+
+    /**
+     * Escape an URL string. Non unreserved characters are replaced with %XX where XX is the hexadecimal representation of the character.
+     * See http://en.wikipedia.org/wiki/Percent-encoding for list of unreserved characters
+     * @param src Source string
+     * @param dst Destination string. May *not* overlap with src
+     * @param dst_len Destination string length. Total buffer size
+     * @return RESULT_OK on success and RESULT_INVAL if destination buffer is too small.
+     */
+    Result Escape(const char* src, char* dst, uint32_t dst_len);
+
+    /**
+     * Unescape an url string
+     * @param src Source string
+     * @param dst Destination string (might be the same as src)
+     */
+    void Unescape(const char* src, char* dst);
 }
 
 #endif // DM_HTTP_CLIENT_H
