@@ -1,15 +1,19 @@
 package com.dynamo.cr.target.core;
 
+import java.net.InetAddress;
+
 public class Target implements ITarget {
 
     private String name;
     private String id;
+    private InetAddress inetAddress;
     private String url;
     private int logPort;
 
-    public Target(String name, String id, String url, int logPort) {
+    public Target(String name, String id, InetAddress inetAddress, String url, int logPort) {
         this.name = name;
         this.id = id;
+        this.inetAddress = inetAddress;
         this.url = url;
         this.logPort = logPort;
     }
@@ -22,6 +26,11 @@ public class Target implements ITarget {
     @Override
     public String getId() {
         return id;
+    }
+
+    @Override
+    public InetAddress getInetAddress() {
+        return inetAddress;
     }
 
     @Override

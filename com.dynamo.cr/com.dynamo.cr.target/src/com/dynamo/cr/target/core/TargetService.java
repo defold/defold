@@ -4,10 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Socket;
-import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.inject.Inject;
+import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.Command;
@@ -55,15 +56,16 @@ public class TargetService implements ITargetService, Runnable {
     private static Logger logger = LoggerFactory.getLogger(TargetService.class);
 
     private static ITarget createLocalTarget() {
-        String localAddress = "127.0.0.1";
+        InetAddress localAddress = null;
+        String name = "Local (no ip)";
         try {
-            localAddress = NetworkUtil.getHostAddress();
-        } catch (SocketException e) {
+            localAddress = NetworkUtil.getValidHostAddresses().iterator().next();
+            name = String.format("Local (%s)", localAddress.getHostAddress());
+        } catch (Exception e) {
             logger.error("Could not get host address", e);
         }
 
-        String name = String.format("Local (%s)", localAddress);
-        return new Target(name, LOCAL_TARGET_ID, null, 0);
+        return new Target(name, LOCAL_TARGET_ID, localAddress, null, 0);
     }
 
     @Inject
@@ -165,12 +167,6 @@ public class TargetService implements ITargetService, Runnable {
         // same
         // location url. The cache is used to speed up the fetch
         Map<String, String> descriptionCache = new HashMap<String, String>();
-        String localAddress = "127.0.0.1";
-        try {
-            localAddress = NetworkUtil.getHostAddress();
-        } catch (SocketException e) {
-            logger.error("Failed to get local address", e);
-        }
 
         // A single host might advertise multiple devices.
         // We temporarily blacklist non-reachable devices (socket timeout)
@@ -220,10 +216,14 @@ public class TargetService implements ITargetService, Runnable {
                     // TODO: Local should be iPhone or Joe's iPhone or similar
                     // when iPhone supported is completed
                     String name = String.format("%s (%s)", friendlyName, deviceInfo.address);
-                    ITarget target = new Target(name, udn, url, Integer.parseInt(logPort));
+                    InetAddress targetAddress = InetAddress.getByName(deviceInfo.address);
+                    InetAddress hostAddress = NetworkUtil.getClosestAddress(NetworkUtil.getValidHostAddresses(),
+                            targetAddress);
+                    ITarget target = new Target(name, udn, targetAddress, url,
+                            Integer.parseInt(logPort));
                     targets.add(target);
 
-                    if (deviceInfo.address.equals(localAddress)) {
+                    if (deviceInfo.address.equals(hostAddress.getHostAddress())) {
                         localTargetFound = true;
                     }
 
@@ -369,15 +369,32 @@ public class TargetService implements ITargetService, Runnable {
         return activeTarget;
     }
 
+    public URL getHttpServerURL(InetAddress targetAddress, int httpServerPort) {
+        String localAddress = "127.0.0.1";
+        try {
+            localAddress = NetworkUtil.getClosestAddress(NetworkUtil.getValidHostAddresses(), targetAddress)
+                    .getHostAddress();
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
+
+        try {
+            return UriBuilder.fromPath("/").scheme("http").host(localAddress).port(httpServerPort).build().toURL();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public synchronized void launch(String customApplication, String location,
                                     boolean runInDebugger,
                                     boolean autoRunDebugger,
-                                    String socksProxy, int socksProxyPort,
-                                    URL serverUrl) {
+ String socksProxy, int socksProxyPort, int httpServerPort) {
 
         ITarget targetToLaunch = getSelectedTarget();
-        LaunchThread launchThread = new LaunchThread(targetToLaunch, customApplication, location, runInDebugger, autoRunDebugger, socksProxy, socksProxyPort, serverUrl);
+        LaunchThread launchThread = new LaunchThread(targetToLaunch, customApplication, location, runInDebugger,
+                autoRunDebugger, socksProxy, socksProxyPort, getHttpServerURL(targetToLaunch.getInetAddress(),
+                        httpServerPort));
         launchThread.start();
         connectToLogService(targetToLaunch);
     }

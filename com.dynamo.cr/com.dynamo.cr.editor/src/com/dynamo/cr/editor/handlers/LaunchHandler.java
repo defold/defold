@@ -120,7 +120,8 @@ public class LaunchHandler extends AbstractHandler {
                             customApplication = store.getString(PreferenceConstants.P_APPLICATION);
                         }
 
-                        targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy, socksProxyPort, Activator.getDefault().getHttpServerURL());
+                        targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,
+                                socksProxyPort, Activator.SERVER_PORT);
                         return Status.OK_STATUS;
                     } else {
                         return Status.OK_STATUS;

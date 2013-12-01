@@ -15,7 +15,6 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -81,7 +80,8 @@ public class TargetsTest implements ITargetListener {
 
         @Override
         public synchronized void launch(String customApplication, String location, boolean runInDebugger,
-                boolean autoRunDebugger, String socksProxy, int socksProxyPort, java.net.URL serverUrl) {
+                                        boolean autoRunDebugger, String socksProxy, int socksProxyPort,
+                                        int httpServerPort) {
             ITarget[] targets = getTargets();
             connectToLogService(targets[targets.length - 1]);
         }
@@ -158,10 +158,10 @@ public class TargetsTest implements ITargetListener {
         synchronized (this) {
             assertThat(events.size(), is(2));
             ITarget[] targets = targetService.getTargets();
-            assertThat(targets.length, is(1));
-            assertThat(targets[0].getId(), is(UDN));
-            assertThat(targets[0].getUrl(), is(URL));
-            assertThat(targets[0].getLogPort(), is(LOG_PORT));
+            assertThat(targets.length, is(2));
+            assertThat(targets[1].getId(), is(UDN));
+            assertThat(targets[1].getUrl(), is(URL));
+            assertThat(targets[1].getLogPort(), is(LOG_PORT));
         }
     }
 
@@ -292,7 +292,7 @@ public class TargetsTest implements ITargetListener {
         while (targetService.getTargets().length == 1) {
             Thread.sleep(100);
         }
-        targetService.launch("", "", false, false, "", 1080, new URL("http://localhost"));
+        targetService.launch("", "", false, false, "", 1080, 8080);
         while (!gameLogger.isDone()) {
             Thread.sleep(100);
         }
