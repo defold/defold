@@ -158,10 +158,10 @@ public class TargetsTest implements ITargetListener {
         synchronized (this) {
             assertThat(events.size(), is(2));
             ITarget[] targets = targetService.getTargets();
-            assertThat(targets.length, is(2));
-            assertThat(targets[1].getId(), is(UDN));
-            assertThat(targets[1].getUrl(), is(URL));
-            assertThat(targets[1].getLogPort(), is(LOG_PORT));
+            assertThat(targets.length, is(1));
+            assertThat(targets[0].getId(), is(UDN));
+            assertThat(targets[0].getUrl(), is(URL));
+            assertThat(targets[0].getLogPort(), is(LOG_PORT));
         }
     }
 
@@ -206,7 +206,7 @@ public class TargetsTest implements ITargetListener {
          * Search for network target. Expected device count is two. The network target and the local psuedo-target
          */
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
-        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo("127.0.0.1") });
+        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo("1.2.3.4") });
         when(ssdp.update(true)).thenReturn(true);
         startTargetService();
         Thread.sleep(100);
@@ -285,8 +285,7 @@ public class TargetsTest implements ITargetListener {
         ByteArrayOutputStream consoleOut = new ByteArrayOutputStream();
         when(console.createOutputStream()).thenReturn(consoleOut);
         when(consoleFactory.getConsole(anyString())).thenReturn(console);
-        when(ssdp.getDevices()).thenReturn(
-                new DeviceInfo[] { newDeviceInfo("127.0.0.1") });
+        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo("1.2.3.4") });
         when(ssdp.update(true)).thenReturn(true);
         startTargetService();
         while (targetService.getTargets().length == 1) {

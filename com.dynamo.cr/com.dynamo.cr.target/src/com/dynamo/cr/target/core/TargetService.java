@@ -13,6 +13,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,7 +60,14 @@ public class TargetService implements ITargetService, Runnable {
         InetAddress localAddress = null;
         String name = "Local (no ip)";
         try {
-            localAddress = NetworkUtil.getValidHostAddresses().iterator().next();
+            Iterator<InetAddress> it = NetworkUtil.getValidHostAddresses().iterator();
+            while (it.hasNext()) {
+                InetAddress address = it.next();
+                if (!address.isLoopbackAddress()) {
+                    localAddress = address;
+                    break;
+                }
+            }
             name = String.format("Local (%s)", localAddress.getHostAddress());
         } catch (Exception e) {
             logger.error("Could not get host address", e);

@@ -15,7 +15,7 @@ import java.util.Vector;
 public class NetworkUtil {
 
     /**
-     * Returns a list of the local inet addresses which are IPv4 and not loop back.
+     * Returns a list of the local inet addresses which are IPv4.
      * 
      * @return list of local inet addresses
      * @throws SocketException
@@ -26,11 +26,13 @@ public class NetworkUtil {
         Vector<InetAddress> result = new Vector<InetAddress>();
         while (interfaces.hasMoreElements()) {
             NetworkInterface netInterface = interfaces.nextElement();
-            Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
-            while (addresses.hasMoreElements()) {
-                InetAddress address = addresses.nextElement();
-                if (!address.isLoopbackAddress() && address instanceof Inet4Address) {
-                    result.add(address);
+            if (netInterface.isUp()) {
+                Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress address = addresses.nextElement();
+                    if (address instanceof Inet4Address) {
+                        result.add(address);
+                    }
                 }
             }
         }
