@@ -112,7 +112,6 @@ public class ProjectView extends Composite {
         this.description.setInnerText("");
         this.members2.removeAllRows();
         this.commits2.removeAllRows();
-        this.addMemberPanel.setVisible(false);
         this.iOSDownload.setVisible(false);
         this.signedExeInfo.setText("");
     }
@@ -125,7 +124,6 @@ public class ProjectView extends Composite {
 
         isOwner = userId == projectInfo.getOwner().getId();
         this.deleteProject.setVisible(isOwner);
-        this.addMemberPanel.setVisible(isOwner);
         if (isOwner) {
             this.projectNameDescription.getElement().addClassName("project-owner");
         }
