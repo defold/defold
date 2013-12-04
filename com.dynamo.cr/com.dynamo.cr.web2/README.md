@@ -6,11 +6,11 @@ The Defold web site.
 Running/Debugging
 -----------------
 
-GWT plugin is required.
+[Google plugin](https://developers.google.com/eclipse/) is required.
 
-# Right-click project in Eclipse, Run As > Web Application (replace with Debug As for debugging)
-# Select index.html in the popup
-# Copy-paste the URL which appears in Eclipse to your browser
-# Copy the query part of the URL ('?' and remaining string)
-# Go to the Dashboard
-# Paste the query part to the end of the dashboard URL
+1. Right-click project in Eclipse, Run As > Web Application (replace with Debug As for debugging)
+2. Select index.html in the popup
+3. Copy-paste the URL which appears in Eclipse to your browser
+4. Copy the query part of the URL ('?' and remaining string)
+5. Go to the Dashboard
+6. Paste the query part to the end of the dashboard URL
