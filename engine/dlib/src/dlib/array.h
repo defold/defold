@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <string.h>
 
 /**
  * Utility functions
@@ -191,7 +192,7 @@ dmArray<T>::dmArray(T *user_array, uint32_t size, uint32_t capacity)
     m_Front = user_array;
     m_End = user_array + size;
     m_Back = user_array + capacity;
-    m_UserAllocated = 0b1;
+    m_UserAllocated = 1;
 }
 
 template <typename T>
