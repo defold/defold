@@ -75,7 +75,7 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
     }
 
     public String getGooglePlayResPath() {
-        return getUtilPath("res/facebook");
+        return getUtilPath("res/google-play-services");
     }
 
     public String getAaptPath() {
