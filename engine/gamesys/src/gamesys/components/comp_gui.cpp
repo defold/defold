@@ -531,6 +531,7 @@ namespace dmGameSystem
             prev_node_type = node_type;
             prev_blend_mode = blend_mode;
             prev_texture = texture;
+            prev_font = font;
 
             ++i;
         }
