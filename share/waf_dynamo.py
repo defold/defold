@@ -623,7 +623,7 @@ def android_package(task):
             p = os.path.join(root, f)
             r_java_files.append(p)
 
-    ret = bld.exec_command('%s %s' % (task.env['JAVAC'][0], ' '.join(r_java_files)))
+    ret = bld.exec_command('%s %s %s' % (task.env['JAVAC'][0], '-source 1.6 -target 1.6', ' '.join(r_java_files)))
     if ret != 0:
         error('Error compiling R.java files')
         return 1

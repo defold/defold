@@ -18,9 +18,9 @@ def build(bld):
         bld.new_task_gen(features='javac seq',
                          classpath=classpath,
                          source_root='java')
-    
-        bld.env["JAVACFLAGS"] = '-g'
-    
+
+        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
+
         bld.new_task_gen(features='jar seq',
                          basedir='java',
                          destfile='gamesys_android.jar')
