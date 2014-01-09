@@ -197,6 +197,20 @@ namespace dmGameSystem
         TileGridRegion* region = &component->m_Regions[region_index];
         region->m_Dirty = true;
         component->m_Cells[cell_index] = tile;
+        TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
+        if (top > 5)
+        {
+            luaL_checktype(L, 6, LUA_TTABLE);
+            lua_pushliteral(L, "flip_horizontal");
+            lua_rawget(L, 6);
+            bool hflip = lua_toboolean(L, -1);
+            flags->m_FlipHorizontal = hflip;
+            lua_pushliteral(L, "flip_vertical");
+            lua_rawget(L, 6);
+            bool vflip = lua_toboolean(L, -1);
+            flags->m_FlipVertical = vflip;
+            lua_pop(L, 2);
+        }
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -208,6 +222,8 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
+            set_hull_ddf.m_FlipHorizontal = flags->m_FlipHorizontal;
+            set_hull_ddf.m_FlipVertical = flags->m_FlipVertical;
             dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);

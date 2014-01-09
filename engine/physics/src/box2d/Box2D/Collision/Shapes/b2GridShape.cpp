@@ -18,9 +18,13 @@ b2GridShape::b2GridShape(const b2HullSet* hullSet,
       m_cellWidth(cellWidth), m_cellHeight(cellHeight),
       m_rowCount(rowCount), m_columnCount(columnCount)
 {
-    uint32 size = sizeof(Cell) * m_rowCount * m_columnCount;
+    uint32 cellCount = m_rowCount * m_columnCount;
+    uint32 size = sizeof(Cell) * cellCount;
     m_cells = (Cell*) b2Alloc(size);
     memset(m_cells, 0xff, size); // NOTE: This will set all Cell#m_Index to 0xffffffff
+    size = sizeof(CellFlags) * cellCount;
+    m_cellFlags = (CellFlags*) b2Alloc(size);
+    memset(m_cellFlags, 0x0, size);
 
     m_position = position;
     m_type = e_grid;
@@ -31,6 +35,7 @@ b2GridShape::b2GridShape(const b2HullSet* hullSet,
 b2GridShape::~b2GridShape()
 {
     b2Free(m_cells);
+    b2Free(m_cellFlags);
 }
 
 b2Shape* b2GridShape::Clone(b2BlockAllocator* allocator) const
@@ -135,12 +140,30 @@ uint32 b2GridShape::GetCellVertices(uint32 index, b2Vec2* vertices) const
     t.y += m_cellHeight * 0.5f;
     t += m_position;
 
+    const b2GridShape::CellFlags& flags = m_cellFlags[index];
+    float32 xScale = flags.m_FlipHorizontal ? -1.0f : 1.0f;
+    float32 yScale = flags.m_FlipVertical ? -1.0f : 1.0f;
+
     for (uint32 i = 0; i < hull.m_Count; ++i)
     {
         vertices[i] = m_hullSet->m_vertices[hull.m_Index + i];
-        vertices[i].x *= m_cellWidth;
-        vertices[i].y *= m_cellHeight;
+        vertices[i].x *= xScale * m_cellWidth;
+        vertices[i].y *= yScale * m_cellHeight;
         vertices[i] += t;
+    }
+
+    // Reverse order when single flipped
+    if (flags.m_FlipHorizontal != flags.m_FlipVertical)
+    {
+        uint16 halfCount = hull.m_Count / 2;
+        for (uint32 i = 0; i < halfCount; ++i)
+        {
+            b2Vec2& v1 = vertices[i];
+            b2Vec2& v2 = vertices[hull.m_Count - 1 - i];
+            b2Vec2 tmp = v1;
+            v1 = v2;
+            v2 = tmp;
+        }
     }
 
     return hull.m_Count;
@@ -343,7 +366,7 @@ uint32 b2GridShape::CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 col
     return mask;
 }
 
-void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull)
+void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, b2GridShape::CellFlags flags)
 {
     assert(m_type == b2Shape::e_grid);
 
@@ -351,6 +374,7 @@ void b2GridShape::SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hu
     b2Assert(index < m_rowCount * m_columnCount);
     b2GridShape::Cell* cell = &m_cells[index];
     cell->m_Index = hull;
+    m_cellFlags[index] = flags;
     // treat cells with an empty hull as an empty cell
     if (hull != B2GRIDSHAPE_EMPTY_CELL)
     {

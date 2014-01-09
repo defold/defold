@@ -60,6 +60,20 @@ namespace dmPhysics
         uint16_t m_Count;
     };
 
+    struct HullFlags
+    {
+        HullFlags()
+        : m_FlipHorizontal(0)
+        , m_FlipVertical(0)
+        , m_Padding(0)
+        {
+        }
+
+        uint16_t m_FlipHorizontal : 1;
+        uint16_t m_FlipVertical : 1;
+        uint16_t m_Padding : 14;
+    };
+
     /**
      * Callback used to propagate the world transform of an external object into the physics simulation.
      *
@@ -438,7 +452,7 @@ namespace dmPhysics
      * @param column column
      * @param hull hull index. Use GRIDSHAPE_EMPTY_CELL to clear the cell.
      */
-    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull);
+    void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags);
 
     /**
      * Set group and mask for collision object
