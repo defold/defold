@@ -1231,12 +1231,8 @@ namespace dmGui
         return 0;
     }
 
-    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash)
+    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break)
     {
-        const char* text = luaL_checkstring(L, 2);
-        float width = luaL_checknumber(L, 3);
-        bool line_break = lua_toboolean(L, 4);
-
         dmGui::TextMetrics metrics;
         dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, &metrics);
         if (r != RESULT_OK) {
@@ -1265,10 +1261,7 @@ namespace dmGui
      * Get text metrics
      *
      * @name gui.get_text_metrics_from_node
-     * @param node node to use font from
-     * @param text text to measure
-     * @param width max-width. use for line-breaks
-     * @param line_breaks true to break lines accordingly to width
+     * @param node text node to measure text from
      * @return a table with the following fields: width, max_ascent, max_descent
      */
     static int LuaGetTextMetricsFromNode(lua_State* L)
@@ -1283,7 +1276,10 @@ namespace dmGui
         (void)n;
 
         dmhash_t font_id_hash = dmGui::GetNodeFontId(scene, hnode);
-        PushTextMetrics(L, scene, font_id_hash);
+        const char* text = dmGui::GetNodeText(scene, hnode);
+        float width = dmGui::GetNodeProperty(scene, hnode, PROPERTY_SIZE).getX();
+        bool line_break = dmGui::GetNodeLineBreak(scene, hnode);
+        PushTextMetrics(L, scene, font_id_hash, text, width, line_break);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1314,7 +1310,10 @@ namespace dmGui
             font_id_hash = dmScript::CheckHash(L, 1);
         }
 
-        PushTextMetrics(L, scene, font_id_hash);
+        const char* text = luaL_checkstring(L, 2);
+        float width = luaL_checknumber(L, 3);
+        bool line_break = lua_toboolean(L, 4);
+        PushTextMetrics(L, scene, font_id_hash, text, width, line_break);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
