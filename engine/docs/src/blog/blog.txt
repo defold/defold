@@ -1,5 +1,18 @@
 :max-width: 45em
 
+Even more various fixes (Release 1.2.27)
+----------------------------------------
+_January 9, 2014_
+
+1.2.27 brings more smaller fixes:
+
+* Sprite scale (vmath.vector3) can be accessed through link:/ref/go#go.get[go.get]/link:/ref/go#go.set[go.set]/link:/ref/go#go.animate[go.animate]
+* Functions for measuring the size of text: link:/ref/gui#gui.get_text_metrics[gui.get_text_metrics] and link:/ref/gui#gui.get_text_metrics_from_node[gui.get_text_metrics_from_node]
+* Fixed a bug when trying to connect a device to the editor and the computer has multiple active network interfaces
+* If the device has a specific language setting (e.g. iOS), this is returned by link:/ref/sys#sys.get_sys_info[sys.get_sys_info] under the key +device_language+
+* Optimized default particle shader
+* Fix for batched rendering of gui scenes
+
 More various fixes (Release 1.2.26)
 -----------------------------------
 _November 26, 2013_
