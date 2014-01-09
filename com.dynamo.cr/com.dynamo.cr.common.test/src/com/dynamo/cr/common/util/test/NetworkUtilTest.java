@@ -40,5 +40,9 @@ public class NetworkUtilTest {
         assertAddresses(new String[] { "193.168.1.2", "192.0.0.1" }, "192.168.1.2", "192.0.0.1");
         // edge case of only local host
         assertAddresses(new String[] { "127.0.0.1" }, "192.168.1.2", "127.0.0.1");
+
+        // additional test for bug 2442
+        assertAddresses(new String[] { "127.0.0.1", "192.168.1.1", "1.1.1.1", "2.2.2.2", "3.3.3.3" }, "192.168.1.2", "192.168.1.1");
+
     }
 }

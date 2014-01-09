@@ -5,18 +5,17 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Vector;
 
 public class NetworkUtil {
 
     /**
      * Returns a list of the local inet addresses which are IPv4.
-     * 
+     *
      * @return list of local inet addresses
      * @throws SocketException
      * @throws UnknownHostException
@@ -42,9 +41,29 @@ public class NetworkUtil {
         return result;
     }
 
+    // Rank address according to most significant bytes
+    // Perhaps better to rank according to most significant bites but this is probably good enough
+    private static int compareAddresses(InetAddress a, InetAddress b)
+    {
+        int rank = 0;
+        byte[] aa = a.getAddress();
+        byte[] ab = b.getAddress();
+
+        for (int i = 0; i < Math.min(aa.length, ab.length); ++i)
+        {
+            if (aa[i] == ab[i]) {
+                rank++;
+            } else {
+                break;
+            }
+        }
+
+        return rank;
+    }
+
     /**
      * Returns the address which most closely matches the target address.
-     * 
+     *
      * @return Localhost IP
      * @throws SocketException
      * @throws UnknownHostException
@@ -52,21 +71,23 @@ public class NetworkUtil {
     public static InetAddress getClosestAddress(Collection<InetAddress> addresses, InetAddress targetAddress)
                                                                                                              throws SocketException,
                                                                                                              UnknownHostException {
-        byte[] rawTarget = targetAddress.getAddress();
-        Set<InetAddress> remaining = new HashSet<InetAddress>(addresses);
-        if (remaining.isEmpty()) {
+        if (addresses.isEmpty()) {
             return InetAddress.getByName("127.0.0.1");
         }
-        for (int i = 0; i < rawTarget.length && remaining.size() > 1; ++i) {
-            for (InetAddress address : remaining) {
-                if (address.getAddress()[i] != rawTarget[i]) {
-                    remaining.remove(address);
-                    if (remaining.size() == 1) {
-                        break;
-                    }
-                }
+
+        ArrayList<InetAddress> tmp = new ArrayList<InetAddress>(addresses);
+        InetAddress ret = tmp.get(0);
+        int max = 0;
+        int i = 0;
+        for (InetAddress a : addresses) {
+            int r = compareAddresses(a, targetAddress);
+            if (r > max) {
+                ret = tmp.get(i);
+                max = r;
             }
+            i++;
         }
-        return remaining.iterator().next();
+
+        return ret;
     }
 }
