@@ -287,10 +287,25 @@ int Push_SetListener(lua_State* L)
     return 0;
 }
 
+/*# set badge icon count
+ *
+ * Set the badge count for application icon on iOS.
+ * NOTE: Only available on iOS
+ * @name push.set_badge_count
+ * @param count badge count
+ */
+int Push_SetBadgeCount(lua_State* L)
+{
+    int count = luaL_checkinteger(L, 1);
+    [UIApplication sharedApplication].applicationIconBadgeNumber = count;
+    return 0;
+}
+
 static const luaL_reg Push_methods[] =
 {
     {"register", Push_Register},
     {"set_listener", Push_SetListener},
+    {"set_badge_count", Push_SetBadgeCount},
     {0, 0}
 };
 
