@@ -164,32 +164,24 @@ static void ToLua(lua_State*L, id obj)
         return;
     }
 
-    NSDictionary* aps = [userInfo objectForKey:@"aps"];
+    lua_State* L = g_Push.m_Listener.m_L;
+    int top = lua_gettop(L);
 
-    if (aps) {
-        lua_State* L = g_Push.m_Listener.m_L;
-        int top = lua_gettop(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
+    // Setup self
+    lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
 
-        // Setup self
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Self);
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
+    ToLua(L, userInfo);
 
-        ToLua(L, aps);
-
-        int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
-        if (ret != 0) {
-            dmLogError("Error running push callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-        }
-        assert(top == lua_gettop(L));
-
-    } else {
-        dmLogError("No aps-field present in userInfo response");
+    int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+    if (ret != 0) {
+        dmLogError("Error running push callback: %s", lua_tostring(L,-1));
+        lua_pop(L, 1);
     }
-
+    assert(top == lua_gettop(L));
 }
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
