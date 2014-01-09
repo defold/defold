@@ -347,6 +347,9 @@ namespace dmSys
         info->m_Language[0] = lang[0];
         info->m_Language[1] = lang[1];
         info->m_Language[2] = '\0';
+        info->m_DeviceLanguage[0] = lang[0];
+        info->m_DeviceLanguage[1] = lang[1];
+        info->m_DeviceLanguage[2] = '\0';
         info->m_Territory[0] = lang[3];
         info->m_Territory[1] = lang[4];
         info->m_Territory[2] = '\0';
@@ -411,6 +414,7 @@ namespace dmSys
         const char* country = env->GetStringUTFChars(countryObj, NULL);
         const char* language = env->GetStringUTFChars(languageObj, NULL);
         dmStrlCpy(info->m_Language, language, sizeof(info->m_Language));
+        dmStrlCpy(info->m_DeviceLanguage, language, sizeof(info->m_DeviceLanguage));
         dmStrlCpy(info->m_Territory, country, sizeof(info->m_Territory));
         env->ReleaseStringUTFChars(countryObj, country);
         env->ReleaseStringUTFChars(languageObj, language);

@@ -1837,7 +1837,6 @@ TEST_F(dmGuiTest, Scaling)
 
     dmGui::SetResolution(m_Context, width, height);
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
-    Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Context);
 
     const char* n1_name = "n1";
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(width/2.0f, height/2.0f, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX);

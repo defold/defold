@@ -1231,6 +1231,95 @@ namespace dmGui
         return 0;
     }
 
+    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash)
+    {
+        const char* text = luaL_checkstring(L, 2);
+        float width = luaL_checknumber(L, 3);
+        bool line_break = lua_toboolean(L, 4);
+
+        dmGui::TextMetrics metrics;
+        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, &metrics);
+        if (r != RESULT_OK) {
+            const char* id_string = (const char*)dmHashReverse64(font_id_hash, 0x0);
+            if (id_string != 0x0) {
+                luaL_error(L, "Font %s is not specified in scene", id_string);
+            } else {
+                printf("%llu", font_id_hash);
+                luaL_error(L, "Font %llu is not specified in scene", font_id_hash);
+            }
+        }
+
+        lua_createtable(L, 0, 4);
+        lua_pushliteral(L, "width");
+        lua_pushnumber(L, metrics.m_Width);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "max_ascent");
+        lua_pushnumber(L, metrics.m_MaxAscent);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "max_descent");
+        lua_pushnumber(L, metrics.m_MaxDescent);
+        lua_rawset(L, -3);
+    }
+
+    /*# get text metrics from node
+     * Get text metrics
+     *
+     * @name gui.get_text_metrics_from_node
+     * @param node node to use font from
+     * @param text text to measure
+     * @param width max-width. use for line-breaks
+     * @param line_breaks true to break lines accordingly to width
+     * @return a table with the following fields: width, max_ascent, max_descent
+     */
+    static int LuaGetTextMetricsFromNode(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GetScene(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        dmhash_t font_id_hash = dmGui::GetNodeFontId(scene, hnode);
+        PushTextMetrics(L, scene, font_id_hash);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# get text metrics
+     * Get text metrics
+     *
+     * @name gui.get_text_metrics
+     * @param font font id. (hash|string)
+     * @param text text to measure
+     * @param width max-width. use for line-breaks
+     * @param line_breaks true to break lines accordingly to width
+     * @return a table with the following fields: width, max_ascent, max_descent
+     */
+    static int LuaGetTextMetrics(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GetScene(L);
+
+        dmhash_t font_id_hash = 0;
+        if (lua_isstring(L, 1)) {
+            const char* font_id = luaL_checkstring(L, 1);
+            font_id_hash = dmHashString64(font_id);
+        } else {
+            font_id_hash = dmScript::CheckHash(L, 1);
+        }
+
+        PushTextMetrics(L, scene, font_id_hash);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# gets the x-anchor of a node
      * The x-anchor specifies how the node is moved when the game is run in a different resolution.
      *
@@ -1861,6 +1950,8 @@ namespace dmGui
         {"set_texture_data",LuaSetTextureData},
         {"get_font",        LuaGetFont},
         {"set_font",        LuaSetFont},
+        {"get_text_metrics",LuaGetTextMetrics},
+        {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},
         {"set_xanchor",     LuaSetXAnchor},
         {"get_yanchor",     LuaGetYAnchor},

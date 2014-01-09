@@ -302,6 +302,9 @@ namespace dmScript
         lua_pushliteral(L, "language");
         lua_pushstring(L, info.m_Language);
         lua_rawset(L, -3);
+        lua_pushliteral(L, "device_language");
+        lua_pushstring(L, info.m_DeviceLanguage);
+        lua_rawset(L, -3);
         lua_pushliteral(L, "territory");
         lua_pushstring(L, info.m_Territory);
         lua_rawset(L, -3);
