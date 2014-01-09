@@ -1283,6 +1283,23 @@ namespace dmGui
         return SetNodeFont(scene, node, dmHashString64(font_id));
     }
 
+    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
+    {
+        return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, metrics);
+    }
+
+    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics)
+    {
+        memset(metrics, 0, sizeof(*metrics));
+        void** font = scene->m_Fonts.Get(font_id);
+        if (!font) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, metrics);
+        return RESULT_OK;
+    }
+
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);

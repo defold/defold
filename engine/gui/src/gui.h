@@ -564,6 +564,9 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, dmhash_t font_id);
     Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
+    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics);
+    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics);
+
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
 

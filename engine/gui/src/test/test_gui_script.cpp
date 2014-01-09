@@ -147,8 +147,6 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
 
 TEST_F(dmGuiScriptTest, TestGlobalNodeFail)
 {
-    lua_State* L = dmGui::GetLuaState(m_Context);
-
     dmGui::HScript script = NewScript(m_Context);
 
     dmGui::NewSceneParams params;
