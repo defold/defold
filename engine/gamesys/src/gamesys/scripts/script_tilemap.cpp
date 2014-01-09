@@ -198,19 +198,8 @@ namespace dmGameSystem
         region->m_Dirty = true;
         component->m_Cells[cell_index] = tile;
         TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-        if (top > 5)
-        {
-            luaL_checktype(L, 6, LUA_TTABLE);
-            lua_pushliteral(L, "flip_horizontal");
-            lua_rawget(L, 6);
-            bool hflip = lua_toboolean(L, -1);
-            flags->m_FlipHorizontal = hflip;
-            lua_pushliteral(L, "flip_vertical");
-            lua_rawget(L, 6);
-            bool vflip = lua_toboolean(L, -1);
-            flags->m_FlipVertical = vflip;
-            lua_pop(L, 2);
-        }
+        flags->m_FlipHorizontal = lua_toboolean(L, 6);
+        flags->m_FlipVertical = lua_toboolean(L, 7);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
