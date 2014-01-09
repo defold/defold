@@ -89,6 +89,16 @@ namespace dmGameSystem
         float v;
     };
 
+#define PROP_VECTOR3(var_name, prop_name)\
+    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
+    const dmhash_t PROP_##var_name##_X = dmHashString64(#prop_name ".x");\
+    const dmhash_t PROP_##var_name##_Y = dmHashString64(#prop_name ".y");\
+    const dmhash_t PROP_##var_name##_Z = dmHashString64(#prop_name ".z");
+
+    PROP_VECTOR3(SCALE, scale);
+
+#undef PROP_VECTOR3
+
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
@@ -851,12 +861,69 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompSpriteGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
+        if (params.m_PropertyId == PROP_SCALE)
+        {
+            out_value.m_ValuePtr = (float*)&component->m_Scale;
+            out_value.m_ElementIds[0] = PROP_SCALE_X;
+            out_value.m_ElementIds[1] = PROP_SCALE_Y;
+            out_value.m_ElementIds[2] = PROP_SCALE_Z;
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale);
+        }
+        else if (params.m_PropertyId == PROP_SCALE_X)
+        {
+            out_value.m_ValuePtr = (float*)&component->m_Scale;
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale.getX());
+        }
+        else if (params.m_PropertyId == PROP_SCALE_Y)
+        {
+            out_value.m_ValuePtr = (float*)&component->m_Scale + 1;
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale.getY());
+        }
+        else if (params.m_PropertyId == PROP_SCALE_Z)
+        {
+            out_value.m_ValuePtr = (float*)&component->m_Scale + 2;
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale.getZ());
+        }
+        if (out_value.m_ValuePtr != 0x0)
+        {
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpriteGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
+        if (params.m_PropertyId == PROP_SCALE)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            component->m_Scale.setX(params.m_Value.m_V4[0]);
+            component->m_Scale.setY(params.m_Value.m_V4[1]);
+            component->m_Scale.setZ(params.m_Value.m_V4[2]);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_SCALE_X)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            component->m_Scale.setX((float)params.m_Value.m_Number);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_SCALE_Y)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            component->m_Scale.setY((float)params.m_Value.m_Number);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (params.m_PropertyId == PROP_SCALE_Z)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            component->m_Scale.setZ((float)params.m_Value.m_Number);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpriteSetConstantCallback, component);
     }
 }

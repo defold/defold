@@ -1,6 +1,19 @@
 function init(self)
     self.sprite = msg.url("#sprite")
     msg.post(self.sprite, "play_animation", {id = hash("anim")})
+
+    -- properties
+    go.set("#sprite", "scale", vmath.vector3(1, 2, 3))
+    local scale = go.get("#sprite", "scale")
+    assert(scale.x == 1)
+    assert(scale.y == 2)
+    assert(scale.z == 3)
+    go.set("#sprite", "scale.x", 4)
+    assert(go.get("#sprite", "scale.x") == 4)
+    go.set("#sprite", "scale.y", 5)
+    assert(go.get("#sprite", "scale.y") == 5)
+    go.set("#sprite", "scale.z", 6)
+    assert(go.get("#sprite", "scale.z") == 6)
 end
 
 function on_message(self, message_id, message, sender)
