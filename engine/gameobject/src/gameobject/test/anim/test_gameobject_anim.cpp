@@ -345,6 +345,33 @@ TEST_F(AnimTest, Delay)
     dmGameObject::Delete(m_Collection, go);
 }
 
+TEST_F(AnimTest, DelayAboveDuration)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("position.x");
+    dmGameObject::PropertyVar var(10.f);
+    float duration = 1.0f;
+    float delay = 2.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    Point3 pos;
+
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        dmGameObject::Update(m_Collection, &m_UpdateContext);
+        ASSERT_EQ(0.0f, X(go));
+    }
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_LT(0.0f, X(go));
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 TEST_F(AnimTest, LoadTest)
 {
     const uint32_t count = 1024;
