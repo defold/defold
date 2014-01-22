@@ -177,6 +177,9 @@ namespace dmHttpService
             params.m_Userdata = worker;
             params.m_HttpCache = worker->m_Service->m_HttpCache;
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
+            if (worker->m_Client) {
+                dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 3);
+            }
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
 
@@ -185,6 +188,9 @@ namespace dmHttpService
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         if (worker->m_Client) {
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_SEND_TIMEOUT, request->m_Timeout);
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_RECEIVE_TIMEOUT, request->m_Timeout);
+
             worker->m_Request = request;
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {

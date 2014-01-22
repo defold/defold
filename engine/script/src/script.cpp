@@ -113,7 +113,7 @@ namespace dmScript
         InitializeModule(L);
         InitializeImage(L);
         InitializeJson(L);
-        InitializeHttp(L);
+        InitializeHttp(L, params.m_Context->m_ConfigFile);
         InitializeZlib(L);
 
         lua_register(L, "print", LuaPrint);

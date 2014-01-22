@@ -229,6 +229,69 @@ TEST(Socket, GetIfAddrs)
     }
 }
 
+TEST(Socket, Timeout)
+{
+    const uint64_t timeout = 50 * 1000;
+    dmSocket::Socket server_socket;
+    dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::SetReuseAddress(server_socket, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("0.0.0.0"), 0);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    uint16_t port;
+    dmSocket::Address address;
+    dmSocket::GetName(server_socket, &address, &port);
+
+    r = dmSocket::Listen(server_socket, 1000);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    dmSocket::Socket client_socket;
+    r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client_socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::SetReceiveTimout(client_socket, timeout);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::SetSendTimout(client_socket, timeout);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Connect(client_socket, address, port);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    int received;
+    char buf[4096];
+    memset(buf, 0, sizeof(buf));
+
+    for (int i = 0; i < 10; ++i) {
+        uint64_t start = dmTime::GetTime();
+        r = dmSocket::Receive(client_socket, buf, sizeof(buf), &received);
+        uint64_t end = dmTime::GetTime();
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+        ASSERT_GE(end - start, timeout);
+    }
+
+    for (int i = 0; i < 10; ++i) {
+        uint64_t start = dmTime::GetTime();
+        for (int j = 0; j < 10000; ++j) {
+            // Loop to ensure that we fill send buffers
+            r = dmSocket::Send(client_socket, buf, sizeof(buf), &received);
+            if (r != dmSocket::RESULT_OK) {
+                break;
+            }
+        }
+        uint64_t end = dmTime::GetTime();
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+        ASSERT_GE(end - start, timeout);
+    }
+
+    dmSocket::Delete(server_socket);
+    dmSocket::Delete(client_socket);
+}
+
 int main(int argc, char **argv)
 {
     dmSocket::Initialize();

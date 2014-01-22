@@ -3,11 +3,13 @@
 #include "script.h"
 #include "test/test_ddf.h"
 
+#include <dlib/configfile.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/socket.h>
+#include <dlib/thread.h>
 #include <dlib/web_server.h>
 
 extern "C"
@@ -47,6 +49,7 @@ public:
     dmScript::HContext m_ScriptContext;
     lua_State* L;
     dmMessage::URL m_DefaultURL;
+    dmConfigFile::HConfig m_ConfigFile;
 
 protected:
 
@@ -73,6 +76,8 @@ protected:
                     dmWebServer::Send(request, buf, received);
                 }
             }
+        } else if (strcmp(request->m_Resource, "/sleep") == 0) {
+            dmTime::Sleep(2000 * 1000);
         } else {
             dmWebServer::SetStatusCode(request, 404);
         }
@@ -80,10 +85,13 @@ protected:
 
     virtual void SetUp()
     {
+        dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
+        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
+
         m_HttpResponseCount = 0;
         L = lua_open();
         luaL_openlibs(L);
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(m_ConfigFile, 0);
         dmScript::ScriptParams params;
         params.m_Context = m_ScriptContext;
         params.m_ResolvePathCallback = ResolvePathCallback;
@@ -117,6 +125,7 @@ protected:
         dmScript::Finalize(L, m_ScriptContext);
         lua_close(L);
         dmScript::DeleteContext(m_ScriptContext);
+        dmConfigFile::Delete(m_ConfigFile);
     }
 };
 
@@ -179,6 +188,58 @@ TEST_F(ScriptHttpTest, TestPost)
     lua_getglobal(L, "functions");
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
     lua_getfield(L, -1, "test_http");
+    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+    int result = lua_pcall(L, 0, LUA_MULTRET, 0);
+    if (result == LUA_ERRRUN)
+    {
+        dmLogError("Error running script: %s", lua_tostring(L,-1));
+        ASSERT_TRUE(false);
+        lua_pop(L, 1);
+    }
+    else
+    {
+        ASSERT_EQ(0, result);
+    }
+    lua_pop(L, 1);
+
+    uint64_t start = dmTime::GetTime();
+    while (1) {
+        dmWebServer::Update(m_WebServer);
+        dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
+
+        lua_getglobal(L, "requests_left");
+        int requests_left = lua_tointeger(L, -1);
+        lua_pop(L, 1);
+
+        if (requests_left == 0) {
+            break;
+        }
+
+        dmTime::Sleep(10 * 1000);
+
+        uint64_t now = dmTime::GetTime();
+        uint64_t elapsed = now - start;
+        if (elapsed / 1000000 > 4) {
+            ASSERT_TRUE(0);
+        }
+    }
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptHttpTest, TestTimeout)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(RunFile(L, "test_http_timeout.luac"));
+
+    char buf[1024];
+    DM_SNPRINTF(buf, sizeof(buf), "PORT = %d\n", m_WebServerPort);
+    RunString(L, buf);
+
+    lua_getglobal(L, "functions");
+    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
+    lua_getfield(L, -1, "test_http_timeout");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
     int result = lua_pcall(L, 0, LUA_MULTRET, 0);
     if (result == LUA_ERRRUN)

@@ -227,6 +227,9 @@ namespace dmSocket
      */
     Result SetNoDelay(Socket socket, bool no_delay);
 
+    Result SetSendTimout(Socket socket, uint64_t timeout);
+    Result SetReceiveTimout(Socket socket, uint64_t timeout);
+
     /**
      * Add multicast membership
      * @param socket socket to add membership on

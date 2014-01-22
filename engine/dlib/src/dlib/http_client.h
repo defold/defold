@@ -85,6 +85,10 @@ namespace dmHttpClient
     {
         /// Maximum number of retries for GET-request. Default is 4.
         OPTION_MAX_GET_RETRIES,
+        /// Send timeout in us
+        OPTION_SEND_TIMEOUT,
+        /// Receive timeout in us
+        OPTION_RECEIVE_TIMEOUT,
     };
 
     /**
@@ -168,7 +172,7 @@ namespace dmHttpClient
      * @param value Option value
      * @return RESULT_OK on success
      */
-    Result SetOptionInt(HClient client, Option option, int value);
+    Result SetOptionInt(HClient client, Option option, int64_t value);
 
     /**
      * Get last socket error. Called to get further information when RESULT_SOCKET_ERROR is returned.

@@ -330,7 +330,7 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
     }
 }
 
-TEST_P(dmHttpClientTest, Timeout)
+TEST_P(dmHttpClientTest, ServerTimeout)
 {
     for (int i = 0; i < 10; ++i)
     {
@@ -347,6 +347,31 @@ TEST_P(dmHttpClientTest, Timeout)
         r = dmHttpClient::Get(m_Client, "/add/100/20");
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(120, strtol(m_Content.c_str(), 0, 10));
+    }
+}
+
+TEST_P(dmHttpClientTest, ClientTimeout)
+{
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_SEND_TIMEOUT, 100 * 1000);
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_RECEIVE_TIMEOUT, 100 * 1000);
+    char buf[128];
+    for (int i = 0; i < 10; ++i)
+    {
+        dmHttpClient::Result r;
+        m_StatusCode = -1;
+        m_Content = "";
+        r = dmHttpClient::Get(m_Client, "/sleep/10000");
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+        ASSERT_EQ(-1, m_StatusCode);
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
+
+        m_Content = "";
+        sprintf(buf, "/add/%d/1000", i);
+        r = dmHttpClient::Get(m_Client, buf);
+        ASSERT_EQ(dmHttpClient::RESULT_OK, r);
+        ASSERT_EQ(1000 + i, strtol(m_Content.c_str(), 0, 10));
+        ASSERT_EQ(200, m_StatusCode);
     }
 }
 

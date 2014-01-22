@@ -16,6 +16,7 @@
 #include "dstrings.h"
 #include "uri.h"
 #include "path.h"
+#include "time.h"
 #include "connection_pool.h"
 #include "mutex.h"
 #include "../axtls/ssl/os_port.h"
@@ -149,6 +150,8 @@ namespace dmHttpClient
         HttpWrite           m_HttpWrite;
         HttpWriteHeaders    m_HttpWriteHeaders;
         int                 m_MaxGetRetries;
+        uint64_t            m_SendTimeout;
+        uint64_t            m_ReceiveTimeout;
         Statistics          m_Statistics;
 
         dmHttpCache::HCache m_HttpCache;
@@ -169,6 +172,9 @@ namespace dmHttpClient
 
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
             m_SSLConnection = (SSL*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
+
+            dmSocket::SetSendTimout(m_Socket, this->m_Client->m_SendTimeout);
+            dmSocket::SetReceiveTimout(m_Socket, this->m_Client->m_ReceiveTimeout);
 
             return RESULT_OK;
         } else {
@@ -237,6 +243,8 @@ namespace dmHttpClient
         client->m_HttpWrite = params->m_HttpWrite;
         client->m_HttpWriteHeaders = params->m_HttpWriteHeaders;
         client->m_MaxGetRetries = 4;
+        client->m_SendTimeout = 0;
+        client->m_ReceiveTimeout = 0;
         memset(&client->m_Statistics, 0, sizeof(client->m_Statistics));
         client->m_HttpCache = params->m_HttpCache;
         client->m_Secure = secure;
@@ -250,13 +258,19 @@ namespace dmHttpClient
         return New(params, hostname, port, false);
     }
 
-    Result SetOptionInt(HClient client, Option option, int value)
+    Result SetOptionInt(HClient client, Option option, int64_t value)
     {
         switch (option) {
             case OPTION_MAX_GET_RETRIES:
                 if (value < 1)
                     return RESULT_INVAL_ERROR;
-                client->m_MaxGetRetries = value;
+                client->m_MaxGetRetries = (int) value;
+                break;
+            case OPTION_SEND_TIMEOUT:
+                client->m_SendTimeout = (uint64_t) value;
+                break;
+            case OPTION_RECEIVE_TIMEOUT:
+                client->m_ReceiveTimeout = (uint64_t) value;
                 break;
             default:
                 return RESULT_INVAL_ERROR;
@@ -330,7 +344,19 @@ namespace dmHttpClient
 
             int r;
             do {
+                // NOTE: "Manual" implementation of timeout as ssl_read() in axTLS
+                // returns 0 (SSL_OK) when either
+                // a) Too little ssl protocol data is available
+                // b) The underlying socket returns EAGAIN (EWOULDBLOCK)
+                // Instead of changing axTLS we measure actual time here.
+                // ssl_read should return a code that represents EAGAIN (EWOULDBLOCK)
+                uint64_t start = dmTime::GetTime();
                 r = ssl_read(response->m_SSLConnection, &buf);
+                uint64_t end = dmTime::GetTime();
+                uint64_t timeout = response->m_Client->m_ReceiveTimeout;
+                if (timeout > 0 && (end - start) > timeout) {
+                    return dmSocket::RESULT_WOULDBLOCK;
+                }
             } while (r == SSL_OK);
 
             if (r >= 0) {
@@ -971,12 +997,14 @@ bail:
         {
             r = DoRequest(client, path, "GET");
             if (r == RESULT_UNEXPECTED_EOF ||
-               (r == RESULT_SOCKET_ERROR && (client->m_SocketResult == dmSocket::RESULT_CONNRESET || client->m_SocketResult == dmSocket::RESULT_PIPE)))
+               (r == RESULT_SOCKET_ERROR && (client->m_SocketResult == dmSocket::RESULT_CONNRESET
+                                          || client->m_SocketResult == dmSocket::RESULT_WOULDBLOCK
+                                          || client->m_SocketResult == dmSocket::RESULT_PIPE)))
             {
                 // Try again
                 if (i < client->m_MaxGetRetries - 1) {
                     client->m_Statistics.m_Reconnections++;
-                    dmLogInfo("HTTPCLIENT: Connection lost, reconnecting.");
+                    dmLogInfo("HTTPCLIENT: Connection lost, reconnecting. (%d/%d)", i + 1, client->m_MaxGetRetries - 1);
                 }
             }
             else

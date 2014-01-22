@@ -524,6 +524,32 @@ namespace dmSocket
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_NODELAY, no_delay);
     }
 
+    static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
+    {
+        struct timeval timeval;
+        timeval.tv_sec = time / 1000000;
+        timeval.tv_usec = time % 1000000;
+        int ret = setsockopt(socket, level, name, (char *) &timeval, sizeof(timeval));
+        if (ret < 0)
+        {
+            return NativeToResult(DM_SOCKET_ERRNO);
+        }
+        else
+        {
+            return RESULT_OK;
+        }
+    }
+
+    Result SetSendTimout(Socket socket, uint64_t timeout)
+    {
+        return SetSockoptTime(socket, SOL_SOCKET, SO_SNDTIMEO, timeout);
+    }
+
+    Result SetReceiveTimout(Socket socket, uint64_t timeout)
+    {
+        return SetSockoptTime(socket, SOL_SOCKET, SO_RCVTIMEO, timeout);
+    }
+
     Address AddressFromIPString(const char* address)
     {
         return ntohl(inet_addr(address));

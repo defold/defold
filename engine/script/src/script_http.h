@@ -3,7 +3,7 @@
 
 namespace dmScript
 {
-    void InitializeHttp(lua_State* L);
+    void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file);
     void FinalizeHttp(lua_State* L);
 }
 

@@ -212,6 +212,7 @@ namespace dmConnectionPool
     static void DoClose(HPool pool, Connection* c)
     {
         if (c->m_Socket != dmSocket::INVALID_SOCKET_HANDLE) {
+            dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
             dmSocket::Delete(c->m_Socket);
         }
         if (c->m_SSLConnection) {

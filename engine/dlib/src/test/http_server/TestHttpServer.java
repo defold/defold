@@ -27,6 +27,7 @@ public class TestHttpServer extends AbstractHandler
     Pattern m_CachedPattern = Pattern.compile("/cached/(\\d+)");
     Pattern m_EchoPattern = Pattern.compile("/echo/(.*)");
     Pattern m_ClosePattern = Pattern.compile("/close");
+    Pattern m_SleepPattern = Pattern.compile("/sleep/(\\d+)");
     public TestHttpServer()
     {
         super();
@@ -95,6 +96,7 @@ public class TestHttpServer extends AbstractHandler
         Matcher cachedm = m_CachedPattern.matcher(target);
         Matcher echom = m_EchoPattern.matcher(target);
         Matcher closem = m_ClosePattern.matcher(target);
+        Matcher sleepm = m_SleepPattern.matcher(target);
 
         if (target.equals("/"))
         {
@@ -255,6 +257,15 @@ public class TestHttpServer extends AbstractHandler
             java.net.Socket socket = (java.net.Socket) baseRequest.getConnection().getEndPoint().getTransport();
             socket.setSoTimeout(1);
             socket.close();
+        } else if (sleepm.matches()) {
+            int t = Integer.parseInt(sleepm.group(1));
+            try {
+                Thread.sleep(t);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            response.setStatus(HttpServletResponse.SC_OK);
+            baseRequest.setHandled(true);
         }
         // No match? Let ResourceHandler handle the request. See setup code.
     }
