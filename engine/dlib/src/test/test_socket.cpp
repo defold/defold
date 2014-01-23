@@ -242,11 +242,12 @@ TEST(Socket, Timeout)
     r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("0.0.0.0"), 0);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
+    r = dmSocket::Listen(server_socket, 1000);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
     uint16_t port;
     dmSocket::Address address;
-    dmSocket::GetName(server_socket, &address, &port);
-
-    r = dmSocket::Listen(server_socket, 1000);
+    r = dmSocket::GetName(server_socket, &address, &port);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     dmSocket::Socket client_socket;
@@ -271,7 +272,7 @@ TEST(Socket, Timeout)
         r = dmSocket::Receive(client_socket, buf, sizeof(buf), &received);
         uint64_t end = dmTime::GetTime();
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
-        ASSERT_GE(end - start, timeout);
+        ASSERT_GE(end - start, timeout - 2000); // NOTE: Margin of 2000. Required on Linux
     }
 
     for (int i = 0; i < 10; ++i) {
