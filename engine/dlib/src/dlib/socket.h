@@ -15,6 +15,11 @@
 #error "Unsupported platform"
 #endif
 
+/**
+ * Socket abstraction
+ * @note For Recv* and Send* function ETIMEDOUT is translated to EWOULDBLOCK
+ * on win32 for compatibility with BSD sockets.
+ */
 namespace dmSocket
 {
     /**
@@ -227,8 +232,25 @@ namespace dmSocket
      */
     Result SetNoDelay(Socket socket, bool no_delay);
 
-    Result SetSendTimout(Socket socket, uint64_t timeout);
-    Result SetReceiveTimout(Socket socket, uint64_t timeout);
+    /**
+     * Set socket send timeout
+     * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
+     *       larger than or equal to 1000.
+     * @param socket socket
+     * @param timeout timeout in microseconds
+     * @return RESULT_OK on success
+     */
+    Result SetSendTimeout(Socket socket, uint64_t timeout);
+
+    /**
+     * Set socket receive timeout
+     * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
+     *       larger than or equal to 1000
+     * @param socket socket
+     * @param timeout timeout in microseconds
+     * @return RESULT_OK on success
+     */
+    Result SetReceiveTimeout(Socket socket, uint64_t timeout);
 
     /**
      * Add multicast membership

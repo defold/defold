@@ -173,8 +173,8 @@ namespace dmHttpClient
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
             m_SSLConnection = (SSL*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
 
-            dmSocket::SetSendTimout(m_Socket, this->m_Client->m_SendTimeout);
-            dmSocket::SetReceiveTimout(m_Socket, this->m_Client->m_ReceiveTimeout);
+            dmSocket::SetSendTimeout(m_Socket, this->m_Client->m_SendTimeout);
+            dmSocket::SetReceiveTimeout(m_Socket, this->m_Client->m_ReceiveTimeout);
 
             return RESULT_OK;
         } else {

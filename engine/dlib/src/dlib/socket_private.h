@@ -63,6 +63,19 @@ namespace dmSocket
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
 
+    // Use this function for BSD socket compatibility
+    // However, don't use it blindly as we return code ETIMEDOUT is "lost".
+    // The background is that ETIMEDOUT is returned rather than EWOULDBLOCK on windows
+    // on socket timeout.
+    static Result NativeToResultCompat(int r)
+    {
+        Result res = NativeToResult(r);
+        if (res == RESULT_TIMEDOUT) {
+            res = RESULT_WOULDBLOCK;
+        }
+        return res;
+    }
+
     #define DM_SOCKET_HNATIVE_TO_RESULT_CASE(x) case x: return RESULT_##x
     static Result HNativeToResult(int r)
     {

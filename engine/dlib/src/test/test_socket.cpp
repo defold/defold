@@ -239,7 +239,7 @@ TEST(Socket, Timeout)
     r = dmSocket::SetReuseAddress(server_socket, true);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("0.0.0.0"), 0);
+	r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("127.0.0.1"), 0);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Listen(server_socket, 1000);
@@ -254,10 +254,10 @@ TEST(Socket, Timeout)
     r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client_socket);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    r = dmSocket::SetReceiveTimout(client_socket, timeout);
+    r = dmSocket::SetReceiveTimeout(client_socket, timeout);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
-    r = dmSocket::SetSendTimout(client_socket, timeout);
+    r = dmSocket::SetSendTimeout(client_socket, timeout);
     ASSERT_EQ(dmSocket::RESULT_OK, r);
 
     r = dmSocket::Connect(client_socket, address, port);
