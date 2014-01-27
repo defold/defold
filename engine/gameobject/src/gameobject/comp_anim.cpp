@@ -189,7 +189,7 @@ namespace dmGameObject
                         uint16_t anim_index = world->m_AnimMap[index];
                         Animation* a2 = &world->m_Animations[anim_index];
                         if (anim_index != i && !a2->m_FirstUpdate && a2->m_ComponentId == anim.m_ComponentId
-                                && a2->m_PropertyId == anim.m_PropertyId)
+                                && a2->m_PropertyId == anim.m_PropertyId && a2->m_Delay <= 0.0f)
                         {
                             StopAnimation(a2, false);
                         }
@@ -213,7 +213,6 @@ namespace dmGameObject
             }
             // Take care of possible underflow
             dt -= anim.m_Delay;
-            anim.m_Delay = 0.0f;
             // Reset delay
             anim.m_Delay = 0.0f;
             // Advance cursor

@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/chain_delay_bug.scriptc"
+}
