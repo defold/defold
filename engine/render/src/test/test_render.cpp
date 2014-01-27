@@ -5,6 +5,8 @@
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
+#include <script/script.h>
+
 #include "render/render.h"
 #include "render/render_private.h"
 #include "render/font_renderer_private.h"
@@ -19,13 +21,16 @@ class dmRenderTest : public ::testing::Test
 protected:
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
+    dmScript::HContext m_ScriptContext;
 
     virtual void SetUp()
     {
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::RenderContextParams params;
+        m_ScriptContext = dmScript::NewContext(0, 0);
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 2;
+        params.m_ScriptContext = m_ScriptContext;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
     }
 
@@ -33,6 +38,7 @@ protected:
     {
         dmRender::DeleteRenderContext(m_Context, 0);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmScript::DeleteContext(m_ScriptContext);
     }
 };
 
