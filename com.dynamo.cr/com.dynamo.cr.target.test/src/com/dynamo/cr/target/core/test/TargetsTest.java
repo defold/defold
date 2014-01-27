@@ -133,8 +133,7 @@ public class TargetsTest implements ITargetListener {
     @Test
     public void testSearchLocal() throws Exception {
         /*
-         * Search for local target and ensure that the pseudo-target is replaced
-         * by the found local target
+         * Search for local target and ensure that the pseudo-target is still present at index 0
          */
         String localAddress = InetAddress.getLocalHost().getHostAddress();
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
@@ -158,10 +157,12 @@ public class TargetsTest implements ITargetListener {
         synchronized (this) {
             assertThat(events.size(), is(2));
             ITarget[] targets = targetService.getTargets();
-            assertThat(targets.length, is(1));
-            assertThat(targets[0].getId(), is(UDN));
-            assertThat(targets[0].getUrl(), is(URL));
-            assertThat(targets[0].getLogPort(), is(LOG_PORT));
+            assertThat(targets.length, is(2));
+            assertThat(targets[0].getId(), is(ITargetService.LOCAL_TARGET_ID));
+            assertThat(targets[0].getUrl(), is((String) null));
+            assertThat(targets[1].getId(), is(UDN));
+            assertThat(targets[1].getUrl(), is(URL));
+            assertThat(targets[1].getLogPort(), is(LOG_PORT));
         }
     }
 

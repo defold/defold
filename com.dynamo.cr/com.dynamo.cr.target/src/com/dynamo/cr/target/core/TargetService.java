@@ -248,11 +248,9 @@ public class TargetService implements ITargetService, Runnable {
             }
         }
 
-        if (!localTargetFound) {
-            // No running local target found. Add pseudo-target to head of list.
-            // It's a convention to be able to fallback to the first target
-            targets.add(0, createLocalTarget());
-        }
+        // Add pseudo-target to head of list.
+        // It's a convention to be able to fallback to the first target
+        targets.add(0, createLocalTarget());
 
         synchronized (this) {
             this.targets = targets.toArray(new ITarget[targets.size()]);
