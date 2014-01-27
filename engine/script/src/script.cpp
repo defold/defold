@@ -63,7 +63,10 @@ namespace dmScript
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         lua_pop(L, 1);
 
-        lua_Number r = (lua_Number)dmMath::Rand(seed) / (lua_Number)DM_RAND_MAX;
+        // NOTE: + 1 changed from original lua implementation
+        // Otherwise upper + 1 when dmMath::Rand() returns DM_RAND_MAX
+        // However no proof for correctness
+        lua_Number r = (lua_Number)dmMath::Rand(seed) / (lua_Number)(DM_RAND_MAX + 1);
         switch (lua_gettop(L)) {
             case 0: {
                 lua_pushnumber(L, r);

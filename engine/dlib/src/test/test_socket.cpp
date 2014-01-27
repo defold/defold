@@ -286,7 +286,7 @@ TEST(Socket, Timeout)
         }
         uint64_t end = dmTime::GetTime();
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
-        ASSERT_GE(end - start, timeout);
+        ASSERT_GE(end - start, timeout - 2000); // NOTE: Margin of 2000. Required on Linux
     }
 
     dmSocket::Delete(server_socket);
