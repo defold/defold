@@ -272,7 +272,7 @@ TEST(Socket, Timeout)
         r = dmSocket::Receive(client_socket, buf, sizeof(buf), &received);
         uint64_t end = dmTime::GetTime();
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
-        ASSERT_GE(end - start, timeout - 2000); // NOTE: Margin of 2000. Required on Linux
+        ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
     }
 
     for (int i = 0; i < 10; ++i) {
@@ -286,7 +286,7 @@ TEST(Socket, Timeout)
         }
         uint64_t end = dmTime::GetTime();
         ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
-        ASSERT_GE(end - start, timeout - 2000); // NOTE: Margin of 2000. Required on Linux
+        ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
     }
 
     dmSocket::Delete(server_socket);
