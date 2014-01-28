@@ -158,11 +158,11 @@ public class TargetsTest implements ITargetListener {
             assertThat(events.size(), is(2));
             ITarget[] targets = targetService.getTargets();
             assertThat(targets.length, is(2));
-            assertThat(targets[0].getId(), is(ITargetService.LOCAL_TARGET_ID));
-            assertThat(targets[0].getUrl(), is((String) null));
-            assertThat(targets[1].getId(), is(UDN));
-            assertThat(targets[1].getUrl(), is(URL));
-            assertThat(targets[1].getLogPort(), is(LOG_PORT));
+            assertThat(targets[0].getId(), is(UDN));
+            assertThat(targets[0].getUrl(), is(URL));
+            assertThat(targets[0].getLogPort(), is(LOG_PORT));
+            assertThat(targets[1].getId(), is(ITargetService.LOCAL_TARGET_ID));
+            assertThat(targets[1].getUrl(), is((String) null));
         }
     }
 
