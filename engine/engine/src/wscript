@@ -86,7 +86,7 @@ def build(bld):
         obj.source.append('engine.rc')
 
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram',
+        features = 'cc cxx cprogram apk',
         uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB DMGLFW X',
         uselib_local = 'engine',
         includes = '../build ../proto .',

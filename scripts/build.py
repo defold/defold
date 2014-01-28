@@ -31,7 +31,8 @@ class Configuration(object):
                  no_colors = False,
                  archive_path = None,
                  set_version = None,
-                 eclipse = False):
+                 eclipse = False,
+                 branch = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -52,6 +53,7 @@ class Configuration(object):
         self.archive_path = archive_path
         self.set_version = set_version
         self.eclipse = eclipse
+        self.branch = branch
 
         self._create_common_dirs()
 
@@ -199,9 +201,9 @@ class Configuration(object):
         else:
             lib_ext = '.so'
 
-        full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
-        host, path = full_archive_path.split(':', 1)
         sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
         dynamo_home = self.dynamo_home
         # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
@@ -221,19 +223,22 @@ class Configuration(object):
 
         engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine' + exe_ext)
         engine_release = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_release' + exe_ext)
+        engine_headless = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_headless' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             self._log('Archiving %s' % engine)
             self.exec_command(['scp', engine,
-                               '%s/%sdmengine%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
+                               '%s/%sdmengine%s' % (full_archive_path, exe_prefix, exe_ext)])
             self.exec_command(['scp', engine_release,
-                               '%s/%sdmengine_release%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
+                               '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext)])
+            self.exec_command(['scp', engine_headless,
+                               '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext)])
 
         if 'android' in self.target_platform:
             self._log('Archiving %s' % 'classes.dex')
             classes_dex = join(dynamo_home, 'share/java/classes.dex')
             self.exec_command(['scp', classes_dex,
-                               '%s/classes.dex.%s' % (full_archive_path, sha1)])
+                               '%s/classes.dex' % (full_archive_path)])
 
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
@@ -242,7 +247,7 @@ class Configuration(object):
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
             self._log('Archiving %s' % lib_path)
             self.exec_command(['scp', lib_path,
-                               '%s/%s%s_shared%s.%s' % (full_archive_path, lib_prefix, lib, lib_ext, sha1)])
+                               '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -296,18 +301,43 @@ class Configuration(object):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
     def archive_go(self):
-        full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'go', self.target_platform).replace('\\', '/')
         host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
 
-        sha1 = self._git_sha1()
         for p in glob(join(self.defold, 'go', 'bin', '*')):
             # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
             if self.target_platform == 'win32':
                 p = p.replace("\\", "/")
                 p = "/" + p[:1] + p[2:]
-            self.exec_command(['scp', p, '%s/%s.%s' % (full_archive_path, basename(p), sha1)])
-            self.exec_command(['ssh', host, 'cd %s; ln -sf %s.%s %s' % (path, basename(p), sha1, basename(p))])
+            self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
+
+    def build_bob(self):
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        self.exec_command("./scripts/copy_libtexc.sh",
+                          cwd = cwd,
+                          shell = True)
+
+        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                          cwd = cwd,
+                          shell = True)
+
+    def archive_bob(self):
+        sha1 = self._git_sha1()
+
+        dynamo_home = self.dynamo_home
+        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
+        if self.target_platform == 'win32':
+            dynamo_home = dynamo_home.replace("\\", "/")
+            dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
+
+        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
+        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+
+        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
+            self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -355,12 +385,18 @@ root.linux.gtk.x86.permissions.755=jre/'''
         zip.close()
 
     def _archive_cr(self, product, build_dir):
-        host, path = self.archive_path.split(':', 1)
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'editor').replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
         for p in glob(join(build_dir, 'I.*/*.zip')):
-            self.exec_command(['scp', p, self.archive_path])
+            self.exec_command(['scp', p, full_archive_path])
         self.exec_command(['tar', '-C', build_dir, '-cz', '-f', join(build_dir, '%s_repository.tgz' % product), 'repository'])
-        self.exec_command(['scp', join(build_dir, '%s_repository.tgz' % product), self.archive_path])
+        self.exec_command(['scp', join(build_dir, '%s_repository.tgz' % product), full_archive_path])
+
+        if self.branch:
+            _, base_path = self.archive_path.split(':', 1)
+            self.exec_command(['ssh', host, 'ln -sf %s %s' % (path, join(base_path, '%s_%s' % (product, self.branch)))])
 
     def archive_editor(self):
         build_dir = self._get_cr_builddir('editor')
@@ -518,6 +554,8 @@ build_server    - Build server
 build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
+build_bob       - Build bob with native libraries included for cross platform deployment
+archive_bob     - Archive bob to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
 shell           - Start development shell
@@ -568,6 +606,10 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'Output build commands in a format eclipse can parse')
 
+    parser.add_option('--branch', dest='branch',
+                      default = None,
+                      help = 'Current branch. Used only for symbolic information, such as links to latest editor for a branch')
+
     options, args = parser.parse_args()
 
     if len(args) == 0:
@@ -587,7 +629,8 @@ Multiple commands can be specified'''
                           no_colors = options.no_colors,
                           archive_path = options.archive_path,
                           set_version = options.set_version,
-                          eclipse = options.eclipse)
+                          eclipse = options.eclipse,
+                          branch = options.branch)
 
 
         for cmd in args:
@@ -606,7 +649,8 @@ Multiple commands can be specified'''
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
                       set_version = options.set_version,
-                      eclipse = options.eclipse)
+                      eclipse = options.eclipse,
+                      branch = options.branch)
 
     for cmd in args:
         f = getattr(c, cmd, None)
