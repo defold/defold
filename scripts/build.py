@@ -223,6 +223,7 @@ class Configuration(object):
 
         engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine' + exe_ext)
         engine_release = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_release' + exe_ext)
+        engine_headless = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_headless' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             self._log('Archiving %s' % engine)
@@ -230,6 +231,8 @@ class Configuration(object):
                                '%s/%sdmengine%s' % (full_archive_path, exe_prefix, exe_ext)])
             self.exec_command(['scp', engine_release,
                                '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext)])
+            self.exec_command(['scp', engine_headless,
+                               '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext)])
 
         if 'android' in self.target_platform:
             self._log('Archiving %s' % 'classes.dex')
