@@ -386,7 +386,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
     def _archive_cr(self, product, build_dir):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'editor').replace('\\', '/')
+        full_archive_path = join(self.archive_path, sha1, product).replace('\\', '/')
         host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
         for p in glob(join(build_dir, 'I.*/*.zip')):
