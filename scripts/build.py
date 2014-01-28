@@ -313,6 +313,32 @@ class Configuration(object):
                 p = "/" + p[:1] + p[2:]
             self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
 
+    def build_bob(self):
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        self.exec_command("./scripts/copy_libtexc.sh",
+                          cwd = cwd,
+                          shell = True)
+
+        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                          cwd = cwd,
+                          shell = True)
+
+    def archive_bob(self):
+        sha1 = self._git_sha1()
+
+        dynamo_home = self.dynamo_home
+        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
+        if self.target_platform == 'win32':
+            dynamo_home = dynamo_home.replace("\\", "/")
+            dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
+
+        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
+        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+
+        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
+            self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
+
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building docs')
@@ -528,6 +554,8 @@ build_server    - Build server
 build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
+build_bob       - Build bob with native libraries included for cross platform deployment
+archive_bob     - Archive bob to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
 shell           - Start development shell
