@@ -97,8 +97,13 @@ namespace dmHttpService
     dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
-        char* headers = (char*) worker->m_Request->m_Headers;
+        char* headers = 0;
         if (worker->m_Request->m_HeadersLength > 0) {
+            headers = (char*) malloc(worker->m_Request->m_HeadersLength);
+            // NOTE: We must copy the buffer as retry might happen
+            // and dmStrTok is destructive
+            // We don't know the actual size inadvance, hence the malloc()
+            memcpy(headers, (char*) worker->m_Request->m_Headers, worker->m_Request->m_HeadersLength);
             headers[worker->m_Request->m_HeadersLength-1] = '\0';
 
             char* s, *last;
@@ -108,6 +113,7 @@ namespace dmHttpService
                 *colon = '\0';
                 dmHttpClient::Result r = dmHttpClient::WriteHeader(response, s, colon + 1);
                 if (r != dmHttpClient::RESULT_OK) {
+                    free(headers);
                     return r;
                 }
                 *colon = ':';
@@ -116,6 +122,7 @@ namespace dmHttpService
 
         }
 
+        free(headers);
         return dmHttpClient::RESULT_OK;
     }
 
