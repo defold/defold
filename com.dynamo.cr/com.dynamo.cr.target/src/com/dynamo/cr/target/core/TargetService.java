@@ -180,7 +180,7 @@ public class TargetService implements ITargetService, Runnable {
         // We temporarily blacklist non-reachable devices (socket timeout)
         Set<String> blackList = new HashSet<String>();
 
-        boolean localTargetFound = false;
+        ITarget localTarget = null;
         for (DeviceInfo deviceInfo : devices) {
             String location = deviceInfo.headers.get("LOCATION");
             URL locationURL = null;
@@ -229,10 +229,12 @@ public class TargetService implements ITargetService, Runnable {
                             targetAddress);
                     ITarget target = new Target(name, udn, targetAddress, url,
                             Integer.parseInt(logPort));
-                    targets.add(target);
 
+                    // The local target is separately added below to ensure its position in the list
                     if (deviceInfo.address.equals(hostAddress.getHostAddress())) {
-                        localTargetFound = true;
+                        localTarget = target;
+                    } else {
+                        targets.add(target);
                     }
 
                 }
@@ -251,6 +253,11 @@ public class TargetService implements ITargetService, Runnable {
         // Add pseudo-target to head of list.
         // It's a convention to be able to fallback to the first target
         targets.add(0, createLocalTarget());
+        // If there is a local target present, this should override the pseudo target as fallback.
+        // This is to ensure that the running engine is restarted, instead of a new application being launched.
+        if (localTarget != null) {
+            targets.add(0, localTarget);
+        }
 
         synchronized (this) {
             this.targets = targets.toArray(new ITarget[targets.size()]);
