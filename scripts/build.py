@@ -396,7 +396,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
         if self.branch:
             _, base_path = self.archive_path.split(':', 1)
-            self.exec_command(['ssh', host, 'ln -sf %s %s' % (path, join(base_path, '%s_%s' % (product, self.branch)))])
+            self.exec_command(['ssh', host, 'ln -snf %s %s' % (path, join(base_path, '%s_%s' % (product, self.branch)))])
 
     def archive_editor(self):
         build_dir = self._get_cr_builddir('editor')
