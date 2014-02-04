@@ -1,5 +1,15 @@
 :max-width: 45em
 
+Yet more various fixes (Release 1.2.28)
+---------------------------------------
+_January 28, 2014_
+
+1.2.28 brings more smaller fixes:
+
+* math.random(x, y) would in rare cases return values larger than y
+* Animations started through link:/ref/go#go.animate[go.animate] could incorrectly remove existing delayed animations
+* Better fallback in editor when starting the game and the current target device cannot be located
+
 Even more various fixes (Release 1.2.27)
 ----------------------------------------
 _January 9, 2014_
