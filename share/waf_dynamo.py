@@ -620,8 +620,9 @@ def android_package(task):
     r_java_files = []
     for root, dirs, files in os.walk(r_java_gen_dir):
         for f in files:
-            p = os.path.join(root, f)
-            r_java_files.append(p)
+            if f.endswith(".java"):
+                p = os.path.join(root, f)
+                r_java_files.append(p)
 
     ret = bld.exec_command('%s %s %s' % (task.env['JAVAC'][0], '-source 1.6 -target 1.6', ' '.join(r_java_files)))
     if ret != 0:
