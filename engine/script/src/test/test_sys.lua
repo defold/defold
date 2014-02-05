@@ -40,6 +40,9 @@ function test_sys()
     print("language: " .. info.language)
     print("territory: " .. info.territory)
     print("gmt_offset: " .. info.gmt_offset)
+    print("device_ident" .. info.device_ident)
+    print("ad_ident" .. info.ad_ident)
+    print("ad_tracking_enabled" .. info.ad_tracking_enabled)
 
     -- get_ifaddrs
     local addresses = sys.get_ifaddrs()

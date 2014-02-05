@@ -62,7 +62,8 @@ def default_flags(self):
 
         if 'arm' in platform:
             # iOS
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit'])
+            # NOTE: AdSupport here but used in dlib and hence every other library implicitly
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport'])
         else:
             # OSX
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
