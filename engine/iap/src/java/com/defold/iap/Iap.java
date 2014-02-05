@@ -24,16 +24,16 @@ import android.util.Log;
 
 import com.android.vending.billing.IInAppBillingService;
 
-public class Iap implements Handler.Callback {	
+public class Iap implements Handler.Callback {
 	public static final String PARAM_PRODUCT = "product";
 	public static final String PARAM_MESSENGER = "com.defold.iap.messenger";
-	
+
 	// NOTE: Also defined in iap_android.cpp
 	public static final int TRANS_STATE_PURCHASING = 0;
 	public static final int TRANS_STATE_PURCHASED = 1;
 	public static final int TRANS_STATE_FAILED = 2;
 	public static final int TRANS_STATE_RESTORED = 3;
-	
+
     public static final String RESPONSE_CODE = "RESPONSE_CODE";
     public static final String RESPONSE_GET_SKU_DETAILS_LIST = "DETAILS_LIST";
     public static final String RESPONSE_BUY_INTENT = "BUY_INTENT";
@@ -52,12 +52,12 @@ public class Iap implements Handler.Callback {
     public static final int BILLING_RESPONSE_RESULT_ERROR = 6;
     public static final int BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED = 7;
     public static final int BILLING_RESPONSE_RESULT_ITEM_NOT_OWNED = 8;
-    
+
     public static enum Action {
     	BUY,
     	RESTORE,
     }
-    	
+
 	public static final String TAG = "iap";
 
 	private Activity activity;
@@ -65,7 +65,7 @@ public class Iap implements Handler.Callback {
 	private Messenger messenger;
 	private ServiceConnection serviceConn;
 	private IInAppBillingService service;
-	
+
 	private SkuDetailsThread skuDetailsThread;
 	private BlockingQueue<SkuRequest> skuRequestQueue = new ArrayBlockingQueue<SkuRequest>(16);
 
@@ -81,7 +81,7 @@ public class Iap implements Handler.Callback {
 			this.listener = listener;
 		}
 	}
-	
+
 	private class SkuDetailsThread extends Thread {
 		public boolean stop = false;
 		@Override
@@ -101,14 +101,14 @@ public class Iap implements Handler.Callback {
 	public Iap(Activity activity) {
 		this.activity = activity;
 	}
-	
+
 	private void init() {
 		// NOTE: We must create Handler lazily as construction of
 		// handlers must be in the context of a "looper" on Android
-		
+
 		if (this.initialized)
 			return;
-		
+
 		this.initialized = true;
 		this.handler = new Handler(this);
 		this.messenger = new Messenger(this.handler);
@@ -129,11 +129,11 @@ public class Iap implements Handler.Callback {
 		activity.bindService(new Intent(
 				"com.android.vending.billing.InAppBillingService.BIND"),
 				serviceConn, Context.BIND_AUTO_CREATE);
-		
+
 		skuDetailsThread = new SkuDetailsThread();
-		skuDetailsThread.start();		
+		skuDetailsThread.start();
 	}
-	
+
 	public void stop() {
 		if (serviceConn != null) {
 			activity.unbindService(serviceConn);
@@ -145,7 +145,7 @@ public class Iap implements Handler.Callback {
 				skuDetailsThread.join();
 			} catch (InterruptedException e) {
 				Log.wtf(TAG, "Failed to join thread", e);
-			}			
+			}
 		}
 	}
 
@@ -155,26 +155,26 @@ public class Iap implements Handler.Callback {
 			@Override
 			public void run() {
 				init();
-				
+
 				ArrayList<String> skuList = new ArrayList<String>();
 				for (String x : skus.split(",")) {
 					if (x.trim().length() > 0) {
 						skuList.add(x);
 					}
 				}
-				
+
 				try {
 					skuRequestQueue.put(new SkuRequest(skuList, listener));
 				} catch (InterruptedException e) {
 					Log.wtf(TAG, "Failed to add sku request", e);
 				}
 			}
-		});	
+		});
 	}
-	
+
 	private static String convertProduct(String purchase) {
 		try {
-			JSONObject p = new JSONObject(purchase);			
+			JSONObject p = new JSONObject(purchase);
 			p.put("price_string", p.get("price"));
 			p.put("ident", p.get("productId"));
 
@@ -183,11 +183,11 @@ public class Iap implements Handler.Callback {
 			p.remove("price");
 			p.remove("price_amount_micros");
 			p.remove("price_currency_code");
-			return p.toString();			
+			return p.toString();
 		} catch (JSONException e) {
 			Log.wtf(TAG, "Failed to convert product json", e);
 		}
-		
+
 		return null;
 	}
 
@@ -196,7 +196,7 @@ public class Iap implements Handler.Callback {
 		querySkus.putStringArrayList("ITEM_ID_LIST", skuList);
 		StringBuilder sb = new StringBuilder();
 		sb.append("[");
-		
+
 		try {
 			if (service == null) {
 				Log.wtf(TAG,  "service is null");
@@ -211,11 +211,11 @@ public class Iap implements Handler.Callback {
 
 			if (response == 0) {
 				ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
-				
+
 				for (String r : responseList) {
 					String p = convertProduct(r);
 					if (p != null) {
-						sb.append(p);						
+						sb.append(p);
 					}
 				}
 			}
@@ -256,22 +256,22 @@ public class Iap implements Handler.Callback {
 			}
 		});
 	}
-	
+
 	public static String toISO8601(final Date date) {
 		String formatted = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(date);
 		return formatted.substring(0, 22) + ":" + formatted.substring(22);
 	}
-	
+
 	private static String convertPurchase(String purchase) {
 		try {
-			JSONObject p = new JSONObject(purchase);			
+			JSONObject p = new JSONObject(purchase);
 			p.put("ident", p.get("productId"));
 			p.put("state", TRANS_STATE_PURCHASED);
 			p.put("trans_ident", p.get("purchaseToken"));
 			p.put("date", toISO8601(new Date(p.getInt("purchaseTime"))));
 			p.put("receipt", ""); // TODO: How?
 			// TODO: How to simulate original_trans on iOS?
-			
+
 			p.remove("packageName");
 			p.remove("orderId");
 			p.remove("productId");
@@ -281,18 +281,18 @@ public class Iap implements Handler.Callback {
 			p.remove("purchaseToken");
 
 			return p.toString();
-			
+
 		} catch (JSONException e) {
 			Log.wtf(TAG, "Failed to convert purchase json", e);
 		}
-		
+
 		return null;
 	}
-	
+
 	@Override
 	public boolean handleMessage(Message msg) {
 		Bundle bundle = msg.getData();
-		
+
 		String actionString = bundle.getString("action");
 		if (actionString == null) {
 			return false;
@@ -304,12 +304,12 @@ public class Iap implements Handler.Callback {
 		}
 
 		Action action = Action.valueOf(actionString);
-		
+
 		if (action == Action.BUY) {
 			int responseCode = bundle.getInt(RESPONSE_CODE);
 			String purchaseData = bundle.getString(RESPONSE_INAPP_PURCHASE_DATA);
 			String dataSignature = bundle.getString(RESPONSE_INAPP_SIGNATURE);
-			
+
 			if (purchaseData != null && dataSignature != null) {
 				purchaseData = convertPurchase(purchaseData);
 			} else {
@@ -317,7 +317,7 @@ public class Iap implements Handler.Callback {
 				purchaseData = "";
 				dataSignature = "";
 			}
-			
+
 			purchaseListener.onResult(responseCode, purchaseData, dataSignature);
 			this.purchaseListener = null;
 		} else if (action == Action.RESTORE) {
@@ -334,7 +334,7 @@ public class Iap implements Handler.Callback {
 				}
 				purchaseListener.onResult(c, pd, signatureList.get(i));
 			}
-		}	
+		}
 		return true;
 	}
 }
