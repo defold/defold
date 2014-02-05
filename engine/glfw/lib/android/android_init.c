@@ -194,6 +194,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         _glfwWin.iconified = 1;
         break;
     case APP_CMD_DESTROY:
+        _glfwWin.opened = 0;
         final_gl(&_glfwWin);
         break;
     }
@@ -225,8 +226,10 @@ void _glfwPreMain(struct android_app* state)
 
     char* argv[] = {0};
     argv[0] = strdup("defold-app");
-    main(1, argv);
+    int ret =main(1, argv);
     free(argv[0]);
+    // NOTE: _exit due to a dead-lock in glue code.
+    _exit(ret);
 }
 
 int _glfwPlatformInit( void )
