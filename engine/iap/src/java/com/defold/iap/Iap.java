@@ -139,6 +139,7 @@ public class Iap implements Handler.Callback {
 			activity.unbindService(serviceConn);
 		}
 		if (skuDetailsThread != null) {
+            skuDetailsThread.stop = true;
 			skuDetailsThread.interrupt();
 			try {
 				skuDetailsThread.join();
