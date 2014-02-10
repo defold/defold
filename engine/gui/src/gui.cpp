@@ -2044,6 +2044,8 @@ namespace dmGui
 
             InternalNode* n = GetNode(scene, node);
             out_n->m_Node = n->m_Node;
+            if (n->m_Node.m_Text != 0x0)
+                out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
             out_n->m_Version = version;
             out_n->m_Index = index;
             out_n->m_PrevIndex = INVALID_INDEX;

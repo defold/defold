@@ -275,14 +275,20 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
             "    gui.set_id(n2, \"n2\")\n"
             "    local n3 = gui.new_box_node(vmath.vector3(3, 3, 3), vmath.vector3(1, 1, 1))\n"
             "    gui.set_id(n3, \"n3\")\n"
+            "    local n4 = gui.new_text_node(vmath.vector3(3, 3, 3), \"TEST\")\n"
+            "    gui.set_id(n4, \"n4\")\n"
             "    gui.set_parent(n2, n1)\n"
             "    gui.set_parent(n3, n2)\n"
+            "    gui.set_parent(n4, n3)\n"
             "    local t = gui.clone_tree(n1)\n"
             "    assert(gui.get_position(t.n1) == gui.get_position(n1))\n"
             "    assert(gui.get_position(t.n2) == gui.get_position(n2))\n"
             "    assert(gui.get_position(t.n3) == gui.get_position(n3))\n"
+            "    assert(gui.get_text(t.n4) == gui.get_text(n4))\n"
             "    gui.set_position(t.n1, vmath.vector3(4, 4, 4))\n"
             "    assert(gui.get_position(t.n1) ~= gui.get_position(n1))\n"
+            "    gui.set_text(t.n4, \"TEST2\")\n"
+            "    assert(gui.get_text(t.n4) ~= gui.get_text(n4))\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
