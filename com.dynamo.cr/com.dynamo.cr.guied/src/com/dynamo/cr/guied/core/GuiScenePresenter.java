@@ -37,15 +37,29 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
         return parent;
     }
 
+    private Node findGuiNodeParentFromSelection(IStructuredSelection selection) {
+        Object[] nodes = selection.toArray();
+        Node parent = null;
+        for (Object node : nodes) {
+            if (node instanceof GuiSceneNode) {
+                parent = ((GuiSceneNode) node).getNodesNode();
+                break;
+            } else if (node instanceof NodesNode || node instanceof GuiNode) {
+                return (Node) node;
+            }
+        }
+        return parent;
+    }
+
     public void onAddBoxNode(IPresenterContext context) {
-        GuiSceneNode scene = findSceneFromSelection(context.getSelection());
+        Node scene = findGuiNodeParentFromSelection(context.getSelection());
         BoxNode node = new BoxNode();
         node.setId("box");
         context.executeOperation(new AddGuiNodeOperation(scene, node, context));
     }
 
     public void onAddTextNode(IPresenterContext context) {
-        GuiSceneNode scene = findSceneFromSelection(context.getSelection());
+        Node scene = findGuiNodeParentFromSelection(context.getSelection());
         TextNode node = new TextNode();
         node.setId("text");
         context.executeOperation(new AddGuiNodeOperation(scene, node, context));

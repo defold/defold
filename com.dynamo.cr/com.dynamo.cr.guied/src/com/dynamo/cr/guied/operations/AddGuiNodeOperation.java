@@ -4,14 +4,14 @@ import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
 
 import com.dynamo.cr.guied.core.GuiNode;
-import com.dynamo.cr.guied.core.GuiSceneNode;
 import com.dynamo.cr.sceneed.core.ISceneView.IPresenterContext;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
 
 public class AddGuiNodeOperation extends AddChildrenOperation {
 
-    public AddGuiNodeOperation(GuiSceneNode scene, GuiNode node, IPresenterContext presenterContext) {
-        super("Add Node", scene.getNodesNode(), node, presenterContext);
+    public AddGuiNodeOperation(Node parent, GuiNode node, IPresenterContext presenterContext) {
+        super("Add Node", parent, node, presenterContext);
         Point3d position = new Point3d();
         presenterContext.getCameraFocusPoint(position);
         node.setTranslation(position);

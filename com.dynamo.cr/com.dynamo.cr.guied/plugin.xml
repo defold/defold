@@ -87,6 +87,9 @@
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
                   </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+                  </reference>
                </or>
             </visibleWhen>
          </command>
@@ -102,6 +105,9 @@
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
             </visibleWhen>
@@ -267,6 +273,18 @@
             </iterate>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.guied.core.GuiNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -284,6 +302,9 @@
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
             </and>
@@ -303,6 +324,9 @@
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
             </and>
