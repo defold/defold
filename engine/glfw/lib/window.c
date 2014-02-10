@@ -603,10 +603,14 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
         glfwDisable( GLFW_MOUSE_CURSOR );
     }
 
+    // DEFOLD
+    // NOTE: Clear and swap was removed by Defold. It should be up to the application
+    // when to clear the buffers
+
     // Start by clearing the front buffer to black (avoid ugly desktop
     // remains in our OpenGL window)
-    glClear( GL_COLOR_BUFFER_BIT );
-    _glfwPlatformSwapBuffers();
+    // glClear( GL_COLOR_BUFFER_BIT );
+    //_glfwPlatformSwapBuffers();
 
     return GL_TRUE;
 }

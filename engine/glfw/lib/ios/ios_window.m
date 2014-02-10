@@ -38,6 +38,35 @@
 #include "internal.h"
 #include "platform.h"
 
+enum StartupPhase
+{
+    INITIAL,
+    INIT1,
+    INIT2,
+    COMPLETE,
+};
+
+enum StartupPhase g_StartupPhase = INITIAL;
+void* g_ReservedStack = 0;
+int g_SwapCount = 0;
+
+/*
+Notes about the crazy startup
+In order to have a classic event-loop we must "bail" the built-in event dispatch loop
+using setjmp/longjmp. Moreover, data must be loaded before applicationDidFinishLaunching
+is completed as the launch image is removed moments after applicationDidFinishLaunching finish.
+It's also imperative that applicationDidFinishLaunching completes entirely. If not, the launch image
+isn't removed as the startup sequence isn't completed properly. Something that complicates this matter
+is that it isn't allowed to longjmp in a setjmp as the stack is squashed. By allocating a lot
+of stack *before* UIApplicationMain is invoked we can be quite confident that stack used by UIApplicationMain
+and descendants is kept intact. This is a crazy hack but we don't have much of a choice. Only
+alternative is to modify glfw to have a structure similar to Cocoa Touch.
+
+Additionally we postpone startup sequence until we have swapped gl-buffers twice in
+order to avoid black screen between launch image and game content.
+*/
+
+
 //************************************************************************
 //****               Platform implementation functions                ****
 //************************************************************************
@@ -279,15 +308,19 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
 - (void)swapBuffers
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+    if (g_StartupPhase == COMPLETE) {
+        // Do not poll event before startup sequence is completed
+        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+        while (countDown > 0)
+        {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, TRUE);
+        }
+        [pool release];
 
-    while (countDown > 0)
-    {
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, TRUE);
+        countDown = swapInterval;
     }
-    [pool release];
 
-    countDown = swapInterval;
+    g_SwapCount++;
 
     // NOTE: We poll events above and the application might be iconfied
     // At least when running in frame-rates < 60
@@ -648,6 +681,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     // As we replace view-controller and view when re-opening the "window" we must ensure that we always
     // have an active context (context is set to nil when view is deallocated)
     [EAGLContext setCurrentContext: glView.context];
+
+    [super viewDidAppear: animated];
+
+    if (g_StartupPhase == INIT2) {
+        longjmp(_glfwWin.bailEventLoopBuf, 1);
+    }
 }
 
 - (void)viewDidUnload
@@ -736,7 +775,8 @@ _GLFWwin g_Savewin;
     [viewController setModalPresentationStyle:UIModalPresentationCurrentContext];
     viewController.view.frame = CGRectZero;
     [window.rootViewController presentModalViewController:viewController animated:NO];
-    [window.rootViewController dismissModalViewControllerAnimated:YES];
+    // NOTE: We used to have animated to YES here but on iOS 7 the view wasn't dismissed
+    [window.rootViewController dismissModalViewControllerAnimated:NO];
     [viewController release];
     [pool release];
 }
@@ -764,15 +804,15 @@ _GLFWwin g_Savewin;
         }
     }
 
-    // We can't hijack the event loop here. We post-pone it to ensure that the application is
-    // completely initialized
-    [NSTimer scheduledTimerWithTimeInterval:0.001 target:g_ApplicationDelegate selector:@selector(hijackEventLoop) userInfo:nil repeats:NO];
-}
-
-- (void)hijackEventLoop
-{
-    // Long jump back to start and run our own event-loop/game-loop
-    longjmp(_glfwWin.bailEventLoopBuf,1);
+    if (!setjmp(_glfwWin.finishInitBuf))
+    {
+        g_StartupPhase = INIT1;
+        longjmp(_glfwWin.bailEventLoopBuf, 1);
+    }
+    else
+    {
+        g_StartupPhase = INIT2;
+    }
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application
@@ -844,6 +884,10 @@ int  _glfwPlatformOpenWindow( int width, int height,
      * fbconfig->*
      */
 
+    const int stack_size = 1 << 18;
+    // Store stack pointer in a global variable.
+    // Otherwise the allocated stack might be removed by the optimizer
+    g_ReservedStack = alloca(stack_size);
     if (!setjmp(_glfwWin.bailEventLoopBuf) )
     {
         char* argv[] = { "dummy" };
@@ -944,6 +988,22 @@ void _glfwPlatformRefreshWindowParams( void )
 
 void _glfwPlatformPollEvents( void )
 {
+    if (g_StartupPhase == INIT1 && g_SwapCount > 1) {
+        if (!setjmp(_glfwWin.bailEventLoopBuf))
+        {
+            longjmp(_glfwWin.finishInitBuf, 1);
+        }
+        else
+        {
+            g_StartupPhase = COMPLETE;
+        }
+        return;
+    }
+
+    if (g_StartupPhase != COMPLETE) {
+        return;
+    }
+
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     SInt32 result;
     do {
