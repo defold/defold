@@ -331,10 +331,15 @@ public abstract class Node implements IAdaptable, Serializable {
     {
         transform.setIdentity();
         transform.set(new Vector3d(translation.x, translation.y, translation.z));
-        transform.setRotation(rotation);
-        transform.setElement(0, 0, this.scale * this.componentScale.getX() * transform.getElement(0, 0));
-        transform.setElement(1, 1, this.scale * this.componentScale.getY() * transform.getElement(1, 1));
-        transform.setElement(2, 2, this.scale * this.componentScale.getZ() * transform.getElement(2, 2));
+        Matrix3d rotationScale = new Matrix3d();
+        rotationScale.set(rotation);
+        Matrix3d scale = new Matrix3d();
+        scale.setIdentity();
+        scale.setElement(0, 0, this.scale * this.componentScale.getX());
+        scale.setElement(1, 1, this.scale * this.componentScale.getY());
+        scale.setElement(2, 2, this.scale * this.componentScale.getZ());
+        rotationScale.mul(scale);
+        transform.setRotationScale(rotationScale);
     }
 
     protected boolean scaleAlongZ() {
@@ -380,10 +385,15 @@ public abstract class Node implements IAdaptable, Serializable {
             Vector3d translation = new Vector3d(this.translation);
             rotationScale.transform(translation);
             local.setIdentity();
-            local.setRotation(this.rotation);
-            local.setElement(0, 0, this.scale * this.componentScale.getX() * local.getElement(0, 0));
-            local.setElement(1, 1, this.scale * this.componentScale.getY() * local.getElement(1, 1));
-            local.setElement(2, 2, this.scale * this.componentScale.getZ() * local.getElement(2, 2));
+            Matrix3d localRotationScale = new Matrix3d();
+            localRotationScale.set(rotation);
+            Matrix3d scale = new Matrix3d();
+            scale.setIdentity();
+            scale.setElement(0, 0, this.scale * this.componentScale.getX());
+            scale.setElement(1, 1, this.scale * this.componentScale.getY());
+            scale.setElement(2, 2, this.scale * this.componentScale.getZ());
+            localRotationScale.mul(scale);
+            local.setRotationScale(localRotationScale);
             transform.mul(local);
             transform.setM03(transform.getM03() + translation.x);
             transform.setM13(transform.getM13() + translation.y);
