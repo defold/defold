@@ -622,8 +622,9 @@ namespace dmProfile
     {
         dmSpinlock::Lock(&g_ProfileLock);
         if (g_StringPool) {
+            const char* s = dmStringPool::Add(g_StringPool, string);
             dmSpinlock::Unlock(&g_ProfileLock);
-            return dmStringPool::Add(g_StringPool, string);
+            return s;
         } else {
             dmSpinlock::Unlock(&g_ProfileLock);
             return "PROFILER NOT INITIALIZED";
