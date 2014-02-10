@@ -137,6 +137,7 @@ struct _GLFWwin_struct {
 
     // Misc
     jmp_buf   bailEventLoopBuf;
+    jmp_buf   finishInitBuf;
 };
 
 GLFWGLOBAL _GLFWwin _glfwWin;
