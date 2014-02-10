@@ -18,7 +18,7 @@ import com.dynamo.cr.sceneed.core.RenderData;
 public class GuiSceneRenderer implements INodeRenderer<GuiSceneNode> {
 
     private static final float COLOR[] = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
-    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION);
+    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE);
 
     public GuiSceneRenderer() {
     }
