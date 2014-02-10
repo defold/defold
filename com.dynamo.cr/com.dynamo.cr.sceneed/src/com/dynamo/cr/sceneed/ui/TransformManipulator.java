@@ -11,16 +11,20 @@ import org.eclipse.swt.events.MouseEvent;
 import com.dynamo.cr.sceneed.core.Manipulator;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation;
+import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation.ITransformer;
 
 @SuppressWarnings("serial")
-public abstract class TransformManipulator extends RootManipulator {
+public abstract class TransformManipulator<T> extends RootManipulator {
 
     private boolean transformChanged = false;
-    private List<Matrix4d> originalLocalTransforms = new ArrayList<Matrix4d>();
-    private List<Matrix4d> newLocalTransforms = new ArrayList<Matrix4d>();
+    private List<T> originalLocalTransforms = new ArrayList<T>();
+    private List<T> newLocalTransforms = new ArrayList<T>();
 
     protected abstract String getOperation();
-    protected abstract void applyTransform(List<Node> selection, List<Matrix4d> originalLocalTransforms);
+
+    protected abstract ITransformer<T> getTransformer();
+
+    protected abstract void applyTransform(List<Node> selection, List<T> originalLocalTransforms);
 
     @Override
     protected final void transformChanged() {
@@ -32,9 +36,9 @@ public abstract class TransformManipulator extends RootManipulator {
     protected void selectionChanged() {
         List<Node> sel = getSelection();
         this.originalLocalTransforms.clear();
+        ITransformer<T> transformer = getTransformer();
         for (Node node : sel) {
-            Matrix4d transform = new Matrix4d();
-            node.getLocalTransform(transform);
+            T transform = transformer.get(node);
             this.originalLocalTransforms.add(transform);
         }
     }
@@ -69,13 +73,14 @@ public abstract class TransformManipulator extends RootManipulator {
     @Override
     public void mouseUp(MouseEvent e) {
         if (transformChanged) {
+            ITransformer<T> transformer = getTransformer();
             for (Node node : getSelection()) {
-                Matrix4d transform = new Matrix4d();
-                node.getLocalTransform(transform);
+                T transform = transformer.get(node);
                 newLocalTransforms.add(transform);
             }
 
-            TransformNodeOperation operation = new TransformNodeOperation(getOperation(), getSelection(), originalLocalTransforms, newLocalTransforms);
+            TransformNodeOperation<T> operation = new TransformNodeOperation<T>(getOperation(), getTransformer(),
+                    getSelection(), originalLocalTransforms, newLocalTransforms);
             getController().executeOperation(operation);
             transformChanged = false;
         }

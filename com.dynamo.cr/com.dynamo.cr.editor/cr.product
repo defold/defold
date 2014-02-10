@@ -32,6 +32,7 @@ jre\bin\javaw.exe</programArgsWin>
    <vm>
    </vm>
 
+
    <plugins>
       <plugin id="com.dynamo.cr.bob"/>
       <plugin id="com.dynamo.cr.branchrepo"/>
@@ -47,6 +48,7 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="com.dynamo.cr.editor.ui"/>
       <plugin id="com.dynamo.cr.engine"/>
       <plugin id="com.dynamo.cr.go"/>
+      <plugin id="com.dynamo.cr.guied"/>
       <plugin id="com.dynamo.cr.guieditor"/>
       <plugin id="com.dynamo.cr.luaeditor"/>
       <plugin id="com.dynamo.cr.parted"/>

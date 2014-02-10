@@ -6,10 +6,14 @@ import java.io.InputStreamReader;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
+
+import org.eclipse.swt.graphics.RGB;
 
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector4;
 import com.google.protobuf.Message;
 import com.google.protobuf.TextFormat;
 
@@ -17,6 +21,10 @@ public class LoaderUtil {
 
     public static Vector4d toVector4(Point3 p) {
         return new Vector4d(p.getX(), p.getY(), p.getZ(), 1);
+    }
+
+    public static Vector3d toVector3(Vector4 p) {
+        return new Vector3d(p.getX(), p.getY(), p.getZ());
     }
 
     public static Quat4d toQuat4(Quat q) {
@@ -37,6 +45,22 @@ public class LoaderUtil {
             .setZ((float) v.getZ()).build();
     }
 
+    public static Vector4 toVector4(RGB rgb, double alpha) {
+        float factor = 1.0f / 255.0f;
+        return Vector4.newBuilder().setX(rgb.red * factor).setY(rgb.green * factor).setZ(rgb.blue * factor)
+                .setW((float) alpha).build();
+    }
+
+    public static Vector4 toVector4(Point3d p) {
+        return Vector4.newBuilder().setX((float) p.getX()).setY((float) p.getY()).setZ((float) p.getZ()).setW(1.0f)
+                .build();
+    }
+
+    public static Vector4 toVector4(Vector3d p) {
+        return Vector4.newBuilder().setX((float) p.getX()).setY((float) p.getY()).setZ((float) p.getZ()).setW(1.0f)
+                .build();
+    }
+
     public static Quat toQuat(Quat4d q) {
         return Quat.newBuilder()
             .setX((float) q.getX())
@@ -47,6 +71,15 @@ public class LoaderUtil {
 
     public static Point3d toPoint3d(Point3 p) {
         return new Point3d(p.getX(), p.getY(), p.getZ());
+    }
+
+    public static Point3d toPoint3d(Vector4 p) {
+        return new Point3d(p.getX(), p.getY(), p.getZ());
+    }
+
+    public static RGB toRGB(Vector4 v) {
+        float factor = 255.0f;
+        return new RGB((int) (v.getX() * factor), (int) (v.getY() * factor), (int) (v.getZ() * factor));
     }
 
     public static <U extends Message> void loadBuilder(U.Builder builder, InputStream stream) throws IOException {

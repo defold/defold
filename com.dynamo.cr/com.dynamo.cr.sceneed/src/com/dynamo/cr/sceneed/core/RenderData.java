@@ -13,12 +13,14 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
     private Point3d position;
     private Object userData;
     private long key;
+    private int index;
 
     /*
      * NOTE: Do *NOT* use bit 63 in order to avoid signed numbers!
      */
     private final static long DISTANCE_SHIFT = 0;
     private final static long PASS_SHIFT = DISTANCE_SHIFT + 32;
+    private final static long INDEX_SHIFT = PASS_SHIFT + 4;
     private final static long MANIPULATOR_SHIFT = 62;
 
     public RenderData(Pass pass, INodeRenderer<T> nodeRenderer, T node,
@@ -50,6 +52,14 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
         return key;
     }
 
+    public int getIndex() {
+        return index;
+    }
+
+    public void setIndex(int index) {
+        this.index = index;
+    }
+
     public void calculateKey(Camera camera, Matrix4d m, Point3d p) {
         p.set(this.position);
         this.node.getWorldTransform(m);
@@ -62,10 +72,10 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
         // scale z (1,0) to int-space
         long distance = (long)(z * Integer.MAX_VALUE);
         key = (distance << DISTANCE_SHIFT)
-                | (((long) pass.ordinal()) << PASS_SHIFT);
+ | (((long) pass.ordinal()) << PASS_SHIFT) | (((long)index) << INDEX_SHIFT);
 
         if (node instanceof Manipulator) {
-            key |= 1 << MANIPULATOR_SHIFT;
+            key |= 1l << MANIPULATOR_SHIFT;
         }
     }
 

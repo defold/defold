@@ -78,6 +78,8 @@ message NodeDesc
     optional dmMath.Vector4 shadow   = 16;
     optional AdjustMode adjust_mode  = 17 [default = ADJUST_MODE_FIT];
     optional bool       line_break   = 18 [default = false];
+    optional string     parent       = 19;
+    optional string     layer        = 20;
 }
 
 message SceneDesc
@@ -92,6 +94,10 @@ message SceneDesc
         required string name    = 1;
         required string texture = 2 [(resource)=true];
     }
+    message LayerDesc
+    {
+        required string name    = 1;
+    }
 
     required string      script                  = 1 [(resource)=true];
     repeated FontDesc    fonts                   = 2;
@@ -99,4 +105,5 @@ message SceneDesc
     optional dmMath.Vector4 background_color     = 4;
 
     repeated NodeDesc    nodes                   = 6;
+    repeated LayerDesc   layers                  = 7;
 }

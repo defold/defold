@@ -24,6 +24,7 @@ import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -133,9 +134,14 @@ public class ProtoBuilders {
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".gui_script", ".gui_scriptc"));
             Set<String> fontNames = new HashSet<String>();
             Set<String> textureNames = new HashSet<String>();
+            Set<String> layerNames = new HashSet<String>();
 
             List<FontDesc> newFontList = new ArrayList<FontDesc>();
             for (FontDesc f : messageBuilder.getFontsList()) {
+                if (fontNames.contains(f.getName())) {
+                    throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_FONT,
+                            f.getName()));
+                }
                 fontNames.add(f.getName());
                 newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
             }
@@ -144,22 +150,40 @@ public class ProtoBuilders {
 
             List<TextureDesc> newTextureList = new ArrayList<TextureDesc>();
             for (TextureDesc f : messageBuilder.getTexturesList()) {
+                if (textureNames.contains(f.getName())) {
+                    throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_TEXTURE,
+                            f.getName()));
+                }
                 textureNames.add(f.getName());
                 newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
             }
             messageBuilder.clearTextures();
             messageBuilder.addAllTextures(newTextureList);
 
+            for (LayerDesc f : messageBuilder.getLayersList()) {
+                if (layerNames.contains(f.getName())) {
+                    throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_LAYER,
+                            f.getName()));
+                }
+                layerNames.add(f.getName());
+            }
             for (NodeDesc n : messageBuilder.getNodesList()) {
-                if (n.hasTexture() && n.getTexture().length() > 0) {
+                if (n.hasTexture() && !n.getTexture().isEmpty()) {
                     if (!textureNames.contains(n.getTexture())) {
                         throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_TEXTURE, n.getTexture()));
                     }
                 }
 
-                if (n.hasFont() && n.getFont().length() > 0) {
+                if (n.hasFont() && !n.getFont().isEmpty()) {
                     if (!fontNames.contains(n.getFont())) {
                         throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_FONT, n.getFont()));
+                    }
+                }
+
+                if (n.hasLayer() && !n.getLayer().isEmpty()) {
+                    if (!layerNames.contains(n.getLayer())) {
+                        throw new CompileExceptionError(input, 0, BobNLS.bind(Messages.GuiBuilder_MISSING_LAYER,
+                                n.getLayer()));
                     }
                 }
 

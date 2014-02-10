@@ -321,6 +321,37 @@ namespace dmGui
         return 1;
     }
 
+    /*# sets the id of the specified node
+     *
+     * @name gui.set_id
+     * @param node node to set the id for (node)
+     * @param id id to set (string|hash)
+     */
+    int LuaSetId(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+
+        dmhash_t id = 0;
+        if (lua_isstring(L, 2))
+        {
+            id = dmHashString64(lua_tostring(L, 2));
+        }
+        else
+        {
+            id = dmScript::CheckHash(L, 2);
+        }
+        Scene* scene = GetScene(L);
+        dmGui::SetNodeId(scene, hnode, id);
+
+        assert(top == lua_gettop(L));
+
+        return 0;
+    }
+
     /*# gets the index of the specified node
      * The index defines the order in which a node appear in a gui scene.
      * Higher index means the node is drawn above lower indexed nodes.
@@ -340,6 +371,11 @@ namespace dmGui
 
         uint32_t index = 0;
         uint16_t i = scene->m_RenderHead;
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            i = parent->m_ChildHead;
+        }
         while (i != INVALID_INDEX && i != n->m_Index)
         {
             ++index;
@@ -827,6 +863,15 @@ namespace dmGui
         return 0;
     }
 
+    static void LuaPushNode(lua_State* L, dmGui::HScene scene, dmGui::HNode node)
+    {
+        NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
+        node_proxy->m_Scene = scene;
+        node_proxy->m_Node = node;
+        luaL_getmetatable(L, NODE_PROXY_TYPE_NAME);
+        lua_setmetatable(L, -2);
+    }
+
     static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
     {
         int top = lua_gettop(L);
@@ -842,11 +887,7 @@ namespace dmGui
         GetNode(scene, node)->m_Node.m_Font = font;
         SetNodeText(scene, node, text);
 
-        NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
-        node_proxy->m_Scene = scene;
-        node_proxy->m_Node = node;
-        luaL_getmetatable(L, NODE_PROXY_TYPE_NAME);
-        lua_setmetatable(L, -2);
+        LuaPushNode(L, scene, node);
 
         assert(top + 1 == lua_gettop(L));
 
@@ -1225,6 +1266,70 @@ namespace dmGui
                     luaL_error(L, "Font %s is not specified in scene", id_string);
                 else
                     luaL_error(L, "Font %llu is not specified in scene", font_id);
+            }
+        }
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the node layer
+     * The layer must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.get_layer
+     * @param node node from which to get the layer (node)
+     * @return layer id (hash)
+     */
+    static int LuaGetLayer(lua_State* L)
+    {
+        Scene* scene = GetScene(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        dmScript::PushHash(L, dmGui::GetNodeLayerId(scene, hnode));
+        return 1;
+    }
+
+    /*# sets the node layer
+     * The layer must be mapped to the gui scene in the gui editor.
+     *
+     * @name gui.set_layer
+     * @param node node for which to set the layer (node)
+     * @param layer layer id (string|hash)
+     */
+    static int LuaSetLayer(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GetScene(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void)n;
+
+        if (lua_isstring(L, 2))
+        {
+            const char* layer_id = luaL_checkstring(L, 2);
+
+            Result r = SetNodeLayer(scene, hnode, layer_id);
+            if (r != RESULT_OK)
+            {
+                luaL_error(L, "Layer %s is not specified in scene", layer_id);
+            }
+        }
+        else
+        {
+            dmhash_t layer_id = dmScript::CheckHash(L, 2);
+            Result r = SetNodeLayer(scene, hnode, layer_id);
+            if (r != RESULT_OK)
+            {
+                const char* id_string = (const char*)dmHashReverse64(layer_id, 0x0);
+                if (id_string != 0x0)
+                    luaL_error(L, "Layer %s is not specified in scene", id_string);
+                else
+                    luaL_error(L, "Layer %llu is not specified in scene", layer_id);
             }
         }
         assert(top == lua_gettop(L));
@@ -1678,6 +1783,204 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the parent of the specified node
+     *
+     * If the specified node does not have a parent, nil is returned.
+     *
+     * @name gui.get_node
+     * @param node the node from which to retrieve its parent (node)
+     * @return parent instance (node)
+     */
+    int LuaGetParent(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GetScene(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
+            node_proxy->m_Scene = scene;
+            node_proxy->m_Node = GetNodeHandle(parent);
+            luaL_getmetatable(L, NODE_PROXY_TYPE_NAME);
+            lua_setmetatable(L, -2);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+
+        return 1;
+    }
+
+    /*# set the parent of the node
+     *
+     * @name gui.set_parent
+     * @param node node for which to set its parent (node)
+     * @param parent parent node to set (node)
+     */
+    static int LuaSetParent(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        HNode parent = INVALID_HANDLE;
+        if (!lua_isnil(L, 2))
+        {
+            parent = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
+        }
+        Scene* scene = GetScene(L);
+        dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent);
+        switch (result)
+        {
+        case dmGui::RESULT_INF_RECURSION:
+            return luaL_error(L, "Unable to set parent since it would cause an infinite loop");
+        case dmGui::RESULT_OK:
+            return 0;
+        default:
+            return luaL_error(L, "An unexpected error occurred");
+        }
+    }
+
+    /*# clone a node
+     *
+     * This does not include its children. Use gui.clone_tree for that purpose.
+     *
+     * @name gui.clone
+     * @param node node to clone (node)
+     * @return the cloned node (node)
+     */
+    static int LuaClone(lua_State* L)
+    {
+        HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+
+        Scene* scene = GetScene(L);
+        HNode out_node;
+        dmGui::Result result = dmGui::CloneNode(scene, hnode, &out_node);
+        switch (result)
+        {
+        case dmGui::RESULT_OUT_OF_RESOURCES:
+            return luaL_error(L, "Not enough resources to clone the node");
+        case dmGui::RESULT_OK:
+            MoveNodeAbove(scene, out_node, hnode);
+            LuaPushNode(L, scene, out_node);
+            return 1;
+        default:
+            return luaL_error(L, "An unexpected error occurred");
+        }
+    }
+
+    static int HashTableIndex(lua_State* L)
+    {
+        if (lua_isstring(L, -1))
+        {
+            dmScript::PushHash(L, dmHashString64(lua_tostring(L, -1)));
+            lua_rawget(L, -3);
+            return 1;
+        }
+        else
+        {
+            lua_pushvalue(L, -1);
+            lua_rawget(L, -3);
+            return 1;
+        }
+    }
+
+    static dmGui::Result CloneNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index, dmGui::HNode parent);
+
+    static dmGui::Result CloneNodeToTable(lua_State* L, dmGui::HScene scene, InternalNode* n, dmGui::HNode* out_node)
+    {
+        dmGui::HNode node = GetNodeHandle(n);
+        dmGui::Result result = CloneNode(scene, node, out_node);
+        if (result == dmGui::RESULT_OK)
+        {
+            dmScript::PushHash(L, n->m_NameHash);
+            LuaPushNode(L, scene, node);
+            lua_rawset(L, -3);
+            result = CloneNodeListToTable(L, scene, n->m_ChildHead, *out_node);
+        }
+        return result;
+    }
+
+    static dmGui::Result CloneNodeListToTable(lua_State* L, dmGui::HScene scene, uint16_t start_index, dmGui::HNode parent)
+    {
+        uint32_t index = start_index;
+        dmGui::Result result = dmGui::RESULT_OK;
+        while (index != INVALID_INDEX && result == dmGui::RESULT_OK)
+        {
+            InternalNode* node = &scene->m_Nodes[index];
+            dmGui::HNode out_node;
+            result = CloneNodeToTable(L, scene, node, &out_node);
+            if (result == dmGui::RESULT_OK)
+            {
+                dmGui::SetNodeParent(scene, out_node, parent);
+            }
+            index = node->m_NextIndex;
+        }
+        return result;
+    }
+
+    /*# clone a node including its children
+     *
+     * Use gui.clone to clone a node excluding its children.
+     *
+     * @name gui.clone_tree
+     * @param node root node to clone (node)
+     * @return a table mapping node ids to the corresponding cloned nodes (table)
+     */
+    static int LuaCloneTree(lua_State* L)
+    {
+        lua_newtable(L);
+
+        // Set meta table to convert string indices to hashes
+        lua_createtable(L, 0, 1);
+        lua_pushcfunction(L, HashTableIndex);
+        lua_setfield(L, -2, "__index");
+        lua_setmetatable(L, -2);
+
+        Scene* scene = GetScene(L);
+        dmGui::Result result;
+        if (!lua_isnil(L, 1))
+        {
+            dmGui::HNode hnode;
+            InternalNode* root = LuaCheckNode(L, 1, &hnode);
+            dmGui::HNode out_node;
+            result = CloneNodeToTable(L, scene, root, &out_node);
+            if (result == dmGui::RESULT_OK)
+            {
+                dmGui::HNode parent = INVALID_HANDLE;
+                if (root->m_ParentIndex != INVALID_INDEX)
+                {
+                    parent = GetNodeHandle(&scene->m_Nodes[root->m_ParentIndex]);
+                }
+                dmGui::SetNodeParent(scene, out_node, parent);
+            }
+        }
+        else
+        {
+            result = CloneNodeListToTable(L, scene, scene->m_RenderHead, INVALID_HANDLE);
+        }
+
+        switch (result)
+        {
+        case dmGui::RESULT_OUT_OF_RESOURCES:
+            lua_pop(L, 1);
+            return luaL_error(L, "Not enough resources to clone the node tree");
+        case dmGui::RESULT_OK:
+            return 1;
+        default:
+            lua_pop(L, 1);
+            return luaL_error(L, "An unexpected error occurred");
+        }
+    }
+
     /*# reset all nodes to initial state
      * reset only applies to static node loaded from the scene. Nodes created dynamically from script are not affected
      *
@@ -1862,6 +2165,7 @@ namespace dmGui
             else\
                 v = *dmScript::CheckVector4(L, 2);\
             n->m_Node.m_Properties[property] = v;\
+            n->m_Node.m_DirtyLocal = 1;\
             return 0;\
         }\
 
@@ -1915,8 +2219,8 @@ namespace dmGui
         Scene* scene = GetScene(L);
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 node_transform;
-        Vector4 center(0.0f, 0.0f, 0.0f, 1.0f);
-        CalculateNodeTransform(scene, n->m_Node, scale, true, false, &node_transform);
+        Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
+        CalculateNodeTransform(scene, n, scale, true, true, &node_transform);
         Vector4 p = node_transform * center;
         dmScript::PushVector3(L, Vector3(p.getX(), p.getY(), p.getZ()));
         return 1;
@@ -1930,6 +2234,7 @@ namespace dmGui
     {
         {"get_node",        LuaGetNode},
         {"get_id",          LuaGetId},
+        {"set_id",          LuaSetId},
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
@@ -1949,6 +2254,8 @@ namespace dmGui
         {"set_texture_data",LuaSetTextureData},
         {"get_font",        LuaGetFont},
         {"set_font",        LuaSetFont},
+        {"get_layer",        LuaGetLayer},
+        {"set_layer",        LuaSetLayer},
         {"get_text_metrics",LuaGetTextMetrics},
         {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},
@@ -1966,6 +2273,10 @@ namespace dmGui
         {"set_adjust_mode", LuaSetAdjustMode},
         {"move_above",      LuaMoveAbove},
         {"move_below",      LuaMoveBelow},
+        {"get_parent",      LuaGetParent},
+        {"set_parent",      LuaSetParent},
+        {"clone",           LuaClone},
+        {"clone_tree",      LuaCloneTree},
         {"show_keyboard",   LuaShowKeyboard},
         {"hide_keyboard",   LuaHideKeyboard},
         {"get_screen_position", LuaGetScreenPosition},

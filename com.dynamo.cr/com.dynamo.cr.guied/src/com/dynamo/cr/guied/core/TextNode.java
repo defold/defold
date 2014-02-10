@@ -1,0 +1,195 @@
+package com.dynamo.cr.guied.core;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.io.IOUtils;
+import org.eclipse.core.resources.IContainer;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.Path;
+import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.RGB;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.dynamo.cr.guied.Activator;
+import com.dynamo.cr.properties.Property;
+import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Range;
+import com.dynamo.cr.sceneed.core.ISceneModel;
+import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.TextRendererHandle;
+import com.dynamo.render.proto.Font;
+import com.google.protobuf.TextFormat;
+
+@SuppressWarnings("serial")
+public class TextNode extends GuiNode {
+
+    private static Logger logger = LoggerFactory.getLogger(TextNode.class);
+
+    @Property
+    private String text = "";
+
+    @Property
+    private boolean lineBreak = false;
+
+    @Property(editorType = EditorType.DROP_DOWN)
+    private String font = "";
+
+    @Property()
+    private RGB outline = new RGB(255, 255, 255);
+
+    @Property()
+    @Range(min = 0.0, max = 1.0)
+    private double outlineAlpha = 1.0;
+
+    @Property()
+    private RGB shadow = new RGB(255, 255, 255);
+
+    @Property
+    @Range(min = 0.0, max = 1.0)
+    private double shadowAlpha = 1.0;
+
+    private transient TextRendererHandle textRendererHandle = new TextRendererHandle();
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
+    }
+
+    public boolean isLineBreak() {
+        return lineBreak;
+    }
+
+    public void setLineBreak(boolean lineBreak) {
+        this.lineBreak = lineBreak;
+    }
+
+    public String getFont() {
+        return font;
+    }
+
+    public void setFont(String font) {
+        this.font = font;
+        updateFont();
+    }
+
+    public Object[] getFontOptions() {
+        List<Node> fonts = getScene().getFontsNode().getChildren();
+        List<String> ids = new ArrayList<String>(fonts.size());
+        for (Node n : fonts) {
+            ids.add(((FontNode) n).getId());
+        }
+        return ids.toArray();
+    }
+
+    public RGB getOutline() {
+        return new RGB(outline.red, outline.green, outline.blue);
+    }
+
+    public void setOutline(RGB outline) {
+        this.outline.red = outline.red;
+        this.outline.green = outline.green;
+        this.outline.blue = outline.blue;
+    }
+
+    public double getOutlineAlpha() {
+        return outlineAlpha;
+    }
+
+    public void setOutlineAlpha(double outlineAlpha) {
+        this.outlineAlpha = outlineAlpha;
+    }
+
+    public RGB getShadow() {
+        return new RGB(shadow.red, shadow.green, shadow.blue);
+    }
+
+    public void setShadow(RGB shadow) {
+        this.shadow.red = shadow.red;
+        this.shadow.green = shadow.green;
+        this.shadow.blue = shadow.blue;
+    }
+
+    public double getShadowAlpha() {
+        return shadowAlpha;
+    }
+
+    public void setShadowAlpha(double shadowAlpha) {
+        this.shadowAlpha = shadowAlpha;
+    }
+
+    public TextRendererHandle getTextRendererHandle() {
+        return this.textRendererHandle;
+    }
+
+    private void loadFont(String fontPath) throws CoreException, IOException {
+        IContainer contentRoot = getModel().getContentRoot();
+        IFile fontFile = contentRoot.getFile(new Path(fontPath));
+        InputStream is = fontFile.getContents();
+        try {
+            Reader reader = new InputStreamReader(is);
+            Font.FontDesc.Builder fontDescBuilder = Font.FontDesc.newBuilder();
+            TextFormat.merge(reader, fontDescBuilder);
+            Font.FontDesc fontDesc = fontDescBuilder.build();
+
+            String ttfFileName = fontDesc.getFont();
+            IFile ttfFile = contentRoot.getFile(new Path(ttfFileName));
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream(1024 * 128);
+            IOUtils.copy(ttfFile.getContents(), output);
+
+            if (this.textRendererHandle == null) {
+                this.textRendererHandle = new TextRendererHandle();
+            }
+            this.textRendererHandle.setFont(output.toByteArray(), fontDesc.getSize());
+        } finally {
+            is.close();
+        }
+    }
+
+    private void updateFont() {
+        if (!this.font.isEmpty() && getModel() != null) {
+            GuiSceneNode scene = getScene();
+            List<Node> fontNodes = scene.getFontsNode().getChildren();
+            String fontPath = null;
+            for (Node n : fontNodes) {
+                FontNode fontNode = (FontNode) n;
+                if (fontNode.getId().equals(this.font)) {
+                    fontPath = fontNode.getFont();
+                    break;
+                }
+            }
+            if (fontPath != null) {
+                try {
+                    loadFont(fontPath);
+                } catch (CoreException e) {
+                    logger.error("Could not load font " + fontPath, e);
+                } catch (IOException e) {
+                    logger.error("Could not load font " + fontPath, e);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void setModel(ISceneModel model) {
+        super.setModel(model);
+        updateFont();
+    }
+
+    @Override
+    public Image getIcon() {
+        return Activator.getDefault().getImageRegistry().get(Activator.TEXT_NODE_IMAGE_ID);
+    }
+
+}

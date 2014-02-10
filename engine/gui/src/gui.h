@@ -39,6 +39,11 @@ namespace dmGui
      */
     const HNode INVALID_HANDLE = 0;
 
+    /**
+     * Default layer id
+     */
+    const dmhash_t DEFAULT_LAYER = dmHashString64("");
+
     struct NewSceneParams;
     void SetDefaultNewSceneParams(NewSceneParams* params);
 
@@ -48,6 +53,7 @@ namespace dmGui
         uint32_t m_MaxAnimations;
         uint32_t m_MaxTextures;
         uint32_t m_MaxFonts;
+        uint32_t m_MaxLayers;
         void*    m_UserData;
 
         NewSceneParams()
@@ -117,6 +123,7 @@ namespace dmGui
         RESULT_RESOURCE_NOT_FOUND = -5,
         RESULT_TEXTURE_ALREADY_EXISTS = -6,
         RESULT_INVAL_ERROR = -7,
+        RESULT_INF_RECURSION = -8,
     };
 
     enum Property
@@ -319,7 +326,7 @@ namespace dmGui
     /**
      * Adds a texture with the specified name to the scene.
      * @note Any nodes connected to the same texture_name will also be connected to the new texture. This makes this function O(n), where n is #nodes.
-     * @param scene Scene to add texture to
+     * @param scene Scene to add the texture to
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
      * @return Outcome of the operation
@@ -399,6 +406,14 @@ namespace dmGui
      * @param scene Scene to clear from fonts
      */
     void ClearFonts(HScene scene);
+
+    /**
+     * Adds a layer with the specified name to the scene.
+     * @param scene Scene to add the layer to
+     * @param layer_name Name of the layer that will be used in the gui scripts
+     * @return Outcome of the operation
+     */
+    Result AddLayer(HScene scene, const char* layer_name);
 
     /** Renders a gui scene
      * Renders a gui scene by calling the callback function render_nodes and supplying an array of nodes.
@@ -481,7 +496,8 @@ namespace dmGui
 
     HNode NewNode(HScene scene, const Point3& position, const Vector3& size, NodeType node_type);
 
-    void SetNodeId(HScene scene, HNode node, const char* name);
+    void SetNodeId(HScene scene, HNode node, dmhash_t id);
+    void SetNodeId(HScene scene, HNode node, const char* id);
 
     HNode GetNodeById(HScene scene, const char* id);
     HNode GetNodeById(HScene scene, dmhash_t id);
@@ -563,6 +579,10 @@ namespace dmGui
     dmhash_t GetNodeFontId(HScene scene, HNode node);
     Result SetNodeFont(HScene scene, HNode node, dmhash_t font_id);
     Result SetNodeFont(HScene scene, HNode node, const char* font_id);
+
+    dmhash_t GetNodeLayerId(HScene scene, HNode node);
+    Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
+    Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics);
@@ -666,6 +686,10 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+
+    Result SetNodeParent(HScene scene, HNode node, HNode parent);
+
+    Result CloneNode(HScene scene, HNode node, HNode* out_node);
 
     /** reorders the given node relative the reference
      * Move the given node to be positioned above the reference node.

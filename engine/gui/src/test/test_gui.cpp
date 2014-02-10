@@ -202,7 +202,7 @@ TEST_F(dmGuiTest, Name)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
-TEST_F(dmGuiTest, TextureFont)
+TEST_F(dmGuiTest, TextureFontLayer)
 {
     int t1, t2;
     int f1, f2;
@@ -211,6 +211,8 @@ TEST_F(dmGuiTest, TextureFont)
     dmGui::AddTexture(m_Scene, "t2", (void*) &t2);
     dmGui::AddFont(m_Scene, "f1", &f1);
     dmGui::AddFont(m_Scene, "f2", &f2);
+    dmGui::AddLayer(m_Scene, "l1");
+    dmGui::AddLayer(m_Scene, "l2");
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     ASSERT_NE((dmGui::HNode) 0, node);
@@ -265,6 +267,16 @@ TEST_F(dmGuiTest, TextureFont)
     dmGui::ClearFonts(m_Scene);
     r = dmGui::SetNodeFont(m_Scene, node, "f1");
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
+
+    // Layer
+    r = dmGui::SetNodeLayer(m_Scene, node, "foo");
+    ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
+
+    r = dmGui::SetNodeLayer(m_Scene, node, "l1");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+    r = dmGui::SetNodeLayer(m_Scene, node, "l2");
+    ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::DeleteNode(m_Scene, node);
 }
@@ -354,13 +366,14 @@ TEST_F(dmGuiTest, DynamicTexture)
     dmGui::RenderScene(m_Scene, rp, &count);
 }
 
-TEST_F(dmGuiTest, ScriptTextureFont)
+TEST_F(dmGuiTest, ScriptTextureFontLayer)
 {
     int t;
     int f;
 
     dmGui::AddTexture(m_Scene, "t", (void*) &t);
     dmGui::AddFont(m_Scene, "f", &f);
+    dmGui::AddLayer(m_Scene, "l");
 
     const char* id = "n";
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
@@ -379,6 +392,11 @@ TEST_F(dmGuiTest, ScriptTextureFont)
                     "    gui.set_font(n, f)\n"
                     "    local f2 = gui.get_font(n)\n"
                     "    assert(f == f2)\n"
+                    "    gui.set_layer(n, \"l\")\n"
+                    "    local l = gui.get_layer(n)\n"
+                    "    gui.set_layer(n, l)\n"
+                    "    local l2 = gui.get_layer(n)\n"
+                    "    assert(l == l2)\n"
                     "end\n";
 
     ASSERT_TRUE(SetScript(m_Script, s));
@@ -728,6 +746,27 @@ TEST_F(dmGuiTest, PingPong)
 
     ASSERT_EQ(10U, PingPongCount);
     dmGui::DeleteNode(m_Scene, node);
+}
+
+TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
+{
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeParent(m_Scene, child, parent);
+    dmGui::AnimateNode(m_Scene, child, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+
+    dmGui::SetNodeEnabled(m_Scene, parent, false);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, child).getX(), 0.0f, EPSILON);
+
+    // Delay
+    for (int i = 0; i < 30; ++i)
+        dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, child).getX(), 0.0f, EPSILON);
+
+    dmGui::DeleteNode(m_Scene, child);
+    dmGui::DeleteNode(m_Scene, parent);
 }
 
 TEST_F(dmGuiTest, Reset)
@@ -2082,10 +2121,13 @@ TEST_F(dmGuiTest, Picking)
     Point3 pos(size * 0.5f);
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
 
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, 0));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, 0, size.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, size.getX(), size.getY()));
-    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, size.getX(), 0));
+    // Account for some loss in precision
+    Vector3 min(EPSILON, EPSILON, 0);
+    Vector3 max = size - min;
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), min.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, min.getX(), max.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, max.getX(), max.getY()));
+    ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, max.getX(), min.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(size.getX() + 0.5f), size.getY()));
 
     dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
@@ -2106,19 +2148,24 @@ TEST_F(dmGuiTest, ScriptPicking)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
     dmGui::SetResolution(m_Context, physical_width, physical_height);
 
-    char buffer[512];
+    char buffer[1024];
+
     const char* s = "function init(self)\n"
                     "    local id = \"node_1\"\n"
                     "    local size = vmath.vector3(string.len(id) * %.2f, %.2f + %.2f, 0)\n"
+                    "    local epsilon = %.6f\n"
+                    "    local min = vmath.vector3(epsilon, epsilon, 0)\n"
+                    "    local max = size - min\n"
                     "    local position = size * 0.5\n"
                     "    local n1 = gui.new_text_node(position, id)\n"
-                    "    assert(gui.pick_node(n1, 0, 0))\n"
-                    "    assert(gui.pick_node(n1, 0, size.y))\n"
-                    "    assert(gui.pick_node(n1, size.x, 0))\n"
-                    "    assert(gui.pick_node(n1, size.x, size.y))\n"
+                    "    assert(gui.pick_node(n1, min.x, min.y))\n"
+                    "    assert(gui.pick_node(n1, min.x, max.y))\n"
+                    "    assert(gui.pick_node(n1, max.x, min.y))\n"
+                    "    assert(gui.pick_node(n1, max.x, max.y))\n"
                     "    assert(not gui.pick_node(n1, size.x + 1, size.y))\n"
                     "end\n";
-    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+
+    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT, EPSILON);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, buffer, strlen(buffer), "file");
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -2159,16 +2206,8 @@ TEST_F(dmGuiTest, EnableDisable)
     dmGui::RenderScene(m_Scene, RenderEnabledNodes, &rendered);
     ASSERT_FALSE(rendered);
 
-    // Test animations disabled from start for disabled nodes
     dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_COLOR, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0x0, 0x0, 0x0);
     ASSERT_EQ(4U, m_Scene->m_Animations.Size());
-    ASSERT_FALSE(m_Scene->m_Animations[0].m_Enabled);
-
-    // Test animations properly enabled/disabled
-    dmGui::SetNodeEnabled(m_Scene, n1, true);
-    ASSERT_TRUE(m_Scene->m_Animations[0].m_Enabled);
-    dmGui::SetNodeEnabled(m_Scene, n1, false);
-    ASSERT_FALSE(m_Scene->m_Animations[0].m_Enabled);
 
     // Test no animation evaluation
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
@@ -2498,6 +2537,219 @@ TEST_F(dmGuiTest, MoveNodesLoad)
     printf("[STATS] current: %03d min: %03d max: %03d rel: %03d abs: %03d\n", current_count, min_node_count, max_node_count, relative_move_count, absolute_move_count);
 
     dmGui::DeleteScene(scene);
+}
+
+/**
+ * Verify specific use cases of parenting nodes:
+ * - single node (nop)
+ *   - parent to nil
+ *   - parent to self
+ * - two nodes
+ *   - initial order
+ *   - parent first to second
+ *   - parent second to first
+ *   - unparent first
+ *   - parent second to first
+ * - three nodes
+ *   - initial order
+ *   - parent second to third
+ */
+TEST_F(dmGuiTest, Parenting)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    std::map<dmGui::HNode, uint16_t> order;
+
+    // Edge case: single node
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // parent to nil
+    dmGui::SetNodeParent(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    // parent to self
+    dmGui::SetNodeParent(m_Scene, n1, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+
+    // Two nodes
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    // parent first to second
+    dmGui::SetNodeParent(m_Scene, n1, n2);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    // parent second to first
+    dmGui::SetNodeParent(m_Scene, n2, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    // unparent first
+    dmGui::SetNodeParent(m_Scene, n1, dmGui::INVALID_HANDLE);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+    // parent second to first
+    dmGui::SetNodeParent(m_Scene, n2, n1);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+
+    // Three nodes
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+    // parent second to third
+    dmGui::SetNodeParent(m_Scene, n2, n3);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(2u, order[n2]);
+    ASSERT_EQ(1u, order[n3]);
+}
+
+/**
+ * Verify layer rendering order.
+ * Hierarchy:
+ * - n1 (l1)
+ *   - n2
+ * - n3 (l2)
+ *   - n4
+ * Layers:
+ * - l1
+ * - l2
+ *
+ * - initial order: n1, n2, n3, n4
+ * - reverse layer order: n3, n4, n1, n2
+ */
+TEST_F(dmGuiTest, LayerRendering)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    dmGui::AddLayer(m_Scene, "l1");
+    dmGui::AddLayer(m_Scene, "l2");
+
+    std::map<dmGui::HNode, uint16_t> order;
+
+    // Initial case
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeLayer(m_Scene, n1, "l1");
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeParent(m_Scene, n2, n1);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeLayer(m_Scene, n3, "l2");
+    dmGui::HNode n4 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeParent(m_Scene, n4, n3);
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+    ASSERT_EQ(2u, order[n3]);
+    ASSERT_EQ(3u, order[n4]);
+
+    // Reverse
+    dmGui::SetNodeLayer(m_Scene, n1, "l2");
+    dmGui::SetNodeLayer(m_Scene, n3, "l1");
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(2u, order[n1]);
+    ASSERT_EQ(3u, order[n2]);
+    ASSERT_EQ(0u, order[n3]);
+    ASSERT_EQ(1u, order[n4]);
+}
+
+TEST_F(dmGuiTest, NoRenderOfDisabledTree)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    uint32_t count;
+
+    // Edge case: single node
+    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeParent(m_Scene, child, parent);
+    dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
+    ASSERT_EQ(3u, count);
+
+    dmGui::SetNodeEnabled(m_Scene, parent, false);
+    dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
+
+    ASSERT_EQ(1u, count);
+}
+
+TEST_F(dmGuiTest, DeleteTree)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    uint32_t count;
+
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+
+    dmGui::SetNodeParent(m_Scene, child, parent);
+    dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
+    ASSERT_EQ(2u, count);
+
+    dmGui::DeleteNode(m_Scene, parent);
+    dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
+    ASSERT_EQ(0u, count);
+    ASSERT_EQ(m_Scene->m_NodePool.Remaining(), m_Scene->m_NodePool.Capacity());
+}
+
+void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
+        uint32_t node_count, void* context)
+{
+    Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
+    memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
+}
+
+TEST_F(dmGuiTest, PhysResUpdatesTransform)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size);
+
+    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+
+    Matrix4 transform;
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, &transform);
+
+    Matrix4 next_transform;
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, &next_transform);
+
+    Vector4 p = transform.getCol3();
+    Vector4 next_p = next_transform.getCol3();
+    ASSERT_LT(lengthSqr(p - next_p), EPSILON);
+
+    dmGui::SetPhysicalResolution(m_Context, 10, 10);
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, &next_transform);
+
+    next_p = next_transform.getCol3();
+    ASSERT_GT(lengthSqr(p - next_p), EPSILON);
+}
+
+TEST_F(dmGuiTest, NewDeleteScene)
+{
+    dmGui::NewSceneParams params;
+    dmGui::HScene scene2 = dmGui::NewScene(m_Context, &params);
+
+    ASSERT_EQ(2u, m_Context->m_Scenes.Size());
+
+    dmGui::DeleteScene(scene2);
+
+    ASSERT_EQ(1u, m_Context->m_Scenes.Size());
 }
 
 int main(int argc, char **argv)

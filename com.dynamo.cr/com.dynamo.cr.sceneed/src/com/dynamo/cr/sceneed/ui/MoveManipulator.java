@@ -10,15 +10,30 @@ import javax.vecmath.Vector3d;
 import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation.ITransformer;
 
 @SuppressWarnings("serial")
-public class MoveManipulator extends TransformManipulator {
+public class MoveManipulator extends TransformManipulator<Point3d> {
+
+    private class MoveTransformer implements ITransformer<Point3d> {
+
+        @Override
+        public Point3d get(Node n) {
+            return n.getTranslation();
+        }
+
+        @Override
+        public void set(Node n, Point3d value) {
+            n.setTranslation(value);
+        }
+    }
 
     private AxisManipulator xAxisManipulator;
     private AxisManipulator yAxisManipulator;
     private AxisManipulator zAxisManipulator;
     private ScreenPlaneManipulator screenPlaneManipulator;
     private Point3d originalTranslation = new Point3d();
+    private MoveTransformer transformer = new MoveTransformer();
 
     public MoveManipulator() {
         xAxisManipulator = new AxisManipulator(this, new float[] {1, 0, 0, 1});
@@ -41,7 +56,7 @@ public class MoveManipulator extends TransformManipulator {
     }
 
     @Override
-    protected void applyTransform(List<Node> selection, List<Matrix4d> originalLocalTransforms) {
+    protected void applyTransform(List<Node> selection, List<Point3d> originalLocalTransforms) {
         Vector3d delta = new Vector3d(getTranslation());
         delta.sub(this.originalTranslation);
         Vector3d translation = new Vector3d();
@@ -70,5 +85,9 @@ public class MoveManipulator extends TransformManipulator {
         this.originalTranslation = getTranslation();
     }
 
+    @Override
+    protected ITransformer<Point3d> getTransformer() {
+        return this.transformer;
+    }
 
 }

@@ -9,14 +9,28 @@ import javax.vecmath.Quat4d;
 import org.eclipse.swt.events.MouseEvent;
 
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.core.operations.TransformNodeOperation.ITransformer;
 
 @SuppressWarnings("serial")
-public class RotateManipulator extends TransformManipulator {
+public class RotateManipulator extends TransformManipulator<Quat4d> {
+
+    private class RotateTransformer implements ITransformer<Quat4d> {
+        @Override
+        public Quat4d get(Node n) {
+            return n.getRotation();
+        }
+
+        @Override
+        public void set(Node n, Quat4d value) {
+            n.setRotation(value);
+        }
+    }
 
     private CircleManipulator xCircleManipulator;
     private CircleManipulator yCircleManipulator;
     private CircleManipulator zCircleManipulator;
     private Quat4d originalRotation = new Quat4d();
+    private RotateTransformer transformer = new RotateTransformer();
 
     public RotateManipulator() {
         xCircleManipulator = new CircleManipulator(this, new float[] {1, 0, 0, 1});
@@ -36,15 +50,14 @@ public class RotateManipulator extends TransformManipulator {
         return "Rotate";
     }
 
-    private void getRotation(Matrix4d transform, Matrix3d tmpRotationScale, Quat4d rotation)
-    {
+    private void getRotation(Matrix4d transform, Matrix3d tmpRotationScale, Quat4d rotation) {
         transform.getRotationScale(tmpRotationScale);
         tmpRotationScale.normalize();
         rotation.set(tmpRotationScale);
     }
 
     @Override
-    protected void applyTransform(List<Node> selection, List<Matrix4d> originalLocalTransforms) {
+    protected void applyTransform(List<Node> selection, List<Quat4d> originalLocalTransforms) {
         Quat4d delta = getRotation();
         delta.mulInverse(this.originalRotation);
         Matrix4d world = new Matrix4d();
@@ -63,7 +76,7 @@ public class RotateManipulator extends TransformManipulator {
                 rotation.conjugate();
                 localDelta.mul(rotation, localDelta);
             }
-            getRotation(originalLocalTransforms.get(i), tmp, rotation);
+            rotation.set(originalLocalTransforms.get(i));
             rotation.mul(localDelta, rotation);
             node.setRotation(rotation);
         }
@@ -72,6 +85,11 @@ public class RotateManipulator extends TransformManipulator {
     @Override
     public void mouseDown(MouseEvent e) {
         this.originalRotation = getRotation();
+    }
+
+    @Override
+    protected ITransformer<Quat4d> getTransformer() {
+        return this.transformer;
     }
 
 }
