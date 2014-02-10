@@ -1,0 +1,21 @@
+go.property("test_value", vmath.vector3())
+
+local epsilon = 0.000001
+
+local function callback(self, url, property_id)
+    self.cb = true
+end
+
+function init(self)
+    go.animate(nil, "test_value", go.PLAYBACK_ONCE_FORWARD, vmath.vector3(1, 1, 1), go.EASING_LINEAR, 1, 1, callback)
+    self.frame = 0
+end
+
+function update(self, dt)
+    if self.frame > 7 then
+        assert(self.cb)
+    else
+        assert(self.cb == nil)
+    end
+    self.frame = self.frame + 1
+end

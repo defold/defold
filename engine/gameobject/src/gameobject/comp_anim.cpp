@@ -430,11 +430,11 @@ namespace dmGameObject
     }
 
     static bool PlayCompositeAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
-            dmhash_t property_id, Playback playback, float duration, AnimationStopped animation_stopped,
+            dmhash_t property_id, Playback playback, float duration, float delay, AnimationStopped animation_stopped,
             void* userdata1, void* userdata2)
     {
         return PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, dmEasing::TYPE_LINEAR,
-                duration, 0, animation_stopped, userdata1, userdata2, true);
+                duration, delay, animation_stopped, userdata1, userdata2, true);
     }
 
     static uint32_t GetElementCount(PropertyType type)
@@ -485,7 +485,7 @@ namespace dmGameObject
         if (element_count > 1)
         {
             if (!PlayCompositeAnimation(world, instance, component_id, property_id, playback,
-                    duration, animation_stopped, userdata1, userdata2))
+                    duration, delay, animation_stopped, userdata1, userdata2))
                 return PROPERTY_RESULT_BUFFER_OVERFLOW;
             float* v = prop_desc.m_Variant.m_V4;
             for (uint32_t i = 0; i < element_count; ++i)
