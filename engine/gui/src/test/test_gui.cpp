@@ -2619,6 +2619,38 @@ TEST_F(dmGuiTest, Parenting)
  * Verify layer rendering order.
  * Hierarchy:
  * - n1 (l1)
+ * - n2
+ */
+TEST_F(dmGuiTest, LayerRendering)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    dmGui::AddLayer(m_Scene, "l1");
+
+    std::map<dmGui::HNode, uint16_t> order;
+
+    // Initial case
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
+
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(0u, order[n1]);
+    ASSERT_EQ(1u, order[n2]);
+
+    // Reverse
+    dmGui::SetNodeLayer(m_Scene, n1, "l1");
+
+    dmGui::RenderScene(m_Scene, RenderNodesOrder, &order);
+    ASSERT_EQ(1u, order[n1]);
+    ASSERT_EQ(0u, order[n2]);
+}
+
+/**
+ * Verify layer rendering order.
+ * Hierarchy:
+ * - n1 (l1)
  *   - n2
  * - n3 (l2)
  *   - n4
@@ -2629,7 +2661,7 @@ TEST_F(dmGuiTest, Parenting)
  * - initial order: n1, n2, n3, n4
  * - reverse layer order: n3, n4, n1, n2
  */
-TEST_F(dmGuiTest, LayerRendering)
+TEST_F(dmGuiTest, LayerRenderingHierarchies)
 {
     // Setup
     Vector3 size(10, 10, 0);

@@ -203,6 +203,15 @@ namespace dmGameSystem
                         result = false;
                     }
                 }
+                if (node_desc->m_Layer != 0x0 && *node_desc->m_Layer != '\0')
+                {
+                    dmGui::Result gui_result = dmGui::SetNodeLayer(scene, n, node_desc->m_Layer);
+                    if (gui_result != dmGui::RESULT_OK)
+                    {
+                        dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        result = false;
+                    }
+                }
 
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
