@@ -281,6 +281,8 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
             "    assert(gui.get_position(t.n1) == gui.get_position(n1))\n"
             "    assert(gui.get_position(t.n2) == gui.get_position(n2))\n"
             "    assert(gui.get_position(t.n3) == gui.get_position(n3))\n"
+            "    gui.set_position(t.n1, vmath.vector3(4, 4, 4))\n"
+            "    assert(gui.get_position(t.n1) ~= gui.get_position(n1))\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");

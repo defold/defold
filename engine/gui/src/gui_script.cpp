@@ -1902,7 +1902,7 @@ namespace dmGui
         if (result == dmGui::RESULT_OK)
         {
             dmScript::PushHash(L, n->m_NameHash);
-            LuaPushNode(L, scene, node);
+            LuaPushNode(L, scene, *out_node);
             lua_rawset(L, -3);
             result = CloneNodeListToTable(L, scene, n->m_ChildHead, *out_node);
         }
