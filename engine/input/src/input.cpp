@@ -824,6 +824,14 @@ namespace dmInput
         KEY_MAP[dmInputDDF::KEY_KP_DECIMAL] = dmHID::KEY_KP_DECIMAL;
         KEY_MAP[dmInputDDF::KEY_KP_EQUAL] = dmHID::KEY_KP_EQUAL;
         KEY_MAP[dmInputDDF::KEY_KP_ENTER] = dmHID::KEY_KP_ENTER;
+        KEY_MAP[dmInputDDF::KEY_KP_NUM_LOCK] = dmHID::KEY_KP_NUM_LOCK;
+        KEY_MAP[dmInputDDF::KEY_CAPS_LOCK] = dmHID::KEY_CAPS_LOCK;
+        KEY_MAP[dmInputDDF::KEY_SCROLL_LOCK] = dmHID::KEY_SCROLL_LOCK;
+        KEY_MAP[dmInputDDF::KEY_PAUSE] = dmHID::KEY_PAUSE;
+        KEY_MAP[dmInputDDF::KEY_LSUPER] = dmHID::KEY_LSUPER;
+        KEY_MAP[dmInputDDF::KEY_RSUPER] = dmHID::KEY_RSUPER;
+        KEY_MAP[dmInputDDF::KEY_MENU] = dmHID::KEY_MENU;
+        KEY_MAP[dmInputDDF::KEY_BACK] = dmHID::KEY_BACK;
     }
 
     void InitMouseButtonMap()

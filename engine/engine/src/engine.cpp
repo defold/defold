@@ -1035,6 +1035,10 @@ bail:
                 dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
             }
+            else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
+            {
+                dmGraphics::IconifyWindow(self->m_GraphicsContext);
+            }
             else
             {
                 const dmMessage::URL* sender = &message->m_Sender;

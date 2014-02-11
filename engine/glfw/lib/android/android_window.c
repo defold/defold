@@ -51,6 +51,7 @@ static int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
 static int g_SpecialKeyActive = -1;
 
+// return 1 to handle the event, 0 for default handling
 static int32_t handleInput(struct android_app* app, AInputEvent* event)
 {
 
@@ -97,18 +98,26 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
         else
             glfw_action = GLFW_RELEASE;
 
-
         if (glfw_action == GLFW_PRESS) {
             switch (code) {
             case AKEYCODE_DEL:
                 g_SpecialKeyActive = 10;
                 _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
-                return;
+                return 1;
             case AKEYCODE_ENTER:
                 g_SpecialKeyActive = 10;
                 _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
-                return;
+                return 1;
             }
+        }
+
+        switch (code) {
+        case AKEYCODE_MENU:
+            _glfwInputKey( GLFW_KEY_MENU, glfw_action );
+            return 1;
+        case AKEYCODE_BACK:
+            _glfwInputKey( GLFW_KEY_BACK, glfw_action );
+            return 1;
         }
 
         JNIEnv* env = g_AndroidApp->activity->env;
@@ -212,6 +221,8 @@ void _glfwPlatformSetWindowPos( int x, int y )
 
 void _glfwPlatformIconifyWindow( void )
 {
+    // Call finish and let Android life cycle take care of the iconification
+    ANativeActivity_finish(g_AndroidApp->activity);
 }
 
 //========================================================================
