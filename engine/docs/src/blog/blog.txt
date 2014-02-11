@@ -1,5 +1,19 @@
 :max-width: 45em
 
+Hierarchical Gui (Release 1.2.29)
+---------------------------------
+_February 11, 2014_
+
+We have finally added support for hierarchical Guis.
+We simultaneously ported the old Gui editor to the new Scene editor, which should make it much easier to use.
+We have also added a new layer feature, which allows you to structure your Gui nodes however you want, while still retaining control of the order in which they are rendered.
+Documentation about this will come at a later time.
+
+Other fixes in this release:
+
+* Improved launch image handling on iOS (no black screen!)
+* Delays in go.animate were not properly handled for composite animations
+
 Yet more various fixes (Release 1.2.28)
 ---------------------------------------
 _January 28, 2014_
