@@ -5,6 +5,10 @@ import "ddf/ddf_extensions.proto";
 option java_package = "com.dynamo.http";
 option java_outer_classname = "HttpProto";
 
+message StopHttp
+{
+}
+
 message HttpRequest
 {
     required string method  = 1;

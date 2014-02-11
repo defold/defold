@@ -149,7 +149,7 @@ static void ServerThread1(void* arg)
 
 TEST(Socket, ClientServer1)
 {
-    dmThread::Thread thread = dmThread::New(&ServerThread1, 0x80000, 0);
+    dmThread::Thread thread = dmThread::New(&ServerThread1, 0x80000, 0, "server");
 
     dmSocket::Socket socket;
     dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);

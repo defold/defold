@@ -54,7 +54,7 @@ TEST(dmLog, Client)
     int c = fgetc(f);
     ASSERT_EQ(255, c);
     ASSERT_NE((void*) 0, f);
-    dmThread::Thread log_thread = dmThread::New(LogThread, 0x80000, 0);
+    dmThread::Thread log_thread = dmThread::New(LogThread, 0x80000, 0, "test");
 
     size_t n;
 

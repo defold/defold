@@ -256,7 +256,7 @@ void RunPythonThread(void*)
 
 TEST_F(dmHttpServerTest, TestServer)
 {
-    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0);
+    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
     int iter = 0;
     while (!m_Quit && iter < 1000)
     {
@@ -271,7 +271,7 @@ TEST_F(dmHttpServerTest, TestServer)
 
 TEST_F(dmHttpServerTest, TestServerClient)
 {
-    dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this);
+    dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this, "test");
 
     while (!m_ServerStarted)
     {

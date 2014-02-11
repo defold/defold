@@ -252,8 +252,8 @@ TEST(dmProfile, Counter2)
 
     dmProfile::HProfile profile = dmProfile::Begin();
     dmProfile::Release(profile);
-    dmThread::Thread t1 = dmThread::New(CounterThread, 0xf0000, 0);
-    dmThread::Thread t2 = dmThread::New(CounterThread, 0xf0000, 0);
+    dmThread::Thread t1 = dmThread::New(CounterThread, 0xf0000, 0, "c1");
+    dmThread::Thread t2 = dmThread::New(CounterThread, 0xf0000, 0, "c2");
 
     dmThread::Join(t1);
     dmThread::Join(t2);
@@ -284,8 +284,8 @@ TEST(dmProfile, ThreadProfile)
     dmProfile::HProfile profile = dmProfile::Begin();
     dmProfile::Release(profile);
     uint64_t start = dmTime::GetTime();
-    dmThread::Thread t1 = dmThread::New(ProfileThread, 0xf0000, 0);
-    dmThread::Thread t2 = dmThread::New(ProfileThread, 0xf0000, 0);
+    dmThread::Thread t1 = dmThread::New(ProfileThread, 0xf0000, 0, "p1");
+    dmThread::Thread t2 = dmThread::New(ProfileThread, 0xf0000, 0, "p2");
     dmThread::Join(t1);
     dmThread::Join(t2);
     uint64_t end = dmTime::GetTime();

@@ -7,6 +7,7 @@
 #include "array.h"
 #include "index_pool.h"
 #include "mutex.h"
+#include "condition_variable.h"
 #include "dstrings.h"
 
 namespace dmMessage
@@ -92,6 +93,7 @@ namespace dmMessage
         Message*        m_Tail;
         const char*     m_Name;
         dmMutex::Mutex  m_Mutex;
+        dmConditionVariable::ConditionVariable m_Condition;
         MemoryAllocator m_Allocator;
         uint16_t        m_Version;
     };
@@ -138,6 +140,7 @@ namespace dmMessage
         s.m_Version = dmAtomicIncrement32(&g_NextVersionNumber);
         s.m_Name = strdup(name);
         s.m_Mutex = dmMutex::New();
+        s.m_Condition = dmConditionVariable::New();
 
         // 0 is an invalid handle. We can't use 0 as version number.
         if (s.m_Version == 0)
@@ -310,11 +313,12 @@ namespace dmMessage
             s->m_Tail = new_message;
         }
 
+        dmConditionVariable::Signal(s->m_Condition);
         dmMutex::Unlock(s->m_Mutex);
         return RESULT_OK;
     }
 
-    uint32_t Dispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr)
+    uint32_t InternalDispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr, bool blocking)
     {
         uint16_t id;
         MessageSocket*s = GetSocketInternal(socket, id);
@@ -325,8 +329,12 @@ namespace dmMessage
 
         if (!s->m_Header)
         {
-            dmMutex::Unlock(s->m_Mutex);
-            return 0;
+            if (blocking) {
+                dmConditionVariable::Wait(s->m_Condition, s->m_Mutex);
+            } else {
+                dmMutex::Unlock(s->m_Mutex);
+                return 0;
+            }
         }
         uint32_t dispatch_count = 0;
 
@@ -360,6 +368,16 @@ namespace dmMessage
         dmMutex::Unlock(s->m_Mutex);
 
         return dispatch_count;
+    }
+
+    uint32_t Dispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr)
+    {
+        return InternalDispatch(socket, dispatch_callback, user_ptr, false);
+    }
+
+    uint32_t DispatchBlocking(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr)
+    {
+        return InternalDispatch(socket, dispatch_callback, user_ptr, true);
     }
 
     static void ConsumeCallback(dmMessage::Message*, void*)

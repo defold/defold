@@ -27,8 +27,8 @@ TEST(Thread, Basic1)
     a2.m_Index = 1;
     a2.m_Value = 20;
 
-    dmThread::Thread t1 = dmThread::New(&ThreadFunction, 0x80000, &a1);
-    dmThread::Thread t2 = dmThread::New(&ThreadFunction, 0x80000, &a2);
+    dmThread::Thread t1 = dmThread::New(&ThreadFunction, 0x80000, &a1, "t1");
+    dmThread::Thread t2 = dmThread::New(&ThreadFunction, 0x80000, &a2, "t2");
 
     dmThread::Join(t1);
     dmThread::Join(t2);
@@ -62,8 +62,8 @@ TEST(Thread, Tls)
 {
     g_TlsKey = dmThread::AllocTls();
 
-    dmThread::Thread t1 = dmThread::New(&TlsThreadFunction, 0x80000, (void*) 1000);
-    dmThread::Thread t2 = dmThread::New(&TlsThreadFunction, 0x80000, (void*) 2000);
+    dmThread::Thread t1 = dmThread::New(&TlsThreadFunction, 0x80000, (void*) 1000, "t1");
+    dmThread::Thread t2 = dmThread::New(&TlsThreadFunction, 0x80000, (void*) 2000, "t2");
 
     dmThread::Join(t1);
     dmThread::Join(t2);

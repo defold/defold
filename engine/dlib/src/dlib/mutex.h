@@ -12,7 +12,7 @@ namespace dmMutex
 #include "safe_windows.h"
 namespace dmMutex
 {
-    typedef HANDLE Mutex;
+    typedef CRITICAL_SECTION* Mutex;
 }
 
 #else

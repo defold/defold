@@ -114,7 +114,7 @@ void RunPythonThread(void*)
 
 TEST_F(dmWebServerTest, TestServer)
 {
-    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0);
+    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
     int iter = 0;
     while (!m_Quit && iter < 1000)
     {

@@ -289,7 +289,7 @@ TEST_P(dmHttpClientTest, ThreadStress)
 
     for (int i = 0; i < thread_count; ++i) {
         helpers[i] = new HttpStressHelper(m_URI);
-        dmThread::Thread t = dmThread::New(HttpStressThread, 0x80000, helpers[i]);
+        dmThread::Thread t = dmThread::New(HttpStressThread, 0x80000, helpers[i], "test");
         threads[i] = t;
     }
 

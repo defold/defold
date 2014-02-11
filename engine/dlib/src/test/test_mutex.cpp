@@ -27,8 +27,8 @@ TEST(Mutex, Basic)
     a.m_Value = 0;
     a.m_Mutex = dmMutex::New();
 
-    dmThread::Thread t1 = dmThread::New(&ThreadFunction, 0x80000, &a);
-    dmThread::Thread t2 = dmThread::New(&ThreadFunction, 0x80000, &a);
+    dmThread::Thread t1 = dmThread::New(&ThreadFunction, 0x80000, &a, "t1");
+    dmThread::Thread t2 = dmThread::New(&ThreadFunction, 0x80000, &a, "t2");
 
     dmThread::Join(t1);
     dmThread::Join(t2);
