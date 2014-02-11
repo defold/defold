@@ -197,6 +197,7 @@ namespace dmMessage
             if (s->m_Allocator.m_CurrentPage)
                 delete s->m_Allocator.m_CurrentPage;
 
+            dmConditionVariable::Delete(s->m_Condition);
             dmMutex::Delete(s->m_Mutex);
 
             memset(s, 0, sizeof(*s));
