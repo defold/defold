@@ -107,6 +107,11 @@ namespace dmGraphics
         }
     }
 
+    void IconifyWindow(HContext context)
+    {
+        assert(context);
+    }
+
     uint32_t GetWindowState(HContext context, WindowState state)
     {
         switch (state)

@@ -125,7 +125,15 @@ enum Key
     KEY_KP_DECIMAL = 114;
     KEY_KP_EQUAL = 115;
     KEY_KP_ENTER = 116;
-    MAX_KEY_COUNT = 117;
+    KEY_KP_NUM_LOCK = 117;
+    KEY_CAPS_LOCK = 118;
+    KEY_SCROLL_LOCK = 119;
+    KEY_PAUSE = 120;
+    KEY_LSUPER = 121;
+    KEY_RSUPER = 122;
+    KEY_MENU = 123;
+    KEY_BACK = 124;
+    MAX_KEY_COUNT = 125;
 }
 
 enum Mouse
