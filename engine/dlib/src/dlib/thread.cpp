@@ -18,6 +18,9 @@ namespace dmThread
 #if defined(__MACH__)
         int ret = pthread_setname_np(data->m_Name);
         assert(ret == 0);
+#else
+        int ret = pthread_setname_np(pthread_self(), data->m_Name);
+        assert(ret == 0);
 #endif
         data->m_Start(data->m_Arg);
         delete data;
@@ -49,10 +52,6 @@ namespace dmThread
         ret = pthread_attr_destroy(&attr);
         assert(ret == 0);
 
-#if defined(__linux__)
-        ret = pthread_setname_np(thread, name);
-        assert(ret == 0);
-#endif
 
         return thread;
     }
