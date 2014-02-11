@@ -326,7 +326,8 @@ namespace dmProfile
         }
 
         g_StringTable.Clear();
-        dmStringPool::Delete(g_StringPool);
+        if (g_StringPool != 0)
+            dmStringPool::Delete(g_StringPool);
         g_StringPool = 0;
         g_IsInitialized = false;
     }
