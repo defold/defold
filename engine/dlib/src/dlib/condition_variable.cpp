@@ -16,6 +16,7 @@ namespace dmConditionVariable
     void Delete(ConditionVariable condition)
     {
         int ret = pthread_cond_destroy(condition);
+        delete condition;
         assert(ret == 0);
     }
 
