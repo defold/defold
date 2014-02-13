@@ -17,5 +17,3 @@ scp builder@ci-master.defold.com:/archive/${SHA1}/engine/armv7-darwin/dmengine e
 scp builder@ci-master.defold.com:/archive/${SHA1}/engine/armv7-darwin/dmengine_release engine/ios/dmengine_release
 scp builder@ci-master.defold.com:/archive/${SHA1}/engine/armv7-android/libdmengine.so engine/android/libdmengine.so
 scp builder@ci-master.defold.com:/archive/${SHA1}/engine/armv7-android/libdmengine_release.so engine/android/libdmengine_release.so
-scp builder@ci-master.defold.com:/archive/${SHA1}/engine/armv7-android/dmengine.apk engine/android/dmengine.apk
-scp builder@ci-master.defold.com:/archive/${SHA1}/engine/armv7-android/dmengine_release.apk engine/android/dmengine_release.apk
