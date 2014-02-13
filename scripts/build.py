@@ -235,10 +235,16 @@ class Configuration(object):
                                '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext)])
 
         if 'android' in self.target_platform:
-            self._log('Archiving %s' % 'classes.dex')
-            classes_dex = join(dynamo_home, 'share/java/classes.dex')
-            self.exec_command(['scp', classes_dex,
-                               '%s/classes.dex' % (full_archive_path)])
+            files = [
+                ('share/java', 'classes.dex'),
+                ('bin/%s' % (self.target_platform), 'dmengine.apk'),
+                ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
+            ]
+            for f in files:
+                self._log('Archiving %s' % f[1])
+                src = join(dynamo_home, f[0], f[1])
+                self.exec_command(['scp', src,
+                                   '%s/%s' % (full_archive_path, f[1])])
 
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
