@@ -1,5 +1,20 @@
 :max-width: 45em
 
+Minor fixes (Release 1.2.30)
+----------------------------
+_February 13, 2014_
+
+Release 1.2.30 contains some smaller fixes.
+We have optimized how the engine behaves as a background process on various platform and consequently had to drop support for Windows XP, meaning that we now support Windows Vista and up.
+
+Fixes:
+
+* Smoother sound buffering
+* Optimized shaders for tile maps, sprites and debug lines
+* Crash at engine termination
+* The engine respects the settings for going to sleep on iOS (would stay alive before)
+
+
 Hierarchical Gui (Release 1.2.29)
 ---------------------------------
 _February 11, 2014_
