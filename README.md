@@ -190,4 +190,11 @@ extension library and set "exported_symbols" in the wscript, see note below.
 *NOTE:* In order to avoid a dead-stripping bug with static libraries on OSX/iOS a constructor symbol must be explicitly exported with "exported_symbols"
 in the wscript-target. See extension-test.
 
+Energy Consumption
+------------------
+
+
+**Android**
+
+      adb shell dumpsys cpuinfo
 
