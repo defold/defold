@@ -325,7 +325,7 @@ INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
                 <dict>
                         <key>CFBundleURLSchemes</key>
                         <array>
-                                <string>fb355198514515820</string>
+                                <string>fb596203607098569</string>
                         </array>
                 </dict>
         </array>
