@@ -7,7 +7,7 @@ import cc, cxx
 from Constants import RUN_ME
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
-ANDROID_NDK_VERSION='8e'
+ANDROID_NDK_VERSION='9c'
 ANDROID_NDK_API_VERSION='14'
 ANDROID_API_VERSION='17'
 ANDROID_GCC_VERSION='4.7'
