@@ -1,19 +1,63 @@
-import re
+import re, wave, cStringIO, math, struct
 import Task, TaskGen
 from TaskGen import extension, declare_extension
 
+def gen_tone(task):
+    tone_freq = int(task.generator.tone)
+    sample_freq = int(task.generator.rate)
+    sample_count = int(task.generator.frames)
+
+    f = wave.open(task.outputs[0].abspath(task.env), "wb")
+    f.setnchannels(1)
+    f.setsampwidth(2)
+    f.setframerate(sample_freq)
+    buf = cStringIO.StringIO()
+
+    frames = []
+    for i in range(sample_count):
+        a = 0.8 * 32768 * math.sin((i * 2.0 * math.pi * tone_freq) / sample_freq)
+        buf.write(struct.pack('h', int(a)))
+    f.writeframes(buf.getvalue())
+    f.close()
+
+    return 0
+
 def build(bld):
 
-    embedded_sounds = bld.new_task_gen(features = 'cxx cstaticlib embed',
-                                       target = 'embedded_sounds',
-                                       source = 'dummy.cpp',  # Make waf happy
-                                       embed_source = 'drumloop.wav onefootstep.wav layer-guitar-a.ogg click-track.ogg osc2_sin_440hz.wav door_opening.wav tone_mono_22050.ogg')
+    wavs = ["booster_on_sfx.wav",
+            "door_opening.wav",
+            "drumloop.wav",
+            "onefootstep.wav",
+            "osc2_sin_440hz.wav"]
+
+    for rate in [22050, 32000, 44000, 44100]:
+        for tone in [440, 2000]:
+            frames = 2 * rate
+            name = 'tone_%d_%d_%d.wav' % (frames, tone, rate)
+            wavs.append(name)
+            bld.new_task_gen(target = name,
+                             tone = tone,
+                             rate = rate,
+                             frames = frames,
+                             rule = gen_tone,)
+
+    bld.add_group()
+
+    embedded_wavs = bld.new_task_gen(features = 'cxx cstaticlib embed',
+                                     target = 'embedded_wavs',
+                                     source = 'dummy.cpp',  # Make waf happy
+                                     embed_source = wavs)
+
+    embedded_oggs = bld.new_task_gen(features = 'cxx cstaticlib embed',
+                                     target = 'embedded_oggs',
+                                     source = 'dummy.cpp',  # Make waf happy
+                                     embed_source = bld.path.ant_glob('**/*.ogg'))
 
     if not re.match('arm.*?android', bld.env['PLATFORM']):
         test_sound = bld.new_task_gen(features = 'cxx cprogram embed',
                                       includes = '../../../src .',
                                       uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
-                                      uselib_local = 'sound alut embedded_sounds',
+                                      uselib_local = 'sound embedded_wavs embedded_oggs',
                                       target = 'test_sound',
                                       source = 'test_sound.cpp')
 
@@ -22,7 +66,7 @@ def build(bld):
     test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed',
                                   includes = '../../../src .',
                                   uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
-                                  uselib_local = 'sound_null embedded_sounds',
+                                  uselib_local = 'sound_null embedded_wavs embedded_oggs',
                                   target = 'test_sound_null',
                                   source = 'test_sound.cpp')
 

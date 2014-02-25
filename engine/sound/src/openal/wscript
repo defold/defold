@@ -44,7 +44,7 @@ def build(bld):
     if re.match('arm.*?android', bld.env['PLATFORM']):
 
         openal_soft = bld.new_task_gen(features = 'cc cstaticlib',
-                                       includes = '. alut config/armv7-android include OpenAL32/Include',
+                                       includes = '. config/armv7-android include OpenAL32/Include',
                                        source = source,
                                        defines = 'AL_ALEXT_PROTOTYPES',
                                        target = 'openal_soft')

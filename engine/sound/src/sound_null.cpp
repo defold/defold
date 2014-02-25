@@ -20,11 +20,6 @@ namespace dmSound
         uint32_t m_Looping : 1;
     };
 
-    void SetDefaultInitializeParams(InitializeParams* params)
-    {
-        memset(params, 0, sizeof(InitializeParams));
-    }
-
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
         g_Instances = new dmArray<SoundInstance*>();

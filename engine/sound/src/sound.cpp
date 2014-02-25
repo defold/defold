@@ -6,14 +6,15 @@
 #include <dlib/profile.h>
 #include "sound.h"
 #include "sound_private.h"
+#include "sound_codec.h"
 
 #if defined(__MACH__)
 #include <OpenAL/al.h>
+#include <OpenAL/alc.h>
 #else
 #include <AL/al.h>
+#include <AL/alc.h>
 #endif
-
-#include <AL/alut.h>
 
 #include "stb_vorbis/stb_vorbis.h"
 
@@ -52,6 +53,9 @@ namespace dmSound
 
     struct SoundSystem
     {
+        ALCdevice*             m_Device;
+        ALCcontext*            m_Context;
+
         dmArray<SoundInstance> m_Instances;
         dmIndexPool16          m_InstancesPool;
 
@@ -68,6 +72,8 @@ namespace dmSound
         uint32_t               m_BufferSize;
         void*                  m_TempBuffer;
 
+        dmSoundCodec::HCodecContext m_CodecContext;
+
         Stats                  m_Stats;
     };
 
@@ -80,25 +86,6 @@ namespace dmSound
         {
             dmLogError("%s", alGetString(error));
         }
-        else
-        {
-            error = alutGetError();
-            if (error != ALUT_ERROR_NO_ERROR )
-            {
-                dmLogError("%s", alutGetErrorString(error));
-            }
-        }
-    }
-
-    void SetDefaultInitializeParams(InitializeParams* params)
-    {
-        memset(params, 0, sizeof(*params));
-        params->m_MasterGain = 1.0f;
-        params->m_MaxSoundData = 128;
-        params->m_MaxSources = 16;
-        params->m_MaxBuffers = 32;
-        params->m_BufferSize = 4 * 4096;
-        params->m_MaxInstances = 256;
     }
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
@@ -108,10 +95,27 @@ namespace dmSound
             return r;
         }
 
-        if (!alutInit(0, 0))
-        {
-            CheckAndPrintError();
-            dmLogError("Failed to initialize sound");
+
+        ALCdevice* device;
+        ALCcontext* context;
+
+        device = alcOpenDevice(0);
+        if (device == 0) {
+            dmLogError("Failed to create OpenAL device");
+            return RESULT_UNKNOWN_ERROR;
+        }
+
+        context = alcCreateContext(device, 0);
+        if (context == 0) {
+            dmLogError("Failed to create OpenAL context");
+            alcCloseDevice (device);
+            return RESULT_UNKNOWN_ERROR;
+        }
+
+        if (!alcMakeContextCurrent (context)) {
+            dmLogError("Failed to make OpenAL context current");
+            alcDestroyContext (context);
+            alcCloseDevice (device);
             return RESULT_UNKNOWN_ERROR;
         }
 
@@ -119,6 +123,8 @@ namespace dmSound
 
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
+        sound->m_Device = device;
+        sound->m_Context = context;
 
         uint32_t max_sound_data = params->m_MaxSoundData;
         uint32_t max_buffers = params->m_MaxBuffers;
@@ -133,6 +139,10 @@ namespace dmSound
             max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sources", (int32_t) max_sources);
             max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_instances", (int32_t) max_instances);
         }
+
+        dmSoundCodec::NewCodecContextParams codec_params;
+        codec_params.m_MaxDecoders = max_instances;
+        sound->m_CodecContext = dmSoundCodec::New(&codec_params);
 
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
@@ -213,8 +223,17 @@ namespace dmSound
             }
             alDeleteSources(sound->m_Sources.Size(), &sound->m_Sources[0]);
 
-            alutExit();
+            if (alcMakeContextCurrent(0)) {
+                alcDestroyContext(sound->m_Context);
+                if (!alcCloseDevice(sound->m_Device)) {
+                    dmLogError("Failed to close OpenAL device");
+                }
+            } else {
+                dmLogError("Failed to make OpenAL context current");
+            }
+
             free(sound->m_TempBuffer);
+            dmSoundCodec::Delete(sound->m_CodecContext);
             delete sound;
             g_SoundSystem = 0;
         }
@@ -228,24 +247,48 @@ namespace dmSound
 
     Result SetSoundDataWav(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
-        ALenum format;
-        ALsizei size;
-        ALfloat frequency;
+        SoundSystem* sound = g_SoundSystem;
 
-        const void* buffer = alutLoadMemoryFromFileImage(sound_buffer, sound_buffer_size, &format, &size, &frequency);
-        if (!buffer)
-        {
-            CheckAndPrintError();
+        dmSoundCodec::HDecoder decoder;
+        dmSoundCodec::Result r = dmSoundCodec::NewDecoder(sound->m_CodecContext, dmSoundCodec::FORMAT_WAV, sound_buffer, sound_buffer_size, &decoder);
+        if (r != dmSoundCodec::RESULT_OK) {
+            return RESULT_UNKNOWN_ERROR;
+        }
+
+        dmSoundCodec::Info info;
+        dmSoundCodec::GetInfo(sound->m_CodecContext, decoder, &info);
+
+        uint32_t decoded;
+        char* buffer = (char*) malloc(info.m_Size);
+        r = dmSoundCodec::Decode(sound->m_CodecContext, decoder, buffer, info.m_Size, &decoded);
+        if (r != dmSoundCodec::RESULT_OK) {
+            free(buffer);
+            dmSoundCodec::DeleteDecoder(sound->m_CodecContext, decoder);
             return RESULT_UNKNOWN_ERROR;
         }
 
         if (sound_data->m_Data != 0x0)
             free((void*)sound_data->m_Data);
 
+        ALenum format;
+        if (info.m_BitsPerSample == 8) {
+            if (info.m_Channels == 1) {
+                format = AL_FORMAT_MONO8;
+            } else {
+                format = AL_FORMAT_STEREO8;
+            }
+        } else {
+            if (info.m_Channels == 1) {
+                format = AL_FORMAT_MONO16;
+            } else {
+                format = AL_FORMAT_STEREO16;
+            }
+        }
+
         sound_data->m_Data = buffer;
         sound_data->m_Format = format;
-        sound_data->m_Size = size;
-        sound_data->m_Frequency = frequency;
+        sound_data->m_Size = decoded;
+        sound_data->m_Frequency = info.m_Rate;
 
         return RESULT_OK;
     }
