@@ -121,7 +121,7 @@ static void PushError(lua_State*L, NSError* error)
         lua_rawset(L, -3);
 
         lua_pushstring(L, "currency_code");
-        lua_pushstring(L, [[product.priceLocale objectForKey:NSLocaleCurrencyCode] UTF8String]);
+        lua_pushstring(L, [[p.priceLocale objectForKey:NSLocaleCurrencyCode] UTF8String]);
         lua_rawset(L, -3);
 
         lua_rawset(L, -3);
