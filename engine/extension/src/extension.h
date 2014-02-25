@@ -103,15 +103,6 @@ namespace dmExtension
      */
     void Register(Desc* desc);
 
-    /**
-     * Internal data-structure
-     */
-    struct RegisterExtension {
-        RegisterExtension(Desc* desc) {
-            Register(desc);
-        }
-    };
-
 #ifdef __GNUC__
     // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
     // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
