@@ -288,8 +288,13 @@ void _glfwPlatformPollEvents( void )
        }
    }
 
-   while ((ident=ALooper_pollAll(0, NULL, &events, (void**)&source)) >= 0)
+   int timeout = 0;
+   if (_glfwWin.iconified) {
+       timeout = 1000 * 3000;
+   }
+   while ((ident=ALooper_pollAll(timeout, NULL, &events, (void**)&source)) >= 0)
    {
+       timeout = 0;
        // Process this event.
        if (source != NULL) {
            source->process(_glfwWin.app, source);

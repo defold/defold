@@ -309,7 +309,7 @@ JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2
         dmLogFatal("Failed to write command");
     }
     env->ReleaseStringUTFChars(purchaseData, pd);
-    env->ReleaseStringUTFChars(purchaseData, ds);
+    env->ReleaseStringUTFChars(dataSignature, ds);
 }
 
 #ifdef __cplusplus

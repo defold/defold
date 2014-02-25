@@ -89,6 +89,7 @@ def configure(conf):
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
+    conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
 
     if conf.env.PLATFORM.find('arm') == -1:
         conf.env['STATICLIB_RECORD'] = 'record'

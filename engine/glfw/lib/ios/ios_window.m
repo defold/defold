@@ -791,7 +791,6 @@ _GLFWwin g_Savewin;
     window = [[UIWindow alloc] initWithFrame:bounds];
     window.rootViewController = [[[ViewController alloc] init] autorelease];
     [window makeKeyAndVisible];
-    [application setIdleTimerDisabled: YES];
 
     UIApplication* app = [UIApplication sharedApplication];
     AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];

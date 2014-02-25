@@ -120,6 +120,10 @@ static void PushError(lua_State*L, NSError* error)
         lua_pushstring(L, [price_string UTF8String]);
         lua_rawset(L, -3);
 
+        lua_pushstring(L, "currency_code");
+        lua_pushstring(L, [[p.priceLocale objectForKey:NSLocaleCurrencyCode] UTF8String]);
+        lua_rawset(L, -3);
+
         lua_rawset(L, -3);
     }
     lua_pushnil(L);
@@ -310,6 +314,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
  *             print(v.description)
  *             print(v.price)
  *             print(v.price_string)
+ *             print(v.currency_code) -- only available on iOS
  *         end
  *     else
  *         print(error.error)

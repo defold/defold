@@ -445,6 +445,7 @@ namespace dmSys
             jstring android_id_string = env->NewStringUTF("android_id");
             jmethodID get_string_method = env->GetStaticMethodID(secure_class, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
             jstring android_id_obj = (jstring) env->CallStaticObjectMethod(secure_class, get_string_method, content_resolver, android_id_string);
+            env->DeleteLocalRef(android_id_string);
             const char* android_id = env->GetStringUTFChars(android_id_obj, NULL);
             dmStrlCpy(info->m_DeviceIdentifier, android_id, sizeof(info->m_DeviceIdentifier));
             env->ReleaseStringUTFChars(android_id_obj, android_id);

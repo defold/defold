@@ -189,32 +189,37 @@ class FacebookJNI {
                     @Override
                     public void onComplete(Bundle values, FacebookException error) {
 
-                        StringBuilder sb = new StringBuilder(1024);
-                        sb.append("fbconnect://success?");
+                        if (values != null) {
+                            StringBuilder sb = new StringBuilder(1024);
+                            sb.append("fbconnect://success?");
 
-                        Set<String> keys = values.keySet();
-                        int n = keys.size();
-                        int i = 0;
-                        for (String k : keys) {
-                            try {
-                                String v = URLEncoder.encode(values.getString(k), "UTF-8");
-                                sb.append(URLEncoder.encode(k, "UTF-8"));
-                                sb.append("=");
-                                sb.append(v);
-                                if (i < n - 1) {
-                                    sb.append("&");
+                            Set<String> keys = values.keySet();
+                            int n = keys.size();
+                            int i = 0;
+                            for (String k : keys) {
+                                try {
+                                    String v = URLEncoder.encode(values.getString(k), "UTF-8");
+                                    sb.append(URLEncoder.encode(k, "UTF-8"));
+                                    sb.append("=");
+                                    sb.append(v);
+                                    if (i < n - 1) {
+                                        sb.append("&");
+                                    }
+                                    ++i;
+                                } catch (java.io.UnsupportedEncodingException e) {
+                                    Log.e(TAG, "Failed to create url", e);
                                 }
-                                ++i;
-                            } catch (java.io.UnsupportedEncodingException e) {
-                                Log.e(TAG, "Failed to create url", e);
                             }
-                        }
 
-                        String err = null;
-                        if (error != null) {
-                            err = error.getMessage();
+                            String err = null;
+                            if (error != null) {
+                                err = error.getMessage();
+                            }
+                            onDialogComplete(userData, sb.toString(), err);
+                        } else {
+                            // Happens when user closes the dialog, i.e. cancel
+                            onDialogComplete(userData, null, null);
                         }
-                        onDialogComplete(userData, sb.toString(), err);
                     }
                 };
 
