@@ -314,6 +314,7 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
  *             print(v.description)
  *             print(v.price)
  *             print(v.price_string)
+ *             print(v.currency_code) -- only available on iOS
  *         end
  *     else
  *         print(error.error)
