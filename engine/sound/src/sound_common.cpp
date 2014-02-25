@@ -10,7 +10,7 @@ namespace dmSound
         params->m_MaxSources = 16;
         params->m_MaxBuffers = 32;
         params->m_BufferSize = 4 * 4096;
-        params->m_FrameCount = 2048;
+        //params->m_FrameCount = 2048;
         params->m_MaxInstances = 256;
     }
 }
