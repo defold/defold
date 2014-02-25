@@ -10,7 +10,7 @@ ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
 ANDROID_NDK_VERSION='9c'
 ANDROID_NDK_API_VERSION='14'
 ANDROID_API_VERSION='17'
-ANDROID_GCC_VERSION='4.7'
+ANDROID_GCC_VERSION='4.8'
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
