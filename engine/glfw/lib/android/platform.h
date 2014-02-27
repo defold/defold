@@ -129,6 +129,8 @@ struct _GLFWwin_struct {
     EGLConfig config;
     EGLSurface surface;
     struct android_app* app;
+    // pipe used to go from java thread to native (JNI)
+    int m_Pipefd[2];
 };
 
 GLFWGLOBAL _GLFWwin _glfwWin;
