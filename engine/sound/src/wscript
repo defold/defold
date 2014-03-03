@@ -8,24 +8,38 @@ def build(bld):
     bld.add_subdirs('openal')
 
     source =  'sound_common.cpp sound.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
+    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
+
     include = ''
     if re.match('arm.*?android', bld.env['PLATFORM']):
         include = 'openal/include'
 
     if re.match('arm.*?darwin', bld.env['PLATFORM']):
         source.append('sound_ios.cpp')
+        source2.append('sound_ios.cpp')
     else:
         source.append('sound_generic.cpp')
+        source2.append('sound_generic.cpp')
+
+    if re.match('arm.*?android', bld.env['PLATFORM']):
+        source2.append('devices/device_opensl.cpp')
+    else:
+        source2.append('devices/device_openal.cpp')
 
     sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                              includes = '. vorbis_tremor %s' % include,
                              target = 'sound',
                              source = source)
 
+    sound2 = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                              includes = '. vorbis_tremor %s' % include,
+                              target = 'sound2',
+                              source = source2)
+
     sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                             includes = '.',
-                             target = 'sound_null',
-                             source = 'sound_common.cpp sound_null.cpp sound_codec.cpp sound_generic.cpp stb_vorbis/stb_vorbis.c')
+                                  includes = '.',
+                                  target = 'sound_null',
+                                  source = 'sound_common.cpp sound_null.cpp sound_codec.cpp sound_generic.cpp stb_vorbis/stb_vorbis.c')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

@@ -6,7 +6,7 @@ APPNAME='sound'
 srcdir = '.'
 blddir = 'build'
 
-import os, sys
+import os, sys, re
 import waf_dynamo, waf_ddf
 
 def init():
@@ -41,6 +41,8 @@ def configure(conf):
     elif platform == "win32":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
         conf.env.append_value('LINKFLAGS', ['user32.lib'])
+    elif re.match('arm.*?android', platform):
+        conf.env.append_value('LINKFLAGS', ['-lOpenSLES'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="SOUND"')

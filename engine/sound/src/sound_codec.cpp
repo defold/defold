@@ -132,6 +132,10 @@ namespace dmSoundCodec
 
     void Delete(HCodecContext context)
     {
+        uint32_t n = context->m_DecodersPool.Remaining() - context->m_DecodersPool.Capacity();
+        if (n > 0) {
+            dmLogError("Dangling decoders in codec context (%d)", n);
+        }
         delete context;
     }
 
