@@ -24,7 +24,7 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
-        exported_symbols = ['FacebookExt', 'IAPExt', 'PushExt', 'AdTruthExt']
+        exported_symbols = ['FacebookExt', 'IAPExt', 'PushExt', 'AdTruthExt', 'DefaultSoundDevice']
     else:
         sound_lib = 'SOUND OPENAL'
 

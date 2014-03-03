@@ -73,8 +73,10 @@ public:
     virtual void SetUp()
     {
         dmSound::InitializeParams params;
+        params.m_OutputDevice = "default";
         params.m_MaxBuffers = MAX_BUFFERS;
         params.m_MaxSources = MAX_SOURCES;
+        params.m_FrameCount = 2048;
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -214,15 +216,12 @@ TEST_F(dmSoundTest, Polyphony)
     r = dmSound::Play(instance1);
     end = dmTime::GetTime();
 
-    printf("%.2f\n", (end - start) / 1000.0f);
-
     ASSERT_EQ(dmSound::RESULT_OK, r);
     dmTime::Sleep(100 * 1000);
 
     start = dmTime::GetTime();
     r = dmSound::Play(instance2);
     end = dmTime::GetTime();
-    printf("%.2f\n", (end - start) / 1000.0f);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::Update();

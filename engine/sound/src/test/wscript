@@ -6,9 +6,10 @@ def gen_tone(task):
     tone_freq = int(task.generator.tone)
     sample_freq = int(task.generator.rate)
     sample_count = int(task.generator.frames)
+    channels = int(task.generator.channels)
 
     f = wave.open(task.outputs[0].abspath(task.env), "wb")
-    f.setnchannels(1)
+    f.setnchannels(channels)
     f.setsampwidth(2)
     f.setframerate(sample_freq)
     buf = cStringIO.StringIO()
@@ -16,7 +17,10 @@ def gen_tone(task):
     frames = []
     for i in range(sample_count):
         a = 0.8 * 32768 * math.sin((i * 2.0 * math.pi * tone_freq) / sample_freq)
-        buf.write(struct.pack('h', int(a)))
+        if channels == 1:
+            buf.write(struct.pack('h', int(a)))
+        else:
+            buf.write(struct.pack('hh', int(a), int(a)))
     f.writeframes(buf.getvalue())
     f.close()
 
@@ -32,14 +36,16 @@ def build(bld):
 
     for rate in [22050, 32000, 44000, 44100]:
         for tone in [440, 2000]:
-            frames = 2 * rate
-            name = 'tone_%d_%d_%d.wav' % (frames, tone, rate)
-            wavs.append(name)
-            bld.new_task_gen(target = name,
-                             tone = tone,
-                             rate = rate,
-                             frames = frames,
-                             rule = gen_tone,)
+            for channels in [1, 2]:
+                frames = 2 * rate
+                name = '%s_tone_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
+                wavs.append(name)
+                bld.new_task_gen(target = name,
+                                 tone = tone,
+                                 rate = rate,
+                                 frames = frames,
+                                 channels = channels,
+                                 rule = gen_tone,)
 
     bld.add_group()
 
@@ -53,15 +59,15 @@ def build(bld):
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = bld.path.ant_glob('**/*.ogg'))
 
-    if not re.match('arm.*?android', bld.env['PLATFORM']):
-        test_sound = bld.new_task_gen(features = 'cxx cprogram embed',
-                                      includes = '../../../src .',
-                                      uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
-                                      uselib_local = 'sound embedded_wavs embedded_oggs',
-                                      target = 'test_sound',
-                                      source = 'test_sound.cpp')
+    test_sound = bld.new_task_gen(features = 'cxx cprogram embed',
+                                  includes = '../../../src .',
+                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                  uselib_local = 'sound2 embedded_wavs embedded_oggs',
+                                  exported_symbols = ["DefaultSoundDevice"],
+                                  target = 'test_sound',
+                                  source = 'test_sound.cpp')
 
-        test_sound.install_path = None
+    test_sound.install_path = None
 
     test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed',
                                   includes = '../../../src .',
@@ -72,3 +78,13 @@ def build(bld):
 
 
     test_sound_null.install_path = None
+
+    test_sound2 = bld.new_task_gen(features = 'cxx cprogram embed',
+                                  includes = '../../../src .',
+                                  uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
+                                  uselib_local = 'sound2 embedded_wavs embedded_oggs',
+                                  exported_symbols = ["DefaultSoundDevice"],
+                                  target = 'test_sound2',
+                                  source = 'test_sound2.cpp')
+
+    test_sound2.install_path = None
