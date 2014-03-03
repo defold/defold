@@ -247,13 +247,13 @@ JNIEXPORT void JNICALL Java_com_defold_push_PushJNI_onMessage(JNIEnv* env, jobje
 
 void HandleRegistrationResult(const Command* cmd)
 {
-    lua_State* L = g_Push.m_L;
-    int top = lua_gettop(L);
-
     if (g_Push.m_Callback == LUA_NOREF) {
         dmLogError("No callback set");
         return;
     }
+
+    lua_State* L = g_Push.m_L;
+    int top = lua_gettop(L);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
 
@@ -295,13 +295,13 @@ void HandleRegistrationResult(const Command* cmd)
 
 void HandlePushMessageResult(const Command* cmd)
 {
-    lua_State* L = g_Push.m_Listener.m_L;
-    int top = lua_gettop(L);
-
     if (g_Push.m_Listener.m_Callback == LUA_NOREF) {
         dmLogError("No callback set");
         return;
     }
+
+    lua_State* L = g_Push.m_Listener.m_L;
+    int top = lua_gettop(L);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, g_Push.m_Listener.m_Callback);
 

@@ -174,10 +174,9 @@ public class Push {
                 if (listener != null) {
                     Log.d(TAG, "forwarding message to application");
                     listener.onMessage(msg);
-                } else {
-                    Log.d(TAG, "creating notification for message2");
-                    sendNotification(context, extras);
                 }
+                Log.d(TAG, "creating notification for message");
+                sendNotification(context, extras);
             } else {
                 Log.i(TAG, String.format("unhandled message type: %s",
                         messageType));
