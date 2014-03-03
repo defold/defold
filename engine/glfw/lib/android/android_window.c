@@ -46,7 +46,7 @@
 #include "android_util.h"
 
 extern struct android_app* g_AndroidApp;
-static int g_KeyboardActive = 0;
+int g_KeyboardActive = 0;
 static int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
 static int g_SpecialKeyActive = -1;
@@ -150,7 +150,13 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             _glfwInputKey( GLFW_KEY_MENU, glfw_action );
             return 1;
         case AKEYCODE_BACK:
-            _glfwInputKey( GLFW_KEY_BACK, glfw_action );
+            if (g_KeyboardActive) {
+                // Implicitly hide keyboard
+                _glfwShowKeyboard(0, 0, 0);
+            } else {
+                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
+            }
+
             return 1;
         }
 

@@ -116,6 +116,8 @@ This is a known limitation on Android.
 
 **NOTE:** Never ever package compiled **R*.class-files** with third party libraries as it doesn't work in general.
 
+**NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
+
 ### Android SDK/NDK
 
 
