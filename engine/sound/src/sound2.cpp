@@ -167,9 +167,6 @@ namespace dmSound
         sound->m_MasterGain = master_gain;
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_FrameCount = params->m_FrameCount;
-        // TODO: Should we really use buffer-size in bytes?
-        // Change two number of frames instead and allocated
-        // space required for stereo buffers?
         sound->m_MixBuffer = (float*) malloc(params->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS);
         for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
             sound->m_OutBuffers[i] = (int16_t*) malloc(params->m_FrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);

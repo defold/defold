@@ -326,7 +326,7 @@ namespace dmDeviceOpenSL
             dmLogError("Unexpected buffers playing (%d)", opensl->m_Playing.Size());
         }
 
-        if (opensl->m_Playing.Size() > 0) {
+        if (opensl->m_Ready.Size() > 0) {
             dmLogError("Unexpected ready buffers (%d)", opensl->m_Ready.Size());
         }
 
@@ -352,10 +352,6 @@ namespace dmDeviceOpenSL
         memcpy(b.m_Buffer, samples, sample_count * sizeof(uint16_t) * 2);
         b.m_FrameCount = sample_count;
         opensl->m_Ready.Push(b);
-
-        SLBufferQueueState state;
-        SLresult res = (*opensl->m_BufferQueue)->GetState(opensl->m_BufferQueue, &state);
-        CheckAndPrintError(res);
 
         if (opensl->m_Underflow) {
             opensl->m_Underflow = false;
