@@ -3,7 +3,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         package="{{package}}"
         android:versionCode="{{versionCode}}"
-        android:versionName="{{versionName}}">
+        android:versionName="{{versionName}}"
+        android:installLocation="auto">
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="9" />

@@ -471,7 +471,8 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         package="%(package)s"
         android:versionCode="1"
-        android:versionName="1.0">
+        android:versionName="1.0"
+        android:installLocation="auto">
 
     <uses-feature android:required="true" android:glEsVersion="0x00020000" />
     <uses-sdk android:minSdkVersion="9" />
