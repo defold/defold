@@ -189,6 +189,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
+        // See _glfwPlatformSwapBuffers for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
         _glfwWin.iconified = 1;
