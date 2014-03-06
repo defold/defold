@@ -16,7 +16,7 @@ PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.0.1 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
 
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
