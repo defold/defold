@@ -12,6 +12,8 @@ void init_gl(EGLDisplay* out_display, EGLContext* out_context, EGLConfig* out_co
             EGL_BLUE_SIZE, 8,
             EGL_GREEN_SIZE, 8,
             EGL_RED_SIZE, 8,
+            // NOTE: In order to run on emulator
+            // EGL_CONFORMANT must not be specified
             EGL_CONFORMANT, EGL_OPENGL_ES2_BIT,
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
             EGL_NONE
@@ -34,6 +36,7 @@ void init_gl(EGLDisplay* out_display, EGLContext* out_context, EGLConfig* out_co
     CHECK_EGL_ERROR
     eglInitialize(display, 0, 0);
     CHECK_EGL_ERROR
+    // TODO: Bug. We might be zero configs, i.e. numConfigs == 0
     eglChooseConfig(display, attribs, &config, 1, &numConfigs);
     CHECK_EGL_ERROR
     context = eglCreateContext(display, config, NULL, contextAttribs);

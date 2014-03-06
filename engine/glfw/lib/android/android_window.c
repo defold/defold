@@ -218,7 +218,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         const int SCREEN_ORIENTATION_PORTRAIT = 1;
 
         int o = width__ > height__ ? SCREEN_ORIENTATION_LANDSCAPE : SCREEN_ORIENTATION_PORTRAIT;
-        (*env)->CallIntMethod(env, activity->clazz, setOrientationMethod, o);
+        (*env)->CallVoidMethod(env, activity->clazz, setOrientationMethod, o);
     }
     (*activity->vm)->DetachCurrentThread(activity->vm);
 
@@ -312,6 +312,31 @@ void _glfwPlatformSwapBuffers( void )
         eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
         CHECK_EGL_ERROR
     }
+
+    /*
+     The preferred way of handling orientation changes is probably
+     in APP_CMD_CONFIG_CHANGED or APP_CMD_WINDOW_RESIZED but occasionally
+     the wrong previous orientation is reported (Tested on Samsung S2 GTI9100 4.1.2).
+     This might very well be a bug..
+     */
+    EGLint w, h;
+    EGLDisplay display = _glfwWin.display;
+    EGLSurface surface = _glfwWin.surface;
+
+    eglQuerySurface(display, surface, EGL_WIDTH, &w);
+    CHECK_EGL_ERROR
+    eglQuerySurface(display, surface, EGL_HEIGHT, &h);
+    CHECK_EGL_ERROR
+
+    if (_glfwWin.width != w || _glfwWin.height != h) {
+        LOGV("window size changed from %dx%d to %dx%d", _glfwWin.width, _glfwWin.height, w, h);
+        if (_glfwWin.windowSizeCallback) {
+            _glfwWin.windowSizeCallback(w, h);
+        }
+    }
+
+    _glfwWin.width = w;
+    _glfwWin.height = h;
 }
 
 //========================================================================
