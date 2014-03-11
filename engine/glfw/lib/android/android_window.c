@@ -200,8 +200,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 {
     LOGV("_glfwPlatformOpenWindow");
 
-    _glfwWin.app = g_AndroidApp;
-    _glfwWin.app->onInputEvent = handleInput;
+    g_AndroidApp->onInputEvent = handleInput;
 
     // Initialize display
     init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
@@ -244,14 +243,12 @@ void _glfwPlatformCloseWindow( void )
 {
     LOGV("_glfwPlatformCloseWindow");
 
-    int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0]);
-    if (result != 1) {
-        LOGF("Could not remove fd from looper: %d", result);
+    if (_glfwWin.opened) {
+        // Call finish and let Android life cycle take care of the termination
+        ANativeActivity_finish(g_AndroidApp->activity);
+
+        _glfwWin.opened = 0;
     }
-
-    destroy_gl_surface(&_glfwWin);
-
-    final_gl(&_glfwWin);
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -307,11 +304,13 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    if (_glfwWin.surface != EGL_NO_SURFACE)
+    if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE)
     {
-        eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
-        CHECK_EGL_ERROR
+        return;
     }
+
+    eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
+    CHECK_EGL_ERROR
 
     /*
      The preferred way of handling orientation changes is probably

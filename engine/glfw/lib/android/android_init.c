@@ -169,10 +169,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         _glfwWin.opened = 1;
         break;
     case APP_CMD_TERM_WINDOW:
-        if (_glfwWin.opened)
-        {
-            destroy_gl_surface(&_glfwWin);
-        }
+        destroy_gl_surface(&_glfwWin);
         break;
     case APP_CMD_GAINED_FOCUS:
         _glfwWin.active = 1;
@@ -197,6 +194,12 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
         final_gl(&_glfwWin);
+        {
+            int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0]);
+            if (result != 1) {
+                LOGF("Could not remove fd from looper: %d", result);
+            }
+        }
         break;
     }
 }
