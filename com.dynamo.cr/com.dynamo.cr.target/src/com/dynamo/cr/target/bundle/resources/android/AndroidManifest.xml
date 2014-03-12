@@ -47,6 +47,15 @@
             </intent-filter>
         </receiver>
 
+        <service android:name="com.defold.adtruth.InstallReceiver"/>
+        <receiver
+            android:name="com.defold.adtruth.InstallReceiver"
+            android:exported="true">
+          <intent-filter>
+            <action android:name="com.android.vending.INSTALL_REFERRER" />
+          </intent-filter>
+        </receiver>
+
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="com.android.vending.BILLING" />
