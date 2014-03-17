@@ -45,6 +45,10 @@ struct android_app* g_AndroidApp;
 
 extern int main(int argc, char** argv);
 
+extern int g_KeyboardActive;
+extern int g_autoCloseKeyboard;
+extern int g_SpecialKeyActive;
+
 static void initThreads( void )
 {
     // Initialize critical section handle
@@ -194,14 +198,120 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_DESTROY:
         _glfwWin.opened = 0;
         final_gl(&_glfwWin);
-        {
-            int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0]);
-            if (result != 1) {
-                LOGF("Could not remove fd from looper: %d", result);
-            }
-        }
         break;
     }
+}
+
+// return 1 to handle the event, 0 for default handling
+static int32_t handleInput(struct android_app* app, AInputEvent* event)
+{
+    int32_t event_type = AInputEvent_getType(event);
+
+    if (event_type == AINPUT_EVENT_TYPE_MOTION)
+    {
+        if (g_KeyboardActive && g_autoCloseKeyboard) {
+            // Implicitly hide keyboard
+            _glfwShowKeyboard(0, 0, 0);
+        }
+
+        int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK ;
+        int32_t x = AMotionEvent_getX(event, 0);
+        int32_t y = AMotionEvent_getY(event, 0);
+        _glfwInput.MousePosX = x;
+        _glfwInput.MousePosY = y;
+
+        switch (action)
+        {
+        case AMOTION_EVENT_ACTION_DOWN:
+            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
+            break;
+        case AMOTION_EVENT_ACTION_UP:
+            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
+            break;
+        case AMOTION_EVENT_ACTION_MOVE:
+            if( _glfwWin.mousePosCallback )
+            {
+                _glfwWin.mousePosCallback(x, y);
+            }
+            break;
+        }
+        return 1;
+    }
+    else if (event_type == AINPUT_EVENT_TYPE_KEY)
+    {
+        int32_t code = AKeyEvent_getKeyCode(event);
+        int32_t action = AKeyEvent_getAction(event);
+        int32_t flags = AKeyEvent_getFlags(event);
+        int32_t meta = AKeyEvent_getMetaState(event);
+        int32_t scane_code = AKeyEvent_getScanCode(event);
+        int32_t repeat = AKeyEvent_getRepeatCount(event);
+        int32_t device_id = AInputEvent_getDeviceId(event);
+        int32_t source = AInputEvent_getSource(event);
+        int64_t down_time = AKeyEvent_getDownTime(event);
+        int64_t event_time = AKeyEvent_getEventTime(event);
+        int glfw_action = -1;
+        if (action == AKEY_EVENT_ACTION_DOWN)
+        {
+            glfw_action = GLFW_PRESS;
+        }
+        else if (action == AKEY_EVENT_ACTION_UP)
+        {
+            glfw_action = GLFW_RELEASE;
+        }
+        else if (action == AKEY_EVENT_ACTION_MULTIPLE && code == AKEYCODE_UNKNOWN)
+        {
+            // complex character, let DefoldActivity#dispatchKeyEvent handle it
+            // such characters are not copied into AInputEvent due to NDK bug
+            return 0;
+        }
+
+        if (glfw_action == GLFW_PRESS) {
+            switch (code) {
+            case AKEYCODE_DEL:
+                g_SpecialKeyActive = 10;
+                _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
+                return 1;
+            case AKEYCODE_ENTER:
+                g_SpecialKeyActive = 10;
+                _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
+                return 1;
+            }
+        }
+
+        switch (code) {
+        case AKEYCODE_MENU:
+            _glfwInputKey( GLFW_KEY_MENU, glfw_action );
+            return 1;
+        case AKEYCODE_BACK:
+            if (g_KeyboardActive) {
+                // Implicitly hide keyboard
+                _glfwShowKeyboard(0, 0, 0);
+            } else {
+                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
+            }
+
+            return 1;
+        }
+
+        JNIEnv* env = g_AndroidApp->activity->env;
+        JavaVM* vm = g_AndroidApp->activity->vm;
+        (*vm)->AttachCurrentThread(vm, &env, NULL);
+
+        jclass KeyEventClass = (*env)->FindClass(env, "android/view/KeyEvent");
+        jmethodID KeyEventConstructor = (*env)->GetMethodID(env, KeyEventClass, "<init>", "(JJIIIIIIII)V");
+        jobject keyEvent = (*env)->NewObject(env, KeyEventClass, KeyEventConstructor,
+                down_time, event_time, action, code, repeat, meta, device_id, scane_code, flags, source);
+        jmethodID KeyEvent_getUnicodeChar = (*env)->GetMethodID(env, KeyEventClass, "getUnicodeChar", "(I)I");
+
+        int unicode = (*env)->CallIntMethod(env, keyEvent, KeyEvent_getUnicodeChar, meta);
+        (*env)->DeleteLocalRef( env, keyEvent );
+
+        (*vm)->DetachCurrentThread(vm);
+
+        _glfwInputChar( unicode, glfw_action );
+    }
+
+    return 0;
 }
 
 void _glfwPreMain(struct android_app* state)
@@ -211,8 +321,10 @@ void _glfwPreMain(struct android_app* state)
     g_AndroidApp = state;
 
     state->onAppCmd = handleCommand;
+    state->onInputEvent = handleInput;
 
     _glfwWin.opened = 0;
+    // Wait for window to become ready (APP_CMD_INIT_WINDOW in handleCommand)
     while (_glfwWin.opened == 0)
     {
         int ident;
@@ -230,10 +342,23 @@ void _glfwPreMain(struct android_app* state)
 
     char* argv[] = {0};
     argv[0] = strdup("defold-app");
-    int ret =main(1, argv);
+    int ret = main(1, argv);
     free(argv[0]);
     // NOTE: _exit due to a dead-lock in glue code.
     _exit(ret);
+}
+
+static int LooperCallback(int fd, int events, void* data)
+{
+    struct Command cmd;
+    if (read(_glfwWin.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
+        if (cmd.m_Command == CMD_INPUT_CHAR) {
+            _glfwInputChar( (int)cmd.m_Data, GLFW_PRESS );
+        }
+    } else {
+        LOGF("read error in looper callback");
+    }
+    return 1;
 }
 
 int _glfwPlatformInit( void )
@@ -244,6 +369,16 @@ int _glfwPlatformInit( void )
     _glfwWin.context = EGL_NO_CONTEXT;
     _glfwWin.surface = EGL_NO_SURFACE;
     _glfwWin.iconified = 1;
+    _glfwWin.app = g_AndroidApp;
+
+    int result = pipe(_glfwWin.m_Pipefd);
+    if (result != 0) {
+        LOGF("Could not open pipe for communication: %d", result);
+    }
+    result = ALooper_addFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
+    if (result != 1) {
+        LOGF("Could not add file descriptor to looper: %d", result);
+    }
 
     // Initialize thread package
     initThreads();
@@ -254,7 +389,12 @@ int _glfwPlatformInit( void )
     // Start the timer
     _glfwInitTimer();
 
-    _glfwWin.app = g_AndroidApp;
+    // Initialize display
+    if (init_gl(&_glfwWin) == 0)
+    {
+        return GL_FALSE;
+    }
+    SaveWin(&_glfwWin);
 
     return GL_TRUE;
 }
@@ -276,6 +416,39 @@ int _glfwPlatformTerminate( void )
 
     // Close OpenGL window
     glfwCloseWindow();
+
+    int result = ALooper_removeFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0]);
+    if (result != 1) {
+        LOGF("Could not remove fd from looper: %d", result);
+    }
+
+    close(_glfwWin.m_Pipefd[0]);
+
+    // Close the other pipe on the java thread
+    JNIEnv* env = g_AndroidApp->activity->env;
+    JavaVM* vm = g_AndroidApp->activity->vm;
+    (*vm)->AttachCurrentThread(vm, &env, NULL);
+    close(_glfwWin.m_Pipefd[1]);
+    (*vm)->DetachCurrentThread(vm);
+
+    // Call finish and let Android life cycle take care of the termination
+     ANativeActivity_finish(g_AndroidApp->activity);
+
+     // Wait for gl context destruction
+    while (_glfwWin.display != EGL_NO_DISPLAY)
+    {
+        int ident;
+        int events;
+        struct android_poll_source* source;
+
+        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        {
+            // Process this event.
+            if (source != NULL) {
+                source->process(g_AndroidApp, source);
+            }
+        }
+    }
 
     // Kill thread package
     terminateThreads();

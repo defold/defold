@@ -426,6 +426,10 @@ dmExtension::Result AppFinalizePush(dmExtension::AppParams* params)
     env->DeleteGlobalRef(g_Push.m_PushJNI);
     Detach();
     g_Push.m_Push = NULL;
+    g_Push.m_PushJNI = NULL;
+    g_Push.m_L = 0;
+    g_Push.m_Callback = LUA_NOREF;
+    g_Push.m_Self = LUA_NOREF;
 
     int result = ALooper_removeFd(g_AndroidApp->looper, g_Push.m_Pipefd[0]);
     if (result != 1) {
@@ -433,7 +437,9 @@ dmExtension::Result AppFinalizePush(dmExtension::AppParams* params)
     }
 
     close(g_Push.m_Pipefd[0]);
+    env = Attach();
     close(g_Push.m_Pipefd[1]);
+    Detach();
 
     return dmExtension::RESULT_OK;
 }

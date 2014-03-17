@@ -47,17 +47,9 @@
 
 extern struct android_app* g_AndroidApp;
 int g_KeyboardActive = 0;
-static int g_autoCloseKeyboard = 0;
+int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
-static int g_SpecialKeyActive = -1;
-
-#define CMD_INPUT_CHAR (0)
-
-struct Command
-{
-    int m_Command;
-    void* m_Data;
-};
+int g_SpecialKeyActive = -1;
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNative(JNIEnv* env, jobject obj, jint unicode)
 {
@@ -69,141 +61,11 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNativ
     }
 }
 
-// return 1 to handle the event, 0 for default handling
-static int32_t handleInput(struct android_app* app, AInputEvent* event)
-{
-    int32_t event_type = AInputEvent_getType(event);
-
-    if (event_type == AINPUT_EVENT_TYPE_MOTION)
-    {
-        if (g_KeyboardActive && g_autoCloseKeyboard) {
-            // Implicitly hide keyboard
-            _glfwShowKeyboard(0, 0, 0);
-        }
-
-        int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK ;
-        int32_t x = AMotionEvent_getX(event, 0);
-        int32_t y = AMotionEvent_getY(event, 0);
-        _glfwInput.MousePosX = x;
-        _glfwInput.MousePosY = y;
-
-        switch (action)
-        {
-        case AMOTION_EVENT_ACTION_DOWN:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
-            break;
-        case AMOTION_EVENT_ACTION_UP:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
-            break;
-        case AMOTION_EVENT_ACTION_MOVE:
-            if( _glfwWin.mousePosCallback )
-            {
-                _glfwWin.mousePosCallback(x, y);
-            }
-            break;
-        }
-        return 1;
-    }
-    else if (event_type == AINPUT_EVENT_TYPE_KEY)
-    {
-        int32_t code = AKeyEvent_getKeyCode(event);
-        int32_t action = AKeyEvent_getAction(event);
-        int32_t flags = AKeyEvent_getFlags(event);
-        int32_t meta = AKeyEvent_getMetaState(event);
-        int32_t scane_code = AKeyEvent_getScanCode(event);
-        int32_t repeat = AKeyEvent_getRepeatCount(event);
-        int32_t device_id = AInputEvent_getDeviceId(event);
-        int32_t source = AInputEvent_getSource(event);
-        int64_t down_time = AKeyEvent_getDownTime(event);
-        int64_t event_time = AKeyEvent_getEventTime(event);
-        int glfw_action = -1;
-        if (action == AKEY_EVENT_ACTION_DOWN)
-        {
-            glfw_action = GLFW_PRESS;
-        }
-        else if (action == AKEY_EVENT_ACTION_UP)
-        {
-            glfw_action = GLFW_RELEASE;
-        }
-        else if (action == AKEY_EVENT_ACTION_MULTIPLE && code == AKEYCODE_UNKNOWN)
-        {
-            // complex character, let DefoldActivity#dispatchKeyEvent handle it
-            // such characters are not copied into AInputEvent due to NDK bug
-            return 0;
-        }
-
-        if (glfw_action == GLFW_PRESS) {
-            switch (code) {
-            case AKEYCODE_DEL:
-                g_SpecialKeyActive = 10;
-                _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
-                return 1;
-            case AKEYCODE_ENTER:
-                g_SpecialKeyActive = 10;
-                _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
-                return 1;
-            }
-        }
-
-        switch (code) {
-        case AKEYCODE_MENU:
-            _glfwInputKey( GLFW_KEY_MENU, glfw_action );
-            return 1;
-        case AKEYCODE_BACK:
-            if (g_KeyboardActive) {
-                // Implicitly hide keyboard
-                _glfwShowKeyboard(0, 0, 0);
-            } else {
-                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
-            }
-
-            return 1;
-        }
-
-        JNIEnv* env = g_AndroidApp->activity->env;
-        JavaVM* vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
-
-        jclass KeyEventClass = (*env)->FindClass(env, "android/view/KeyEvent");
-        jmethodID KeyEventConstructor = (*env)->GetMethodID(env, KeyEventClass, "<init>", "(JJIIIIIIII)V");
-        jobject keyEvent = (*env)->NewObject(env, KeyEventClass, KeyEventConstructor,
-                down_time, event_time, action, code, repeat, meta, device_id, scane_code, flags, source);
-        jmethodID KeyEvent_getUnicodeChar = (*env)->GetMethodID(env, KeyEventClass, "getUnicodeChar", "(I)I");
-
-        int unicode = (*env)->CallIntMethod(env, keyEvent, KeyEvent_getUnicodeChar, meta);
-        (*env)->DeleteLocalRef( env, keyEvent );
-
-        (*vm)->DetachCurrentThread(vm);
-
-        _glfwInputChar( unicode, glfw_action );
-    }
-
-    return 0;
-}
-
-static int LooperCallback(int fd, int events, void* data)
-{
-    struct Command cmd;
-    if (read(_glfwWin.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd)) {
-        if (cmd.m_Command == CMD_INPUT_CHAR) {
-            _glfwInputChar( (int)cmd.m_Data, GLFW_PRESS );
-        }
-    } else {
-        LOGF("read error in looper callback");
-    }
-    return 1;
-}
-
 int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWwndconfig* wndconfig__,
                              const _GLFWfbconfig* fbconfig__ )
 {
     LOGV("_glfwPlatformOpenWindow");
-
-    g_AndroidApp->onInputEvent = handleInput;
-
-    // Initialize display
-    init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
 
     ANativeActivity* activity = g_AndroidApp->activity;
     JNIEnv* env = 0;
@@ -221,16 +83,9 @@ int _glfwPlatformOpenWindow( int width__, int height__,
     }
     (*activity->vm)->DetachCurrentThread(activity->vm);
 
-    create_gl_surface(&_glfwWin);
+    RestoreWin(&_glfwWin);
 
-    int result = pipe(_glfwWin.m_Pipefd);
-    if (result != 0) {
-        LOGF("Could not open pipe for communication: %d", result);
-    }
-    result = ALooper_addFd(g_AndroidApp->looper, _glfwWin.m_Pipefd[0], ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, LooperCallback, &_glfwWin);
-    if (result != 1) {
-        LOGF("Could not add file descriptor to looper: %d", result);
-    }
+    create_gl_surface(&_glfwWin);
 
     return GL_TRUE;
 }
@@ -244,11 +99,10 @@ void _glfwPlatformCloseWindow( void )
     LOGV("_glfwPlatformCloseWindow");
 
     if (_glfwWin.opened) {
-        // Call finish and let Android life cycle take care of the termination
-        ANativeActivity_finish(g_AndroidApp->activity);
-
+        destroy_gl_surface(&_glfwWin);
         _glfwWin.opened = 0;
     }
+    SaveWin(&_glfwWin);
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -349,6 +203,7 @@ void _glfwPlatformSwapInterval( int interval )
     // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
     eglSwapInterval(_glfwWin.display, interval);
     EGLint error = eglGetError();
+    assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
     (void)error;
 }
 
