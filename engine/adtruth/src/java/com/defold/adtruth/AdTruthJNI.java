@@ -2,6 +2,9 @@ package com.defold.adtruth;
 
 import android.app.Activity;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -9,7 +12,8 @@ import android.util.Log;
 
 public class AdTruthJNI {
 
-    private static final String TAG = "defold.adtruth";
+    public static final String PREFERENCES_FILE = "adtruth";
+    public static final String TAG = "defold.adtruth";
 
     private WebView view;
     private Activity activity;
@@ -69,4 +73,10 @@ public class AdTruthJNI {
             }
         });
     }
+
+    public String getReferrer() {
+        SharedPreferences prefs = this.activity.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE);
+        return prefs.getString("referrer", null);
+    }
+
 }

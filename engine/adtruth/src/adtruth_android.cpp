@@ -52,6 +52,7 @@ struct AdTruth
 
     jobject              m_AdTruthJNI;
     jmethodID            m_Load;
+    jmethodID            m_GetReferrer;
     int                  m_Pipefd[2];
 };
 
@@ -94,9 +95,32 @@ int AdTruth_Load(lua_State* L)
     return 0;
 }
 
+int AdTruth_GetReferrer(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    const char *referrer = 0;
+    JNIEnv* env = Attach();
+    jstring referrer_obj = (jstring) env->CallObjectMethod(g_AdTruth.m_AdTruthJNI, g_AdTruth.m_GetReferrer);
+    referrer = env->GetStringUTFChars(referrer_obj, 0);
+
+    if (referrer) {
+        lua_pushstring(L, referrer);
+    } else {
+        lua_pushnil(L);
+    }
+
+    env->ReleaseStringUTFChars(referrer_obj, referrer);
+    Detach();
+
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
 static const luaL_reg AdTruth_methods[] =
 {
     {"load", AdTruth_Load},
+    {"get_referrer", AdTruth_GetReferrer},
     {0, 0}
 };
 
@@ -227,6 +251,7 @@ dmExtension::Result AppInitializeAdTruth(dmExtension::AppParams* params)
     env->DeleteLocalRef(str_class_name);
 
     g_AdTruth.m_Load = env->GetMethodID(adtruth_class, "load", "(Ljava/lang/String;)V");
+    g_AdTruth.m_GetReferrer = env->GetMethodID(adtruth_class, "getReferrer", "()Ljava/lang/String;");
 
     jmethodID jni_constructor = env->GetMethodID(adtruth_class, "<init>", "(Landroid/app/Activity;)V");
     g_AdTruth.m_AdTruthJNI = env->NewGlobalRef(env->NewObject(adtruth_class, jni_constructor, g_AndroidApp->activity->clazz));

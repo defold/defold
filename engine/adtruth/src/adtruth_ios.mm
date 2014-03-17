@@ -169,10 +169,19 @@ static int AdTruth_Eval(lua_State* L)
     return 1;
 }
 
+int AdTruth_GetReferrer(lua_State* L)
+{
+    int top = lua_gettop(L);
+    lua_pushnil(L);
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
 static const luaL_reg AdTruth_methods[] =
 {
     {"load", AdTruth_Load},
     {"eval", AdTruth_Eval},
+    {"get_referrer", AdTruth_GetReferrer},
     {0, 0}
 };
 
