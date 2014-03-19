@@ -192,6 +192,18 @@ extension library and set "exported_symbols" in the wscript, see note below.
 *NOTE:* In order to avoid a dead-stripping bug with static libraries on OSX/iOS a constructor symbol must be explicitly exported with "exported_symbols"
 in the wscript-target. See extension-test.
 
+Facebook Extension
+~~~~~~~~~~~~~~~~~~
+
+How to package a new Android Facebook SDK:
+
+* Download the SDK
+* Replicate a structure based on previous FB SDK package (rooted at share/java within the package)
+* From within the SDK:
+** copy bin/facebooksdk.jar into share/java/facebooksdk.jar
+** copy res/* into share/java/res/facebook
+* tar/gzip the new structure
+
 Energy Consumption
 ------------------
 
