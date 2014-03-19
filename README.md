@@ -199,8 +199,8 @@ How to package a new Android Facebook SDK:
 * Download the SDK
 * Replicate a structure based on previous FB SDK package (rooted at share/java within the package)
 * From within the SDK:
-** copy bin/facebooksdk.jar into share/java/facebooksdk.jar
-** copy res/* into share/java/res/facebook
+  * copy bin/facebooksdk.jar into share/java/facebooksdk.jar
+  * copy res/* into share/java/res/facebook
 * tar/gzip the new structure
 
 Energy Consumption
