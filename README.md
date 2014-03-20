@@ -155,6 +155,60 @@ create message being sent (onCreate/android_main). The normal case is for the ap
 * Run ndk-gdb from android ndk
 * Debug
 
+### Life-cycle and GLFW
+
+NDK uses a separate thread which runs the game, separate from the Android UI thread.
+
+The main life cycle (LC) of an android app is controlled by the following events, received on the game thread:
+
+* _glfwPreMain(struct* android_app), corresponds to create
+* APP_CMD_START, (visible)
+* APP_CMD_RESUME
+* APP_CMD_GAINED_FOCUS
+* APP_CMD_LOST_FOCUS
+* APP_CMD_PAUSE
+* APP_CMD_STOP, (invisible)
+* APP_CMD_SAVE_STATE
+* APP_CMD_DESTROY
+
+After APP_CMD_PAUSE, the process might be killed by the OS without APP_CMD_DESTROY being received.
+
+Window life cycle (LC), controls the window (app_activity->window) and might happen at any point while the app is visible:
+
+* APP_CMD_INIT_WINDOW
+* APP_CMD_TERM_WINDOW
+
+Specifics of exactly when they are received depend on manufacturer, OS version etc.
+
+The graphics resources used are divided into Context and Surface:
+
+* Context
+  * EGLDisplay display
+  * EGLContext context
+  * EGLConfig config
+* Surface
+  * EGLSurface surface
+
+GLFW functions called by the engine are:
+
+* _glfwPlatformInit (Context creation)
+* _glfwPlatformOpenWindow (Surface creation)
+* _glfwPlatformCloseWindow (Surface destruction)
+* _glfwPlatformTerminate (implicit Context destruction)
+
+Some implementation details to note:
+
+* _glfwPreMain pumps the LC commands until the window has been created (APP_CMD_INIT_WINDOW) before proceeding to boot the app (engine-main).
+  This should be possible to streamline so that content loading can start faster.
+* The engine continues to pump the LC commands as a part of polling for input (glfw)
+* OpenWindow is the first time when the window dimensions are known, which controls screen orientation.
+* The glfw window is considered open (_glfwWin.opened) from APP_CMD_INIT_WINDOW until APP_CMD_DESTROY, which is app termination
+* The glfw window is considered iconified (_glfwWin.iconified) when not visible to user, which stops buffer swapping and controls poll timeouts
+* Between CloseWindow and OpenWindow the GL context is temp-stored in memory (ordinary struct is memset to 0 by glfw in CloseWindow)
+* When rebooting the engine (when using the dev app), essentially means CloseWindow followed by OpenWindow.
+* APP_CMD_TERM_WINDOW might do Context destruction before _glfwPlatformTerminate, depending on which happens first
+* _glfwPlatformTerminate pumps the LC commands until the Context has been destroyed
+
 OpenGL and jogl
 ---------------
 
