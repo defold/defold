@@ -49,14 +49,19 @@ public class Push {
         this.listener = null;
     }
 
-    public void register(Activity activity) {
-        try {
-            startGooglePlay(activity);
-            loadSavedMessages(activity);
-        } catch (Throwable e) {
-            Log.e(TAG, "Failed to register", e);
-            sendRegistrationResult(null, e.getLocalizedMessage());
-        }
+    public void register(final Activity activity) {
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    startGooglePlay(activity);
+                    loadSavedMessages(activity);
+                } catch (Throwable e) {
+                    Log.e(TAG, "Failed to register", e);
+                    sendRegistrationResult(null, e.getLocalizedMessage());
+                }
+            }
+        });
     }
 
     public static Push getInstance() {
