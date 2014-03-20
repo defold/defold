@@ -37,6 +37,9 @@ message Configuration
     required string branch_root = 2;
     repeated string filters = 3;
     required int32 service_port = 4;
+    optional int32 ssl_service_port = 41;
+    optional string keystore = 42;
+    optional string keystore_password = 43;
     required int32 build_data_port = 5;
     // Actual port for git server
     required int32 gitsrv_port = 39;
