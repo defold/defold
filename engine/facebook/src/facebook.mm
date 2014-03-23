@@ -257,10 +257,23 @@ static void AppendArray(lua_State*L, NSMutableArray* array, int table)
     }
 }
 
+static void InitSession()
+{
+    if (g_Facebook.m_Session == 0) {
+        // This is done lazily to not initialize the FB SDK until we actually need it
+        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"basic_info", nil];
+        g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
+        [permissions release];
+    }
+}
+
+
 int Facebook_Login(lua_State* L)
 {
     int top = lua_gettop(L);
     VerifyCallback(L);
+
+    InitSession();
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
@@ -338,6 +351,8 @@ int Facebook_RequestReadPermissions(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
+    InitSession();
+
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
@@ -369,6 +384,8 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
+    InitSession();
+
     luaL_checktype(L, 1, LUA_TTABLE);
     FBSessionDefaultAudience audience = (FBSessionDefaultAudience) luaL_checkinteger(L, 2);
     luaL_checktype(L, 3, LUA_TFUNCTION);
@@ -398,6 +415,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
 int Facebook_AccessToken(lua_State* L)
 {
+    InitSession();
     if (g_Facebook.m_Session.isOpen) {
         FBSession* s = g_Facebook.m_Session;
         const char* token = [s.accessTokenData.accessToken UTF8String];
@@ -416,6 +434,7 @@ int Facebook_Permissions(lua_State* L)
     int top = lua_gettop(L);
 
     lua_newtable(L);
+    InitSession();
     if (g_Facebook.m_Session) {
         NSArray* permissions = g_Facebook.m_Session.permissions;
         int i = 1;
@@ -538,11 +557,11 @@ dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
     // Better solution?
     const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
     [FBSettings setDefaultAppID: [NSString stringWithUTF8String: app_id]];
+    [FBSettings setShouldAutoPublishInstall: false];
 
-    NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"basic_info", nil];
-    g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
+    // The session is created lazily, check InitSession
+    g_Facebook.m_Session = 0;
 
-    [permissions release];
     return dmExtension::RESULT_OK;
 }
 
