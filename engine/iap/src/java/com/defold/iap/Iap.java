@@ -117,37 +117,50 @@ public class Iap implements Handler.Callback {
 
 			@Override
 			public void onServiceDisconnected(ComponentName name) {
+			    Log.v(TAG, "IAP disconnected");
 				service = null;
 			}
 
 			@Override
 			public void onServiceConnected(ComponentName name, IBinder binderService) {
+                Log.v(TAG, "IAP connected");
 				service = IInAppBillingService.Stub.asInterface(binderService);
 			}
 		};
 
-		activity.bindService(new Intent(
-				"com.android.vending.billing.InAppBillingService.BIND"),
-				serviceConn, Context.BIND_AUTO_CREATE);
+		Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
+		// Limit intent to vending package
+		serviceIntent.setPackage("com.android.vending");
+        if (!activity.getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
+            // service available to handle that Intent
+            activity.bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
+        } else {
+            Log.e(TAG, "Billing service unavailable on device.");
+        }
 
 		skuDetailsThread = new SkuDetailsThread();
 		skuDetailsThread.start();
 	}
 
-	public void stop() {
-		if (serviceConn != null) {
-			activity.unbindService(serviceConn);
-		}
-		if (skuDetailsThread != null) {
-            skuDetailsThread.stop = true;
-			skuDetailsThread.interrupt();
-			try {
-				skuDetailsThread.join();
-			} catch (InterruptedException e) {
-				Log.wtf(TAG, "Failed to join thread", e);
-			}
-		}
-	}
+    public void stop() {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (serviceConn != null) {
+                    activity.unbindService(serviceConn);
+                }
+                if (skuDetailsThread != null) {
+                    skuDetailsThread.stop = true;
+                    skuDetailsThread.interrupt();
+                    try {
+                        skuDetailsThread.join();
+                    } catch (InterruptedException e) {
+                        Log.wtf(TAG, "Failed to join thread", e);
+                    }
+                }
+            }
+        });
+    }
 
 	public void listItems(final String skus, final IListProductsListener listener) {
 		this.activity.runOnUiThread(new Runnable() {
@@ -172,43 +185,42 @@ public class Iap implements Handler.Callback {
 		});
 	}
 
-	private static String convertProduct(String purchase) {
-		try {
-			JSONObject p = new JSONObject(purchase);
-			p.put("price_string", p.get("price"));
-			p.put("ident", p.get("productId"));
-			// It is not yet possible to obtain the currency code on Android
-			// They have a currency code, which reflects the merchant's locale, instead of the user's (price_currency_code)
-			// https://code.google.com/p/marketbilling/issues/detail?id=93&q=currency%20code&colspec=ID%20Type%20Status%20Google%20Priority%20Milestone%20Owner%20Summary
-			p.put("currency_code", "Unknown");
+    private static JSONObject convertProduct(String purchase) {
+        try {
+            JSONObject p = new JSONObject(purchase);
+            p.put("price_string", p.get("price"));
+            p.put("ident", p.get("productId"));
+            // It is not yet possible to obtain the currency code on Android
+            // They have a currency code, which reflects the merchant's locale, instead of the user's (price_currency_code)
+            // https://code.google.com/p/marketbilling/issues/detail?id=93&q=currency%20code&colspec=ID%20Type%20Status%20Google%20Priority%20Milestone%20Owner%20Summary
+            p.put("currency_code", "Unknown");
 
-			p.remove("productId");
-			p.remove("type");
-			p.remove("price");
-			p.remove("price_amount_micros");
-			p.remove("price_currency_code");
-			return p.toString();
-		} catch (JSONException e) {
-			Log.wtf(TAG, "Failed to convert product json", e);
-		}
+            p.remove("productId");
+            p.remove("type");
+            p.remove("price");
+            p.remove("price_amount_micros");
+            p.remove("price_currency_code");
+            return p;
+        } catch (JSONException e) {
+            Log.wtf(TAG, "Failed to convert product json", e);
+        }
 
-		return null;
-	}
+        return null;
+    }
 
-	private String listItemsSync(ArrayList<String> skuList)  {
+    private String listItemsSync(ArrayList<String> skuList)  {
 		Bundle querySkus = new Bundle();
 		querySkus.putStringArrayList("ITEM_ID_LIST", skuList);
-		StringBuilder sb = new StringBuilder();
-		sb.append("[");
 
 		try {
+		    JSONObject map = new JSONObject();
 			if (service == null) {
 				Log.wtf(TAG,  "service is null");
-				return "[]";
+				return "{}";
 			}
 			if (activity == null) {
 				Log.wtf(TAG,  "activity is null");
-				return "[]";
+				return "{}";
 			}
 			Bundle skuDetails = service.getSkuDetails(3, activity.getPackageName(), "inapp", querySkus);
 			int response = skuDetails.getInt("RESPONSE_CODE");
@@ -217,19 +229,20 @@ public class Iap implements Handler.Callback {
 				ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
 
 				for (String r : responseList) {
-					String p = convertProduct(r);
-					if (p != null) {
-						sb.append(p);
+					JSONObject product = convertProduct(r);
+					if (product != null) {
+						map.put((String)product.get("ident"), product);
 					}
 				}
 			}
+			return map.toString();
 
-		} catch (RemoteException e) {
-			Log.e(TAG, "Failed to fetch product list", e);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to fetch product list", e);
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to fetch product list", e);
 		}
-		sb.append("]");
-
-		return sb.toString();
+		return "{}";
 	}
 
 	public void buy(final String product, final IPurchaseListener listener) {
