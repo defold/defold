@@ -335,7 +335,7 @@ void HandleProductResult(const Command* cmd)
 
     if (!dmScript::IsInstanceValid(L))
     {
-        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        dmLogError("Could not run IAP callback because the instance has been deleted.");
         lua_pop(L, 2);
         assert(top == lua_gettop(L));
         return;
