@@ -1,11 +1,16 @@
 #include <string.h>
 #include <assert.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include <string>
+#include <vector>
 
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 
 #include "../graphics.h"
 #include "graphics_null.h"
+#include "glsl_uniform_parser.h"
 
 using namespace Vectormath::Aos;
 
@@ -475,16 +480,38 @@ namespace dmGraphics
         char* m_Data;
     };
 
+    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata);
+
+    struct Uniform
+    {
+        std::string m_Name;
+        uint32_t m_Index;
+        Type m_Type;
+    };
+
     struct Program
     {
         Program(VertexProgram* vp, FragmentProgram* fp)
         {
             m_VP = vp;
             m_FP = fp;
+            GLSLUniformParse(m_VP->m_Data, NullUniformCallback, (uintptr_t)this);
+            GLSLUniformParse(m_FP->m_Data, NullUniformCallback, (uintptr_t)this);
         }
         VertexProgram* m_VP;
         FragmentProgram* m_FP;
+        std::vector<Uniform> m_Uniforms;
     };
+
+    static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata)
+    {
+        Program* program = (Program*) userdata;
+        Uniform uniform;
+        uniform.m_Name = std::string(name, name_length);
+        uniform.m_Index = program->m_Uniforms.size();
+        uniform.m_Type = type;
+        program->m_Uniforms.push_back(uniform);
+    }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
@@ -568,16 +595,31 @@ namespace dmGraphics
 
     uint32_t GetUniformCount(HProgram prog)
     {
-        return 0;
+        return ((Program*)prog)->m_Uniforms.size();
     }
 
     void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
-        assert(false);
+        Program* program = (Program*)prog;
+        assert(index < program->m_Uniforms.size());
+        Uniform& uniform = program->m_Uniforms[index];
+        *buffer = '\0';
+        dmStrlCat(buffer, uniform.m_Name.c_str(), buffer_size);
+        *type = uniform.m_Type;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
     {
+        Program* program = (Program*)prog;
+        uint32_t count = program->m_Uniforms.size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Uniform& uniform = program->m_Uniforms[i];
+            if (uniform.m_Name == name)
+            {
+                return (int32_t)uniform.m_Index;
+            }
+        }
         return -1;
     }
 

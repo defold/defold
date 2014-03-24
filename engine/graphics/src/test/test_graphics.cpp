@@ -310,19 +310,68 @@ TEST_F(dmGraphicsTest, Drawing)
 
 TEST_F(dmGraphicsTest, TestProgram)
 {
-    char* program_data = new char[1024];
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, program_data, 1024);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, program_data, 1024);
-    delete [] program_data;
+    const char* vertex_data = ""
+            "uniform mediump mat4 view_proj;\n"
+            "uniform mediump mat4 world;\n"
+
+            "attribute mediump vec4 position;\n"
+            "attribute mediump vec2 texcoord0;\n"
+
+            "varying mediump vec2 var_texcoord0;\n"
+
+            "void main()\n"
+            "{\n"
+            "    // NOTE: world isn't used here. Sprite positions are already transformed\n"
+            "    // prior to rendering but the world-transform is set for sorting.\n"
+            "   gl_Position = view_proj * vec4(position.xyz, 1.0);\n"
+            "   var_texcoord0 = texcoord0;\n"
+            "}\n";
+    const char* fragment_data = ""
+            "varying mediump vec4 position;\n"
+            "varying mediump vec2 var_texcoord0;\n"
+
+            "uniform lowp sampler2D DIFFUSE_TEXTURE;\n"
+            "uniform lowp vec4 tint;\n"
+
+            "void main()\n"
+            "{\n"
+            "    // Pre-multiply alpha since all runtime textures already are\n"
+            "    lowp vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);\n"
+            "    gl_FragColor = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy) * tint_pm;\n"
+            "}\n";
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, 1024);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, 1024);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
+    ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
+    ASSERT_EQ(1, dmGraphics::GetUniformLocation(program, "world"));
+    ASSERT_EQ(2, dmGraphics::GetUniformLocation(program, "DIFFUSE_TEXTURE"));
+    ASSERT_EQ(3, dmGraphics::GetUniformLocation(program, "tint"));
+    char buffer[64];
+    dmGraphics::Type type;
+    dmGraphics::GetUniformName(program, 0, buffer, 64, &type);
+    ASSERT_STREQ("view_proj", buffer);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
+    dmGraphics::GetUniformName(program, 1, buffer, 64, &type);
+    ASSERT_STREQ("world", buffer);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
+    dmGraphics::GetUniformName(program, 2, buffer, 64, &type);
+    ASSERT_STREQ("DIFFUSE_TEXTURE", buffer);
+    ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, type);
+    dmGraphics::GetUniformName(program, 3, buffer, 64, &type);
+    ASSERT_STREQ("tint", buffer);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
     dmGraphics::SetConstantV4(m_Context, &constant, 0);
     dmGraphics::SetConstantM4(m_Context, &constant, 1);
-    program_data = new char[1024];
+    char* program_data = new char[1024];
+    *program_data = 0;
     dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
     delete [] program_data;
     program_data = new char[1024];
+    *program_data = 0;
     dmGraphics::ReloadFragmentProgram(fp, program_data, 1024);
     delete [] program_data;
     dmGraphics::DisableProgram(m_Context);
