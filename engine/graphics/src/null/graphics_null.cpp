@@ -495,8 +495,10 @@ namespace dmGraphics
         {
             m_VP = vp;
             m_FP = fp;
-            GLSLUniformParse(m_VP->m_Data, NullUniformCallback, (uintptr_t)this);
-            GLSLUniformParse(m_FP->m_Data, NullUniformCallback, (uintptr_t)this);
+            if (m_VP != 0x0)
+                GLSLUniformParse(m_VP->m_Data, NullUniformCallback, (uintptr_t)this);
+            if (m_FP != 0x0)
+                GLSLUniformParse(m_FP->m_Data, NullUniformCallback, (uintptr_t)this);
         }
         VertexProgram* m_VP;
         FragmentProgram* m_FP;
@@ -515,7 +517,13 @@ namespace dmGraphics
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        return (HProgram) new Program((VertexProgram*) vertex_program, (FragmentProgram*) fragment_program);
+        VertexProgram* vertex = 0x0;
+        FragmentProgram* fragment = 0x0;
+        if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
+            vertex = (VertexProgram*) vertex_program;
+        if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
+            fragment = (FragmentProgram*) fragment_program;
+        return (HProgram) new Program(vertex, fragment);
     }
 
     void DeleteProgram(HContext context, HProgram program)
