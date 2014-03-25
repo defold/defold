@@ -92,34 +92,38 @@ namespace dmGraphics
         {
             NextWord(&word_start, &word_end, &size);
 
-            if (size > 0 && STRNCMP("uniform", word_start, size))
+            if (size > 0)
             {
-                Type type;
-
-                NextWord(&word_start, &word_end, &size);
-
-                bool found_type = ParseType(word_start, size, &type);
-                // Assume precision, look for type again
-                if (!found_type)
+                if (STRNCMP("uniform", word_start, size))
                 {
-                    NextWord(&word_start, &word_end, &size);
-                    found_type = ParseType(word_start, size, &type);
-                }
+                    Type type;
 
-                if (found_type)
-                {
-                    // Check name
                     NextWord(&word_start, &word_end, &size);
-                    cb(word_start, size-1, type, userdata);
+
+                    bool found_type = ParseType(word_start, size, &type);
+                    // Assume precision, look for type again
+                    if (!found_type)
+                    {
+                        NextWord(&word_start, &word_end, &size);
+                        found_type = ParseType(word_start, size, &type);
+                    }
+
+                    if (found_type)
+                    {
+                        // Check name
+                        NextWord(&word_start, &word_end, &size);
+                        cb(word_start, size-1, type, userdata);
+                    }
+                    else
+                    {
+                        return false;
+                    }
                 }
                 else
                 {
-                    return false;
+                    word_start = SkipWS(SkipLine(word_end));
+                    word_end = word_start;
                 }
-            }
-            else
-            {
-                word_start = SkipWS(SkipLine(word_end));
             }
         }
         return true;

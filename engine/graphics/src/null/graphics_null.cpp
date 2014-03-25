@@ -527,8 +527,9 @@ namespace dmGraphics
     {
         assert(program);
         VertexProgram* p = new VertexProgram();
-        p->m_Data = new char[program_size];
+        p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
+        p->m_Data[program_size] = '\0';
         return (uint32_t)p;
     }
 
@@ -536,8 +537,9 @@ namespace dmGraphics
     {
         assert(program);
         FragmentProgram* p = new FragmentProgram();
-        p->m_Data = new char[program_size];
+        p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
+        p->m_Data[program_size] = '\0';
         return (uint32_t)p;
     }
 

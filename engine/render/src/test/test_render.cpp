@@ -31,6 +31,10 @@ protected:
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 2;
         params.m_ScriptContext = m_ScriptContext;
+        params.m_VertexProgramData = (void*)"void main() {}\n";
+        params.m_VertexProgramDataSize = strnlen((const char*)params.m_VertexProgramData, 32);
+        params.m_FragmentProgramData = (void*)"void main() {}\n";
+        params.m_FragmentProgramDataSize = strnlen((const char*)params.m_FragmentProgramData, 32);
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
     }
 
