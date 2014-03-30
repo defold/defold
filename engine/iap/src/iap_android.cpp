@@ -281,13 +281,17 @@ static void PushError(lua_State*L, const char* error)
     }
 }
 
-JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__Ljava_lang_String_2(JNIEnv* env, jobject, jstring productList)
+JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring productList)
 {
     const char* pl = env->GetStringUTFChars(productList, 0);
 
     Command cmd;
     cmd.m_Command = CMD_PRODUCT_RESULT;
-    cmd.m_Data1 = strdup(pl);
+    cmd.m_ResponseCode = responseCode;
+    if (pl)
+    {
+        cmd.m_Data1 = strdup(pl);
+    }
     if (write(g_IAP.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
@@ -303,8 +307,14 @@ JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2
     cmd.m_Command = CMD_PURCHASE_RESULT;
     cmd.m_ResponseCode = responseCode;
 
-    cmd.m_Data1 = strdup(pd);
-    cmd.m_Data2 = strdup(ds);
+    if (pd)
+    {
+        cmd.m_Data1 = strdup(pd);
+    }
+    if (ds)
+    {
+        cmd.m_Data2 = strdup(ds);
+    }
     if (write(g_IAP.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }

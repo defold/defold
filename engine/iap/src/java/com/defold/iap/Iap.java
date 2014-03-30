@@ -82,21 +82,60 @@ public class Iap implements Handler.Callback {
 		}
 	}
 
-	private class SkuDetailsThread extends Thread {
-		public boolean stop = false;
-		@Override
-		public void run() {
-			while (!stop) {
-				try {
-					SkuRequest sr = skuRequestQueue.take();
-					String res = listItemsSync(sr.skuList);
-					sr.listener.onResult(res);
-				} catch (InterruptedException e) {
-					continue;
-				}
-			}
-		}
-	}
+    private class SkuDetailsThread extends Thread {
+        public boolean stop = false;
+        @Override
+        public void run() {
+            while (!stop) {
+                try {
+                    SkuRequest sr = skuRequestQueue.take();
+                    if (service == null) {
+                        Log.wtf(TAG,  "service is null");
+                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        continue;
+                    }
+                    if (activity == null) {
+                        Log.wtf(TAG,  "activity is null");
+                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        continue;
+                    }
+
+                    try {
+                        Bundle querySkus = new Bundle();
+                        querySkus.putStringArrayList("ITEM_ID_LIST", sr.skuList);
+                        Bundle skuDetails = service.getSkuDetails(3, activity.getPackageName(), "inapp", querySkus);
+                        int response = skuDetails.getInt("RESPONSE_CODE");
+
+                        String res = null;
+                        if (response == BILLING_RESPONSE_RESULT_OK) {
+                            ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
+
+                            JSONObject map = new JSONObject();
+                            for (String r : responseList) {
+                                JSONObject product = convertProduct(r);
+                                if (product != null) {
+                                    map.put((String)product.get("ident"), product);
+                                }
+                            }
+                            res = map.toString();
+                        } else {
+                            Log.e(TAG, "Failed to fetch product list: " + response);
+                        }
+                        sr.listener.onResult(response, res);
+
+                    } catch (RemoteException e) {
+                        Log.e(TAG, "Failed to fetch product list", e);
+                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Failed to fetch product list", e);
+                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                    }
+                } catch (InterruptedException e) {
+                    continue;
+                }
+            }
+        }
+    }
 
 	public Iap(Activity activity) {
 		this.activity = activity;
@@ -121,12 +160,14 @@ public class Iap implements Handler.Callback {
 				service = null;
 			}
 
-			@Override
-			public void onServiceConnected(ComponentName name, IBinder binderService) {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder binderService) {
                 Log.v(TAG, "IAP connected");
-				service = IInAppBillingService.Stub.asInterface(binderService);
-			}
-		};
+                service = IInAppBillingService.Stub.asInterface(binderService);
+                skuDetailsThread = new SkuDetailsThread();
+                skuDetailsThread.start();
+            }
+        };
 
 		Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
 		// Limit intent to vending package
@@ -137,9 +178,6 @@ public class Iap implements Handler.Callback {
         } else {
             Log.e(TAG, "Billing service unavailable on device.");
         }
-
-		skuDetailsThread = new SkuDetailsThread();
-		skuDetailsThread.start();
 	}
 
     public void stop() {
@@ -148,6 +186,7 @@ public class Iap implements Handler.Callback {
             public void run() {
                 if (serviceConn != null) {
                     activity.unbindService(serviceConn);
+                    serviceConn = null;
                 }
                 if (skuDetailsThread != null) {
                     skuDetailsThread.stop = true;
@@ -207,43 +246,6 @@ public class Iap implements Handler.Callback {
 
         return null;
     }
-
-    private String listItemsSync(ArrayList<String> skuList)  {
-		Bundle querySkus = new Bundle();
-		querySkus.putStringArrayList("ITEM_ID_LIST", skuList);
-
-		try {
-		    JSONObject map = new JSONObject();
-			if (service == null) {
-				Log.wtf(TAG,  "service is null");
-				return "{}";
-			}
-			if (activity == null) {
-				Log.wtf(TAG,  "activity is null");
-				return "{}";
-			}
-			Bundle skuDetails = service.getSkuDetails(3, activity.getPackageName(), "inapp", querySkus);
-			int response = skuDetails.getInt("RESPONSE_CODE");
-
-			if (response == 0) {
-				ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
-
-				for (String r : responseList) {
-					JSONObject product = convertProduct(r);
-					if (product != null) {
-						map.put((String)product.get("ident"), product);
-					}
-				}
-			}
-			return map.toString();
-
-        } catch (RemoteException e) {
-            Log.e(TAG, "Failed to fetch product list", e);
-        } catch (JSONException e) {
-            Log.e(TAG, "Failed to fetch product list", e);
-		}
-		return "{}";
-	}
 
 	public void buy(final String product, final IPurchaseListener listener) {
 		this.activity.runOnUiThread(new Runnable() {
