@@ -229,14 +229,22 @@ public class Iap implements Handler.Callback {
             JSONObject p = new JSONObject(purchase);
             p.put("price_string", p.get("price"));
             p.put("ident", p.get("productId"));
-            // It is not yet possible to obtain the currency code on Android
-            // They have a currency code, which reflects the merchant's locale, instead of the user's (price_currency_code)
+            // It is not yet possible to obtain the price (num) and currency code on Android for the correct locale/region.
+            // They have a currency code (price_currency_code), which reflects the merchant's locale, instead of the user's
             // https://code.google.com/p/marketbilling/issues/detail?id=93&q=currency%20code&colspec=ID%20Type%20Status%20Google%20Priority%20Milestone%20Owner%20Summary
-            p.put("currency_code", "Unknown");
+            double price = 0.0;
+            if (p.has("price_amount_micros")) {
+                price = ((Integer)p.get("price_amount_micros")).intValue() * 0.000001;
+            }
+            String currency_code = "Unknown";
+            if (p.has("price_currency_code")) {
+                currency_code = (String)p.get("price_currency_code");
+            }
+            p.put("currency_code", currency_code);
+            p.put("price", price);
 
             p.remove("productId");
             p.remove("type");
-            p.remove("price");
             p.remove("price_amount_micros");
             p.remove("price_currency_code");
             return p;
