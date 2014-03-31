@@ -346,11 +346,11 @@ namespace dmHttpService
             worker->m_Run = true;
             service->m_Workers.Push(worker);
 
-            dmThread::Thread t = dmThread::New(&Loop, 0x4000, worker, "http");
+            dmThread::Thread t = dmThread::New(&Loop, 0x10000, worker, "http");
             worker->m_Thread = t;
         }
 
-        dmThread::Thread t = dmThread::New(&LoadBalancer, 0x4000, service, "http_balance");
+        dmThread::Thread t = dmThread::New(&LoadBalancer, 0x10000, service, "http_balance");
         service->m_Balancer = t;
 
         return service;
