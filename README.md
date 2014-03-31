@@ -209,6 +209,17 @@ Some implementation details to note:
 * APP_CMD_TERM_WINDOW might do Context destruction before _glfwPlatformTerminate, depending on which happens first
 * _glfwPlatformTerminate pumps the LC commands until the Context has been destroyed
 
+### Pulling APKs from device
+
+E.g. when an APK produces a crash, backing it up is always a good idea before you attempt to fix it.
+
+# Determine package name:
+  adb shell pm list packages
+# Get the path on device:
+  adb shell pm path <package-name>
+# Pull the APK to local disk
+  adb pull <package-path>
+
 OpenGL and jogl
 ---------------
 
