@@ -91,12 +91,12 @@ public class Iap implements Handler.Callback {
                     SkuRequest sr = skuRequestQueue.take();
                     if (service == null) {
                         Log.wtf(TAG,  "service is null");
-                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
                         continue;
                     }
                     if (activity == null) {
                         Log.wtf(TAG,  "activity is null");
-                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
                         continue;
                     }
 
@@ -121,14 +121,14 @@ public class Iap implements Handler.Callback {
                         } else {
                             Log.e(TAG, "Failed to fetch product list: " + response);
                         }
-                        sr.listener.onResult(response, res);
+                        sr.listener.onProductsResult(response, res);
 
                     } catch (RemoteException e) {
                         Log.e(TAG, "Failed to fetch product list", e);
-                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
                     } catch (JSONException e) {
                         Log.e(TAG, "Failed to fetch product list", e);
-                        sr.listener.onResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
                     }
                 } catch (InterruptedException e) {
                     continue;
@@ -289,14 +289,17 @@ public class Iap implements Handler.Callback {
 		return formatted.substring(0, 22) + ":" + formatted.substring(22);
 	}
 
-	private static String convertPurchase(String purchase) {
+	private static String convertPurchase(String purchase, String signature) {
 		try {
 			JSONObject p = new JSONObject(purchase);
 			p.put("ident", p.get("productId"));
 			p.put("state", TRANS_STATE_PURCHASED);
-			p.put("trans_ident", p.get("purchaseToken"));
-			p.put("date", toISO8601(new Date(p.getInt("purchaseTime"))));
-			p.put("receipt", ""); // TODO: How?
+			p.put("trans_ident", p.get("orderId"));
+			p.put("date", toISO8601(new Date(p.getLong("purchaseTime"))));
+			// Receipt is the complete json data
+			// http://robertomurray.co.uk/blog/2013/server-side-google-play-in-app-billing-receipt-validation-and-testing/
+			p.put("receipt", purchase);
+			p.put("signature", signature);
 			// TODO: How to simulate original_trans on iOS?
 
 			p.remove("packageName");
@@ -338,14 +341,13 @@ public class Iap implements Handler.Callback {
 			String dataSignature = bundle.getString(RESPONSE_INAPP_SIGNATURE);
 
 			if (purchaseData != null && dataSignature != null) {
-				purchaseData = convertPurchase(purchaseData);
+				purchaseData = convertPurchase(purchaseData, dataSignature);
 			} else {
 				responseCode = BILLING_RESPONSE_RESULT_ERROR;
 				purchaseData = "";
-				dataSignature = "";
 			}
 
-			purchaseListener.onResult(responseCode, purchaseData, dataSignature);
+			purchaseListener.onPurchaseResult(responseCode, purchaseData);
 			this.purchaseListener = null;
 		} else if (action == Action.RESTORE) {
 			Bundle items = bundle.getBundle("items");
@@ -354,12 +356,12 @@ public class Iap implements Handler.Callback {
 			ArrayList<String> signatureList = items.getStringArrayList(RESPONSE_INAPP_SIGNATURE_LIST);
 			for (int i = 0; i < ownedSkus.size(); ++i) {
 				int c = BILLING_RESPONSE_RESULT_OK;
-				String pd = convertPurchase(purchaseDataList.get(i));
+				String pd = convertPurchase(purchaseDataList.get(i), signatureList.get(i));
 				if (pd == null) {
 					pd = "";
 					c = BILLING_RESPONSE_RESULT_ERROR;
 				}
-				purchaseListener.onResult(c, pd, signatureList.get(i));
+				purchaseListener.onPurchaseResult(c, pd);
 			}
 		}
 		return true;

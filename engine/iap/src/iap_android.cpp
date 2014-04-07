@@ -48,7 +48,6 @@ struct Command
     uint32_t m_Command;
     int32_t  m_ResponseCode;
     void*    m_Data1;
-    void*    m_Data2;
 };
 
 static JNIEnv* Attach()
@@ -282,7 +281,7 @@ static void PushError(lua_State*L, const char* error)
     }
 }
 
-JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring productList)
+JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onProductsResult__ILjava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring productList)
 {
     const char* pl = env->GetStringUTFChars(productList, 0);
 
@@ -299,10 +298,9 @@ JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2
     env->ReleaseStringUTFChars(productList, pl);
 }
 
-JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2Ljava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring purchaseData, jstring dataSignature)
+JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onPurchaseResult__ILjava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring purchaseData)
 {
     const char* pd = env->GetStringUTFChars(purchaseData, 0);
-    const char* ds = env->GetStringUTFChars(dataSignature, 0);
 
     Command cmd;
     cmd.m_Command = CMD_PURCHASE_RESULT;
@@ -312,15 +310,10 @@ JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2
     {
         cmd.m_Data1 = strdup(pd);
     }
-    if (ds)
-    {
-        cmd.m_Data2 = strdup(ds);
-    }
     if (write(g_IAP.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
     env->ReleaseStringUTFChars(purchaseData, pd);
-    env->ReleaseStringUTFChars(dataSignature, ds);
 }
 
 #ifdef __cplusplus
@@ -405,13 +398,12 @@ void HandlePurchaseResult(const Command* cmd)
 
     if (!dmScript::IsInstanceValid(L))
     {
-        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        dmLogError("Could not run IAP callback because the instance has been deleted.");
         lua_pop(L, 2);
         assert(top == lua_gettop(L));
         return;
     }
 
-    // TODO: Pass data-signature? (cmd.m_Data2)
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
         dmJson::Document doc;
         dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
@@ -461,9 +453,6 @@ static int LooperCallback(int fd, int events, void* data)
 
         if (cmd.m_Data1) {
             free(cmd.m_Data1);
-        }
-        if (cmd.m_Data2) {
-            free(cmd.m_Data2);
         }
     }
     else {
