@@ -1,4 +1,4 @@
-#ifndef DM_UTF
+#ifndef DM_UTF8
 #define DM_UTF8
 
 #include <stdint.h>

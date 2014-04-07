@@ -142,9 +142,10 @@ static const luaL_reg Push_methods[] =
 };
 
 // NOTE: Copy-paste from script_json
-static int ToLua(lua_State*L, dmJson::Document* doc, const char* json, int index)
+static int ToLua(lua_State*L, dmJson::Document* doc, int index)
 {
     const dmJson::Node& n = doc->m_Nodes[index];
+    const char* json = doc->m_Json;
     int l = n.m_End - n.m_Start;
     switch (n.m_Type)
     {
@@ -169,7 +170,7 @@ static int ToLua(lua_State*L, dmJson::Document* doc, const char* json, int index
         lua_createtable(L, n.m_Size, 0);
         ++index;
         for (int i = 0; i < n.m_Size; ++i) {
-            index = ToLua(L, doc, json, index);
+            index = ToLua(L, doc, index);
             lua_rawseti(L, -2, i+1);
         }
         return index;
@@ -178,8 +179,8 @@ static int ToLua(lua_State*L, dmJson::Document* doc, const char* json, int index
         lua_createtable(L, 0, n.m_Size);
         ++index;
         for (int i = 0; i < n.m_Size; i += 2) {
-            index = ToLua(L, doc, json, index);
-            index = ToLua(L, doc, json, index);
+            index = ToLua(L, doc, index);
+            index = ToLua(L, doc, index);
             lua_rawset(L, -3);
         }
 
@@ -321,7 +322,7 @@ void HandlePushMessageResult(const Command* cmd)
     dmJson::Document doc;
     dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
     if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-        ToLua(L, &doc, (const char*) cmd->m_Data1, 0);
+        ToLua(L, &doc, 0);
         int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
         if (ret != 0) {
             dmLogError("Error running push callback: %s", lua_tostring(L,-1));

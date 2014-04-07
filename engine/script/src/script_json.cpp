@@ -17,9 +17,10 @@ namespace dmScript
 {
     #define LIB_NAME "json"
 
-    static int ToLua(lua_State*L, dmJson::Document* doc, const char* json, int index)
+    static int ToLua(lua_State*L, dmJson::Document* doc, int index)
     {
         const dmJson::Node& n = doc->m_Nodes[index];
+        const char* json = doc->m_Json;
         int l = n.m_End - n.m_Start;
         switch (n.m_Type)
         {
@@ -52,7 +53,7 @@ namespace dmScript
             ++index;
             for (int i = 0; i < n.m_Size; ++i)
             {
-                index = ToLua(L, doc, json, index);
+                index = ToLua(L, doc, index);
                 lua_rawseti(L, -2, i+1);
             }
             return index;
@@ -62,8 +63,8 @@ namespace dmScript
             ++index;
             for (int i = 0; i < n.m_Size; i += 2)
             {
-                index = ToLua(L, doc, json, index);
-                index = ToLua(L, doc, json, index);
+                index = ToLua(L, doc, index);
+                index = ToLua(L, doc, index);
                 lua_rawset(L, -3);
             }
 
@@ -89,7 +90,7 @@ namespace dmScript
         dmJson::Result r = dmJson::Parse(json, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0)
         {
-            ToLua(L, &doc, json, 0);
+            ToLua(L, &doc, 0);
             dmJson::Free(&doc);
             assert(top + 1== lua_gettop(L));
             return 1;
