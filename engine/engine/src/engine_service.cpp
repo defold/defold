@@ -247,9 +247,6 @@ namespace dmEngineService
             {
                 return false;
             }
-            char* local_address_str =  dmSocket::AddressToIPString(local_address);
-            dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
-            free(local_address_str);
 
             dmWebServer::NewParams params;
             params.m_Port = port;
@@ -265,10 +262,16 @@ namespace dmEngineService
             DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
             DM_SNPRINTF(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
 
+            char* local_address_str =  dmSocket::AddressToIPString(local_address);
+            dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
+
+            // UDN must be unique and this scheme is probably unique enough
             dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
-            char hostname[128];
-            dmSocket::GetHostname(hostname, sizeof(hostname));
-            dmStrlCat(m_DeviceDesc.m_UDN, hostname, sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, local_address_str, sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, "-", sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, info.m_DeviceModel, sizeof(m_DeviceDesc.m_UDN));
+
+            free(local_address_str);
 
             dmTemplate::Format(this, m_DeviceDescXml, sizeof(m_DeviceDescXml), DEVICE_DESC_TEMPLATE, ReplaceCallback);
 
