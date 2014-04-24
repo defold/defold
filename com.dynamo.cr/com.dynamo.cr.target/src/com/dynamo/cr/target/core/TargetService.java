@@ -11,6 +11,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -413,7 +414,19 @@ public class TargetService implements ITargetService, Runnable {
     }
 
     protected void connectToLogService(ITarget target) {
-        if (target.getUrl() != null) {
+        boolean localTarget = target.getUrl() == null;
+        if (!localTarget) {
+            // Check if the target address is a local network interface
+            try {
+                if (NetworkUtil.getValidHostAddresses().contains(target.getInetAddress()))
+                    localTarget = true;
+            } catch (Exception e) {
+                logger.warn("Could not retrieve host addresses: {}", e.getMessage());
+            }
+        }
+        // Ignore the address if it's local
+        // Local targets are already logged from the process streams instead of a socket
+        if (!localTarget) {
             try {
                 URL url = new URL(target.getUrl());
                 String host = url.getHost();
