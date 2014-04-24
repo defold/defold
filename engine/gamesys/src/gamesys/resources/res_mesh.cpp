@@ -14,7 +14,7 @@ namespace dmGameSystem
         float u, v;
     };
 
-    void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, float* vertex_buffer);
+    void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, MeshVertex* vertex_buffer);
 
     dmResource::Result ResCreateMesh(dmResource::HFactory factory,
                                      void* context,
@@ -48,11 +48,11 @@ namespace dmGameSystem
             assert(mesh_desc->m_Components[i].m_Positions.m_Count == mesh_desc->m_Components[i].m_Normals.m_Count);
             assert(mesh_desc->m_Components[i].m_Texcoord0.m_Count == 0 || mesh_desc->m_Components[i].m_Positions.m_Count / 3 == mesh_desc->m_Components[i].m_Texcoord0.m_Count / 2);
         }
-        mesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_count * sizeof(MeshVertex), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        void* vertex_buffer = (float*) malloc(vertex_count * sizeof(MeshVertex));
+        CopyVertexData(mesh_desc, (MeshVertex*) vertex_buffer);
+        mesh->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_count * sizeof(MeshVertex), (const void*) vertex_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         mesh->m_VertexCount = vertex_count;
-        float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(mesh->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
-        CopyVertexData(mesh_desc, vertex_buffer);
-        dmGraphics::UnmapVertexBuffer(mesh->m_VertexBuffer);
+        free((void*) vertex_buffer);
         dmDDF::FreeMessage(mesh_desc);
 
         resource->m_Resource = (void*) mesh;
@@ -93,18 +93,18 @@ namespace dmGameSystem
             assert(vertex_count * 3 == mesh_desc->m_Components[i].m_Normals.m_Count);
             assert(mesh_desc->m_Components[i].m_Texcoord0.m_Count == 0 || vertex_count * 2 == mesh_desc->m_Components[i].m_Texcoord0.m_Count);
         }
-        dmGraphics::SetVertexBufferData(mesh->m_VertexBuffer, vertex_count * sizeof(MeshVertex), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-        mesh->m_VertexCount = vertex_count;
-        float* vertex_buffer = (float*)dmGraphics::MapVertexBuffer(mesh->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_WRITE_ONLY);
-        CopyVertexData(mesh_desc, vertex_buffer);
-        dmGraphics::UnmapVertexBuffer(mesh->m_VertexBuffer);
 
+        void* vertex_buffer = (float*) malloc(vertex_count * sizeof(MeshVertex));
+        CopyVertexData(mesh_desc, (MeshVertex*) vertex_buffer);
+        dmGraphics::SetVertexBufferData(mesh->m_VertexBuffer, vertex_count * sizeof(MeshVertex), vertex_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        mesh->m_VertexCount = vertex_count;
+        free((void*) vertex_buffer);
         dmDDF::FreeMessage(mesh_desc);
 
         return dmResource::RESULT_OK;
     }
 
-    void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, float* vertex_buffer)
+    void CopyVertexData(dmMeshDDF::MeshDesc* mesh_desc, MeshVertex* vertex_buffer)
     {
         MeshVertex* v = (MeshVertex*)vertex_buffer;
         uint32_t vi = 0;
