@@ -1,0 +1,5 @@
+name: "dynamic1"
+embedded_instances {
+  id: "main"
+  data: "embedded_components {\n  id: \"collectionproxy\"\n  type: \"collectionproxy\"\n  data: \"collection: \\\"/reboot/dynamic2.collection\\\"\\n\"}\n"
+}
