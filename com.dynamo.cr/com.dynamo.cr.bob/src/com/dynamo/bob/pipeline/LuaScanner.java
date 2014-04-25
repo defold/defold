@@ -17,10 +17,10 @@ public class LuaScanner {
     private static Pattern multiLineCommentPattern = Pattern.compile("--\\[\\[.*?--\\]\\]",
             Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern1 = Pattern.compile("require\\s*?\"(.*?)\"$",
+    private static Pattern requirePattern1 = Pattern.compile(".*?require\\s*?\"(.*?)\"$",
             Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern2 = Pattern.compile("require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$",
+    private static Pattern requirePattern2 = Pattern.compile(".*?require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$",
             Pattern.DOTALL | Pattern.MULTILINE);
 
     private static Pattern propertyDeclPattern = Pattern.compile("go.property\\((.*?)\\);?(\\s*?--.*?)?$");
@@ -82,6 +82,7 @@ public class LuaScanner {
         String[] lines = strStripped.split("\n");
         for (String line : lines) {
             line = line.trim();
+            // NOTE: At some point we should have a proper lua parser
             Matcher propMatcher1 = requirePattern1.matcher(line);
             Matcher propMatcher2 = requirePattern2.matcher(line);
             if (propMatcher1.matches()) {

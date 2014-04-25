@@ -9,6 +9,7 @@
 #include "data/gray_check_2x2.png.embed.h"
 #include "data/gray_alpha_check_2x2.png.embed.h"
 #include "data/defold_64.jpg.embed.h"
+#include "data/defold_64_progressive.jpg.embed.h"
 
 /*
  * Imagemagick conversion
@@ -146,6 +147,18 @@ TEST(dmImage, Jpeg)
 {
     dmImage::Image image;
     dmImage::Result r =  dmImage::Load(DEFOLD_64_JPG, DEFOLD_64_JPG_SIZE, &image);
+    ASSERT_EQ(dmImage::RESULT_OK, r);
+    ASSERT_EQ(64U, image.m_Width);
+    ASSERT_EQ(64U, image.m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGB, image.m_Type);
+    ASSERT_NE((void*) 0, image.m_Buffer);
+    dmImage::Free(&image);
+}
+
+TEST(dmImage, ProgressiveJpeg)
+{
+    dmImage::Image image;
+    dmImage::Result r =  dmImage::Load(DEFOLD_64_PROGRESSIVE_JPG, DEFOLD_64_PROGRESSIVE_JPG_SIZE, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(64U, image.m_Width);
     ASSERT_EQ(64U, image.m_Height);

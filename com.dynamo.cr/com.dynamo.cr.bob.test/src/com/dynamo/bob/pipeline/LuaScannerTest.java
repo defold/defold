@@ -38,6 +38,8 @@ public class LuaScannerTest {
         assertEquals("a/b", modules.get(3));
         assertEquals("a/b/c", modules.get(4));
         assertEquals("a/b/c", modules.get(5));
+        assertEquals("foo", modules.get(6));
+        assertEquals("foo", modules.get(7));
     }
 
     private Property findProperty(List<Property> properties, String name) {
