@@ -6,13 +6,38 @@
 #define STBI_FAILURE_USERMSG
 // r15 of https://code.google.com/p/stblib/source/browse/trunk/libraries/stb_image.c
 #include "../stb_image/stb_image.c"
+// r13 of https://jpeg-compressor.googlecode.com/svn/trunk/jpgd.cpp
+// r11 of https://jpeg-compressor.googlecode.com/svn/trunk/jpgd.h
+#include "../jpgd/jpgd.h"
 
 namespace dmImage
 {
+    static bool IsJpeg(const uint8_t* buffer, uint32_t buffer_size)
+    {
+        return (buffer_size >= 10 &&
+                buffer[0] == 0xff &&
+                buffer[1] == 0xd8 &&
+                buffer[2] == 0xff &&
+                buffer[3] == 0xe0 &&
+                buffer[6] == 0x4a &&
+                buffer[7] == 0x46 &&
+                buffer[8] == 0x49 &&
+                buffer[9] == 0x46 &&
+                buffer[10] == 0x00);
+    }
+
     Result Load(const void* buffer, uint32 buffer_size, Image* image)
     {
         int x, y, comp;
-        unsigned char* ret = stbi_load_from_memory((const stbi_uc*) buffer, (int) buffer_size, &x, &y, &comp, 0);
+
+        unsigned char* ret;
+        if (IsJpeg((const uint8_t*) buffer, buffer_size)) {
+            // For progressive jpeg support. stb_image is non-progressive only
+            ret = jpgd::decompress_jpeg_image_from_memory((const unsigned char *) buffer, (int) buffer_size, &x, &y, &comp, 3);
+        } else {
+            ret = stbi_load_from_memory((const stbi_uc*) buffer, (int) buffer_size, &x, &y, &comp, 0);
+        }
+
         if (ret) {
             Image i;
             i.m_Width = (uint32_t) x;
