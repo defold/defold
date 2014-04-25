@@ -151,8 +151,17 @@ namespace dmGameObject
         return new Register();
     }
 
+    void DoDeleteCollection(HCollection collection);
+
     void DeleteRegister(HRegister regist)
     {
+        uint32_t collection_count = regist->m_Collections.Size();
+        for (uint32_t i = 0; i < collection_count; ++i)
+        {
+            // TODO Note indexing of m_Collections is always 0 because DoDeleteCollection modifies the array.
+            // Should be fixed by DEF-54
+            DoDeleteCollection(regist->m_Collections[0]);
+        }
         delete regist;
     }
 
@@ -238,6 +247,8 @@ namespace dmGameObject
         bool found = false;
         for (uint32_t i = 0; i < regist->m_Collections.Size(); ++i)
         {
+            // TODO This design is not really thought through, since it modifies the m_Collections
+            // member in a hidden context. Reported in DEF-54
             if (regist->m_Collections[i] == collection)
             {
                 regist->m_Collections.EraseSwap(i);
