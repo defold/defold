@@ -13,3 +13,6 @@ local s = 'require "should_not_match"'
 
 require "a/b/c"
 require (  "a/b/c"     )
+
+local my_foo1 = require "foo"
+local my_foo2 = require("foo")
