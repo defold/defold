@@ -598,7 +598,7 @@ namespace dmGui
         for (uint32_t i = 0; i < node_count; ++i)
         {
             InternalNode* n = &scene->m_Nodes[c->m_RenderNodes[i] & 0xffff];
-            CalculateNodeTransform(scene, n, scale, false, true, &transform);
+            CalculateNodeTransform(scene, n, scale, false, true, true, &transform);
             c->m_RenderTransforms.Push(transform);
         }
         scene->m_ResChanged = 0;
@@ -1320,20 +1320,20 @@ namespace dmGui
         float width = size.getX();
         float height = size.getY();
 
-        Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+        Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
 
         switch (pivot)
         {
             case dmGui::PIVOT_CENTER:
             case dmGui::PIVOT_S:
             case dmGui::PIVOT_N:
-                delta_pivot.setX(width * 0.5f);
+                delta_pivot.setX(-width * 0.5f);
                 break;
 
             case dmGui::PIVOT_NE:
             case dmGui::PIVOT_E:
             case dmGui::PIVOT_SE:
-                delta_pivot.setX(width);
+                delta_pivot.setX(-width);
                 break;
 
             case dmGui::PIVOT_SW:
@@ -1345,13 +1345,13 @@ namespace dmGui
             case dmGui::PIVOT_CENTER:
             case dmGui::PIVOT_E:
             case dmGui::PIVOT_W:
-                delta_pivot.setY(height * 0.5f);
+                delta_pivot.setY(-height * 0.5f);
                 break;
 
             case dmGui::PIVOT_N:
             case dmGui::PIVOT_NE:
             case dmGui::PIVOT_NW:
-                delta_pivot.setY(height);
+                delta_pivot.setY(-height);
                 break;
 
             case dmGui::PIVOT_S:
@@ -1359,7 +1359,7 @@ namespace dmGui
             case dmGui::PIVOT_SE:
                 break;
         }
-        return -delta_pivot;
+        return delta_pivot;
     }
 
     static void AdjustPosScale(HScene scene, InternalNode* n, const Vector4& reference_scale, Vector4& position, Vector4& scale)
@@ -1424,14 +1424,12 @@ namespace dmGui
         AdjustPosScale(scene, n, reference_scale, position, scale);
 
         const Vector4& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION];
-        const Vector4& size = node.m_Properties[dmGui::PROPERTY_SIZE];
 
         const float deg_to_rad = 3.1415926f / 180.0f;
         Quat r = EulerToQuat(rotation * deg_to_rad);
         node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale(scale.getXYZ()));
 
-        Vector4 t = CalcPivotDelta(node.m_Pivot, size);
-        node.m_LocalTransform.setTranslation(position.getXYZ() + rotate(r, mulPerElem(scale.getXYZ(), t.getXYZ())));
+        node.m_LocalTransform.setTranslation(position.getXYZ());
 
         node.m_DirtyLocal = 0;
     }
@@ -1894,7 +1892,7 @@ namespace dmGui
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
-        CalculateNodeTransform(scene, n, scale, true, true, &transform);
+        CalculateNodeTransform(scene, n, scale, true, true, true, &transform);
         transform = inverse(transform);
         Vector4 screen_pos(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
@@ -2061,7 +2059,7 @@ namespace dmGui
         }
     }
 
-    void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, bool boundary, bool include_size, Matrix4* out_transform)
+    void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform)
     {
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || scene->m_ResChanged)
@@ -2069,21 +2067,30 @@ namespace dmGui
             UpdateLocalTransform(scene, n, reference_scale);
         }
         *out_transform = node.m_LocalTransform;
+        Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
+        if (include_size)
+        {
+            size = node.m_Properties[dmGui::PROPERTY_SIZE];
+        }
+        // Reset the pivot of the node, so that the resulting transform has the origin in the lower left, which is used for quad rendering etc.
+        if (reset_pivot)
+        {
+            Vector4 pivot_delta = (*out_transform) * CalcPivotDelta(node.m_Pivot, size);
+            out_transform->setCol3(pivot_delta);
+        }
 
         bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
         if (include_size && !render_text)
         {
-            const Vector4& size = node.m_Properties[dmGui::PROPERTY_SIZE];
             out_transform->setUpper3x3(out_transform->getUpper3x3() * Matrix3::scale(Vector3(size.getX(), size.getY(), 1)));
         }
+
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateNodeTransform(scene, parent, reference_scale, boundary, false, &parent_trans);
-            Vector4 offset = parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE] * 0.5f;
-            offset.setW(1.0f);
-            parent_trans.setTranslation((parent_trans * offset).getXYZ());
+            CalculateNodeTransform(scene, parent, reference_scale, boundary, false, false, &parent_trans);
+
             *out_transform = parent_trans * (*out_transform);
         }
     }
