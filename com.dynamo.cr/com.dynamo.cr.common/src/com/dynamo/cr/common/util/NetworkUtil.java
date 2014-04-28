@@ -74,6 +74,10 @@ public class NetworkUtil {
         if (addresses.isEmpty()) {
             return InetAddress.getByName("127.0.0.1");
         }
+        // Return first if there is no target
+        if (targetAddress == null) {
+            return addresses.iterator().next();
+        }
 
         ArrayList<InetAddress> tmp = new ArrayList<InetAddress>(addresses);
         InetAddress ret = tmp.get(0);

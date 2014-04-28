@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 #include <dlib/ssdp.h>
 #include <dlib/socket.h>
+#include <dlib/sys.h>
 #include <dlib/template.h>
 #include <ddf/ddf.h>
 #include "engine_service.h"
@@ -200,7 +201,7 @@ namespace dmEngineService
             }
             else if (strcmp(key, "NAME") == 0)
             {
-                return self->m_Hostname;
+                return self->m_Name;
             }
             else if (strcmp(key, "HOSTNAME") == 0)
             {
@@ -220,21 +221,32 @@ namespace dmEngineService
         {
             dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
 
-            dmSocket::Result sockr = dmSocket::GetHostname(m_Hostname, sizeof(m_Hostname));
-            if (sockr != dmSocket::RESULT_OK)
-            {
-                return false;
+
+            dmSys::SystemInfo info;
+            dmSys::GetSystemInfo(&info);
+            /*
+             * NOTE: On Android localhost is returned for dmSocket::GetHostname.
+             * Therefore we use MANUFACTURER-DEVICEMODEL instead for display-name
+             *
+             */
+            if (strcmp(info.m_SystemName, "Android") == 0) {
+                dmStrlCpy(m_Name, info.m_Manufacturer, sizeof(m_Name));
+                dmStrlCat(m_Name, "-", sizeof(m_Name));
+                dmStrlCat(m_Name, info.m_DeviceModel, sizeof(m_Name));
+            } else {
+                dmSocket::Result sockr = dmSocket::GetHostname(m_Name, sizeof(m_Name));
+                if (sockr != dmSocket::RESULT_OK)
+                {
+                    return false;
+                }
             }
 
             dmSocket::Address local_address;
-            sockr = dmSocket::GetLocalAddress(&local_address);
+            dmSocket::Result sockr = dmSocket::GetLocalAddress(&local_address);
             if (sockr != dmSocket::RESULT_OK)
             {
                 return false;
             }
-            char* local_address_str =  dmSocket::AddressToIPString(local_address);
-            dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
-            free(local_address_str);
 
             dmWebServer::NewParams params;
             params.m_Port = port;
@@ -250,10 +262,16 @@ namespace dmEngineService
             DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
             DM_SNPRINTF(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
 
+            char* local_address_str =  dmSocket::AddressToIPString(local_address);
+            dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
+
+            // UDN must be unique and this scheme is probably unique enough
             dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
-            char hostname[128];
-            dmSocket::GetHostname(hostname, sizeof(hostname));
-            dmStrlCat(m_DeviceDesc.m_UDN, hostname, sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, local_address_str, sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, "-", sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, info.m_DeviceModel, sizeof(m_DeviceDesc.m_UDN));
+
+            free(local_address_str);
 
             dmTemplate::Format(this, m_DeviceDescXml, sizeof(m_DeviceDescXml), DEVICE_DESC_TEMPLATE, ReplaceCallback);
 
@@ -312,7 +330,7 @@ namespace dmEngineService
         uint16_t             m_Port;
         char                 m_PortText[16];
         char                 m_LogPortText[16];
-        char                 m_Hostname[128];
+        char                 m_Name[128];
         char                 m_LocalAddress[128];
 
         dmSSDP::DeviceDesc   m_DeviceDesc;

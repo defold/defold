@@ -12,6 +12,8 @@ extern uint32_t CLOSE_PNG_SIZE;
 extern unsigned char CLOSEat2X_PNG[];
 extern uint32_t CLOSEat2X_PNG_SIZE;
 
+static void InitSession();
+
 @interface UIImage (Defold)
     + (id)imageNamedX:(NSString *)name;
 @end
@@ -90,6 +92,7 @@ Facebook g_Facebook;
                         openURL:(NSURL *)url
                         sourceApplication:(NSString *)sourceApplication
                         annotation:(id)annotation  {
+        InitSession();
         return [FBAppCall handleOpenURL:url
                 sourceApplication:sourceApplication
                 withSession:g_Facebook.m_Session];
@@ -100,6 +103,7 @@ Facebook g_Facebook;
     }
 
     -(BOOL) application:(UIApplication *)application handleOpenURL:(NSURL *)url {
+        InitSession();
         return [FBAppCall handleOpenURL: url sourceApplication: @"Defold" withSession: g_Facebook.m_Session];
     }
 

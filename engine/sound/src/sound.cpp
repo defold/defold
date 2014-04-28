@@ -289,6 +289,7 @@ namespace dmSound
         sound_data->m_Format = format;
         sound_data->m_Size = decoded;
         sound_data->m_Frequency = info.m_Rate;
+        dmSoundCodec::DeleteDecoder(sound->m_CodecContext, decoder);
 
         return RESULT_OK;
     }

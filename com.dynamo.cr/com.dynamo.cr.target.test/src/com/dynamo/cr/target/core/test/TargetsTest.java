@@ -83,7 +83,7 @@ public class TargetsTest implements ITargetListener {
                                         boolean autoRunDebugger, String socksProxy, int socksProxyPort,
                                         int httpServerPort) {
             ITarget[] targets = getTargets();
-            connectToLogService(targets[targets.length - 1]);
+            obtainSocketAddress(targets[targets.length - 1]);
         }
     }
 
@@ -135,7 +135,7 @@ public class TargetsTest implements ITargetListener {
         /*
          * Search for local target and ensure that the pseudo-target is still present at index 0
          */
-        String localAddress = InetAddress.getLocalHost().getHostAddress();
+        String localAddress = "127.0.0.1";
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
         when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo(localAddress) } );
         when(ssdp.update(true)).thenReturn(true);
@@ -174,7 +174,7 @@ public class TargetsTest implements ITargetListener {
 
     @Test
     public void testBlackList() throws Exception {
-        String localAddress = InetAddress.getLocalHost().getHostAddress();
+        String localAddress = "127.0.0.1";
         when(urlFetcher.fetch(anyString())).thenThrow(new SocketTimeoutException());
         when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo(localAddress), newDeviceInfo(localAddress) } );
         when(ssdp.update(true)).thenReturn(true);

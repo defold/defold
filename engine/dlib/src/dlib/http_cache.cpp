@@ -159,6 +159,7 @@ namespace dmHttpCache
         if (r != dmSys::RESULT_OK)
         {
             dmLogWarning("Unable to remove %s", path);
+            cache->m_Dirty = true;
         }
     }
 

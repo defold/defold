@@ -2615,6 +2615,60 @@ TEST_F(dmGuiTest, Parenting)
     ASSERT_EQ(1u, order[n3]);
 }
 
+void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
+        uint32_t node_count, void* context)
+{
+    Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
+    memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
+}
+
+#define ASSERT_MAT4(m1, m2)\
+    for (uint32_t i = 0; i < 16; ++i)\
+    {\
+        int row = i / 4;\
+        int col = i % 4;\
+        ASSERT_NEAR(m1.getElem(row, col), m2.getElem(row, col), EPSILON);\
+    }
+
+/**
+ * Verify that the rendered transforms are correct for a hierarchy:
+ * - n1
+ *   - n2
+ *
+ * In three cases, the nodes have different pivots and positions, so that their render transforms will be identical:
+ * - n1 center, n2 center
+ * - n1 south-west, n2 center
+ * - n1 west, n2 east
+ */
+TEST_F(dmGuiTest, HierarchicalTransforms)
+{
+    // Setup
+    Vector3 size(1, 1, 0);
+
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    // parent first to second
+    dmGui::SetNodeParent(m_Scene, n2, n1);
+
+    Vectormath::Aos::Matrix4 transforms[2];
+
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
+    ASSERT_MAT4(transforms[0], transforms[1]);
+
+    dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_SW);
+    dmGui::SetNodePosition(m_Scene, n2, Point3(size * 0.5f));
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
+    ASSERT_MAT4(transforms[0], transforms[1]);
+
+    dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_W);
+    dmGui::SetNodePivot(m_Scene, n2, dmGui::PIVOT_E);
+    dmGui::SetNodePosition(m_Scene, n2, Point3(size.getX(), 0.0f, 0.0f));
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
+    ASSERT_MAT4(transforms[0], transforms[1]);
+}
+
+#undef ASSERT_MAT4
+
 /**
  * Verify layer rendering order.
  * Hierarchy:
@@ -2738,13 +2792,6 @@ TEST_F(dmGuiTest, DeleteTree)
     dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
     ASSERT_EQ(0u, count);
     ASSERT_EQ(m_Scene->m_NodePool.Remaining(), m_Scene->m_NodePool.Capacity());
-}
-
-void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
-        uint32_t node_count, void* context)
-{
-    Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
-    memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
 }
 
 TEST_F(dmGuiTest, PhysResUpdatesTransform)

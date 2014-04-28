@@ -59,7 +59,7 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
-    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl'.split(' ')
+    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl jpgd'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')

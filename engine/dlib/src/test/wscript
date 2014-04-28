@@ -369,7 +369,7 @@ def build(bld):
 
     test_image = bld.new_task_gen(features = 'cxx cprogram embed',
                                  source = 'test_image.cpp',
-                                 embed_source = 'data/color_check_2x2.png data/case2319.jpg data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg',
+                                 embed_source = 'data/color_check_2x2.png data/case2319.jpg data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg data/defold_64_progressive.jpg',
                                  uselib = 'GTEST THREAD',
                                  uselib_local = "dlib",
                                  includes = '../../src .',
@@ -379,7 +379,6 @@ def build(bld):
 
     test_connection_pool = bld.new_task_gen(features = 'cxx cprogram embed',
                                  source = 'test_connection_pool.cpp',
-                                 embed_source = 'data/color_check_2x2.png data/case2319.jpg data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg',
                                  uselib = 'GTEST THREAD',
                                  uselib_local = "dlib",
                                  includes = '../../src .',
