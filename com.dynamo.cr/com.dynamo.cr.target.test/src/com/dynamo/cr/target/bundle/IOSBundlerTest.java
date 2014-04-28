@@ -62,8 +62,8 @@ public class IOSBundlerTest {
                     contentRoot, outputDir);
             bundler.bundleApplication();
 
-            // Used to be assertFalse() but archives are currently disabled
-            boolean useArchive = false;
+            // Used to be assertFalse() but archives are currently enabled
+            boolean useArchive = true;
             assertEquals("game.projectc data", readFile(concat(outputDir, "MyApp.app"), "game.projectc"));
             if (useArchive) {
                 assertFalse(new File(concat(outputDir, "MyApp.app/test.png")).exists());

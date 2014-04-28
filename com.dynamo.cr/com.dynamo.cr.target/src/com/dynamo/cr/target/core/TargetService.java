@@ -448,6 +448,10 @@ public class TargetService implements ITargetService, Runnable {
         this.logSocketAddress = findLogSocketAddress(targetToLaunch);
     }
 
+    protected void obtainSocketAddress(ITarget target) {
+        this.logSocketAddress = findLogSocketAddress(target);
+    }
+
     private boolean isTargetLocal(ITarget target) {
         if (target.getUrl() == null) {
             return true;
