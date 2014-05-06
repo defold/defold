@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.util.BobProjectProperties;
 
@@ -283,9 +284,7 @@ public class Project {
         } catch (Exception e) {
             throw new CompileExceptionError(projectProps, -1, "Failed to parse game.project", e);
         } finally {
-            if (input != null) {
-                input.close();
-            }
+            IOUtils.closeQuietly(input);
         }
         // Download libs
         String[] libUrls = properties.getStringValue("project", "dependencies", "").split(",");
