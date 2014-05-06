@@ -42,6 +42,7 @@ import com.dynamo.bob.TaskResult;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.ViewUtil;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
@@ -103,13 +104,8 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         String buildDirectory = String.format("build/default");
         Project project = new Project(new DefaultFileSystem(), branchLocation, buildDirectory);
 
-        /*
-         * bob args is a serialized HashMap stored in bobArgs
-         */
-        String bobArgsEncoded = args.get("bobArgs");
-        if (bobArgsEncoded != null) {
-            @SuppressWarnings("unchecked")
-            HashMap<String, String> bobArgs = (HashMap<String, String>) SerializationUtils.deserialize(Base64.decode(bobArgsEncoded));
+        Map<String, String> bobArgs = BobUtil.getBobArgs(args);
+        if (bobArgs != null) {
             for (Entry<String, String> e : bobArgs.entrySet()) {
                 project.setOption(e.getKey(), e.getValue());
             }

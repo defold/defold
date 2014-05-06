@@ -2,9 +2,13 @@ package com.dynamo.bob;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -19,6 +23,10 @@ import java.util.Set;
 import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpRequestFactory;
+
+import com.dynamo.bob.util.BobProjectProperties;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -26,6 +34,8 @@ import org.apache.commons.io.FilenameUtils;
  *
  */
 public class Project {
+
+    private final static String LIB_DIR = ".internal/lib";
 
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
@@ -56,6 +66,10 @@ public class Project {
 
     public String getBuildDirectory() {
         return buildDirectory;
+    }
+
+    public String getLibPath() {
+        return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
     }
 
     /**
@@ -240,6 +254,8 @@ public class Project {
                 FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                 m.worked(1);
                 m.done();
+            } else if (command.equals("resolve")) {
+                resolve();
             }
         }
 
@@ -247,6 +263,35 @@ public class Project {
         state.save(stateResource);
         fileSystem.saveCache();
         return result;
+    }
+
+    // Convert lib url into path, e.g. http://localhost:8080/test_lib.zip into LIB_PATH/test_lib.zip
+    private String libUrlToPath(String libPath, URL url) {
+        return FilenameUtils.concat(libPath, FilenameUtils.getName(url.getPath()));
+    }
+
+    private void resolve() throws IOException, CompileExceptionError {
+        BobProjectProperties properties = new BobProjectProperties();
+        IResource projectProps = fileSystem.get("/game.project");
+        String libPath = getLibPath();
+        File libDir = new File(libPath);
+        // Clean lib dir first
+        FileUtils.deleteQuietly(libDir);
+        FileUtils.forceMkdir(libDir);
+        try {
+            properties.load(new ByteArrayInputStream(projectProps.getContent()));
+        } catch (Exception e) {
+            throw new CompileExceptionError(projectProps, -1, "Failed to parse game.project", e);
+        }
+        // Download libs
+        String[] libUrls = properties.getStringValue("project", "dependencies", "").split(",");
+        for (String urlStr : libUrls) {
+            URL url = new URL(urlStr);
+            URLConnection connection = url.openConnection();
+            connection.addRequestProperty("X-Email", this.options.get("email"));
+            connection.addRequestProperty("X-Auth", this.options.get("auth"));
+            FileUtils.copyInputStreamToFile(connection.getInputStream(), new File(libUrlToPath(libPath, url)));
+        }
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

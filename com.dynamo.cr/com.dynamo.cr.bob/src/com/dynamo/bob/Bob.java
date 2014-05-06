@@ -43,6 +43,8 @@ public class Bob {
         options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("h", "help", false, "This help directory");
         options.addOption("a", "archive", false, "Build archive");
+        options.addOption("e", "email", true, "User email");
+        options.addOption("u", "auth", true, "User auth token");
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -78,12 +80,18 @@ public class Bob {
         if (cmd.hasOption('a')) {
             project.setOption("build_disk_archive", "true");
         }
+        if (cmd.hasOption('e')) {
+            project.setOption("email", getOptionsValue(cmd, 'e', null));
+        }
+        if (cmd.hasOption('u')) {
+            project.setOption("auth", getOptionsValue(cmd, 'u', null));
+        }
 
         ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory));
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
 
         project.findSources(sourceDirectory, skipDirs);
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

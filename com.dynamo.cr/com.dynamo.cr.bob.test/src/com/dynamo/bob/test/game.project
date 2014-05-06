@@ -1,0 +1,2 @@
+[project]
+dependencies = http://localhost:8080/test_lib.zip
