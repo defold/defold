@@ -1,21 +1,11 @@
 package com.dynamo.bob.test;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.File;
 import java.io.IOException;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -23,7 +13,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jetty.server.Request;
@@ -45,7 +34,7 @@ import com.dynamo.bob.TaskResult;
 
 public class ProjectTest {
     
-    private final static int SERVER_PORT = 8080;
+    private final static int SERVER_PORT = 8081;
     private final static String EMAIL = "test@king.com";
     private final static String AUTH = "secret-auth";
 
@@ -95,14 +84,18 @@ public class ProjectTest {
         return project.build(new NullProgress(), "resolve");
     }
 
+    private boolean libExists(String lib) {
+        return new File(FilenameUtils.concat(project.getLibPath(), lib)).exists();
+    }
+
     @Test
     public void testResolve() throws Exception {
-        File testLib = new File(FilenameUtils.concat(project.getLibPath(), "test_lib.zip"));
-        if (testLib.exists()) {
-            testLib.delete();
-        }
+        FileUtils.cleanDirectory(new File(project.getLibPath()));
+        assertFalse(libExists("test_lib.zip"));
+        assertFalse(libExists("test_lib2.zip"));
         resolve();
-        assertTrue(testLib.exists());
+        assertTrue(libExists("test_lib.zip"));
+        assertTrue(libExists("test_lib2.zip"));
     }
 
     private class FileHandler extends ResourceHandler {

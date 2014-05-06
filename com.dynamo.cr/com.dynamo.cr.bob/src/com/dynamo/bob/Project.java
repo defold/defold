@@ -23,8 +23,6 @@ import java.util.Set;
 import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpRequestFactory;
 
 import com.dynamo.bob.util.BobProjectProperties;
 
@@ -278,10 +276,16 @@ public class Project {
         // Clean lib dir first
         FileUtils.deleteQuietly(libDir);
         FileUtils.forceMkdir(libDir);
+        InputStream input = null;
         try {
-            properties.load(new ByteArrayInputStream(projectProps.getContent()));
+            input = new ByteArrayInputStream(projectProps.getContent());
+            properties.load(input);
         } catch (Exception e) {
             throw new CompileExceptionError(projectProps, -1, "Failed to parse game.project", e);
+        } finally {
+            if (input != null) {
+                input.close();
+            }
         }
         // Download libs
         String[] libUrls = properties.getStringValue("project", "dependencies", "").split(",");
