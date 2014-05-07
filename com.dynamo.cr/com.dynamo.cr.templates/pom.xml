@@ -30,7 +30,7 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <executable>sh</executable>
+                            <executable>bash</executable>
                             <arguments>
                                 <argument>scripts/copy_templates.sh</argument>
                             </arguments>
