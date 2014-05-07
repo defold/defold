@@ -23,7 +23,7 @@
     </repositories>
 
     <properties>
-        <tycho-version>0.16.0</tycho-version>
+        <tycho-version>0.20.0</tycho-version>
         <tycho-groupid>org.eclipse.tycho</tycho-groupid>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
@@ -124,6 +124,8 @@
         <module>../com.dynamo.cr.bob</module>
         <module>../com.dynamo.cr.bob.test</module>
         <module>../com.dynamo.cr.templates</module>
+        <module>../com.dynamo.cr.server-product</module>
+        <module>../com.dynamo.cr.editor-product</module>
         <module>../javax.media.opengl</module>
         <module>../com.sun.jna</module>
         <module>../joda.time</module>
