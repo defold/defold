@@ -7,7 +7,7 @@ mkdir -p engine/android
 
 SHA1=`git log --oneline | head -1 | awk '{ print $1 }'`
 
-function copy() {
+copy () {
 	# echo for indicating progress as scp progress is suppressed when not running in a tty (e.g. from maven or on buildbot)
 	echo "Copying $1"
 	scp builder@ci-master.defold.com:/archive/${SHA1}/engine/$1 $2
