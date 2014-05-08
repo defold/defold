@@ -230,8 +230,16 @@ public class Project {
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**"));
         List<File> libFiles = convertLibraryUrlsToFiles(this.libUrls);
+        boolean missingFiles = false;
         for (File file : libFiles) {
-            this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, file.getAbsolutePath()));
+            if (file.exists()) {
+                this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, file.getAbsolutePath()));
+            } else {
+                missingFiles = true;
+            }
+        }
+        if (missingFiles) {
+            logWarning("Some libraries could not be found locally, use the resolve command to fetch them.");
         }
     }
 
