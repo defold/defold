@@ -1,4 +1,4 @@
-package com.dynamo.bob;
+package com.dynamo.bob.fs;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;

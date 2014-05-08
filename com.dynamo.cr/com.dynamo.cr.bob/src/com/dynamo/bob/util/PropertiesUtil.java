@@ -3,7 +3,7 @@ package com.dynamo.bob.util;
 import java.util.Arrays;
 import java.util.List;
 
-import com.dynamo.bob.IResource;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;

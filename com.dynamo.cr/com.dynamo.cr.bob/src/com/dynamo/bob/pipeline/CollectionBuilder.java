@@ -15,10 +15,10 @@ import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;

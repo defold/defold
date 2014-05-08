@@ -2,11 +2,9 @@ package com.dynamo.bob;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
@@ -23,9 +21,11 @@ import java.util.Set;
 import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
-import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.fs.ClassLoaderMountPoint;
+import com.dynamo.bob.fs.IFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ZipMountPoint;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -44,6 +44,7 @@ public class Project {
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
+    private List<URL> libUrls = new ArrayList<URL>();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -55,8 +56,12 @@ public class Project {
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
-        this.fileSystem.setRootDirectory(rootDirectory);
-        this.fileSystem.setBuildDirectory(buildDirectory);
+        this.fileSystem.setRootDirectory(this.rootDirectory);
+        this.fileSystem.setBuildDirectory(this.buildDirectory);
+    }
+
+    public void dispose() {
+        this.fileSystem.close();
     }
 
     public String getRootDirectory() {
@@ -221,10 +226,28 @@ public class Project {
         }
     }
 
+    private void mount() throws IOException, CompileExceptionError {
+        this.fileSystem.clearMountPoints();
+        this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**"));
+        List<File> libFiles = convertLibraryUrlsToFiles(this.libUrls);
+        for (File file : libFiles) {
+            this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, file.getAbsolutePath()));
+        }
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
+        // resolve before mounting mount points
+        for (String command : commands) {
+            if (command.equals("resolve")) {
+                resolve();
+                break;
+            }
+        }
+        // mount mount points before creating tasks
+        mount();
         createTasks();
         List<TaskResult> result = new ArrayList<TaskResult>();
 
@@ -253,8 +276,6 @@ public class Project {
                 FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                 m.worked(1);
                 m.done();
-            } else if (command.equals("resolve")) {
-                resolve();
             }
         }
 
@@ -269,31 +290,30 @@ public class Project {
         return FilenameUtils.concat(libPath, FilenameUtils.getName(url.getPath()));
     }
 
+    private List<File> convertLibraryUrlsToFiles(List<URL> libUrls) {
+        String libPath = getLibPath();
+        List<File> files = new ArrayList<File>();
+        for (URL url : libUrls) {
+            files.add(new File(libUrlToPath(libPath, url)));
+        }
+        return files;
+    }
+
     private void resolve() throws IOException, CompileExceptionError {
-        BobProjectProperties properties = new BobProjectProperties();
-        IResource projectProps = fileSystem.get("/game.project");
         String libPath = getLibPath();
         File libDir = new File(libPath);
         // Clean lib dir first
         FileUtils.deleteQuietly(libDir);
         FileUtils.forceMkdir(libDir);
-        InputStream input = null;
-        try {
-            input = new ByteArrayInputStream(projectProps.getContent());
-            properties.load(input);
-        } catch (Exception e) {
-            throw new CompileExceptionError(projectProps, -1, "Failed to parse game.project", e);
-        } finally {
-            IOUtils.closeQuietly(input);
-        }
         // Download libs
-        String[] libUrls = properties.getStringValue("project", "dependencies", "").split(",");
-        for (String urlStr : libUrls) {
-            URL url = new URL(urlStr);
+        List<File> libFiles = convertLibraryUrlsToFiles(libUrls);
+        int count = this.libUrls.size();
+        for (int i = 0; i < count; ++i) {
+            URL url = libUrls.get(i);
             URLConnection connection = url.openConnection();
             connection.addRequestProperty("X-Email", this.options.get("email"));
             connection.addRequestProperty("X-Auth", this.options.get("auth"));
-            FileUtils.copyInputStreamToFile(connection.getInputStream(), new File(libUrlToPath(libPath, url)));
+            FileUtils.copyInputStreamToFile(connection.getInputStream(), libFiles.get(i));
         }
     }
 
@@ -450,6 +470,10 @@ run:
      */
     public void setInputs(List<String> inputs) {
         this.inputs = new ArrayList<String>(inputs);
+    }
+
+    public void setLibUrls(List<URL> libUrls) {
+        this.libUrls = libUrls;
     }
 
     /**

@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.dynamo.bob.fs.IResource;
+
 /**
  * Task abstraction. Contains the instance data for a {@link Builder}
  * @author Christian Murray

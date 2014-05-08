@@ -1,2 +1,0 @@
-[project]
-dependencies = http://localhost:8081/test_lib.zip , http://localhost:8081/test_lib2.zip

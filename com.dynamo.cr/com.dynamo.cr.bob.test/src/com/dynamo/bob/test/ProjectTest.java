@@ -5,6 +5,8 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -12,7 +14,6 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jetty.server.Request;
@@ -70,7 +71,7 @@ public class ProjectTest {
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
-        fileSystem.addFile("/game.project", IOUtils.toByteArray(getClass().getResourceAsStream("game.project")));
+        project.setLibUrls(Arrays.asList(new URL("http://localhost:8081/test_lib.zip"), new URL("http://localhost:8081/test_lib2.zip")));
         String serverLocation = FileLocator.resolve(getClass().getClassLoader().getResource("server_root")).getPath();
         initHttpServer(serverLocation);
     }
@@ -78,10 +79,11 @@ public class ProjectTest {
     @After
     public void tearDown() throws Exception {
         httpServer.stop();
+        project.dispose();
     }
 
-    List<TaskResult> resolve() throws IOException, CompileExceptionError {
-        return project.build(new NullProgress(), "resolve");
+    List<TaskResult> build(String... commands) throws IOException, CompileExceptionError {
+        return project.build(new NullProgress(), commands);
     }
 
     private boolean libExists(String lib) {
@@ -90,12 +92,25 @@ public class ProjectTest {
 
     @Test
     public void testResolve() throws Exception {
-        FileUtils.cleanDirectory(new File(project.getLibPath()));
+        File lib = new File(project.getLibPath());
+        if (lib.exists()) {
+            FileUtils.cleanDirectory(new File(project.getLibPath()));
+        }
         assertFalse(libExists("test_lib.zip"));
         assertFalse(libExists("test_lib2.zip"));
-        resolve();
+        build("resolve");
         assertTrue(libExists("test_lib.zip"));
         assertTrue(libExists("test_lib2.zip"));
+    }
+
+    @Test
+    public void testMountPoints() throws Exception {
+        project.setInputs(Arrays.asList("test_lib/file1.in", "test_lib2/file2.in", "builtins/cp_test.in"));
+        List<TaskResult> results = build("resolve", "build");
+        assertFalse(results.isEmpty());
+        for (TaskResult result : results) {
+            assertTrue(result.isOk());
+        }
     }
 
     private class FileHandler extends ResourceHandler {

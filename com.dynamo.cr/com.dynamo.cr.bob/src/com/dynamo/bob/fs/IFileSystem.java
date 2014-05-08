@@ -1,4 +1,6 @@
-package com.dynamo.bob;
+package com.dynamo.bob.fs;
+
+import java.io.IOException;
 
 /**
  * Abstract file-system
@@ -52,4 +54,9 @@ public interface IFileSystem {
      * Save cache of file signatures (optionally)
      */
     public void saveCache();
+
+    public void addMountPoint(IMountPoint mountPoint) throws IOException;
+    public void clearMountPoints();
+
+    public void close();
 }

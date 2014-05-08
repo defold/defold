@@ -6,7 +6,7 @@ import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.bob.IResource;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.graphics.proto.Graphics.TextureImage;

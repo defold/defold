@@ -7,8 +7,8 @@ import java.io.IOException;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
 @BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec")

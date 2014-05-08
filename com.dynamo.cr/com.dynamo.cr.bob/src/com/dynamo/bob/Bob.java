@@ -1,7 +1,9 @@
 package com.dynamo.bob;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -12,6 +14,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +32,10 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.BobProjectProperties;
 
 public class Bob {
 
@@ -91,8 +98,9 @@ public class Bob {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
+        project.setLibUrls(getLibraryUrls(rootDirectory));
 
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
         project.findSources(sourceDirectory, skipDirs);
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;
@@ -130,6 +138,7 @@ public class Bob {
             System.out.println("The build failed for the following reasons:");
             System.out.println(errors.toString());
         }
+        project.dispose();
         System.exit(ret ? 0 : 1);
     }
 
@@ -302,4 +311,28 @@ public class Bob {
             System.out.println("Bob: " + String.format(message, args));
         }
     }
+
+    private static List<URL> getLibraryUrls(String rootPath) throws IOException {
+        List<URL> urls = new ArrayList<URL>();
+        BobProjectProperties properties = new BobProjectProperties();
+        File projectProps = new File(FilenameUtils.concat(rootPath, "game.project"));
+        InputStream input = null;
+        try {
+            input = new BufferedInputStream(new FileInputStream(projectProps));
+            properties.load(input);
+        } catch (Exception e) {
+            verbose("Failed to parse game.project");
+        } finally {
+            IOUtils.closeQuietly(input);
+        }
+        String dependencies = properties.getStringValue("project", "dependencies", null);
+        if (dependencies != null) {
+            String[] libUrls = dependencies.split(",");
+            for (String urlStr : libUrls) {
+                urls.add(new URL(urlStr));
+            }
+        }
+        return urls;
+    }
+
 }

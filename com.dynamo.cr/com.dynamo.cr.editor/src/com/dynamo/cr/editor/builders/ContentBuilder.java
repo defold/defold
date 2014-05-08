@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +12,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang.SerializationUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IProject;
@@ -34,11 +32,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.DefaultFileSystem;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
@@ -48,7 +46,6 @@ import com.dynamo.cr.editor.ui.ViewUtil;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc;
 import com.dynamo.cr.protocol.proto.Protocol.BuildDesc.Activity;
 import com.dynamo.cr.protocol.proto.Protocol.BuildLog;
-import com.sun.jersey.core.util.Base64;
 
 public class ContentBuilder extends IncrementalProjectBuilder {
 
@@ -129,6 +126,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
 
         boolean ret = true;
         try {
+            project.setLibUrls(BobUtil.getLibraryUrls(branchLocation));
             project.findSources(branchLocation, skipDirs);
             List<TaskResult> result = project.build(new ProgressDelegate(monitor), commands);
             for (TaskResult taskResult : result) {
@@ -172,6 +170,8 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             } else {
                 throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));
             }
+        } finally {
+            project.dispose();
         }
         return ret;
     }

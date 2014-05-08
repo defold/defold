@@ -1,4 +1,4 @@
-package com.dynamo.bob;
+package com.dynamo.bob.fs;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -33,7 +33,10 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
         // Paths are always root relative.
         if (path.startsWith("/"))
             path = path.substring(1);
-
+        IResource resource = getFromMountPoints(path);
+        if (resource != null) {
+            return resource;
+        }
         return new DefaultResource(this, path);
     }
 

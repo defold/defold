@@ -4,19 +4,26 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.After;
+
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.google.protobuf.Message;
 
 public abstract class AbstractProtoBuilderTest {
     private MockFileSystem fileSystem;
     private Project project;
+
+    @After
+    public void tearDown() {
+        this.project.dispose();
+    }
 
     public AbstractProtoBuilderTest() {
         this.fileSystem = new MockFileSystem();

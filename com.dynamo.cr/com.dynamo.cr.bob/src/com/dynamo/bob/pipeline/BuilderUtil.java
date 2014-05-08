@@ -3,8 +3,8 @@ package com.dynamo.bob.pipeline;
 import java.io.File;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 
 public class BuilderUtil {

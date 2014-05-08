@@ -29,12 +29,12 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.dynamo.bob.test.util.MockResource;
 import com.dynamo.bob.TaskResult;
@@ -211,6 +211,7 @@ public class JBobTest {
 
     @After
     public void tearDown() throws Exception {
+        this.project.dispose();
     }
 
     @Test
