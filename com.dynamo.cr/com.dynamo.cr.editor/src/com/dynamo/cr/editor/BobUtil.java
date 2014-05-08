@@ -18,6 +18,7 @@ import org.apache.commons.lang.SerializationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.cr.editor.core.ProjectProperties;
 
 public class BobUtil {
@@ -62,10 +63,7 @@ public class BobUtil {
         }
         String dependencies = properties.getStringValue("project", "dependencies", null);
         if (dependencies != null) {
-            String[] libUrls = dependencies.split(",");
-            for (String urlStr : libUrls) {
-                urls.add(new URL(urlStr));
-            }
+            urls = Bob.parseLibraryUrls(dependencies);
         }
         return urls;
     }

@@ -9,6 +9,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -327,12 +328,30 @@ public class Bob {
         }
         String dependencies = properties.getStringValue("project", "dependencies", null);
         if (dependencies != null) {
-            String[] libUrls = dependencies.split(",");
-            for (String urlStr : libUrls) {
-                urls.add(new URL(urlStr));
-            }
+            urls = parseLibraryUrls(dependencies);
         }
         return urls;
     }
 
+    /**
+     * Parse a comma separated string of URLs.
+     * @param urls
+     * @return a list of the parsed URLs
+     */
+    public static List<URL> parseLibraryUrls(String urls) {
+        List<URL> result = new ArrayList<URL>();
+        String[] libUrls = urls.split(",");
+        for (String urlStr : libUrls) {
+            urlStr = urlStr.trim();
+            if (!urlStr.isEmpty()) {
+                try {
+                    URL url = new URL(urlStr);
+                    result.add(url);
+                } catch (MalformedURLException e) {
+                    verbose("Failed to parse library URL: " + e.getMessage());
+                }
+            }
+        }
+        return result;
+    }
 }

@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.IOException;
+import java.net.URL;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +25,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CommandBuilder;
@@ -439,6 +441,14 @@ public class JBobTest {
         result = build();
         assertThat(result.size(), is(1));
         assertTrue(result.get(0).isOk());
+    }
+
+    @Test
+    public void testUrlParsing() throws Exception {
+        List<URL> urls = Bob.parseLibraryUrls(" http://localhost ,http://localhost,,httpinvalid");
+        assertThat(urls.size(), is(2));
+        assertTrue(urls.get(0).toString().equals("http://localhost"));
+        assertTrue(urls.get(1).toString().equals("http://localhost"));
     }
 }
 
