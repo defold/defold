@@ -35,15 +35,10 @@
                         <version>${tycho-version}</version>
                         <executions>
                             <execution>
+                                <!-- We don't run archive-products. Packaging is performed by the script package_editor.sh -->
                                 <id>materialize-products</id>
                                 <goals>
                                     <goal>materialize-products</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>archive-products</id>
-                                <goals>
-                                    <goal>archive-products</goal>
                                 </goals>
                             </execution>
                         </executions>
@@ -100,86 +95,20 @@
 
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>truezip-maven-plugin</artifactId>
-                        <version>1.2</version>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>1.1</version>
                         <executions>
                             <execution>
-                                <id>bundle-jre-linux</id>
-                                <goals>
-                                    <goal>copy</goal>
-                                </goals>
+                                <id>package-editor</id>
                                 <phase>package</phase>
-                                <configuration>
-                                    <fileset>
-                                        <directory>${project.build.directory}/jre-8u5-linux-i586.zip</directory>
-                                        <includes>
-                                            <include>**/*</include>
-                                        </includes>
-                                        <outputDirectory>target/products/Defold-linux.gtk.x86.zip</outputDirectory>
-                                    </fileset>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>bundle-jre-osx</id>
                                 <goals>
-                                    <goal>copy</goal>
+                                    <goal>exec</goal>
                                 </goals>
-                                <phase>package</phase>
                                 <configuration>
-                                    <fileset>
-                                        <directory>${project.build.directory}/jre-8u5-macosx-x64.zip</directory>
-                                        <includes>
-                                            <include>**/*</include>
-                                        </includes>
-                                        <outputDirectory>target/products/Defold-macosx.cocoa.x86_64.zip</outputDirectory>
-                                    </fileset>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>bundle-jre-windows</id>
-                                <goals>
-                                    <goal>copy</goal>
-                                </goals>
-                                <phase>package</phase>
-                                <configuration>
-                                    <fileset>
-                                        <directory>${project.build.directory}/jre-8u5-windows-i586.zip</directory>
-                                        <includes>
-                                            <include>**/*</include>
-                                        </includes>
-                                        <outputDirectory>target/products/Defold-win32.win32.x86.zip</outputDirectory>
-                                    </fileset>
-                                </configuration>
-                            </execution>
-
-                            <execution>
-                                <id>remove-eclipse.exe</id>
-                                <goals>
-                                  <goal>remove</goal>
-                                </goals>
-                                <phase>package</phase>
-                                <configuration>
-                                  <fileset>
-                                        <directory>target/products/Defold-win32.win32.x86.zip</directory>
-                                        <includes>
-                                            <include>eclipsec.exe</include>
-                                        </includes>
-                                  </fileset>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>remove-eclipse-link</id>
-                                <goals>
-                                  <goal>remove</goal>
-                                </goals>
-                                <phase>package</phase>
-                                <configuration>
-                                  <fileset>
-                                        <directory>target/products/Defold-macosx.cocoa.x86_64.zip</directory>
-                                        <includes>
-                                            <include>Defold</include>
-                                        </includes>
-                                  </fileset>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>scripts/package_editor.sh</argument>
+                                    </arguments>
                                 </configuration>
                             </execution>
                         </executions>
