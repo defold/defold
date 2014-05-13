@@ -26,6 +26,10 @@
 #include "physics_debug_render.h"
 #include "profile_render.h"
 
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
+
 using namespace Vectormath::Aos;
 
 extern unsigned char CONNECT_PROJECT[];
@@ -835,9 +839,9 @@ bail:
         ++engine->m_Stats.m_FrameCount;
 
     }
+    }
 
 #ifdef __EMSCRIPTEN__
-    #include <emscripten/emscripten.h>
     HEngine g_Engine = 0;
 
     void StepEmscripten()

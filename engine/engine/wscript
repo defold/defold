@@ -92,7 +92,7 @@ def configure(conf):
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
 
-    if conf.env.PLATFORM.find('arm') == -1:
+    if conf.env.PLATFORM.find('arm') == -1 and conf.env.PLATFORM.find('web') == -1:
         conf.env['STATICLIB_RECORD'] = 'record'
         conf.env['LIB_VPX'] = 'vpx'
     else:
