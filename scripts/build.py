@@ -19,6 +19,9 @@ PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.0.1 android-support-v4 android-4.2.2".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_FLASH="gtest-1.5.0".split()
+SHELL=os.environ['SHELL']
+if not SHELL:
+    SHELL='bash'
 
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
@@ -473,7 +476,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
 
     def shell(self):
         print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
-        self.exec_command(['sh', '-l'])
+        self.exec_command([SHELL])
 
     def exec_command(self, arg_list, **kwargs):
         env = dict(os.environ)
