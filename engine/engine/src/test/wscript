@@ -27,3 +27,4 @@ def build(bld):
                      source = 'wscript',
                      always = True)
 
+    obj.install_path = None
