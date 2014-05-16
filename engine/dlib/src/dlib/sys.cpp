@@ -216,8 +216,49 @@ namespace dmSys
 
     Result OpenURL(const char* url)
     {
-        // TODO:
-        return RESULT_UNKNOWN;
+        if (*url == 0x0)
+        {
+            return RESULT_INVAL;
+        }
+        ANativeActivity* activity = g_AndroidApp->activity;
+        JNIEnv* env = 0;
+        activity->vm->AttachCurrentThread( &env, 0);
+
+        jclass uri_class = env->FindClass("android/net/Uri");
+        jstring str_url = env->NewStringUTF(url);
+        jmethodID parse_method = env->GetStaticMethodID(uri_class, "parse", "(Ljava/lang/String;)Landroid/net/Uri;");
+        jobject uri = env->CallStaticObjectMethod(uri_class, parse_method, str_url);
+        env->DeleteLocalRef(str_url);
+        if (uri == NULL)
+        {
+            activity->vm->DetachCurrentThread();
+            return RESULT_UNKNOWN;
+        }
+
+        jclass intent_class = env->FindClass("android/content/Intent");
+        jfieldID action_view_field = env->GetStaticFieldID(intent_class, "ACTION_VIEW", "Ljava/lang/String;");
+        jobject str_action_view = env->GetStaticObjectField(intent_class, action_view_field);
+        jmethodID intent_constructor = env->GetMethodID(intent_class, "<init>", "(Ljava/lang/String;Landroid/net/Uri;)V");
+        jobject intent = env->NewObject(intent_class, intent_constructor, str_action_view, uri);
+        if (intent == NULL)
+        {
+            activity->vm->DetachCurrentThread();
+            return RESULT_UNKNOWN;
+        }
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID start_activity_method = env->GetMethodID(activity_class, "startActivity", "(Landroid/content/Intent;)V");
+        env->CallVoidMethod(activity->clazz, start_activity_method, intent);
+        jthrowable exception = env->ExceptionOccurred();
+        env->ExceptionClear();
+        if (exception != NULL)
+        {
+            activity->vm->DetachCurrentThread();
+            return RESULT_UNKNOWN;
+        }
+
+        activity->vm->DetachCurrentThread();
+        return RESULT_OK;
     }
 
 #elif defined(__linux__)
@@ -361,6 +402,9 @@ namespace dmSys
         info->m_Language[0] = lang[0];
         info->m_Language[1] = lang[1];
         info->m_Language[2] = '\0';
+        info->m_DeviceLanguage[0] = lang[0];
+        info->m_DeviceLanguage[1] = lang[1];
+        info->m_DeviceLanguage[2] = '\0';
         info->m_Territory[0] = lang[3];
         info->m_Territory[1] = lang[4];
         info->m_Territory[2] = '\0';
@@ -384,6 +428,7 @@ namespace dmSys
 #if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__)) || defined(__AVM2__)
     void GetSystemInfo(SystemInfo* info)
     {
+        memset(info, 0, sizeof(*info));
         struct utsname uts;
         uname(&uts);
 
@@ -406,6 +451,7 @@ namespace dmSys
 
     void GetSystemInfo(SystemInfo* info)
     {
+        memset(info, 0, sizeof(*info));
         dmStrlCpy(info->m_SystemName, "Android", sizeof(info->m_SystemName));
 
         ANativeActivity* activity = g_AndroidApp->activity;
@@ -423,22 +469,44 @@ namespace dmSys
         const char* country = env->GetStringUTFChars(countryObj, NULL);
         const char* language = env->GetStringUTFChars(languageObj, NULL);
         dmStrlCpy(info->m_Language, language, sizeof(info->m_Language));
+        dmStrlCpy(info->m_DeviceLanguage, language, sizeof(info->m_DeviceLanguage));
         dmStrlCpy(info->m_Territory, country, sizeof(info->m_Territory));
         env->ReleaseStringUTFChars(countryObj, country);
         env->ReleaseStringUTFChars(languageObj, language);
 
         jclass build_class = env->FindClass("android/os/Build");
+        jstring manufacturerObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MANUFACTURER", "Ljava/lang/String;"));
         jstring modelObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MODEL", "Ljava/lang/String;"));
 
         jclass build_version_class = env->FindClass("android/os/Build$VERSION");
         jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
 
+        const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);
         const char* model = env->GetStringUTFChars(modelObj, NULL);
         const char* release = env->GetStringUTFChars(releaseObj, NULL);
+        dmStrlCpy(info->m_Manufacturer, manufacturer, sizeof(info->m_Manufacturer));
         dmStrlCpy(info->m_DeviceModel, model, sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
+        env->ReleaseStringUTFChars(manufacturerObj, manufacturer);
         env->ReleaseStringUTFChars(modelObj, model);
         env->ReleaseStringUTFChars(releaseObj, release);
+
+        jclass activity_class = env->FindClass("android/app/NativeActivity");
+        jmethodID get_content_resolver_method = env->GetMethodID(activity_class, "getContentResolver", "()Landroid/content/ContentResolver;");
+        jobject content_resolver = env->CallObjectMethod(activity->clazz, get_content_resolver_method);
+
+        jclass secure_class = env->FindClass("android/provider/Settings$Secure");
+        if (secure_class) {
+            jstring android_id_string = env->NewStringUTF("android_id");
+            jmethodID get_string_method = env->GetStaticMethodID(secure_class, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
+            jstring android_id_obj = (jstring) env->CallStaticObjectMethod(secure_class, get_string_method, content_resolver, android_id_string);
+            env->DeleteLocalRef(android_id_string);
+            const char* android_id = env->GetStringUTFChars(android_id_obj, NULL);
+            dmStrlCpy(info->m_DeviceIdentifier, android_id, sizeof(info->m_DeviceIdentifier));
+            env->ReleaseStringUTFChars(android_id_obj, android_id);
+        } else {
+            dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
+        }
 
         activity->vm->DetachCurrentThread();
     }
@@ -447,6 +515,7 @@ namespace dmSys
 
     void GetSystemInfo(SystemInfo* info)
     {
+        memset(info, 0, sizeof(*info));
         PGETUSERDEFAULTLOCALENAME GetUserDefaultLocaleName = (PGETUSERDEFAULTLOCALENAME)GetProcAddress(GetModuleHandle("kernel32.dll"), "GetUserDefaultLocaleName");
         dmStrlCpy(info->m_DeviceModel, "", sizeof(info->m_DeviceModel));
         dmStrlCpy(info->m_SystemName, "Windows", sizeof(info->m_SystemName));

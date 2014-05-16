@@ -20,6 +20,7 @@ Licenses
 * **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**
 * **openal** [http://kcat.strangesoft.net/openal.html](http://kcat.strangesoft.net/openal.html) **LGPL**
 * **alut** [https://github.com/vancegroup/freealut](https://github.com/vancegroup/freealut) was **BSD** but changed to **LGPL**
+* **md5** Based on md5 in axTLS
 
 
 Tagging
@@ -104,9 +105,21 @@ By convention we currently have a weak reference to struct android\_app \* calle
 g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c. 
 Life-cycle support should probably be moved to dlib at some point.
 
+### Android Resources and R.java
 
-Android SDK/NDK
----------------
+Long story short. Static resources on Android are referred by an integer identifier. These identifiers are generated to a file R.java.
+The id:s generated are conceptually a serial number and with no guarantees about uniqueness. Due to this limitations **all** identifiers
+must be generated when the final application is built. As a consequence all resources must be available and it's not possible to package
+library resources in a jar. Moreover, one identical *R.java* must be generated for every package/library linked with the final application.
+
+This is a known limitation on Android.
+
+**NOTE:** Never ever package compiled **R*.class-files** with third party libraries as it doesn't work in general.
+
+**NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
+
+### Android SDK/NDK
+
 
 * Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
   Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1.. 
@@ -116,8 +129,8 @@ Android SDK/NDK
 * Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
 * Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively 
 
-Android testing
----------------
+### Android testing
+
 Copy executable (or directory) with
 
     # adb push <DIR_OR_DIR> /data/local/tmp
@@ -130,19 +143,82 @@ Run exec with:
 
 For interactive shell run "adb shell"
 
-Caveats
--------
+### Caveats
 
 If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new 
 create message being sent (onCreate/android_main). The normal case is for the app to continue through e.g. onStart.
 
-Android debugging
------------------
+### Android debugging
 
 * Go to application bundle-dir in build/default/...,  e.g. build/default/examples/simple_gles2.android
 * Install and launch application
 * Run ndk-gdb from android ndk
 * Debug
+
+### Life-cycle and GLFW
+
+NDK uses a separate thread which runs the game, separate from the Android UI thread.
+
+The main life cycle (LC) of an android app is controlled by the following events, received on the game thread:
+
+* _glfwPreMain(struct* android_app), corresponds to create
+* APP_CMD_START, (visible)
+* APP_CMD_RESUME
+* APP_CMD_GAINED_FOCUS
+* APP_CMD_LOST_FOCUS
+* APP_CMD_PAUSE
+* APP_CMD_STOP, (invisible)
+* APP_CMD_SAVE_STATE
+* APP_CMD_DESTROY
+
+After APP_CMD_PAUSE, the process might be killed by the OS without APP_CMD_DESTROY being received.
+
+Window life cycle (LC), controls the window (app_activity->window) and might happen at any point while the app is visible:
+
+* APP_CMD_INIT_WINDOW
+* APP_CMD_TERM_WINDOW
+
+Specifics of exactly when they are received depend on manufacturer, OS version etc.
+
+The graphics resources used are divided into Context and Surface:
+
+* Context
+  * EGLDisplay display
+  * EGLContext context
+  * EGLConfig config
+* Surface
+  * EGLSurface surface
+
+GLFW functions called by the engine are:
+
+* _glfwPlatformInit (Context creation)
+* _glfwPlatformOpenWindow (Surface creation)
+* _glfwPlatformCloseWindow (Surface destruction)
+* _glfwPlatformTerminate (implicit Context destruction)
+
+Some implementation details to note:
+
+* _glfwPreMain pumps the LC commands until the window has been created (APP_CMD_INIT_WINDOW) before proceeding to boot the app (engine-main).
+  This should be possible to streamline so that content loading can start faster.
+* The engine continues to pump the LC commands as a part of polling for input (glfw)
+* OpenWindow is the first time when the window dimensions are known, which controls screen orientation.
+* The glfw window is considered open (_glfwWin.opened) from APP_CMD_INIT_WINDOW until APP_CMD_DESTROY, which is app termination
+* The glfw window is considered iconified (_glfwWin.iconified) when not visible to user, which stops buffer swapping and controls poll timeouts
+* Between CloseWindow and OpenWindow the GL context is temp-stored in memory (ordinary struct is memset to 0 by glfw in CloseWindow)
+* When rebooting the engine (when using the dev app), essentially means CloseWindow followed by OpenWindow.
+* APP_CMD_TERM_WINDOW might do Context destruction before _glfwPlatformTerminate, depending on which happens first
+* _glfwPlatformTerminate pumps the LC commands until the Context has been destroyed
+
+### Pulling APKs from device
+
+E.g. when an APK produces a crash, backing it up is always a good idea before you attempt to fix it.
+
+# Determine package name:
+  adb shell pm list packages
+# Get the path on device:
+  adb shell pm path <package-name>
+# Pull the APK to local disk
+  adb pull <package-path>
 
 OpenGL and jogl
 ---------------
@@ -207,4 +283,22 @@ extension library and set "exported_symbols" in the wscript, see note below.
 *NOTE:* In order to avoid a dead-stripping bug with static libraries on OSX/iOS a constructor symbol must be explicitly exported with "exported_symbols"
 in the wscript-target. See extension-test.
 
+### Facebook Extension
+
+How to package a new Android Facebook SDK:
+
+* Download the SDK
+* Replicate a structure based on previous FB SDK package (rooted at share/java within the package)
+* From within the SDK:
+  * copy bin/facebooksdk.jar into share/java/facebooksdk.jar
+  * copy res/* into share/java/res/facebook
+* tar/gzip the new structure
+
+Energy Consumption
+------------------
+
+
+**Android**
+
+      adb shell dumpsys cpuinfo
 

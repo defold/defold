@@ -1,6 +1,5 @@
 package com.dynamo.cr.target.core;
 
-import java.net.URL;
 
 public interface ITargetService {
     public static final String LOCAL_TARGET_ID = "local";
@@ -16,7 +15,7 @@ public interface ITargetService {
     public void setSearchInternal(int searchInterval);
 
     public void launch(String customApplication, String location, boolean runInDebugger, boolean autoRunDebugger,
-            String socksProxy, int socksProxyPort, URL serverUrl);
+                       String socksProxy, int socksProxyPort, int httpServerPort);
 
     public ITarget getSelectedTarget();
 

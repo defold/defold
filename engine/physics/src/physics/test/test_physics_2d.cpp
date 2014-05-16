@@ -10,6 +10,8 @@
 
 using namespace Vectormath::Aos;
 
+dmPhysics::HullFlags EMPTY_FLAGS;
+
 VisualObject::VisualObject()
 : m_Position(0.0f, 0.0f, 0.0f)
 , m_Rotation(0.0f, 0.0f, 0.0f, 1.0f)
@@ -198,7 +200,7 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
         {
             for (int32_t col = 0; col < columns; ++col)
             {
-                dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0);
+                dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0, EMPTY_FLAGS);
             }
         }
 
@@ -222,14 +224,14 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
         }
 
         // Set the last cell in the last row to the smaller hull
-        dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, columns - 1, 1);
+        dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, columns - 1, 1, EMPTY_FLAGS);
 
         // Remove the cell just before the last cell
-        dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, columns - 2, dmPhysics::GRIDSHAPE_EMPTY_CELL);
+        dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, columns - 2, dmPhysics::GRIDSHAPE_EMPTY_CELL, EMPTY_FLAGS);
 
         // Remove the cell temporarily and add after first simulation.
         // Test this to make sure that the broad-phase is properly updated
-        dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, 2, dmPhysics::GRIDSHAPE_EMPTY_CELL);
+        dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, 2, dmPhysics::GRIDSHAPE_EMPTY_CELL, EMPTY_FLAGS);
 
         for (uint32_t i = 0; i < 400; ++i)
         {
@@ -238,7 +240,7 @@ TYPED_TEST(PhysicsTest, GridShapePolygon)
             // Set cell to hull 1 removed above. See comment above
             if (i == 0)
             {
-                dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, 2, 0);
+                dmPhysics::SetGridShapeHull(grid_co, 0, rows - 1, 2, 0, EMPTY_FLAGS);
             }
         }
 
@@ -328,7 +330,7 @@ TYPED_TEST(PhysicsTest, GridShapeSphere)
     {
         for (int32_t col = 0; col < columns; ++col)
         {
-            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0);
+            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0, EMPTY_FLAGS);
         }
     }
 
@@ -402,8 +404,8 @@ TYPED_TEST(PhysicsTest, GridShapeTrigger)
     dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
-    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0);
-    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 1, 0);
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS);
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 1, 0, EMPTY_FLAGS);
 
     VisualObject vo_b;
     vo_b.m_Position = Point3(4.0f, 4.0f, 0.0f);
@@ -490,7 +492,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     {
         for (int32_t col = 0; col < columns; ++col)
         {
-            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0);
+            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0, EMPTY_FLAGS);
         }
     }
 
@@ -571,7 +573,7 @@ TYPED_TEST(PhysicsTest, GridShapeCorner)
     {
         for (int32_t col = 0; col < columns; ++col)
         {
-            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0);
+            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0, EMPTY_FLAGS);
         }
     }
 
@@ -641,7 +643,7 @@ TYPED_TEST(PhysicsTest, GridShapeSphereDistance)
     {
         for (int32_t col = 0; col < columns; ++col)
         {
-            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0);
+            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0, EMPTY_FLAGS);
         }
     }
 
@@ -706,7 +708,7 @@ TYPED_TEST(PhysicsTest, GridShapeMultiLayered)
             columns = layer + 1;
             for (int32_t col = 0; col < columns; ++col)
             {
-                dmPhysics::SetGridShapeHull(grid_co, layer, row, col, 0);
+                dmPhysics::SetGridShapeHull(grid_co, layer, row, col, 0, EMPTY_FLAGS);
             }
         }
     }
@@ -761,7 +763,7 @@ TYPED_TEST(PhysicsTest, GridShapeRayCast)
     {
         for (int32_t col = 0; col < columns; ++col)
         {
-            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0);
+            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0, EMPTY_FLAGS);
         }
     }
 
@@ -789,7 +791,7 @@ TYPED_TEST(PhysicsTest, GridShapeRayCast)
     {
         for (int32_t col = 0; col < columns; ++col)
         {
-            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, dmPhysics::GRIDSHAPE_EMPTY_CELL);
+            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, dmPhysics::GRIDSHAPE_EMPTY_CELL, EMPTY_FLAGS);
         }
     }
 
@@ -902,7 +904,7 @@ TYPED_TEST(PhysicsTest, ScaledGrid)
     dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 1);
     dmPhysics::HCollisionShape2D shape_b = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
     typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
-    dmPhysics::SetGridShapeHull(dynamic_co, 0, 0, 0, 0);
+    dmPhysics::SetGridShapeHull(dynamic_co, 0, 0, 0, 0, EMPTY_FLAGS);
 
     for (uint32_t i = 0; i < 40; ++i)
     {
@@ -950,10 +952,10 @@ TYPED_TEST(PhysicsTest, ClearGridShapeHull)
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
     // An "L" of set hulls
-    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0);
-    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 1, 0);
-    dmPhysics::SetGridShapeHull(grid_co, 0, 1, 0, 0);
-    dmPhysics::SetGridShapeHull(grid_co, 0, 1, 1, ~0u); // upper right corner is cleared
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS);
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 1, 0, EMPTY_FLAGS);
+    dmPhysics::SetGridShapeHull(grid_co, 0, 1, 0, 0, EMPTY_FLAGS);
+    dmPhysics::SetGridShapeHull(grid_co, 0, 1, 1, ~0u, EMPTY_FLAGS); // upper right corner is cleared
 
     VisualObject vo_b;
     // the sphere is centered in the upper right quadrant, which is cleared
@@ -973,7 +975,7 @@ TYPED_TEST(PhysicsTest, ClearGridShapeHull)
     ASSERT_EQ(2, TestFixture::m_ContactPointCount);
 
     // Clear the "top" of the "L"
-    dmPhysics::SetGridShapeHull(grid_co, 0, 1, 0, ~0u);
+    dmPhysics::SetGridShapeHull(grid_co, 0, 1, 0, ~0u, EMPTY_FLAGS);
 
     // Reset counts
     TestFixture::m_CollisionCount = 0;
@@ -1024,7 +1026,7 @@ TYPED_TEST(PhysicsTest, GridShapeEmptyHull)
     typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
 
     // A single cell pointing to the empty hull above
-    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0);
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, EMPTY_FLAGS);
 
     VisualObject vo_b;
     // the box is slightly above, half way inside the empty hull
@@ -1040,6 +1042,95 @@ TYPED_TEST(PhysicsTest, GridShapeEmptyHull)
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     ASSERT_EQ(0, TestFixture::m_CollisionCount);
     ASSERT_EQ(0, TestFixture::m_ContactPointCount);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
+// Test that grid shape cells are flipped correctly
+TYPED_TEST(PhysicsTest, GridShapeFlipped)
+{
+    /*
+     * Simplified version of GridShapePolygon
+     */
+    int32_t rows = 1;
+    int32_t columns = 1;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(0, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    const float hull_vertices[] = {  // 1x1 around origo
+                                     0.0f,  0.0f,
+                                     0.5f,  0.0f,
+                                     0.5f,  0.5f,
+                                     0.0f,  0.5f };
+
+    // Single hull
+    const dmPhysics::HullDesc hulls[] = { {0, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 1);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    dmPhysics::HullFlags flags = EMPTY_FLAGS;
+
+    // A single cell pointing to the empty hull above
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, flags);
+
+    VisualObject vo_b;
+    // the sphere is in the upper right quadrant
+    vo_b.m_Position = Point3(9.0f, 9.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_b;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 8.0f);
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, TestFixture::m_CollisionCount);
+
+    flags.m_FlipHorizontal = 1;
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, flags);
+
+    TestFixture::m_CollisionCount = 0;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0, TestFixture::m_CollisionCount);
+
+    flags.m_FlipHorizontal = 0;
+    flags.m_FlipVertical = 1;
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, flags);
+
+    TestFixture::m_CollisionCount = 0;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0, TestFixture::m_CollisionCount);
+
+    flags.m_FlipHorizontal = 1;
+    flags.m_FlipVertical = 1;
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, flags);
+
+    TestFixture::m_CollisionCount = 0;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0, TestFixture::m_CollisionCount);
+
+    flags.m_FlipHorizontal = 0;
+    flags.m_FlipVertical = 0;
+    dmPhysics::SetGridShapeHull(grid_co, 0, 0, 0, 0, flags);
+
+    TestFixture::m_CollisionCount = 0;
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1, TestFixture::m_CollisionCount);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);

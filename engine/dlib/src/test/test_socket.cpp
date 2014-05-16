@@ -149,7 +149,7 @@ static void ServerThread1(void* arg)
 
 TEST(Socket, ClientServer1)
 {
-    dmThread::Thread thread = dmThread::New(&ServerThread1, 0x80000, 0);
+    dmThread::Thread thread = dmThread::New(&ServerThread1, 0x80000, 0, "server");
 
     dmSocket::Socket socket;
     dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &socket);
@@ -184,6 +184,114 @@ TEST(Socket, ClientServer1)
     dmThread::Join(thread);
 }
 
+static void PrintFlags(uint32_t f) {
+    if (f & dmSocket::FLAGS_UP) {
+        printf("UP ");
+    }
+    if (f & dmSocket::FLAGS_RUNNING) {
+        printf("RUNNING ");
+    }
+}
+
+TEST(Socket, Convert)
+{
+    dmSocket::Address a = dmSocket::AddressFromIPString("127.0.0.1");
+    char* ip = dmSocket::AddressToIPString(a);
+    ASSERT_STREQ("127.0.0.1", ip);
+    free(ip);
+}
+
+TEST(Socket, GetIfAddrs)
+{
+    uint32_t count;
+    dmSocket::GetIfAddresses(0, 0, &count);
+    ASSERT_EQ(0U, count);
+
+    dmSocket::IfAddr as[16];
+    dmSocket::GetIfAddresses(as, 16, &count);
+
+    for (uint32_t i = 0; i < count; ++i) {
+        const dmSocket::IfAddr& a = as[i];
+        printf("%s ", a.m_Name);
+
+        if (a.m_Flags & dmSocket::FLAGS_LINK) {
+            printf("LINK %02x:%02x:%02x:%02x:%02x:%02x ",
+                    a.m_MacAddress[0],a.m_MacAddress[1],a.m_MacAddress[2],a.m_MacAddress[3],a.m_MacAddress[4],a.m_MacAddress[5]);
+        }
+
+        if (a.m_Flags & dmSocket::FLAGS_INET) {
+            dmSocket::Address ia = a.m_Address;
+            printf("INET %d.%d.%d.%d ", (ia >> 24) & 0xff, (ia >> 16) & 0xff, (ia >> 8) & 0xff, (ia >> 0) & 0xff);
+        }
+
+        PrintFlags(a.m_Flags);
+        printf("\n");
+    }
+}
+
+TEST(Socket, Timeout)
+{
+    const uint64_t timeout = 50 * 1000;
+    dmSocket::Socket server_socket;
+    dmSocket::Result r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &server_socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::SetReuseAddress(server_socket, true);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+	r = dmSocket::Bind(server_socket, dmSocket::AddressFromIPString("127.0.0.1"), 0);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Listen(server_socket, 1000);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    uint16_t port;
+    dmSocket::Address address;
+    r = dmSocket::GetName(server_socket, &address, &port);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    dmSocket::Socket client_socket;
+    r = dmSocket::New(dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &client_socket);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::SetReceiveTimeout(client_socket, timeout);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::SetSendTimeout(client_socket, timeout);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    r = dmSocket::Connect(client_socket, address, port);
+    ASSERT_EQ(dmSocket::RESULT_OK, r);
+
+    int received;
+    char buf[4096];
+    memset(buf, 0, sizeof(buf));
+
+    for (int i = 0; i < 10; ++i) {
+        uint64_t start = dmTime::GetTime();
+        r = dmSocket::Receive(client_socket, buf, sizeof(buf), &received);
+        uint64_t end = dmTime::GetTime();
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+        ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
+    }
+
+    for (int i = 0; i < 10; ++i) {
+        uint64_t start = dmTime::GetTime();
+        for (int j = 0; j < 10000; ++j) {
+            // Loop to ensure that we fill send buffers
+            r = dmSocket::Send(client_socket, buf, sizeof(buf), &received);
+            if (r != dmSocket::RESULT_OK) {
+                break;
+            }
+        }
+        uint64_t end = dmTime::GetTime();
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, r);
+        ASSERT_GE(end - start, timeout - 2500); // NOTE: Margin of 2500. Required on Linux
+    }
+
+    dmSocket::Delete(server_socket);
+    dmSocket::Delete(client_socket);
+}
 
 int main(int argc, char **argv)
 {

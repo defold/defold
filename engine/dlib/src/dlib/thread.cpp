@@ -4,7 +4,29 @@
 namespace dmThread
 {
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
-    Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg)
+    struct ThreadData
+    {
+        ThreadStart m_Start;
+        const char* m_Name;
+        void*       m_Arg;
+    };
+
+    static void ThreadStartProxy(void* arg)
+    {
+        ThreadData* data = (ThreadData*) arg;
+#if defined(__MACH__)
+        int ret = pthread_setname_np(data->m_Name);
+        assert(ret == 0);
+#elif defined(__EMSCRIPTEN__)
+#else
+        int ret = pthread_setname_np(pthread_self(), data->m_Name);
+        assert(ret == 0);
+#endif
+        data->m_Start(data->m_Arg);
+        delete data;
+    }
+
+    Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
         pthread_attr_t attr;
         int ret = pthread_attr_init(&attr);
@@ -20,10 +42,16 @@ namespace dmThread
 
         pthread_t thread;
 
-        ret = pthread_create(&thread, &attr, (void* (*)(void*)) thread_start, arg);
+        ThreadData* thread_data = new ThreadData;
+        thread_data->m_Start = thread_start;
+        thread_data->m_Name = name;
+        thread_data->m_Arg = arg;
+
+        ret = pthread_create(&thread, &attr, (void* (*)(void*)) ThreadStartProxy, thread_data);
         assert(ret == 0);
         ret = pthread_attr_destroy(&attr);
         assert(ret == 0);
+
 
         return thread;
     }
@@ -61,8 +89,9 @@ namespace dmThread
 
 
 #elif defined(_WIN32)
-    Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg)
+    Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
+        (void*) name;
         DWORD thread_id;
         HANDLE thread = CreateThread(NULL, stack_size,
                                      (LPTHREAD_START_ROUTINE) thread_start,

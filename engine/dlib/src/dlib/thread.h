@@ -28,13 +28,15 @@ namespace dmThread
     typedef void (*ThreadStart)(void*);
 
     /**
-     * Create a new thread
+     * Create a new named thread
+     * @note thread name currently not supported on win32
      * @param thread_start Thread entry function
      * @param stack_size Stack size
      * @param arg Thread argument
+     * @param name Thread name
      * @return Thread handle
      */
-    Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg);
+    Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name);
 
     /**
      * Join thread

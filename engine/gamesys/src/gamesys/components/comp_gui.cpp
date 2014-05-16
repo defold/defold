@@ -156,6 +156,17 @@ namespace dmGameSystem
             }
         }
 
+        uint32_t layer_count = scene_desc->m_Layers.m_Count;
+        for (uint32_t i = 0; i < layer_count; ++i)
+        {
+            const char* name = scene_desc->m_Layers[i].m_Name;
+            dmGui::Result r = dmGui::AddLayer(scene, name);
+            if (r != dmGui::RESULT_OK) {
+                dmLogError("Unable to add layer '%s' to scene (%d)", name,  r);
+                return false;
+            }
+        }
+
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
             const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
@@ -192,6 +203,15 @@ namespace dmGameSystem
                         result = false;
                     }
                 }
+                if (node_desc->m_Layer != 0x0 && *node_desc->m_Layer != '\0')
+                {
+                    dmGui::Result gui_result = dmGui::SetNodeLayer(scene, n, node_desc->m_Layer);
+                    if (gui_result != dmGui::RESULT_OK)
+                    {
+                        dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        result = false;
+                    }
+                }
 
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
@@ -208,6 +228,25 @@ namespace dmGameSystem
             else
             {
                 result = false;
+            }
+        }
+        if (result)
+        {
+            for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
+            {
+                const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
+                dmGui::HNode n = dmGui::GetNodeById(scene, node_desc->m_Id);
+                dmGui::HNode p = dmGui::INVALID_HANDLE;
+                if (node_desc->m_Parent != 0x0 && *node_desc->m_Parent != 0)
+                {
+                    p = dmGui::GetNodeById(scene, node_desc->m_Parent);
+                    if (p == dmGui::INVALID_HANDLE)
+                    {
+                        dmLogError("The parent '%s' could not be found in the scene.", node_desc->m_Parent);
+                        result = false;
+                    }
+                }
+                dmGui::SetNodeParent(scene, n, p);
             }
         }
         return result;
@@ -531,6 +570,7 @@ namespace dmGameSystem
             prev_node_type = node_type;
             prev_blend_mode = blend_mode;
             prev_texture = texture;
+            prev_font = font;
 
             ++i;
         }

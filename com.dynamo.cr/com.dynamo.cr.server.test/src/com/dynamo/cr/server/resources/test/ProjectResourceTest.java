@@ -259,18 +259,15 @@ public class ProjectResourceTest extends AbstractResourceTest {
         assertEquals(403, response.getStatus());
 
         response = memberProjectsWebResource.path("/members").post(ClientResponse.class, nonMemberEmail);
-        assertEquals(403, response.getStatus());
-
-        response = ownerProjectsWebResource.path("/members").post(ClientResponse.class, nonMemberEmail);
         assertEquals(204, response.getStatus());
 
         // Add again, verify the list is not increased
         int membersCount = ownerProjectClient.getProjectInfo().getMembersCount();
         assertEquals(3, membersCount);
-        ownerProjectsWebResource.path("/members").post(nonMemberEmail);
+        memberProjectsWebResource.path("/members").post(nonMemberEmail);
         assertEquals(membersCount, ownerProjectClient.getProjectInfo().getMembersCount());
 
-        response = ownerProjectsWebResource.path("/members").post(ClientResponse.class, "nonexisting@foo.com");
+        response = memberProjectsWebResource.path("/members").post(ClientResponse.class, "nonexisting@foo.com");
         assertEquals(404, response.getStatus());
     }
 

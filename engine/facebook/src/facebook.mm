@@ -12,6 +12,8 @@ extern uint32_t CLOSE_PNG_SIZE;
 extern unsigned char CLOSEat2X_PNG[];
 extern uint32_t CLOSEat2X_PNG_SIZE;
 
+static void InitSession();
+
 @interface UIImage (Defold)
     + (id)imageNamedX:(NSString *)name;
 @end
@@ -65,14 +67,11 @@ struct Facebook
         memset(this, 0, sizeof(*this));
         m_Callback = LUA_NOREF;
         m_Self = LUA_NOREF;
-        m_InitCount = 0;
     }
     FBSession* m_Session;
     NSDictionary* m_Me;
-    int m_InitCount;
     int m_Callback;
     int m_Self;
-    id<UIApplicationDelegate> m_EngineDelegate;
     id<UIApplicationDelegate> m_Delegate;
 };
 
@@ -93,6 +92,7 @@ Facebook g_Facebook;
                         openURL:(NSURL *)url
                         sourceApplication:(NSString *)sourceApplication
                         annotation:(id)annotation  {
+        InitSession();
         return [FBAppCall handleOpenURL:url
                 sourceApplication:sourceApplication
                 withSession:g_Facebook.m_Session];
@@ -100,16 +100,11 @@ Facebook g_Facebook;
 
     - (void)applicationDidBecomeActive:(UIApplication *)application {
         [FBAppCall handleDidBecomeActiveWithSession:g_Facebook.m_Session];
-        [g_Facebook.m_EngineDelegate applicationDidBecomeActive: application];
-    }
-
-    - (void)applicationWillResignActive:(UIApplication *)application {
-        [g_Facebook.m_EngineDelegate applicationWillResignActive: application];
     }
 
     -(BOOL) application:(UIApplication *)application handleOpenURL:(NSURL *)url {
-        [g_Facebook.m_Session handleOpenURL:url];
-        return YES;
+        InitSession();
+        return [FBAppCall handleOpenURL: url sourceApplication: @"Defold" withSession: g_Facebook.m_Session];
     }
 
 @end
@@ -211,6 +206,51 @@ static void RunCallback(lua_State*L, NSError* error)
     }
 }
 
+static void RunDialogResultCallback(lua_State*L, const char* url, NSError* error)
+{
+    if (g_Facebook.m_Callback != LUA_NOREF) {
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+
+        lua_createtable(L, 0, 1);
+        lua_pushliteral(L, "url");
+        if (url) {
+            lua_pushstring(L, url);
+        } else {
+            lua_pushnil(L);
+        }
+        lua_rawset(L, -3);
+
+        PushError(L, error);
+
+        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        if (ret != 0) {
+            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+        assert(top == lua_gettop(L));
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Callback);
+        luaL_unref(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        g_Facebook.m_Callback = LUA_NOREF;
+        g_Facebook.m_Self = LUA_NOREF;
+    } else {
+        dmLogError("No callback set");
+    }
+}
+
 static void AppendArray(lua_State*L, NSMutableArray* array, int table)
 {
     lua_pushnil(L);
@@ -221,10 +261,23 @@ static void AppendArray(lua_State*L, NSMutableArray* array, int table)
     }
 }
 
+static void InitSession()
+{
+    if (g_Facebook.m_Session == 0) {
+        // This is done lazily to not initialize the FB SDK until we actually need it
+        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"basic_info", nil];
+        g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
+        [permissions release];
+    }
+}
+
+
 int Facebook_Login(lua_State* L)
 {
     int top = lua_gettop(L);
     VerifyCallback(L);
+
+    InitSession();
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
     lua_pushvalue(L, 1);
@@ -245,9 +298,6 @@ int Facebook_Login(lua_State* L)
         [permissions release];
 
         FBSession.activeSession = g_Facebook.m_Session;
-
-        // Temporarily replace AppDelegate. Considered this a hack!
-        [UIApplication sharedApplication].delegate = g_Facebook.m_Delegate;
 
         [g_Facebook.m_Session openWithCompletionHandler:^(FBSession *session,
                                               FBSessionState status,
@@ -277,9 +327,6 @@ int Facebook_Login(lua_State* L)
                 } else if (status == FBSessionStateClosedLoginFailed) {
                     RunStateCallback(L, status, error);
                 }
-
-                // Restore original AppDelegate
-                [UIApplication sharedApplication].delegate = g_Facebook.m_EngineDelegate;
             }
         }];
     } else {
@@ -308,6 +355,8 @@ int Facebook_RequestReadPermissions(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
+    InitSession();
+
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
@@ -320,14 +369,9 @@ int Facebook_RequestReadPermissions(lua_State* L)
         NSMutableArray *permissions = [[NSMutableArray alloc] init];
         AppendArray(L, permissions, 1);
 
-        // Temporarily replace AppDelegate. Considered this a hack!
-        [UIApplication sharedApplication].delegate = g_Facebook.m_Delegate;
-
         [g_Facebook.m_Session requestNewReadPermissions: permissions completionHandler:^(FBSession *session,
                                               NSError *error) {
             RunCallback(L, error);
-            // Restore original AppDelegate
-            [UIApplication sharedApplication].delegate = g_Facebook.m_EngineDelegate;
         }];
 
         [permissions release];
@@ -344,6 +388,8 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
+    InitSession();
+
     luaL_checktype(L, 1, LUA_TTABLE);
     FBSessionDefaultAudience audience = (FBSessionDefaultAudience) luaL_checkinteger(L, 2);
     luaL_checktype(L, 3, LUA_TFUNCTION);
@@ -357,14 +403,9 @@ int Facebook_RequestPublishPermissions(lua_State* L)
         NSMutableArray *permissions = [[NSMutableArray alloc] init];
         AppendArray(L, permissions, 1);
 
-        // Temporarily replace AppDelegate. Considered this a hack!
-        [UIApplication sharedApplication].delegate = g_Facebook.m_Delegate;
-
         [g_Facebook.m_Session requestNewPublishPermissions: permissions defaultAudience: audience completionHandler:^(FBSession *session,
                                               NSError *error) {
             RunCallback(L, error);
-            // Restore original AppDelegate
-            [UIApplication sharedApplication].delegate = g_Facebook.m_EngineDelegate;
         }];
 
         [permissions release];
@@ -378,6 +419,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
 int Facebook_AccessToken(lua_State* L)
 {
+    InitSession();
     if (g_Facebook.m_Session.isOpen) {
         FBSession* s = g_Facebook.m_Session;
         const char* token = [s.accessTokenData.accessToken UTF8String];
@@ -396,6 +438,7 @@ int Facebook_Permissions(lua_State* L)
     int top = lua_gettop(L);
 
     lua_newtable(L);
+    InitSession();
     if (g_Facebook.m_Session) {
         NSArray* permissions = g_Facebook.m_Session.permissions;
         int i = 1;
@@ -438,7 +481,7 @@ int Facebook_Me(lua_State* L)
  * @name show_dialog
  * @param dialog dialog to show, "feed", "apprequests", etc
  * @param param table with dialog parameters, "title", "message", etc
- * @param callback function called, with parameters (self, error), when the dialog is closed.
+ * @param callback function called, with parameters (self, result, error), when the dialog is closed. Result is table with an url-field set.
  */
 static int Facebook_ShowDialog(lua_State* L)
 {
@@ -476,11 +519,18 @@ static int Facebook_ShowDialog(lua_State* L)
              dialog: [NSString stringWithUTF8String: dialog]
              parameters: params
              handler:^(FBWebDialogResult result, NSURL *resultURL, NSError *error) {
-                 RunCallback(L, error);
+                 RunDialogResultCallback(L, [[resultURL absoluteString] UTF8String], error);
              }
         ];
     } else {
-        dmLogWarning("No facebook session active");
+        const char* msg = "No facebook session active";
+        dmLogWarning(msg);
+
+        NSMutableDictionary *errorDetail = [NSMutableDictionary dictionary];
+        [errorDetail setValue:@"Failed to do something wicked" forKey:NSLocalizedDescriptionKey];
+        NSError* error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
+
+        RunDialogResultCallback(L, 0, error);
     }
 
     assert(top == lua_gettop(L));
@@ -500,27 +550,37 @@ static const luaL_reg Facebook_methods[] =
     {0, 0}
 };
 
+dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
+{
+    g_Facebook.m_Delegate = [[FacebookAppDelegate alloc] init];
+    dmExtension::RegisterUIApplicationDelegate(g_Facebook.m_Delegate);
+
+    SwizzleImageNamed();
+
+    // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
+    // Better solution?
+    const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
+    [FBSettings setDefaultAppID: [NSString stringWithUTF8String: app_id]];
+    [FBSettings setShouldAutoPublishInstall: false];
+
+    // The session is created lazily, check InitSession
+    g_Facebook.m_Session = 0;
+
+    return dmExtension::RESULT_OK;
+}
+
+dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
+{
+    if (g_Facebook.m_Session) {
+        dmExtension::UnregisterUIApplicationDelegate(g_Facebook.m_Delegate);
+        [g_Facebook.m_Session release];
+        g_Facebook.m_Session = 0;
+    }
+    return dmExtension::RESULT_OK;
+}
+
 dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    // TODO: Life-cycle managaemnt is *budget*. No notion of "static initalization"
-    // Extend extension functionality with per system initalization?
-    if (g_Facebook.m_InitCount == 0) {
-        g_Facebook.m_EngineDelegate = [UIApplication sharedApplication].delegate;
-        g_Facebook.m_Delegate = [[FacebookAppDelegate alloc] init];
-
-        SwizzleImageNamed();
-
-        // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
-        // Better solution?
-        const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
-        [FBSettings setDefaultAppID: [NSString stringWithUTF8String: app_id]];
-
-        NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"basic_info", nil];
-        g_Facebook.m_Session = [[FBSession alloc] initWithPermissions:permissions];
-        [permissions release];
-    }
-    g_Facebook.m_InitCount++;
-
     lua_State*L = params->m_L;
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, Facebook_methods);
@@ -549,12 +609,7 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 
 dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
 {
-    --g_Facebook.m_InitCount;
-    if (g_Facebook.m_InitCount == 0 && g_Facebook.m_Session) {
-        [g_Facebook.m_Session release];
-        g_Facebook.m_Session = 0;
-    }
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(FacebookExt, "Facebook", 0, 0, InitializeFacebook, FinalizeFacebook)
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, FinalizeFacebook)

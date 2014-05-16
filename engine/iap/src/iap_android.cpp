@@ -48,7 +48,6 @@ struct Command
     uint32_t m_Command;
     int32_t  m_ResponseCode;
     void*    m_Data1;
-    void*    m_Data2;
 };
 
 static JNIEnv* Attach()
@@ -216,9 +215,10 @@ static const luaL_reg IAP_methods[] =
 };
 
 // NOTE: Copy-paste from script_json
-static int ToLua(lua_State*L, dmJson::Document* doc, const char* json, int index)
+static int ToLua(lua_State*L, dmJson::Document* doc, int index)
 {
     const dmJson::Node& n = doc->m_Nodes[index];
+    const char* json = doc->m_Json;
     int l = n.m_End - n.m_Start;
     switch (n.m_Type)
     {
@@ -243,7 +243,7 @@ static int ToLua(lua_State*L, dmJson::Document* doc, const char* json, int index
         lua_createtable(L, n.m_Size, 0);
         ++index;
         for (int i = 0; i < n.m_Size; ++i) {
-            index = ToLua(L, doc, json, index);
+            index = ToLua(L, doc, index);
             lua_rawseti(L, -2, i+1);
         }
         return index;
@@ -252,8 +252,8 @@ static int ToLua(lua_State*L, dmJson::Document* doc, const char* json, int index
         lua_createtable(L, 0, n.m_Size);
         ++index;
         for (int i = 0; i < n.m_Size; i += 2) {
-            index = ToLua(L, doc, json, index);
-            index = ToLua(L, doc, json, index);
+            index = ToLua(L, doc, index);
+            index = ToLua(L, doc, index);
             lua_rawset(L, -3);
         }
 
@@ -281,35 +281,39 @@ static void PushError(lua_State*L, const char* error)
     }
 }
 
-JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__Ljava_lang_String_2(JNIEnv* env, jobject, jstring productList)
+JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onProductsResult__ILjava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring productList)
 {
     const char* pl = env->GetStringUTFChars(productList, 0);
 
     Command cmd;
     cmd.m_Command = CMD_PRODUCT_RESULT;
-    cmd.m_Data1 = strdup(pl);
+    cmd.m_ResponseCode = responseCode;
+    if (pl)
+    {
+        cmd.m_Data1 = strdup(pl);
+    }
     if (write(g_IAP.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
     env->ReleaseStringUTFChars(productList, pl);
 }
 
-JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onResult__ILjava_lang_String_2Ljava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring purchaseData, jstring dataSignature)
+JNIEXPORT void JNICALL Java_com_defold_iap_IapJNI_onPurchaseResult__ILjava_lang_String_2(JNIEnv* env, jobject, jint responseCode, jstring purchaseData)
 {
     const char* pd = env->GetStringUTFChars(purchaseData, 0);
-    const char* ds = env->GetStringUTFChars(dataSignature, 0);
 
     Command cmd;
     cmd.m_Command = CMD_PURCHASE_RESULT;
     cmd.m_ResponseCode = responseCode;
 
-    cmd.m_Data1 = strdup(pd);
-    cmd.m_Data2 = strdup(ds);
+    if (pd)
+    {
+        cmd.m_Data1 = strdup(pd);
+    }
     if (write(g_IAP.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
         dmLogFatal("Failed to write command");
     }
     env->ReleaseStringUTFChars(purchaseData, pd);
-    env->ReleaseStringUTFChars(purchaseData, ds);
 }
 
 #ifdef __cplusplus
@@ -335,7 +339,7 @@ void HandleProductResult(const Command* cmd)
 
     if (!dmScript::IsInstanceValid(L))
     {
-        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        dmLogError("Could not run IAP callback because the instance has been deleted.");
         lua_pop(L, 2);
         assert(top == lua_gettop(L));
         return;
@@ -345,7 +349,7 @@ void HandleProductResult(const Command* cmd)
         dmJson::Document doc;
         dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-            ToLua(L, &doc, (const char*) cmd->m_Data1, 0);
+            ToLua(L, &doc, 0);
             lua_pushnil(L);
         } else {
             dmLogError("Failed to parse product response (%d)", r);
@@ -394,18 +398,17 @@ void HandlePurchaseResult(const Command* cmd)
 
     if (!dmScript::IsInstanceValid(L))
     {
-        dmLogError("Could not run facebook callback because the instance has been deleted.");
+        dmLogError("Could not run IAP callback because the instance has been deleted.");
         lua_pop(L, 2);
         assert(top == lua_gettop(L));
         return;
     }
 
-    // TODO: Pass data-signature? (cmd.m_Data2)
     if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
         dmJson::Document doc;
         dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-            ToLua(L, &doc, (const char*) cmd->m_Data1, 0);
+            ToLua(L, &doc, 0);
             lua_pushnil(L);
         } else {
             dmLogError("Failed to parse purchase response (%d)", r);
@@ -450,9 +453,6 @@ static int LooperCallback(int fd, int events, void* data)
 
         if (cmd.m_Data1) {
             free(cmd.m_Data1);
-        }
-        if (cmd.m_Data2) {
-            free(cmd.m_Data2);
         }
     }
     else {

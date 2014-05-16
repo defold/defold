@@ -29,6 +29,13 @@ namespace dmGameSystem
             uint32_t    m_Visible : 1;
         };
 
+        struct Flags
+        {
+            uint16_t    m_FlipHorizontal : 1;
+            uint16_t    m_FlipVertical : 1;
+            uint16_t    m_Padding : 14;
+        };
+
         TileGridComponent();
 
         dmArray<Layer>              m_Layers;
@@ -37,6 +44,7 @@ namespace dmGameSystem
         dmGameObject::HInstance     m_Instance;
         TileGridResource*           m_TileGridResource;
         uint16_t*                   m_Cells;
+        Flags*                      m_CellFlags;
         uint16_t                    m_RegionsX;
         uint16_t                    m_RegionsY;
         dmArray<TileGridRegion>     m_Regions;

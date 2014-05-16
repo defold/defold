@@ -34,11 +34,12 @@ dmGameObject::CreateResult CompNoUserDataDestroy(const dmGameObject::ComponentDe
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-void CompNoUserDataSetProperties(const dmGameObject::ComponentSetPropertiesParams& params)
+dmGameObject::PropertyResult CompNoUserDataSetProperties(const dmGameObject::ComponentSetPropertiesParams& params)
 {
     // The test is that this function should never be reached
     dmGameObject::HProperties properties = (dmGameObject::HProperties)*params.m_UserData;
     SetPropertySet(properties, dmGameObject::PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
+    return dmGameObject::PROPERTY_RESULT_OK;
 }
 
 class PropsTest : public ::testing::Test

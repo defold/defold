@@ -32,6 +32,9 @@ function init(self)
     -- Ok
     res = tilemap.set_tile("#tilemap", "layer", 1, 1, 0)
     assert(res == true)
+    -- Flips
+    res = tilemap.set_tile("#tilemap", "layer", 1, 1, 0, true, true)
+    assert(res == true)
     -- out of range
     res = tilemap.set_tile("#tilemap", "layer", 1, 2, 0)
     assert(res == false)

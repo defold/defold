@@ -492,7 +492,7 @@ namespace dmGameObject
     /**
      * Set a property set for the component.
      */
-    typedef void (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
+    typedef PropertyResult (*ComponentSetProperties)(const ComponentSetPropertiesParams& params);
 
     /**
      * Parameters to ComponentGetProperty callback.
@@ -983,10 +983,11 @@ namespace dmGameObject
         PLAYBACK_NONE          = 0,
         PLAYBACK_ONCE_FORWARD  = 1,
         PLAYBACK_ONCE_BACKWARD = 2,
-        PLAYBACK_LOOP_FORWARD  = 3,
-        PLAYBACK_LOOP_BACKWARD = 4,
-        PLAYBACK_LOOP_PINGPONG = 5,
-        PLAYBACK_COUNT = 6,
+        PLAYBACK_ONCE_PINGPONG = 3,
+        PLAYBACK_LOOP_FORWARD  = 4,
+        PLAYBACK_LOOP_BACKWARD = 5,
+        PLAYBACK_LOOP_PINGPONG = 6,
+        PLAYBACK_COUNT = 7,
     };
 
     PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,

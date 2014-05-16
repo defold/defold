@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include "../sound.h"
+#include "../sound_codec.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
 extern unsigned char CLICK_TRACK_OGG[];
@@ -23,6 +24,8 @@ extern unsigned char DOOR_OPENING_WAV[];
 extern uint32_t DOOR_OPENING_WAV_SIZE;
 extern unsigned char TONE_MONO_22050_OGG[];
 extern uint32_t TONE_MONO_22050_OGG_SIZE;
+extern unsigned char BOOSTER_ON_SFX_WAV[];
+extern uint32_t BOOSTER_ON_SFX_WAV_SIZE;
 
 class dmSoundTest : public ::testing::Test
 {
@@ -70,8 +73,10 @@ public:
     virtual void SetUp()
     {
         dmSound::InitializeParams params;
+        params.m_OutputDevice = "default";
         params.m_MaxBuffers = MAX_BUFFERS;
         params.m_MaxSources = MAX_SOURCES;
+        params.m_FrameCount = 2048;
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -184,6 +189,57 @@ TEST_F(dmSoundTest, Play)
     }
 
     r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+TEST_F(dmSoundTest, Polyphony)
+{
+    dmSound::HSoundData sd = 0;
+    dmSound::Result r = dmSound::NewSoundData(BOOSTER_ON_SFX_WAV, BOOSTER_ON_SFX_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::HSoundInstance instance1 = 0;
+    r = dmSound::NewSoundInstance(sd, &instance1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    dmSound::HSoundInstance instance2 = 0;
+    r = dmSound::NewSoundInstance(sd, &instance2);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    uint64_t start = 0;
+    uint64_t end = 0;
+
+    start = dmTime::GetTime();
+    r = dmSound::Play(instance1);
+    end = dmTime::GetTime();
+
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    dmTime::Sleep(100 * 1000);
+
+    start = dmTime::GetTime();
+    r = dmSound::Play(instance2);
+    end = dmTime::GetTime();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Update();
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    while (dmSound::IsPlaying(instance1) || dmSound::IsPlaying(instance2))
+    {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        dmTime::Sleep(1000);
+    }
+
+    dmTime::Sleep(1000 * 1000);
+
+
+    r = dmSound::DeleteSoundInstance(instance1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(instance2);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::DeleteSoundData(sd);
@@ -518,6 +574,127 @@ TEST_F(dmSoundTest, OggDecompressionRate)
     free(buffer);
     stb_vorbis_close(vorbis);
 }
+
+TEST_F(dmSoundTest, WavCodec)
+{
+    dmSoundCodec::NewCodecContextParams params;
+    dmSoundCodec::HCodecContext codec = dmSoundCodec::New(&params);
+    ASSERT_NE((void*) 0, codec);
+
+    dmSoundCodec::Result r;
+    dmSoundCodec::Info info;
+    dmSoundCodec::HDecoder decoder;
+
+    r = dmSoundCodec::NewDecoder(codec, dmSoundCodec::FORMAT_WAV, m_DrumLoop, m_DrumLoopSize, &decoder);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    dmSoundCodec::GetInfo(codec, decoder, &info);
+    ASSERT_EQ(44100U, info.m_Rate);
+    ASSERT_EQ(1, (int) info.m_Channels);
+    ASSERT_EQ(8, info.m_BitsPerSample);
+    ASSERT_EQ(42158U, info.m_Size);
+
+    char buf[2048];
+    uint32_t decoded;
+    uint32_t total;
+
+    total = 0;
+    do {
+        r = dmSoundCodec::Decode(codec, decoder, buf, sizeof(buf), &decoded);
+        total += decoded;
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    } while (decoded > 0);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    ASSERT_EQ(info.m_Size, total);
+
+    dmSoundCodec::DeleteDecoder(codec, decoder);
+
+    r = dmSoundCodec::NewDecoder(codec, dmSoundCodec::FORMAT_WAV, m_OneFootStep, m_OneFootStepSize, &decoder);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    dmSoundCodec::GetInfo(codec, decoder, &info);
+    ASSERT_EQ(44100U, info.m_Rate);
+    ASSERT_EQ(2, (int) info.m_Channels);
+    ASSERT_EQ(16, info.m_BitsPerSample);
+    ASSERT_EQ(27904U * 2 * 2, info.m_Size);
+
+    total = 0;
+    do {
+        r = dmSoundCodec::Decode(codec, decoder, buf, sizeof(buf), &decoded);
+        total += decoded;
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    } while (decoded > 0);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    ASSERT_EQ(info.m_Size, total);
+
+    dmSoundCodec::DeleteDecoder(codec, decoder);
+
+    dmSoundCodec::Delete(codec);
+}
+
+TEST_F(dmSoundTest, VorbisCodec)
+{
+    dmSoundCodec::NewCodecContextParams params;
+    dmSoundCodec::HCodecContext codec = dmSoundCodec::New(&params);
+    ASSERT_NE((void*) 0, codec);
+
+    dmSoundCodec::Result r;
+    dmSoundCodec::Info info;
+    dmSoundCodec::HDecoder decoder;
+
+    r = dmSoundCodec::NewDecoder(codec, dmSoundCodec::FORMAT_VORBIS, TONE_MONO_22050_OGG, TONE_MONO_22050_OGG_SIZE, &decoder);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    dmSoundCodec::GetInfo(codec, decoder, &info);
+    ASSERT_EQ(22050U, info.m_Rate);
+    ASSERT_EQ(1, (int) info.m_Channels);
+    ASSERT_EQ(16, info.m_BitsPerSample);
+    ASSERT_EQ(0U, info.m_Size);
+
+    char buf[2048];
+    uint32_t decoded;
+    uint32_t total;
+
+    total = 0;
+    do {
+        r = dmSoundCodec::Decode(codec, decoder, buf, sizeof(buf), &decoded);
+        total += decoded;
+        ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    } while (decoded > 0);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+    // NOTE: 220500 hard-coded. We don't know the total size from meta-data
+    ASSERT_EQ(220500U, total);
+
+    dmSoundCodec::DeleteDecoder(codec, decoder);
+    dmSoundCodec::Delete(codec);
+}
+
+TEST_F(dmSoundTest, WavDecodeBug)
+{
+    dmSoundCodec::NewCodecContextParams params;
+    dmSoundCodec::HCodecContext codec = dmSoundCodec::New(&params);
+    ASSERT_NE((void*) 0, codec);
+
+    dmSoundCodec::Result r;
+    dmSoundCodec::HDecoder decoder;
+
+    r = dmSoundCodec::NewDecoder(codec, dmSoundCodec::FORMAT_WAV, m_SineWave, m_SineWaveSize, &decoder);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+
+    const int buf_size = 1024 * 1024;
+    char* buf = (char*) malloc(buf_size);
+    uint32_t decoded;
+    r = dmSoundCodec::Decode(codec, decoder, buf, buf_size, &decoded);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+
+    int16_t* shorts = (int16_t*) buf;
+    // NOTE: Values by inspection of buffer when writing test
+    ASSERT_EQ((int) 0, (int) shorts[0]);
+    ASSERT_EQ((int) -2, (int) shorts[decoded/2-1]);
+
+    dmSoundCodec::DeleteDecoder(codec, decoder);
+    free(buf);
+
+    dmSoundCodec::Delete(codec);
+}
+
 
 int main(int argc, char **argv)
 {

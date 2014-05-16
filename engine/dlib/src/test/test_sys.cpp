@@ -75,8 +75,10 @@ TEST(dmSys, GetSystemInfo)
     dmLogInfo("SystemName: '%s'", info.m_SystemName);
     dmLogInfo("SystemVersion: '%s'", info.m_SystemVersion);
     dmLogInfo("Language: '%s'", info.m_Language);
+    dmLogInfo("Device Language: '%s'", info.m_DeviceLanguage);
     dmLogInfo("Territory: '%s'", info.m_Territory);
     dmLogInfo("GMT offset: '%d'", info.m_GmtOffset);
+    dmLogInfo("Device identifier: '%d'", info.m_DeviceIdentifier);
 }
 
 TEST(dmSys, LoadResource)

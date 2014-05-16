@@ -80,6 +80,9 @@ public class ParticleFXNode extends ComponentTypeNode {
                 case PLAYBACK_ONCE_BACKWARD:
                     data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_BACKWARD;
                     break;
+                case PLAYBACK_ONCE_PINGPONG:
+                    data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_PINGPONG;
+                    break;
                 case PLAYBACK_LOOP_FORWARD:
                     data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_LOOP_FORWARD;
                     break;

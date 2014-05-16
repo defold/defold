@@ -214,13 +214,14 @@ public class RLogTest {
         // Sha1 must be equal
         assertEquals(issue1.getSha1(), issue2.get(0).getSha1());
 
+        int maxDays = 1000;
         // Mark issues as fixed and validte
-        assertEquals(2, LogModel.getActiveIssues().size());
+        assertEquals(2, LogModel.getActiveIssues(maxDays).size());
         markFixed(issue1);
-        assertEquals(1, LogModel.getActiveIssues().size());
+        assertEquals(1, LogModel.getActiveIssues(maxDays).size());
         markFixed(issue2.get(0));
         // All fixed and active count is now zero
-        assertEquals(0, LogModel.getActiveIssues().size());
+        assertEquals(0, LogModel.getActiveIssues(maxDays).size());
         // All fixed but the total count is still two
         assertEquals(2, issueCount());
     }

@@ -102,7 +102,7 @@ def build(bld):
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script_http',
-                                       source = 'test_script_http.cpp test_http.lua')
+                                       source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
 
     test_script_http.install_path = None
 

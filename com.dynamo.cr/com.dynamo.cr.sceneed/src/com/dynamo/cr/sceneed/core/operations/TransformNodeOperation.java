@@ -3,8 +3,6 @@ package com.dynamo.cr.sceneed.core.operations;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.vecmath.Matrix4d;
-
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.commands.operations.AbstractOperation;
 import org.eclipse.core.runtime.IAdaptable;
@@ -14,17 +12,25 @@ import org.eclipse.core.runtime.Status;
 
 import com.dynamo.cr.sceneed.core.Node;
 
-public class TransformNodeOperation extends AbstractOperation
+public class TransformNodeOperation<T> extends AbstractOperation
 {
-    private List<Matrix4d> originalTransforms;
-    private List<Matrix4d> newTransforms;
-    private List<Node> nodes;
+    public interface ITransformer<T> {
+        T get(Node n);
+        void set(Node n, T value);
+    }
 
-    public TransformNodeOperation(String label, List<Node> nodes, List<Matrix4d> originaTransforms, List<Matrix4d> newTransforms) {
+    private List<T> originalTransforms;
+    private List<T> newTransforms;
+    private List<Node> nodes;
+    private ITransformer<T> transformer;
+
+    public TransformNodeOperation(String label, ITransformer<T> transformer, List<Node> nodes,
+            List<T> originaTransforms, List<T> newTransforms) {
         super(label);
         this.nodes = new ArrayList<Node>(nodes);
-        this.originalTransforms = new ArrayList<Matrix4d>(originaTransforms);
-        this.newTransforms = new ArrayList<Matrix4d>(newTransforms);
+        this.originalTransforms = new ArrayList<T>(originaTransforms);
+        this.newTransforms = new ArrayList<T>(newTransforms);
+        this.transformer = transformer;
     }
 
     @Override
@@ -32,7 +38,7 @@ public class TransformNodeOperation extends AbstractOperation
     {
         int i = 0;
         for (Node n : nodes) {
-            n.setLocalTransform(newTransforms.get(i++));
+            this.transformer.set(n, newTransforms.get(i++));
         }
         return Status.OK_STATUS;
     }
@@ -42,7 +48,7 @@ public class TransformNodeOperation extends AbstractOperation
     {
         int i = 0;
         for (Node n : nodes) {
-            n.setLocalTransform(newTransforms.get(i++));
+            this.transformer.set(n, newTransforms.get(i++));
         }
         return Status.OK_STATUS;
     }
@@ -52,7 +58,7 @@ public class TransformNodeOperation extends AbstractOperation
     {
         int i = 0;
         for (Node n : nodes) {
-            n.setLocalTransform(originalTransforms.get(i++));
+            this.transformer.set(n, originalTransforms.get(i++));
         }
         return Status.OK_STATUS;
     }

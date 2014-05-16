@@ -106,6 +106,47 @@ public class AnimationTest {
     }
 
     @Test
+    public void testPlaybackOncePingPong() {
+        AnimationNode node = new AnimationNode();
+        node.setStartTile(1);
+        node.setEndTile(4);
+        node.setPlayback(Playback.PLAYBACK_ONCE_PINGPONG);
+        node.setFps(30);
+
+        float dt = 1.0f / 30;
+
+        // Test boundaries
+        node.setCursor(0 * dt);
+        assertThat(node.getCurrentTile(), is(1));
+        node.setCursor(6 * dt);
+        assertThat(node.getCurrentTile(), is(2));
+        assertTrue(node.hasFinished());
+
+        // Test stepping
+        float cursor = 0.5f * dt;
+        for (int i = 0; i < 4; ++i) {
+            node.setCursor(cursor);
+            assertThat(node.getCurrentTile(), is(i + 1));
+            cursor += dt;
+        }
+        for (int i = 0; i < 2; ++i) {
+            node.setCursor(cursor);
+            assertThat(node.getCurrentTile(), is(3 - i));
+            cursor += dt;
+        }
+        assertFalse(node.hasFinished());
+
+        // Overflow
+        node.setCursor(7.0f * dt);
+        assertThat(node.getCurrentTile(), is(2));
+        assertTrue(node.hasFinished());
+
+        // Underflow
+        node.setCursor(-1 * dt);
+        assertThat(node.getCurrentTile(), is(1));
+    }
+
+    @Test
     public void testPlaybackLoopForward() {
         AnimationNode node = new AnimationNode();
         node.setStartTile(1);

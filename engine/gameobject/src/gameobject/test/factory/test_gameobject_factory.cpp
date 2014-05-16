@@ -116,6 +116,36 @@ TEST_F(FactoryTest, FactoryProperties)
     ASSERT_NE((void*)0, instance);
 }
 
+TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
+{
+    lua_State* L = dmGameObject::GetLuaState();
+    lua_newtable(L);
+    lua_pushliteral(L, "number");
+    lua_pushliteral(L, "fail");
+    lua_rawset(L, -3);
+    char buffer[256];
+    uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
+    lua_pop(L, 1);
+    dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), 2.0f);
+    ASSERT_EQ((void*)0, instance);
+}
+
+TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
+{
+    lua_State* L = dmGameObject::GetLuaState();
+    lua_newtable(L);
+    lua_pushliteral(L, "number");
+    dmScript::PushHash(L, (dmhash_t)0);
+    lua_rawset(L, -3);
+    char buffer[256];
+    uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
+    lua_pop(L, 1);
+    dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), 2.0f);
+    ASSERT_EQ((void*)0, instance);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

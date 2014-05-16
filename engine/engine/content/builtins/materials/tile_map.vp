@@ -1,14 +1,14 @@
-uniform mat4 view_proj;
-uniform mat4 world;
+uniform mediump mat4 view_proj;
+uniform mediump mat4 world;
 
-attribute vec4 position;
-attribute vec2 texcoord0;
+attribute mediump vec4 position;
+attribute mediump vec2 texcoord0;
 
-varying vec2 var_texcoord0;
+varying mediump vec2 var_texcoord0;
 
 void main()
 {
-    mat4 mvp = view_proj * world;
+    mediump mat4 mvp = view_proj * world;
     gl_Position = mvp * vec4(position.xyz, 1.0);
     var_texcoord0 = texcoord0;
 }

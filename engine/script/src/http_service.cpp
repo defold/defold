@@ -36,25 +36,29 @@ namespace dmHttpService
         dmArray<char>         m_Response;
         dmArray<char>         m_Headers;
         const HttpService*    m_Service;
-        int                   m_LoadBalanceCount;
         bool                  m_CacheFlusher;
+        volatile bool         m_Run;
     };
 
     struct HttpService
     {
         HttpService()
         {
+            m_Balancer = 0;
             m_Socket = 0;
             m_HttpCache = 0;
+            m_LoadBalanceCount = 0;
             m_Run = false;
         }
         dmArray<Worker*>          m_Workers;
+        dmThread::Thread          m_Balancer;
         dmMessage::HSocket        m_Socket;
         dmHttpCache::HCache       m_HttpCache;
+        int                       m_LoadBalanceCount;
         volatile bool             m_Run;
     };
 
-    void HttpHeader(dmHttpClient::HClient client, void* user_data, int status_code, const char* key, const char* value)
+    void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
@@ -70,7 +74,7 @@ namespace dmHttpService
         h.Push('\n');
     }
 
-    void HttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
@@ -82,23 +86,28 @@ namespace dmHttpService
         r.PushArray((char*) content_data, content_data_size);
     }
 
-    uint32_t HttpSendContentLength(dmHttpClient::HClient client, void* user_data)
+    uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
         return worker->m_Request->m_RequestLength;
     }
 
-    dmHttpClient::Result HttpWrite(dmHttpClient::HClient client, void* user_data)
+    dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
-        return dmHttpClient::Write(client, (const void*) worker->m_Request->m_Request, worker->m_Request->m_RequestLength);
+        return dmHttpClient::Write(response, (const void*) worker->m_Request->m_Request, worker->m_Request->m_RequestLength);
     }
 
-    dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HClient client, void* user_data)
+    dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)
     {
         Worker* worker = (Worker*) user_data;
-        char* headers = (char*) worker->m_Request->m_Headers;
+        char* headers = 0;
         if (worker->m_Request->m_HeadersLength > 0) {
+            headers = (char*) malloc(worker->m_Request->m_HeadersLength);
+            // NOTE: We must copy the buffer as retry might happen
+            // and dmStrTok is destructive
+            // We don't know the actual size inadvance, hence the malloc()
+            memcpy(headers, (char*) worker->m_Request->m_Headers, worker->m_Request->m_HeadersLength);
             headers[worker->m_Request->m_HeadersLength-1] = '\0';
 
             char* s, *last;
@@ -106,8 +115,9 @@ namespace dmHttpService
             while (s) {
                 char* colon = strchr(s, ':');
                 *colon = '\0';
-                dmHttpClient::Result r = dmHttpClient::WriteHeader(client, s, colon + 1);
+                dmHttpClient::Result r = dmHttpClient::WriteHeader(response, s, colon + 1);
                 if (r != dmHttpClient::RESULT_OK) {
+                    free(headers);
                     return r;
                 }
                 *colon = ':';
@@ -116,6 +126,7 @@ namespace dmHttpService
 
         }
 
+        free(headers);
         return dmHttpClient::RESULT_OK;
     }
 
@@ -177,6 +188,9 @@ namespace dmHttpService
             params.m_Userdata = worker;
             params.m_HttpCache = worker->m_Service->m_HttpCache;
             worker->m_Client = dmHttpClient::New(&params, url.m_Hostname, url.m_Port, strcmp(url.m_Scheme, "https") == 0);
+            if (worker->m_Client) {
+                dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_MAX_GET_RETRIES, 3);
+            }
             memcpy(&worker->m_CurrentURL, &url, sizeof(url));
         }
 
@@ -185,6 +199,9 @@ namespace dmHttpService
         worker->m_Headers.SetSize(0);
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         if (worker->m_Client) {
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_SEND_TIMEOUT, request->m_Timeout);
+            dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_RECEIVE_TIMEOUT, request->m_Timeout);
+
             worker->m_Request = request;
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
@@ -204,7 +221,7 @@ namespace dmHttpService
     void Dispatch(dmMessage::Message *message, void* user_ptr)
     {
         Worker* worker = (Worker*) user_ptr;
-        if (!worker->m_Service->m_Run) {
+        if (!worker->m_Run) {
             return;
         }
 
@@ -218,6 +235,10 @@ namespace dmHttpService
                 HandleRequest(worker, &message->m_Sender, request);
                 free((void*) request->m_Headers);
                 free((void*) request->m_Request);
+            }
+            else if (message->m_Descriptor == (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor)
+            {
+                worker->m_Run = false;
             }
             else
             {
@@ -243,17 +264,21 @@ namespace dmHttpService
 
     void LoadBalance(dmMessage::Message *message, void* user_ptr)
     {
-        Worker* worker = (Worker*) user_ptr;
-        dmMessage::URL r = message->m_Receiver;
-        r.m_Socket = worker->m_Service->m_Workers[worker->m_LoadBalanceCount % THREAD_COUNT]->m_Socket;
-        dmMessage::Post(&message->m_Sender,
-                        &r,
-                        message->m_Id,
-                        message->m_UserData,
-                        message->m_Descriptor,
-                        message->m_Data,
-                        message->m_DataSize);
-        worker->m_LoadBalanceCount++;
+        HttpService* service = (HttpService*) user_ptr;
+        if (message->m_Descriptor == (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor) {
+            service->m_Run = false;
+        } else {
+            dmMessage::URL r = message->m_Receiver;
+            r.m_Socket = service->m_Workers[service->m_LoadBalanceCount % THREAD_COUNT]->m_Socket;
+            dmMessage::Post(&message->m_Sender,
+                            &r,
+                            message->m_Id,
+                            message->m_UserData,
+                            message->m_Descriptor,
+                            message->m_Data,
+                            message->m_DataSize);
+            service->m_LoadBalanceCount++;
+        }
     }
 
     void Loop(void* arg)
@@ -262,18 +287,21 @@ namespace dmHttpService
 
         uint64_t flush_period = 5 * 1000000U;
         uint64_t next_flush = dmTime::GetTime() + flush_period;
-        while (worker->m_Service->m_Run)
+        while (worker->m_Run)
         {
-            // TODO: We should add blocking support in dmMessage
-            // See also dmLog for similar "sleep-issue"
-            dmTime::Sleep(30 * 1000);
-            dmMessage::Dispatch(worker->m_Service->m_Socket, &LoadBalance, worker);
-            dmMessage::Dispatch(worker->m_Socket, &Dispatch, worker);
-
+            dmMessage::DispatchBlocking(worker->m_Socket, &Dispatch, worker);
             if (worker->m_CacheFlusher &&  dmTime::GetTime() > next_flush) {
                 dmHttpCache::Flush(worker->m_Service->m_HttpCache);
                 next_flush = dmTime::GetTime() + flush_period;
             }
+        }
+    }
+
+    static void LoadBalancer(void* arg)
+    {
+        HttpService* service = (HttpService*) arg;
+        while (service->m_Run) {
+            dmMessage::DispatchBlocking(service->m_Socket, &LoadBalance, service);
         }
     }
 
@@ -314,13 +342,16 @@ namespace dmHttpService
             worker->m_Request = 0;
             worker->m_Status = 0;
             worker->m_Service = service;
-            worker->m_LoadBalanceCount = 0;
             worker->m_CacheFlusher = i == 0;
+            worker->m_Run = true;
             service->m_Workers.Push(worker);
 
-            dmThread::Thread t = dmThread::New(&Loop, 0x4000, worker);
+            dmThread::Thread t = dmThread::New(&Loop, 0x10000, worker, "http");
             worker->m_Thread = t;
         }
+
+        dmThread::Thread t = dmThread::New(&LoadBalancer, 0x10000, service, "http_balance");
+        service->m_Balancer = t;
 
         return service;
     }
@@ -332,10 +363,14 @@ namespace dmHttpService
 
     void Delete(HHttpService http_service)
     {
-        http_service->m_Run = false;
+        dmMessage::URL url;
+        url.m_Socket = http_service->m_Socket;
+        dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0);
         for (uint32_t i = 0; i < THREAD_COUNT; ++i)
         {
             dmHttpService::Worker* worker = http_service->m_Workers[i];
+            url.m_Socket = worker->m_Socket;
+            dmMessage::Post(0, &url, 0, 0, (uintptr_t) dmHttpDDF::StopHttp::m_DDFDescriptor, 0, 0);
             dmThread::Join(worker->m_Thread);
             dmMessage::DeleteSocket(worker->m_Socket);
             if (worker->m_Client) {
@@ -343,6 +378,7 @@ namespace dmHttpService
             }
             delete worker;
         }
+        dmThread::Join(http_service->m_Balancer);
         dmMessage::DeleteSocket(http_service->m_Socket);
         dmHttpCache::Close(http_service->m_HttpCache);
         delete http_service;

@@ -324,4 +324,6 @@ message SetGridShapeHull
     required uint32 row = 2;
     required uint32 column = 3;
     required uint32 hull = 4;
+    required uint32 flip_horizontal = 5;
+    required uint32 flip_vertical = 6;
 }

@@ -22,6 +22,10 @@
 #undef FreeModule
 #endif
 
+#ifdef GetTextMetrics
+#undef GetTextMetrics
+#endif
+
 #endif // SAFE_WINDOWS_H_
 
 #endif // defined(_MSC_VER)

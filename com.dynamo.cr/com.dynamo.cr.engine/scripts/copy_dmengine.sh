@@ -7,13 +7,19 @@ mkdir -p engine/android
 
 SHA1=`git log --oneline | head -1 | awk '{ print $1 }'`
 
-scp builder@ci-master.defold.com:builds/linux/dmengine.${SHA1} engine/linux/dmengine
-scp builder@ci-master.defold.com:builds/linux/dmengine_release.${SHA1} engine/linux/dmengine_release
-scp builder@ci-master.defold.com:builds/darwin/dmengine.${SHA1} engine/darwin/dmengine
-scp builder@ci-master.defold.com:builds/darwin/dmengine_release.${SHA1} engine/darwin/dmengine_release
-scp builder@ci-master.defold.com:builds/win32/dmengine.exe.${SHA1} engine/win32/dmengine.exe
-scp builder@ci-master.defold.com:builds/win32/dmengine_release.exe.${SHA1} engine/win32/dmengine_release.exe
-scp builder@ci-master.defold.com:builds/armv7-darwin/dmengine.${SHA1} engine/ios/dmengine
-scp builder@ci-master.defold.com:builds/armv7-darwin/dmengine_release.${SHA1} engine/ios/dmengine_release
-scp builder@ci-master.defold.com:builds/armv7-android/libdmengine.so.${SHA1} engine/android/libdmengine.so
-scp builder@ci-master.defold.com:builds/armv7-android/libdmengine_release.so.${SHA1} engine/android/libdmengine_release.so
+copy () {
+	# echo for indicating progress as scp progress is suppressed when not running in a tty (e.g. from maven or on buildbot)
+	echo "Copying $1"
+	scp builder@ci-master.defold.com:/archive/${SHA1}/engine/$1 $2
+}
+
+copy linux/dmengine engine/linux/dmengine
+copy linux/dmengine_release engine/linux/dmengine_release
+copy darwin/dmengine engine/darwin/dmengine
+copy darwin/dmengine_release engine/darwin/dmengine_release
+copy win32/dmengine.exe engine/win32/dmengine.exe
+copy win32/dmengine_release.exe engine/win32/dmengine_release.exe
+copy armv7-darwin/dmengine engine/ios/dmengine
+copy armv7-darwin/dmengine_release engine/ios/dmengine_release
+copy armv7-android/libdmengine.so engine/android/libdmengine.so
+copy armv7-android/libdmengine_release.so engine/android/libdmengine_release.so

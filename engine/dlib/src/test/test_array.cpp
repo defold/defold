@@ -1,8 +1,7 @@
+#include "dlib/array.h"
 
 #include <stdint.h>
 #include <gtest/gtest.h>
-#include "dlib/array.h"
-
 
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;
@@ -67,7 +66,6 @@ TEST(dmArray, Dynamic_int32)
     EXPECT_EQ((uint32_t) 0, ar.Size());
     EXPECT_EQ(true, ar.Empty());
 }
-
 
 TEST(dmArray, Static_int32)
 {
@@ -172,6 +170,14 @@ TEST(dmArray, Swap)
     ASSERT_EQ(b.Size(), cpy_a.Size());
     for (uint32_t i = 0; i < b.Size(); ++i)
         ASSERT_EQ(b[i], cpy_a[i]);
+}
+
+TEST(dmArray, UserAllocated)
+{
+    uint32_t array[5];
+    array[0] = 1;
+    dmArray<uint32_t> a(array, 1, 5);
+    ASSERT_EQ(1u, a[0]);
 }
 
 int main(int argc, char **argv)

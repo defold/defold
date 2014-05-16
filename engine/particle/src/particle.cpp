@@ -851,8 +851,9 @@ namespace dmParticle
         // texture animation
         uint32_t start_tile = anim_data.m_StartTile;
         uint32_t end_tile = anim_data.m_EndTile;
-        uint32_t tile_count = end_tile - start_tile;
-        float inv_anim_length = anim_data.m_FPS / (float)tile_count;
+        uint32_t interval = end_tile - start_tile;
+        uint32_t tile_count = interval;
+        AnimPlayback playback = anim_data.m_Playback;
         float* tex_coords = anim_data.m_TexCoords;
         float width_factor = 1.0f;
         float height_factor = 1.0f;
@@ -866,11 +867,14 @@ namespace dmParticle
         }
         bool hFlip = anim_data.m_HFlip != 0;
         bool vFlip = anim_data.m_VFlip != 0;
-        AnimPlayback playback = anim_data.m_Playback;
         bool anim_playing = playback != ANIM_PLAYBACK_NONE && tile_count > 1;
-        bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD;
+        bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_ONCE_PINGPONG;
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
-        bool anim_ping_pong = playback == ANIM_PLAYBACK_LOOP_PINGPONG;
+        bool anim_ping_pong = playback == ANIM_PLAYBACK_ONCE_PINGPONG || playback == ANIM_PLAYBACK_LOOP_PINGPONG;
+        if (anim_ping_pong) {
+            tile_count = dmMath::Max(1u, tile_count * 2 - 2);
+        }
+        float inv_anim_length = anim_data.m_FPS / (float)tile_count;
         // Extent for each vertex, scale by half
         width_factor *= 0.5f;
         height_factor *= 0.5f;
@@ -917,33 +921,24 @@ namespace dmParticle
 
             // Evaluate anim frame
             uint32_t tile = 0;
-            bool play_bwd = anim_bwd;
             if (anim_playing)
             {
                 float anim_cursor = particle->GetMaxLifeTime() - particle->GetTimeLeft() - half_dt;
+                float anim_t = 0.0f;
                 if (anim_once) // stretch over particle life
                 {
-                    float anim_t = anim_cursor * particle->GetooMaxLifeTime();
-                    tile = (uint32_t)(tile_count * anim_t);
+                    anim_t = anim_cursor * particle->GetooMaxLifeTime();
                 }
                 else // use anim FPS
                 {
-                    float anim_t = anim_cursor * inv_anim_length;
-                    tile = (uint32_t)(tile_count * anim_t);
-                    if (anim_ping_pong)
-                    {
-                        uint32_t it = tile / (tile_count - 1);
-                        // check backwards iteration
-                        if (it % 2 == 1)
-                            play_bwd = true;
-                        tile = tile % (tile_count - 1);
-                    }
-                    else
-                    {
-                        tile = tile % tile_count;
-                    }
+                    anim_t = anim_cursor * inv_anim_length;
                 }
-                if (play_bwd)
+                tile = (uint32_t)(tile_count * anim_t);
+                tile = tile % tile_count;
+                if (tile >= interval) {
+                    tile = (interval-1) * 2 - tile;
+                }
+                if (anim_bwd)
                     tile = tile_count - tile - 1;
             }
             tile += start_tile;

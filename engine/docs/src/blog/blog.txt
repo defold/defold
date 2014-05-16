@@ -1,5 +1,73 @@
 :max-width: 45em
 
+Minor fixes (Release 1.2.30)
+----------------------------
+_February 13, 2014_
+
+Release 1.2.30 contains some smaller fixes.
+We have optimized how the engine behaves as a background process on various platform and consequently had to drop support for Windows XP, meaning that we now support Windows Vista and up.
+
+Fixes:
+
+* Smoother sound buffering
+* Optimized shaders for tile maps, sprites and debug lines
+* Crash at engine termination
+* The engine respects the settings for going to sleep on iOS (would stay alive before)
+
+
+Hierarchical Gui (Release 1.2.29)
+---------------------------------
+_February 11, 2014_
+
+We have finally added support for hierarchical Guis.
+We simultaneously ported the old Gui editor to the new Scene editor, which should make it much easier to use.
+We have also added a new layer feature, which allows you to structure your Gui nodes however you want, while still retaining control of the order in which they are rendered.
+Documentation about this will come at a later time.
+
+Other fixes in this release:
+
+* Improved launch image handling on iOS (no black screen!)
+* Delays in go.animate were not properly handled for composite animations
+
+Yet more various fixes (Release 1.2.28)
+---------------------------------------
+_January 28, 2014_
+
+1.2.28 brings more smaller fixes:
+
+* math.random(x, y) would in rare cases return values larger than y
+* Animations started through link:/ref/go#go.animate[go.animate] could incorrectly remove existing delayed animations
+* Better fallback in editor when starting the game and the current target device cannot be located
+
+Even more various fixes (Release 1.2.27)
+----------------------------------------
+_January 9, 2014_
+
+1.2.27 brings more smaller fixes:
+
+* Sprite scale (vmath.vector3) can be accessed through link:/ref/go#go.get[go.get]/link:/ref/go#go.set[go.set]/link:/ref/go#go.animate[go.animate]
+* Functions for measuring the size of text: link:/ref/gui#gui.get_text_metrics[gui.get_text_metrics] and link:/ref/gui#gui.get_text_metrics_from_node[gui.get_text_metrics_from_node]
+* Fixed a bug when trying to connect a device to the editor and the computer has multiple active network interfaces
+* If the device has a specific language setting (e.g. iOS), this is returned by link:/ref/sys#sys.get_sys_info[sys.get_sys_info] under the key +device_language+
+* Optimized default particle shader
+* Fix for batched rendering of gui scenes
+
+More various fixes (Release 1.2.26)
+-----------------------------------
+_November 26, 2013_
+
+1.2.26 brings more smaller fixes:
+
+* link:/ref/builtins#pprint[pprint], which is similar to link:http://docs.python.org/2/library/pprint.html[pprint] in Python
+* New playback mode for all types of animation, PLAYBACK_ONCE_PINGPONG, which animates once back and forth
+* Variable frame time step, which can be enabled in link:/doc/game_project[game.project]
+* The instance id returned from link:/ref/factory#factory.create[factory.create] is in global form
+* Improved error handling when supplying properties to link:/ref/factory#factory.create[factory.create]
+* Device identifier (device_ident) returned from link:/ref/sys#sys.get_sys_info[sys.get_sys_info] for iOS and Android
+* link:/ref/sprite#animation_done[animation_done] contains the id of the animation
+* Increased max message buffer size (2 kb)
+* Improved logging when gui scene nodes are used with the wrong scene
+
 Various fixes (Release 1.2.25)
 ------------------------------
 _November 12, 2013_

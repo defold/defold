@@ -9,6 +9,7 @@
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "glfw-android", __VA_ARGS__))
 #define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, "glfw-android", __VA_ARGS__))
 #define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, "glfw-android", __VA_ARGS__))
+#define LOGF(...) ((void)__android_log_print(ANDROID_LOG_FATAL, "glfw-android", __VA_ARGS__))
 
 #define CHECK_EGL_ERROR \
 {\

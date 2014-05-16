@@ -36,6 +36,7 @@ namespace dmSound
         RESULT_INVALID_STREAM_DATA= -8,    //!< RESULT_INVALID_STREAM_DATA
         RESULT_OUT_OF_MEMORY      = -9,    //!< RESULT_OUT_OF_MEMORY
         RESULT_UNSUPPORTED        = -10,   //!< RESULT_UNSUPPORTED
+        RESULT_DEVICE_NOT_FOUND   = -11,   //!< RESULT_DEVICE_NOT_FOUND
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -52,11 +53,13 @@ namespace dmSound
 
     struct InitializeParams
     {
+        const char* m_OutputDevice;
         float    m_MasterGain;
         uint32_t m_MaxSoundData;
         uint32_t m_MaxSources;
         uint32_t m_MaxBuffers;
         uint32_t m_BufferSize;
+        uint32_t m_FrameCount;
         uint32_t m_MaxInstances;
 
         InitializeParams()
@@ -87,6 +90,9 @@ namespace dmSound
 
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vector4& value);
+
+    bool IsMusicPlaying();
+
 }
 
 #endif // DM_SOUND_H

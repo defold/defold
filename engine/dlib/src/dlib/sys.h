@@ -51,16 +51,26 @@ namespace dmSys
     {
         /// Device model where applicable, e.g. iPhone3,1
         char m_DeviceModel[32];
+        /// Device manufacturer if available
+        char m_Manufacturer[32];
         /// System name, i.e. OS name, e.g. "Darwin", "iPhone OS", "Linux", etc
         char m_SystemName[32];
         /// System version, e.g. 12.0.1
         char m_SystemVersion[32];
         /// ISO 639 language code
         char m_Language[8];
+        /// ISO 639 device language code. Reflects UI language and typically same as m_Language.
+        char m_DeviceLanguage[8];
         ///  ISO 3166 country code
         char m_Territory[8];
         /// Offset to GMT in minutes
         int  m_GmtOffset;
+        /// Unique device identifier, e.g. "identifierForVendor" on iOS
+        char m_DeviceIdentifier[64];
+        /// Advertising identifier if available, e.g. "advertisingIdentifier" on iOS
+        char m_AdIdentifier[64];
+        /// True if advertising is enabled, e.g. "advertisingTrackingEnabled" on iOS
+        bool m_AdTrackingEnabled;
     };
 
     /**

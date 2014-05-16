@@ -46,22 +46,3 @@ image:images/scene_editing/rotate.png["Rotate manipulator"]
 
 .Scale manipulator, activate with key *R*.
 image:images/scene_editing/scale.png["Scale manipulator"]
-
-Gui Editor
-----------
-
-The Gui Editor is used to edit the gui-files.
-Currently, it works a lot like object-based 2D graphics software.
-We will redesign it in the future to work more like the Scene Editor described above.
-
-Navigation
-~~~~~~~~~~
-
-Use the scroll bars in the view to navigate around the gui scene.
-
-Object Manipulation
-~~~~~~~~~~~~~~~~~~~
-
-Click the objects to select them.
-You can use box selection and Shift-click to select multiple objects.
-Click and drag on the selected objects to move them around.

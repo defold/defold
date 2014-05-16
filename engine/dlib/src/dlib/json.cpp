@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "json.h"
 #include "math.h"
+#include "utf8.h"
 
 extern "C"
 {
@@ -105,6 +106,76 @@ namespace dmJson
         return -1;
     }
 
+    static void UnescapeString(Document* doc, Node* node)
+    {
+        char* read = doc->m_Json + node->m_Start;
+        char* write = read;
+        char* end = doc->m_Json + node->m_End;
+
+        while (read < end) {
+            if (read[0] == '\\') {
+                switch (read[1]) {
+                case '\"':
+                    write[0] = '"';
+                    break;
+                case '/':
+                    write[0] = '/';
+                    break;
+                case '\\':
+                    write[0] = '\\';
+                    break;
+                case 'b':
+                    write[0] = '\b';
+                    break;
+                case 'f':
+                    write[0] = '\f';
+                    break;
+                case 'r':
+                    write[0] = '\r';
+                    break;
+                case 'n':
+                    write[0] = '\n';
+                    break;
+                case 't':
+                    write[0] = '\t';
+                    break;
+                // Unicode
+                case 'u':
+                    char buf[5];
+                    buf[0] = read[2];
+                    buf[1] = read[3];
+                    buf[2] = read[4];
+                    buf[3] = read[5];
+                    buf[4] = '\0';
+                    uint32_t val =  strtoul(buf, 0, 16);
+                    uint32_t n = dmUtf8::ToUtf8((uint16_t) val, write);
+                    write += n;
+                    write--;   // NOTE: We add 1 below and we don't want to subtract from an unsigned value
+                    read += 4; // NOTE: We add 2 below
+                    break;
+                }
+                read += 2;
+                write++;
+            } else {
+                *write = *read;
+                read++;
+                write++;
+            }
+        }
+        node->m_End = write - doc->m_Json;
+    }
+
+    static void UnescapeStrings(Document* doc)
+    {
+        int n = doc->m_NodeCount;
+        for (int i = 0; i < n; ++i) {
+            Node* node = &doc->m_Nodes[i];
+            if (node->m_Type == TYPE_STRING) {
+                UnescapeString(doc, node);
+            }
+        }
+    }
+
     Result Parse(const char* buffer, Document* doc)
     {
         memset(doc, 0, sizeof(Document));
@@ -112,23 +183,25 @@ namespace dmJson
         // NOTE: initial count is increased in do-while
         unsigned int token_count = 64;
 
-        jsmnerr_t err = JSMN_SUCCESS;
+        jsmnerr_t err = (jsmnerr_t) 0;
         jsmntok_t* tokens = 0;
         do {
             jsmn_init(&parser);
             token_count += dmMath::Min(256U, token_count);
             free(tokens);
             tokens = (jsmntok_t*) malloc(sizeof(jsmntok_t) * token_count);
-            err = jsmn_parse(&parser, buffer, tokens, token_count);
+            err = jsmn_parse(&parser, buffer, strlen(buffer), tokens, token_count);
 
         } while (err == JSMN_ERROR_NOMEM);
 
-        if (err == JSMN_SUCCESS)
+        if (err >= 0)
         {
             if (parser.toknext > 0)
             {
                 doc->m_Nodes = (Node*) malloc(sizeof(Node) * parser.toknext);
                 doc->m_NodeCount = CopyToken(tokens, doc->m_Nodes, 0);
+                doc->m_Json = strdup(buffer);
+                UnescapeStrings(doc);
             }
             else
             {
@@ -158,6 +231,7 @@ namespace dmJson
     void Free(Document* doc)
     {
         free(doc->m_Nodes);
+        free(doc->m_Json);
         memset(doc, 0, sizeof(Document));
     }
 

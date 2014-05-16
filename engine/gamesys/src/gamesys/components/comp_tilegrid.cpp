@@ -30,6 +30,7 @@ namespace dmGameSystem
     : m_Instance(0)
     , m_TileGridResource(0)
     , m_Cells(0)
+    , m_CellFlags(0)
     {
 
     }
@@ -91,6 +92,12 @@ namespace dmGameSystem
         }
         tile_grid->m_Cells = new uint16_t[cell_count];
         memset(tile_grid->m_Cells, 0xff, cell_count * sizeof(uint16_t));
+        if (tile_grid->m_CellFlags != 0x0)
+        {
+            delete [] tile_grid->m_CellFlags;
+        }
+        tile_grid->m_CellFlags = new TileGridComponent::Flags[cell_count];
+        memset(tile_grid->m_CellFlags, 0, cell_count * sizeof(TileGridComponent::Flags));
         int32_t min_x = resource->m_MinCellX;
         int32_t min_y = resource->m_MinCellY;
         uint32_t column_count = resource->m_ColumnCount;
@@ -209,6 +216,7 @@ namespace dmGameSystem
                 }
 
                 delete [] tile_grid->m_Cells;
+                delete [] tile_grid->m_CellFlags;
                 world->m_TileGrids.EraseSwap(i);
                 delete tile_grid;
                 return dmGameObject::CREATE_RESULT_OK;
@@ -320,10 +328,23 @@ namespace dmGameSystem
                         {
                             CalculateCellBounds(x, y, texture_set_ddf->m_TileWidth, texture_set_ddf->m_TileHeight, p);
                             const float* puv = &tex_coords[tile * 4];
-                            t[0] = puv[0];
-                            t[1] = puv[1];
-                            t[2] = puv[2];
-                            t[3] = puv[3];
+                            uint32_t t0 = 0, t1 = 1, t2 = 2, t3 = 3;
+
+                            TileGridComponent::Flags flags = component->m_CellFlags[cell];
+                            if (flags.m_FlipHorizontal)
+                            {
+                                t0 = 2;
+                                t2 = 0;
+                            }
+                            if (flags.m_FlipVertical)
+                            {
+                                t1 = 3;
+                                t3 = 1;
+                            }
+                            t[0] = puv[t0];
+                            t[1] = puv[t1];
+                            t[2] = puv[t2];
+                            t[3] = puv[t3];
 
                             v->x = p[0]; v->y = p[1]; v->z = z; v->u = t[0]; v->v = t[3]; ++v;
                             v->x = p[0]; v->y = p[3]; v->z = z; v->u = t[0]; v->v = t[1]; ++v;

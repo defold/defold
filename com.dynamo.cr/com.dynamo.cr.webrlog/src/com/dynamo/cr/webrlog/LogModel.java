@@ -23,8 +23,9 @@ import com.google.appengine.api.datastore.EntityNotFoundException;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.datastore.Query;
+import com.google.appengine.api.datastore.Query.CompositeFilterOperator;
 import com.google.appengine.api.datastore.Query.Filter;
-import com.google.appengine.api.datastore.Query.FilterPredicate;
+import com.google.appengine.api.datastore.Query.FilterOperator;
 import com.google.appengine.api.datastore.Query.SortDirection;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -175,11 +176,17 @@ public class LogModel {
         return lst;
     }
 
-    public static List<Issue> getActiveIssues() {
+    public static List<Issue> getActiveIssues(int maxAgeDags) {
         DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
         ArrayList<Issue> lst = new ArrayList<Issue>();
-        Filter filter = new FilterPredicate("fixed", Query.FilterOperator.EQUAL, false);
-        Iterable<Entity> i = datastore.prepare(new Query("issue").setFilter(filter).addSort("date", SortDirection.DESCENDING)).asIterable();
+        Date date = new DateTime().minusDays(maxAgeDags).toDate();
+        Filter filter = CompositeFilterOperator.and(FilterOperator.EQUAL.of("fixed", false),
+                                                    FilterOperator.GREATER_THAN_OR_EQUAL.of("date", date));
+
+        Query q = new Query("issue")
+            .setFilter(filter)
+            .addSort("date", SortDirection.DESCENDING);
+        Iterable<Entity> i = datastore.prepare(q).asIterable();
         for (Entity entity : i) {
             try {
                 lst.add(toIssue(entity));

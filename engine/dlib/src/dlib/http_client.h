@@ -23,6 +23,8 @@ namespace dmHttpClient
         RESULT_UNEXPECTED_EOF = -7,               //!< RESULT_UNEXPECTED_EOF
         RESULT_IO_ERROR = -8,                     //!< RESULT_IO_ERROR
         RESULT_HANDSHAKE_FAILED = -9,             //!< RESULT_HANDSHAKE_FAILED
+        RESULT_INVAL = -10,                       //!< RESULT_INVAL
+        RESULT_UNKNOWN = -1000,                   //!< RESULT_UNKNOWN
     };
 
     /**
@@ -30,49 +32,51 @@ namespace dmHttpClient
      */
     typedef struct Client* HClient;
 
+    typedef struct Response* HResponse;
+
     /**
      * HTTP-header call-back
-     * @param client Client handle
+     * @param response Response handle
      * @param user_data User data
      * @param status_code Status code, eg 200
      * @param key Header key, eg "Content-Length"
      * @param value Header value
      */
-    typedef void (*HttpHeader)(HClient client, void* user_data, int status_code, const char* key, const char* value);
+    typedef void (*HttpHeader)(HResponse response, void* user_data, int status_code, const char* key, const char* value);
 
     /**
      * HTTP-content call-back.
-     * @param client Client handle
+     * @param response Response handle
      * @param user_data User data
      * @param status_code Status code, eg 200
      * @param content_data Content data
      * @param content_data_size Content data size
      */
-    typedef void (*HttpContent)(HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size);
+    typedef void (*HttpContent)(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size);
 
     /**
      * HTTP content-length callback. Invoked for POST-request prior to HttpWrite-callback to determine content-length
-     * @param client Client handle
+     * @param response Response handle
      * @param user_data User data
      * @return Content length
      */
-    typedef uint32_t (*HttpSendContentLength)(HClient client, void* user_data);
+    typedef uint32_t (*HttpSendContentLength)(HResponse response, void* user_data);
 
     /**
      * HTTP-post callback. Invoked for POST method. The function invokes the Write function to POST data.
-     * @param client Client handle
+     * @param response Response handle
      * @param user_data User data
      * @return The callback should return the value returned from the Write function
      */
-    typedef Result (*HttpWrite)(HClient client, void* user_data);
+    typedef Result (*HttpWrite)(HResponse response, void* user_data);
 
     /**
      * HTTP write request header callback. The function invokes the WriteHeader function to send request header
-     * @param client Client handle
+     * @param response Response handle
      * @param user_data User data
      * @return The callback should return the value returned from the WriteHeader function
      */
-    typedef Result (*HttpWriteHeaders)(HClient client, void* user_data);
+    typedef Result (*HttpWriteHeaders)(HResponse response, void* user_data);
 
     /**
      * HTTP-client options
@@ -81,6 +85,10 @@ namespace dmHttpClient
     {
         /// Maximum number of retries for GET-request. Default is 4.
         OPTION_MAX_GET_RETRIES,
+        /// Send timeout in us
+        OPTION_SEND_TIMEOUT,
+        /// Receive timeout in us
+        OPTION_RECEIVE_TIMEOUT,
     };
 
     /**
@@ -164,7 +172,7 @@ namespace dmHttpClient
      * @param value Option value
      * @return RESULT_OK on success
      */
-    Result SetOptionInt(HClient client, Option option, int value);
+    Result SetOptionInt(HClient client, Option option, int64_t value);
 
     /**
      * Get last socket error. Called to get further information when RESULT_SOCKET_ERROR is returned.
@@ -200,21 +208,21 @@ namespace dmHttpClient
 
     /**
      * Write data. Called from HttpWrite-callback to write POST-data
-     * @param client Client handle
+     * @param response Response handle
      * @param buffer Buffer
      * @param buffer_size Buffer size
      * @return RESULT_OK on success
      */
-    Result Write(HClient client, const void* buffer, uint32_t buffer_size);
+    Result Write(HResponse response, const void* buffer, uint32_t buffer_size);
 
     /**
      * Write request header. Called from HttpWriteHeadwers-callback to write request headers
-     * @param client Client handle
+     * @param response Response handle
      * @param name Header name
      * @param value Header value
      * @return RESULT_OK on success
      */
-    Result WriteHeader(HClient client, const char* name, const char* value);
+    Result WriteHeader(HResponse response, const char* name, const char* value);
 
     /**
      * Get HTTP-client statistics
@@ -224,7 +232,7 @@ namespace dmHttpClient
     void GetStatistics(HClient client, Statistics* statistics);
 
     /**
-     * Get HTTP-cache associaed with this client
+     * Get HTTP-cache associated with this client
      * @param client client
      * @return dmHttpCache::HCache handle
      */
@@ -235,6 +243,23 @@ namespace dmHttpClient
      * @param client Client handle
      */
     void Delete(HClient client);
+
+    /**
+     * Escape an URL string. Non unreserved characters are replaced with %XX where XX is the hexadecimal representation of the character.
+     * See http://en.wikipedia.org/wiki/Percent-encoding for list of unreserved characters
+     * @param src Source string
+     * @param dst Destination string. May *not* overlap with src
+     * @param dst_len Destination string length. Total buffer size
+     * @return RESULT_OK on success and RESULT_INVAL if destination buffer is too small.
+     */
+    Result Escape(const char* src, char* dst, uint32_t dst_len);
+
+    /**
+     * Unescape an url string
+     * @param src Source string
+     * @param dst Destination string (might be the same as src)
+     */
+    void Unescape(const char* src, char* dst);
 }
 
 #endif // DM_HTTP_CLIENT_H

@@ -15,7 +15,6 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -81,9 +80,10 @@ public class TargetsTest implements ITargetListener {
 
         @Override
         public synchronized void launch(String customApplication, String location, boolean runInDebugger,
-                boolean autoRunDebugger, String socksProxy, int socksProxyPort, java.net.URL serverUrl) {
+                                        boolean autoRunDebugger, String socksProxy, int socksProxyPort,
+                                        int httpServerPort) {
             ITarget[] targets = getTargets();
-            connectToLogService(targets[targets.length - 1]);
+            obtainSocketAddress(targets[targets.length - 1]);
         }
     }
 
@@ -133,10 +133,9 @@ public class TargetsTest implements ITargetListener {
     @Test
     public void testSearchLocal() throws Exception {
         /*
-         * Search for local target and ensure that the pseudo-target is replaced
-         * by the found local target
+         * Search for local target and ensure that the pseudo-target is still present at index 0
          */
-        String localAddress = InetAddress.getLocalHost().getHostAddress();
+        String localAddress = "127.0.0.1";
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
         when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo(localAddress) } );
         when(ssdp.update(true)).thenReturn(true);
@@ -158,10 +157,12 @@ public class TargetsTest implements ITargetListener {
         synchronized (this) {
             assertThat(events.size(), is(2));
             ITarget[] targets = targetService.getTargets();
-            assertThat(targets.length, is(1));
+            assertThat(targets.length, is(2));
             assertThat(targets[0].getId(), is(UDN));
             assertThat(targets[0].getUrl(), is(URL));
             assertThat(targets[0].getLogPort(), is(LOG_PORT));
+            assertThat(targets[1].getId(), is(ITargetService.LOCAL_TARGET_ID));
+            assertThat(targets[1].getUrl(), is((String) null));
         }
     }
 
@@ -173,7 +174,7 @@ public class TargetsTest implements ITargetListener {
 
     @Test
     public void testBlackList() throws Exception {
-        String localAddress = InetAddress.getLocalHost().getHostAddress();
+        String localAddress = "127.0.0.1";
         when(urlFetcher.fetch(anyString())).thenThrow(new SocketTimeoutException());
         when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo(localAddress), newDeviceInfo(localAddress) } );
         when(ssdp.update(true)).thenReturn(true);
@@ -206,7 +207,7 @@ public class TargetsTest implements ITargetListener {
          * Search for network target. Expected device count is two. The network target and the local psuedo-target
          */
         when(urlFetcher.fetch(anyString())).thenReturn(DEVICE_DESC);
-        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo("127.0.0.1") });
+        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo("1.2.3.4") });
         when(ssdp.update(true)).thenReturn(true);
         startTargetService();
         Thread.sleep(100);
@@ -285,14 +286,13 @@ public class TargetsTest implements ITargetListener {
         ByteArrayOutputStream consoleOut = new ByteArrayOutputStream();
         when(console.createOutputStream()).thenReturn(consoleOut);
         when(consoleFactory.getConsole(anyString())).thenReturn(console);
-        when(ssdp.getDevices()).thenReturn(
-                new DeviceInfo[] { newDeviceInfo("127.0.0.1") });
+        when(ssdp.getDevices()).thenReturn(new DeviceInfo[] { newDeviceInfo("1.2.3.4") });
         when(ssdp.update(true)).thenReturn(true);
         startTargetService();
         while (targetService.getTargets().length == 1) {
             Thread.sleep(100);
         }
-        targetService.launch("", "", false, false, "", 1080, new URL("http://localhost"));
+        targetService.launch("", "", false, false, "", 1080, 8080);
         while (!gameLogger.isDone()) {
             Thread.sleep(100);
         }

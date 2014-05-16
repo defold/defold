@@ -44,18 +44,18 @@ def configure(conf):
 
     platform = conf.env.PLATFORM
 
+    sound_lib = 'sound'
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-        # In order to get accurate result from the memory profiler this is necessary
-        conf.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
     elif re.match('arm.*?darwin', platform):
-        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL'])
+        conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
         # For Facebook SDK...
         conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
+        sound_lib = 'sound2'
     elif platform == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif platform == "win32":
@@ -77,11 +77,10 @@ def configure(conf):
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_GUI'] = 'gui'
     conf.env['STATICLIB_PARTICLE'] = 'particle'
-    conf.env['STATICLIB_SOUND'] = 'sound'
+    conf.env['STATICLIB_SOUND'] = sound_lib
     conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
     conf.env['STATICLIB_OPENAL_SOFT'] = 'openal_soft'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'
-    conf.env['STATICLIB_ALUT'] = 'alut'
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
     conf.env['STATICLIB_INPUT'] = 'input'
@@ -91,6 +90,7 @@ def configure(conf):
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
+    conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
 
     if conf.env.PLATFORM.find('arm') == -1 and conf.env.PLATFORM.find('web') == -1:
         conf.env['STATICLIB_RECORD'] = 'record'

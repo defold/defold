@@ -484,6 +484,15 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    void IconifyWindow(HContext context)
+    {
+        assert(context);
+        if (context->m_WindowOpened)
+        {
+            glfwIconifyWindow();
+        }
+    }
+
     uint32_t GetWindowState(HContext context, WindowState state)
     {
         assert(context);

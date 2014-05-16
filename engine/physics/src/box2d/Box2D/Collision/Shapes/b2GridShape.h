@@ -54,6 +54,25 @@ const uint32 B2GRIDSHAPE_EMPTY_CELL = 0xffffffff;
 class b2GridShape : public b2Shape
 {
 public:
+    struct Cell
+    {
+        // Index to hull in hull-set
+        // NOTE: If you add members to this struct memset(m_Cells, 0xff, size); in constructor must be replaced
+        uint32 m_Index;
+    };
+    struct CellFlags
+    {
+        CellFlags()
+        : m_FlipHorizontal(0)
+        , m_FlipVertical(0)
+        , m_Padding(0)
+        {}
+
+        uint16 m_FlipHorizontal : 1;
+        uint16 m_FlipVertical : 1;
+        uint16 m_Padding : 14;
+    };
+
     b2GridShape(const b2HullSet* hullSet,
                 const b2Vec2 position,
                 float32 cellWidth, float32 cellHeight,
@@ -79,19 +98,13 @@ public:
     void GetPolygonShapeForCell(uint32 index, b2PolygonShape& polyShape) const;
     uint32 GetEdgeShapesForCell(uint32 index, b2EdgeShape* edgeShapes, uint32 edgeShapeCount, uint32 edgeMask) const;
 
-    void SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull);
+    void SetCellHull(b2Body* body, uint32 row, uint32 column, uint32 hull, CellFlags flags);
 
     uint32 CalculateCellMask(b2Fixture* fixture, uint32 row, uint32 column);
 
-    struct Cell
-    {
-        // Index to hull in hull-set
-        // NOTE: If you add members to this struct memset(m_Cells, 0xff, size); in constructor must be replaced
-        uint32 m_Index;
-    };
-
     b2Vec2  m_position;
     Cell*   m_cells;
+    CellFlags* m_cellFlags;
     const b2HullSet* m_hullSet;
     float32  m_cellWidth;
     float32  m_cellHeight;

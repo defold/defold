@@ -42,10 +42,16 @@ enum Audience
     AUDIENCE_EVERYONE = 30
 };
 
-struct CBData
+struct Command
 {
+    Command()
+    {
+        memset(this, 0, sizeof(Command));
+    }
+    uint8_t m_Type;
+    uint16_t m_State;
     lua_State* m_L;
-    int m_State;
+    const char* m_Url;
     const char* m_Error;
 };
 
@@ -70,7 +76,6 @@ struct Facebook
     int m_Callback;
     int m_Self;
     int m_Pipefd[2];
-    CBData m_CBData;
 };
 
 Facebook g_Facebook;
@@ -88,13 +93,13 @@ static void PushError(lua_State*L, const char* error)
     }
 }
 
-static void RunStateCallback()
+static void RunStateCallback(Command* cmd)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
-        lua_State* L = g_Facebook.m_CBData.m_L;
+        lua_State* L = cmd->m_L;
 
-        int state = g_Facebook.m_CBData.m_State;
-        const char* error = g_Facebook.m_CBData.m_Error;
+        int state = cmd->m_State;
+        const char* error = cmd->m_Error;
 
         int top = lua_gettop(L);
 
@@ -130,11 +135,11 @@ static void RunStateCallback()
     }
 }
 
-static void RunCallback()
+static void RunCallback(Command* cmd)
 {
     if (g_Facebook.m_Callback != LUA_NOREF) {
-        lua_State* L = g_Facebook.m_CBData.m_L;
-        const char* error = g_Facebook.m_CBData.m_Error;
+        lua_State* L = cmd->m_L;
+        const char* error = cmd->m_Error;
 
         int top = lua_gettop(L);
 
@@ -168,30 +173,82 @@ static void RunCallback()
     }
 }
 
+static void RunDialogResultCallback(Command* cmd)
+{
+    if (g_Facebook.m_Callback != LUA_NOREF) {
+        lua_State* L = cmd->m_L;
+        const char* error = cmd->m_Error;
+
+        int top = lua_gettop(L);
+
+        int callback = g_Facebook.m_Callback;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback);
+
+        // Setup self
+        lua_rawgeti(L, LUA_REGISTRYINDEX, g_Facebook.m_Self);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            dmLogError("Could not run facebook callback because the instance has been deleted.");
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return;
+        }
+
+        lua_createtable(L, 0, 1);
+        lua_pushliteral(L, "url");
+        if (cmd->m_Url) {
+            lua_pushstring(L, cmd->m_Url);
+        } else {
+            lua_pushnil(L);
+        }
+        lua_rawset(L, -3);
+
+        PushError(L, error);
+
+        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        if (ret != 0) {
+            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+        assert(top == lua_gettop(L));
+        luaL_unref(L, LUA_REGISTRYINDEX, callback);
+    } else {
+        dmLogError("No callback set");
+    }
+}
+
 static int LooperCallback(int fd, int events, void* data)
 {
     Facebook* fb = (Facebook*)data;
     (void)fb;
-    int8_t cmd;
-    if (read(g_Facebook.m_Pipefd[0], &cmd, sizeof(cmd)) == sizeof(cmd))
+    Command cmd;
+    if (read(g_Facebook.m_Pipefd[0], &cmd, sizeof(Command)) == sizeof(Command))
     {
-        switch (cmd)
+        switch (cmd.m_Type)
         {
         case CMD_LOGIN:
-            RunStateCallback();
+            RunStateCallback(&cmd);
             break;
         case CMD_REQUEST_READ:
         case CMD_REQUEST_PUBLISH:
-            RunCallback();
+            RunCallback(&cmd);
             break;
         case CMD_DIALOG_COMPLETE:
-            RunCallback();
+            RunDialogResultCallback(&cmd);
             break;
         }
-        if (fb->m_CBData.m_Error != 0x0)
+        if (cmd.m_Url != 0x0)
         {
-            free((void*)fb->m_CBData.m_Error);
-            fb->m_CBData.m_Error = 0x0;
+            free((void*)cmd.m_Url);
+            cmd.m_Url = 0x0;
+        }
+        if (cmd.m_Error != 0x0)
+        {
+            free((void*)cmd.m_Error);
+            cmd.m_Error = 0x0;
         }
     }
     else
@@ -201,9 +258,9 @@ static int LooperCallback(int fd, int events, void* data)
     return 1;
 }
 
-void PostToCallback(int8_t cmd)
+void PostToCallback(Command* cmd)
 {
-    if (write(g_Facebook.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd))
+    if (write(g_Facebook.m_Pipefd[1], cmd, sizeof(Command)) != sizeof(Command))
     {
         dmLogError("Failed to write command");
     }
@@ -231,34 +288,43 @@ extern "C" {
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onLogin
   (JNIEnv* env, jobject, jlong userData, jint state, jstring error)
 {
-    g_Facebook.m_CBData.m_State = (int)state;
-    g_Facebook.m_CBData.m_L = (lua_State*)userData;
-    g_Facebook.m_CBData.m_Error = StrDup(env, error);
-    PostToCallback(CMD_LOGIN);
+    Command cmd;
+    cmd.m_Type = CMD_LOGIN;
+    cmd.m_State = (int)state;
+    cmd.m_L = (lua_State*)userData;
+    cmd.m_Error = StrDup(env, error);
+    PostToCallback(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestRead
   (JNIEnv* env, jobject, jlong userData, jstring error)
 {
-    g_Facebook.m_CBData.m_L = (lua_State*)userData;
-    g_Facebook.m_CBData.m_Error = StrDup(env, error);
-    PostToCallback(CMD_REQUEST_READ);
+    Command cmd;
+    cmd.m_Type = CMD_REQUEST_READ;
+    cmd.m_L = (lua_State*)userData;
+    cmd.m_Error = StrDup(env, error);
+    PostToCallback(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onRequestPublish
   (JNIEnv* env, jobject, jlong userData, jstring error)
 {
-    g_Facebook.m_CBData.m_L = (lua_State*)userData;
-    g_Facebook.m_CBData.m_Error = StrDup(env, error);
-    PostToCallback(CMD_REQUEST_PUBLISH);
+    Command cmd;
+    cmd.m_Type = CMD_REQUEST_PUBLISH;
+    cmd.m_L = (lua_State*)userData;
+    cmd.m_Error = StrDup(env, error);
+    PostToCallback(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onDialogComplete
-  (JNIEnv *env, jobject, jlong userData, jstring error)
+  (JNIEnv *env, jobject, jlong userData, jstring url, jstring error)
 {
-    g_Facebook.m_CBData.m_L = (lua_State*)userData;
-    g_Facebook.m_CBData.m_Error = StrDup(env, error);
-    PostToCallback(CMD_DIALOG_COMPLETE);
+    Command cmd;
+    cmd.m_Type = CMD_DIALOG_COMPLETE;
+    cmd.m_L = (lua_State*)userData;
+    cmd.m_Url = StrDup(env, url);
+    cmd.m_Error = StrDup(env, error);
+    PostToCallback(&cmd);
 }
 
 JNIEXPORT void JNICALL Java_com_dynamo_android_facebook_FacebookJNI_onIterateMeEntry

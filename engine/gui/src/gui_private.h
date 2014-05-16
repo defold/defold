@@ -43,6 +43,7 @@ namespace dmGui
         uint32_t                m_Height;
         uint32_t                m_PhysicalWidth;
         uint32_t                m_PhysicalHeight;
+        dmArray<HScene>         m_Scenes;
         dmArray<HNode>          m_RenderNodes;
         dmArray<Matrix4>        m_RenderTransforms;
         dmHID::HContext         m_HidContext;
@@ -53,6 +54,7 @@ namespace dmGui
     {
         Vector4     m_Properties[PROPERTY_COUNT];
         Vector4     m_ResetPointProperties[PROPERTY_COUNT];
+        Matrix4     m_LocalTransform;
         uint32_t    m_ResetPointState;
 
         union
@@ -67,7 +69,8 @@ namespace dmGui
                 uint32_t    m_AdjustMode : 2;
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
-                uint32_t    m_Reserved : 12;
+                uint32_t    m_DirtyLocal : 1;
+                uint32_t    m_Reserved : 11;
             };
 
             uint32_t m_State;
@@ -79,17 +82,24 @@ namespace dmGui
         void*       m_Texture;
         uint64_t    m_FontHash;
         void*       m_Font;
+        dmhash_t    m_LayerHash;
+        uint16_t    m_LayerIndex;
     };
 
     struct InternalNode
     {
-        Node     m_Node;
-        dmhash_t m_NameHash;
-        uint16_t m_Version;
-        uint16_t m_Index;
-        uint16_t m_PrevIndex;
-        uint16_t m_NextIndex;
-        uint16_t m_Deleted : 1; // Set to true for deferred deletion
+        Node            m_Node;
+        dmhash_t        m_NameHash;
+        uint16_t        m_Version;
+        uint16_t        m_Index;
+        uint16_t        m_PrevIndex;
+        uint16_t        m_NextIndex;
+        uint16_t        m_ParentIndex;
+        uint16_t        m_ChildHead;
+        uint16_t        m_ChildTail;
+        uint16_t        m_RenderKey;
+        uint16_t        m_Deleted : 1; // Set to true for deferred deletion
+        uint16_t        m_Padding : 15;
     };
 
     struct NodeProxy
@@ -115,7 +125,6 @@ namespace dmGui
         uint16_t m_FirstUpdate : 1;
         uint16_t m_AnimationCompleteCalled : 1;
         uint16_t m_Cancelled : 1;
-        uint16_t m_Enabled : 1;
         uint16_t m_Backwards : 1;
     };
 
@@ -158,6 +167,7 @@ namespace dmGui
         dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
+        dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_DeletedDynamicTextures;
         void*                   m_DefaultFont;
         void*                   m_UserData;
@@ -165,6 +175,8 @@ namespace dmGui
         uint16_t                m_RenderTail;
         uint16_t                m_NextVersionNumber;
         uint16_t                m_RenderOrder; // For the render-key
+        uint16_t                m_NextLayerIndex;
+        uint16_t                m_ResChanged : 1;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
@@ -180,10 +192,11 @@ namespace dmGui
      * @param node node for which to calculate the transform
      * @param reference_scale the reference scale of the scene which is the ratio between physical and reference dimensions
      * @param boundary true calculates the boundary transform, false calculates the render transform
-     * @param offset_pivot If the transform should be offseted by the pivot or not
+     * @param include_size If the size should be included in the transform
+     * @param reset_pivot If the pivot should be ignored in the resulting transform
      * @param out_transform out-parameter to write the calculated transform to
      */
-    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, bool offset_pivot, Matrix4* out_transform);
+    void CalculateNodeTransform(HScene scene, InternalNode* parent, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform);
 
     /** calculates the reference scale for a context
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.

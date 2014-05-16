@@ -12,7 +12,7 @@ namespace dmMutex
 #include "safe_windows.h"
 namespace dmMutex
 {
-    typedef HANDLE Mutex;
+    typedef CRITICAL_SECTION* Mutex;
 }
 
 #else
@@ -60,6 +60,9 @@ namespace dmMutex
         }
     };
 
+    #define SCOPED_LOCK_PASTE(x, y) x ## y
+    #define SCOPED_LOCK_PASTE2(x, y) SCOPED_LOCK_PASTE(x, y)
+    #define DM_MUTEX_SCOPED_LOCK(mutex) dmMutex::ScopedLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
 
 }  // namespace dmMutex
 

@@ -103,9 +103,8 @@ public class ResourceUtil {
 
         if (Server.getEngineFile(configuration, Long.toString(project.getId()), "ios").exists()) {
             String key = Server.getEngineDownloadKey(project);
-            String url = String.format("http://%s:%d/projects/%d/%d/engine_manifest/ios/%s",
+            String url = String.format("https://%s/projects/%d/%d/engine_manifest/ios/%s",
                     configuration.getHostname(),
-                    configuration.getServicePort(),
                     user.getId(),
                     project.getId(),
                     key);

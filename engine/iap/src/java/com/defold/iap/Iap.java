@@ -24,16 +24,16 @@ import android.util.Log;
 
 import com.android.vending.billing.IInAppBillingService;
 
-public class Iap implements Handler.Callback {	
+public class Iap implements Handler.Callback {
 	public static final String PARAM_PRODUCT = "product";
 	public static final String PARAM_MESSENGER = "com.defold.iap.messenger";
-	
+
 	// NOTE: Also defined in iap_android.cpp
 	public static final int TRANS_STATE_PURCHASING = 0;
 	public static final int TRANS_STATE_PURCHASED = 1;
 	public static final int TRANS_STATE_FAILED = 2;
 	public static final int TRANS_STATE_RESTORED = 3;
-	
+
     public static final String RESPONSE_CODE = "RESPONSE_CODE";
     public static final String RESPONSE_GET_SKU_DETAILS_LIST = "DETAILS_LIST";
     public static final String RESPONSE_BUY_INTENT = "BUY_INTENT";
@@ -52,12 +52,12 @@ public class Iap implements Handler.Callback {
     public static final int BILLING_RESPONSE_RESULT_ERROR = 6;
     public static final int BILLING_RESPONSE_RESULT_ITEM_ALREADY_OWNED = 7;
     public static final int BILLING_RESPONSE_RESULT_ITEM_NOT_OWNED = 8;
-    
+
     public static enum Action {
     	BUY,
     	RESTORE,
     }
-    	
+
 	public static final String TAG = "iap";
 
 	private Activity activity;
@@ -65,7 +65,7 @@ public class Iap implements Handler.Callback {
 	private Messenger messenger;
 	private ServiceConnection serviceConn;
 	private IInAppBillingService service;
-	
+
 	private SkuDetailsThread skuDetailsThread;
 	private BlockingQueue<SkuRequest> skuRequestQueue = new ArrayBlockingQueue<SkuRequest>(16);
 
@@ -81,34 +81,73 @@ public class Iap implements Handler.Callback {
 			this.listener = listener;
 		}
 	}
-	
-	private class SkuDetailsThread extends Thread {
-		public boolean stop = false;
-		@Override
-		public void run() {
-			while (!stop) {
-				try {
-					SkuRequest sr = skuRequestQueue.take();
-					String res = listItemsSync(sr.skuList);
-					sr.listener.onResult(res);
-				} catch (InterruptedException e) {
-					continue;
-				}
-			}
-		}
-	}
+
+    private class SkuDetailsThread extends Thread {
+        public boolean stop = false;
+        @Override
+        public void run() {
+            while (!stop) {
+                try {
+                    SkuRequest sr = skuRequestQueue.take();
+                    if (service == null) {
+                        Log.wtf(TAG,  "service is null");
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        continue;
+                    }
+                    if (activity == null) {
+                        Log.wtf(TAG,  "activity is null");
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                        continue;
+                    }
+
+                    try {
+                        Bundle querySkus = new Bundle();
+                        querySkus.putStringArrayList("ITEM_ID_LIST", sr.skuList);
+                        Bundle skuDetails = service.getSkuDetails(3, activity.getPackageName(), "inapp", querySkus);
+                        int response = skuDetails.getInt("RESPONSE_CODE");
+
+                        String res = null;
+                        if (response == BILLING_RESPONSE_RESULT_OK) {
+                            ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
+
+                            JSONObject map = new JSONObject();
+                            for (String r : responseList) {
+                                JSONObject product = convertProduct(r);
+                                if (product != null) {
+                                    map.put((String)product.get("ident"), product);
+                                }
+                            }
+                            res = map.toString();
+                        } else {
+                            Log.e(TAG, "Failed to fetch product list: " + response);
+                        }
+                        sr.listener.onProductsResult(response, res);
+
+                    } catch (RemoteException e) {
+                        Log.e(TAG, "Failed to fetch product list", e);
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Failed to fetch product list", e);
+                        sr.listener.onProductsResult(BILLING_RESPONSE_RESULT_ERROR, null);
+                    }
+                } catch (InterruptedException e) {
+                    continue;
+                }
+            }
+        }
+    }
 
 	public Iap(Activity activity) {
 		this.activity = activity;
 	}
-	
+
 	private void init() {
 		// NOTE: We must create Handler lazily as construction of
 		// handlers must be in the context of a "looper" on Android
-		
+
 		if (this.initialized)
 			return;
-		
+
 		this.initialized = true;
 		this.handler = new Handler(this);
 		this.messenger = new Messenger(this.handler);
@@ -117,36 +156,50 @@ public class Iap implements Handler.Callback {
 
 			@Override
 			public void onServiceDisconnected(ComponentName name) {
+			    Log.v(TAG, "IAP disconnected");
 				service = null;
 			}
 
-			@Override
-			public void onServiceConnected(ComponentName name, IBinder binderService) {
-				service = IInAppBillingService.Stub.asInterface(binderService);
-			}
-		};
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder binderService) {
+                Log.v(TAG, "IAP connected");
+                service = IInAppBillingService.Stub.asInterface(binderService);
+                skuDetailsThread = new SkuDetailsThread();
+                skuDetailsThread.start();
+            }
+        };
 
-		activity.bindService(new Intent(
-				"com.android.vending.billing.InAppBillingService.BIND"),
-				serviceConn, Context.BIND_AUTO_CREATE);
-		
-		skuDetailsThread = new SkuDetailsThread();
-		skuDetailsThread.start();		
+		Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
+		// Limit intent to vending package
+		serviceIntent.setPackage("com.android.vending");
+        if (!activity.getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
+            // service available to handle that Intent
+            activity.bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
+        } else {
+            Log.e(TAG, "Billing service unavailable on device.");
+        }
 	}
-	
-	public void stop() {
-		if (serviceConn != null) {
-			activity.unbindService(serviceConn);
-		}
-		if (skuDetailsThread != null) {
-			skuDetailsThread.interrupt();
-			try {
-				skuDetailsThread.join();
-			} catch (InterruptedException e) {
-				Log.wtf(TAG, "Failed to join thread", e);
-			}			
-		}
-	}
+
+    public void stop() {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (serviceConn != null) {
+                    activity.unbindService(serviceConn);
+                    serviceConn = null;
+                }
+                if (skuDetailsThread != null) {
+                    skuDetailsThread.stop = true;
+                    skuDetailsThread.interrupt();
+                    try {
+                        skuDetailsThread.join();
+                    } catch (InterruptedException e) {
+                        Log.wtf(TAG, "Failed to join thread", e);
+                    }
+                }
+            }
+        });
+    }
 
 	public void listItems(final String skus, final IListProductsListener listener) {
 		this.activity.runOnUiThread(new Runnable() {
@@ -154,78 +207,53 @@ public class Iap implements Handler.Callback {
 			@Override
 			public void run() {
 				init();
-				
+
 				ArrayList<String> skuList = new ArrayList<String>();
 				for (String x : skus.split(",")) {
 					if (x.trim().length() > 0) {
 						skuList.add(x);
 					}
 				}
-				
+
 				try {
 					skuRequestQueue.put(new SkuRequest(skuList, listener));
 				} catch (InterruptedException e) {
 					Log.wtf(TAG, "Failed to add sku request", e);
 				}
 			}
-		});	
-	}
-	
-	private static String convertProduct(String purchase) {
-		try {
-			JSONObject p = new JSONObject(purchase);			
-			p.put("price_string", p.get("price"));
-			p.put("ident", p.get("productId"));
-
-			p.remove("productId");
-			p.remove("type");
-			p.remove("price");
-			p.remove("price_amount_micros");
-			p.remove("price_currency_code");
-			return p.toString();			
-		} catch (JSONException e) {
-			Log.wtf(TAG, "Failed to convert product json", e);
-		}
-		
-		return null;
+		});
 	}
 
-	private String listItemsSync(ArrayList<String> skuList)  {
-		Bundle querySkus = new Bundle();
-		querySkus.putStringArrayList("ITEM_ID_LIST", skuList);
-		StringBuilder sb = new StringBuilder();
-		sb.append("[");
-		
-		try {
-			if (service == null) {
-				Log.wtf(TAG,  "service is null");
-				return "[]";
-			}
-			if (activity == null) {
-				Log.wtf(TAG,  "activity is null");
-				return "[]";
-			}
-			Bundle skuDetails = service.getSkuDetails(3, activity.getPackageName(), "inapp", querySkus);
-			int response = skuDetails.getInt("RESPONSE_CODE");
+    private static JSONObject convertProduct(String purchase) {
+        try {
+            JSONObject p = new JSONObject(purchase);
+            p.put("price_string", p.get("price"));
+            p.put("ident", p.get("productId"));
+            // It is not yet possible to obtain the price (num) and currency code on Android for the correct locale/region.
+            // They have a currency code (price_currency_code), which reflects the merchant's locale, instead of the user's
+            // https://code.google.com/p/marketbilling/issues/detail?id=93&q=currency%20code&colspec=ID%20Type%20Status%20Google%20Priority%20Milestone%20Owner%20Summary
+            double price = 0.0;
+            if (p.has("price_amount_micros")) {
+                price = ((Integer)p.get("price_amount_micros")).intValue() * 0.000001;
+            }
+            String currency_code = "Unknown";
+            if (p.has("price_currency_code")) {
+                currency_code = (String)p.get("price_currency_code");
+            }
+            p.put("currency_code", currency_code);
+            p.put("price", price);
 
-			if (response == 0) {
-				ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
-				
-				for (String r : responseList) {
-					String p = convertProduct(r);
-					if (p != null) {
-						sb.append(p);						
-					}
-				}
-			}
+            p.remove("productId");
+            p.remove("type");
+            p.remove("price_amount_micros");
+            p.remove("price_currency_code");
+            return p;
+        } catch (JSONException e) {
+            Log.wtf(TAG, "Failed to convert product json", e);
+        }
 
-		} catch (RemoteException e) {
-			Log.e(TAG, "Failed to fetch product list", e);
-		}
-		sb.append("]");
-
-		return sb.toString();
-	}
+        return null;
+    }
 
 	public void buy(final String product, final IPurchaseListener listener) {
 		this.activity.runOnUiThread(new Runnable() {
@@ -255,22 +283,25 @@ public class Iap implements Handler.Callback {
 			}
 		});
 	}
-	
+
 	public static String toISO8601(final Date date) {
 		String formatted = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(date);
 		return formatted.substring(0, 22) + ":" + formatted.substring(22);
 	}
-	
-	private static String convertPurchase(String purchase) {
+
+	private static String convertPurchase(String purchase, String signature) {
 		try {
-			JSONObject p = new JSONObject(purchase);			
+			JSONObject p = new JSONObject(purchase);
 			p.put("ident", p.get("productId"));
 			p.put("state", TRANS_STATE_PURCHASED);
-			p.put("trans_ident", p.get("purchaseToken"));
-			p.put("date", toISO8601(new Date(p.getInt("purchaseTime"))));
-			p.put("receipt", ""); // TODO: How?
+			p.put("trans_ident", p.get("orderId"));
+			p.put("date", toISO8601(new Date(p.getLong("purchaseTime"))));
+			// Receipt is the complete json data
+			// http://robertomurray.co.uk/blog/2013/server-side-google-play-in-app-billing-receipt-validation-and-testing/
+			p.put("receipt", purchase);
+			p.put("signature", signature);
 			// TODO: How to simulate original_trans on iOS?
-			
+
 			p.remove("packageName");
 			p.remove("orderId");
 			p.remove("productId");
@@ -280,18 +311,18 @@ public class Iap implements Handler.Callback {
 			p.remove("purchaseToken");
 
 			return p.toString();
-			
+
 		} catch (JSONException e) {
 			Log.wtf(TAG, "Failed to convert purchase json", e);
 		}
-		
+
 		return null;
 	}
-	
+
 	@Override
 	public boolean handleMessage(Message msg) {
 		Bundle bundle = msg.getData();
-		
+
 		String actionString = bundle.getString("action");
 		if (actionString == null) {
 			return false;
@@ -303,21 +334,20 @@ public class Iap implements Handler.Callback {
 		}
 
 		Action action = Action.valueOf(actionString);
-		
+
 		if (action == Action.BUY) {
 			int responseCode = bundle.getInt(RESPONSE_CODE);
 			String purchaseData = bundle.getString(RESPONSE_INAPP_PURCHASE_DATA);
 			String dataSignature = bundle.getString(RESPONSE_INAPP_SIGNATURE);
-			
+
 			if (purchaseData != null && dataSignature != null) {
-				purchaseData = convertPurchase(purchaseData);
+				purchaseData = convertPurchase(purchaseData, dataSignature);
 			} else {
 				responseCode = BILLING_RESPONSE_RESULT_ERROR;
 				purchaseData = "";
-				dataSignature = "";
 			}
-			
-			purchaseListener.onResult(responseCode, purchaseData, dataSignature);
+
+			purchaseListener.onPurchaseResult(responseCode, purchaseData);
 			this.purchaseListener = null;
 		} else if (action == Action.RESTORE) {
 			Bundle items = bundle.getBundle("items");
@@ -326,14 +356,14 @@ public class Iap implements Handler.Callback {
 			ArrayList<String> signatureList = items.getStringArrayList(RESPONSE_INAPP_SIGNATURE_LIST);
 			for (int i = 0; i < ownedSkus.size(); ++i) {
 				int c = BILLING_RESPONSE_RESULT_OK;
-				String pd = convertPurchase(purchaseDataList.get(i));
+				String pd = convertPurchase(purchaseDataList.get(i), signatureList.get(i));
 				if (pd == null) {
 					pd = "";
 					c = BILLING_RESPONSE_RESULT_ERROR;
 				}
-				purchaseListener.onResult(c, pd, signatureList.get(i));
+				purchaseListener.onPurchaseResult(c, pd);
 			}
-		}	
+		}
 		return true;
 	}
 }

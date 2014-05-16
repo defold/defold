@@ -272,6 +272,9 @@ void PostThread(void* arg)
     {
         uint32_t m = i;
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, receiver, m_HashMessage1, 0, 0x0, &m, sizeof(m)));
+        if (i % 100 == 0) {
+            dmTime::Sleep(1000);
+        }
     }
 }
 
@@ -283,15 +286,46 @@ TEST(dmMessage, ThreadTest1)
     r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
     ASSERT_EQ(dmMessage::RESULT_OK, r);
 
-    dmThread::Thread t1 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver);
-    dmThread::Thread t2 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver);
-    dmThread::Thread t3 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver);
-    dmThread::Thread t4 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver);
+    dmThread::Thread t1 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post1");
+    dmThread::Thread t2 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post2");
+    dmThread::Thread t3 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post3");
+    dmThread::Thread t4 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post4");
 
     uint32_t count = 0;
     while (count < 1024 * 4)
     {
         count += dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0);
+    }
+    ASSERT_EQ(1024U * 4U, count);
+
+    dmThread::Join(t1);
+    dmThread::Join(t2);
+    dmThread::Join(t3);
+    dmThread::Join(t4);
+
+    count += dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0);
+    ASSERT_EQ(1024U * 4U, count);
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
+}
+
+TEST(dmMessage, ThreadTest2)
+{
+    dmMessage::URL receiver;
+    dmMessage::ResetURL(receiver);
+    dmMessage::Result r;
+    r = dmMessage::NewSocket("my_socket", &receiver.m_Socket);
+    ASSERT_EQ(dmMessage::RESULT_OK, r);
+
+    dmThread::Thread t1 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post1");
+    dmThread::Thread t2 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post2");
+    dmThread::Thread t3 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post3");
+    dmThread::Thread t4 = dmThread::New(&PostThread, 0xf0000, (void*) &receiver, "post4");
+
+    uint32_t count = 0;
+    while (count < 1024 * 4)
+    {
+        count += dmMessage::DispatchBlocking(receiver.m_Socket, HandleMessage, 0);
     }
     ASSERT_EQ(1024U * 4U, count);
 

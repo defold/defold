@@ -162,6 +162,17 @@ namespace dmMessage
     uint32_t Dispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr);
 
     /**
+     * Dispatch messages blocking. The function will return as soon at least one message
+     * is dispatched.
+     * See Dispatch() for additional information
+     * @param socket socket
+     * @param dispatch_callback dispatch callback
+     * @param user_ptr user data
+     * @return Number of dispatched messages
+     */
+    uint32_t DispatchBlocking(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr);
+
+    /**
      * Consume all pending messages
      * @param socket Socket handle
      * @return Number of dispatched messages

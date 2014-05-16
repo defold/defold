@@ -23,6 +23,7 @@ import com.facebook.Session.NewPermissionsRequest;
 import com.facebook.Session.OpenRequest;
 import com.facebook.SessionDefaultAudience;
 import com.facebook.SessionState;
+import com.facebook.Settings;
 import com.facebook.model.GraphUser;
 
 public class FacebookActivity implements PseudoActivity {
@@ -82,6 +83,8 @@ public class FacebookActivity implements PseudoActivity {
         this.messenger = (Messenger) extras.getParcelable(Facebook.INTENT_EXTRA_MESSENGER);
         final String action = intent.getAction();
         if (action.equals(Facebook.ACTION_LOGIN)) {
+            // Disabling auto publish installs is a requirement by King
+            Settings.setShouldAutoPublishInstall(false);
             this.session = new Session.Builder(parent).setApplicationId(extras.getString(Facebook.INTENT_EXTRA_APP_ID))
                     .build();
             Session.setActiveSession(session);

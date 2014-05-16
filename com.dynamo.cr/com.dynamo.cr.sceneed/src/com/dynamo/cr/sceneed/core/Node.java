@@ -42,7 +42,7 @@ public abstract class Node implements IAdaptable, Serializable {
     public enum Flags {
         TRANSFORMABLE,
         SCALABLE,
-        LOCKED,
+ COMPONENT_SCALABLE, LOCKED,
         NO_INHERIT_ROTATION,
         NO_INHERIT_SCALE,
         INVISIBLE
@@ -68,6 +68,9 @@ public abstract class Node implements IAdaptable, Serializable {
     @Property
     @GreaterThanZero
     private double scale = 1.0;
+
+    @Property(displayName = "scale")
+    private Vector3d componentScale = new Vector3d(1.0, 1.0, 1.0);
 
     // Used to preserve order when adding/removing child nodes
     private transient int childIndex = -1;
@@ -155,6 +158,14 @@ public abstract class Node implements IAdaptable, Serializable {
         return isScalable();
     }
 
+    public final boolean isComponentScalable() {
+        return flags.contains(Flags.COMPONENT_SCALABLE);
+    }
+
+    public boolean isComponentScaleVisible() {
+        return isComponentScalable();
+    }
+
     public final boolean isEditable() {
         return !flags.contains(Flags.LOCKED);
     }
@@ -163,7 +174,7 @@ public abstract class Node implements IAdaptable, Serializable {
         aabb.set(this.aabb);
     }
 
-    protected final void setAABB(AABB aabb) {
+    public final void setAABB(AABB aabb) {
         this.aabb.set(aabb);
         setAABBDirty();
     }
@@ -248,7 +259,17 @@ public abstract class Node implements IAdaptable, Serializable {
         return this.scale;
     }
 
-    private static void eulerToQuat(Tuple3d euler, Quat4d quat) {
+    public Vector3d getComponentScale() {
+        return this.componentScale;
+    }
+
+    public void setComponentScale(Vector3d componentScale) {
+        this.componentScale = componentScale;
+        setAABBDirty();
+        transformChanged();
+    }
+
+    public static void eulerToQuat(Tuple3d euler, Quat4d quat) {
         double bank = euler.x * Math.PI / 180;
         double heading = euler.y * Math.PI / 180;
         double attitude = euler.z * Math.PI / 180;
@@ -310,8 +331,15 @@ public abstract class Node implements IAdaptable, Serializable {
     {
         transform.setIdentity();
         transform.set(new Vector3d(translation.x, translation.y, translation.z));
-        transform.setRotation(rotation);
-        transform.setScale(this.scale);
+        Matrix3d rotationScale = new Matrix3d();
+        rotationScale.set(rotation);
+        Matrix3d scale = new Matrix3d();
+        scale.setIdentity();
+        scale.setElement(0, 0, this.scale * this.componentScale.getX());
+        scale.setElement(1, 1, this.scale * this.componentScale.getY());
+        scale.setElement(2, 2, this.scale * this.componentScale.getZ());
+        rotationScale.mul(scale);
+        transform.setRotationScale(rotationScale);
     }
 
     protected boolean scaleAlongZ() {
@@ -357,8 +385,15 @@ public abstract class Node implements IAdaptable, Serializable {
             Vector3d translation = new Vector3d(this.translation);
             rotationScale.transform(translation);
             local.setIdentity();
-            local.setRotation(this.rotation);
-            local.setScale(this.scale);
+            Matrix3d localRotationScale = new Matrix3d();
+            localRotationScale.set(rotation);
+            Matrix3d scale = new Matrix3d();
+            scale.setIdentity();
+            scale.setElement(0, 0, this.scale * this.componentScale.getX());
+            scale.setElement(1, 1, this.scale * this.componentScale.getY());
+            scale.setElement(2, 2, this.scale * this.componentScale.getZ());
+            localRotationScale.mul(scale);
+            local.setRotationScale(localRotationScale);
             transform.mul(local);
             transform.setM03(transform.getM03() + translation.x);
             transform.setM13(transform.getM13() + translation.y);
@@ -589,6 +624,7 @@ public abstract class Node implements IAdaptable, Serializable {
         out.writeObject(this.rotation);
         out.writeObject(this.euler);
         out.writeDouble(this.scale);
+        out.writeObject(this.componentScale);
     }
 
     @SuppressWarnings("unchecked")
@@ -608,5 +644,6 @@ public abstract class Node implements IAdaptable, Serializable {
         this.rotation = (Quat4d)in.readObject();
         this.euler = (Vector3d)in.readObject();
         this.scale = in.readDouble();
+        this.componentScale = (Vector3d) in.readObject();
     }
 }

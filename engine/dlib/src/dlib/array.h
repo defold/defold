@@ -1,323 +1,371 @@
-
 #ifndef DM_ARRAY_H
 #define DM_ARRAY_H
-#include <stdint.h>
-#include <assert.h>
 
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
 
 /**
- * dmArray class helper functions. (private)
+ * Utility functions
  */
-class dmArrayHelper
+namespace dmArrayUtil
 {
-    public:
-	static void SetCapacity(uint32_t, uint32_t, uintptr_t*, uintptr_t*, uintptr_t*);
+    void SetCapacity(uint32_t, uint32_t, uintptr_t*, uintptr_t*, uintptr_t*);
 };
 
-
-/**
- * Array class with basic bound-checking.
- * The contained type must be a value type and conform to memcpy-semantics.
- * Except for SetSize(.) and SetCapacity(.) all operations are O(1).
+/** Templatized array with bounds checking.
+ *
+ * The backing storage is either auto-allocated (dynamically allocated) or user-allocated (supplied by user).
+ * With exception of changing the size and capacity, all operations are guaranteed to be O(1).
+ *
+ * @tparam T Contained type, must obey memcpy semantics
  */
 template <typename T>
 class dmArray
 {
-    enum STATE_FLAGS
-    {
-        STATE_DEFAULT           = 0x0,
-        STATE_USER_ALLOCATED    = 0x1
-    };
-
 public:
-    /**
-     * Creates an empty array.
+    /** empty auto-allocated array
      */
-    dmArray()
-    {
-        m_Front = 0;
-        m_End = 0;
-        m_Back = 0;
-        m_State = STATE_DEFAULT;
-    }
+    dmArray();
 
-    /**
-     * Creates an array with user allocated memory. User allocated arrays can not change capacity.
-     * @param user_allocated Pointer to user allocated continous data-block
-     * @param size Initial number of valid elements.
-     * @param capacity Max capacity
+    /** user-allocated array with initial size and capacity
+     *
+     * @param user_array User-allocated array to be used as storage
+     * @param size Initial size
+     * @param capacity Initial capacity
      */
-    dmArray(T *user_allocated, uint32_t size, uint32_t capacity)
-    {
-        assert(user_allocated != 0);
-        assert(size  < capacity);
-        m_Front = user_allocated;
-        m_End = user_allocated + size;
-        m_Back = user_allocated + capacity;
-        m_State = STATE_USER_ALLOCATED;
-    }
+    dmArray(T* user_array, uint32_t size, uint32_t capacity);
 
-    /**
-     * Destructor.
-     * @note If user allocated, memory is not free'd
+    /** destructor
+     * Only frees memory when auto-allocated.
      */
-    ~dmArray()
-    {
-        if (!(m_State & STATE_USER_ALLOCATED) && m_Front)
-        {
-            delete[] (uint8_t*) m_Front;
-        }
-    }
+    ~dmArray();
 
-
-    /**
-     * Return begin iterator
-     * @return begin iterator
+    /** pointer to the start of the backing storage
+     * @return pointer to start of memory
      */
-    T* Begin()
-    {
-        return m_Front;
-    }
+    T* Begin();
 
-    /**
-     * Return end iterator
-     * @return end iterator
+    /** pointer to the end of the backing storage
+     * The end is essentially outside of the used storage.
+     * @return pointer to end of memory
      */
-    T* End()
-    {
-        return m_End;
-    }
+    T* End();
 
-    /**
-     * First element
-     * @return Reference to the first element
+    /** first element of the array
+     * @return reference to the first element
      */
-    T& Front()
-    {
-        assert( Size() > 0 );
-        return m_Front[0];
-    }
+    T& Front();
 
-    /**
-     * First element (const)
-     * @return Const reference to the first element
+    /** first element of the array (const)
+     * @return const-reference to the first element
      */
-    const T& Front() const
-    {
-        assert( Size() > 0 );
-        return m_Front[0];
-    }
+    const T& Front() const;
 
-    /**
-     * Last element
-     * @return Reference to the last element
+    /** last element of the array
+     * @return reference to the last element
      */
-    T& Back()
-    {
-        assert( Size() > 0 );
-        return m_End[-1];
-    }
+    T& Back();
 
-    /**
-     * Last element (const)
-     * @return Const reference to the last element
+    /** last element of the array (const)
+     * @return const-reference to the last element
      */
-    const T& Back() const
-    {
-        assert( Size() > 0 );
-        return m_End[-1];
-    }
+    const T& Back() const;
 
-    /**
-     * Array size
-     * @return Returns size of the array
+    /** size of the array
+     * @return array size
      */
-    uint32_t Size() const
-    {
-        return (uint32_t)(m_End - m_Front);
-    }
+    uint32_t Size() const;
 
-    /**
-     * Total capacity
-     * @return Returns total capacity of the array
+    /** capacity of the array
+     * Capacity is currently allocated storage.
+     * @return array capacity
      */
-    uint32_t Capacity() const
-    {
-        return (uint32_t)(m_Back - m_Front);
-    }
+    uint32_t Capacity() const;
 
-    /**
-     * Return true if the array is full.
-     * @return Returns true if size of array has reached capacity.
+    /** check if the array is full
+     * The array is full when the size is equal to the capacity.
+     * @return true if the array is full
      */
-    bool Full() const
-    {
-        return m_End == m_Back;
-    }
+    bool Full() const;
 
-    /**
-     * Return true if the array is empty.
-     * @return Returns true if the array is empty
+    /** check if the array is empty
+     * The array is empty when the size is zero.
+     * @return true if the array is empty
      */
-    bool Empty() const
-    {
-        return m_End == m_Front;
-    }
+    bool Empty() const;
 
-    /**
-     * Returns the amount of space left in the array for use, in elements.
-     * @return Returns space left in array, in elements.
+    /** amount of elements that can be currently stored
+     * @return amount of elements
      */
-    uint32_t Remaining() const
-    {
-        return m_Back - m_End;
-    }
+    uint32_t Remaining() const;
 
-    /**
-     * Index operator
-     * @return Returns reference to the element at offset i
+    /** retrieve an element by index
+     * @return reference to the element at the specified index
      */
-    T& operator[](uint32_t i)
-    {
-        assert (  i < Size() );
-        return m_Front[i];
-    }
+    T& operator[](uint32_t i);
 
-    /**
-     * Index operator (const)
-     * @return Returns const reference to the element at offset i
+    /** retrieve an element by index (const)
+     * @return const-reference to the element at the specified index
      */
-    const T& operator[](uint32_t i) const
-    {
-        assert ( i < Size() );
-        return m_Front[i];
-    }
+    const T& operator[](uint32_t i) const;
 
-    /**
-     * Set capacity. If less than current size, the array will be truncated.
-     * @note Changing the capacity will result in a new memory allocation.
-     * @param new_capacity New array capacity
+    /** set the capacity of the array
+     * If the size is less than the capacity, the array is truncated.
+     * If it is larger, the array is extended.
+     * @note Only allowed for auto-allocated arrays and will result in a new dynamic allocation followed by memcpy of the elements.
+     * @param capacity capacity of the array
      */
-    void SetCapacity(uint32_t new_capacity)
-    {
-        assert (!(m_State & STATE_USER_ALLOCATED) && "SetCapacity is an illegal operation on user allocated arrays");
-		dmArrayHelper::SetCapacity(new_capacity, sizeof(T), (uintptr_t*)&m_Front, (uintptr_t*)&m_Back, (uintptr_t*)&m_End);
-    }
+    void SetCapacity(uint32_t capacity);
 
-    /**
-     * Offset capacity. This is equivalent of calling SetCapacity(Capacity() + offset_capacity).
-     * @note Offsetting capacity will result in a new memory allocation.
-     * @param offset_capacity The amount to adjust capacity of array with.
+    /** relative change of capacity
+     * Equivalent to SetCapacity(Capacity() + offset).
+     * @note Only allowed for auto-allocated arrays and will result in a new dynamic allocation followed by memcpy of the elements.
+     * @param offset relative amount of elements to change the capacity
      */
-    void OffsetCapacity(int32_t offset_capacity)
-    {
-        SetCapacity((uint32_t)((int32_t)Capacity()) + offset_capacity);
-    }
+    void OffsetCapacity(int32_t offset);
 
-    /**
-     * Set array size. The new size must be less than capacity
-     * @param new_size New array size
+    /** set size of the array
+     * @param size size of the array, must be less than the capacity
      */
-    void SetSize(uint32_t new_size)
-    {
-        assert( new_size <= Capacity() );
-        m_End = m_Front + new_size;
-    }
+    void SetSize(uint32_t size);
 
-    /**
-     * Removes the element at element index by replacing with the last element. O(1) operation.
-     * @note Does not preserve order!
-     * @param element_index array index of element to remove
+    /** remove the element at the specified index
+     * The removed element is replaced by the element at the end (if any), thus altering the order.
+     * @note Might alter the order of the array.
+     * @param index index of the element to remove
      */
-    T& EraseSwap(uint32_t element_index)
-    {
-        assert ( element_index < Size() );
-        m_Front[element_index] = *(m_End - 1);
-        m_End--;
-        assert ( m_End >= m_Front );
-        return m_Front[element_index];
-    }
+    T& EraseSwap(uint32_t index);
 
-    /**
-     * Removes the element with the last element. O(1) operation.
-     * @note Does not preserve order!
-     * @param element_ref element to remove
+    /** remove the element by reference
+     * The removed element is replaced by the element at the end (if any), thus altering the order.
+     * @note Might alter the order of the array.
+     * @param element_ref reference of the element to remove
      */
-    T& EraseSwapRef(T& element_ref)
-    {
-        assert ( &element_ref >= m_Front && &element_ref < m_End);
-        element_ref = *(m_End - 1);
-        m_End--;
-        assert ( m_End >= m_Front );
-        return element_ref;
-    }
+    T& EraseSwapRef(T& element);
 
-    /**
-     * Adds a new element at the end of the array.
-     * @note Push will fail if capacity is exceeded.
-     * @param x Element to add
+    /** add an element to the end of the array
+     * @note Only allowed when the capacity is larger than size.
+     * @param element element to add
      */
-    void Push(const T& x)
-    {
-        assert ( Capacity() - Size() > 0 );
-        *m_End++ = x;
-    }
+    void Push(const T& element);
 
-    /**
-     * Adds n new elements at the end of the array.
-     * @param x Elements
-     * @param count Elemen count
-     * @note PushArray will fail if capacity is exceeded.
+    /** add an array of elements to the end of the array
+     * @param array array of elements to add
+     * @param count amount of elements in the array
+     * @note Only allowed when the capacity is larger than size + count.
      */
-    void PushArray(const T* x, uint32_t count)
-    {
-        assert ( Capacity() - Size() >= count );
-        memcpy(m_End, x, sizeof(T) * count);
-        m_End += count;
-    }
+    void PushArray(const T* array, uint32_t count);
 
-    /**
-     * Removes the last element in the array.
-     * @note Pop will fail if size is 0.
+    /** remove the last element of the array
+     * @note Only allowed when the size is larger than zero.
      */
-    void Pop()
-    {
-        assert ( Size() > 0 );
-        m_End--;
-    }
+    void Pop();
 
-    /**
-     * Swaps the content of two arrays.
-     * @param rhs Array to swap with.
+    /** swap the content of two arrays
+     * @param rhs array to swap content with
      */
-    void Swap(dmArray<T>& rhs)
-    {
-        T* tmp_t = rhs.m_Front;
-        rhs.m_Front = m_Front;
-        m_Front = tmp_t;
-        tmp_t = rhs.m_End;
-        rhs.m_End = m_End;
-        m_End = tmp_t;
-        tmp_t = rhs.m_Back;
-        rhs.m_Back = m_Back;
-        m_Back = tmp_t;
-        uint16_t tmp_i = rhs.m_State;
-        rhs.m_State = m_State;
-        m_State = tmp_i;
-    }
+    void Swap(dmArray<T>& rhs);
 
 private:
     T *m_Front, *m_End;
     T *m_Back;
-    uint16_t m_State : 1;
+    uint16_t m_UserAllocated : 1;
 
-    // Simply to forbid usage of these methods..
+    // Restrict copy-construction etc.
     dmArray(const dmArray<T>&) {}
-    void operator=(const dmArray<T>&  ) { }
-    void operator==(const dmArray<T>& ) { }
+    void operator =(const dmArray<T>&) {}
+    void operator ==(const dmArray<T>&) {}
 };
 
+template <typename T>
+dmArray<T>::dmArray()
+{
+    memset(this, 0, sizeof(*this));
+}
 
+template <typename T>
+dmArray<T>::dmArray(T *user_array, uint32_t size, uint32_t capacity)
+{
+    assert(user_array != 0);
+    assert(size  < capacity);
+    m_Front = user_array;
+    m_End = user_array + size;
+    m_Back = user_array + capacity;
+    m_UserAllocated = 1;
+}
 
+template <typename T>
+dmArray<T>::~dmArray()
+{
+    if (!m_UserAllocated && m_Front)
+    {
+        delete[] (uint8_t*) m_Front;
+    }
+}
+
+template <typename T>
+T* dmArray<T>::Begin()
+{
+    return m_Front;
+}
+
+template <typename T>
+T* dmArray<T>::End()
+{
+    return m_End;
+}
+
+template <typename T>
+T& dmArray<T>::Front()
+{
+    assert(Size() > 0);
+    return m_Front[0];
+}
+
+template <typename T>
+const T& dmArray<T>::Front() const
+{
+    assert(Size() > 0);
+    return m_Front[0];
+}
+
+template <typename T>
+T& dmArray<T>::Back()
+{
+    assert(Size() > 0);
+    return m_End[-1];
+}
+
+template <typename T>
+const T& dmArray<T>::Back() const
+{
+    assert(Size() > 0);
+    return m_End[-1];
+}
+
+template <typename T>
+uint32_t dmArray<T>::Size() const
+{
+    return (uint32_t)(m_End - m_Front);
+}
+
+template <typename T>
+uint32_t dmArray<T>::Capacity() const
+{
+    return (uint32_t)(m_Back - m_Front);
+}
+
+template <typename T>
+bool dmArray<T>::Full() const
+{
+    return m_End == m_Back;
+}
+
+template <typename T>
+bool dmArray<T>::Empty() const
+{
+    return m_End == m_Front;
+}
+
+template <typename T>
+uint32_t dmArray<T>::Remaining() const
+{
+    return m_Back - m_End;
+}
+
+template <typename T>
+T& dmArray<T>::operator[](uint32_t i)
+{
+    assert(i < Size());
+    return m_Front[i];
+}
+
+template <typename T>
+const T& dmArray<T>::operator[](uint32_t i) const
+{
+    assert(i < Size());
+    return m_Front[i];
+}
+
+template <typename T>
+void dmArray<T>::SetCapacity(uint32_t capacity)
+{
+    assert(!m_UserAllocated && "SetCapacity is not allowed for user-allocated arrays");
+    dmArrayUtil::SetCapacity(capacity, sizeof(T), (uintptr_t*)&m_Front, (uintptr_t*)&m_Back, (uintptr_t*)&m_End);
+}
+
+template <typename T>
+void dmArray<T>::OffsetCapacity(int32_t offset)
+{
+    SetCapacity((uint32_t)((int32_t)Capacity()) + offset);
+}
+
+template <typename T>
+void dmArray<T>::SetSize(uint32_t size)
+{
+    assert(size <= Capacity());
+    m_End = m_Front + size;
+}
+
+template <typename T>
+T& dmArray<T>::EraseSwap(uint32_t index)
+{
+    assert(index < Size());
+    m_Front[index] = *(m_End - 1);
+    m_End--;
+    assert(m_End >= m_Front);
+    return m_Front[index];
+}
+
+template <typename T>
+T& dmArray<T>::EraseSwapRef(T& element)
+{
+    assert(&element >= m_Front && &element < m_End);
+    element = *(m_End - 1);
+    m_End--;
+    assert(m_End >= m_Front);
+    return element;
+}
+
+template <typename T>
+void dmArray<T>::Push(const T& element)
+{
+    assert(Capacity() - Size() > 0);
+    *m_End++ = element;
+}
+
+template <typename T>
+void dmArray<T>::PushArray(const T* array, uint32_t count)
+{
+    assert(Capacity() - Size() >= count);
+    memcpy(m_End, array, sizeof(T) * count);
+    m_End += count;
+}
+
+template <typename T>
+void dmArray<T>::Pop()
+{
+    assert(Size() > 0);
+    m_End--;
+}
+
+#define SWAP(type, lhs, rhs)\
+    {\
+        type tmp = rhs;\
+        rhs = lhs;\
+        lhs = tmp;\
+    }
+
+template <typename T>
+void dmArray<T>::Swap(dmArray<T>& rhs)
+{
+    SWAP(T*, m_Front, rhs.m_Front);
+    SWAP(T*, m_End, rhs.m_End);
+    SWAP(T*, m_Back, rhs.m_Back);
+    SWAP(uint16_t, m_UserAllocated, rhs.m_UserAllocated);
+}
+
+#undef SWAP
 
 #endif // DM_ARRAY_H

@@ -280,7 +280,8 @@ typedef unsigned char   GLubyte;
 #define GLFW_KEY_LSUPER       (GLFW_KEY_SPECIAL+67)
 #define GLFW_KEY_RSUPER       (GLFW_KEY_SPECIAL+68)
 #define GLFW_KEY_MENU         (GLFW_KEY_SPECIAL+69)
-#define GLFW_KEY_LAST         GLFW_KEY_MENU
+#define GLFW_KEY_BACK         (GLFW_KEY_SPECIAL+70)
+#define GLFW_KEY_LAST         GLFW_KEY_BACK
 
 #define GLFW_KEYBOARD_DEFAULT    (0)
 #define GLFW_KEYBOARD_NUMBER_PAD (1)

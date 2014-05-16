@@ -24,8 +24,8 @@ void Thread(void* arg)
 TEST(dmSpinlock, Test)
 {
     dmSpinlock::Init(&g_Lock);
-    dmThread::Thread t1 = dmThread::New(Thread, 0xf000, 0);
-    dmThread::Thread t2 = dmThread::New(Thread, 0xf000, 0);
+    dmThread::Thread t1 = dmThread::New(Thread, 0xf000, 0, "t1");
+    dmThread::Thread t2 = dmThread::New(Thread, 0xf000, 0, "t2");
     dmThread::Join(t1);
     dmThread::Join(t2);
     ASSERT_EQ(ITER * 2, g_Value);

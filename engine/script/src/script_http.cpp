@@ -26,6 +26,7 @@ namespace dmScript
 {
     dmHttpService::HHttpService g_Service = 0;
     int g_ServiceRefCount = 0;
+    uint64_t g_Timeout = 0;
 
     /*# perform http request
      *
@@ -122,6 +123,7 @@ namespace dmScript
             request->m_HeadersLength = headers_length;
             request->m_Request = (uint64_t) request_data;
             request->m_RequestLength = request_data_length;
+            request->m_Timeout = g_Timeout;
 
             uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + max_method_len + url_len + 1;
             dmMessage::URL receiver;
@@ -199,7 +201,7 @@ namespace dmScript
         return RESULT_OK;
     }
 
-    void InitializeHttp(lua_State* L)
+    void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
     {
 // TODO: Port
 #if !(defined(__EMSCRIPTEN__) || defined(__AVM2__))
@@ -210,6 +212,11 @@ namespace dmScript
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
         }
         g_ServiceRefCount++;
+
+        if (config_file) {
+            float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
+            g_Timeout = (uint64_t) (timeout * 1000000.0f);
+        }
 
         luaL_register(L, "http", HTTP_COMP_FUNCTIONS);
         lua_pop(L, 1);

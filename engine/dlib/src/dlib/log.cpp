@@ -183,7 +183,9 @@ static void dmLogThread(void* args)
     volatile bool run = true;
     while (run)
     {
-        // NOTE: In the future we might add support for waiting for messages... :-)
+        // NOTE: We have support for blocking dispatch in dmMessage
+        // but we have to wait for both new messages and on sockets.
+        // Currently no support for that and hence the sleep here
         dmTime::Sleep(1000 * 30);
         dmLogUpdateNetwork();
         dmMessage::Dispatch(self->m_MessgeSocket, dmLogDispatch, (void*) &run);
@@ -245,7 +247,7 @@ void dmLogInitialize(const dmLogParams* params)
     }
 
     g_dmLogServer = new dmLogServer(server_socket, port, message_socket);
-    thread = dmThread::New(dmLogThread, 0x80000, 0);
+    thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     g_dmLogServer->m_Thread = thread;
 
     return;

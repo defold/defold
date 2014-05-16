@@ -19,6 +19,10 @@
 		            <h1>Settings</h1>
 		        </div>
                 <g:CheckBox ui:field="subscriptionStatus" text="Subscribe to news letter"></g:CheckBox>
+                <p>
+
+                Access token: <i><g:InlineLabel ui:field="authCookie"></g:InlineLabel></i>
+                </p>
             </g:HTMLPanel>
         </div>
     </g:HTMLPanel>

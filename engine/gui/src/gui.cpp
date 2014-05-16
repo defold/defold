@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <new>
+#include <algorithm>
 
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
@@ -12,6 +13,7 @@
 #include <dlib/math.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
+#include <dlib/trig_lookup.h>
 
 #include <script/script.h>
 
@@ -21,6 +23,8 @@
 namespace dmGui
 {
     const uint16_t INVALID_INDEX = 0xffff;
+
+    const uint32_t INITIAL_SCENE_COUNT = 32;
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -119,6 +123,7 @@ namespace dmGui
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_HidContext = params->m_HidContext;
+        context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
 
         return context;
     }
@@ -139,6 +144,12 @@ namespace dmGui
     {
         context->m_PhysicalWidth = width;
         context->m_PhysicalHeight = height;
+        dmArray<HScene>& scenes = context->m_Scenes;
+        uint32_t scene_count = scenes.Size();
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            scenes[i]->m_ResChanged = 1;
+        }
     }
 
     void SetDefaultFont(HContext context, void* font)
@@ -153,6 +164,7 @@ namespace dmGui
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
+        params->m_MaxLayers = 8;
     }
 
     Scene::Scene()
@@ -167,6 +179,13 @@ namespace dmGui
         (void) top;
 
         Scene* scene = new (lua_newuserdata(L, sizeof(Scene))) Scene();
+
+        dmArray<HScene>& scenes = context->m_Scenes;
+        if (scenes.Full())
+        {
+            scenes.SetCapacity(scenes.Capacity() + INITIAL_SCENE_COUNT);
+        }
+        scenes.Push(scene);
 
         lua_pushvalue(L, -1);
         scene->m_InstanceReference = luaL_ref( L, LUA_REGISTRYINDEX );
@@ -183,12 +202,15 @@ namespace dmGui
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
+        scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_DefaultFont = 0;
         scene->m_UserData = params->m_UserData;
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
         scene->m_NextVersionNumber = 0;
         scene->m_RenderOrder = 0;
+
+        scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -220,6 +242,17 @@ namespace dmGui
 
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         luaL_unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
+
+        dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
+        uint32_t scene_count = scenes.Size();
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            if (scenes[i] == scene)
+            {
+                scenes.EraseSwap(i);
+                break;
+            }
+        }
 
         scene->~Scene();
 
@@ -389,6 +422,22 @@ namespace dmGui
         }
     }
 
+    Result AddLayer(HScene scene, const char* layer_name)
+    {
+        if (scene->m_Layers.Full())
+            return RESULT_OUT_OF_RESOURCES;
+
+        uint64_t layer_hash = dmHashString64(layer_name);
+        uint16_t index = scene->m_NextLayerIndex++;
+        scene->m_Layers.Put(layer_hash, index);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_LayerHash == layer_hash)
+                scene->m_Nodes[i].m_Node.m_LayerIndex = index;
+        }
+        return RESULT_OK;
+    }
+
     HNode GetNodeHandle(InternalNode* node)
     {
         return ((uint32_t) node->m_Version) << 16 | node->m_Index;
@@ -480,6 +529,51 @@ namespace dmGui
         }
     }
 
+    static uint16_t GetLayerIndex(HScene scene, InternalNode* node)
+    {
+        if (node->m_Node.m_LayerHash == DEFAULT_LAYER && node->m_ParentIndex != INVALID_INDEX)
+        {
+            return GetLayerIndex(scene, &scene->m_Nodes[node->m_ParentIndex & 0xffff]);
+        } else {
+            return node->m_Node.m_LayerIndex;
+        }
+    }
+
+    static void UpdateRenderKey(HScene scene, InternalNode* node, uint16_t order)
+    {
+        uint16_t layer_index = GetLayerIndex(scene, node);
+        node->m_RenderKey = (layer_index << 10) | (order);
+    }
+
+    static uint16_t CollectNodes(HScene scene, uint16_t start_index, uint16_t order, dmArray<HNode>& nodes)
+    {
+        uint32_t index = start_index;
+        while (index != INVALID_INDEX)
+        {
+            InternalNode* n = &scene->m_Nodes[index];
+            if (n->m_Node.m_Enabled)
+            {
+                UpdateRenderKey(scene, n, order++);
+                HNode node = GetNodeHandle(n);
+                nodes.Push(node);
+                order = CollectNodes(scene, n->m_ChildHead, order, nodes);
+            }
+            index = n->m_NextIndex;
+        }
+        return order;
+    }
+
+    struct NodeSortPred
+    {
+        HScene m_Scene;
+        NodeSortPred(HScene scene) : m_Scene(scene) {}
+
+        bool operator ()(const HNode a, const HNode b) const
+        {
+            return m_Scene->m_Nodes[a & 0xffff].m_RenderKey < m_Scene->m_Nodes[b & 0xffff].m_RenderKey;
+        }
+    };
+
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
     {
         Context* c = scene->m_Context;
@@ -497,19 +591,17 @@ namespace dmGui
             c->m_RenderTransforms.SetCapacity(capacity);
         }
         Matrix4 node_transform;
-        uint32_t index = scene->m_RenderHead;
-        while (index != INVALID_INDEX)
+        CollectNodes(scene, scene->m_RenderHead, 0, c->m_RenderNodes);
+        std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), NodeSortPred(scene));
+        uint32_t node_count = c->m_RenderNodes.Size();
+        Matrix4 transform;
+        for (uint32_t i = 0; i < node_count; ++i)
         {
-            InternalNode* n = &scene->m_Nodes[index];
-            if (n->m_Node.m_Enabled)
-            {
-                CalculateNodeTransform(scene, n->m_Node, scale, false, true, &node_transform);
-                HNode node = GetNodeHandle(n);
-                c->m_RenderNodes.Push(node);
-                c->m_RenderTransforms.Push(node_transform);
-            }
-            index = n->m_NextIndex;
+            InternalNode* n = &scene->m_Nodes[c->m_RenderNodes[i] & 0xffff];
+            CalculateNodeTransform(scene, n, scale, false, true, true, &transform);
+            c->m_RenderTransforms.Push(transform);
         }
+        scene->m_ResChanged = 0;
         params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderNodes.Size(), context);
     }
 
@@ -518,6 +610,19 @@ namespace dmGui
         RenderSceneParams p;
         p.m_RenderNodes = render_nodes;
         RenderScene(scene, p, context);
+    }
+
+    static bool IsNodeEnabledRecursive(HScene scene, uint16_t node_index)
+    {
+        InternalNode* node = &scene->m_Nodes[node_index];
+        if (node->m_Node.m_Enabled && node->m_ParentIndex != INVALID_INDEX)
+        {
+            return IsNodeEnabledRecursive(scene, node->m_ParentIndex);
+        }
+        else
+        {
+            return node->m_Node.m_Enabled;
+        }
     }
 
     void UpdateAnimations(HScene scene, float dt)
@@ -531,7 +636,11 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if ((!anim->m_Enabled) || anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            {
+                continue;
+            }
+            if (!IsNodeEnabledRecursive(scene, anim->m_Node & 0xffff))
             {
                 continue;
             }
@@ -558,10 +667,18 @@ namespace dmGui
                 if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
                 }
+                if (anim->m_Playback == PLAYBACK_ONCE_PINGPONG) {
+                    t2 *= 2.0f;
+                    if (t2 > 1.0f) {
+                        t2 = 2.0f - t2;
+                    }
+                }
 
                 float x = dmEasing::GetValue(anim->m_Easing, t2);
 
                 *anim->m_Value = anim->m_From * (1-x) + anim->m_To * x;
+                // Flag local transform as dirty for the node
+                scene->m_Nodes[anim->m_Node & 0xffff].m_Node.m_DirtyLocal = 1;
 
                 // Animation complete, see above
                 if (t >= 1.0f)
@@ -990,6 +1107,7 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_OUTLINE] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SHADOW] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
+            node->m_Node.m_LocalTransform = Matrix4::identity();
             node->m_Node.m_BlendMode = 0;
             node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Node.m_XAnchor = 0;
@@ -998,16 +1116,22 @@ namespace dmGui
             node->m_Node.m_AdjustMode = 0;
             node->m_Node.m_LineBreak = 0;
             node->m_Node.m_Enabled = 1;
+            node->m_Node.m_DirtyLocal = 1;
 
             node->m_Node.m_HasResetPoint = false;
             node->m_Node.m_TextureHash = 0;
             node->m_Node.m_Texture = 0;
             node->m_Node.m_FontHash = 0;
             node->m_Node.m_Font = 0;
+            node->m_Node.m_LayerHash = DEFAULT_LAYER;
+            node->m_Node.m_LayerIndex = 0;
             node->m_Version = version;
             node->m_Index = index;
             node->m_PrevIndex = INVALID_INDEX;
             node->m_NextIndex = INVALID_INDEX;
+            node->m_ParentIndex = INVALID_INDEX;
+            node->m_ChildHead = INVALID_INDEX;
+            node->m_ChildTail = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
             MoveNodeAbove(scene, hnode, INVALID_HANDLE);
 
@@ -1015,10 +1139,15 @@ namespace dmGui
         }
     }
 
-    void SetNodeId(HScene scene, HNode node, const char* id)
+    void SetNodeId(HScene scene, HNode node, dmhash_t id)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_NameHash = dmHashString64(id);
+        n->m_NameHash = id;
+    }
+
+    void SetNodeId(HScene scene, HNode node, const char* id)
+    {
+        SetNodeId(scene, node, dmHashString64(id));
     }
 
     HNode GetNodeById(HScene scene, const char* id)
@@ -1046,22 +1175,93 @@ namespace dmGui
         return scene->m_NodePool.Size();
     }
 
-    static void RemoveFromRenderList(HScene scene, InternalNode* n)
+    static void GetNodeList(HScene scene, InternalNode* n, uint16_t** out_head, uint16_t** out_tail)
+    {
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            *out_head = &parent->m_ChildHead;
+            *out_tail = &parent->m_ChildTail;
+        }
+        else
+        {
+            *out_head = &scene->m_RenderHead;
+            *out_tail = &scene->m_RenderTail;
+        }
+    }
+
+    static void AddToNodeList(HScene scene, InternalNode* n, InternalNode* parent_n, InternalNode* prev_n)
+    {
+        uint16_t* head = &scene->m_RenderHead, * tail = &scene->m_RenderTail;
+        uint16_t parent_index = INVALID_INDEX;
+        if (parent_n != 0x0)
+        {
+            parent_index = parent_n->m_Index;
+            head = &parent_n->m_ChildHead;
+            tail = &parent_n->m_ChildTail;
+        }
+        n->m_ParentIndex = parent_index;
+        if (prev_n != 0x0)
+        {
+            if (*tail == prev_n->m_Index)
+            {
+                *tail = n->m_Index;
+                n->m_NextIndex = INVALID_INDEX;
+            }
+            else if (prev_n->m_NextIndex != INVALID_INDEX)
+            {
+                InternalNode* next_n = &scene->m_Nodes[prev_n->m_NextIndex];
+                next_n->m_PrevIndex = n->m_Index;
+                n->m_NextIndex = prev_n->m_NextIndex;
+            }
+            prev_n->m_NextIndex = n->m_Index;
+            n->m_PrevIndex = prev_n->m_Index;
+        }
+        else
+        {
+            n->m_PrevIndex = INVALID_INDEX;
+            n->m_NextIndex = *head;
+            if (*head != INVALID_INDEX)
+            {
+                InternalNode* next_n = &scene->m_Nodes[*head];
+                next_n->m_PrevIndex = n->m_Index;
+            }
+            *head = n->m_Index;
+            if (*tail == INVALID_INDEX)
+            {
+                *tail = n->m_Index;
+            }
+        }
+    }
+
+    static void RemoveFromNodeList(HScene scene, InternalNode* n)
     {
         // Remove from list
         if (n->m_PrevIndex != INVALID_INDEX)
             scene->m_Nodes[n->m_PrevIndex].m_NextIndex = n->m_NextIndex;
         if (n->m_NextIndex != INVALID_INDEX)
             scene->m_Nodes[n->m_NextIndex].m_PrevIndex = n->m_PrevIndex;
-        if (scene->m_RenderHead == n->m_Index)
-            scene->m_RenderHead = n->m_NextIndex;
-        if (scene->m_RenderTail == n->m_Index)
-            scene->m_RenderTail = n->m_PrevIndex;
+        uint16_t* head_ptr = 0x0, * tail_ptr = 0x0;
+        GetNodeList(scene, n, &head_ptr, &tail_ptr);
+
+        if (*head_ptr == n->m_Index)
+            *head_ptr = n->m_NextIndex;
+        if (*tail_ptr == n->m_Index)
+            *tail_ptr = n->m_PrevIndex;
     }
 
     void DeleteNode(HScene scene, HNode node)
     {
         InternalNode*n = GetNode(scene, node);
+
+        // Delete children first
+        uint16_t child_index = n->m_ChildHead;
+        while (child_index != INVALID_INDEX)
+        {
+            InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
+            child_index = child->m_NextIndex;
+            DeleteNode(scene, GetNodeHandle(child));
+        }
 
         dmArray<Animation> *animations = &scene->m_Animations;
         uint32_t n_anims = animations->Size();
@@ -1077,7 +1277,7 @@ namespace dmGui
                 continue;
             }
         }
-        RemoveFromRenderList(scene, n);
+        RemoveFromNodeList(scene, n);
         scene->m_NodePool.Push(n->m_Index);
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
@@ -1099,13 +1299,150 @@ namespace dmGui
         scene->m_Animations.SetSize(0);
     }
 
+    static Quat EulerToQuat(Vector4 euler_radians)
+    {
+        // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        Vector4 half_euler = euler_radians * 0.5f;
+        float cx = dmTrigLookup::Cos(half_euler.getX());
+        float sx = dmTrigLookup::Sin(half_euler.getX());
+        float cy = dmTrigLookup::Cos(half_euler.getY());
+        float sy = dmTrigLookup::Sin(half_euler.getY());
+        float cz = dmTrigLookup::Cos(half_euler.getZ());
+        float sz = dmTrigLookup::Sin(half_euler.getZ());
+        return Quat(sx*cy*cz - cx*sy*sz,
+                cx*sy*cz + sx*cy*sz,
+                cx*cy*sz - sx*sy*cz,
+                cx*cy*cz + sx*sy*sz);
+    }
+
+    static Vector4 CalcPivotDelta(uint32_t pivot, Vector4 size)
+    {
+        float width = size.getX();
+        float height = size.getY();
+
+        Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 1.0f);
+
+        switch (pivot)
+        {
+            case dmGui::PIVOT_CENTER:
+            case dmGui::PIVOT_S:
+            case dmGui::PIVOT_N:
+                delta_pivot.setX(-width * 0.5f);
+                break;
+
+            case dmGui::PIVOT_NE:
+            case dmGui::PIVOT_E:
+            case dmGui::PIVOT_SE:
+                delta_pivot.setX(-width);
+                break;
+
+            case dmGui::PIVOT_SW:
+            case dmGui::PIVOT_W:
+            case dmGui::PIVOT_NW:
+                break;
+        }
+        switch (pivot) {
+            case dmGui::PIVOT_CENTER:
+            case dmGui::PIVOT_E:
+            case dmGui::PIVOT_W:
+                delta_pivot.setY(-height * 0.5f);
+                break;
+
+            case dmGui::PIVOT_N:
+            case dmGui::PIVOT_NE:
+            case dmGui::PIVOT_NW:
+                delta_pivot.setY(-height);
+                break;
+
+            case dmGui::PIVOT_S:
+            case dmGui::PIVOT_SW:
+            case dmGui::PIVOT_SE:
+                break;
+        }
+        return delta_pivot;
+    }
+
+    static void AdjustPosScale(HScene scene, InternalNode* n, const Vector4& reference_scale, Vector4& position, Vector4& scale)
+    {
+        if (n->m_ParentIndex == INVALID_INDEX)
+        {
+            Node& node = n->m_Node;
+            // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
+            Vector4 adjust_scale = reference_scale;
+            if (node.m_AdjustMode == dmGui::ADJUST_MODE_FIT)
+            {
+                float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
+                adjust_scale.setX(uniform);
+                adjust_scale.setY(uniform);
+            }
+            else if (node.m_AdjustMode == dmGui::ADJUST_MODE_ZOOM)
+            {
+                float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
+                adjust_scale.setX(uniform);
+                adjust_scale.setY(uniform);
+            }
+
+            Context* context = scene->m_Context;
+            Vector4 screen_dims((float) context->m_Width, (float) context->m_Height, 0.0f, 1.0f);
+            Vector4 adjusted_dims = mulPerElem(screen_dims, adjust_scale);
+            Vector4 offset = (Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f) - adjusted_dims) * 0.5f;
+            // Apply anchoring
+            Vector4 scaled_position = mulPerElem(position, adjust_scale);
+            if (node.m_XAnchor == XANCHOR_LEFT)
+            {
+                offset.setX(0.0f);
+                scaled_position.setX(position.getX() * reference_scale.getX());
+            }
+            else if (node.m_XAnchor == XANCHOR_RIGHT)
+            {
+                offset.setX(0.0f);
+                float distance = (context->m_Width - position.getX()) * reference_scale.getX();
+                scaled_position.setX(context->m_PhysicalWidth - distance);
+            }
+            if (node.m_YAnchor == YANCHOR_TOP)
+            {
+                offset.setY(0.0f);
+                float distance = (context->m_Height - position.getY()) * reference_scale.getY();
+                scaled_position.setY(context->m_PhysicalHeight - distance);
+            }
+            else if (node.m_YAnchor == YANCHOR_BOTTOM)
+            {
+                offset.setY(0.0f);
+                scaled_position.setY(position.getY() * reference_scale.getY());
+            }
+            position = scaled_position + offset;
+            scale = mulPerElem(adjust_scale, scale);
+        }
+    }
+
+    static void UpdateLocalTransform(HScene scene, InternalNode* n, const Vector4& reference_scale)
+    {
+        Node& node = n->m_Node;
+
+        Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
+        Vector4 scale = node.m_Properties[dmGui::PROPERTY_SCALE];
+        AdjustPosScale(scene, n, reference_scale, position, scale);
+
+        const Vector4& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION];
+
+        const float deg_to_rad = 3.1415926f / 180.0f;
+        Quat r = EulerToQuat(rotation * deg_to_rad);
+        node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale(scale.getXYZ()));
+
+        node.m_LocalTransform.setTranslation(position.getXYZ());
+
+        node.m_DirtyLocal = 0;
+    }
+
     void ResetNodes(HScene scene)
     {
         uint32_t n_nodes = scene->m_Nodes.Size();
         for (uint32_t i = 0; i < n_nodes; ++i) {
-            Node* n = &scene->m_Nodes[i].m_Node;
+            InternalNode* node = &scene->m_Nodes[i];
+            Node* n = &node->m_Node;
             if (n->m_HasResetPoint) {
                 memcpy(n->m_Properties, n->m_ResetPointProperties, sizeof(n->m_Properties));
+                n->m_DirtyLocal = 1;
                 n->m_State = n->m_ResetPointState;
             }
         }
@@ -1133,6 +1470,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Properties[PROPERTY_POSITION] = Vector4(position);
+        n->m_Node.m_DirtyLocal = 1;
     }
 
     bool HasPropertyHash(HScene scene, HNode node, dmhash_t property)
@@ -1170,6 +1508,7 @@ namespace dmGui
         assert(property < PROPERTY_COUNT);
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Properties[property] = value;
+        n->m_Node.m_DirtyLocal = 1;
     }
 
     void SetNodeResetPoint(HScene scene, HNode node)
@@ -1275,6 +1614,50 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, const char* font_id)
     {
         return SetNodeFont(scene, node, dmHashString64(font_id));
+    }
+
+    dmhash_t GetNodeLayerId(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_LayerHash;
+    }
+
+    Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
+    {
+        uint16_t* layer_index = scene->m_Layers.Get(layer_id);
+        if (layer_index)
+        {
+            InternalNode* n = GetNode(scene, node);
+            n->m_Node.m_LayerHash = layer_id;
+            n->m_Node.m_LayerIndex = *layer_index;
+            return RESULT_OK;
+        }
+        else
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+    }
+
+    Result SetNodeLayer(HScene scene, HNode node, const char* layer_id)
+    {
+        return SetNodeLayer(scene, node, dmHashString64(layer_id));
+    }
+
+    Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
+    {
+        return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, metrics);
+    }
+
+    Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics)
+    {
+        memset(metrics, 0, sizeof(*metrics));
+        void** font = scene->m_Fonts.Get(font_id);
+        if (!font) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, metrics);
+        return RESULT_OK;
     }
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
@@ -1388,7 +1771,6 @@ namespace dmGui
         animation.m_FirstUpdate = 1;
         animation.m_AnimationCompleteCalled = 0;
         animation.m_Cancelled = 0;
-        animation.m_Enabled = n->m_Node.m_Enabled;
         animation.m_Backwards = 0;
 
         scene->m_Animations[animation_index] = animation;
@@ -1509,8 +1891,8 @@ namespace dmGui
     {
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 transform;
-        const Node& n = GetNode(scene, node)->m_Node;
-        CalculateNodeTransform(scene, n, scale, true, true, &transform);
+        InternalNode* n = GetNode(scene, node);
+        CalculateNodeTransform(scene, n, scale, true, true, true, &transform);
         transform = inverse(transform);
         Vector4 screen_pos(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
@@ -1542,16 +1924,6 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Enabled = enabled;
-        dmArray<Animation>& anims = scene->m_Animations;
-        uint32_t anim_count = anims.Size();
-        for (uint32_t i = 0; i < anim_count; ++i)
-        {
-            Animation& anim = anims[i];
-            if (anim.m_Node == node)
-            {
-                anim.m_Enabled = enabled;
-            }
-        }
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)
@@ -1559,29 +1931,24 @@ namespace dmGui
         if (node != INVALID_HANDLE && node != reference)
         {
             InternalNode* n = GetNode(scene, node);
-            RemoveFromRenderList(scene, n);
-            uint16_t ref_index = reference & 0xffff;
-            if (reference == INVALID_HANDLE || scene->m_RenderHead == ref_index)
+            RemoveFromNodeList(scene, n);
+            InternalNode* parent = 0x0;
+            InternalNode* prev = 0x0;
+            if (reference != INVALID_HANDLE)
             {
-                // Insert at head
-                ref_index = scene->m_RenderHead;
-                if (ref_index != INVALID_INDEX)
-                    scene->m_Nodes[ref_index].m_PrevIndex = n->m_Index;
-                n->m_NextIndex = ref_index;
-                n->m_PrevIndex = INVALID_INDEX;
-                scene->m_RenderHead = n->m_Index;
-                if (scene->m_RenderTail == INVALID_INDEX)
-                    scene->m_RenderTail = n->m_Index;
-            }
-            else
-            {
-                // Insert in middle
+                uint16_t ref_index = reference & 0xffff;
                 InternalNode* ref = &scene->m_Nodes[ref_index];
-                scene->m_Nodes[ref->m_PrevIndex].m_NextIndex = n->m_Index;
-                n->m_PrevIndex = ref->m_PrevIndex;
-                ref->m_PrevIndex = n->m_Index;
-                n->m_NextIndex = ref_index;
+                // The reference is actually the next node, find the previous
+                if (ref->m_PrevIndex != INVALID_INDEX)
+                {
+                    prev = &scene->m_Nodes[ref->m_PrevIndex];
+                }
+                if (ref->m_ParentIndex != INVALID_INDEX)
+                {
+                    parent = &scene->m_Nodes[ref->m_ParentIndex];
+                }
             }
+            AddToNodeList(scene, n, parent, prev);
         }
     }
 
@@ -1590,156 +1957,141 @@ namespace dmGui
         if (node != INVALID_HANDLE && node != reference)
         {
             InternalNode* n = GetNode(scene, node);
-            RemoveFromRenderList(scene, n);
-            uint16_t ref_index = reference & 0xffff;
-            if (reference == INVALID_HANDLE || scene->m_RenderTail == ref_index)
+            RemoveFromNodeList(scene, n);
+            InternalNode* parent = 0x0;
+            InternalNode* prev = 0x0;
+            if (reference != INVALID_HANDLE)
             {
-                // Insert at tail
-                ref_index = scene->m_RenderTail;
-                if (ref_index != INVALID_INDEX)
-                    scene->m_Nodes[ref_index].m_NextIndex = n->m_Index;
-                n->m_PrevIndex = ref_index;
-                n->m_NextIndex = INVALID_INDEX;
-                scene->m_RenderTail = n->m_Index;
-                if (scene->m_RenderHead == INVALID_INDEX)
-                    scene->m_RenderHead = n->m_Index;
+                uint16_t ref_index = reference & 0xffff;
+                prev = &scene->m_Nodes[ref_index];
+                if (prev->m_ParentIndex != INVALID_INDEX)
+                {
+                    parent = &scene->m_Nodes[prev->m_ParentIndex];
+                }
             }
             else
             {
-                // Insert in middle
-                InternalNode* ref = &scene->m_Nodes[ref_index];
-                scene->m_Nodes[ref->m_NextIndex].m_PrevIndex = n->m_Index;
-                n->m_NextIndex = ref->m_NextIndex;
-                ref->m_NextIndex = n->m_Index;
-                n->m_PrevIndex = ref_index;
+                // Find the previous node of the root list
+                uint16_t prev_index = scene->m_RenderTail;
+                if (prev_index != INVALID_INDEX)
+                {
+                    prev = &scene->m_Nodes[prev_index];
+                }
             }
+            AddToNodeList(scene, n, parent, prev);
         }
     }
 
-    static Quat EulerToQuat(Vector3 euler_radians)
+    Result SetNodeParent(HScene scene, HNode node, HNode parent)
     {
-        // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-        Vector3 half_euler = euler_radians * 0.5f;
-        float cx = (float)cos(half_euler.getX());
-        float sx = (float)sin(half_euler.getX());
-        float cy = (float)cos(half_euler.getY());
-        float sy = (float)sin(half_euler.getY());
-        float cz = (float)cos(half_euler.getZ());
-        float sz = (float)sin(half_euler.getZ());
-        return Quat(sx*cy*cz - cx*sy*sz,
-                cx*sy*cz + sx*cy*sz,
-                cx*cy*sz - sx*sy*cz,
-                cx*cy*cz + sx*sy*sz);
-    }
-
-    void CalculateNodeTransform(HScene scene, const Node& node, const Vector4& reference_scale, bool boundary, bool offset_pivot, Matrix4* out_transform)
-    {
-        Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
-        const Vector4& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION];
-        const Vector4& size = node.m_Properties[dmGui::PROPERTY_SIZE];
-        const Vector4& scale = node.m_Properties[dmGui::PROPERTY_SCALE];
-        const dmGui::Pivot pivot = (dmGui::Pivot) node.m_Pivot;
-
-        HContext context = scene->m_Context;
-
-        // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
-        Vector3 adjust_scale = reference_scale.getXYZ();
-        if (node.m_AdjustMode == dmGui::ADJUST_MODE_FIT)
+        if (node == parent)
+            return RESULT_INF_RECURSION;
+        InternalNode* n = GetNode(scene, node);
+        uint16_t parent_index = INVALID_INDEX;
+        InternalNode* parent_node = 0x0;
+        if (parent != INVALID_HANDLE)
         {
-            float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
-            adjust_scale = Vector3(uniform, uniform, 1.0f);
-        }
-        else if (node.m_AdjustMode == dmGui::ADJUST_MODE_ZOOM)
-        {
-            float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
-            adjust_scale = Vector3(uniform, uniform, 1.0f);
-        }
-        Vector3 screen_dims = Vector3((float) context->m_Width, (float) context->m_Height, 0.0f);
-        Vector3 adjusted_dims = mulPerElem(screen_dims, adjust_scale);
-        Vector3 offset = (Vector3((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f) - adjusted_dims) * 0.5f;
-        // Apply anchoring
-        Vector4 scaled_position = mulPerElem(position, Vector4(adjust_scale, 1.0f));
-        if (node.m_XAnchor == XANCHOR_LEFT)
-        {
-            offset.setX(0.0f);
-            scaled_position.setX(position.getX() * reference_scale.getX());
-        }
-        else if (node.m_XAnchor == XANCHOR_RIGHT)
-        {
-            offset.setX(0.0f);
-            float distance = (context->m_Width - position.getX()) * reference_scale.getX();
-            scaled_position.setX(context->m_PhysicalWidth - distance);
-        }
-        if (node.m_YAnchor == YANCHOR_TOP)
-        {
-            offset.setY(0.0f);
-            float distance = (context->m_Height - position.getY()) * reference_scale.getY();
-            scaled_position.setY(context->m_PhysicalHeight - distance);
-        }
-        else if (node.m_YAnchor == YANCHOR_BOTTOM)
-        {
-            offset.setY(0.0f);
-            scaled_position.setY(position.getY() * reference_scale.getY());
-        }
-        position = scaled_position;
-
-        float width = size.getX();
-        float height = size.getY();
-
-        Vector4 delta_pivot = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
-
-        if (offset_pivot)
-        {
-            switch (pivot)
+            parent_node = GetNode(scene, parent);
+            // Check for infinite recursion
+            uint16_t ancestor_index = parent_node->m_ParentIndex;
+            while (ancestor_index != INVALID_INDEX)
             {
-                case dmGui::PIVOT_CENTER:
-                case dmGui::PIVOT_S:
-                case dmGui::PIVOT_N:
-                    delta_pivot.setX(width * 0.5f);
-                    break;
-
-                case dmGui::PIVOT_NE:
-                case dmGui::PIVOT_E:
-                case dmGui::PIVOT_SE:
-                    delta_pivot.setX(width);
-                    break;
-
-                case dmGui::PIVOT_SW:
-                case dmGui::PIVOT_W:
-                case dmGui::PIVOT_NW:
-                    break;
+                if (n->m_Index == ancestor_index)
+                    return RESULT_INF_RECURSION;
+                ancestor_index = scene->m_Nodes[ancestor_index].m_ParentIndex;
             }
-            switch (pivot) {
-                case dmGui::PIVOT_CENTER:
-                case dmGui::PIVOT_E:
-                case dmGui::PIVOT_W:
-                    delta_pivot.setY(height * 0.5f);
-                    break;
-
-                case dmGui::PIVOT_N:
-                case dmGui::PIVOT_NE:
-                case dmGui::PIVOT_NW:
-                    delta_pivot.setY(height);
-                    break;
-
-                case dmGui::PIVOT_S:
-                case dmGui::PIVOT_SW:
-                case dmGui::PIVOT_SE:
-                    break;
+            parent_index = parent_node->m_Index;
+        }
+        if (parent_index != n->m_ParentIndex)
+        {
+            RemoveFromNodeList(scene, n);
+            InternalNode* prev = 0x0;
+            uint16_t prev_index = scene->m_RenderTail;
+            if (parent_index != INVALID_INDEX)
+            {
+                prev_index = parent_node->m_ChildTail;
             }
+            if (prev_index != INVALID_INDEX)
+            {
+                prev = &scene->m_Nodes[prev_index];
+            }
+            AddToNodeList(scene, n, parent_node, prev);
+        }
+        return RESULT_OK;
+    }
+
+    Result CloneNode(HScene scene, HNode node, HNode* out_node)
+    {
+        if (scene->m_NodePool.Remaining() == 0)
+        {
+            dmLogError("Could not create the node since the buffer is full (%d).", scene->m_NodePool.Capacity());
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        else
+        {
+            uint16_t index = scene->m_NodePool.Pop();
+            uint16_t version = scene->m_NextVersionNumber;
+            if (version == 0)
+            {
+                // We can't use zero in order to avoid a handle == 0
+                ++version;
+            }
+            *out_node = ((uint32_t) version) << 16 | index;
+            InternalNode* out_n = &scene->m_Nodes[index];
+            memset(out_n, 0, sizeof(InternalNode));
+
+            InternalNode* n = GetNode(scene, node);
+            out_n->m_Node = n->m_Node;
+            if (n->m_Node.m_Text != 0x0)
+                out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
+            out_n->m_Version = version;
+            out_n->m_Index = index;
+            out_n->m_PrevIndex = INVALID_INDEX;
+            out_n->m_NextIndex = INVALID_INDEX;
+            out_n->m_ParentIndex = INVALID_INDEX;
+            out_n->m_ChildHead = INVALID_INDEX;
+            out_n->m_ChildTail = INVALID_INDEX;
+            scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
+            // Add to the top of the scene
+            MoveNodeAbove(scene, *out_node, INVALID_HANDLE);
+
+            return RESULT_OK;
+        }
+    }
+
+    void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform)
+    {
+        const Node& node = n->m_Node;
+        if (node.m_DirtyLocal || scene->m_ResChanged)
+        {
+            UpdateLocalTransform(scene, n, reference_scale);
+        }
+        *out_transform = node.m_LocalTransform;
+        Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
+        if (include_size)
+        {
+            size = node.m_Properties[dmGui::PROPERTY_SIZE];
+        }
+        // Reset the pivot of the node, so that the resulting transform has the origin in the lower left, which is used for quad rendering etc.
+        if (reset_pivot)
+        {
+            Vector4 pivot_delta = (*out_transform) * CalcPivotDelta(node.m_Pivot, size);
+            out_transform->setCol3(pivot_delta);
         }
 
-        const float deg_to_rad = 3.1415926f / 180.0f;
-        Quat r = EulerToQuat(rotation.getXYZ() * deg_to_rad);
-        Vector3 s = mulPerElem(scale.getXYZ(), adjust_scale);
-        Vector3 t = -delta_pivot.getXYZ();
-        t = offset + position.getXYZ() + rotate(r, mulPerElem(s, t));
-        *out_transform = Matrix4::rotation(r) * Matrix4::scale(s);
-        out_transform->setTranslation(t);
         bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
-        if (!render_text)
+        if (include_size && !render_text)
         {
-            *out_transform *= Matrix4::scale(Vector3(width, height, 1));
+            out_transform->setUpper3x3(out_transform->getUpper3x3() * Matrix3::scale(Vector3(size.getX(), size.getY(), 1)));
+        }
+
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            Matrix4 parent_trans;
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            CalculateNodeTransform(scene, parent, reference_scale, boundary, false, false, &parent_trans);
+
+            *out_transform = parent_trans * (*out_transform);
         }
     }
 

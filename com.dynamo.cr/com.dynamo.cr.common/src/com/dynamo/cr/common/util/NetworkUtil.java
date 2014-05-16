@@ -4,40 +4,94 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.Vector;
 
 public class NetworkUtil {
 
-    private static String localHost = null;
-
     /**
-     * Returns the IP of the host on the network.
-     * 
-     * Traverses the network interfaces and returns the first address which is IPv4 and not loop back. Once found, the
-     * IP is statically cached for the remainder of the application life cycle. If no IP could be found, it fallbacks to
-     * 127.0.0.1
-     * 
-     * @return Localhost IP
+     * Returns a list of the local inet addresses which are IPv4.
+     *
+     * @return list of local inet addresses
      * @throws SocketException
+     * @throws UnknownHostException
      */
-    public static String getHostAddress() throws SocketException {
-        if (localHost == null) {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                NetworkInterface netInterface = interfaces.nextElement();
+    public static Collection<InetAddress> getValidHostAddresses() throws SocketException, UnknownHostException {
+        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+        Vector<InetAddress> result = new Vector<InetAddress>();
+        while (interfaces.hasMoreElements()) {
+            NetworkInterface netInterface = interfaces.nextElement();
+            if (netInterface.isUp()) {
                 Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
                 while (addresses.hasMoreElements()) {
                     InetAddress address = addresses.nextElement();
-                    if (!address.isLoopbackAddress() && address instanceof Inet4Address) {
-                        localHost = address.getHostAddress();
-                        break;
+                    if (address instanceof Inet4Address) {
+                        result.add(address);
                     }
                 }
             }
         }
-        if (localHost != null) {
-            return localHost;
+        if (result.isEmpty()) {
+            return Collections.singleton(InetAddress.getByName("127.0.0.1"));
         }
-        return "127.0.0.1";
+        return result;
+    }
+
+    // Rank address according to most significant bytes
+    // Perhaps better to rank according to most significant bites but this is probably good enough
+    private static int compareAddresses(InetAddress a, InetAddress b)
+    {
+        int rank = 0;
+        byte[] aa = a.getAddress();
+        byte[] ab = b.getAddress();
+
+        for (int i = 0; i < Math.min(aa.length, ab.length); ++i)
+        {
+            if (aa[i] == ab[i]) {
+                rank++;
+            } else {
+                break;
+            }
+        }
+
+        return rank;
+    }
+
+    /**
+     * Returns the address which most closely matches the target address.
+     *
+     * @return Localhost IP
+     * @throws SocketException
+     * @throws UnknownHostException
+     */
+    public static InetAddress getClosestAddress(Collection<InetAddress> addresses, InetAddress targetAddress)
+                                                                                                             throws SocketException,
+                                                                                                             UnknownHostException {
+        if (addresses.isEmpty()) {
+            return InetAddress.getByName("127.0.0.1");
+        }
+        // Return first if there is no target
+        if (targetAddress == null) {
+            return addresses.iterator().next();
+        }
+
+        ArrayList<InetAddress> tmp = new ArrayList<InetAddress>(addresses);
+        InetAddress ret = tmp.get(0);
+        int max = 0;
+        int i = 0;
+        for (InetAddress a : addresses) {
+            int r = compareAddresses(a, targetAddress);
+            if (r > max) {
+                ret = tmp.get(i);
+                max = r;
+            }
+            i++;
+        }
+
+        return ret;
     }
 }

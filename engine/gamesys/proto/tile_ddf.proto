@@ -27,9 +27,10 @@ enum Playback
     PLAYBACK_NONE = 0 [(displayName) = "None"];
     PLAYBACK_ONCE_FORWARD = 1 [(displayName) = "Once Forward"];
     PLAYBACK_ONCE_BACKWARD = 2 [(displayName) = "Once Backward"];
+    PLAYBACK_ONCE_PINGPONG = 6 [(displayName) = "Once Ping Pong"];
     PLAYBACK_LOOP_FORWARD = 3 [(displayName) = "Loop Forward"];
     PLAYBACK_LOOP_BACKWARD = 4 [(displayName) = "Loop Backward"];
-    PLAYBACK_LOOP_PINGPONG = 5 [(displayName) = "Ping Pong"];
+    PLAYBACK_LOOP_PINGPONG = 5 [(displayName) = "Loop Ping Pong"];
 }
 
 message Animation

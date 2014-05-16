@@ -27,7 +27,7 @@ namespace dmGameObject
 
     void CompScriptOnReload(const ComponentOnReloadParams& params);
 
-    void CompScriptSetProperties(const ComponentSetPropertiesParams& params);
+    PropertyResult CompScriptSetProperties(const ComponentSetPropertiesParams& params);
 
     PropertyResult CompScriptGetProperty(const ComponentGetPropertyParams& params, PropertyDesc& out_value);
 

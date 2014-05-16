@@ -303,6 +303,12 @@ namespace dmGraphics
     void CloseWindow(HContext context);
 
     /**
+     * Iconify the open window if any.
+     * @param context Graphics context handle
+     */
+    void IconifyWindow(HContext context);
+
+    /**
      * Retrieve current state of the opened window, if any.
      * @param context Graphics context handle
      * @param state Aspect of the window state to query for

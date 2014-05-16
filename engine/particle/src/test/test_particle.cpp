@@ -852,11 +852,13 @@ dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhas
         out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
     else if (animation == dmHashString64("once_bwd"))
         out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_BACKWARD;
+    else if (animation == dmHashString64("once_pingpong"))
+        out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_PINGPONG;
     else if (animation == dmHashString64("loop_fwd"))
         out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_FORWARD;
     else if (animation == dmHashString64("loop_bwd"))
         out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_BACKWARD;
-    else if (animation == dmHashString64("pingpong"))
+    else if (animation == dmHashString64("loop_pingpong"))
         out_data->m_Playback = dmParticle::ANIM_PLAYBACK_LOOP_PINGPONG;
     else
         return dmParticle::FETCH_ANIMATION_NOT_FOUND;
@@ -871,22 +873,22 @@ TEST_F(ParticleTest, Animation)
 
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
 
-    // 2 types
-    const uint32_t type_count = 6;
+    const uint32_t type_count = 7;
 
     TileSource tile_source;
     for (uint32_t emitter_i = 0; emitter_i < type_count; ++emitter_i)
         dmParticle::SetTileSource(m_Prototype, emitter_i, &tile_source);
 
     // 8 time steps
-    const uint32_t it_count = 8;
+    const uint32_t it_count = 10;
     uint32_t tiles[type_count][it_count] = {
-            {1, 1, 1, 1, 1, 0, 0, 0}, // none, 5-frame particle
-            {1, 2, 3, 4, 5, 0, 0, 0}, // once fwd, 5-frame particle
-            {5, 4, 3, 2, 1, 0, 0, 0}, // once bwd, 5-frame particle
-            {1, 2, 3, 4, 5, 1, 2, 3}, // loop fwd, 8-frame particle
-            {5, 4, 3, 2, 1, 5, 4, 3}, // loop bwd, 8-frame particle
-            {1, 2, 3, 4, 5, 4, 3, 2}, // loop pingpong, 8-frame particle
+            {1, 1, 1, 1, 1, 0, 0, 0, 0, 0}, // none, 5-frame particle
+            {1, 2, 3, 4, 5, 0, 0, 0, 0, 0}, // once fwd, 5-frame particle
+            {5, 4, 3, 2, 1, 0, 0, 0, 0, 0}, // once bwd, 5-frame particle
+            {1, 2, 3, 4, 5, 4, 3, 2, 0, 0}, // once pingpong, 8-frame particle
+            {1, 2, 3, 4, 5, 1, 2, 3, 4, 5}, // loop fwd, 10-frame particle
+            {5, 4, 3, 2, 1, 5, 4, 3, 2, 1}, // loop bwd, 10-frame particle
+            {1, 2, 3, 4, 5, 4, 3, 2, 1, 2}, // loop pingpong, 10-frame particle
     };
     dmParticle::Vertex vertex_buffer[6 * type_count];
     uint32_t vertex_buffer_size;

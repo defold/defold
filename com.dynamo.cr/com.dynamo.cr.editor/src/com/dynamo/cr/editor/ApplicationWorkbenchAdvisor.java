@@ -6,7 +6,11 @@ import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.preference.IPreferenceNode;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.preference.PreferenceManager;
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Event;
+import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
@@ -67,9 +71,40 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         return ret;
     }
 
+    static class AutoRefreshActivator implements Listener {
+
+        boolean autoRefreshOn = false;
+
+        @Override
+        public void handleEvent(Event event) {
+            // "Auto-refresh with native hooks or polling"
+            try {
+                Display d = Display.getDefault();
+                Shell as = d.getActiveShell();
+                if (as != null && autoRefreshOn == false) {
+                    autoRefreshOn = true;
+                    InstanceScope.INSTANCE.getNode("org.eclipse.core.resources").putBoolean(ResourcesPlugin.PREF_AUTO_REFRESH, true);
+                } else if (as == null && autoRefreshOn == true) {
+                    autoRefreshOn = false;
+                    InstanceScope.INSTANCE.getNode("org.eclipse.core.resources").putBoolean(ResourcesPlugin.PREF_AUTO_REFRESH, false);
+                }
+            } catch (Throwable e) {
+                // NOTE: We catch all exceptions here as it's *dangerous* to
+                // throw exceptions from swt filter code
+            }
+        }
+    }
+
     @Override
     public void postStartup() {
         super.postStartup();
+
+        // Enable/disable automatic refresh based on when editor is active/not active
+        // Primary reason is to disable auto-staging of files but probably good in general
+        // for performance reasons
+        AutoRefreshActivator ra = new AutoRefreshActivator();
+        Display.getDefault().addFilter(SWT.Activate, ra);
+        Display.getDefault().addFilter(SWT.Deactivate, ra);
 
         /*
          * TODO: Hack from http://www.eclipse.org/forums/index.php?t=msg&goto=486705&
@@ -99,9 +134,6 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
         // With local pipeline we could set <options allowLinking="false"/> to project nature instead
         IPreferenceStore ideWorkbenchStore = IDEWorkbenchPlugin.getDefault().getPreferenceStore();
         ideWorkbenchStore.setValue(IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE, IDEInternalPreferences.IMPORT_FILES_AND_FOLDERS_MODE_MOVE_COPY);
-
-        // "Auto-refresh with native hooks or polling"
-        InstanceScope.INSTANCE.getNode("org.eclipse.core.resources").putBoolean(ResourcesPlugin.PREF_AUTO_REFRESH, true);
 
         // Remove unwanted preferences pages
         // TODO: We should perhaps remove these using activities instead?

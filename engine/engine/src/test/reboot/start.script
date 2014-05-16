@@ -1,5 +1,24 @@
 function init(self)
-    local arg1 = '--config=bootstrap.main_collection=/reboot/reboot.collectionc'
-    local arg2 = 'src/test/build/default/game.projectc'
-    msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
+    self.cp1 = msg.url("#collectionproxy")
+    msg.post(self.cp1, "load")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        self.cp2 = msg.url("dynamic1:/main#collectionproxy")
+        msg.post(sender, "enable")
+        if sender == self.cp1 then
+            msg.post(self.cp2, "load")
+        else
+            local test_val = sys.get_config("test.val", "default")
+            if test_val == "second" then
+                msg.post("@system:", "exit", {code = 7})
+            else
+                local arg1 = '--config=bootstrap.main_collection=/reboot/start.collectionc'
+                local arg2 = '--config=test.val=second'
+                local arg3 = 'src/test/build/default/game.projectc'
+                msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2, arg3 = arg3})
+            end
+        end
+    end
 end

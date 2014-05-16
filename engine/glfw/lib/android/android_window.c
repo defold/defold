@@ -46,89 +46,19 @@
 #include "android_util.h"
 
 extern struct android_app* g_AndroidApp;
-static int g_KeyboardActive = 0;
-static int g_autoCloseKeyboard = 0;
+int g_KeyboardActive = 0;
+int g_autoCloseKeyboard = 0;
 // TODO: Hack. PRESS AND RELEASE is sent the same frame. Similar hack on iOS for handling of special keys
-static int g_SpecialKeyActive = -1;
+int g_SpecialKeyActive = -1;
 
-static int32_t handleInput(struct android_app* app, AInputEvent* event)
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNative(JNIEnv* env, jobject obj, jint unicode)
 {
-
-    struct engine* engine = (struct engine*)app->userData;
-    int32_t event_type = AInputEvent_getType(event);
-
-    if (event_type == AINPUT_EVENT_TYPE_MOTION)
-    {
-        if (g_KeyboardActive && g_autoCloseKeyboard) {
-            // Implicitly hide keyboard
-            _glfwShowKeyboard(0, 0, 0);
-        }
-
-        int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK ;
-        int32_t x = AMotionEvent_getX(event, 0);
-        int32_t y = AMotionEvent_getY(event, 0);
-        _glfwInput.MousePosX = x;
-        _glfwInput.MousePosY = y;
-
-        switch (action)
-        {
-        case AMOTION_EVENT_ACTION_DOWN:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS );
-            break;
-        case AMOTION_EVENT_ACTION_UP:
-            _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
-            break;
-        case AMOTION_EVENT_ACTION_MOVE:
-            if( _glfwWin.mousePosCallback )
-            {
-                _glfwWin.mousePosCallback(x, y);
-            }
-            break;
-        }
-        return 1;
+    struct Command cmd;
+    cmd.m_Command = CMD_INPUT_CHAR;
+    cmd.m_Data = (void*)unicode;
+    if (write(_glfwWin.m_Pipefd[1], &cmd, sizeof(cmd)) != sizeof(cmd)) {
+        LOGF("Failed to write command");
     }
-    else if (event_type == AINPUT_EVENT_TYPE_KEY)
-    {
-        int32_t code = AKeyEvent_getKeyCode(event);
-        int32_t action = AKeyEvent_getAction(event);
-        int glfw_action;
-        if (action == AKEY_EVENT_ACTION_DOWN)
-            glfw_action = GLFW_PRESS;
-        else
-            glfw_action = GLFW_RELEASE;
-
-
-        if (glfw_action == GLFW_PRESS) {
-            switch (code) {
-            case AKEYCODE_DEL:
-                g_SpecialKeyActive = 10;
-                _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
-                return;
-            case AKEYCODE_ENTER:
-                g_SpecialKeyActive = 10;
-                _glfwInputKey( GLFW_KEY_ENTER, GLFW_PRESS );
-                return;
-            }
-        }
-
-        JNIEnv* env = g_AndroidApp->activity->env;
-        JavaVM* vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
-
-        jclass KeyEventClass = (*env)->FindClass(env, "android/view/KeyEvent");
-        jmethodID KeyEventConstructor = (*env)->GetMethodID(env, KeyEventClass, "<init>", "(II)V");
-        jobject keyEvent = (*env)->NewObject(env, KeyEventClass, KeyEventConstructor, AKeyEvent_getAction(event), AKeyEvent_getKeyCode(event));
-        jmethodID KeyEvent_getUnicodeChar = (*env)->GetMethodID(env, KeyEventClass, "getUnicodeChar", "(I)I");
-        // NOTE: For certain special characters zero is returned. Something else required to KeyEvent?
-        int unicode = (*env)->CallIntMethod(env, keyEvent, KeyEvent_getUnicodeChar, AKeyEvent_getMetaState(event));
-        (*env)->DeleteLocalRef( env, keyEvent );
-
-        (*vm)->DetachCurrentThread(vm);
-
-        _glfwInputChar( unicode, glfw_action );
-    }
-
-    return 0;
 }
 
 int _glfwPlatformOpenWindow( int width__, int height__,
@@ -136,12 +66,6 @@ int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWfbconfig* fbconfig__ )
 {
     LOGV("_glfwPlatformOpenWindow");
-
-    _glfwWin.app = g_AndroidApp;
-    _glfwWin.app->onInputEvent = handleInput;
-
-    // Initialize display
-    init_gl(&_glfwWin.display, &_glfwWin.context, &_glfwWin.config);
 
     ANativeActivity* activity = g_AndroidApp->activity;
     JNIEnv* env = 0;
@@ -155,9 +79,11 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         const int SCREEN_ORIENTATION_PORTRAIT = 1;
 
         int o = width__ > height__ ? SCREEN_ORIENTATION_LANDSCAPE : SCREEN_ORIENTATION_PORTRAIT;
-        (*env)->CallIntMethod(env, activity->clazz, setOrientationMethod, o);
+        (*env)->CallVoidMethod(env, activity->clazz, setOrientationMethod, o);
     }
     (*activity->vm)->DetachCurrentThread(activity->vm);
+
+    RestoreWin(&_glfwWin);
 
     create_gl_surface(&_glfwWin);
 
@@ -172,9 +98,11 @@ void _glfwPlatformCloseWindow( void )
 {
     LOGV("_glfwPlatformCloseWindow");
 
-    destroy_gl_surface(&_glfwWin);
-
-    final_gl(&_glfwWin);
+    if (_glfwWin.opened) {
+        destroy_gl_surface(&_glfwWin);
+        _glfwWin.opened = 0;
+    }
+    SaveWin(&_glfwWin);
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -212,6 +140,8 @@ void _glfwPlatformSetWindowPos( int x, int y )
 
 void _glfwPlatformIconifyWindow( void )
 {
+    // Call finish and let Android life cycle take care of the iconification
+    ANativeActivity_finish(g_AndroidApp->activity);
 }
 
 //========================================================================
@@ -228,11 +158,38 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    if (_glfwWin.surface != EGL_NO_SURFACE)
+    if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE)
     {
-        eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
-        CHECK_EGL_ERROR
+        return;
     }
+
+    eglSwapBuffers(_glfwWin.display, _glfwWin.surface);
+    CHECK_EGL_ERROR
+
+    /*
+     The preferred way of handling orientation changes is probably
+     in APP_CMD_CONFIG_CHANGED or APP_CMD_WINDOW_RESIZED but occasionally
+     the wrong previous orientation is reported (Tested on Samsung S2 GTI9100 4.1.2).
+     This might very well be a bug..
+     */
+    EGLint w, h;
+    EGLDisplay display = _glfwWin.display;
+    EGLSurface surface = _glfwWin.surface;
+
+    eglQuerySurface(display, surface, EGL_WIDTH, &w);
+    CHECK_EGL_ERROR
+    eglQuerySurface(display, surface, EGL_HEIGHT, &h);
+    CHECK_EGL_ERROR
+
+    if (_glfwWin.width != w || _glfwWin.height != h) {
+        LOGV("window size changed from %dx%d to %dx%d", _glfwWin.width, _glfwWin.height, w, h);
+        if (_glfwWin.windowSizeCallback) {
+            _glfwWin.windowSizeCallback(w, h);
+        }
+    }
+
+    _glfwWin.width = w;
+    _glfwWin.height = h;
 }
 
 //========================================================================
@@ -246,6 +203,7 @@ void _glfwPlatformSwapInterval( int interval )
     // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
     eglSwapInterval(_glfwWin.display, interval);
     EGLint error = eglGetError();
+    assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
     (void)error;
 }
 
@@ -277,8 +235,13 @@ void _glfwPlatformPollEvents( void )
        }
    }
 
-   while ((ident=ALooper_pollAll(0, NULL, &events, (void**)&source)) >= 0)
+   int timeout = 0;
+   if (_glfwWin.iconified) {
+       timeout = 1000 * 3000;
+   }
+   while ((ident=ALooper_pollAll(timeout, NULL, &events, (void**)&source)) >= 0)
    {
+       timeout = 0;
        // Process this event.
        if (source != NULL) {
            source->process(_glfwWin.app, source);
@@ -322,6 +285,7 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
 {
     // JNI implemntation as ANativeActivity_showSoftInput seems to be broken...
     // https://code.google.com/p/android/issues/detail?id=35991
+    // The actual call is implemented in DefoldActivity#showSoftInput to ensure UI thread
 
     g_KeyboardActive = show;
     g_autoCloseKeyboard = auto_close;
@@ -344,30 +308,12 @@ void _glfwShowKeyboard( int show, int type, int auto_close )
     jobject native_activity = g_AndroidApp->activity->clazz;
     jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
 
-    jclass context = (*lJNIEnv)->FindClass(lJNIEnv, "android/content/Context");
-    jfieldID input_service_field = (*lJNIEnv)->GetStaticFieldID(lJNIEnv, context, "INPUT_METHOD_SERVICE", "Ljava/lang/String;");
-    jobject input_service = (*lJNIEnv)->GetStaticObjectField(lJNIEnv, context, input_service_field);
-
-    jclass input_manager_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/inputmethod/InputMethodManager");
-    jmethodID get_system_service = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
-    jobject input_manager = (*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_system_service, input_service);
-
-    jmethodID get_window_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getWindow", "()Landroid/view/Window;");
-    jobject window = (*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_window_method);
-    jclass window_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/Window");
-    jmethodID get_decor_view_method = (*lJNIEnv)->GetMethodID(lJNIEnv, window_class, "getDecorView", "()Landroid/view/View;");
-    jobject decor_view = (*lJNIEnv)->CallObjectMethod(lJNIEnv, window, get_decor_view_method);
-
     if (show) {
-        jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, input_manager_class, "showSoftInput", "(Landroid/view/View;I)Z");
-        (*lJNIEnv)->CallBooleanMethod(lJNIEnv, input_manager, show_soft_input_method, decor_view, 0);
+        jmethodID show_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "showSoftInput", "()V");
+        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, show_soft_input_method);
     } else {
-        jclass view_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/View");
-        jmethodID get_window_token_method = (*lJNIEnv)->GetMethodID(lJNIEnv, view_class, "getWindowToken", "()Landroid/os/IBinder;");
-        jobject binder = (*lJNIEnv)->CallObjectMethod(lJNIEnv, decor_view, get_window_token_method);
-
-        jmethodID hide_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, input_manager_class, "hideSoftInputFromWindow", "(Landroid/os/IBinder;I)Z");
-        (*lJNIEnv)->CallBooleanMethod(lJNIEnv, input_manager, hide_soft_input_method, binder, 0);
+        jmethodID hide_soft_input_method = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "hideSoftInput", "()V");
+        (*lJNIEnv)->CallVoidMethod(lJNIEnv, native_activity, hide_soft_input_method);
     }
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);

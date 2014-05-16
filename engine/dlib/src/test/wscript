@@ -7,7 +7,7 @@ def build(bld):
                      classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
                      source_root='http_server')
 
-    bld.env["JAVACFLAGS"] = '-g'
+    bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
 
     test_align = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_align.cpp',
@@ -133,10 +133,6 @@ def build(bld):
                                  target = 'test_memprofile')
 
     test_dlib.install_path = None
-
-    # In order to get accurate result from the memory profiler this is necessary
-    if 'darwin' in bld.env['PLATFORM']:
-        test_dlib.env.append_value('LINKFLAGS', [ '-flat_namespace' ])
 
     test_dlib = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_message.cpp',
@@ -373,13 +369,22 @@ def build(bld):
 
     test_image = bld.new_task_gen(features = 'cxx cprogram embed',
                                  source = 'test_image.cpp',
-                                 embed_source = 'data/color_check_2x2.png data/case2319.jpg data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg',
+                                 embed_source = 'data/color_check_2x2.png data/case2319.jpg data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg data/defold_64_progressive.jpg',
                                  uselib = 'GTEST THREAD',
                                  uselib_local = "dlib",
                                  includes = '../../src .',
                                  target = 'test_image')
 
     test_image.install_path = None
+
+    test_connection_pool = bld.new_task_gen(features = 'cxx cprogram embed',
+                                 source = 'test_connection_pool.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = '../../src .',
+                                 target = 'test_connection_pool')
+
+    test_connection_pool.install_path = None
 
     test_pprint = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_pprint.cpp',
@@ -389,3 +394,21 @@ def build(bld):
                                  target = 'test_pprint')
 
     test_pprint.install_path = None
+
+    test_md5 = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_md5.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_md5')
+
+    test_md5.install_path = None
+
+    test_condition_variable = bld.new_task_gen(features = 'cxx cprogram',
+                                 source = 'test_condition_variable.cpp',
+                                 uselib = 'GTEST THREAD',
+                                 uselib_local = "dlib",
+                                 includes = ['../../src'],
+                                 target = 'test_condition_variable')
+
+    test_condition_variable.install_path = None

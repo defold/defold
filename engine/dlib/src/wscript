@@ -12,6 +12,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/atomic.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
@@ -28,6 +29,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/json.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/md5.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
@@ -57,9 +59,19 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
-    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl'
+    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl jpgd'.split(' ')
+
+    if re.match('arm.*?android', bld.env.PLATFORM):
+        source_dirs.append('dlib/linux')
+    elif 'darwin' in bld.env.PLATFORM:
+        source_dirs.append('dlib/darwin')
+    elif 'win32' in bld.env.PLATFORM:
+        source_dirs.append('dlib/win32')
+    elif ('linux'  in bld.env.PLATFORM) or ('android' in bld.env.PLATFORM):
+        source_dirs.append('dlib/linux')
+
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
-    extra_defines = ['ZLIB_CONST']
+    extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING']
     if bld.env.PLATFORM != 'win32':
         extra_defines.append('Z_HAVE_UNISTD_H')
         extra_defines.append('HAVE_HIDDEN')
@@ -126,7 +138,7 @@ def build(bld):
                      classpath=classpath,
                      source_root='java')
 
-    bld.env["JAVACFLAGS"] = '-g'
+    bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
 
     bld.new_task_gen(features='jar seq',
                      basedir='java',

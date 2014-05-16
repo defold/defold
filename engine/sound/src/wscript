@@ -7,32 +7,42 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('openal')
 
+    source =  'sound_common.cpp sound.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
+    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
+
     include = ''
     if re.match('arm.*?android', bld.env['PLATFORM']):
         include = 'openal/include'
 
-    alut = bld.new_task_gen(features = 'cc cstaticlib',
-                            includes = '. alut %s' % include ,
-                            target = 'alut')
-
-    alut.find_sources_in_dirs('alut')
-
-    if sys.platform == 'win32':
-        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-        alut.defines = '_XBOX HAVE_STDINT_H HAVE__STAT ALUT_BUILD_LIBRARY HAVE_SLEEP HAVE_WINDOWS_H'
+    if re.match('arm.*?darwin', bld.env['PLATFORM']):
+        source.append('sound_ios.cpp')
+        source2.append('sound_ios.cpp')
     else:
-        alut.defines = 'HAVE_STDINT_H HAVE_STAT HAVE_UNISTD_H HAVE_USLEEP'
+        source.append('sound_generic.cpp')
+        source2.append('sound_generic.cpp')
 
+    if re.match('arm.*?android', bld.env['PLATFORM']):
+        source2.append('devices/device_opensl.cpp')
+    else:
+        source2.append('devices/device_openal.cpp')
+
+    # NOTE: This if was just for 'sound' in EMSCRIPTEN branch,
+    # assumed it applied to both sound and sound2
     if bld.env.platform != 'js-web':
-        sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                                 includes = '. alut vorbis_tremor %s' % include,
-                                 target = 'sound',
-                                 source = 'sound.cpp stb_vorbis/stb_vorbis.c')
+      sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                               includes = '. vorbis_tremor %s' % include,
+                               target = 'sound',
+                               source = source)
+
+      sound2 = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                                includes = '. vorbis_tremor %s' % include,
+                                target = 'sound2',
+                                source = source2)
 
     sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                             includes = '.',
-                             target = 'sound_null',
-                             source = 'sound_null.cpp stb_vorbis/stb_vorbis.c')
+                                  includes = '.',
+                                  target = 'sound_null',
+                                  source = 'sound_common.cpp sound_null.cpp sound_codec.cpp sound_generic.cpp stb_vorbis/stb_vorbis.c')
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff

@@ -1,0 +1,31 @@
+go.property("test_value", 0)
+
+local epsilon = 0.000001
+
+local function callback(self, url, property_id)
+    go.animate(url, "test_value", go.PLAYBACK_ONCE_FORWARD, 0.5, go.EASING_LINEAR, 0.5, 1, function ()
+        self.test_value = 0
+    end)
+end
+
+function init(self)
+    go.animate(nil, "test_value", go.PLAYBACK_ONCE_FORWARD, 1, go.EASING_LINEAR, 1, 0, callback)
+    self.timer = 0
+    self.frame = 0
+end
+
+function update(self, dt)
+    if self.frame < 4 then
+        assert(math.abs(self.timer - self.test_value) < epsilon)
+    elseif self.frame < 8 then
+        assert(1 == self.test_value)
+    elseif self.frame < 10 then
+        local t = self.timer - 2
+        local e = 1 - t
+        assert(math.abs(e - self.test_value) < epsilon)
+    else
+        assert(self.test_value == 0)
+    end
+    self.timer = self.timer + dt
+    self.frame = self.frame + 1
+end

@@ -5,14 +5,16 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 #include "sound.h"
+#include "sound_private.h"
+#include "sound_codec.h"
 
 #if defined(__MACH__)
 #include <OpenAL/al.h>
+#include <OpenAL/alc.h>
 #else
 #include <AL/al.h>
+#include <AL/alc.h>
 #endif
-
-#include <AL/alut.h>
 
 #include "stb_vorbis/stb_vorbis.h"
 
@@ -42,12 +44,18 @@ namespace dmSound
         uint16_t        m_BufferIndices[2];
         float           m_Gain;
         stb_vorbis*     m_StbVorbis;
+        char*           m_VorbisBuffer;
+        uint32_t        m_VorbisBufferSize;
+        uint32_t        m_VorbisBufferOffset;
         uint32_t        m_Looping : 1;
         uint32_t        m_EndOfStream : 1;
     };
 
     struct SoundSystem
     {
+        ALCdevice*             m_Device;
+        ALCcontext*            m_Context;
+
         dmArray<SoundInstance> m_Instances;
         dmIndexPool16          m_InstancesPool;
 
@@ -64,6 +72,8 @@ namespace dmSound
         uint32_t               m_BufferSize;
         void*                  m_TempBuffer;
 
+        dmSoundCodec::HCodecContext m_CodecContext;
+
         Stats                  m_Stats;
     };
 
@@ -76,33 +86,36 @@ namespace dmSound
         {
             dmLogError("%s", alGetString(error));
         }
-        else
-        {
-            error = alutGetError();
-            if (error != ALUT_ERROR_NO_ERROR )
-            {
-                dmLogError("%s", alutGetErrorString(error));
-            }
-        }
-    }
-
-    void SetDefaultInitializeParams(InitializeParams* params)
-    {
-        memset(params, 0, sizeof(*params));
-        params->m_MasterGain = 1.0f;
-        params->m_MaxSoundData = 128;
-        params->m_MaxSources = 16;
-        params->m_MaxBuffers = 32;
-        params->m_BufferSize = 4 * 4096;
-        params->m_MaxInstances = 256;
     }
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
-        if (!alutInit(0, 0))
-        {
-            CheckAndPrintError();
-            dmLogError("Failed to initialize sound");
+        Result r = PlatformInitialize(config, params);
+        if (r != RESULT_OK) {
+            return r;
+        }
+
+
+        ALCdevice* device;
+        ALCcontext* context;
+
+        device = alcOpenDevice(0);
+        if (device == 0) {
+            dmLogError("Failed to create OpenAL device");
+            return RESULT_UNKNOWN_ERROR;
+        }
+
+        context = alcCreateContext(device, 0);
+        if (context == 0) {
+            dmLogError("Failed to create OpenAL context");
+            alcCloseDevice (device);
+            return RESULT_UNKNOWN_ERROR;
+        }
+
+        if (!alcMakeContextCurrent (context)) {
+            dmLogError("Failed to make OpenAL context current");
+            alcDestroyContext (context);
+            alcCloseDevice (device);
             return RESULT_UNKNOWN_ERROR;
         }
 
@@ -110,6 +123,8 @@ namespace dmSound
 
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
+        sound->m_Device = device;
+        sound->m_Context = context;
 
         uint32_t max_sound_data = params->m_MaxSoundData;
         uint32_t max_buffers = params->m_MaxBuffers;
@@ -125,6 +140,10 @@ namespace dmSound
             max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_instances", (int32_t) max_instances);
         }
 
+        dmSoundCodec::NewCodecContextParams codec_params;
+        codec_params.m_MaxDecoders = max_instances;
+        sound->m_CodecContext = dmSoundCodec::New(&codec_params);
+
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
         sound->m_InstancesPool.SetCapacity(max_instances);
@@ -134,6 +153,9 @@ namespace dmSound
             sound->m_Instances[i].m_SoundDataIndex = 0xffff;
             sound->m_Instances[i].m_SourceIndex = 0xffff;
             sound->m_Instances[i].m_StbVorbis = 0;
+            sound->m_Instances[i].m_VorbisBuffer = 0;
+            sound->m_Instances[i].m_VorbisBufferSize = 0;
+            sound->m_Instances[i].m_VorbisBufferOffset = 0;
         }
 
         sound->m_SoundData.SetCapacity(max_sound_data);
@@ -175,6 +197,8 @@ namespace dmSound
 
     Result Finalize()
     {
+        PlatformFinalize();
+
         Result result = RESULT_OK;
 
         if (g_SoundSystem)
@@ -199,8 +223,17 @@ namespace dmSound
             }
             alDeleteSources(sound->m_Sources.Size(), &sound->m_Sources[0]);
 
-            alutExit();
+            if (alcMakeContextCurrent(0)) {
+                alcDestroyContext(sound->m_Context);
+                if (!alcCloseDevice(sound->m_Device)) {
+                    dmLogError("Failed to close OpenAL device");
+                }
+            } else {
+                dmLogError("Failed to make OpenAL context current");
+            }
+
             free(sound->m_TempBuffer);
+            dmSoundCodec::Delete(sound->m_CodecContext);
             delete sound;
             g_SoundSystem = 0;
         }
@@ -214,24 +247,49 @@ namespace dmSound
 
     Result SetSoundDataWav(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
-        ALenum format;
-        ALsizei size;
-        ALfloat frequency;
+        SoundSystem* sound = g_SoundSystem;
 
-        const void* buffer = alutLoadMemoryFromFileImage(sound_buffer, sound_buffer_size, &format, &size, &frequency);
-        if (!buffer)
-        {
-            CheckAndPrintError();
+        dmSoundCodec::HDecoder decoder;
+        dmSoundCodec::Result r = dmSoundCodec::NewDecoder(sound->m_CodecContext, dmSoundCodec::FORMAT_WAV, sound_buffer, sound_buffer_size, &decoder);
+        if (r != dmSoundCodec::RESULT_OK) {
+            return RESULT_UNKNOWN_ERROR;
+        }
+
+        dmSoundCodec::Info info;
+        dmSoundCodec::GetInfo(sound->m_CodecContext, decoder, &info);
+
+        uint32_t decoded;
+        char* buffer = (char*) malloc(info.m_Size);
+        r = dmSoundCodec::Decode(sound->m_CodecContext, decoder, buffer, info.m_Size, &decoded);
+        if (r != dmSoundCodec::RESULT_OK) {
+            free(buffer);
+            dmSoundCodec::DeleteDecoder(sound->m_CodecContext, decoder);
             return RESULT_UNKNOWN_ERROR;
         }
 
         if (sound_data->m_Data != 0x0)
             free((void*)sound_data->m_Data);
 
+        ALenum format;
+        if (info.m_BitsPerSample == 8) {
+            if (info.m_Channels == 1) {
+                format = AL_FORMAT_MONO8;
+            } else {
+                format = AL_FORMAT_STEREO8;
+            }
+        } else {
+            if (info.m_Channels == 1) {
+                format = AL_FORMAT_MONO16;
+            } else {
+                format = AL_FORMAT_STEREO16;
+            }
+        }
+
         sound_data->m_Data = buffer;
         sound_data->m_Format = format;
-        sound_data->m_Size = size;
-        sound_data->m_Frequency = frequency;
+        sound_data->m_Size = decoded;
+        sound_data->m_Frequency = info.m_Rate;
+        dmSoundCodec::DeleteDecoder(sound->m_CodecContext, decoder);
 
         return RESULT_OK;
     }
@@ -360,6 +418,9 @@ namespace dmSound
             int error;
             si->m_StbVorbis = stb_vorbis_open_memory((unsigned char*) sound_data->m_Data, sound_data->m_Size, &error, NULL);
             assert(si->m_StbVorbis);
+            si->m_VorbisBufferSize = ss->m_BufferSize;
+            si->m_VorbisBufferOffset = 0;
+            si->m_VorbisBuffer = (char*) malloc(si->m_VorbisBufferSize);
         }
         *sound_instance = si;
 
@@ -389,6 +450,10 @@ namespace dmSound
         {
             stb_vorbis_close(sound_instance->m_StbVorbis);
             sound_instance->m_StbVorbis = 0;
+            free(sound_instance->m_VorbisBuffer);
+            sound_instance->m_VorbisBuffer = 0;
+            sound_instance->m_VorbisBufferOffset = 0;
+            sound_instance->m_VorbisBufferSize = 0;
         }
 
         return RESULT_OK;
@@ -418,23 +483,25 @@ namespace dmSound
         return to_buffer;
     }
 
-    static uint32_t FillBufferOggVorbis(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
+    static uint32_t PreBufferOggVorbis(SoundData* sound_data, SoundInstance* instance)
     {
         DM_PROFILE(Sound, "Ogg")
 
-        SoundSystem* sound = g_SoundSystem;
-
+        const uint32_t vorbis_frame_buffering = 1024;
         int total_read = 0;
-        while (total_read < (int) sound->m_BufferSize)
+        uint32_t left = instance->m_VorbisBufferSize - instance->m_VorbisBufferOffset;
+        if (left > 0)
         {
+            uint32_t to_buffer = dmMath::Min(left, vorbis_frame_buffering);
             int ret;
+            char* p = instance->m_VorbisBuffer + instance->m_VorbisBufferOffset;
             if (sound_data->m_Format == AL_FORMAT_MONO16)
             {
-                ret = stb_vorbis_get_samples_short_interleaved(instance->m_StbVorbis, 1, (short*) (((char*) sound->m_TempBuffer) + total_read), (sound->m_BufferSize - total_read) / 2);
+                ret = stb_vorbis_get_samples_short_interleaved(instance->m_StbVorbis, 1, (short*) p, to_buffer / 2);
             }
             else if (sound_data->m_Format == AL_FORMAT_STEREO16)
             {
-                ret = stb_vorbis_get_samples_short_interleaved(instance->m_StbVorbis, 2, (short*) (((char*) sound->m_TempBuffer) + total_read), (sound->m_BufferSize - total_read) / 2);
+                ret = stb_vorbis_get_samples_short_interleaved(instance->m_StbVorbis, 2, (short*) p, to_buffer / 2);
             }
             else
             {
@@ -451,9 +518,8 @@ namespace dmSound
                 if (instance->m_Looping)
                 {
                     stb_vorbis_seek_start(instance->m_StbVorbis);
-                    break;
                 }
-                break;
+                return 0;
             }
             else
             {
@@ -472,12 +538,29 @@ namespace dmSound
             }
         }
 
-        if (total_read > 0)
+        instance->m_VorbisBufferOffset += total_read;
+
+        return total_read;
+    }
+
+    static uint32_t FillBufferOggVorbis(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
+    {
+        DM_PROFILE(Sound, "Ogg")
+
+        SoundSystem* sound = g_SoundSystem;
+        uint32_t n = 0;
+        do {
+            n = PreBufferOggVorbis(sound_data, instance);
+        } while (n > 0 && instance->m_VorbisBufferOffset < sound->m_BufferSize);
+
+        if (instance->m_VorbisBufferOffset > 0)
         {
-            alBufferData(buffer, sound_data->m_Format, sound->m_TempBuffer, total_read, sound_data->m_Frequency);
+            alBufferData(buffer, sound_data->m_Format, instance->m_VorbisBuffer, instance->m_VorbisBufferOffset, sound_data->m_Frequency);
             CheckAndPrintError();
         }
-        return total_read;
+        uint32_t total = instance->m_VorbisBufferOffset;
+        instance->m_VorbisBufferOffset = 0;
+        return total;
     }
 
     static uint32_t FillBuffer(SoundData* sound_data, SoundInstance* instance, ALuint buffer)
@@ -596,6 +679,10 @@ namespace dmSound
                     alSourcef(source, AL_GAIN, instance->m_Gain * sound->m_MasterGain);
                     CheckAndPrintError();
 
+                    if (instance->m_VorbisBuffer) {
+                        SoundData* sound_data = &sound->m_SoundData[instance->m_SoundDataIndex];
+                        PreBufferOggVorbis(sound_data, instance);
+                    }
                     // Buffer more data
                     int processed;
                     alGetSourcei(source, AL_BUFFERS_PROCESSED, &processed);
@@ -728,5 +815,11 @@ namespace dmSound
         }
         return RESULT_OK;
     }
+
+    bool IsMusicPlaying()
+    {
+        return PlatformIsMusicPlaying();
+    }
+
 
 }

@@ -19,6 +19,10 @@ function test_hash(hash_value, hash_value_hex)
 
     assert(key_count == 1)
 
+    assert(hashmd5("") == "d41d8cd98f00b204e9800998ecf8427e")
+    assert(hashmd5("foo") == "acbd18db4cc2f85cedef654fccc4a4d8")
+    assert(hashmd5("defold") == "01757dd6173a9e1b01714bb584ef00e5")
+
 end
 
 functions = { test_hash = test_hash }

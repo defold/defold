@@ -709,13 +709,17 @@ bail:
 
     void Step(HEngine engine)
     {
-        const float fps = engine->m_UpdateFrequency;
-        const float fixed_dt = 1.0f / fps;
-
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        while (engine->m_Alive)
+        uint64_t time = dmTime::GetTime();
+        uint64_t prev_time = time;
+        float fps = engine->m_UpdateFrequency;
+        float fixed_dt = 1.0f / fps;
+        float dt = fixed_dt;
+        bool variable_dt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
+
+        if (engine->m_Alive)
         {
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
@@ -723,122 +727,142 @@ bail:
                 // NOTE: Also running graphics on iOS while transitioning is not permitted and will crash the application
                 dmHID::Update(engine->m_HidContext);
                 dmTime::Sleep(1000 * 100);
-                continue;
+                // Update time again after the sleep to avoid big leaps after iconified.
+                // In practice, it makes the delta time 1/freq even though we slept for long
+                time = dmTime::GetTime();
+                prev_time = time - fixed_dt * 1000000;
+                dt = fixed_dt;
+                return;
             }
 
-        dmProfile::HProfile profile = dmProfile::Begin();
-        {
-            DM_PROFILE(Engine, "Frame");
-
-            // We had buffering problems with the output when running the engine inside the editor
-            // Flushing stdout/stderr solves this problem.
-            fflush(stdout);
-            fflush(stderr);
-
-            if (engine->m_EngineService)
+            dmProfile::HProfile profile = dmProfile::Begin();
             {
-                dmEngineService::Update(engine->m_EngineService);
-            }
+                DM_PROFILE(Engine, "Frame");
 
-            {
-                DM_PROFILE(Engine, "Sim");
+                // We had buffering problems with the output when running the engine inside the editor
+                // Flushing stdout/stderr solves this problem.
+                fflush(stdout);
+                fflush(stderr);
 
-                dmResource::UpdateFactory(engine->m_Factory);
-
-                dmHID::Update(engine->m_HidContext);
-                if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                if (engine->m_EngineService)
                 {
-                    // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
-                    // might have entered background at this point and OpenGL calls are not permitted and will
-                    // crash the application
-                    dmProfile::Release(profile);
-                    return;
+                    dmEngineService::Update(engine->m_EngineService);
                 }
 
-                dmSound::Update();
-
-                dmHID::KeyboardPacket keybdata;
-                dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
-
-                if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                 {
-                    engine->m_Alive = false;
-                    return;
-                }
+                    DM_PROFILE(Engine, "Sim");
 
-                dmInput::UpdateBinding(engine->m_GameInputBinding, fixed_dt);
+                    dmResource::UpdateFactory(engine->m_Factory);
 
-                engine->m_InputBuffer.SetSize(0);
-                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
-                dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
-                uint32_t input_buffer_size = input_buffer.Size();
-                if (input_buffer_size > 0)
-                {
-                    dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
-                }
-
-                dmGameObject::UpdateContext update_context;
-                update_context.m_DT = fixed_dt;
-                dmGameObject::Update(engine->m_MainCollection, &update_context);
-
-                if (engine->m_RenderScriptPrototype)
-                {
-                    dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
-                }
-                else
-                {
-                    dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                    dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
-                    dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
-                }
-
-                dmGameObject::PostUpdate(engine->m_MainCollection);
-                dmGameObject::PostUpdate(engine->m_Register);
-
-                dmRender::ClearRenderObjects(engine->m_RenderContext);
-
-                dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
-            }
-
-            if (engine->m_ShowProfile)
-            {
-                DM_PROFILE(Profile, "Draw");
-                dmProfile::Pause(true);
-                dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
-                dmRender::ClearRenderObjects(engine->m_RenderContext);
-                dmProfile::Pause(false);
-            }
-            dmGraphics::Flip(engine->m_GraphicsContext);
-
-            RecordData* record_data = &engine->m_RecordData;
-            if (record_data->m_Recorder)
-            {
-                if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
-                {
-                    uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
-                    uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
-                    uint32_t buffer_size = width * height * 4;
-
-                    dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
-
-                    dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                    if (r != dmRecord::RESULT_OK)
+                    dmHID::Update(engine->m_HidContext);
+                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                     {
-                        dmLogError("Error while recoding frame (%d)", r);
+                        // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
+                        // might have entered background at this point and OpenGL calls are not permitted and will
+                        // crash the application
+                        dmProfile::Release(profile);
+                        return;
                     }
+
+                    dmSound::Update();
+
+                    dmHID::KeyboardPacket keybdata;
+                    dmHID::GetKeyboardPacket(engine->m_HidContext, &keybdata);
+
+                    if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                    {
+                        engine->m_Alive = false;
+                        return;
+                    }
+
+                    dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
+
+                    engine->m_InputBuffer.SetSize(0);
+                    dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+                    dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
+                    uint32_t input_buffer_size = input_buffer.Size();
+                    if (input_buffer_size > 0)
+                    {
+                        dmGameObject::DispatchInput(engine->m_MainCollection, &input_buffer[0], input_buffer.Size());
+                    }
+
+                    dmGameObject::UpdateContext update_context;
+                    update_context.m_DT = dt;
+                    dmGameObject::Update(engine->m_MainCollection, &update_context);
+
+                    if (engine->m_RenderScriptPrototype)
+                    {
+                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                    }
+                    else
+                    {
+                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
+                        dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
+                    }
+
+                    dmGameObject::PostUpdate(engine->m_MainCollection);
+                    dmGameObject::PostUpdate(engine->m_Register);
+
+                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+
+                    dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
                 }
-                record_data->m_FrameCount++;
+
+                if (engine->m_ShowProfile)
+                {
+                    DM_PROFILE(Profile, "Draw");
+                    dmProfile::Pause(true);
+                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
+                    dmRender::Draw(engine->m_RenderContext, 0x0, 0x0);
+                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+                    dmProfile::Pause(false);
+                }
+                dmGraphics::Flip(engine->m_GraphicsContext);
+
+                RecordData* record_data = &engine->m_RecordData;
+                if (record_data->m_Recorder)
+                {
+                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                    {
+                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
+                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
+                        uint32_t buffer_size = width * height * 4;
+
+                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+
+                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
+                        if (r != dmRecord::RESULT_OK)
+                        {
+                            dmLogError("Error while recoding frame (%d)", r);
+                        }
+                    }
+                    record_data->m_FrameCount++;
+                }
+
             }
+            dmProfile::Release(profile);
 
+            ++engine->m_Stats.m_FrameCount;
+
+            prev_time = time;
+            time = dmTime::GetTime();
+
+            // set fps continuously in case it changes during runtime
+            fps = engine->m_UpdateFrequency;
+
+            if (variable_dt)
+            {
+                // go through double to save precision
+                dt = (float)((time - prev_time) * 0.000001);
+            }
+            else
+            {
+                dt = 1.0f / fps;
+            }
         }
-        dmProfile::Release(profile);
-
-        ++engine->m_Stats.m_FrameCount;
-
-    }
     }
 
 #ifdef __EMSCRIPTEN__
@@ -852,12 +876,6 @@ bail:
 
     RunResult Run(HEngine engine)
     {
-        const float fps = engine->m_UpdateFrequency;
-        float fixed_dt = 1.0f / fps;
-
-        engine->m_Alive = true;
-        engine->m_RunResult.m_ExitCode = 0;
-
 #ifdef __EMSCRIPTEN__
         g_Engine = engine;
         dmLogInfo("Starting emscripten main loop");
@@ -922,9 +940,9 @@ bail:
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
         dmEngine::RunResult run_result;
+        dmLogInfo("Defold Engine %s (%s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
         if (dmEngine::Init(engine, argc, argv))
         {
-            dmLogInfo("Defold Engine %s (%s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
             if (pre_run)
             {
                 pre_run(engine, context);
@@ -1044,6 +1062,10 @@ bail:
             {
                 dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
+            }
+            else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
+            {
+                dmGraphics::IconifyWindow(self->m_GraphicsContext);
             }
             else
             {

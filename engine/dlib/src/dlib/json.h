@@ -46,9 +46,9 @@ namespace dmJson
     {
         /// Node type
         Type    m_Type;
-        /// Start index inclusive into original json-data
+        /// Start index inclusive into document json-data
         int     m_Start;
-        /// End index exclusive into original json-data
+        /// End index exclusive into document json-data
         int     m_End;
         /// Size. Only applicable for arrays and objects
         int     m_Size;
@@ -65,13 +65,15 @@ namespace dmJson
         Node*  m_Nodes;
         /// Total number of nodes
         int    m_NodeCount;
+        /// Json-data (unescaped)
+        char* m_Json;
         /// User-data
         void*  m_UserData;
     };
 
     /**
      * Parse json data
-     * @note The returned nodes index into original json-data.
+     * @note The returned nodes index into document json-data.
      * @param buffer json buffer
      * @param doc document
      * @return RESULT_OK on success
@@ -80,7 +82,7 @@ namespace dmJson
 
     /**
      * Free json document nodes
-     * @note The original json-data is not freed
+     * @note The original json-data is not freed (const)
      * @param doc document
      */
     void   Free(Document* doc);

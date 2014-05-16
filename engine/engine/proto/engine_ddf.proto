@@ -30,6 +30,8 @@ message Exit
     required int32 code = 1;
 }
 
+message HideApp {}
+
 /*# shows/hides the on-screen profiler
  * This message can only be sent to the designated <code>@system</code> socket.
  *

@@ -15,6 +15,8 @@ public class PostLoggingResponseFilter implements ContainerResponseFilter {
     @Override
     public ContainerResponse filter(ContainerRequest request,
             ContainerResponse response) {
+        // NOTE: Do *NOT* remove this statement. It's used for access logging.
+        logger.info("");
         MDC.remove("remoteAddr");
         MDC.remove("userId");
         MDC.remove("method");

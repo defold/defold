@@ -3,7 +3,18 @@
 
 #include "internal.h"
 
-void init_gl(EGLDisplay* out_display, EGLContext* out_context, EGLConfig* out_config);
+#define CMD_INPUT_CHAR (0)
+
+struct Command
+{
+    int m_Command;
+    void* m_Data;
+};
+
+void SaveWin(_GLFWwin* win);
+void RestoreWin(_GLFWwin* win);
+
+int init_gl(_GLFWwin* win);
 
 void final_gl(_GLFWwin* win);
 

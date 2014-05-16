@@ -11,12 +11,12 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.8.4 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidia-texture-tools-2.0.6 PIL-1.1.6 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 PIL-1.1.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.0.1 android-support-v4 android-4.2.2".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL=os.environ['SHELL']
@@ -36,7 +36,8 @@ class Configuration(object):
                  no_colors = False,
                  archive_path = None,
                  set_version = None,
-                 eclipse = False):
+                 eclipse = False,
+                 branch = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -57,6 +58,7 @@ class Configuration(object):
         self.archive_path = archive_path
         self.set_version = set_version
         self.eclipse = eclipse
+        self.branch = branch
 
         self._create_common_dirs()
 
@@ -213,9 +215,9 @@ class Configuration(object):
         else:
             lib_ext = '.so'
 
-        full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
-        host, path = full_archive_path.split(':', 1)
         sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
         dynamo_home = self.dynamo_home
         # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
@@ -235,19 +237,28 @@ class Configuration(object):
 
         engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine' + exe_ext)
         engine_release = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_release' + exe_ext)
+        engine_headless = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_headless' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             self._log('Archiving %s' % engine)
             self.exec_command(['scp', engine,
-                               '%s/%sdmengine%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
+                               '%s/%sdmengine%s' % (full_archive_path, exe_prefix, exe_ext)])
             self.exec_command(['scp', engine_release,
-                               '%s/%sdmengine_release%s.%s' % (full_archive_path, exe_prefix, exe_ext, sha1)])
+                               '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext)])
+            self.exec_command(['scp', engine_headless,
+                               '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext)])
 
         if 'android' in self.target_platform:
-            self._log('Archiving %s' % 'classes.dex')
-            classes_dex = join(dynamo_home, 'share/java/classes.dex')
-            self.exec_command(['scp', classes_dex,
-                               '%s/classes.dex.%s' % (full_archive_path, sha1)])
+            files = [
+                ('share/java', 'classes.dex'),
+                ('bin/%s' % (self.target_platform), 'dmengine.apk'),
+                ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
+            ]
+            for f in files:
+                self._log('Archiving %s' % f[1])
+                src = join(dynamo_home, f[0], f[1])
+                self.exec_command(['scp', src,
+                                   '%s/%s' % (full_archive_path, f[1])])
 
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
@@ -256,7 +267,7 @@ class Configuration(object):
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
             self._log('Archiving %s' % lib_path)
             self.exec_command(['scp', lib_path,
-                               '%s/%s%s_shared%s.%s' % (full_archive_path, lib_prefix, lib, lib_ext, sha1)])
+                               '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext)])
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -269,7 +280,7 @@ class Configuration(object):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
-            libs="dlib ddf particle glfw graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record facebook iap push engine".split()
+            libs="dlib ddf particle glfw graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record facebook iap push adtruth engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
@@ -310,18 +321,43 @@ class Configuration(object):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
     def archive_go(self):
-        full_archive_path = join(self.archive_path, self.target_platform).replace('\\', '/')
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'go', self.target_platform).replace('\\', '/')
         host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
 
-        sha1 = self._git_sha1()
         for p in glob(join(self.defold, 'go', 'bin', '*')):
             # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
             if self.target_platform == 'win32':
                 p = p.replace("\\", "/")
                 p = "/" + p[:1] + p[2:]
-            self.exec_command(['scp', p, '%s/%s.%s' % (full_archive_path, basename(p), sha1)])
-            self.exec_command(['ssh', host, 'cd %s; ln -sf %s.%s %s' % (path, basename(p), sha1, basename(p))])
+            self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
+
+    def build_bob(self):
+        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
+        self.exec_command("./scripts/copy_libtexc.sh",
+                          cwd = cwd,
+                          shell = True)
+
+        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                          cwd = cwd,
+                          shell = True)
+
+    def archive_bob(self):
+        sha1 = self._git_sha1()
+
+        dynamo_home = self.dynamo_home
+        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
+        if self.target_platform == 'win32':
+            dynamo_home = dynamo_home.replace("\\", "/")
+            dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
+
+        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
+        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+
+        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
+            self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -336,45 +372,27 @@ class Configuration(object):
                           cwd = cwd)
 
     def _get_cr_builddir(self, product):
-        return join(os.getcwd(), 'tmp', product)
+        return join(os.getcwd(), 'com.dynamo.cr/com.dynamo.cr.%s-product' % product)
 
     def build_server(self):
-        build_dir = self._get_cr_builddir('server')
-        self._build_cr('server', build_dir)
+        self._build_cr('server')
 
     def build_editor(self):
-        build_dir = self._get_cr_builddir('editor')
-
-        root_properties = '''root.linux.gtk.x86=absolute:${buildDirectory}/plugins/com.dynamo.cr.editor/jre_linux/
-root.linux.gtk.x86.permissions.755=jre/'''
-        self._build_cr('editor', build_dir, root_properties = root_properties)
-
-        # NOTE:
-        # Due to bug https://bugs.eclipse.org/bugs/show_bug.cgi?id=300812
-        # we cannot add jre to p2 on win32
-        # The jre is explicitly bundled instead
-        prefix = 'Defold'
-        zip = join(build_dir, 'I.Defold/Defold-win32.win32.x86.zip')
-        jre_root = join(build_dir, 'plugins/com.dynamo.cr.editor/jre_win32')
-        zip = zipfile.ZipFile(zip, 'a')
-
-        for root, dirs, files in os.walk(jre_root):
-            for f in files:
-                full = join(root, f)
-                rel = relpath(full, jre_root)
-                with open(full, 'rb') as file:
-                    data = file.read()
-                    path = join(prefix, rel)
-                    zip.writestr(path, data)
-        zip.close()
+        self._build_cr('editor')
 
     def _archive_cr(self, product, build_dir):
-        host, path = self.archive_path.split(':', 1)
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, product).replace('\\', '/')
+        host, path = full_archive_path.split(':', 1)
         self.exec_command(['ssh', host, 'mkdir -p %s' % path])
-        for p in glob(join(build_dir, 'I.*/*.zip')):
-            self.exec_command(['scp', p, self.archive_path])
-        self.exec_command(['tar', '-C', build_dir, '-cz', '-f', join(build_dir, '%s_repository.tgz' % product), 'repository'])
-        self.exec_command(['scp', join(build_dir, '%s_repository.tgz' % product), self.archive_path])
+        for p in glob(join(build_dir, 'target/products/*.zip')):
+            self.exec_command(['scp', p, full_archive_path])
+        self.exec_command(['tar', '-C', build_dir, '-cz', '-f', join(build_dir, '%s_repository.tgz' % product), 'target/repository'])
+        self.exec_command(['scp', join(build_dir, '%s_repository.tgz' % product), full_archive_path])
+
+        if self.branch:
+            _, base_path = self.archive_path.split(':', 1)
+            self.exec_command(['ssh', host, 'ln -snf %s %s' % (path, join(base_path, '%s_%s' % (product, self.branch)))])
 
     def archive_editor(self):
         build_dir = self._get_cr_builddir('editor')
@@ -384,50 +402,9 @@ root.linux.gtk.x86.permissions.755=jre/'''
         build_dir = self._get_cr_builddir('server')
         self._archive_cr('server', build_dir)
 
-    def _build_cr(self, product, build_dir, root_properties = None):
-        equinox_version = '1.3.0.v20120522-1813'
-
-        if os.path.exists(build_dir):
-            shutil.rmtree(build_dir)
-        os.makedirs(join(build_dir, 'plugins'))
-        os.makedirs(join(build_dir, 'features'))
-
-        if root_properties:
-            with open(join(build_dir, 'root.properties'), 'wb') as f:
-                f.write(root_properties)
-
-        workspace = join(os.getcwd(), 'tmp', 'workspace_%s' % product)
-        if os.path.exists(workspace):
-            shutil.rmtree(workspace)
-        os.makedirs(workspace)
-
-        # copy engine
-        p = join(self.defold_root, 'engine')
-        dst = join(build_dir, basename(p))
-        self._log('Copying .../%s -> %s' % (basename(p), dst))
-        shutil.copytree(p, dst)
-
-        # copy plugins
-        for p in glob(join(self.defold_root, 'com.dynamo.cr', '*')):
-            dst = join(build_dir, 'plugins', basename(p))
-            self._log('Copying .../%s -> %s' % (basename(p), dst))
-            shutil.copytree(p, dst)
-
-        args = ['java',
-                # Try to avoid zip-bug in ant 1.8.2, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=346730
-                '-XX:+UseParNewGC',
-                '-Xms256m',
-                '-Xmx1500m',
-                '-jar',
-                '%s/plugins/org.eclipse.equinox.launcher_%s.jar' % (self.eclipse_home, equinox_version),
-                '-application', 'org.eclipse.ant.core.antRunner',
-                '-buildfile', 'ci/cr/build_%s.xml' % product,
-                '-DbaseLocation=%s' % self.eclipse_home,
-                '-DbuildDirectory=%s' % build_dir,
-                '-DbuildProperties=%s' % join(os.getcwd(), 'ci/cr/%s.properties' % product),
-                '-data', workspace]
-
-        self.exec_command(args)
+    def _build_cr(self, product):
+        cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
+        self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product], cwd = cwd)
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -445,7 +422,7 @@ root.linux.gtk.x86.permissions.755=jre/'''
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        with open('com.dynamo.cr/com.dynamo.cr.editor/cr.product', 'a+') as f:
+        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr.product', 'a+') as f:
             f.seek(0)
             product = f.read()
 
@@ -532,6 +509,8 @@ build_server    - Build server
 build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
+build_bob       - Build bob with native libraries included for cross platform deployment
+archive_bob     - Archive bob to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
 shell           - Start development shell
@@ -546,7 +525,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android', 'js-web', 'as3-web'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android', 'js-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
@@ -582,6 +561,10 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'Output build commands in a format eclipse can parse')
 
+    parser.add_option('--branch', dest='branch',
+                      default = None,
+                      help = 'Current branch. Used only for symbolic information, such as links to latest editor for a branch')
+
     options, args = parser.parse_args()
 
     if len(args) == 0:
@@ -601,7 +584,8 @@ Multiple commands can be specified'''
                           no_colors = options.no_colors,
                           archive_path = options.archive_path,
                           set_version = options.set_version,
-                          eclipse = options.eclipse)
+                          eclipse = options.eclipse,
+                          branch = options.branch)
 
 
         for cmd in args:
@@ -620,7 +604,8 @@ Multiple commands can be specified'''
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
                       set_version = options.set_version,
-                      eclipse = options.eclipse)
+                      eclipse = options.eclipse,
+                      branch = options.branch)
 
     for cmd in args:
         f = getattr(c, cmd, None)

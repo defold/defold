@@ -202,7 +202,7 @@ public class ProjectResource extends BaseResource {
 
     @POST
     @Path("/members")
-    @RolesAllowed(value = { "owner" })
+    @RolesAllowed(value = { "member" })
     @Transactional
     public void addMember(@PathParam("project") String projectId,
                           @PathParam("user") String userId,

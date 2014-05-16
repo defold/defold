@@ -8,6 +8,13 @@ namespace dmMutex
     {
         pthread_mutexattr_t attr;
         int ret = pthread_mutexattr_init(&attr);
+
+        // NOTE: We should perhaps consider non-recursive mutex:
+        // from http://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_mutexattr_settype.html
+        // It is advised that an application should not use a PTHREAD_MUTEX_RECURSIVE mutex
+        // with condition variables because the implicit unlock performed for a pthread_cond_wait()
+        // or pthread_cond_timedwait() may not actually release the mutex (if it had been locked
+        // multiple times). If this happens, no other thread can satisfy the condition of the predicate.
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 
         assert(ret == 0);
@@ -44,27 +51,25 @@ namespace dmMutex
 #elif defined(_WIN32)
     Mutex New()
     {
-        HANDLE mutex = CreateMutex(NULL, FALSE, NULL);
-        assert(mutex);
+        CRITICAL_SECTION* mutex = new CRITICAL_SECTION;
+        InitializeCriticalSection(mutex);
         return mutex;
     }
 
     void Delete(Mutex mutex)
     {
-        BOOL ret = CloseHandle(mutex);
-        assert(ret);
+        DeleteCriticalSection(mutex);
+        delete mutex;
     }
 
     void Lock(Mutex mutex)
     {
-        DWORD ret = WaitForSingleObject(mutex, INFINITE);
-        assert(ret == WAIT_OBJECT_0);
+        EnterCriticalSection(mutex);
     }
 
     void Unlock(Mutex mutex)
     {
-        BOOL ret = ReleaseMutex(mutex);
-        assert(ret);
+        LeaveCriticalSection(mutex);
     }
 
 #else

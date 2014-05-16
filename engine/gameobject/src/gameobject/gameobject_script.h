@@ -80,7 +80,7 @@ namespace dmGameObject
     extern lua_State* g_LuaState;
     extern dmScript::HContext g_ScriptContext;
 
-    void PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
+    PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

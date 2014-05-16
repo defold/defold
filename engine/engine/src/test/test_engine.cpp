@@ -100,7 +100,7 @@ static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
     {
         // Only for first callback in order to avoid loops when testing reboot
         http_ctx->m_Port = dmEngine::GetHttpPort(engine);
-        http_ctx->m_Thread = dmThread::New(HttpPostThread, 0x8000, http_ctx);
+        http_ctx->m_Thread = dmThread::New(HttpPostThread, 0x8000, http_ctx, "post");
     }
     http_ctx->m_PreCount++;
 }

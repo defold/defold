@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <dlib/hash.h>
+#include <script/script.h>
 
 #include "render/render.h"
 
@@ -9,6 +10,7 @@ TEST(dmMaterialTest, TestTags)
 {
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams params;
+    params.m_ScriptContext = dmScript::NewContext(0, 0);
     dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, "foo", 3);
@@ -31,6 +33,7 @@ TEST(dmMaterialTest, TestTags)
 
     dmGraphics::DeleteContext(context);
     dmRender::DeleteRenderContext(render_context, 0);
+    dmScript::DeleteContext(params.m_ScriptContext);
 }
 
 int main(int argc, char **argv)

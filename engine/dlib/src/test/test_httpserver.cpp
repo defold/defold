@@ -113,7 +113,7 @@ public:
         }
     }
 
-    static void ClientHttpContent(dmHttpClient::HClient client, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void ClientHttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
         self->m_ClientData.append((const char*) content_data, content_data_size);
@@ -256,7 +256,7 @@ void RunPythonThread(void*)
 
 TEST_F(dmHttpServerTest, TestServer)
 {
-    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0);
+    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
     int iter = 0;
     while (!m_Quit && iter < 1000)
     {
@@ -271,7 +271,7 @@ TEST_F(dmHttpServerTest, TestServer)
 
 TEST_F(dmHttpServerTest, TestServerClient)
 {
-    dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this);
+    dmThread::Thread thread = dmThread::New(&ServerThread, 0x8000, this, "test");
 
     while (!m_ServerStarted)
     {

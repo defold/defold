@@ -15,6 +15,7 @@ namespace dmHttpCacheVerify
     struct VerifyContext
     {
         dmHttpClient::HClient   m_Client;
+        dmHttpClient::HResponse m_Response;
         dmHttpCache::HCache     m_HttpCache;
         uint64_t                m_MaxAge;
         uint64_t                m_CurrentTime;
@@ -51,28 +52,28 @@ namespace dmHttpCacheVerify
             if (!verify_context->m_DryRun)
             {
                 dmHttpClient::Result r;
-                r = Write(verify_context->m_Client, entry_info->m_URI, strlen(entry_info->m_URI));
+                r = Write(verify_context->m_Response, entry_info->m_URI, strlen(entry_info->m_URI));
                 if (r != dmHttpClient::RESULT_OK)
                 {
                     verify_context->m_Result = r;
                     return;
                 }
 
-                r = Write(verify_context->m_Client, " ", 1);
+                r = Write(verify_context->m_Response, " ", 1);
                 if (r != dmHttpClient::RESULT_OK)
                 {
                     verify_context->m_Result = r;
                     return;
                 }
 
-                r = Write(verify_context->m_Client, entry_info->m_ETag, strlen(entry_info->m_ETag));
+                r = Write(verify_context->m_Response, entry_info->m_ETag, strlen(entry_info->m_ETag));
                 if (r != dmHttpClient::RESULT_OK)
                 {
                     verify_context->m_Result = r;
                     return;
                 }
 
-                r = Write(verify_context->m_Client, "\n", 1);
+                r = Write(verify_context->m_Response, "\n", 1);
                 if (r != dmHttpClient::RESULT_OK)
                 {
                     verify_context->m_Result = r;
@@ -86,23 +87,25 @@ namespace dmHttpCacheVerify
         }
     }
 
-    static uint32_t HttpSendContentLength(dmHttpClient::HClient client, void* user_data)
+    static uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
     {
         VerifyContext* verify_context = (VerifyContext*) user_data;
         verify_context->m_DryRun = true;
+        verify_context->m_Response = response;
         dmHttpCache::Iterate(verify_context->m_HttpCache, verify_context, &VerifyCallback);
         return verify_context->m_BytesWritten;
     }
 
-    static dmHttpClient::Result HttpWrite(dmHttpClient::HClient client, void* user_data)
+    static dmHttpClient::Result HttpWrite(dmHttpClient::HResponse response, void* user_data)
     {
         VerifyContext* verify_context = (VerifyContext*) user_data;
         verify_context->m_DryRun = false;
+        verify_context->m_Response = response;
         dmHttpCache::Iterate(verify_context->m_HttpCache, verify_context, &VerifyCallback);
         return verify_context->m_Result;
     }
 
-    static void HttpContent(dmHttpClient::HClient, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
     {
         VerifyContext* verify_context = (VerifyContext*) user_data;
 

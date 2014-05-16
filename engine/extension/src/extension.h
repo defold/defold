@@ -18,6 +18,7 @@ namespace dmExtension
     enum Result
     {
         RESULT_OK = 0,//!< RESULT_OK
+        RESULT_INIT_ERROR = -1,//!< RESULT_INIT_ERROR
     };
 
     /**
@@ -101,15 +102,6 @@ namespace dmExtension
      * @param desc
      */
     void Register(Desc* desc);
-
-    /**
-     * Internal data-structure
-     */
-    struct RegisterExtension {
-        RegisterExtension(Desc* desc) {
-            Register(desc);
-        }
-    };
 
 #ifdef __GNUC__
     // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"

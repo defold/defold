@@ -12,6 +12,11 @@
 /ref/gui.html
 /ref/render.html
 /ref/sys.html
+/blog/minor_fixes_release_1_2_30.html
+/blog/hierarchical_gui_release_1_2_29.html
+/blog/yet_more_various_fixes_release_1_2_28.html
+/blog/even_more_various_fixes_release_1_2_27.html
+/blog/more_various_fixes_release_1_2_26.html
 /blog/various_fixes_release_1_2_25.html
 /blog/fixed_tile_bleeding_release_1_2_24.html
 /blog/ios_7_and_more_gui_improvements_release_1_2_23.html

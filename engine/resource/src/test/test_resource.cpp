@@ -659,7 +659,7 @@ TEST(RecreateTest, RecreateTestHttp)
     fclose(f);
 
     SendReloadDone = false;
-    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
+    dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
 
     do
     {
@@ -674,7 +674,7 @@ TEST(RecreateTest, RecreateTestHttp)
     unlink(file_name);
 
     SendReloadDone = false;
-    send_thread = dmThread::New(&SendReloadThread, 0x8000, 0);
+    send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
 
     do
     {

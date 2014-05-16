@@ -1,5 +1,5 @@
 package com.defold.iap;
 
 public interface IPurchaseListener {
-	public void onResult(int responseCode, String purchaseData, String dataSignature);
+	public void onPurchaseResult(int responseCode, String purchaseData);
 }

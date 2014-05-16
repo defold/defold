@@ -1,9 +1,9 @@
-uniform mat4 view_proj;
+uniform mediump mat4 view_proj;
 
-varying vec4 var_color;
+varying lowp vec4 var_color;
 
-attribute vec4 position;
-attribute vec4 color;
+attribute mediump vec4 position;
+attribute lowp vec4 color;
 
 void main()
 {

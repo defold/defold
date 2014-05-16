@@ -123,13 +123,30 @@ TEST_F(AnimTest, Playback)
 
     ANIM(dmGameObject::PLAYBACK_ONCE_FORWARD);
     ASSERT_FRAME(2.5f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(7.5f);
+    ASSERT_FRAME(10.0f);
+    ASSERT_FRAME(10.0f);
 
     dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_ONCE_BACKWARD);
     ASSERT_FRAME(7.5f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(2.5f);
+    ASSERT_FRAME(0.0f);
+    ASSERT_FRAME(0.0f);
+
+    dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
+    ANIM(dmGameObject::PLAYBACK_ONCE_PINGPONG);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(10.0f);
+    ASSERT_FRAME(5.0f);
+    ASSERT_FRAME(0.0f);
+    ASSERT_FRAME(0.0f);
 
     dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_NONE);
+    ASSERT_FRAME(0.0f);
     ASSERT_FRAME(0.0f);
 
     dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
@@ -138,6 +155,7 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(5.0f);
     ASSERT_FRAME(7.5f);
     ASSERT_FRAME(0.0f);
+    ASSERT_FRAME(2.5f);
 
     dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_LOOP_BACKWARD);
@@ -145,6 +163,7 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(5.0f);
     ASSERT_FRAME(2.5f);
     ASSERT_FRAME(10.0f);
+    ASSERT_FRAME(7.5f);
 
     dmGameObject::SetPosition(go, Point3(0.0f, 0.0f, 0.0f));
     ANIM(dmGameObject::PLAYBACK_LOOP_PINGPONG);
@@ -154,8 +173,8 @@ TEST_F(AnimTest, Playback)
     ASSERT_FRAME(10.0f);
     ASSERT_FRAME(7.5f);
 
-    ASSERT_EQ(0u, this->m_FinishCount);
-    ASSERT_EQ(5u, this->m_CancelCount);
+    ASSERT_EQ(3u, this->m_FinishCount);
+    ASSERT_EQ(3u, this->m_CancelCount);
 
 #undef ANIM
 #undef ASSERT_FRAME
@@ -326,6 +345,64 @@ TEST_F(AnimTest, Delay)
     dmGameObject::Delete(m_Collection, go);
 }
 
+TEST_F(AnimTest, DelayAboveDuration)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("position.x");
+    dmGameObject::PropertyVar var(10.f);
+    float duration = 1.0f;
+    float delay = 2.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    Point3 pos;
+
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        dmGameObject::Update(m_Collection, &m_UpdateContext);
+        ASSERT_EQ(0.0f, X(go));
+    }
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_LT(0.0f, X(go));
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
+// Test that a delayed animation is not stopped when a new is started immediately
+TEST_F(AnimTest, DelayedNotStopped)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("position.x");
+    dmGameObject::PropertyVar var_delay(1.f);
+    dmGameObject::PropertyVar var_immediate(0.5f);
+    float duration = 0.75f;
+    float delay = 0.25f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var_delay, dmEasing::TYPE_LINEAR, duration, delay, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var_immediate, dmEasing::TYPE_LINEAR, duration, 0.0f, AnimationStopped, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    Point3 pos;
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmGameObject::Update(m_Collection, &m_UpdateContext);
+        ASSERT_LT(0.0f, X(go));
+    }
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_EQ(1.0f, X(go));
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 TEST_F(AnimTest, LoadTest)
 {
     const uint32_t count = 1024;
@@ -460,6 +537,19 @@ TEST_F(AnimTest, ScriptedChainOtherProp)
     }
 }
 
+TEST_F(AnimTest, ScriptedChainDelayBug)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/chain_delay_bug.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_NE((void*)0, go);
+
+    for (uint32_t i = 0; i < 12; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+}
+
 // Test that relocating anims through a SetCapacity (via callback) works
 TEST_F(AnimTest, ScriptedDemo)
 {
@@ -489,6 +579,19 @@ TEST_F(AnimTest, ScriptedInvalidType)
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/invalid_type.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
     ASSERT_EQ((void*)0, go);
+}
+
+TEST_F(AnimTest, ScriptedDelayedCompositeCallback)
+{
+    m_UpdateContext.m_DT = 0.25f;
+    dmGameObject::PropertyVar var(1.0f);
+    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/composite_delay.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), 1);
+    ASSERT_NE((void*)0, go);
+
+    for (uint32_t i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
 }
 
 int main(int argc, char **argv)

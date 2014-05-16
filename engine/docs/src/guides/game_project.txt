@@ -38,6 +38,8 @@ Here is a run-through of the most common settings (categories in *bold*):
 ** _width_ - the width in pixels of the application window, 960 by default
 ** _height_ - the height in pixels of the application window, 640 by default
 ** _fullscreen_ - if the application should start full screen or not, 1 for fullscreen or 0 (default) for windowed
+** _update_frequency_ - frame update frequency, 60 by default. Valid values are 60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2 and 1
+** _variable_dt_ - if the frame time step should be measured against actual time or be fixed (set to update_frequency)
 * *sound*
 ** _gain_ - global gain (volume), 0 - 1, 1 by default
 * *physics*
