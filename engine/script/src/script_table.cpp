@@ -27,10 +27,6 @@ namespace dmScript
      * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash ie LUA_TUSERDATA, the first byte in value is the SubType
      */
 
-    /*
-     * TODO: Made some aligment changes for emscripten (strings and boolean)
-     * This change might not be correct. Change to align table-start instead?
-     */
     enum SubType
     {
         SUB_TYPE_VECTOR3    = 0,
@@ -113,7 +109,6 @@ namespace dmScript
                     if (buffer_end - buffer < 1)
                         luaL_error(L, "table too large");
                     (*buffer++) = (char) lua_toboolean(L, -1);
-                    buffer += 3;
                 }
                 break;
 
@@ -155,11 +150,6 @@ namespace dmScript
                         luaL_error(L, "table too large");
                     memcpy(buffer, value, value_len);
                     buffer += value_len;
-
-                    intptr_t offset = buffer - original_buffer;
-                    intptr_t aligned_buffer = ((intptr_t) offset + sizeof(void*)-1) & ~(sizeof(void*)-1);
-                    intptr_t align_size = aligned_buffer - (intptr_t) offset;
-                    buffer += align_size;
                 }
                 break;
 
@@ -320,8 +310,7 @@ namespace dmScript
             if (key_type == LUA_TSTRING)
             {
                 lua_pushstring(L, buffer);
-                int len = strlen(buffer);
-                buffer += len + 1;
+                buffer += strlen(buffer) + 1;
             }
             else if (key_type == LUA_TNUMBER)
             {
@@ -334,7 +323,6 @@ namespace dmScript
                 case LUA_TBOOLEAN:
                 {
                     lua_pushboolean(L, *buffer++);
-                    buffer += 3;
                 }
                 break;
 
@@ -348,14 +336,7 @@ namespace dmScript
                     // Sanity-check. At least 4 bytes alignment (de facto)
                     assert((((intptr_t) buffer) & 3) == 0);
 
-                    union
-                    {
-                        lua_Number x;
-                        char buf[sizeof(lua_Number)];
-                    };
-
-                    memcpy(buf, buffer, sizeof(buf));
-                    lua_pushnumber(L, x);
+                    lua_pushnumber(L, *((lua_Number*) buffer));
                     buffer += sizeof(lua_Number);
                 }
                 break;
@@ -365,12 +346,6 @@ namespace dmScript
                     uint32_t value_len = strlen(buffer) + 1;
                     lua_pushstring(L, buffer);
                     buffer += value_len;
-
-                    intptr_t offset = buffer - original_buffer;
-                    intptr_t aligned_buffer = ((intptr_t) offset + sizeof(void*)-1) & ~(sizeof(void*)-1);
-                    intptr_t align_size = aligned_buffer - (intptr_t) offset;
-                    buffer += align_size;
-
                 }
                 break;
 
@@ -461,5 +436,3 @@ namespace dmScript
     }
 
 }
-
-
