@@ -690,16 +690,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         if (changedResources.size() > 0) {
             branchService.updateBranchStatus(changedResources);
         }
-
-        IProject project = EditorUtil.getProject();
-        if (project != null) {
-            IFolder contentRoot = EditorUtil.getContentRoot(project);
-            IFile gameProject = contentRoot.getFile("game.project");
-            if (changedResources.contains(gameProject)) {
-                // TODO Bob resolve
-                
-            }
-        }
     }
 
     @Override
