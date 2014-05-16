@@ -35,7 +35,7 @@ protected:
     static int AtPanic(lua_State *L)
     {
         if (g_LuaTableTest->accept_panic)
-            longjmp(g_LuaTableTest->env, 1);
+            longjmp(g_LuaTableTest->env, 0);
         dmLogError("Unexpected error: %s", lua_tostring(L, -1));
         exit(5);
         return 0;
@@ -230,41 +230,6 @@ TEST_F(LuaTableTest, Table02)
     {
         lua_pop(L, 1);
     }
-}
-
-TEST_F(LuaTableTest, BoolAlign)
-{
-    // Create table
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "a");
-
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "x");
-
-    lua_setfield(L, -2, "t");
-
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
-    (void) buffer_used;
-    lua_pop(L, 1);
-
-    dmScript::PushTable(L, m_Buf);
-
-    lua_getfield(L, -1, "a");
-    ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
-    ASSERT_EQ(1, lua_toboolean(L, -1));
-    lua_pop(L, 1);
-
-    lua_getfield(L, -1, "t");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "x");
-    ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
-    ASSERT_EQ(1, lua_toboolean(L, -1));
-    lua_pop(L, 1);
-    lua_pop(L, 1);
-
-    lua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, case1308)
