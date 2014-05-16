@@ -11,5 +11,14 @@
          </run>
       </filesystem>
    </extension>
+   <extension
+         point="org.eclipse.core.filesystem.filesystems">
+      <filesystem
+            scheme="zip">
+         <run
+               class="com.dynamo.cr.editor.fs.internal.ZipFileSystem">
+         </run>
+      </filesystem>
+   </extension>
 
 </plugin>

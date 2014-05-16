@@ -5,8 +5,12 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 import javax.ws.rs.core.UriBuilder;
 
@@ -14,6 +18,8 @@ import org.apache.commons.io.FileUtils;
 import org.eclipse.core.net.proxy.IProxyData;
 import org.eclipse.core.net.proxy.IProxyService;
 import org.eclipse.core.resources.ICommand;
+import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
 import org.eclipse.core.resources.IProjectNature;
@@ -57,6 +63,7 @@ import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.Project;
 import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
 import com.dynamo.cr.client.ClientFactory;
@@ -104,6 +111,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     public static final String UNRESOLVED_IMAGE_ID = "UNRESOLVED";
     public static final String YOURS_IMAGE_ID = "YOURS";
     public static final String THEIRS_IMAGE_ID = "THEIRS";
+    public static final String LIBRARY_IMAGE_ID = "LIBRARY";
 
     // The shared instance
     private static Activator plugin;
@@ -500,7 +508,9 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         p.setDefaultCharset("UTF-8", monitor);
 
                         URI uri = UriBuilder.fromUri(branchClient.getURI()).scheme("crepo").build();
-                        EditorUtil.getContentRoot(p).createLink(uri, IResource.REPLACE, monitor);
+
+                        IFolder contentRoot = EditorUtil.getContentRoot(p);
+                        contentRoot.createLink(uri, IResource.REPLACE, monitor);
 
                         IProjectDescription pd = p.getDescription();
                         pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
@@ -508,6 +518,9 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         build_command.setBuilderName("com.dynamo.cr.editor.builders.contentbuilder");
                         pd.setBuildSpec(new ICommand[] {build_command});
                         p.setDescription(pd, monitor);
+
+                        IFolder libFolder = contentRoot.getFolder(Project.LIB_DIR);
+                        linkLibraries(contentRoot, libFolder, monitor);
                     } catch (CoreException ex) {
                         showError("Error occurred when creating project", ex);
                     }
@@ -549,6 +562,36 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
             branchService.updateBranchStatus(null);
+        }
+    }
+
+    private void linkLibraries(IFolder contentRoot, IFolder libFolder, IProgressMonitor monitor) throws CoreException {
+        if (libFolder.exists()) {
+            IResource[] libs = libFolder.members();
+            for (IResource lib : libs) {
+                try {
+                    Set<String> roots = new HashSet<String>();
+                    ZipFile zip = new ZipFile(lib.getLocation().toFile());
+                    Enumeration<? extends ZipEntry> entries = zip.entries();
+                    while (entries.hasMoreElements()) {
+                        ZipEntry entry = entries.nextElement();
+                        if (entry.isDirectory()) {
+                            Path path = new Path(entry.getName());
+                            if (path.segmentCount() == 1) {
+                                roots.add(path.segment(0));
+                            }
+                        }
+                    }
+                    for (String root : roots) {
+                        URI libUri = new URI("zip", null, "/" + root, lib.getLocationURI().toString(), null);
+                        contentRoot.getFolder(root).createLink(libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+                    }
+                } catch (URISyntaxException e) {
+                    showError("Error occurred when creating project", e);
+                } catch (IOException e) {
+                    showError("Error occurred when creating project", e);
+                }
+            }
         }
     }
 
@@ -647,6 +690,16 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         if (changedResources.size() > 0) {
             branchService.updateBranchStatus(changedResources);
         }
+
+        IProject project = EditorUtil.getProject();
+        if (project != null) {
+            IFolder contentRoot = EditorUtil.getContentRoot(project);
+            IFile gameProject = contentRoot.getFile("game.project");
+            if (changedResources.contains(gameProject)) {
+                // TODO Bob resolve
+                
+            }
+        }
     }
 
     @Override
@@ -665,6 +718,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         reg.put(UNRESOLVED_IMAGE_ID, getImageDescriptor("icons/arrow_divide_red.png"));
         reg.put(YOURS_IMAGE_ID, getImageDescriptor("icons/user.png"));
         reg.put(THEIRS_IMAGE_ID, getImageDescriptor("icons/group.png"));
+        reg.put(LIBRARY_IMAGE_ID, getImageDescriptor("icons/database.png"));
     }
 
     @Override

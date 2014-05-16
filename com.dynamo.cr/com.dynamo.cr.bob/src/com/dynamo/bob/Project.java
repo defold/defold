@@ -34,7 +34,7 @@ import com.dynamo.bob.fs.ZipMountPoint;
  */
 public class Project {
 
-    private final static String LIB_DIR = ".internal/lib";
+    public final static String LIB_DIR = ".internal/lib";
 
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
