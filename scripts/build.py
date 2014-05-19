@@ -8,7 +8,6 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 from glob import glob
 from threading import Thread, Event
 from Queue import Queue
-from numpy.distutils.misc_util import rel_path
 
 """
 Build utility for installing external packages, building engine, editor and cr
