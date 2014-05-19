@@ -136,7 +136,7 @@ def default_flags(self):
                 '-L%s' % stl_lib])
     elif platform == "js-web":
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-O0', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+            self.env.append_value(f, ['-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
         # 128MB ram
         self.env.append_value('LINKFLAGS', ['-s','TOTAL_MEMORY=134217728'])
     elif platform == "as3-web":
