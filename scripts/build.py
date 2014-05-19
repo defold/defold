@@ -55,8 +55,8 @@ class Future(object):
     def __call__(self):
         try:
             # In order to respond to ctrl+c wait with timeout...
-            while not self.event.wait(0.1):
-                pass
+            while not self.event.is_set():
+                self.event.wait(0.1)
         except KeyboardInterrupt,e:
             sys.exit(0)
 
