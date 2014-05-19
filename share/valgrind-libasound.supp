@@ -6,6 +6,13 @@
    ...
 }
 {
+   libasound-leaks
+   Memcheck:Leak
+   ...
+   obj:/usr/lib/i386-linux-gnu/libasound.so.*
+   ...
+}
+{
    dl-leaks-1
    Memcheck:Leak
    fun:malloc
