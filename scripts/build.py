@@ -695,7 +695,7 @@ instructions.configure=\
                 self._mkdirs(os.path.dirname(p))
                 self._log('s3://%s/%s -> %s' % (bucket_name, key.name, p))
                 f = Future(self.thread_pool, download, key, p)
-                self.futures.append(f)
+                futures.append(f)
 
         for f in futures:
             f()
