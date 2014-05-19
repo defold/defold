@@ -25,6 +25,7 @@ import org.eclipse.ui.console.MessageConsole;
 import org.eclipse.ui.console.MessageConsoleStream;
 
 import com.dynamo.cr.editor.core.EditorCorePlugin;
+import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.ui.ViewUtil;
 import com.dynamo.cr.engine.Engine;
 import com.dynamo.engine.proto.Engine.Reboot;
@@ -193,8 +194,8 @@ import com.dynamo.engine.proto.Engine.Reboot.Builder;
             JsonNode versionNode = infoNode.get("version");
             if (versionNode != null) {
                 final String version = versionNode.asText();
-                final String editorVersion = EditorCorePlugin.VERSION;
-                if (!editorVersion.equals(version)) {
+                final String editorVersion = EditorCorePlugin.getDefault().getVersion();
+                if (!(editorVersion.equals(version) || EditorUtil.isDev())) {
                     final Display display = Display.getDefault();
                     display.syncExec(new Runnable() {
 

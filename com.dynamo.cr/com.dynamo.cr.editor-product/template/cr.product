@@ -23,11 +23,11 @@ jre\bin\javaw.exe</programArgsWin>
    <splash
       location="com.dynamo.cr.editor" />
    <launcher name="Defold">
-      <linux icon="/icons/defold_128.xpm"/>
-      <macosx icon="/icons/defold_128.icns"/>
+      <linux icon="icons/beta/defold_128.xpm"/>
+      <macosx icon="icons/beta/defold_128.icns"/>
       <solaris/>
       <win useIco="true">
-         <ico path="/icons/defold_128.ico"/>
+         <ico path="icons/beta/defold_128.ico"/>
          <bmp/>
       </win>
    </launcher>
@@ -158,6 +158,9 @@ jre\bin\javaw.exe</programArgsWin>
    <configurations>
       <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="0" />
       <plugin id="org.eclipse.equinox.ds" autoStart="true" startLevel="2" />
+      <property name="defold.version" value="1.2.37" />
+      <property name="defold.sha1" value="0000000000000000000000000000000000000000" />
+      <property name="defold.channel" value="stable" />
    </configurations>
 
 </product>

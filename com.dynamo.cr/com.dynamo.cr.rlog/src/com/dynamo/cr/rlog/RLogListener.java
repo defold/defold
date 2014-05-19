@@ -168,7 +168,7 @@ public class RLogListener implements ILogListener, Runnable {
                 .setMessage(entry.status.getMessage())
                 .setPlugin(entry.plugin)
                 .setSeverity(severity)
-                .setVersion(EditorCorePlugin.VERSION);
+                .setVersion(EditorCorePlugin.getDefault().getVersion());
 
         Throwable e = entry.status.getException();
         if (e != null) {

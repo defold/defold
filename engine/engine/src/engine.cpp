@@ -912,7 +912,7 @@ bail:
     {
         dmEngine::HEngine engine = dmEngine::New(engine_service);
         dmEngine::RunResult run_result;
-        dmLogInfo("Defold Engine %s (%s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+        dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
         if (dmEngine::Init(engine, argc, argv))
         {
             if (pre_run)

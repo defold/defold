@@ -6,7 +6,7 @@ def set_options(opt):
 
 def build(bld):
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
-                          includes = '../proto .',
+                          includes = '../proto . ..',
                           target = 'engine',
                           proto_gen_py = True,
                           protoc_includes = '../proto',

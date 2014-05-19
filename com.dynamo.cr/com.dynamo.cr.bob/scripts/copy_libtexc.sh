@@ -6,8 +6,8 @@ mkdir -p lib/linux
 mkdir -p lib/x86_64-darwin
 mkdir -p lib/win32
 
-SHA1=`git log --oneline | head -1 | awk '{ print $1 }'`
+SHA1=`git log --pretty=%H -n1`
 
-scp builder@ci-master.defold.com:/archive/${SHA1}/engine/linux/libtexc_shared.so lib/linux/libtexc_shared.so
-scp builder@ci-master.defold.com:/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
-scp builder@ci-master.defold.com:/archive/${SHA1}/engine/win32/texc_shared.dll lib/win32/texc_shared.dll
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/linux/libtexc_shared.so lib/linux/libtexc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/win32/texc_shared.dll lib/win32/texc_shared.dll

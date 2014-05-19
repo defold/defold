@@ -54,7 +54,9 @@ public class AboutDialog extends Shell {
         productNameLabel.setFont(JFaceResources.getBannerFont());
         productNameLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER,
                 false, false, 1, 1));
-        productNameLabel.setText("Defold Editor");
+
+        EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+        productNameLabel.setText(corePlugin.getTitle());
 
         StyledText buildDetailsText = new StyledText(this, SWT.NONE);
         buildDetailsText.setLineSpacing(7);
@@ -68,7 +70,8 @@ public class AboutDialog extends Shell {
 
         // NOTE: Currently hard-coded
         // Non-trivial to find the product number :-(
-        builder.append(String.format("Version %s", EditorCorePlugin.VERSION));
+        builder.append(String.format("Version %s", corePlugin.getVersion()));
+        builder.append(String.format(" (%s)", corePlugin.getSha1()));
         builder.append(NEW_LINE);
 
         buildDetailsText.setText(builder.toString());

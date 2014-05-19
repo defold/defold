@@ -4,9 +4,7 @@ Build configuration for editor and p2 repository.
 
 ## Building
 
-Build with the profile "editor"
-
-    # mvn package -P editor
+Use build.py with command build_cr
 
 ## JRE bundling
 
@@ -36,3 +34,8 @@ must be preserved. The switch *-y* to zip preserves symblic links, e.g.
          <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="0" />
          <plugin id="org.eclipse.equinox.ds" autoStart="true" startLevel="2" />
      </configurations>
+
+* To speed up then maven process when testing use the -rf option
+
+        -rf :com.dynamo.cr.editor-product
+  to limit the process to the com.dynamo.cr.editor-product module.
