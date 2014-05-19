@@ -100,6 +100,13 @@ public class Bob {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         project.setLibUrls(getLibraryUrls(rootDirectory));
+        for (String command : commands) {
+            if (command.equals("resolve")) {
+                project.resolveLibUrls();
+                break;
+            }
+        }
+        project.mount(new ClassLoaderResourceScanner());
 
         Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
         project.findSources(sourceDirectory, skipDirs);

@@ -1,6 +1,9 @@
 package com.dynamo.bob.fs;
 
 import java.io.IOException;
+import java.util.Collection;
+
+import com.dynamo.bob.fs.IFileSystem.IWalker;
 
 /**
  * A mount point to be included in a file system.
@@ -25,4 +28,12 @@ public interface IMountPoint {
      * Unmount the mount point.
      */
     void unmount();
+
+    /**
+     * Walk recursively through the content of this mount point.
+     * @param path path within the mount point to start from
+     * @param walker walker to use when walking, which will store the results
+     * @param results collection of encountered and stored paths
+     */
+    void walk(String path, IWalker walker, Collection<String> results);
 }

@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
@@ -113,7 +114,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory));
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
 
         String[] commands;
         if (kind == IncrementalProjectBuilder.FULL_BUILD) {
@@ -127,6 +128,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         boolean ret = true;
         try {
             project.setLibUrls(BobUtil.getLibraryUrls(branchLocation));
+            project.mount(new OsgiResourceScanner(bundle));
             project.findSources(branchLocation, skipDirs);
             List<TaskResult> result = project.build(new ProgressDelegate(monitor), commands);
             for (TaskResult taskResult : result) {

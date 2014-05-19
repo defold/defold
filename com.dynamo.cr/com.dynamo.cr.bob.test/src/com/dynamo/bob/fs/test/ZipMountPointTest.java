@@ -2,9 +2,14 @@ package com.dynamo.bob.fs.test;
 
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 
@@ -38,6 +43,14 @@ public class ZipMountPointTest {
         assertTrue(mp.get("test_lib2/file2.in") != null);
         mp.unmount();
         assertTrue(mp.get("test_lib2/file2.in") == null);
+    }
+
+    @Test
+    public void testWalker() throws Exception {
+        FileSystemWalker walker = new FileSystemWalker();
+        Collection<String> results = new ArrayList<String>();
+        this.mp.walk(".", walker, results);
+        assertTrue(results.contains("test_lib/file1.in"));
     }
 }
 

@@ -26,8 +26,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.test.util.MockFileSystem;
@@ -67,7 +69,7 @@ public class ProjectTest {
     public void setUp() throws Exception {
         bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
-        project = new Project(fileSystem, FileUtils.getTempDirectory().getAbsolutePath(), "build/default");
+        project = new Project(fileSystem, FileUtils.getTempDirectoryPath(), "build/default");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
@@ -98,15 +100,29 @@ public class ProjectTest {
         }
         assertFalse(libExists("test_lib.zip"));
         assertFalse(libExists("test_lib2.zip"));
-        build("resolve");
+        this.project.resolveLibUrls();
         assertTrue(libExists("test_lib.zip"));
         assertTrue(libExists("test_lib2.zip"));
     }
 
     @Test
     public void testMountPoints() throws Exception {
+        project.resolveLibUrls();
+        project.mount(null);
         project.setInputs(Arrays.asList("test_lib/file1.in", "test_lib2/file2.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
+        assertFalse(results.isEmpty());
+        for (TaskResult result : results) {
+            assertTrue(result.isOk());
+        }
+    }
+
+    @Test
+    public void testMountPointFindSources() throws Exception {
+        project.resolveLibUrls();
+        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
+        project.findSources(".", null);
+        List<TaskResult> results = build("build");
         assertFalse(results.isEmpty());
         for (TaskResult result : results) {
             assertTrue(result.isOk());

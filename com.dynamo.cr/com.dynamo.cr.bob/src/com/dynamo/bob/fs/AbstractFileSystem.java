@@ -2,10 +2,16 @@ package com.dynamo.bob.fs;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Vector;
+
+import org.apache.commons.io.FilenameUtils;
+
+import com.dynamo.bob.fs.IFileSystem.IWalker;
 
 public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResource> implements IFileSystem {
     protected F fileSystem;
@@ -22,7 +28,7 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
 
     @Override
     public void setRootDirectory(String rootDirectory) {
-        this.rootDirectory = rootDirectory;
+        this.rootDirectory = FilenameUtils.normalizeNoEndSeparator(rootDirectory, true);
     }
 
     @Override
@@ -32,7 +38,7 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
 
     @Override
     public void setBuildDirectory(String buildDirectory) {
-        buildDirectory = normalize(buildDirectory, true);
+        buildDirectory = FilenameUtils.normalizeNoEndSeparator(buildDirectory, true);
         if (buildDirectory.startsWith("/")) {
             throw new IllegalArgumentException("Build directory must be relative to root directory and not absolute.");
         }
@@ -69,5 +75,28 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
             }
         }
         return null;
+    }
+
+    private void walk(IWalker walker, String path, Collection<String> results) {
+        String absolutePath = FilenameUtils.normalizeNoEndSeparator(FilenameUtils.concat(this.rootDirectory, path));
+        File file = new File(absolutePath);
+        if (file.isDirectory()) {
+            if (walker.handleDirectory(path, results)) {
+                String[] children = file.list();
+                for (String child : children) {
+                    walk(walker, FilenameUtils.concat(path, child), results);
+                }
+            }
+        } else {
+            walker.handleFile(path, results);
+        }
+    }
+
+    @Override
+    public void walk(String path, IWalker walker, Collection<String> results) {
+        walk(walker, path, results);
+        for (IMountPoint mountPoint : this.mountPoints) {
+            mountPoint.walk(path, walker, results);
+        }
     }
 }

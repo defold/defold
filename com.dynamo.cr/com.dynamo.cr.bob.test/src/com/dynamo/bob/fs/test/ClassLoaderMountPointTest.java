@@ -3,10 +3,18 @@ package com.dynamo.bob.fs.test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
+import org.eclipse.core.runtime.Platform;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IResource;
 
 public class ClassLoaderMountPointTest {
@@ -15,7 +23,7 @@ public class ClassLoaderMountPointTest {
 
     @Before
     public void setUp() throws Exception {
-        this.mp = new ClassLoaderMountPoint(null, "**/include*");
+        this.mp = new ClassLoaderMountPoint(null, "com/dynamo/bob/fs/test/included*", new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
         this.mp.mount();
     }
 
@@ -34,5 +42,13 @@ public class ClassLoaderMountPointTest {
     @Test
     public void testExclusion() throws Exception {
         assertFalse(mp.get("com/dynamo/bob/fs/test/excluded_resource.txt") != null);
+    }
+
+    @Test
+    public void testWalker() throws Exception {
+        FileSystemWalker walker = new FileSystemWalker();
+        Collection<String> results = new ArrayList<String>();
+        this.mp.walk(".", walker, results);
+        assertTrue(results.contains("com/dynamo/bob/fs/test/included_resource.txt"));
     }
 }

@@ -3,10 +3,15 @@ package com.dynamo.bob.fs;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collection;
+import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+
+import com.dynamo.bob.fs.IFileSystem.IWalker;
 
 public class ZipMountPoint implements IMountPoint {
 
@@ -89,5 +94,23 @@ public class ZipMountPoint implements IMountPoint {
             }
         });
         this.file = null;
+    }
+
+    @Override
+    public void walk(String path, IWalker walker, Collection<String> results) {
+        path = FilenameUtils.normalizeNoEndSeparator(path, true);
+        if (this.file != null) {
+            Enumeration<? extends ZipEntry> entries = this.file.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.getName().startsWith(path)) {
+                    if (entry.isDirectory()) {
+                        walker.handleDirectory(entry.getName(), results);
+                    } else {
+                        walker.handleFile(entry.getName(), results);
+                    }
+                }
+            }
+        }
     }
 }
