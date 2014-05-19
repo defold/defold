@@ -501,8 +501,6 @@ instructions.configure=\
         self.exec_command(['sh', '-l'])
 
     def release(self):
-        self._log('Releasing %s (%s)' % (self.version, self.channel))
-
         page = """
 <!DOCTYPE html>
 <html>
@@ -658,6 +656,8 @@ instructions.configure=\
             key.content_type = 'text/xml'
             key.set_contents_from_string(template % {'host': host,
                                                      'sha1': release_sha1})
+
+        self._log('Version %s with SHA1 %s released' % (self.version, release_sha1))
 
     def _get_s3_archive_prefix(self):
         u = urlparse.urlparse(self.archive_path)
