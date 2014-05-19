@@ -357,6 +357,8 @@ class Configuration(object):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def build_bob(self):
+        # NOTE: A bit expensive to sync everything
+        self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         self.exec_command("./scripts/copy_libtexc.sh",
                           cwd = cwd,
@@ -380,6 +382,7 @@ class Configuration(object):
         self.exec_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
+        # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
