@@ -380,6 +380,7 @@ class Configuration(object):
         self.exec_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
+        self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
                           cwd = cwd)
