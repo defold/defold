@@ -138,7 +138,7 @@ class Configuration(object):
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
         if self.host == 'linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            self.exec_command(['tar', 'xfz', file], cwd = path)
+            self.exec_env_command(['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
             tf.extractall(path)
@@ -218,7 +218,7 @@ class Configuration(object):
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
-            self.exec_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
+            self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
@@ -226,8 +226,11 @@ class Configuration(object):
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
-    def _git_sha1(self, dir = '.'):
-        process = subprocess.Popen('git log --pretty=%H -n1'.split(), stdout = subprocess.PIPE)
+    def _git_sha1(self, dir = '.', ref = None):
+        args = 'git log --pretty=%H -n1'.split()
+        if ref:
+            args.append(ref)
+        process = subprocess.Popen(args, stdout = subprocess.PIPE)
         out, err = process.communicate()
         if process.returncode != 0:
             sys.exit(process.returncode)
@@ -327,26 +330,26 @@ class Configuration(object):
                 if platform != self.host:
                     pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
-                self.exec_command(cmd.split(), cwd = cwd)
+                self.exec_env_command(cmd.split(), cwd = cwd)
 
         self._log('Building bob')
 
-        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                          cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
-                          shell = True)
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                              cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
+                              shell = True)
 
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_command(cmd.split(), cwd = cwd)
+            self.exec_env_command(cmd.split(), cwd = cwd)
 
     def build_go(self):
         # TODO: shell=True is required only on windows
         # otherwise it fails. WHY?
         if not self.skip_tests:
-            self.exec_command('go test defold/...', shell=True)
-        self.exec_command('go install defold/...', shell=True)
+            self.exec_env_command('go test defold/...', shell=True)
+        self.exec_env_command('go install defold/...', shell=True)
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
@@ -360,11 +363,11 @@ class Configuration(object):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        self.exec_command("./scripts/copy_libtexc.sh",
+        self.exec_env_command("./scripts/copy_libtexc.sh",
                           cwd = cwd,
                           shell = True)
 
-        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                           cwd = cwd,
                           shell = True)
 
@@ -379,14 +382,14 @@ class Configuration(object):
         self._log('Building docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
-        self.exec_command(cmd.split(), cwd = cwd)
+        self.exec_env_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
-                          cwd = cwd)
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
+                              cwd = cwd)
 
     def _get_cr_builddir(self, product):
         return join(os.getcwd(), 'com.dynamo.cr/com.dynamo.cr.%s-product' % product)
@@ -436,8 +439,8 @@ class Configuration(object):
 
         p2 = """
 instructions.configure=\
-  addRepository(type:0,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/update/$(channel)s/);\
-  addRepository(type:1,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/update/$(channel)s/);
+  addRepository(type:0,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/update/%(channel)s/);\
+  addRepository(type:1,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/update/%(channel)s/);
 """
 
         with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
@@ -449,15 +452,15 @@ instructions.configure=\
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, product).replace('\\', '/') + '/'
         host, path = full_archive_path.split(':', 1)
-        #self.exec_command(['ssh', host, 'mkdir -p %s' % path])
         for p in glob(join(build_dir, 'target/products/*.zip')):
             self.upload_file(p, full_archive_path)
-        self.exec_command(['tar', '-C', build_dir, '-cz', '-f', join(build_dir, '%s_repository.tgz' % product), 'target/repository'])
-        self.upload_file(join(build_dir, '%s_repository.tgz' % product), full_archive_path)
 
-        #if self.branch:
-        #    _, base_path = self.archive_path.split(':', 1)
-        #    self.exec_command(['ssh', host, 'ln -snf %s %s' % (path, join(base_path, '%s_%s' % (product, self.branch)))])
+        repo_dir = join(build_dir, 'target/repository')
+        for root,dirs,files in os.walk(repo_dir):
+            for f in files:
+                p = join(root, f)
+                u = join(full_archive_path, "repository", os.path.relpath(p, repo_dir))
+                self.upload_file(p, u)
 
     def archive_editor(self):
         build_dir = self._get_cr_builddir('editor')
@@ -470,7 +473,7 @@ instructions.configure=\
     def _build_cr(self, product):
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product], cwd = cwd)
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product], cwd = cwd)
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -502,7 +505,43 @@ instructions.configure=\
 
     def shell(self):
         print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
-        self.exec_command(['sh', '-l'])
+        self.exec_env_command(['sh', '-l'])
+
+    def _get_tagged_releases(self):
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+        prefix = self._get_s3_archive_prefix()
+        lst = bucket.list(prefix = prefix)
+        files = {}
+        for x in lst:
+            if x.name[-1] != '/':
+                # Skip directory "keys". When creating empty directories
+                # a psudeo-key is created. Directories isn't a first-class object on s3
+                p = os.path.relpath(x.name, prefix)
+                sha1 = p.split('/')[0]
+                lst = files.get(sha1, [])
+                name = p.split('/', 1)[1]
+                lst.append({'name': name, 'path': x.name})
+                files[sha1] = lst
+
+        tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
+        tags.reverse()
+        releases = []
+        for line in tags:
+            line = line.strip()
+            if not line:
+                continue
+            m = re.match('(.*?) refs/tags/(.*?)$', line)
+            sha1, tag = m.groups()
+            epoch = self.exec_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
+            date = datetime.fromtimestamp(float(epoch))
+            releases.append({'tag': tag,
+                             'sha1': sha1,
+                             'abbrevsha1': sha1[:7],
+                             'date': str(date),
+                             'files': files.get(sha1, [])})
+        return releases
+
 
     def release(self):
         page = """
@@ -513,8 +552,8 @@ instructions.configure=\
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Defold Downloads</title>
-        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
-        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+        <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" href="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/css/bootstrap.min.css">
 
         <style>
             body {
@@ -528,25 +567,35 @@ instructions.configure=\
 
     </head>
     <body>
-    <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
-        <div class="container">
-            <div class="navbar-header">
-                  <a class="navbar-brand" href="#">Defold Downloads</a>
+    <div class="navbar navbar-fixed-top">
+        <div class="navbar-inner">
+            <div class="container">
+                <a class="brand" href="/">Defold Downloads</a>
+                <ul class="nav">
+                </ul>
             </div>
         </div>
     </div>
 
     <div class="container">
-        <h2>Releases</h2>
 
         <div id="releases"></div>
-
-
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+        <script src="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/js/bootstrap.min.js"></script>
         <script src="http://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
 
         <script id="templ-releases" type="text/html">
+            <h2>Editor</h2>
+            {{#editor.stable}}
+                <p>
+                    <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
+                </p>
+            {{/editor.stable}}
+
+            {{#has_releases}}
+                <h2>Releases</h2>
+            {{/has_releases}}
+
             {{#releases}}
                 <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
 
@@ -560,7 +609,7 @@ instructions.configure=\
                         {{/files}}
                     </tbody>
                 </table>
-                  {{/releases}}
+            {{/releases}}
         </script>
 
         <script>
@@ -594,64 +643,60 @@ instructions.configure=\
 </repository>
 """
 
-        def exec_cmd(args):
-            process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = True)
-            process.wait()
-            if process.returncode != 0:
-                sys.exit(process.returncode)
-
-            output = process.communicate()[0]
-            return output
+        self._log('Running git fetch to get latest tags and refs...')
+        self.exec_command('git fetch')
 
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
         host = bucket.get_website_endpoint()
 
-        prefix = self._get_s3_archive_prefix()
-        lst = bucket.list(prefix = prefix)
-        files = {}
-        for x in lst:
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                p = os.path.relpath(x.name, prefix)
-                sha1 = p.split('/')[0]
-                lst = files.get(sha1, [])
-                name = p.split('/', 1)[1]
-                lst.append({'name': name, 'path': x.name})
-                files[sha1] = lst
+        model = {'releases': [],
+                 'has_releases': False}
 
-        model = {'releases': []}
-        releases = ''
-        tags = exec_cmd("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
-        tags.reverse()
-        for line in tags:
-            line = line.strip()
-            if not line:
-                continue
-            m = re.match('(.*?) refs/tags/(.*?)$', line)
-            sha1, tag = m.groups()
-            epoch = exec_cmd('git log -n1 --pretty=%%ct %s' % sha1.strip())
-            date = datetime.fromtimestamp(float(epoch))
-            model['releases'].append({'tag': tag,
-                                      'sha1': sha1,
-                                      'abbrevsha1': sha1[:7],
-                                      'date': str(date),
-                                      'files': files.get(sha1, [])})
+        if self.channel == 'stable':
+            # Move artifacts to a separate page?
+            model['releases'] = self._get_tagged_releases()
+            model['has_releases'] = True
 
+        # NOTE
+        # - The stable channel is based on the latest tag
+        # - The beta channel is based on the latest commit in the dev-branch, i.e. origin/dev
+        if self.channel == 'stable':
+            release_sha1 = model['releases'][0]['sha1']
+        elif self.channel == 'beta':
+            release_sha1 = self._git_sha1('origin/dev')
+        else:
+            raise Exception('Unknown channel %s' % self.channel)
 
-        self._log('Uploading index.html')
+        sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+        response = sys.stdin.readline()
+        if response[0] != 'y':
+            return
+
+        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.zip' % self.channel),
+                                       dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
+                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
+
+        # NOTE: We upload index.html to /CHANNEL/index.html
+        # The root-index, /index.html, redirects to /stable/index.html
+        self._log('Uploading %s/index.html' % self.channel)
         html = page % {'model': json.dumps(model)}
-        key = bucket.new_key('index.html')
+        key = bucket.new_key('%s/index.html' % self.channel)
         key.content_type = 'text/html'
         key.set_contents_from_string(html)
 
-        self._log('Uploading VERSION')
-        key = bucket.new_key('VERSION')
-        key.content_type = 'text/plain'
-        key.set_contents_from_string(self.version)
+        self._log('Uploading %s/info.json' % self.channel)
+        key = bucket.new_key('%s/info.json' % self.channel)
+        key.content_type = 'application/json'
+        key.set_contents_from_string(json.dumps({'version': self.version}))
 
-        release_sha1 = model['releases'][0]['sha1']
+        # Create redirection keys for editor
+        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip']:
+            key_name = '%s/%s' % (self.channel, name)
+            redirect = '/archive/%s/editor/%s' % (release_sha1, name)
+            self._log('Creating link from %s -> %s' % (key_name, redirect))
+            key = bucket.new_key(key_name)
+            key.set_redirect(redirect)
 
         for name, template in [['compositeArtifacts.xml', artifacts], ['compositeContent.xml', content]]:
             full_name = 'update/%s/%s' % (self.channel, name)
@@ -660,8 +705,6 @@ instructions.configure=\
             key.content_type = 'text/xml'
             key.set_contents_from_string(template % {'host': host,
                                                      'sha1': release_sha1})
-
-        self._log('Version %s with SHA1 %s released' % (self.version, release_sha1))
 
     def _get_s3_archive_prefix(self):
         u = urlparse.urlparse(self.archive_path)
@@ -738,8 +781,8 @@ instructions.configure=\
                 if path[1] == ':':
                     path = "/" + path[:1] + path[2:]
 
-            self.exec_command(['ssh', u.scheme, 'mkdir -p %s' % u.path])
-            self.exec_command(['scp', path, url])
+            self.exec_env_command(['ssh', u.scheme, 'mkdir -p %s' % u.path])
+            self.exec_env_command(['scp', path, url])
         elif u.scheme == 's3':
             bucket = self._get_s3_bucket(u.netloc)
 
@@ -765,7 +808,16 @@ instructions.configure=\
             f()
         self.futures = []
 
-    def exec_command(self, arg_list, **kwargs):
+    def exec_command(self, args):
+        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = True)
+
+        output = process.communicate()[0]
+        if process.returncode != 0:
+            self._log(output)
+            sys.exit(process.returncode)
+        return output
+
+    def exec_env_command(self, arg_list, **kwargs):
         env = dict(os.environ)
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
