@@ -125,11 +125,19 @@
         <module>../com.dynamo.cr.bob.test</module>
         <module>../com.dynamo.cr.templates</module>
         <module>../com.dynamo.cr.server-product</module>
-        <module>../com.dynamo.cr.editor-product</module>
         <module>../javax.media.opengl</module>
         <module>../com.sun.jna</module>
         <module>../joda.time</module>
         <module>../slf4j</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>editor</id>
+            <modules>
+                <module>../com.dynamo.cr.editor-product</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>
