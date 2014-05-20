@@ -719,6 +719,7 @@
          </enablement>
       </actionProvider>
       <navigatorContent
+            contentProvider="com.dynamo.cr.editor.LibContentProvider"
             icon="icons/database.png"
             id="com.dynamo.cr.editor.LibContent"
             labelProvider="com.dynamo.cr.editor.LibLabelProvider"
