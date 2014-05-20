@@ -531,6 +531,7 @@ static void RandomString(char* s, int max_len)
 TEST_F(LuaTableTest, Stress)
 {
     accept_panic = true;
+    bool has_set_jmp = false;
 
     for (int iter = 0; iter < 100; ++iter)
     {
@@ -573,7 +574,15 @@ TEST_F(LuaTableTest, Stress)
             char* buf = new char[buf_size];
 
             bool check_ok = false;
-            int ret = setjmp(env);
+            int ret = 0;
+
+            // Emscripten fastcomp does not support calling setjmp over and over like in this loop.
+            // Emscripten without fastcomp does support it though, but generates non compatible
+            // LVFS code.
+            if (!has_set_jmp){
+                has_set_jmp = true;
+                ret = setjmp(env);
+            }
             if (ret == 0)
             {
                 uint32_t buffer_used = dmScript::CheckTable(L, buf, buf_size, -1);
