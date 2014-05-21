@@ -669,10 +669,11 @@ instructions.configure=\
         else:
             raise Exception('Unknown channel %s' % self.channel)
 
-        sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
-        response = sys.stdin.readline()
-        if response[0] != 'y':
-            return
+        if sys.stdin.isatty():
+            sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+            response = sys.stdin.readline()
+            if response[0] != 'y':
+                return
 
         model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.zip' % self.channel),
                                        dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
