@@ -968,7 +968,7 @@ bail:
     {
         dmEngineService::HEngineService engine_service = 0;
 
-        if (dLib::IsDebugMode())
+        if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
             engine_service = dmEngineService::New(8001);
             if (engine_service == 0)
@@ -985,7 +985,7 @@ bail:
             run_result = tmp;
         }
         run_result.Free();
-        if (dLib::IsDebugMode())
+        if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
             dmEngineService::Delete(engine_service);
         }
