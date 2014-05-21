@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <dlib/dlib.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/hash.h>
@@ -144,11 +145,13 @@ void LogGLError(GLint err)
 
 #define CHECK_GL_ERROR \
     { \
-        GLint err = glGetError(); \
-        if (err != 0) \
-        { \
-            LogGLError(err); \
-            assert(0); \
+        if(dLib::IsDebugMode()) { \
+            GLint err = glGetError(); \
+            if (err != 0) \
+            { \
+                LogGLError(err); \
+                assert(0); \
+            } \
         } \
     }\
 
