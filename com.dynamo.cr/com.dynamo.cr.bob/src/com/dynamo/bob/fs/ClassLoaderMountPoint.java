@@ -5,8 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Collection;
-import java.util.Enumeration;
-import java.util.zip.ZipEntry;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -30,7 +28,7 @@ public class ClassLoaderMountPoint implements IMountPoint {
         public byte[] getContent() throws IOException {
             InputStream is = null;
             try {
-                is = getClass().getClassLoader().getResourceAsStream(this.path);
+                is = ClassLoaderMountPoint.this.resourceScanner.getResource(path).openStream();
                 ByteArrayOutputStream os = new ByteArrayOutputStream();
                 IOUtils.copy(is, os);
                 return os.toByteArray();
@@ -72,7 +70,7 @@ public class ClassLoaderMountPoint implements IMountPoint {
         if (this.filter != null && !PathUtil.wildcardMatch(path, this.filter)) {
             return null;
         }
-        URL url = getClass().getClassLoader().getResource(path);
+        URL url = this.resourceScanner.getResource(path);
         if (url != null) {
             return new Resource(this.fileSystem, path);
         }

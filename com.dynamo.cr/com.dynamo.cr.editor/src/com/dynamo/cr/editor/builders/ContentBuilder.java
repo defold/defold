@@ -22,6 +22,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.OperationCanceledException;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IPageLayout;
@@ -128,7 +129,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         boolean ret = true;
         try {
             project.setLibUrls(BobUtil.getLibraryUrls(branchLocation));
-            project.mount(new OsgiResourceScanner(bundle));
+            project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.builtins")));
             project.findSources(branchLocation, skipDirs);
             List<TaskResult> result = project.build(new ProgressDelegate(monitor), commands);
             for (TaskResult taskResult : result) {

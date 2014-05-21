@@ -50,7 +50,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         for (String module : modules) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
-            BuilderUtil.checkFile(this.project, task.input(0), "module", module_file);
+            BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }

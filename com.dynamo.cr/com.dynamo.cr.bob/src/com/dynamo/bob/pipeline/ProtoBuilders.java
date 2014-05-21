@@ -61,7 +61,7 @@ public class ProtoBuilders {
     public static class CollectionProxyBuilder extends ProtoBuilder<CollectionProxyDesc.Builder> {
         @Override
         protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "collection", messageBuilder.getCollection());
+            BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
@@ -72,9 +72,9 @@ public class ProtoBuilders {
         @Override
         protected ModelDesc.Builder transform(Task<Void> task, IResource resource, ModelDesc.Builder messageBuilder) throws CompileExceptionError {
 
-            BuilderUtil.checkFile(this.project, resource, "mesh", messageBuilder.getMesh());
+            BuilderUtil.checkResource(this.project, resource, "mesh", messageBuilder.getMesh());
             messageBuilder.setMesh(BuilderUtil.replaceExt(messageBuilder.getMesh(), ".dae", ".meshc"));
-            BuilderUtil.checkFile(this.project, resource, "material", messageBuilder.getMaterial());
+            BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
             List<String> newTextureList = new ArrayList<String>();
             for (String t : messageBuilder.getTexturesList()) {
@@ -98,7 +98,7 @@ public class ProtoBuilders {
         @Override
         protected CollisionObjectDesc.Builder transform(Task<Void> task, IResource resource, CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
             if (messageBuilder.getEmbeddedCollisionShape().getShapesCount() == 0) {
-                BuilderUtil.checkFile(this.project, resource, "collision shape", messageBuilder.getCollisionShape());
+                BuilderUtil.checkResource(this.project, resource, "collision shape", messageBuilder.getCollisionShape());
             }
             // Merge convex shape resource with collision object
             // NOTE: Special case for tilegrid resources. They are left as is
@@ -211,7 +211,7 @@ public class ProtoBuilders {
         @Override
         protected FactoryDesc.Builder transform(Task<Void> task, IResource resource, FactoryDesc.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "prototype", messageBuilder.getPrototype());
+            BuilderUtil.checkResource(this.project, resource, "prototype", messageBuilder.getPrototype());
             return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
         }
     }
@@ -227,12 +227,12 @@ public class ProtoBuilders {
         protected RenderPrototypeDesc.Builder transform(Task<Void> task, IResource resource, RenderPrototypeDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
 
-            BuilderUtil.checkFile(this.project, resource, "script", messageBuilder.getScript());
+            BuilderUtil.checkResource(this.project, resource, "script", messageBuilder.getScript());
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
 
             List<RenderPrototypeDesc.MaterialDesc> newMaterialList = new ArrayList<RenderPrototypeDesc.MaterialDesc>();
             for (RenderPrototypeDesc.MaterialDesc m : messageBuilder.getMaterialsList()) {
-                BuilderUtil.checkFile(this.project, resource, "material", m.getMaterial());
+                BuilderUtil.checkResource(this.project, resource, "material", m.getMaterial());
                 newMaterialList.add(RenderPrototypeDesc.MaterialDesc.newBuilder().mergeFrom(m).setMaterial(BuilderUtil.replaceExt(m.getMaterial(), ".material", ".materialc")).build());
             }
             messageBuilder.clearMaterials();
@@ -248,7 +248,7 @@ public class ProtoBuilders {
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
+            BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
@@ -263,7 +263,7 @@ public class ProtoBuilders {
         @Override
         protected TileGrid.Builder transform(Task<Void> task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "tile source", messageBuilder.getTileSet());
+            BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
@@ -283,8 +283,8 @@ public class ProtoBuilders {
             List<Modifier> modifiers = messageBuilder.getModifiersList();
             for (int i = 0; i < emitterCount; ++i) {
                 Emitter.Builder emitterBuilder = Emitter.newBuilder(messageBuilder.getEmitters(i));
-                BuilderUtil.checkFile(this.project, resource, "tile source", emitterBuilder.getTileSource());
-                BuilderUtil.checkFile(this.project, resource, "material", emitterBuilder.getMaterial());
+                BuilderUtil.checkResource(this.project, resource, "tile source", emitterBuilder.getTileSource());
+                BuilderUtil.checkResource(this.project, resource, "material", emitterBuilder.getMaterial());
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "atlas", "texturesetc"));
@@ -314,9 +314,9 @@ public class ProtoBuilders {
         @Override
         protected MaterialDesc.Builder transform(Task<Void> task, IResource resource, MaterialDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "vertex program", messageBuilder.getVertexProgram());
+            BuilderUtil.checkResource(this.project, resource, "vertex program", messageBuilder.getVertexProgram());
             messageBuilder.setVertexProgram(BuilderUtil.replaceExt(messageBuilder.getVertexProgram(), ".vp", ".vpc"));
-            BuilderUtil.checkFile(this.project, resource, "fragment program", messageBuilder.getFragmentProgram());
+            BuilderUtil.checkResource(this.project, resource, "fragment program", messageBuilder.getFragmentProgram());
             messageBuilder.setFragmentProgram(BuilderUtil.replaceExt(messageBuilder.getFragmentProgram(), ".fp", ".fpc"));
             return messageBuilder;
         }
@@ -328,7 +328,7 @@ public class ProtoBuilders {
         @Override
         protected SoundDesc.Builder transform(Task<Void> task, IResource resource, SoundDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
-            BuilderUtil.checkFile(this.project, resource, "sound", messageBuilder.getSound());
+            BuilderUtil.checkResource(this.project, resource, "sound", messageBuilder.getSound());
             messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "wav", "wavc"));
             messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "ogg", "oggc"));
             return messageBuilder;

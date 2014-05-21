@@ -18,7 +18,6 @@ import org.apache.commons.io.FileUtils;
 import org.eclipse.core.net.proxy.IProxyData;
 import org.eclipse.core.net.proxy.IProxyService;
 import org.eclipse.core.resources.ICommand;
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
@@ -475,6 +474,14 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     }
 
     public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
+
+        try {
+            // Disable the link overlay of the icons in the project explorer
+            PlatformUI.getWorkbench().getDecoratorManager().setEnabled("org.eclipse.ui.LinkedResourceDecorator", false);
+        } catch (CoreException e1) {
+            // Ignore exceptions, decoration only
+        }
+
         this.projectClient = projectClient;
         URI uri = ClientUtils.getBranchUri(projectClient, branch);
         this.branchClient = projectClient.getClientFactory().getBranchClient(uri);
@@ -521,6 +528,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
                         IFolder libFolder = contentRoot.getFolder(Project.LIB_DIR);
                         linkLibraries(contentRoot, libFolder, monitor);
+
+                        linkBuiltins(contentRoot, monitor);
                     } catch (CoreException ex) {
                         showError("Error occurred when creating project", ex);
                     }
@@ -540,21 +549,12 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                     showError("Could not delete builtins-directory, old resources might remain.", e);
                 }
             }
-            String builtinsDirectory = Builtins.getDefault().getBuiltins();
 
             // Start local http server
             try {
                 initHttpServer(branchLocation);
             } catch (IOException e) {
                 showError("Unable to start http server", e);
-            }
-
-            // Copy builtins directory.
-            // The reason we don't use symlinks is that mklink on windows is broken (privileges).
-            try {
-                FileUtils.copyDirectory(new File(builtinsDirectory), dest);
-            } catch (IOException e) {
-                showError("Unable to copy builtins directory", e);
             }
         }
 
@@ -592,6 +592,16 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                     showError("Error occurred when creating project", e);
                 }
             }
+        }
+    }
+
+    private void linkBuiltins(IFolder contentRoot, IProgressMonitor monitor) throws CoreException {
+        try {
+            URI uri = new URI("bundle", null, "/builtins/", Builtins.getDefault().getBundle().getSymbolicName(), null);
+            IFolder folder = contentRoot.getFolder("builtins");
+            folder.createLink(uri, IResource.VIRTUAL | IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+        } catch (URISyntaxException e) {
+            throw new CoreException(new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e));
         }
     }
 
@@ -708,7 +718,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         reg.put(UNRESOLVED_IMAGE_ID, getImageDescriptor("icons/arrow_divide_red.png"));
         reg.put(YOURS_IMAGE_ID, getImageDescriptor("icons/user.png"));
         reg.put(THEIRS_IMAGE_ID, getImageDescriptor("icons/group.png"));
-        reg.put(LIBRARY_IMAGE_ID, getImageDescriptor("icons/database.png"));
+        reg.put(LIBRARY_IMAGE_ID, getImageDescriptor("icons/plugin.png"));
     }
 
     @Override

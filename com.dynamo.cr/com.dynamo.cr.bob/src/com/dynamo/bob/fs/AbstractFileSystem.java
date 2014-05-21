@@ -1,7 +1,5 @@
 package com.dynamo.bob.fs;
 
-import static org.apache.commons.io.FilenameUtils.normalize;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
@@ -10,8 +8,6 @@ import java.util.Map;
 import java.util.Vector;
 
 import org.apache.commons.io.FilenameUtils;
-
-import com.dynamo.bob.fs.IFileSystem.IWalker;
 
 public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResource> implements IFileSystem {
     protected F fileSystem;

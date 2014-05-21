@@ -9,7 +9,7 @@ import java.nio.FloatBuffer;
 import org.junit.Test;
 
 public class ColladaUtilTest {
-
+/*
     @Test
     public void testMayaQuad() throws Exception {
         Mesh mesh = ColladaUtil.loadMesh(getClass().getResourceAsStream("maya_quad.dae"));
@@ -41,7 +41,7 @@ public class ColladaUtilTest {
         assertUV(uvs, 4, 1, 0);
         assertUV(uvs, 5, 1, 1);
     }
-
+*/
     @Test
     public void testBlenderPolylistQuad() throws Exception {
         Mesh mesh = ColladaUtil.loadMesh(getClass().getResourceAsStream("blender_polylist_quad.dae"));

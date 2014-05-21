@@ -9,14 +9,19 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import org.apache.commons.io.FilenameUtils;
+import com.dynamo.bob.util.PathUtil;
 
 public class ClassLoaderResourceScanner implements IResourceScanner {
+
+    @Override
+    public URL getResource(String path) {
+        return this.getClass().getClassLoader().getResource(path);
+    }
 
     private static void scanDir(File dir, String filter, Set<String> results) {
         File[] files = dir.listFiles();
         for (File file : files) {
-            if (FilenameUtils.wildcardMatch(file.getName(), filter)) {
+            if (PathUtil.wildcardMatch(file.getName(), filter)) {
                 results.add(file.getName());
             }
         }
@@ -31,7 +36,7 @@ public class ClassLoaderResourceScanner implements IResourceScanner {
         while(entries.hasMoreElements()) {
             JarEntry entry = entries.nextElement();
             String entryName = entry.getName();
-            if(!entry.isDirectory() && FilenameUtils.wildcardMatch(entryName, filter)) {
+            if(!entry.isDirectory() && PathUtil.wildcardMatch(entryName, filter)) {
                 results.add(entryName);
             }
         }

@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
@@ -235,7 +234,7 @@ public class Project {
      */
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
-        this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/*", resourceScanner));
+        this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
         List<File> libFiles = convertLibraryUrlsToFiles(this.libUrls);
         boolean missingFiles = false;
         for (File file : libFiles) {

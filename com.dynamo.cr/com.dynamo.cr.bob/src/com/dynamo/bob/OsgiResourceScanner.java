@@ -1,5 +1,6 @@
 package com.dynamo.bob;
 
+import java.net.URL;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -17,14 +18,26 @@ public class OsgiResourceScanner implements IResourceScanner {
     }
 
     @Override
+    public URL getResource(String path) {
+        return bundle.adapt(BundleWiring.class).getClassLoader().getResource(path);
+    }
+
+    private void scanDir(String path, String filter, Set<String> result) {
+        Collection<String> foundResources = bundle.adapt(BundleWiring.class).listResources(path, filter, 0);
+        for (String name : foundResources) {
+            result.add(name);
+            if (name.endsWith("/")) {
+                scanDir(name, "*", result);
+            }
+        }
+    }
+
+    @Override
     public Set<String> scan(String filter) {
         Set<String> results = new HashSet<String>();
         String filename = FilenameUtils.getName(filter);
         String path = filter.substring(0, filter.length() - filename.length());
-        Collection<String> foundResources = bundle.adapt(BundleWiring.class).listResources(path, filename, 0);
-        for (String name : foundResources) {
-            results.add(name);
-        }
+        scanDir(path, filename, results);
         return results;
     }
 

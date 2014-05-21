@@ -108,7 +108,7 @@ public class ProjectTest {
     @Test
     public void testMountPoints() throws Exception {
         project.resolveLibUrls();
-        project.mount(null);
+        project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
         project.setInputs(Arrays.asList("test_lib/file1.in", "test_lib2/file2.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
         assertFalse(results.isEmpty());

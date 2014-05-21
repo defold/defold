@@ -102,7 +102,7 @@ public class GameObjectBuilder extends Builder<Void> {
         PrototypeDesc.Builder protoBuilder = loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
-            BuilderUtil.checkFile(this.project, input, "component", component);
+            BuilderUtil.checkResource(this.project, input, "component", component);
         }
 
         int i = 0;

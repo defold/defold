@@ -53,9 +53,9 @@ public class TileSetBuilder extends Builder<Void>  {
             return taskBuilder.build();
         } else {
             if (!imgPath.isEmpty()) {
-                BuilderUtil.checkFile(this.project, input, "image", imgPath);
+                BuilderUtil.checkResource(this.project, input, "image", imgPath);
             } else if (!collisionPath.isEmpty()) {
-                BuilderUtil.checkFile(this.project, input, "collision", collisionPath);
+                BuilderUtil.checkResource(this.project, input, "collision", collisionPath);
             } else {
                 throw new CompileExceptionError(input, 0, Messages.TileSetBuilder_MISSING_IMAGE_AND_COLLISION);
             }

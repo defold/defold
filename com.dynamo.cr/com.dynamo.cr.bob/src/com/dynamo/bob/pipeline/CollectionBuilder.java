@@ -179,7 +179,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             double s = collInst.getScale();
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
                 InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
-                BuilderUtil.checkFile(this.project, owner, "prototype", inst.getPrototype());
+                BuilderUtil.checkResource(this.project, owner, "prototype", inst.getPrototype());
                 // merge id
                 String id = pathPrefix + inst.getId();
                 instBuilder.setId(pathPrefix + inst.getId());
