@@ -196,7 +196,7 @@ void dmLogInitialize(const dmLogParams* params)
 {
     g_TotalBytesLogged = 0;
 
-    if (!dLib::IsDebugMode())
+    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
 
     if (g_dmLogServer)
@@ -409,6 +409,9 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
     va_end(lst);
+
+    if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+        return;
 
     if (g_LogFile && g_TotalBytesLogged < DM_LOG_MAX_LOG_FILE_SIZE) {
         fwrite(str_buf, 1, actual_n, g_LogFile);

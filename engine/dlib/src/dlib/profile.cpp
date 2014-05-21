@@ -230,13 +230,17 @@ namespace dmProfile
         g_StringTable.SetCapacity(1024, 1200); // Rather arbitrary...
         g_StringPool = dmStringPool::New();
 
-        dmHttpServer::NewParams params;
-        params.m_HttpHeader = HttpHeader;
-        params.m_HttpResponse = HttpResponse;
-        dmHttpServer::Result result = dmHttpServer::New(&params, 8002, &g_HttpServer);
-        if (result != dmHttpServer::RESULT_OK)
+        g_HttpServer = 0;
+        if(dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         {
-            dmLogWarning("Unable to start profile http-server (%d)", result);
+            dmHttpServer::NewParams params;
+            params.m_HttpHeader = HttpHeader;
+            params.m_HttpResponse = HttpResponse;
+            dmHttpServer::Result result = dmHttpServer::New(&params, 8002, &g_HttpServer);
+            if (result != dmHttpServer::RESULT_OK)
+            {
+                dmLogWarning("Unable to start profile http-server (%d)", result);
+            }
         }
 
         if (g_Scopes.Capacity() == 0)
