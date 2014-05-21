@@ -412,6 +412,7 @@ class Configuration(object):
         tree = ET.parse('com.dynamo.cr/com.dynamo.cr.editor-product/template/cr.product')
         root = tree.getroot()
 
+        root.attrib['version'] = qualified_version
         for n in root.find('launcher'):
             if n.tag == 'win':
                 icon = n.find('ico')
