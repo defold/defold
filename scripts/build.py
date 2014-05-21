@@ -440,8 +440,8 @@ class Configuration(object):
 
         p2 = """
 instructions.configure=\
-  addRepository(type:0,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/update/%(channel)s/);\
-  addRepository(type:1,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/update/%(channel)s/);
+  addRepository(type:0,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
+  addRepository(type:1,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
 """
 
         with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
@@ -700,7 +700,7 @@ instructions.configure=\
             key.set_redirect(redirect)
 
         for name, template in [['compositeArtifacts.xml', artifacts], ['compositeContent.xml', content]]:
-            full_name = 'update/%s/%s' % (self.channel, name)
+            full_name = '%s/update/%s' % (self.channel, name)
             self._log('Uploading %s' % full_name)
             key = bucket.new_key(full_name)
             key.content_type = 'text/xml'
