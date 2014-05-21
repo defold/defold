@@ -111,7 +111,6 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
             URI newLocation = new URI("http://defold-downloads.s3-website-eu-west-1.amazonaws.com/update/stable");
             if (metadataManager.contains(oldLocation)) {
                 logger.info(String.format("Changing p2 location from %s to %s", oldLocation, newLocation));
-                System.out.println("Changing location!");
                 metadataManager.removeRepository(oldLocation);
                 artifactManager.removeRepository(oldLocation);
 
