@@ -261,6 +261,22 @@ namespace dmSys
         return RESULT_OK;
     }
 
+#elif defined(__EMSCRIPTEN__)
+    // TODO: FIXME: Temporary hack to get game data storage to work in browser...
+    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    {
+        if (dmStrlCpy(path, "/", path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, ".", path_len) >= path_len)
+            return RESULT_INVAL;
+        if (dmStrlCat(path, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+        Result r =  Mkdir(path, 0755);
+        if (r == RESULT_EXIST)
+            return RESULT_OK;
+        else
+            return r;
+    }
 #elif defined(__linux__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
