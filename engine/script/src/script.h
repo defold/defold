@@ -26,6 +26,13 @@ namespace dmScript
         RESULT_MODULE_NOT_LOADED = -3,
     };
 
+    enum AlignmentOptions
+    {
+        ALIGN_OFF = 0,
+        ALIGN_ON = 1,
+        ALIGN_AUTO = 2,
+    };
+
     /**
      * Create and return a new context.
      * @param config_file optional config file handle
@@ -140,16 +147,18 @@ namespace dmScript
      * @param buffer Buffer that will be written to
      * @param buffer_size Buffer size
      * @param index Index of the table
+     * @param alignment_requirement ensures that all memory access are aligned
      * @return Number of bytes used in buffer
      */
-    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
+    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index, AlignmentOptions alignment_requirement = ALIGN_AUTO);
 
     /**
      * Push a serialized table to the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param data Buffer with serialized table to push
+     * @param alignment_requirement ensures that all memory access are aligned
      */
-    void PushTable(lua_State*L, const char* data);
+    void PushTable(lua_State*L, const char* data, dmScript::AlignmentOptions alignment_requirement = ALIGN_AUTO);
 
     /**
      * Check if the value at #index is a hash
