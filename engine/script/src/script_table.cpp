@@ -98,7 +98,8 @@ namespace dmScript
                 if (index > 0xffff)
                     luaL_error(L, "index out of bounds, max is %d", 0xffff);
                 uint16_t key = (uint16_t)index;
-                if (require_aligned_access && (((intptr_t)buffer & 0xff) != 0) ){
+                if (require_aligned_access && (((intptr_t)buffer & 0xff) != 0) )
+                {
                     *buffer = key & 0xff; //Assumes little endian
                     *(buffer+1) = (key>>8);
                 } else {
