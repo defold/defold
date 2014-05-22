@@ -6,8 +6,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -15,9 +18,11 @@ import java.util.zip.ZipFile;
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.net.proxy.IProxyData;
 import org.eclipse.core.net.proxy.IProxyService;
 import org.eclipse.core.resources.ICommand;
+import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
@@ -79,6 +84,7 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
@@ -526,9 +532,21 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         pd.setBuildSpec(new ICommand[] {build_command});
                         p.setDescription(pd, monitor);
 
-                        contentRoot.getFolder(".internal").create(true, true, monitor);
+                        IFolder internal = contentRoot.getFolder(".internal");
+                        if (!internal.exists()) {
+                            internal.create(true, true, monitor);
+                        }
                         IFolder libFolder = contentRoot.getFolder(Project.LIB_DIR);
-                        linkLibraries(contentRoot, libFolder, monitor);
+                        try {
+                            List<URL> libUrls = BobUtil.getLibraryUrls(contentRoot.getLocation().toOSString());
+                            List<String> libPaths = new ArrayList<String>(libUrls.size());
+                            for (URL url : libUrls) {
+                                libPaths.add(libFolder.getProjectRelativePath().makeRelativeTo(contentRoot.getProjectRelativePath()).append(FilenameUtils.getName(url.getPath())).toOSString());
+                            }
+                            linkLibraries(contentRoot, libPaths, monitor);
+                        } catch (IOException e) {
+                            throw new CoreException(new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e));
+                        }
 
                         linkBuiltins(contentRoot, monitor);
                     } catch (CoreException ex) {
@@ -566,10 +584,10 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         }
     }
 
-    private void linkLibraries(IFolder contentRoot, IFolder libFolder, IProgressMonitor monitor) throws CoreException {
-        if (libFolder.exists()) {
-            IResource[] libs = libFolder.members();
-            for (IResource lib : libs) {
+    private void linkLibraries(IFolder contentRoot, List<String> libPaths, IProgressMonitor monitor) throws CoreException {
+        for (String libPath : libPaths) {
+            IResource lib = contentRoot.findMember(libPath);
+            if (lib != null && lib.exists()) {
                 try {
                     Set<String> roots = new HashSet<String>();
                     ZipFile zip = new ZipFile(lib.getLocation().toFile());
