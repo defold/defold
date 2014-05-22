@@ -68,6 +68,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
 import com.dynamo.cr.client.ClientFactory;
@@ -539,6 +540,10 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         IFolder libFolder = contentRoot.getFolder(Project.LIB_DIR);
                         try {
                             List<URL> libUrls = BobUtil.getLibraryUrls(contentRoot.getLocation().toOSString());
+                            Project project = new Project(new DefaultFileSystem(), contentRoot.getLocation().toOSString(), "build/default");
+                            project.setLibUrls(libUrls);
+                            project.resolveLibUrls();
+                            libFolder.refreshLocal(1, monitor);
                             List<String> libPaths = new ArrayList<String>(libUrls.size());
                             for (URL url : libUrls) {
                                 libPaths.add(libFolder.getProjectRelativePath().makeRelativeTo(contentRoot.getProjectRelativePath()).append(FilenameUtils.getName(url.getPath())).toOSString());

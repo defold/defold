@@ -2,6 +2,7 @@ package com.dynamo.bob;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -486,7 +487,12 @@ run:
             URLConnection connection = url.openConnection();
             connection.addRequestProperty("X-Email", this.options.get("email"));
             connection.addRequestProperty("X-Auth", this.options.get("auth"));
-            FileUtils.copyInputStreamToFile(connection.getInputStream(), libFiles.get(i));
+            BufferedInputStream input = new BufferedInputStream(connection.getInputStream());
+            try {
+                FileUtils.copyInputStreamToFile(input, libFiles.get(i));
+            } finally {
+                input.close();
+            }
         }
     }
 
