@@ -272,6 +272,10 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
+                    if (require_aligned_access)
+                    {
+                        buffer = (char *)(((intptr_t)buffer + sizeof(uint16_t)-1) & ~(sizeof(uint16_t)-1));
+                    }
                     uint32_t n_used = DoCheckTable(L, original_buffer, buffer, buffer_end - buffer, -1, require_aligned_access);
                     buffer += n_used;
                 }
@@ -437,6 +441,10 @@ namespace dmScript
                 break;
                 case LUA_TTABLE:
                 {
+                    if (require_aligned_access)
+                    {
+                        buffer = (char *)(((intptr_t)buffer + sizeof(uint16_t)-1) & ~(sizeof(uint16_t)-1));
+                    }
                     int n_consumed = DoPushTable(L, original_buffer, buffer, require_aligned_access);
                     buffer += n_consumed;
                 }
