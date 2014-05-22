@@ -526,6 +526,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         pd.setBuildSpec(new ICommand[] {build_command});
                         p.setDescription(pd, monitor);
 
+                        contentRoot.getFolder(".internal").create(true, true, monitor);
                         IFolder libFolder = contentRoot.getFolder(Project.LIB_DIR);
                         linkLibraries(contentRoot, libFolder, monitor);
 
