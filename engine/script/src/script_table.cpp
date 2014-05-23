@@ -27,10 +27,6 @@ namespace dmScript
      * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash ie LUA_TUSERDATA, the first byte in value is the SubType
      */
 
-    /*
-     * TODO: Made some aligment changes for emscripten (strings and boolean)
-     * This change might not be correct. Change to align table-start instead?
-     */
     enum SubType
     {
         SUB_TYPE_VECTOR3    = 0,
@@ -41,7 +37,7 @@ namespace dmScript
         SUB_TYPE_URL        = 5,
     };
 
-    uint32_t DoCheckTable(lua_State* L, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
+    uint32_t DoCheckTable(lua_State* L, const char* original_buffer, char* buffer, uint32_t buffer_size, int index, bool require_aligned_access)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -102,7 +98,13 @@ namespace dmScript
                 if (index > 0xffff)
                     luaL_error(L, "index out of bounds, max is %d", 0xffff);
                 uint16_t key = (uint16_t)index;
-                *((uint16_t*)buffer) = key;
+                if (require_aligned_access && (((intptr_t)buffer & 0xff) != 0) )
+                {
+                    *buffer = key & 0xff; //Assumes little endian
+                    *(buffer+1) = (key>>8);
+                } else {
+                    *((uint16_t*)buffer) = key;
+                }
                 buffer += 2;
             }
 
@@ -113,7 +115,6 @@ namespace dmScript
                     if (buffer_end - buffer < 1)
                         luaL_error(L, "table too large");
                     (*buffer++) = (char) lua_toboolean(L, -1);
-                    buffer += 3;
                 }
                 break;
 
@@ -155,11 +156,6 @@ namespace dmScript
                         luaL_error(L, "table too large");
                     memcpy(buffer, value, value_len);
                     buffer += value_len;
-
-                    intptr_t offset = buffer - original_buffer;
-                    intptr_t aligned_buffer = ((intptr_t) offset + sizeof(void*)-1) & ~(sizeof(void*)-1);
-                    intptr_t align_size = aligned_buffer - (intptr_t) offset;
-                    buffer += align_size;
                 }
                 break;
 
@@ -277,7 +273,11 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    uint32_t n_used = DoCheckTable(L, original_buffer, buffer, buffer_end - buffer, -1);
+                    if (require_aligned_access)
+                    {
+                        buffer = (char *)(((intptr_t)buffer + sizeof(uint16_t)-1) & ~(sizeof(uint16_t)-1));
+                    }
+                    uint32_t n_used = DoCheckTable(L, original_buffer, buffer, buffer_end - buffer, -1, require_aligned_access);
                     buffer += n_used;
                 }
                 break;
@@ -298,12 +298,14 @@ namespace dmScript
         return buffer - buffer_start;
     }
 
-    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
+    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index, AlignmentOptions alignment_options)
     {
-        return DoCheckTable(L, buffer, buffer, buffer_size, index);
+        bool align = alignment_options == ALIGN_ON || (alignment_options == ALIGN_AUTO); //TODO Arch specific!
+
+        return DoCheckTable(L, buffer, buffer, buffer_size, index, true);
     }
 
-    int DoPushTable(lua_State*L, const char* original_buffer, const char* buffer)
+    int DoPushTable(lua_State*L, const char* original_buffer, const char* buffer, bool require_aligned_access)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -320,12 +322,20 @@ namespace dmScript
             if (key_type == LUA_TSTRING)
             {
                 lua_pushstring(L, buffer);
-                int len = strlen(buffer);
-                buffer += len + 1;
+                buffer += strlen(buffer) + 1;
             }
             else if (key_type == LUA_TNUMBER)
             {
-                lua_pushnumber(L, *((uint16_t*)buffer));
+                uint16_t val;
+                if (require_aligned_access && (((intptr_t)buffer & 0xff) != 0))
+                {
+                    val = *((uint8_t*)buffer+1) << 8 | *((uint8_t*)buffer); //Assumes little endian
+                }
+                else
+                {
+                    val = *((uint16_t*)buffer);
+                }
+                lua_pushnumber(L, val);
                 buffer += 2;
             }
 
@@ -334,7 +344,6 @@ namespace dmScript
                 case LUA_TBOOLEAN:
                 {
                     lua_pushboolean(L, *buffer++);
-                    buffer += 3;
                 }
                 break;
 
@@ -365,11 +374,6 @@ namespace dmScript
                     uint32_t value_len = strlen(buffer) + 1;
                     lua_pushstring(L, buffer);
                     buffer += value_len;
-
-                    intptr_t offset = buffer - original_buffer;
-                    intptr_t aligned_buffer = ((intptr_t) offset + sizeof(void*)-1) & ~(sizeof(void*)-1);
-                    intptr_t align_size = aligned_buffer - (intptr_t) offset;
-                    buffer += align_size;
 
                 }
                 break;
@@ -438,7 +442,11 @@ namespace dmScript
                 break;
                 case LUA_TTABLE:
                 {
-                    int n_consumed = DoPushTable(L, original_buffer, buffer);
+                    if (require_aligned_access)
+                    {
+                        buffer = (char *)(((intptr_t)buffer + sizeof(uint16_t)-1) & ~(sizeof(uint16_t)-1));
+                    }
+                    int n_consumed = DoPushTable(L, original_buffer, buffer, require_aligned_access);
                     buffer += n_consumed;
                 }
                 break;
@@ -455,9 +463,11 @@ namespace dmScript
         return buffer - buffer_start;
     }
 
-    void PushTable(lua_State*L, const char* buffer)
+    void PushTable(lua_State*L, const char* buffer, AlignmentOptions alignment_options)
     {
-        DoPushTable(L, buffer, buffer);
+        bool align = alignment_options == ALIGN_ON || (alignment_options == ALIGN_AUTO);  //TODO Arch specific!
+
+        DoPushTable(L, buffer, buffer, align);
     }
 
 }

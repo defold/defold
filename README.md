@@ -245,6 +245,7 @@ Emscripten
 * Verify that exceptions are disabled
 * Alignments. Alignment to natural boundary is required for emscripten. uint16_t to 2, uint32_t to 4, etc
   However, unaligned loads/stores of floats seems to be valid though.
+* Create a node.js package with uvrun for all platforms (osx, linux and windows)
 
 Hack to compile an engine with archive:
 

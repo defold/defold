@@ -51,6 +51,7 @@ protected:
     }
 
     char DM_ALIGNED(16) m_Buf[256];
+
     bool accept_panic;
     jmp_buf env;
     int top;
@@ -230,41 +231,6 @@ TEST_F(LuaTableTest, Table02)
     // {
     //     lua_pop(L, 1);
     // }
-}
-
-TEST_F(LuaTableTest, BoolAlign)
-{
-    // Create table
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "a");
-
-    lua_newtable(L);
-    lua_pushboolean(L, 1);
-    lua_setfield(L, -2, "x");
-
-    lua_setfield(L, -2, "t");
-
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
-    (void) buffer_used;
-    lua_pop(L, 1);
-
-    dmScript::PushTable(L, m_Buf);
-
-    lua_getfield(L, -1, "a");
-    ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
-    ASSERT_EQ(1, lua_toboolean(L, -1));
-    lua_pop(L, 1);
-
-    lua_getfield(L, -1, "t");
-    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "x");
-    ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
-    ASSERT_EQ(1, lua_toboolean(L, -1));
-    lua_pop(L, 1);
-    lua_pop(L, 1);
-
-    lua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, case1308)

@@ -183,18 +183,6 @@ def android_link_flags(self):
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
 
-@taskgen
-@feature('cprogram', 'cxxprogram')
-@after('apply_link')
-def apply_unit_test(self):
-    # Do not execute unit-tests tasks (compile and link)
-    # when --skip-tests is set
-    # TODO: Broken for tests that "installs", test_engine
-    if hasattr(self, 'uselib') and str(self.uselib).find("GTEST") != -1:
-        if getattr(Options.options, 'skip_tests', False):
-            for t in self.tasks:
-                t.hasrun = True
-
 @feature('apk')
 @before('apply_core')
 def apply_apk_test(self):
@@ -907,10 +895,16 @@ def run_gtests(valgrind = False):
     if not Build.bld.env['VALGRIND']:
         valgrind = False
 
+    if Build.bld.env.PLATFORM == 'js-web' and not Build.bld.env['NODEJS']:
+        Logs.info('Not running tests. node.js not found')
+        return
+
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
-            filename = os.path.join(output.abspath(t.env), t.target)
+            filename = os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target)
+            if Build.bld.env.PLATFORM == 'js-web':
+                filename = '%s %s' % (Build.bld.env['NODEJS'], filename)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, filename)
@@ -979,6 +973,9 @@ def create_clang_wrapper(conf, exe):
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
+    conf.find_program('nodejs', var='NODEJS', mandatory = False)
+    if not conf.env['NODEJS']:
+        conf.find_program('node', var='NODEJS', mandatory = False)
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:

@@ -1,7 +1,7 @@
 function callback(response)
 end
 
-requests_left = 4
+requests_left = 5
 
 function test_http()
     local headers = {}
@@ -12,7 +12,6 @@ function test_http()
             assert(response.status == 200)
             assert(response.response == "Hello Defold!")
             assert(response.headers.server == "Dynamo 1.0")
-            assert(response.headers['transfer-encoding'] == "chunked")
             requests_left = requests_left - 1
         end,
     headers)
@@ -23,18 +22,26 @@ function test_http()
             assert(response.status == 200)
             assert(response.response == "PONGSome data...")
             assert(response.headers.server == "Dynamo 1.0")
-            assert(response.headers['transfer-encoding'] == "chunked")
             requests_left = requests_left - 1
         end,
     headers, post_data)
 
+
+    local binary_data = '\01\02\03'
+    http.request("http://localhost:" .. PORT, "POST",
+        function(response)
+            assert(response.status == 200)
+            assert(response.response == "PONG" .. binary_data)
+            assert(response.headers.server == "Dynamo 1.0")
+            requests_left = requests_left - 1
+        end,
+    headers, binary_data)
 
     http.request("http://localhost:" .. PORT .. "/not_found", "GET",
         function(response)
             assert(response.status == 404)
             assert(response.response == "")
             assert(response.headers.server == "Dynamo 1.0")
-            assert(response.headers['transfer-encoding'] == "chunked")
             requests_left = requests_left - 1
         end,
     headers)
