@@ -101,8 +101,8 @@ From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
 Android
 -------
 
-By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp. 
-g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c. 
+By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp.
+g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c.
 Life-cycle support should probably be moved to dlib at some point.
 
 ### Android Resources and R.java
@@ -122,12 +122,12 @@ This is a known limitation on Android.
 
 
 * Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
-  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1.. 
+  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1..
   Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
 * Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
   mentioned above
 * Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
-* Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively 
+* Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively
 
 ### Android testing
 
@@ -145,7 +145,7 @@ For interactive shell run "adb shell"
 
 ### Caveats
 
-If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new 
+If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new
 create message being sent (onCreate/android_main). The normal case is for the app to continue through e.g. onStart.
 
 ### Android debugging
@@ -251,6 +251,14 @@ Hack to compile an engine with archive:
 
     /Users/chmu/local/emscripten/em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc
 
+To use network functionality during development (or until cross origin support is added to QA servers):
+- google-chrome --disable-web-security
+
+To get working keyboard support (until our own glfw is used or glfw is gone):
+- In ~/local/emscripten/src/library_glfw.js, on row after glfwLoadTextureImage2D: ..., add:
+glfwShowKeyboard: function(show) {},
+
+
 Flash
 -----
 
@@ -267,12 +275,12 @@ Assets can be loaded from file-system, from an archive or over http.
 
 See *dmResource::LoadResource* for low-level loading of assets, *dmResource* for general resource loading and *engine.cpp*
 for initialization. A current limitation is that we don't have a specific protocol for *resource:* For file-system, archive
-and http url schemes *file:*, *arc:* and *http:* are used respectively. See dmConfigFile for the limitation about the absence 
+and http url schemes *file:*, *arc:* and *http:* are used respectively. See dmConfigFile for the limitation about the absence
 of a resource-scheme.
 
 ### Http Cache
 
-Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism 
+Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism
 used if available in order to speed up the cache-validation process. See dlib, *dmHttpCache* and *ConsistencyPolicy*, for more information.
 
 Engine Extensions
