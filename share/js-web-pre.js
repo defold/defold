@@ -17,14 +17,14 @@ if (typeof window === 'undefined') {
 			// TODO: Use parent instead of analyzePath here?
 			var pi = FS.analyzePath(Pointer_stringify(name));
 
-			var data = node_fs.readFileSync(Pointer_stringify(name));		
+			var data = node_fs.readFileSync(Pointer_stringify(name));
 
 			var target = FS.createDataFile(pi.parentPath, pi.name, data, true, false);
 			_created_files[str_name] = true;
-		}		
+		}
 	}
 
-	if (typeof _fopen != 'undefined') {	
+	if (typeof _fopen != 'undefined') {
 		_old_fopen = _fopen
 		_fopen = function(name, mode) {
 			preload(name);
@@ -33,12 +33,19 @@ if (typeof window === 'undefined') {
 		}
 	}
 
-	if (typeof _stat != 'undefined') {	
+	if (typeof _stat != 'undefined') {
 		_old_stat = _stat
 		_stat = function(path, buf) {
 			preload(path);
 			var r = _old_stat(path, buf);
 			return r;
 		}
+	}
+
+	try {
+		XMLHttpRequest = require('xhr2');
+		console.log("xhr2 for XMLHttpRequest loaded");
+	} catch (err) {
+		console.log("xhr2 not found");
 	}
 }
