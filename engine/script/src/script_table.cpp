@@ -298,11 +298,18 @@ namespace dmScript
         return buffer - buffer_start;
     }
 
+    bool GetAutoAlignment(){
+#ifdef __EMSCRIPTEN__
+        return true;
+#else
+        return false;
+#endif
+    }
+
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index, AlignmentOptions alignment_options)
     {
-        bool align = alignment_options == ALIGN_ON || (alignment_options == ALIGN_AUTO); //TODO Arch specific!
-
-        return DoCheckTable(L, buffer, buffer, buffer_size, index, true);
+        bool align = alignment_options == ALIGN_ON || GetAutoAlignment();
+        return DoCheckTable(L, buffer, buffer, buffer_size, index, align);
     }
 
     int DoPushTable(lua_State*L, const char* original_buffer, const char* buffer, bool require_aligned_access)
@@ -465,8 +472,7 @@ namespace dmScript
 
     void PushTable(lua_State*L, const char* buffer, AlignmentOptions alignment_options)
     {
-        bool align = alignment_options == ALIGN_ON || (alignment_options == ALIGN_AUTO);  //TODO Arch specific!
-
+        bool align = alignment_options == ALIGN_ON || GetAutoAlignment();
         DoPushTable(L, buffer, buffer, align);
     }
 
