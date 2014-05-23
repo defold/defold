@@ -6,23 +6,14 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.eclipse.core.net.proxy.IProxyData;
 import org.eclipse.core.net.proxy.IProxyService;
 import org.eclipse.core.resources.ICommand;
-import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
@@ -67,8 +58,6 @@ import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
 import com.dynamo.cr.client.ClientFactory;
@@ -85,7 +74,6 @@ import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.client.filter.DefoldAuthFilter;
 import com.dynamo.cr.common.providers.ProtobufProviders;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ProjectProperties;
 import com.dynamo.cr.editor.dialogs.OpenIDLoginDialog;
 import com.dynamo.cr.editor.fs.RepositoryFileSystemPlugin;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
@@ -537,22 +525,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         if (!internal.exists()) {
                             internal.create(true, true, monitor);
                         }
-                        IFolder libFolder = contentRoot.getFolder(Project.LIB_DIR);
-                        try {
-                            List<URL> libUrls = BobUtil.getLibraryUrls(contentRoot.getLocation().toOSString());
-                            Project project = new Project(new DefaultFileSystem(), contentRoot.getLocation().toOSString(), "build/default");
-                            project.setLibUrls(libUrls);
-                            project.resolveLibUrls();
-                            libFolder.refreshLocal(1, monitor);
-                            List<String> libPaths = new ArrayList<String>(libUrls.size());
-                            for (URL url : libUrls) {
-                                libPaths.add(libFolder.getProjectRelativePath().makeRelativeTo(contentRoot.getProjectRelativePath()).append(FilenameUtils.getName(url.getPath())).toOSString());
-                            }
-                            linkLibraries(contentRoot, libPaths, monitor);
-                        } catch (IOException e) {
-                            throw new CoreException(new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e));
-                        }
-
+                        BobUtil.resolveLibs(contentRoot, monitor);
                         linkBuiltins(contentRoot, monitor);
                     } catch (CoreException ex) {
                         showError("Error occurred when creating project", ex);
@@ -586,36 +559,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
             branchService.updateBranchStatus(null);
-        }
-    }
-
-    private void linkLibraries(IFolder contentRoot, List<String> libPaths, IProgressMonitor monitor) throws CoreException {
-        for (String libPath : libPaths) {
-            IResource lib = contentRoot.findMember(libPath);
-            if (lib != null && lib.exists()) {
-                try {
-                    Set<String> roots = new HashSet<String>();
-                    ZipFile zip = new ZipFile(lib.getLocation().toFile());
-                    Enumeration<? extends ZipEntry> entries = zip.entries();
-                    while (entries.hasMoreElements()) {
-                        ZipEntry entry = entries.nextElement();
-                        if (entry.isDirectory()) {
-                            Path path = new Path(entry.getName());
-                            if (path.segmentCount() == 1) {
-                                roots.add(path.segment(0));
-                            }
-                        }
-                    }
-                    for (String root : roots) {
-                        URI libUri = new URI("zip", null, "/" + root, lib.getLocationURI().toString(), null);
-                        contentRoot.getFolder(root).createLink(libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
-                    }
-                } catch (URISyntaxException e) {
-                    showError("Error occurred when creating project", e);
-                } catch (IOException e) {
-                    showError("Error occurred when creating project", e);
-                }
-            }
         }
     }
 
