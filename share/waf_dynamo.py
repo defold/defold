@@ -137,8 +137,8 @@ def default_flags(self):
     elif platform == "js-web":
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
-        # 128MB ram
-        self.env.append_value('LINKFLAGS', ['-s','TOTAL_MEMORY=134217728'])
+        # 256MB ram
+        self.env.append_value('LINKFLAGS', ['-s','TOTAL_MEMORY=268435456'])
     elif platform == "as3-web":
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
@@ -948,6 +948,15 @@ def js_web_link_flags(self):
     if platform == 'js-web':
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
+
+@feature('web')
+@after('apply_obj_vars')
+def js_web_web_link_flags(self):
+    platform = self.env['PLATFORM']
+    if platform == 'js-web':
+        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre-engine.js")
+        self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
+
 
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
