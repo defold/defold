@@ -8,6 +8,11 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+// Emscripten requires data access to be aligned and setting __attribute__((aligned(X)) should force emscripten to
+// make multiple access instructions and merge them.
+// However, there's a bug in emscripten which causes __attribute__((aligned(X)) to sometimes fail
+// To work around this, we can use a typedef
+// The bug is tracked: https://github.com/kripken/emscripten/issues/2378
 #ifdef __EMSCRIPTEN__
 typedef lua_Number __attribute__((aligned(4))) lua_Number_4_align;
 typedef uint16_t __attribute__((aligned(1))) uint16_t_1_align;
