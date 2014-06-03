@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.ui.handlers">
+      <handler
+            class="com.dynamo.cr.clojure.bridge.SayHello"
+            commandId="com.dynamo.cr.clojure-eclipse.commands.hello">
+      </handler>
+   </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+      <key
+            commandId="com.dynamo.cr.clojure-eclipse.commands.hello"
+            contextId="org.eclipse.ui.contexts.window"
+            schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"
+            sequence="M1+6">
+      </key>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            locationURI="menu:org.eclipse.ui.main.menu?after=additions">
+         <menu
+               id="com.dynamo.cr.clojure-eclipse.menus.sampleMenu"
+               label="Sample Menu"
+               mnemonic="M">
+            <command
+                  commandId="com.dynamo.cr.clojure-eclipse.commands.hello"
+                  id="com.dynamo.cr.clojure-eclipse.menus.hello"
+                  mnemonic="S">
+            </command>
+         </menu>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <category
+            id="com.dynamo.cr.clojure-eclipse.commands.category"
+            name="Sample Category">
+      </category>
+      <command
+            categoryId="com.dynamo.cr.clojure-eclipse.commands.category"
+            id="com.dynamo.cr.clojure-eclipse.commands.hello"
+            name="Say Hello">
+      </command>
+   </extension>
+
+</plugin>

@@ -1,9 +1,0 @@
-Manifest-Version: 1.0
-Bundle-ManifestVersion: 2
-Bundle-Name: clojure
-Bundle-SymbolicName: clojure;singleton:=true
-Bundle-Version: 1.6.0.qualifier
-Export-Package: clojure.lang, clojure.asm, clojure.java
-Bundle-ClassPath: clojure-1.6.0.jar
-Bundle-RequiredExecutionEnvironment: JavaSE-1.6,
- JavaSE-1.7

@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Clojure-Eclipse
+Bundle-SymbolicName: com.dynamo.cr.clojure-eclipse;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.dynamo.cr.clojure_eclipse.ClojureEclipse
+Bundle-Vendor: DYNAMO
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ com.dynamo.cr.clojure;bundle-version="1.6.0";visibility:=reexport
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
+Export-Package: com.dynamo.cr.clojure_eclipse;uses:="org.osgi.framework,org.eclipse.ui.plugin"

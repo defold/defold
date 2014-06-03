@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>clojure</name>
-	<comment>NO_M2ECLIPSE_SUPPORT: Project files created with the maven-eclipse-plugin are not supported in M2Eclipse.</comment>
+	<name>com.dynamo.cr.clojure-eclipse</name>
+	<comment></comment>
 	<projects>
 	</projects>
 	<buildSpec>
@@ -27,15 +27,8 @@
 		</buildCommand>
 	</buildSpec>
 	<natures>
-		<nature>org.eclipse.jdt.core.javanature</nature>
 		<nature>org.eclipse.pde.PluginNature</nature>
+		<nature>org.eclipse.jdt.core.javanature</nature>
 		<nature>ccw.nature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>clojure-1.6.0.jar</name>
-			<type>1</type>
-			<location>/Users/mtnygard/src/defold/com.dynamo.cr/clojure/clojure-1.6.0.jar</location>
-		</link>
-	</linkedResources>
 </projectDescription>

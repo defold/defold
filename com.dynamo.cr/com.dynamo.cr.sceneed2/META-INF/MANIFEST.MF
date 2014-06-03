@@ -7,6 +7,7 @@ Bundle-Activator: com.dynamo.cr.sceneed2.Activator
 Bundle-Vendor: DYNAMO
 Require-Bundle: org.eclipse.ui,
  org.eclipse.core.runtime,
- clojure;bundle-version="1.6.0"
+ com.dynamo.cr.clojure;bundle-version="1.6.0",
+ com.dynamo.cr.clojure-eclipse;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy

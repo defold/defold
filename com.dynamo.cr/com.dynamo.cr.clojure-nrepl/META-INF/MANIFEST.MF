@@ -1,0 +1,17 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: clojure.nrepl
+Bundle-SymbolicName: com.dynamo.cr.clojure-nrepl;singleton:=true
+Bundle-Version: 0.2.3.qualifier
+Bundle-Activator: org.clojure.tools.nrepl.Activator
+Bundle-Vendor: org.clojure
+Require-Bundle: org.eclipse.core.runtime,
+ com.dynamo.cr.clojure,
+ com.dynamo.cr.clojure-eclipse,
+ org.eclipse.ui
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
+Bundle-ClassPath: tools.nrepl-0.2.3.jar,
+ src/
+Export-Package: com.dynamo.cr.clojurenrepl.handlers,
+ org.clojure.tools.nrepl
