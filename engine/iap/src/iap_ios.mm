@@ -354,7 +354,7 @@ int IAP_List(lua_State* L)
 
     SKProductsRequest* products_request = [[SKProductsRequest alloc] initWithProductIdentifiers: product_identifiers];
     SKProductsRequestDelegate* delegate = [SKProductsRequestDelegate alloc];
-    delegate.m_LuaState = L;
+    delegate.m_LuaState = dmScript::GetMainThread(L);
     products_request.delegate = delegate;
     [products_request start];
 
@@ -446,7 +446,7 @@ int IAP_SetListener(lua_State* L)
         luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
     }
 
-    iap->m_Listener.m_L = L;
+    iap->m_Listener.m_L = dmScript::GetMainThread(L);
     iap->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);

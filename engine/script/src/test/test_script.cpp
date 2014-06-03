@@ -88,6 +88,46 @@ TEST_F(ScriptTest, TestRandom)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+static int LuaCallCallback(lua_State* L)
+{
+    luaL_checktype(L, -1, LUA_TFUNCTION);
+    lua_pushvalue(L, 1);
+    lua_setglobal(L, "_callback");
+    lua_pushlightuserdata(L, L);
+    lua_setglobal(L, "_state");
+    return 0;
+}
+
+/*
+ * This test mimicks how callbacks are handled in extensions, e.g. facebook, iap, push, with respect to coroutine safety
+ */
+TEST_F(ScriptTest, TestCoroutineCallback)
+{
+    int top = lua_gettop(L);
+    // Setup test function
+    lua_pushcfunction(L, LuaCallCallback);
+    lua_setglobal(L, "call_callback");
+    // Run script
+    ASSERT_TRUE(RunFile(L, "test_script_coroutine.luac"));
+    // Retrieve lua state from c func
+    lua_getglobal(L, "_state");
+    lua_State* state = (lua_State*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    // Retrieve and run callback from c func
+    lua_getglobal(L, "_callback");
+    luaL_checktype(L, -1, LUA_TFUNCTION);
+    int ret = lua_pcall(dmScript::GetMainThread(state), 0, LUA_MULTRET, 0);
+    ASSERT_EQ(0, ret);
+
+    // Retrieve coroutine
+    lua_getglobal(L, "global_co");
+    int status = lua_status(lua_tothread(L, -1));
+    lua_pop(L, 1);
+    ASSERT_NE(LUA_YIELD, status);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

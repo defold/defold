@@ -231,7 +231,7 @@ int Push_Register(lua_State* L)
         types |= (UIRemoteNotificationType) t;
         lua_pop(L, 1);
     }
-    g_Push.m_L = L;
+    g_Push.m_L = dmScript::GetMainThread(L);
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
     lua_pushvalue(L, 2);
@@ -265,7 +265,7 @@ int Push_SetListener(lua_State* L)
         luaL_unref(push->m_Listener.m_L, LUA_REGISTRYINDEX, push->m_Listener.m_Self);
     }
 
-    push->m_Listener.m_L = L;
+    push->m_Listener.m_L = dmScript::GetMainThread(L);
     push->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
