@@ -285,6 +285,7 @@ int Facebook_Login(lua_State* L)
 
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_State* main_thread = dmScript::GetMainThread(L);
 
     if (!g_Facebook.m_Session.isOpen) {
         [g_Facebook.m_Session release];
@@ -316,21 +317,21 @@ int Facebook_Login(lua_State* L)
                          if (!error) {
                              [g_Facebook.m_Me release];
                              g_Facebook.m_Me = [[NSDictionary alloc] initWithDictionary: user];
-                             RunStateCallback(L, status, error);
+                             RunStateCallback(main_thread, status, error);
                          } else {
                              [g_Facebook.m_Me release];
                              g_Facebook.m_Me = 0;
                              dmLogWarning("Failed to fetch user-info: %s", [[error localizedDescription] UTF8String]);
-                             RunStateCallback(L, status, error);
+                             RunStateCallback(main_thread, status, error);
                          }
                      }];
                 } else if (status == FBSessionStateClosedLoginFailed) {
-                    RunStateCallback(L, status, error);
+                    RunStateCallback(main_thread, status, error);
                 }
             }
         }];
     } else {
-        RunStateCallback(L, FBSessionStateOpen, 0);
+        RunStateCallback(main_thread, FBSessionStateOpen, 0);
     }
     assert(top == lua_gettop(L));
     return 0;
@@ -364,6 +365,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
 
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_State* main_thread = dmScript::GetMainThread(L);
 
     if (g_Facebook.m_Session.isOpen) {
         NSMutableArray *permissions = [[NSMutableArray alloc] init];
@@ -371,7 +373,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
 
         [g_Facebook.m_Session requestNewReadPermissions: permissions completionHandler:^(FBSession *session,
                                               NSError *error) {
-            RunCallback(L, error);
+            RunCallback(main_thread, error);
         }];
 
         [permissions release];
@@ -398,6 +400,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_State* main_thread = dmScript::GetMainThread(L);
 
     if (g_Facebook.m_Session.isOpen) {
         NSMutableArray *permissions = [[NSMutableArray alloc] init];
@@ -405,7 +408,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
         [g_Facebook.m_Session requestNewPublishPermissions: permissions defaultAudience: audience completionHandler:^(FBSession *session,
                                               NSError *error) {
-            RunCallback(L, error);
+            RunCallback(main_thread, error);
         }];
 
         [permissions release];
@@ -495,6 +498,7 @@ static int Facebook_ShowDialog(lua_State* L)
     g_Facebook.m_Callback = luaL_ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_State* main_thread = dmScript::GetMainThread(L);
 
     if (g_Facebook.m_Session) {
         FBSession* s = g_Facebook.m_Session;
@@ -519,7 +523,7 @@ static int Facebook_ShowDialog(lua_State* L)
              dialog: [NSString stringWithUTF8String: dialog]
              parameters: params
              handler:^(FBWebDialogResult result, NSURL *resultURL, NSError *error) {
-                 RunDialogResultCallback(L, [[resultURL absoluteString] UTF8String], error);
+                 RunDialogResultCallback(main_thread, [[resultURL absoluteString] UTF8String], error);
              }
         ];
     } else {
@@ -530,7 +534,7 @@ static int Facebook_ShowDialog(lua_State* L)
         [errorDetail setValue:@"Failed to do something wicked" forKey:NSLocalizedDescriptionKey];
         NSError* error = [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail];
 
-        RunDialogResultCallback(L, 0, error);
+        RunDialogResultCallback(main_thread, 0, error);
     }
 
     assert(top == lua_gettop(L));

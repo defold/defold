@@ -141,7 +141,7 @@ int IAP_List(lua_State* L)
     dmScript::GetInstance(L);
     g_IAP.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    g_IAP.m_L = L;
+    g_IAP.m_L = dmScript::GetMainThread(L);
 
     JNIEnv* env = Attach();
     jstring products = env->NewStringUTF(buf);
@@ -196,7 +196,7 @@ int IAP_SetListener(lua_State* L)
         luaL_unref(iap->m_Listener.m_L, LUA_REGISTRYINDEX, iap->m_Listener.m_Self);
     }
 
-    iap->m_Listener.m_L = L;
+    iap->m_Listener.m_L = dmScript::GetMainThread(L);
     iap->m_Listener.m_Callback = cb;
 
     dmScript::GetInstance(L);
