@@ -3,6 +3,7 @@ Bundle-ManifestVersion: 2
 Bundle-Name: clojure
 Bundle-SymbolicName: com.dynamo.cr.clojure;singleton:=true
 Bundle-Version: 1.6.0.qualifier
+Bundle-Vendor: org.clojure
 Export-Package: clojure,
  clojure.asm,
  clojure.asm.commons,
@@ -16,5 +17,5 @@ Export-Package: clojure,
  clojure.pprint,
  clojure.reflect,
  clojure.test
-Bundle-ClassPath: clojure-1.6.0.jar
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ClassPath: clojure-1.6.0.jar
