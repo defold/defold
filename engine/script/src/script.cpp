@@ -155,6 +155,9 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)params.m_ValidateInstanceCallback);
         lua_setglobal(L, SCRIPT_VALIDATE_INSTANCE_CALLBACK);
 
+        lua_pushlightuserdata(L, (void*)L);
+        lua_setglobal(L, SCRIPT_MAIN_THREAD);
+
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
@@ -340,5 +343,14 @@ namespace dmScript
         bool result = callback(L);
         assert(top == lua_gettop(L));
         return result;
+    }
+
+    lua_State* GetMainThread(lua_State* L)
+    {
+        lua_getglobal(L, SCRIPT_MAIN_THREAD);
+        lua_State* main_thread = (lua_State*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        return main_thread;
     }
 }

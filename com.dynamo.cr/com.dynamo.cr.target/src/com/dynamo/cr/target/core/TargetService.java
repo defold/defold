@@ -28,6 +28,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.commands.ICommandService;
 import org.jdom2.Document;
 import org.jdom2.Element;
+import org.jdom2.IllegalNameException;
 import org.jdom2.Namespace;
 import org.jdom2.input.JDOMParseException;
 import org.jdom2.input.SAXBuilder;
@@ -265,6 +266,9 @@ public class TargetService implements ITargetService, Runnable {
                 }
             } catch (JDOMParseException e) {
                 // Do not log here. We've seen invalid xml responses in real networks
+            } catch (IllegalNameException e) {
+                // Do not log here. We've seen invalid xml responses in real networks
+                // Example message from such an exception: "The name " urn:microsoft-com:wmc-1-0" is not legal for JDOM/XML Namespace URIs: Namespace URIs cannot begin with white-space."
             } catch (IOException e) {
                 // Do not log IOException. This happens...
                 if (e instanceof SocketTimeoutException) {

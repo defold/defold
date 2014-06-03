@@ -384,6 +384,13 @@ namespace dmScript
      * @return whether the instance is valid
      */
     bool IsInstanceValid(lua_State* L);
+
+    /**
+     * Retrieve the main thread lua state from any lua state (main thread or coroutine).
+     * @param lua state
+     * @return the main thread lua state
+     */
+    lua_State* GetMainThread(lua_State* L);
 }
 
 #endif // DM_SCRIPT_H
