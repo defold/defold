@@ -129,7 +129,8 @@
         <module>../com.sun.jna</module>
         <module>../joda.time</module>
         <module>../slf4j</module>
-        <module>../clojure</module>
+	<module>../com.dynamo.cr.clojure</module>
+	<module>../com.dynamo.cr.clojure-eclipse</module>
     </modules>
 
     <profiles>
