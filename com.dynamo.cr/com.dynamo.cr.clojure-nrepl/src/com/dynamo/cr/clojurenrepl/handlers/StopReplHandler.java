@@ -12,9 +12,13 @@ import org.eclipse.core.commands.ExecutionException;
  * @see org.eclipse.core.commands.AbstractHandler
  */
 public class StopReplHandler extends AbstractHandler {
-	public Object execute(ExecutionEvent event) throws ExecutionException {
-	  Activator.plugin.stopRepl();
-	  
-		return null;
-	}
+    @Override
+    public Object execute(ExecutionEvent event) throws ExecutionException {
+        try {
+            Activator.plugin.stopRepl();
+            return null;
+        } catch (Exception e) {
+            throw new ExecutionException("Error in event handler", e);
+        }
+    }
 }

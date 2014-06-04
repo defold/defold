@@ -8,7 +8,8 @@ Bundle-Vendor: org.clojure
 Require-Bundle: org.eclipse.core.runtime,
  com.dynamo.cr.clojure,
  com.dynamo.cr.clojure-eclipse,
- org.eclipse.ui
+ org.eclipse.ui,
+ slf4j
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Bundle-ClassPath: tools.nrepl-0.2.3.jar,
