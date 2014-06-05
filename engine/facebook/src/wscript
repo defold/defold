@@ -32,6 +32,8 @@ def build(bld):
                          destfile='facebook_android.jar')
 
         bld.install_files('${PREFIX}/share/java', 'facebook_android.jar')
+    elif 'js-web' in bld.env['PLATFORM']:
+        source += ' facebook_emscripten.cpp'
 
     facebook = bld.new_task_gen(features = 'cxx cstaticlib embed',
                                 includes = '.',

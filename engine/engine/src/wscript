@@ -27,6 +27,7 @@ def build(bld):
         exported_symbols = ['FacebookExt', 'IAPExt', 'PushExt', 'AdTruthExt', 'DefaultSoundDevice']
     elif 'js-web' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL'
+        exported_symbols = ['FacebookExt']
     else:
         sound_lib = 'SOUND OPENAL'
 

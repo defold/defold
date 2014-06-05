@@ -237,6 +237,9 @@ class Configuration(object):
         for n in 'js-web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
+        for n in 'library_glfw.js'.split():
+            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
+
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
 
