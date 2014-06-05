@@ -644,8 +644,12 @@ instructions.configure=\
 </repository>
 """
 
-        self._log('Running git fetch to get latest tags and refs...')
-        self.exec_command('git fetch')
+        if self.exec_command('git config remote.origin.url'):
+            # NOTE: Only run fetch when we have a configured remote branch.
+            # When running on buildbot we don't but fetching should not be required either
+            # as we're already up-to-date
+            self._log('Running git fetch to get latest tags and refs...')
+            self.exec_command('git fetch')
 
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
