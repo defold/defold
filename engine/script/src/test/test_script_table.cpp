@@ -494,10 +494,23 @@ static void RandomString(char* s, int max_len)
     *s = '\0';
 }
 
+//This is a helper function for working around an emscripten bug. See comment in the test "LuaTableTest Stress"
+__attribute__((noinline)) void wrapSetJmp(lua_State *L, jmp_buf &env, char *buf, int buf_size){
+    int ret = setjmp(env);
+    if (ret == 0)
+    {
+        uint32_t buffer_used = dmScript::CheckTable(L, buf, buf_size, -1);
+        (void) buffer_used;
+
+
+        dmScript::PushTable(L, buf);
+        lua_pop(L, 1);
+    }
+}
+
 TEST_F(LuaTableTest, Stress)
 {
     accept_panic = true;
-    bool has_set_jmp = false;
 
     for (int iter = 0; iter < 100; ++iter)
     {
@@ -539,26 +552,10 @@ TEST_F(LuaTableTest, Stress)
             }
             char* buf = new char[buf_size];
 
-            bool check_ok = false;
-            int ret = 0;
-
             // Emscripten fastcomp does not support calling setjmp over and over like in this loop.
-            // Emscripten without fastcomp does support it though, but generates non compatible
-            // LVFS code.
-            if (!has_set_jmp){
-                has_set_jmp = true;
-                ret = setjmp(env);
-            }
-            if (ret == 0)
-            {
-                uint32_t buffer_used = dmScript::CheckTable(L, buf, buf_size, -1);
-                check_ok = true;
-                (void) buffer_used;
-
-
-                dmScript::PushTable(L, buf);
-                lua_pop(L, 1);
-            }
+            // It requires the function calling setjump not to call setjmp more than 10 times before returning.
+            // See emscripten bug https://github.com/kripken/emscripten/issues/2379
+            wrapSetJmp(L, env, buf, buf_size);
             lua_pop(L, 1);
 
             delete[] buf;
