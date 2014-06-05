@@ -644,7 +644,7 @@ instructions.configure=\
 </repository>
 """
 
-        if self.exec_command('git config remote.origin.url'):
+        if self.exec_command('git config -l').find('remote.origin.url') != -1:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
             # as we're already up-to-date
@@ -971,7 +971,7 @@ Multiple commands can be specified'''
                 if not f:
                     parser.error('Unknown command %s' % cmd)
                 f()
-        c.wait_uploads()
+                c.wait_uploads()
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
@@ -991,4 +991,4 @@ Multiple commands can be specified'''
         if not f:
             parser.error('Unknown command %s' % cmd)
         f()
-    c.wait_uploads()
+        c.wait_uploads()
