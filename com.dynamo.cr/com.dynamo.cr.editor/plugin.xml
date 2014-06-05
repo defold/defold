@@ -238,6 +238,17 @@
                   </test>
                </visibleWhen>
             </command>
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleHTML5"
+                  label="HTML5 Application..."
+                  style="push">
+               <visibleWhen
+                     checkEnabled="false">
+                  <test
+                        property="com.dynamo.cr.editor.is_dev">
+                  </test>
+               </visibleWhen>
+            </command>
          </menu>
       </menuContribution>
       <menuContribution
@@ -372,6 +383,11 @@
             defaultHandler="com.dynamo.cr.editor.handlers.BundleLinuxHandler"
             id="com.dynamo.cr.target.commands.bundleLinux"
             name="Bundle Linux Application">
+      </command>
+      <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleHTML5Handler"
+            id="com.dynamo.cr.target.commands.bundleHTML5"
+            name="Bundle HTML5 Application">
       </command>
       <command
             id="com.dynamo.cr.editor.commands.openWelcome"

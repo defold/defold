@@ -52,8 +52,6 @@ namespace dmScript
                 xhr.timeout = timeout / 1000.0;
             }
 
-            // TODO: Doesn't work in node.js. Why? xhr2?
-            //xhr.responseType = 'arraybuffer';
             function listener() {
                 var resp_headers = xhr.getAllResponseHeaders();
                 resp_headers = resp_headers.replace(new RegExp("\r", "g"), "");
@@ -62,10 +60,10 @@ namespace dmScript
                 if (xhr.status != 0) {
                     // TODO: Investigate memory and ALLOC_STACK
                     // See also library_browser.js where malloc and free is used
-                    var b = allocate(intArrayFromString(xhr.response), 'i8', ALLOC_STACK);
+                    var ab = new Uint8Array(xhr.response);
+                    var b = allocate(ab, 'i8', ALLOC_STACK);
                     var resp_headers_buffer = allocate(intArrayFromString(resp_headers), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('viiiii', onload, [arg, xhr.status, b, xhr.response.length, resp_headers_buffer]);
-                    _free(buffer);
+                    Runtime.dynCall('viiiii', onload, [arg, xhr.status, b, ab.length, resp_headers_buffer]);
                 } else {
                     Runtime.dynCall('vii', onerror, [arg, xhr.status]);
                 }
@@ -74,6 +72,8 @@ namespace dmScript
             xhr.onerror = listener;
             xhr.ontimeout = listener;
             xhr.open(Pointer_stringify(method), Pointer_stringify(url), true);
+            // TODO: Doesn't work in node.js. Why? xhr2?
+            xhr.responseType = 'arraybuffer';
 
             var headersArray = Pointer_stringify(headers).split("\n");
             for (var i = 0; i < headersArray.length; i++) {
