@@ -1,6 +1,8 @@
 package com.dynamo.cr.editor;
 
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
@@ -9,6 +11,8 @@ import org.eclipse.equinox.internal.p2.core.helpers.LogHelper;
 import org.eclipse.equinox.internal.p2.core.helpers.ServiceHelper;
 import org.eclipse.equinox.p2.core.IProvisioningAgent;
 import org.eclipse.equinox.p2.operations.UpdateOperation;
+import org.eclipse.equinox.p2.repository.artifact.IArtifactRepositoryManager;
+import org.eclipse.equinox.p2.repository.metadata.IMetadataRepositoryManager;
 import org.eclipse.jface.dialogs.ProgressMonitorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
@@ -21,7 +25,10 @@ import org.eclipse.ui.application.IActionBarConfigurer;
 import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchWindowAdvisor;
 import org.eclipse.ui.internal.ide.EditorAreaDropAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.ui.EditorUIPlugin;
 import com.dynamo.cr.editor.ui.IEditorWindow;
 
@@ -29,6 +36,8 @@ import com.dynamo.cr.editor.ui.IEditorWindow;
 public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 
     private IEditorWindow editorWindow;
+
+    private static Logger logger = LoggerFactory.getLogger(ApplicationWorkbenchWindowAdvisor.class);
 
     public ApplicationWorkbenchWindowAdvisor(IWorkbenchWindowConfigurer configurer) {
         super(configurer);
@@ -42,6 +51,8 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
     public void createWindowContents(final Shell shell) {
         editorWindow = EditorUIPlugin.getDefault().createWindow(shell, getWindowConfigurer());
         editorWindow.createContents(shell);
+        EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+        shell.setText(corePlugin.getTitle());
     }
 
     public void preWindowOpen() {
@@ -89,6 +100,25 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
         if (agent == null) {
             LogHelper.log(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
                     "No provisioning agent found.  This application is not set up for updates."));
+        }
+
+        IMetadataRepositoryManager metadataManager = (IMetadataRepositoryManager) agent.getService(IMetadataRepositoryManager.SERVICE_NAME);
+        IArtifactRepositoryManager artifactManager = (IArtifactRepositoryManager) agent.getService(IArtifactRepositoryManager.SERVICE_NAME);
+
+        try {
+            // Changed default p2 location to stable-channel on s3 for old installations
+            URI oldLocation = new URI("http://cr.defold.com/downloads/cr-editor/1.0/repository/");
+            URI newLocation = new URI("http://defold-downloads.s3-website-eu-west-1.amazonaws.com/update/stable");
+            if (metadataManager.contains(oldLocation)) {
+                logger.info(String.format("Changing p2 location from %s to %s", oldLocation, newLocation));
+                metadataManager.removeRepository(oldLocation);
+                artifactManager.removeRepository(oldLocation);
+
+                metadataManager.addRepository(newLocation);
+                artifactManager.addRepository(newLocation);
+            }
+        } catch (URISyntaxException e) {
+            logger.error("Unexpected error", e);
         }
 
         final IPreferenceStore prefStore = Activator.getDefault().getPreferenceStore();

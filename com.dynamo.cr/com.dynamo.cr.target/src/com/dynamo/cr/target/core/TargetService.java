@@ -28,6 +28,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.commands.ICommandService;
 import org.jdom2.Document;
 import org.jdom2.Element;
+import org.jdom2.IllegalNameException;
 import org.jdom2.Namespace;
 import org.jdom2.input.JDOMParseException;
 import org.jdom2.input.SAXBuilder;
@@ -71,6 +72,12 @@ public class TargetService implements ITargetService, Runnable {
     private static final int MAX_LOG_CONNECTION_ATTEMPTS = 20;
 
     private static Logger logger = LoggerFactory.getLogger(TargetService.class);
+
+    private static class IncompleteXMLException extends Exception {
+        public IncompleteXMLException(String msg) {
+            super(msg);
+        }
+    }
 
     private static ITarget createLocalTarget() {
         InetAddress localAddress = null;
@@ -183,13 +190,19 @@ public class TargetService implements ITargetService, Runnable {
         lastSearch = System.currentTimeMillis() - searchInterval * 1000;
     }
 
-    private String getRequiredDeviceField(Element device, String name,
-            Namespace ns) {
-        Element e = device.getChild(name, ns);
+    private Element getRequiredElement(Element element, String name,
+            Namespace ns) throws IncompleteXMLException {
+        Element e = element.getChild(name, ns);
         if (e == null) {
-            throw new RuntimeException(String.format(
+            throw new IncompleteXMLException(String.format(
                     "Required element %s not found", name));
         }
+        return e;
+    }
+
+    private String getRequiredField(Element element, String name,
+            Namespace ns) throws IncompleteXMLException {
+        Element e = getRequiredElement(element, name, ns);
         return e.getTextTrim();
     }
 
@@ -236,16 +249,14 @@ public class TargetService implements ITargetService, Runnable {
                         .getNamespace("urn:schemas-upnp-org:device-1-0");
                 Namespace defoldNS = Namespace
                         .getNamespace("urn:schemas-defold-com:DEFOLD-1-0");
-                Element device = doc.getRootElement()
-                        .getChild("device", upnpNS);
-                String manufacturer = device.getChild("manufacturer", upnpNS)
-                        .getTextTrim();
-                String udn = getRequiredDeviceField(device, "UDN", upnpNS);
-                String friendlyName = getRequiredDeviceField(device, "friendlyName", upnpNS);
+                Element device = getRequiredElement(doc.getRootElement(), "device", upnpNS);
+                String manufacturer = getRequiredField(device, "manufacturer", upnpNS);
+                String udn = getRequiredField(device, "UDN", upnpNS);
+                String friendlyName = getRequiredField(device, "friendlyName", upnpNS);
 
                 if (manufacturer.equalsIgnoreCase("defold")) {
-                    String url = getRequiredDeviceField(device, "url", defoldNS);
-                    String logPort = getRequiredDeviceField(device, "logPort", defoldNS);
+                    String url = getRequiredField(device, "url", defoldNS);
+                    String logPort = getRequiredField(device, "logPort", defoldNS);
                     // TODO: Local should be iPhone or Joe's iPhone or similar
                     // when iPhone supported is completed
                     String name = String.format("%s (%s)", friendlyName, deviceInfo.address);
@@ -264,6 +275,11 @@ public class TargetService implements ITargetService, Runnable {
 
                 }
             } catch (JDOMParseException e) {
+                // Do not log here. We've seen invalid xml responses in real networks
+            } catch (IllegalNameException e) {
+                // Do not log here. We've seen invalid xml responses in real networks
+                // Example message from such an exception: "The name " urn:microsoft-com:wmc-1-0" is not legal for JDOM/XML Namespace URIs: Namespace URIs cannot begin with white-space."
+            } catch (IncompleteXMLException e) {
                 // Do not log here. We've seen invalid xml responses in real networks
             } catch (IOException e) {
                 // Do not log IOException. This happens...

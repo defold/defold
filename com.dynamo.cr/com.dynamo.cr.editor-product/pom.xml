@@ -60,7 +60,7 @@
                             <execution>
                                 <id>download-jre-linux</id>
                                 <phase>initialize</phase>
-                                <goals><goal>wget</goal></goals>                                
+                                <goals><goal>wget</goal></goals>
                                 <configuration>
                                     <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-linux-i586.zip</url>
                                     <md5>7d5ec4aaa0377b34b6bf7005829d8369</md5>
@@ -71,7 +71,7 @@
                             <execution>
                                 <id>download-jre-osx</id>
                                 <phase>initialize</phase>
-                                <goals><goal>wget</goal></goals>                                
+                                <goals><goal>wget</goal></goals>
                                 <configuration>
                                     <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-macosx-x64.zip</url>
                                     <md5>d085e19153e7a4451a65e289014fc84f</md5>
@@ -82,7 +82,7 @@
                             <execution>
                                 <id>download-jre-windows</id>
                                 <phase>initialize</phase>
-                                <goals><goal>wget</goal></goals>                                
+                                <goals><goal>wget</goal></goals>
                                 <configuration>
                                     <url>https://s3-eu-west-1.amazonaws.com/defold-packages/jre-8u5-windows-i586.zip</url>
                                     <md5>a3b4c534fe0a5142ea1188c0d7246733</md5>

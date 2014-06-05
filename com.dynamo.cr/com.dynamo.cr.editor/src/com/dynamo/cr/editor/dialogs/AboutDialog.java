@@ -54,9 +54,11 @@ public class AboutDialog extends Shell {
         productNameLabel.setFont(JFaceResources.getBannerFont());
         productNameLabel.setLayoutData(new GridData(SWT.CENTER, SWT.CENTER,
                 false, false, 1, 1));
-        productNameLabel.setText("Defold Editor");
 
-        StyledText buildDetailsText = new StyledText(this, SWT.NONE);
+        EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+        productNameLabel.setText(corePlugin.getTitle());
+
+        StyledText buildDetailsText = new StyledText(this, SWT.MULTI | SWT.WRAP);
         buildDetailsText.setLineSpacing(7);
         buildDetailsText.setBackground(Display.getDefault().getSystemColor(
                 SWT.COLOR_WHITE));
@@ -68,18 +70,23 @@ public class AboutDialog extends Shell {
 
         // NOTE: Currently hard-coded
         // Non-trivial to find the product number :-(
-        builder.append(String.format("Version %s", EditorCorePlugin.VERSION));
+        builder.append(String.format("Version %s", corePlugin.getVersion()));
+        builder.append(NEW_LINE);
+        builder.append(String.format("(%s)", corePlugin.getSha1()));
+        builder.append(NEW_LINE);
+        builder.append(String.format("Java %s", System.getProperty("java.version", "NO VERSION")));
         builder.append(NEW_LINE);
 
         buildDetailsText.setText(builder.toString());
         buildDetailsText.getCaret().setSize(0, 0); // nuke the caret
+        buildDetailsText.setLineAlignment(0, buildDetailsText.getLineCount(), SWT.CENTER);
 
         newLabel(SWT.NONE);
 
         Label copyrightLabel = newLabel(SWT.NONE);
         GridDataFactory.fillDefaults().align(SWT.CENTER, SWT.CENTER)
                 .applyTo(copyrightLabel);
-        copyrightLabel.setText("Copyright (c) 2011-2012, Defold");
+        copyrightLabel.setText("Copyright (c) 2011-2014, Defold AB");
 
         Label copyrightLabel2 = newLabel(SWT.NONE);
         GridDataFactory.fillDefaults().align(SWT.CENTER, SWT.CENTER)

@@ -5,12 +5,12 @@ mkdir -p engine/win32
 mkdir -p engine/ios
 mkdir -p engine/android
 
-SHA1=`git log --oneline | head -1 | awk '{ print $1 }'`
+SHA1=`git log --pretty=%H -n1`
 
 copy () {
-	# echo for indicating progress as scp progress is suppressed when not running in a tty (e.g. from maven or on buildbot)
-	echo "Copying $1"
-	scp builder@ci-master.defold.com:/archive/${SHA1}/engine/$1 $2
+    # echo for indicating progress as scp progress is suppressed when not running in a tty (e.g. from maven or on buildbot)
+    echo "Copying $1"
+    cp -v $DYNAMO_HOME/archive/${SHA1}/engine/$1 $2
 }
 
 copy linux/dmengine engine/linux/dmengine
