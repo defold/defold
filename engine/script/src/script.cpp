@@ -215,7 +215,7 @@ namespace dmScript
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[256];
+        char buffer[2048];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -227,8 +227,8 @@ namespace dmScript
             if (s == 0x0)
                 return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
             if (i > 1)
-                dmStrlCat(buffer, "\t", 256);
-            dmStrlCat(buffer, s, 256);
+                dmStrlCat(buffer, "\t", sizeof(buffer));
+            dmStrlCat(buffer, s, sizeof(buffer));
             lua_pop(L, 1);
         }
         dmLogUserDebug("%s", buffer);
