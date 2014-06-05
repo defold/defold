@@ -31,7 +31,7 @@ public class Engine extends Plugin {
         } else if (platform.equals("android")) {
             prefix = "lib";
             ext = ".so";
-        } else if (platform.equals("html5")) {
+        } else if (platform.equals("js-web")) {
             ext = ".js";
         }
 
@@ -59,19 +59,6 @@ public class Engine extends Plugin {
 
     public String getEnginePath() {
         return getEnginePath(EditorCorePlugin.getPlatform());
-    }
-
-    // TODO: Not nice to have this special case here...
-    public String getHTMLPath() {
-        URL bundleUrl = getBundle().getEntry("/engine/html5/engine_template.html");
-    	
-        URL fileUrl;
-        try {
-            fileUrl = FileLocator.toFileURL(bundleUrl);
-            return fileUrl.getPath();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override

@@ -269,6 +269,9 @@ class Configuration(object):
         elif 'android' in self.target_platform:
             exe_prefix = 'lib'
             exe_ext = '.so'
+        elif 'js-web' in self.target_platform:
+            exe_prefix = ''
+            exe_ext = '.js'
         else:
             exe_ext = ''
 
@@ -310,6 +313,14 @@ class Configuration(object):
                 ('share/java', 'classes.dex'),
                 ('bin/%s' % (self.target_platform), 'dmengine.apk'),
                 ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
+            ]
+            for f in files:
+                src = join(dynamo_home, f[0], f[1])
+                self.upload_file(src, '%s/%s' % (full_archive_path, f[1]))
+
+        if 'js-web' in self.target_platform:
+            files = [
+                ('bin/js-web', 'engine_template.html'),
             ]
             for f in files:
                 src = join(dynamo_home, f[0], f[1])

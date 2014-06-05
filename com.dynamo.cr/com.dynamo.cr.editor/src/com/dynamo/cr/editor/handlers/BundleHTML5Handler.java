@@ -21,9 +21,8 @@ public class BundleHTML5Handler extends AbstractBundleHandler {
     protected void bundleApp(ProjectProperties projectProperties,
             String projectRoot, String contentRoot, String outputDir) throws ConfigurationException, IOException {
 
-        String js = Engine.getDefault().getEnginePath("html5", true);
-        String html = Engine.getDefault().getHTMLPath();
-        HTML5Bundler bundler = new HTML5Bundler(projectProperties, js, html, projectRoot, contentRoot, outputDir);
+        String js = Engine.getDefault().getEnginePath("js-web", true);
+        HTML5Bundler bundler = new HTML5Bundler(projectProperties, js, projectRoot, contentRoot, outputDir);
         bundler.bundleApplication();
     }
 

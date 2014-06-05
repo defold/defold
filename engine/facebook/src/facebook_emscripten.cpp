@@ -676,27 +676,31 @@ static const luaL_reg Facebook_methods[] =
 
 dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    if(g_Facebook.m_Initialized)
-        return dmExtension::RESULT_OK;
+    if(!g_Facebook.m_Initialized)
+    {
+        // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
+        // Better solution?
+        g_Facebook.m_appId = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
 
-    // 355198514515820 is HelloFBSample. Default value in order to avoid exceptions
-    // Better solution?
-    g_Facebook.m_appId = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
+        // We assume that the Facebook javascript SDK is loaded by now.
+        // This should be done via a script tag (synchronously) in the html page:
+        // <script type="text/javascript" src="//connect/facebook.net/en_US/sdk.js"></script>
+        // This script tag MUST be located before the engine (game) js script tag.
+        EM_ASM_ARGS({
+            var app_id = $0;
 
-    // We assume that the Facebook javascript SDK is loaded by now.
-    // This should be done via a script tag (synchronously) in the html page:
-    // <script type="text/javascript" src="//connect/facebook.net/en_US/sdk.js"></script>
-    // This script tag MUST be located before the engine (game) js script tag.
-    EM_ASM_ARGS({
-        var app_id = $0;
+            FB.init({
+                appId      : Pointer_stringify(app_id),
+                status     : false,
+                xfbml      : false,
+                version    : 'v2.0',
+            });
+        }, g_Facebook.m_appId);
 
-        FB.init({
-            appId      : Pointer_stringify(app_id),
-            status     : false,
-            xfbml      : false,
-            version    : 'v2.0',
-        });
-    }, g_Facebook.m_appId);
+        dmLogDebug("FB initialized.");
+
+        g_Facebook.m_Initialized = true;
+    }
 
     lua_State* L = params->m_L;
     int top = lua_gettop(L);
@@ -720,8 +724,6 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
-
-    g_Facebook.m_Initialized = true;
 
     return dmExtension::RESULT_OK;
 }
