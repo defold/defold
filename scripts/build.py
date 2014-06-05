@@ -864,7 +864,7 @@ instructions.configure=\
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
-    sys.path.append(boto_path)
+    sys.path.insert(0, boto_path)
     usage = '''usage: %prog [options] command(s)
 
 Commands:
