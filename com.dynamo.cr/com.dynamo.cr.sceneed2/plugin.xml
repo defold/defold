@@ -117,4 +117,14 @@
          </variable>
       </sourceProvider>
    </extension>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="internal.ui.editors.GenericEditor"
+            default="false"
+            icon="icons/brick.png"
+            id="com.dynamo.cr.sceneed2.sceneEditor"
+            name="Scene Editor">
+      </editor>
+   </extension>
 </plugin>

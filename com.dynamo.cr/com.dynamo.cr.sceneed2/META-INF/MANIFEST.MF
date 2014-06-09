@@ -26,6 +26,7 @@ Export-Package: clojure,
  clojure.reflect,
  clojure.test,
  dynamo
-Bundle-ClassPath: lib/clojure-1.6.0.jar,
+Bundle-ClassPath: bin/,
+ lib/clojure-1.6.0.jar,
  lib/tools.nrepl-0.2.3.jar,
  .
