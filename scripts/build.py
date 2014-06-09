@@ -695,7 +695,7 @@ instructions.configure=\
         key = bucket.new_key('%s/info.json' % self.channel)
         key.content_type = 'application/json'
         key.set_contents_from_string(json.dumps({'version': self.version,
-                                                 'sha1' : self.release_sha1}))
+                                                 'sha1' : release_sha1}))
 
         # Create redirection keys for editor
         for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip']:
