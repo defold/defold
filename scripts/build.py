@@ -121,7 +121,7 @@ class Configuration(object):
             os._exit(5)
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'lib/python', 'share']:
+        for p in ['ext/lib/python', 'lib/python', 'share', 'lib/js-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -235,9 +235,6 @@ class Configuration(object):
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         for n in 'js-web-pre-engine.js'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
-
-        for n in 'library_glfw.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         for n in 'waf_dynamo.py waf_content.py'.split():
