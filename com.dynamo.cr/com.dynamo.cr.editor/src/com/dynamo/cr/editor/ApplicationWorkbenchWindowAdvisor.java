@@ -108,7 +108,7 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
         try {
             // Changed default p2 location to stable-channel on s3 for old installations
             URI oldLocation = new URI("http://cr.defold.com/downloads/cr-editor/1.0/repository/");
-            URI newLocation = new URI("http://defold-downloads.s3-website-eu-west-1.amazonaws.com/update/stable");
+            URI newLocation = new URI("http://d.defold.com.s3-website-eu-west-1.amazonaws.com/update/stable");
             if (metadataManager.contains(oldLocation)) {
                 logger.info(String.format("Changing p2 location from %s to %s", oldLocation, newLocation));
                 metadataManager.removeRepository(oldLocation);
