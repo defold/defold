@@ -1,7 +1,7 @@
 <project default="compile">
 	<property environment="env" />
 
-	<property name="aot-namespaces" value="internal.ui.editors.generic-editor" />
+	<property name="aot-namespaces" value="internal.ui.editors.atlas-editor" />
 
 	<path id="total-classpath">
 		<pathelement location="src/clj" />

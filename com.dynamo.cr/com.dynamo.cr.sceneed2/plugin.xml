@@ -120,11 +120,12 @@
    <extension
          point="org.eclipse.ui.editors">
       <editor
-            class="internal.ui.editors.GenericEditor"
+            class="internal.ui.editors.AtlasEditor"
             default="false"
-            icon="icons/brick.png"
-            id="com.dynamo.cr.sceneed2.sceneEditor"
-            name="Scene Editor">
+            extensions="atlas"
+            icon="icons/images.png"
+            id="com.dynamo.cr.sceneed2.atlasEditor"
+            name="Atlas Editor (mark II)">
       </editor>
    </extension>
 </plugin>
