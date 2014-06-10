@@ -29,4 +29,5 @@ Export-Package: clojure,
 Bundle-ClassPath: bin/,
  lib/clojure-1.6.0.jar,
  lib/tools.nrepl-0.2.3.jar,
+ lib/test.check-0.5.8.jar,
  .
