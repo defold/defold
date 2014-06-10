@@ -4,6 +4,7 @@
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry kind="src" path="src/clj"/>
 	<classpathentry kind="src" path="src/java"/>
+	<classpathentry kind="src" path="test/clj"/>
 	<classpathentry exported="true" kind="lib" path="bin" sourcepath="bin"/>
 	<classpathentry exported="true" kind="lib" path="lib/clojure-1.6.0.jar" sourcepath="lib/clojure-1.6.0-sources.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/tools.nrepl-0.2.3.jar" sourcepath="lib/tools.nrepl-0.2.3-sources.jar"/>
