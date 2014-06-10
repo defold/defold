@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, zipfile, re, itertools, json
-import optparse, subprocess, urllib, urlparse
+import optparse, subprocess, urllib, urlparse, tempfile
 from datetime import datetime
 from tarfile import TarFile
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
@@ -239,6 +239,23 @@ class Configuration(object):
         sha1 = line.split()[0]
         return sha1
 
+    def _ziptree(self, path, outfile = None, directory = None):
+        # Directory is similar to -C in tar
+        if not outfile:
+            outfile = tempfile.NamedTemporaryFile(delete = False)
+
+        zip = zipfile.ZipFile(outfile, 'w')
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                p = os.path.join(root, f)
+                an = p
+                if directory:
+                    an = os.path.relpath(p, directory)
+                zip.write(p, an)
+
+        zip.close()
+        return outfile.name
+
     def is_cross_platform(self):
         return self.host != self.target_platform
 
@@ -264,6 +281,7 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
+        share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
         if self.is_cross_platform():
@@ -285,15 +303,24 @@ class Configuration(object):
             self.upload_file(engine_release, '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext))
             self.upload_file(engine_headless, '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext))
 
+        if self.target_platform == 'linux':
+            # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
+            builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
+            self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
+
         if 'android' in self.target_platform:
             files = [
                 ('share/java', 'classes.dex'),
                 ('bin/%s' % (self.target_platform), 'dmengine.apk'),
                 ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
+                ('ext/share/java/android.jar', 'android.jar'),
             ]
             for f in files:
                 src = join(dynamo_home, f[0], f[1])
                 self.upload_file(src, '%s/%s' % (full_archive_path, f[1]))
+
+            resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
+            self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
 
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
