@@ -313,7 +313,7 @@ class Configuration(object):
                 ('share/java', 'classes.dex'),
                 ('bin/%s' % (self.target_platform), 'dmengine.apk'),
                 ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
-                ('ext/share/java/android.jar', 'android.jar'),
+                ('ext/share/java', 'android.jar'),
             ]
             for f in files:
                 src = join(dynamo_home, f[0], f[1])
