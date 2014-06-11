@@ -1,5 +1,26 @@
 (ns internal.graph.graph-test
-  (:use clojure.test))
+  (:require [clojure.test.check :as tc]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test :refer [run-tests]]
+            [internal.graph :refer :all]
+            [internal.graph.generator :refer [graph]]))
+
+(defn occurrences [p coll]
+  (vals (frequencies (map p coll))))
+
+(defspec no-duplicate-node-ids
+  100
+  (prop/for-all [g graph]
+                (= 1 (apply max (occurrences id (:nodes g))))))
+
+(defspec no-dangling-arcs
+  50
+  (prop/for-all [g graph]
+                (every? #(and (node g (:source %)) 
+                              (node g (:target %)))
+                        (arcs g))))
 
 ;- Instantiate node
 
