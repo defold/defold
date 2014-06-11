@@ -519,15 +519,6 @@ instructions.configure=\
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        with open('engine/engine/src/engine_version.h', 'a+') as f:
-            f.seek(0)
-            engine_version = f.read()
-
-            engine_version = re.sub('const char\* VERSION = "[0-9\.]+";', 'const char* VERSION = "%s";' % new_version, engine_version)
-            engine_version = re.sub('const char\* VERSION_SHA1 = ".*?";', 'const char* VERSION_SHA1 = "%s";' % sha1, engine_version)
-            f.truncate(0)
-            f.write(engine_version)
-
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
 
