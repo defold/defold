@@ -3,26 +3,31 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.test :refer [run-tests deftest is]]
-            [internal.graph :refer :all]
-            [internal.graph.generator :refer [graph]]))
+            [clojure.test :refer :all]
+            [internal.graph.dgraph :refer :all]
+            [internal.graph.generator :refer [graph names-with-repeats]]
+            [internal.graph.query :refer :all]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))
+
+(defn with-extra-names [g ns]
+  (reduce (fn [g n] (add-node g {:name n})) g ns))
+
+(defn times-found [g n]
+   (count (query g [[:name n]])) )
+
+(defn times-expected [hist n] 
+  (get hist n 0))
+
+(defn random-graph [] (first (gen/sample graph 1)))
+
+;- Most basic properties
 
 (defspec no-duplicate-node-ids
   100
   (prop/for-all [g graph]
                 (= 1 (apply max (occurrences (node-ids g))))))
-
-(defspec no-dangling-arcs
-  50
-  (prop/for-all [g graph]
-                (every? #(and (node g (:source %)) 
-                              (node g (:target %)))
-                        (arcs g))))
-
-(defn random-graph [] (first (gen/sample graph 1)))
 
 ;- Instantiate node
 
@@ -37,16 +42,32 @@
     (is (= v (node g id)))))
 
 ;; Given an empty graph
-;;  when I create a node with a name and type
+;;  when I create a node with a name
 ;;  then I can look up the node by its name
-;;   and I can look up the node by its type
 
-;; Given an existing graph
-;;  when I create a node with a name and type
-;;  then I can look up the node by its name
-;;   and I can look up the node by its type
+(defspec query-by-name
+  100
+  (prop/for-all [ns names-with-repeats
+                 g  graph]
+                (let [hist (frequencies ns)]
+                  (every? #(= (times-found (with-extra-names g ns) %) (times-expected hist %)) ns))))
 
-;; Given an graph that has a named node
+(deftest adding-named-node
+  (testing "with unique result"
+           (let [v  {:name "Atlas"}
+                 g  (add-node (random-graph) v)
+                 id (last-node-added g)]
+             (is (= #{id} (query g [[:name "Atlas"]])))))
+  (testing "with non-unique results"
+           (let [v   {:name "Chronos"}
+                 g   (add-node (random-graph) v)
+                 id1 (last-node-added g)
+                 g   (add-node g v)
+                 id2 (last-node-added g)]
+             (is (= #{id1 id2} (query g [[:name "Chronos"]]))))))
+
+
+;; Given a graph that has a named node
 ;;  when I try to create a node with the same name
 ;;  then I can discover the node's unique identifier
 ;;   and I can look up the node by its name

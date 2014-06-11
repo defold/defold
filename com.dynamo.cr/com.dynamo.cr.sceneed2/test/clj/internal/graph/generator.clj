@@ -1,6 +1,13 @@
 (ns internal.graph.generator
+  "test.check generator to create a randomly populated graph"
   (:require [clojure.test.check.generators :as gen]
-            [internal.graph :as g]))
+            [internal.graph.dgraph :as g]
+            [internal.graph.lgraph :as lg]))
+
+(def names-with-repeats
+  (gen/vector 
+    (gen/frequency [[9 (gen/not-empty gen/string-alpha-numeric)] 
+                    [1 (gen/return "A common name")]])))
 
 (def max-node-count 40)
 (def min-arc-count  10)
@@ -22,7 +29,7 @@
 
 (defn arcs
   [g]
-  (pair (graph-endpoints g :inputs) (graph-endpoints g :outputs)))
+  (pair (graph-endpoints g lg/inputs) (graph-endpoints g lg/outputs)))
 
 (def nodes (gen/fmap (partial apply node)
                      (gen/tuple (gen/such-that not-empty (gen/vector labels)) 
@@ -37,7 +44,7 @@
 (defn build-graph
   [nodes]
   (reduce (fn [g v]
-            (g/add-node g v)) 
+            (lg/add-labeled-node g (:inputs v) (:outputs v) {})) 
           (g/empty-graph) 
           nodes))
 
