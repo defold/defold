@@ -2,7 +2,7 @@
 
 (defn empty-graph
   []
-  {:nodes []
+  {:nodes {}
    :next-node-id 0
    :arcs []})
 
@@ -14,36 +14,34 @@
   [g]
   (update-in g [:next-node-id] inc))
 
-(defn- make-node
-  [g inputs outputs]
-  {:id (next-node-id g)
-   :inputs inputs
-   :outputs outputs})
+(defn id [node] (:id node))
 
-(defn id [node]      (:id node))
-(defn inputs [node]  (:inputs node))
-(defn outputs [node] (:outputs node))
-
-(defn nodes
+(defn node-ids
   [g]
-  (:nodes g))
+  (keys (:nodes g)))
+
+(defn node-values
+  [g]
+  (vals (:nodes g)))
 
 (defn arcs
   [g]
   (:arcs g))
+
+(defn last-node-added
+  [g]
+  (:last-node-added g))
 
 (defn node 
   [g id]
   (get-in g [:nodes id]))
 
 (defn add-node
-  [g inputs outputs]
-  (let [node (make-node g inputs outputs)]
-    (-> g
-      (assoc-in [:nodes (id node)] node)
-      (claim-node-id))))
+  [g v]
+  (-> (claim-node-id g)
+    (assoc-in [:nodes (next-node-id g)] v)
+    (assoc :last-node-added (next-node-id g))))
 
 (defn add-arc
-  [g source source-label target target-label]
-  (update-in g [:arcs] conj {:source source :source-label source-label :target target :target-label target-label})
-  )
+  [g source source-attributes target target-attributes]
+  (update-in g [:arcs] conj {:source source :source-attributes source-attributes :target target :target-attributes target-attributes}))

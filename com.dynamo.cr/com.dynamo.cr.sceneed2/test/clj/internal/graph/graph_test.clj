@@ -3,17 +3,17 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.test :refer [run-tests]]
+            [clojure.test :refer [run-tests deftest is]]
             [internal.graph :refer :all]
             [internal.graph.generator :refer [graph]]))
 
-(defn occurrences [p coll]
-  (vals (frequencies (map p coll))))
+(defn occurrences [coll]
+  (vals (frequencies coll)))
 
 (defspec no-duplicate-node-ids
   100
   (prop/for-all [g graph]
-                (= 1 (apply max (occurrences id (:nodes g))))))
+                (= 1 (apply max (occurrences (node-ids g))))))
 
 (defspec no-dangling-arcs
   50
@@ -22,11 +22,19 @@
                               (node g (:target %)))
                         (arcs g))))
 
+(defn random-graph [] (first (gen/sample graph 1)))
+
 ;- Instantiate node
 
 ;; Given any graph
 ;;  when I create a node
 ;;  then I can discover the node's unique identifier
+
+(deftest adding-node
+  (let [v "Any node value at all"
+        g  (add-node (random-graph) v) 
+        id (last-node-added g)]
+    (is (= v (node g id)))))
 
 ;; Given an empty graph
 ;;  when I create a node with a name and type
@@ -90,3 +98,4 @@
 ;- Apply a function to a node
 ;- Traverse arcs by label
 ;- Transactions
+

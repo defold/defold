@@ -15,14 +15,14 @@
   (gen/tuple (gen/elements m) (gen/elements n)))
 
 (defn graph-endpoints 
-  [g efn] 
-  (for [node (g/nodes g)
-        input (efn node)]
-    [(g/id node) input]))
+  [g efn]
+  (for [id    (g/node-ids g)
+        input (efn (g/node g id))]
+    [id input]))
 
 (defn arcs
   [g]
-  (pair (graph-endpoints g g/inputs) (graph-endpoints g g/outputs)))
+  (pair (graph-endpoints g :inputs) (graph-endpoints g :outputs)))
 
 (def nodes (gen/fmap (partial apply node)
                      (gen/tuple (gen/such-that not-empty (gen/vector labels)) 
@@ -35,9 +35,9 @@
           g arcs))
 
 (defn build-graph
-  [[nodes arcs]]
-  (reduce (fn [g {:keys [inputs outputs]}]
-            (g/add-node g inputs outputs)) 
+  [nodes]
+  (reduce (fn [g v]
+            (g/add-node g v)) 
           (g/empty-graph) 
           nodes))
 
@@ -46,4 +46,5 @@
                                     (gen/fmap build-graph (gen/vector nodes 1 node-count)))))
 
 (def graph (gen/bind disconnected-graph
-                     (fn [g] (gen/fmap add-arcs (gen/vector (arcs g) min-arc-count max-arc-count)))))
+                     (fn [g] (gen/fmap (partial add-arcs g) 
+                                       (gen/vector (arcs g) min-arc-count max-arc-count)))))
