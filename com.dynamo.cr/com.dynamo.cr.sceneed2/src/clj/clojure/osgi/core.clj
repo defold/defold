@@ -4,7 +4,7 @@
   (:import [clojure.osgi BundleClassLoader IClojureOSGi])
   (:import [clojure.lang Namespace]))
 
-(def ^{:private true} osgi-debug true)
+(def ^{:private true} osgi-debug false)
 
 (def ^:dynamic *bundle* nil)
 (def ^:dynamic *clojure-osgi-bundle*)
