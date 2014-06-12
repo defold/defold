@@ -17,7 +17,7 @@
 <stringAttribute key="org.eclipse.jdt.launching.JRE_CONTAINER" value="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 <stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="org.eclipse.ant.internal.launching.remote.InternalAntRunner"/>
 <stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="com.dynamo.cr.sceneed2"/>
-<stringAttribute key="org.eclipse.ui.externaltools.ATTR_BUILD_SCOPE" value="${working_set:&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;resources&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/build.xml&quot; type=&quot;1&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/src/clj/eclipse&quot; type=&quot;2&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/src/clj/internal&quot; type=&quot;2&quot;/&gt;&#10;&lt;/resources&gt;}"/>
+<stringAttribute key="org.eclipse.ui.externaltools.ATTR_BUILD_SCOPE" value="${working_set:&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;resources&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/build.xml&quot; type=&quot;1&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/src/clj/eclipse&quot; type=&quot;2&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/src/clj/internal/ui/editors/atlas_editor.clj&quot; type=&quot;1&quot;/&gt;&#10;&lt;/resources&gt;}"/>
 <stringAttribute key="org.eclipse.ui.externaltools.ATTR_LOCATION" value="${workspace_loc:/com.dynamo.cr.sceneed2/build.xml}"/>
 <stringAttribute key="org.eclipse.ui.externaltools.ATTR_RUN_BUILD_KINDS" value="full,incremental,auto,clean"/>
 <stringAttribute key="org.eclipse.ui.externaltools.ATTR_TOOL_ARGUMENTS" value="-v"/>
