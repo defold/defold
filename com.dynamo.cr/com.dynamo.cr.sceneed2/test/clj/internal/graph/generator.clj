@@ -9,6 +9,20 @@
     (gen/frequency [[9 (gen/not-empty gen/string-alpha-numeric)] 
                     [1 (gen/return "A common name")]])))
 
+(defprotocol ProtocolA)
+(defprotocol ProtocolB)
+
+(deftype TypeA [] ProtocolA)
+(deftype TypeB [] ProtocolB)
+(deftype TypeAB [] ProtocolA ProtocolB)
+
+(def maybe-with-protocols
+  (gen/vector
+    (gen/frequency [[1 (gen/return {})]
+                    [1 (gen/return (TypeA.))]
+                    [1 (gen/return (TypeB.))]
+                    [1 (gen/return (TypeAB.))]])))
+
 (def max-node-count 40)
 (def min-arc-count  10)
 (def max-arc-count  50)
