@@ -33,6 +33,11 @@
     (update-in [:nodes] dissoc n)
     (update-in [:arcs] (fn [arcs] (remove #(or (= n (:source %))
                                                (= n (:target %))) arcs)))))
+
+(defn transform-node
+  [g n f & args]
+  (assert (node g n))
+  (update-in g [:nodes n] #(apply f % args)))
     
 (defn add-arc
   [g source source-attributes target target-attributes]

@@ -132,13 +132,19 @@
   (prop/for-all [g graph]
                 (arcs-are-reflexive g)))
 
+(deftest transformable
+  (let [g  (add-node (random-graph) {:number 0})
+        n  (last-node-added g)
+        g' (transform-node g n update-in [:number] inc)]
+    (is (not= g g'))
+    (is (= 1 (:number (node g' n))))
+    (is (= 0 (:number (node g n))))))
+
 (run-tests)
 
 
 
 ;; Cases still needed for the following actions:
-;- Delete node
-;- Apply a function to a node
 ;- Traverse arcs by label
 ;- Transactions
 
