@@ -33,6 +33,16 @@
                     matches)))]
       #(next graph (reduce rfn #{} candidates)))))
 
+
+(deftype NeighborsClause [dir-fn label]
+  Clause
+  (bind [this next graph candidates]
+    (let [rfn (fn [matches candidate-id]
+                (->> (dir-fn graph candidate-id label)
+                  (map first)
+                  (into matches)))]
+      #(next graph (reduce rfn #{} candidates)))))
+
 (defn- bomb
   [& info]
   (throw (ex-info (apply str info) {})))
@@ -44,13 +54,20 @@
       (ProtocolClause. prot)
       (bomb "Cannot resolve " (second clause)))))
 
+(defn- make-neighbors-clause 
+  [dir-fn label]
+  (NeighborsClause. dir-fn label))
+
 (defn- clause-instance
   [clause]
   (cond 
     (vector? clause)  (ScanningClause. (first clause) (second clause))
-    (list? clause)    (if (= 'protocol (first clause))
-                        (make-protocol-clause clause)
-                        (bomb "Unrecognized query function: " clause)) 
+    (list? clause)    (let [directive (first clause)]
+                        (cond 
+                         (= directive 'protocol) (make-protocol-clause clause)
+                         (= directive 'input)    (make-neighbors-clause sources (second clause))
+                         (= directive 'output)   (make-neighbors-clause targets (second clause))
+                         :else                   (bomb "Unrecognized query function: " clause))) 
     :else             (bomb "Unrecognized clause: " clause)))
 
 (defn- add-clause

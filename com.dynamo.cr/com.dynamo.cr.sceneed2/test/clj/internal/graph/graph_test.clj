@@ -140,8 +140,20 @@
     (is (= 1 (:number (node g' n))))
     (is (= 0 (:number (node g n))))))
 
-(run-tests)
+(defn- add-child
+  [g pnode cld-val]
+  (let [g' (add-labeled-node g #{} #{:parent} cld-val)]
+    (connect g' (last-node-added g') :parent pnode :children)))
 
+(deftest query-by-arc-label
+  (let [vs      #{"image1" "image2" "image3"}
+        g       (add-labeled-node (empty-graph) #{:children} #{:textureset} {:name "Atlas"})
+        p       (last-node-added g)
+        g       (for-graph g [n vs] (add-child g p {:name n}))
+        kids    (query g '[[:name "Atlas"] (input :children)])
+        parent  (query g '[[:name "image1"] (output :parent)])]
+    (is (= vs (into #{} (map #(:name (node g %)) kids))))
+    (is (= #{p} parent))))
 
 
 ;; Cases still needed for the following actions:
