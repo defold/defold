@@ -307,19 +307,23 @@ public class SpineScene {
             }
             final Map<String, Slot> slots = new HashMap<String, Slot>();
             int slotIndex = 0;
+            if (!node.has("slots")) {
+                return scene;
+            }
             Iterator<JsonNode> slotIt = node.get("slots").getElements();
             while (slotIt.hasNext()) {
                 JsonNode slotNode = slotIt.next();
                 String attachment = JsonUtil.get(slotNode, "attachment", (String)null);
-                if (attachment != null) {
-                    String boneName = slotNode.get("bone").asText();
-                    Bone bone = scene.getBone(boneName);
-                    if (bone == null) {
-                        throw new LoadException(String.format("The bone '%s' of attachment '%s' does not exist.", boneName, attachment));
-                    }
-                    slots.put(slotNode.get("name").asText(), new Slot(bone, slotIndex, attachment));
-                    ++slotIndex;
+                String boneName = slotNode.get("bone").asText();
+                Bone bone = scene.getBone(boneName);
+                if (bone == null) {
+                    throw new LoadException(String.format("The bone '%s' of attachment '%s' does not exist.", boneName, attachment));
                 }
+                slots.put(slotNode.get("name").asText(), new Slot(bone, slotIndex, attachment));
+                ++slotIndex;
+            }
+            if (!node.has("skins")) {
+                return scene;
             }
             Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
             while (skinIt.hasNext()) {
@@ -381,6 +385,9 @@ public class SpineScene {
                     scene.skins.put(skinName, meshes);
                 }
             }
+            if (!node.has("animations")) {
+                return scene;
+            }
             Iterator<Map.Entry<String, JsonNode>> animationIt = node.get("animations").getFields();
             while (animationIt.hasNext()) {
                 Map.Entry<String, JsonNode> entry = animationIt.next();
@@ -421,13 +428,16 @@ public class SpineScene {
                                 break;
                             }
                             if (keyNode.has("curve")) {
-                                AnimationCurve curve = new AnimationCurve();
-                                Iterator<JsonNode> curveIt = keyNode.get("curve").getElements();
-                                curve.x0 = (float)curveIt.next().asDouble();
-                                curve.y0 = (float)curveIt.next().asDouble();
-                                curve.x1 = (float)curveIt.next().asDouble();
-                                curve.y1 = (float)curveIt.next().asDouble();
-                                key.curve = curve;
+                                JsonNode curveNode = keyNode.get("curve");
+                                if (curveNode.isArray()) {
+                                    AnimationCurve curve = new AnimationCurve();
+                                    Iterator<JsonNode> curveIt = curveNode.getElements();
+                                    curve.x0 = (float)curveIt.next().asDouble();
+                                    curve.y0 = (float)curveIt.next().asDouble();
+                                    curve.x1 = (float)curveIt.next().asDouble();
+                                    curve.y1 = (float)curveIt.next().asDouble();
+                                    key.curve = curve;
+                                }
                             }
                             track.keys.add(key);
                         }

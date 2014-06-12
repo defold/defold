@@ -240,4 +240,24 @@ public class SpineSceneTest {
         assertEquals(3, animMulti.tracks.size());
         assertEquals(1.0, animMulti.duration, EPSILON);
     }
+
+    @Test
+    public void testEmptyScene() throws Exception {
+        InputStream input = getClass().getResourceAsStream("empty.json");
+        SpineScene scene = SpineScene.loadJson(input);
+        assertEquals(1, scene.bones.size());
+        assertEquals(0, scene.meshes.size());
+        assertEquals(0, scene.animations.size());
+    }
+
+    @Test
+    public void testSampleScenes() throws Exception {
+        for (int i = 1; i < 9; ++i) {
+            InputStream input = getClass().getResourceAsStream(String.format("sample%d.json", i));
+            SpineScene scene = SpineScene.loadJson(input);
+            assertTrue(0 < scene.bones.size());
+            assertTrue(0 < scene.meshes.size());
+            assertTrue(0 < scene.animations.size());
+        }
+    }
 }
