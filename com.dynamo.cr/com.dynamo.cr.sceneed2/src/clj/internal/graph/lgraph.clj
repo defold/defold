@@ -11,10 +11,30 @@
 (defn inputs [node]  (::inputs node))
 (defn outputs [node] (::outputs node))
 
+(defn arcs-from [g node]
+  (filter #(= node (:source %)) (:arcs g)))
+
+(defn arcs-to [g node]
+  (filter #(= node (:target %)) (:arcs g)))
+
+(defn targets [g node label]
+  (for [a     (arcs-from g node)
+        :when (= label (get-in a [:source-attributes :label]))]
+    [(:target a) (get-in a [:target-attributes :label])]))
+
+(defn sources [g node label]
+  (for [a     (arcs-to g node)
+        :when (= label (get-in a [:target-attributes :label]))]
+    [(:source a) (get-in a [:source-attributes :label])]))
+
 (defn connect 
   [g source source-label target target-label]
   (let [from (dg/node g source)
         to   (dg/node g target)]
-    (assert (some? #{source-label} (outputs from)))
-    (assert (some? #{target-label} (inputs to)))
+    (assert (some #{source-label} (outputs from)))
+    (assert (some #{target-label} (inputs to)))
     (dg/add-arc g source {:label source-label} target {:label target-label})))
+
+(defn disconnect
+  [g source source-label target target-label]
+  (dg/remove-arc g source {:label source-label} target {:label target-label}))

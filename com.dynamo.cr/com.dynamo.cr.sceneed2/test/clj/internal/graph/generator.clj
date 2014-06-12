@@ -23,7 +23,8 @@
                     [1 (gen/return (TypeB.))]
                     [1 (gen/return (TypeAB.))]])))
 
-(def max-node-count 40)
+(def min-node-count 20)
+(def max-node-count 80)
 (def min-arc-count  10)
 (def max-arc-count  50)
 
@@ -43,29 +44,61 @@
 
 (defn arcs
   [g]
-  (pair (graph-endpoints g lg/inputs) (graph-endpoints g lg/outputs)))
+  (when (or (empty? (graph-endpoints g lg/outputs) ) (empty? (graph-endpoints g lg/inputs)))
+    (prn "empty collection of endpoints on " g))
+  (pair (graph-endpoints g lg/outputs) (graph-endpoints g lg/inputs)))
+
+(defn selected-nodes
+  [g]
+  (gen/not-empty (gen/vector (gen/elements (g/node-ids g)))))
 
 (def nodes (gen/fmap (partial apply node)
-                     (gen/tuple (gen/such-that not-empty (gen/vector labels)) 
-                                (gen/such-that not-empty (gen/vector labels)))))
+                     (gen/tuple (gen/not-empty (gen/vector labels)) 
+                                (gen/not-empty (gen/vector labels)))))
 
-(defn add-arcs
+(defn- add-arcs
   [g arcs]
-  (reduce (fn [g arc]
-            (apply g/add-arc g (flatten arc)))
-          g arcs))
+  (for-graph g [a arcs]
+             (apply lg/connect g (flatten a))))
 
-(defn build-graph
-  [nodes]
-  (reduce (fn [g v]
-            (lg/add-labeled-node g (:inputs v) (:outputs v) {})) 
-          (g/empty-graph) 
-          nodes))
+(defn- remove-arcs
+  [g arcs]
+  (for-graph g [a arcs]
+             (apply lg/disconnect g (flatten a))))
 
-(def disconnected-graph (gen/bind (gen/resize max-node-count gen/s-pos-int)
-                                  (fn [node-count]
-                                    (gen/fmap build-graph (gen/vector nodes 1 node-count)))))
+(defn populate-graph
+  [g nodes]
+  (for-graph g [n nodes]
+             (lg/add-labeled-node g (:inputs n) (:outputs n) {})))
 
-(def graph (gen/bind disconnected-graph
-                     (fn [g] (gen/fmap (partial add-arcs g) 
-                                       (gen/vector (arcs g) min-arc-count max-arc-count)))))
+(defn remove-nodes
+  [g nodes]
+  (for-graph g [n nodes]
+             (g/remove-node g n)))
+
+(def disconnected-graph
+  (gen/bind (gen/resize max-node-count gen/s-pos-int)
+            (fn [node-count]
+              (gen/fmap #(populate-graph (g/empty-graph) %) (gen/vector nodes min-node-count max-node-count)))))
+
+(def connected-graph
+  (gen/bind disconnected-graph
+            (fn [g]
+              (gen/fmap (partial add-arcs g) 
+                        (gen/vector (arcs g) min-arc-count max-arc-count)))))
+
+
+(def decimated-graph
+  (gen/bind connected-graph
+            (fn [g]
+              (gen/fmap (partial remove-nodes g) 
+                        (gen/resize (/ (count (g/node-ids g)) 4) (selected-nodes g))))))
+
+(def graph
+  (gen/bind decimated-graph
+            (fn [g]
+              (gen/fmap (partial remove-arcs g)
+                        (gen/vector (arcs g) min-arc-count (/ max-arc-count 2))))))
+
+;(first (gen/sample (gen/resize 100 graph) 1))
+;(gen/sample (selected-nodes (first (gen/sample (gen/resize 50 connected-graph) 1))) 10)

@@ -5,6 +5,7 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
             [internal.graph.dgraph :refer :all]
+            [internal.graph.lgraph :refer :all]
             [internal.graph.generator :refer [graph names-with-repeats maybe-with-protocols ProtocolA ProtocolB]]
             [internal.graph.query :refer :all]))
 
@@ -12,7 +13,8 @@
   (vals (frequencies coll)))
 
 (defn with-nodes [g vs]
-  (reduce (fn [g v] (add-node g v)) g vs))
+  (for-graph g [v vs]
+             (add-node g v)))
 
 (defn with-extra-names [g ns]
   (with-nodes g (map (fn [n] {:name n}) ns)))
@@ -31,6 +33,13 @@
   100
   (prop/for-all [g graph]
                 (= 1 (apply max (occurrences (node-ids g))))))
+
+(defspec no-dangling-arcs
+  50
+  (prop/for-all [g graph]
+                (every? #(and (node g (:source %)) 
+                              (node g (:target %)))
+                        (arcs g))))
 
 ;- Instantiate node
 
@@ -64,6 +73,8 @@
   (= (count-protocols prots vs)           
      (times-found g (mapv #(list 'protocol %) prots))))
 
+;- Query for nodes matching criteria (satisfies a protocol or set of protocols, matches properties)
+
 (defspec query-by-protocol
   100
   (prop/for-all [vs maybe-with-protocols
@@ -73,22 +84,18 @@
                        (protocol-count-correct? vs g ProtocolB)
                        (protocol-count-correct? vs g ProtocolA ProtocolB)))))
 
-
-;; Given a graph that has a named node
-;;  when I try to create a node with the same name
-;;  then I can discover the node's unique identifier
-;;   and I can look up the node by its name
-;;   and I can look up the node by its identifier
-
-;- Query for nodes matching criteria (satisfies a protocol or set of protocols, matches properties)
-
-;; Given a graph with multiple nodes having the same name
-;;  when I look up the nodes' name
-;;  then I get a collection of nodes with that name
-
-;; Given a populated graph
-;;  when I query for nodes that match some criteria 
-;;  then I get a possibly empty collection of all nodes matching those criteria
+(defn- arcs-are-reflexive
+  [g]
+  (and (every? #(= true %)
+               (for [source       (node-ids g)
+                     source-label (outputs source)
+                     [target target-label] (targets g source source-label)]
+                 (some #(= % [source source-label]) (sources g target target-label))))
+       (every? #(= true %)
+               (for [target       (node-ids g)
+                     target-label (inputs target)
+                     [source source-label] (sources g target target-label)]
+                 (some #(= % [target target-label]) (targets g source source-label))))))
 
 ;; Given a graph with a node A with an output label "x"
 ;;   and a node B with an input label "y"
@@ -119,6 +126,14 @@
 ;;   and a connection from x to y
 ;;  when I remove A from the graph
 ;;  then x no longer appears in B's "y" input
+
+
+(defspec reflexivity
+  (prop/for-all [g graph]
+                (arcs-are-reflexive g)))
+
+(run-tests)
+
 
 
 ;; Cases still needed for the following actions:
