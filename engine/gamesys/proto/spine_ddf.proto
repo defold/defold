@@ -1,0 +1,25 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.spine.proto";
+option java_outer_classname = "Spine";
+
+message SpineModelDesc
+{
+    enum BlendMode
+    {
+        BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
+        BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
+        BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
+    }
+
+    required string spine_scene         = 1 [(resource)=true];
+    required string atlas               = 2 [(resource)=true];
+    required string default_animation   = 3;
+    required string skin                = 4;
+    optional BlendMode blend_mode       = 5 [default = BLEND_MODE_ALPHA];
+    optional float sample_rate          = 6 [default = 30.0];
+    optional string material            = 7 [(resource)=true, default="/builtins/materials/sprite.material"];
+}

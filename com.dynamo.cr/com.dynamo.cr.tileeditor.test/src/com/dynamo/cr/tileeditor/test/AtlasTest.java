@@ -38,12 +38,6 @@ public class AtlasTest extends AbstractNodeTest {
     @Override
     @Before
     public void setup() throws CoreException, IOException {
-        // Avoid hang when running unit-test on Mac OSX
-        // Related to SWT and threads?
-        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
-            Display.getDefault();
-        }
-
         super.setup();
 
         this.loader = new AtlasLoader();

@@ -9,11 +9,10 @@
    <launcherArgs>
       <programArgsLin>-vm
 ./jre/bin</programArgsLin>
-      <programArgsWin>-vm
-jre\bin\javaw.exe</programArgsWin>
       <programArgsMac>-vm
 ../../../jre/Contents/Home/bin/java</programArgsMac>
-
+      <programArgsWin>-vm
+jre\bin\javaw.exe</programArgsWin>
       <vmArgs>-Declipse.p2.unsignedPolicy=allow -Dsun.net.client.defaultReadTimeout=30000 -XX:MaxPermSize=128M -Xmx1200M -Djogl.texture.notexrect=true</vmArgs>
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
    </launcherArgs>
@@ -58,6 +57,7 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="com.dynamo.cr.protobind"/>
       <plugin id="com.dynamo.cr.rlog"/>
       <plugin id="com.dynamo.cr.sceneed"/>
+      <plugin id="com.dynamo.cr.spine"/>
       <plugin id="com.dynamo.cr.target"/>
       <plugin id="com.dynamo.cr.tileeditor"/>
       <plugin id="com.google.common"/>
@@ -158,9 +158,9 @@ jre\bin\javaw.exe</programArgsWin>
    <configurations>
       <plugin id="org.eclipse.core.runtime" autoStart="true" startLevel="0" />
       <plugin id="org.eclipse.equinox.ds" autoStart="true" startLevel="2" />
-      <property name="defold.version" value="1.2.37" />
-      <property name="defold.sha1" value="0000000000000000000000000000000000000000" />
       <property name="defold.channel" value="stable" />
+      <property name="defold.sha1" value="0000000000000000000000000000000000000000" />
+      <property name="defold.version" value="1.2.37" />
    </configurations>
 
 </product>

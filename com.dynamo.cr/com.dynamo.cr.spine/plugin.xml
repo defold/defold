@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            embeddable="true"
+            file-extension="spinemodel"
+            id="com.dynamo.cr.spine.resourcetypes.spinemodel"
+            name="SpineModel"
+            proto-message-class="com.dynamo.spine.proto.Spine$SpineModelDesc"
+            resource-refactor-participant-class="com.dynamo.cr.spine.core.refactoring.SpineModelRefactorParticipant"
+            template-data="spine_scene: &quot;&quot; atlas: &quot;&quot; default_animation: &quot;&quot; skin: &quot;&quot;"
+            type-class="component">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.Atlas">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.spine.resourcetypes.spine">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Material">
+            </reference-resource-type>
+         </references>
+      </resource-type>
+      <resource-type
+            file-extension="json"
+            id="com.dynamo.cr.spine.resourcetypes.spine"
+            name="SpineScene"
+            type-class="spine">
+      </resource-type>
+   </extension>
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            class="com.dynamo.cr.sceneed.ui.SceneEditor"
+            contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
+            default="false"
+            extensions="spinemodel"
+            icon="icons/chart_curve.png"
+            id="com.dynamo.cr.spine.editor"
+            name="Spine Editor">
+      </editor>
+   </extension>
+   <extension
+         point="org.eclipse.ui.newWizards">
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.spine.wizards.SpineNewWizard"
+            icon="icons/chart_curve.png"
+            id="com.dynamo.cr.spine.wizards.spineNewWizard"
+            name="Spine Model File">
+      </wizard>
+   </extension>
+   <extension
+         point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension
+            targetID="*">
+         <newWizardShortcut
+               id="com.dynamo.cr.spine.wizards.spineNewWizard">
+         </newWizardShortcut>
+      </perspectiveExtension>
+   </extension>
+   <extension
+         point="com.dynamo.cr.nodetypes">
+      <node-type
+            display-group="Spine"
+            id="com.dynamo.cr.spine.scene.spineModelNode"
+            loader="com.dynamo.cr.spine.scene.SpineModelLoader"
+            node="com.dynamo.cr.spine.scene.SpineModelNode"
+            resource-type="com.dynamo.cr.spine.resourcetypes.spinemodel">
+      </node-type>
+   </extension>
+   <extension
+         point="org.eclipse.ui.navigator.navigatorContent">
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.spine.wizards.spineNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+   </extension>
+
+</plugin>
