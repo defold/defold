@@ -9,5 +9,17 @@
 	<classpathentry exported="true" kind="lib" path="bin" sourcepath="bin"/>
 	<classpathentry exported="true" kind="lib" path="lib/clojure-1.6.0.jar" sourcepath="lib/clojure-1.6.0-sources.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/tools.nrepl-0.2.3.jar" sourcepath="lib/tools.nrepl-0.2.3-sources.jar"/>
+	<classpathentry kind="lib" path="lib/asm-all-4.1.jar"/>
+	<classpathentry kind="lib" path="lib/core.cache-0.6.3.jar"/>
+	<classpathentry kind="lib" path="lib/core.contracts-0.0.4.jar"/>
+	<classpathentry kind="lib" path="lib/core.memoize-0.5.6.jar"/>
+	<classpathentry kind="lib" path="lib/core.unify-0.5.3.jar"/>
+	<classpathentry kind="lib" path="lib/data.priority-map-0.0.4.jar"/>
+	<classpathentry kind="lib" path="lib/jvm.tools.analyzer-0.6.1.jar"/>
+	<classpathentry kind="lib" path="lib/math.combinatorics-0.0.2.jar"/>
+	<classpathentry kind="lib" path="lib/tools.analyzer-0.1.0-beta13.jar"/>
+	<classpathentry kind="lib" path="lib/tools.analyzer.jvm-0.1.0-beta13.jar"/>
+	<classpathentry kind="lib" path="lib/tools.namespace-0.2.4.jar"/>
+	<classpathentry kind="lib" path="lib/tools.reader-0.8.3.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
