@@ -9,6 +9,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import javax.vecmath.Point2d;
+import javax.vecmath.Vector2d;
+
 import org.apache.commons.lang3.Pair;
 
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
@@ -71,6 +74,32 @@ public class TextureSetGenerator {
         public void rewind();
     }
 
+    public static class UVTransform {
+        public Point2d translation = new Point2d();
+        public Vector2d scale = new Vector2d();
+
+        public UVTransform() {
+            this.translation.set(0.0, 0.0);
+            this.scale.set(1.0, 1.0);
+        }
+
+        public UVTransform(Point2d translation, Vector2d scale) {
+            this.translation.set(translation);
+            this.scale.set(scale);
+        }
+
+        public void apply(Point2d p) {
+            p.set(p.x * this.scale.x, p.y * this.scale.y);
+            p.add(this.translation);
+        }
+    }
+
+    public static class TextureSetResult {
+        public TextureSet.Builder builder;
+        public BufferedImage image;
+        public List<UVTransform> uvTransforms;
+    }
+
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
      *
@@ -86,7 +115,7 @@ public class TextureSetGenerator {
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
-    public static Pair<TextureSet.Builder, BufferedImage> generate(List<BufferedImage> images, AnimIterator iterator,
+    public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
             int margin, int extrudeBorders, boolean genOutlines) {
 
         images = extrudeBorders(images, extrudeBorders);
@@ -97,9 +126,13 @@ public class TextureSetGenerator {
 
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
-        TextureSet.Builder textureSet = genVertexData(image, rects, iterator, genOutlines);
+        Pair<TextureSet.Builder, List<UVTransform>> textureSet = genVertexData(image, rects, iterator, genOutlines);
 
-        return new Pair<TextureSetProto.TextureSet.Builder, BufferedImage>(textureSet, image);
+        TextureSetResult result = new TextureSetResult();
+        result.builder = textureSet.left;
+        result.uvTransforms = textureSet.right;
+        result.image = image;
+        return result;
     }
 
     private static List<BufferedImage> extrudeBorders(List<BufferedImage> images, int amount) {
@@ -150,9 +183,14 @@ public class TextureSetGenerator {
         return result;
     }
 
-    private static TextureSet.Builder genVertexData(BufferedImage image, List<Rect> rects, AnimIterator iterator,
+    private static UVTransform genUVTransform(Rect r, float xs, float ys) {
+        return new UVTransform(new Point2d(r.x * xs, r.y * ys), new Vector2d(xs * r.width, ys * r.height));
+    }
+
+    private static Pair<TextureSet.Builder, List<UVTransform>> genVertexData(BufferedImage image, List<Rect> rects, AnimIterator iterator,
             boolean genOutlines) {
         TextureSet.Builder textureSet = TextureSet.newBuilder();
+        List<UVTransform> uvTransforms = new ArrayList<UVTransform>();
 
         int tileCount = rects.size();
         textureSet.setTileCount(tileCount);
@@ -193,6 +231,8 @@ public class TextureSetGenerator {
                 textureSet.addOutlineVertexCount(outlineVertexCount);
             }
 
+            uvTransforms.add(genUVTransform(r, xs, ys));
+
             ++quadIndex;
         }
 
@@ -215,6 +255,8 @@ public class TextureSetGenerator {
                     textureSet.addOutlineVertexStart(quadIndex * outlineVertexCount);
                     textureSet.addOutlineVertexCount(outlineVertexCount);
                 }
+
+                uvTransforms.add(genUVTransform(r, xs, ys));
 
                 ++quadIndex;
             }
@@ -245,7 +287,7 @@ public class TextureSetGenerator {
         } else {
             textureSet.setOutlineVertices(ByteString.EMPTY);
         }
-        return textureSet;
+        return new Pair<TextureSet.Builder, List<UVTransform>>(textureSet, uvTransforms);
     }
 
     private static short toShortUV(float fuv) {
@@ -288,5 +330,6 @@ public class TextureSetGenerator {
         texCoordsBuffer.putFloat(y0 * ys);
         texCoordsBuffer.putFloat(x1 * xs);
         texCoordsBuffer.putFloat(y1 * ys);
+
     }
 }

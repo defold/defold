@@ -11,6 +11,7 @@ import org.eclipse.core.resources.IFile;
 import com.dynamo.bob.pipeline.AtlasBuilder;
 import com.dynamo.bob.pipeline.AtlasBuilder.MappedAnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator;
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.cr.properties.GreaterEqualThanZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.AABB;
@@ -144,15 +145,15 @@ public class AtlasNode extends TextureSetNode {
 
             if (ok) {
                 MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
-                Pair<Builder, BufferedImage> pair = TextureSetGenerator.generate(images, iterator,
+                TextureSetResult result = TextureSetGenerator.generate(images, iterator,
  Math.max(0, margin),
                         Math.max(0, extrudeBorders), true);
-                TextureSet textureSet = pair.left.setTexture("").build();
-                runtimeTextureSet.update(textureSet);
+                TextureSet textureSet = result.builder.setTexture("").build();
+                runtimeTextureSet.update(textureSet, result.uvTransforms);
 
                 AABB aabb = new AABB();
                 aabb.union(0, 0, 0);
-                BufferedImage image = pair.right;
+                BufferedImage image = result.image;
                 aabb.union(image.getWidth(), image.getHeight(), 0);
                 this.textureHandle.setImage(image);
                 setAABB(aabb);

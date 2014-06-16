@@ -56,7 +56,7 @@ public class SpineModelTest extends AbstractNodeTest {
             registerLoadedNode(path, atlas);
         }
 
-        this.spineModelNode = registerAndLoadRoot(SpineModelNode.class, "spine", this.loader);
+        this.spineModelNode = registerAndLoadRoot(SpineModelNode.class, "spinemodel", this.loader);
     }
 
     // Helpers
@@ -152,6 +152,10 @@ public class SpineModelTest extends AbstractNodeTest {
         registerFile("/test.test", "");
         setProperty("atlas", "/test.test");
         assertPropertyStatus("atlas", IStatus.ERROR, Messages.SpineModelNode_atlas_CONTENT_ERROR);
+
+        setProperty("spineScene", "/skeleton.json");
+        setProperty("atlas", "/empty.atlas");
+        assertPropertyStatus("atlas", IStatus.ERROR, NLS.bind(Messages.SpineModelNode_atlas_MISSING_ANIMS, "test_sprite"));
 
         setProperty("spineScene", "/empty.json");
         setProperty("defaultAnimation", "test");

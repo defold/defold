@@ -10,7 +10,6 @@ import java.util.List;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.Pair;
 
 import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
@@ -24,8 +23,8 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.textureset.proto.TextureSetProto;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile.Playback;
 
@@ -182,16 +181,16 @@ public class AtlasBuilder extends Builder<Void>  {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
 
-        Pair<TextureSetProto.TextureSet.Builder, BufferedImage> pair = TextureSetGenerator.generate(images, iterator,
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator,
                 Math.max(0, atlas.getMargin()), Math.max(0, atlas.getExtrudeBorders()), false);
 
         int buildDirLen = project.getBuildDirectory().length();
         String texturePath = task.output(1).getPath().substring(buildDirLen);
-        TextureSet textureSet = pair.left.setTexture(texturePath).build();
+        TextureSet textureSet = result.builder.setTexture(texturePath).build();
 
         TextureImage texture;
         try {
-            texture = TextureGenerator.generate(pair.right);
+            texture = TextureGenerator.generate(result.image);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(),
                     e);

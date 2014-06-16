@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.vecmath.AxisAngle4d;
+import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -23,6 +24,7 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
+import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.SpineScene.AnimationTrack.Property;
 
 /**
@@ -36,6 +38,10 @@ public class SpineScene {
         public LoadException(String msg) {
             super(msg);
         }
+    }
+
+    public interface UVTransformProvider {
+        UVTransform getUVTransform(String animId);
     }
 
     public static class Transform {
@@ -295,7 +301,7 @@ public class SpineScene {
         mesh.triangles = ArrayUtils.toPrimitive(triangles.toArray(new Integer[triangles.size()]));
     }
 
-    public static SpineScene loadJson(InputStream is) throws LoadException {
+    public static SpineScene loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
         SpineScene scene = new SpineScene();
         ObjectMapper m = new ObjectMapper();
         try {
@@ -367,6 +373,7 @@ public class SpineScene {
                             }
                             // Silently ignore unsupported types
                             if (mesh != null) {
+                                transformUvs(mesh, uvTransformProvider);
                                 meshes.add(mesh);
                             }
                         }
@@ -456,6 +463,23 @@ public class SpineScene {
             throw new LoadException(e.getMessage());
         } catch (IOException e) {
             throw new LoadException(e.getMessage());
+        }
+    }
+
+    private static void transformUvs(Mesh mesh, UVTransformProvider uvTransformProvider) throws LoadException {
+        UVTransform t = uvTransformProvider.getUVTransform(mesh.path);
+        if (t == null) {
+            // default to identity
+            t = new UVTransform();
+        }
+        int vertexCount = mesh.vertices.length / 5;
+        Point2d p = new Point2d();
+        for (int i = 0; i < vertexCount; ++i) {
+            int uvi = i*5+3;
+            p.set(mesh.vertices[uvi+0] * t.scale.x, mesh.vertices[uvi+1] * t.scale.y);
+            p.add(t.translation);
+            mesh.vertices[uvi+0] = (float)p.x;
+            mesh.vertices[uvi+1] = (float)p.y;
         }
     }
 

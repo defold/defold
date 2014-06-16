@@ -1,8 +1,14 @@
 package com.dynamo.cr.spine.scene;
 
 import java.io.InputStream;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -11,19 +17,26 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 
+import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.SpineScene;
 import com.dynamo.bob.util.SpineScene.Bone;
+import com.dynamo.bob.util.SpineScene.Mesh;
+import com.dynamo.bob.util.SpineScene.UVTransformProvider;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Resource;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
+import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.cr.spine.Activator;
+import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.spine.proto.Spine.SpineModelDesc.BlendMode;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 
 @SuppressWarnings("serial")
 public class SpineModelNode extends ComponentTypeNode {
@@ -62,12 +75,18 @@ public class SpineModelNode extends ComponentTypeNode {
     @GreaterThanZero
     private float sampleRate = 30.0f;
 
+    private transient CompositeMesh mesh = new CompositeMesh();
+
     @Override
     public void dispose() {
         super.dispose();
         if (this.textureSetNode != null) {
             this.textureSetNode.dispose();
         }
+    }
+
+    public CompositeMesh getCompositeMesh() {
+        return this.mesh;
     }
 
     public String getSpineScene() {
@@ -89,6 +108,7 @@ public class SpineModelNode extends ComponentTypeNode {
         if (!this.atlas.equals(atlas)) {
             this.atlas = atlas;
             reloadAtlas();
+            reloadSpineScene();
         }
     }
 
@@ -98,6 +118,32 @@ public class SpineModelNode extends ComponentTypeNode {
             IStatus status = this.textureSetNode.getStatus();
             if (!status.isOK()) {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpineModelNode_atlas_INVALID_REFERENCE);
+            }
+            if (this.scene != null) {
+                List<Mesh> meshes = this.scene.meshes;
+                if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
+                    meshes = this.scene.skins.get(this.skin);
+                }
+                RuntimeTextureSet runtimeTextureSet = this.textureSetNode.getRuntimeTextureSet();
+                if (runtimeTextureSet != null) {
+                    Set<String> missingAnims = new HashSet<String>();
+                    for (Mesh mesh : meshes) {
+                        if (runtimeTextureSet.getAnimation(mesh.path) == null) {
+                            missingAnims.add(mesh.path);
+                        }
+                    }
+                    if (!missingAnims.isEmpty()) {
+                        StringBuilder builder = new StringBuilder();
+                        Iterator<String> it = missingAnims.iterator();
+                        while (it.hasNext()) {
+                            builder.append(it.next());
+                            if (it.hasNext()) {
+                                builder.append(", ");
+                            }
+                        }
+                        return new Status(IStatus.ERROR, Activator.PLUGIN_ID, NLS.bind(Messages.SpineModelNode_atlas_MISSING_ANIMS, builder.toString()));
+                    }
+                }
             }
         } else if (!this.atlas.isEmpty()) {
             return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpineModelNode_atlas_CONTENT_ERROR);
@@ -125,7 +171,19 @@ public class SpineModelNode extends ComponentTypeNode {
     }
 
     private void updateAABB() {
-        // TODO: fix as part of rendering DEF-238
+        AABB aabb = new AABB();
+        aabb.setIdentity();
+        if (this.scene != null) {
+            for (Mesh mesh : this.scene.meshes) {
+                float[] v = mesh.vertices;
+                int vertexCount = v.length / 5;
+                for (int i = 0; i < vertexCount; ++i) {
+                    int vi = i * 5;
+                    aabb.union(v[vi+0], v[vi+1], v[vi+2]);
+                }
+            }
+        }
+        setAABB(aabb);
     }
 
     public IStatus validateDefaultAnimation() {
@@ -171,6 +229,10 @@ public class SpineModelNode extends ComponentTypeNode {
         return this.textureSetNode;
     }
 
+    public SpineScene getScene() {
+        return this.scene;
+    }
+
     public String getMaterial() {
         return this.material;
     }
@@ -208,22 +270,14 @@ public class SpineModelNode extends ComponentTypeNode {
     public void setModel(ISceneModel model) {
         super.setModel(model);
         if (model != null && this.textureSetNode == null) {
-            reloadSpineScene();
             reloadAtlas();
+            reloadSpineScene();
         }
     }
 
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
-        if (!this.spineScene.isEmpty()) {
-            IFile spineSceneFile = getModel().getFile(this.spineScene);
-            if (spineSceneFile.exists() && spineSceneFile.equals(file)) {
-                if (reloadSpineScene()) {
-                    reloaded = true;
-                }
-            }
-        }
         if (!this.atlas.isEmpty()) {
             IFile atlasFile = getModel().getFile(this.atlas);
             if (atlasFile.exists() && atlasFile.equals(file)) {
@@ -233,6 +287,14 @@ public class SpineModelNode extends ComponentTypeNode {
             }
             if (this.textureSetNode != null) {
                 if (this.textureSetNode.handleReload(file, childWasReloaded)) {
+                    reloaded = true;
+                }
+            }
+        }
+        if (!this.spineScene.isEmpty()) {
+            IFile spineSceneFile = getModel().getFile(this.spineScene);
+            if (spineSceneFile.exists() && spineSceneFile.equals(file)) {
+                if (reloadSpineScene()) {
                     reloaded = true;
                 }
             }
@@ -282,20 +344,53 @@ public class SpineModelNode extends ComponentTypeNode {
         }
     }
 
+    private void updateMesh() {
+        if (this.scene == null || this.textureSetNode == null) {
+            return;
+        }
+        RuntimeTextureSet ts = this.textureSetNode.getRuntimeTextureSet();
+        if (ts == null) {
+            return;
+        }
+        List<Mesh> meshes = this.scene.meshes;
+        if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
+            meshes = this.scene.skins.get(this.skin);
+        }
+        this.mesh.update(meshes, ts);
+    }
+
+    private static class TransformProvider implements UVTransformProvider {
+        RuntimeTextureSet textureSet;
+
+        public TransformProvider(RuntimeTextureSet textureSet) {
+            this.textureSet = textureSet;
+        }
+
+        @Override
+        public UVTransform getUVTransform(String animId) {
+            TextureSetAnimation anim = this.textureSet.getAnimation(animId);
+            if (anim != null) {
+                return this.textureSet.getUvTransform(anim, 0);
+            }
+            return null;
+        }
+    }
+
     private boolean reloadSpineScene() {
         ISceneModel model = getModel();
         if (model != null) {
             this.scene = null;
-            if (!this.spineScene.isEmpty()) {
+            if (this.textureSetNode != null && this.textureSetNode.getRuntimeTextureSet() != null && !this.spineScene.isEmpty()) {
                 IFile spineSceneFile = model.getFile(this.spineScene);
                 try {
                     InputStream in = spineSceneFile.getContents();
-                    this.scene = SpineScene.loadJson(in);
+                    this.scene = SpineScene.loadJson(in, new TransformProvider(this.textureSetNode.getRuntimeTextureSet()));
                     updateStatus();
                 } catch (Exception e) {
                     // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
                 }
             }
+            updateMesh();
             updateAABB();
             rebuildBoneHierarchy();
             // attempted to reload
@@ -320,6 +415,7 @@ public class SpineModelNode extends ComponentTypeNode {
                     // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
                 }
             }
+            updateMesh();
             updateAABB();
             // attempted to reload
             return true;

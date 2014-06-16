@@ -1,0 +1,137 @@
+package com.dynamo.cr.spine.scene;
+
+import java.io.IOException;
+import java.util.EnumSet;
+import java.util.List;
+
+import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
+import javax.vecmath.Point3d;
+
+import com.dynamo.bob.util.SpineScene;
+import com.dynamo.bob.util.SpineScene.Mesh;
+import com.dynamo.cr.sceneed.core.INodeRenderer;
+import com.dynamo.cr.sceneed.core.RenderContext;
+import com.dynamo.cr.sceneed.core.RenderContext.Pass;
+import com.dynamo.cr.sceneed.core.RenderData;
+import com.dynamo.cr.sceneed.ui.util.Shader;
+import com.dynamo.cr.spine.Activator;
+import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
+import com.dynamo.cr.tileeditor.scene.TextureSetNode;
+import com.jogamp.opengl.util.texture.Texture;
+
+public class SpineModelRenderer implements INodeRenderer<SpineModelNode> {
+
+    private static final float COLOR[] = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.TRANSPARENT, Pass.SELECTION);
+    private Shader spriteShader;
+    private Shader lineShader;
+
+    @Override
+    public void dispose(GL2 gl) {
+        if (this.spriteShader != null) {
+            this.spriteShader.dispose(gl);
+        }
+        if (this.lineShader != null) {
+            this.lineShader.dispose(gl);
+        }
+    }
+
+    private static Shader loadShader(GL2 gl, String path) {
+        Shader shader = new Shader(gl);
+        try {
+            shader.load(gl, Activator.getDefault().getBundle(), path);
+        } catch (IOException e) {
+            shader.dispose(gl);
+            throw new IllegalStateException(e);
+        }
+        return shader;
+    }
+
+    private boolean shouldRender(GL2 gl, SpineModelNode node) {
+        SpineScene scene = node.getScene();
+        if (scene == null) {
+            return false;
+        }
+        TextureSetNode textureSet = node.getTextureSetNode();
+        if (textureSet == null || textureSet.getTextureHandle().getTexture(gl) == null) {
+            return false;
+        }
+        RuntimeTextureSet runtimeTextureSet = textureSet.getRuntimeTextureSet();
+        if (runtimeTextureSet == null) {
+            return false;
+        }
+        List<Mesh> meshes = scene.meshes;
+        String skin = node.getSkin();
+        if (!skin.isEmpty() && scene.skins.containsKey(skin)) {
+            meshes = scene.skins.get(node.getSkin());
+        }
+        for (Mesh mesh : meshes) {
+            if (runtimeTextureSet.getAnimation(mesh.path) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void setup(RenderContext renderContext, SpineModelNode node) {
+        GL2 gl = renderContext.getGL();
+        if (this.spriteShader == null) {
+            this.spriteShader = loadShader(gl, "/content/pos_uv");
+        }
+        if (this.lineShader == null) {
+            this.lineShader = loadShader(gl, "/content/line");
+        }
+
+        if (passes.contains(renderContext.getPass())) {
+            if (shouldRender(gl, node)) {
+                renderContext.add(this, node, new Point3d(), null);
+            }
+        }
+    }
+
+    @Override
+    public void render(RenderContext renderContext, SpineModelNode node,
+            RenderData<SpineModelNode> renderData) {
+        GL2 gl = renderContext.getGL();
+        TextureSetNode textureSet = node.getTextureSetNode();
+        Texture texture = textureSet.getTextureHandle().getTexture(gl);
+
+        boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
+        if (transparent) {
+            texture.bind(gl);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
+            texture.enable(gl);
+
+            switch (node.getBlendMode()) {
+            case BLEND_MODE_ALPHA:
+                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+                break;
+            case BLEND_MODE_ADD:
+                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
+                break;
+            case BLEND_MODE_MULT:
+                gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
+                break;
+            }
+        }
+
+        Shader shader = null;
+
+        if (transparent) {
+            shader = spriteShader;
+        } else {
+            shader = lineShader;
+        }
+        node.getCompositeMesh().draw(gl, shader, renderContext.selectColor(node, COLOR));
+        if (transparent) {
+            texture.disable(gl);
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+        }
+    }
+
+}

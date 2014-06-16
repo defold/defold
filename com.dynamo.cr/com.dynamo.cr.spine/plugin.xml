@@ -69,6 +69,7 @@
             id="com.dynamo.cr.spine.scene.spineModelNode"
             loader="com.dynamo.cr.spine.scene.SpineModelLoader"
             node="com.dynamo.cr.spine.scene.SpineModelNode"
+            renderer="com.dynamo.cr.spine.scene.SpineModelRenderer"
             resource-type="com.dynamo.cr.spine.resourcetypes.spinemodel">
       </node-type>
    </extension>

@@ -10,6 +10,7 @@ public class Messages extends NLS {
     // Spine Model
     public static String SpineModelNode_atlas_INVALID_REFERENCE;
     public static String SpineModelNode_atlas_CONTENT_ERROR;
+    public static String SpineModelNode_atlas_MISSING_ANIMS;
     public static String SpineModelNode_defaultAnimation_INVALID;
     public static String SpineModelNode_skin_INVALID;
 

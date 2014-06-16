@@ -3,20 +3,16 @@ package com.dynamo.bob.test.util;
 import static org.junit.Assert.*;
 
 import java.io.InputStream;
-import java.util.Arrays;
-
+import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
+import javax.vecmath.Vector2d;
 import javax.vecmath.Vector3d;
 
-import org.junit.Assert;
 import org.junit.Test;
-import org.junit.matchers.JUnitMatchers;
-import org.junit.runner.JUnitCore;
-import org.junit.runners.JUnit4;
-
+import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.SpineScene;
 import com.dynamo.bob.util.SpineScene.Animation;
 import com.dynamo.bob.util.SpineScene.AnimationCurve;
@@ -25,9 +21,17 @@ import com.dynamo.bob.util.SpineScene.AnimationTrack.Property;
 import com.dynamo.bob.util.SpineScene.Bone;
 import com.dynamo.bob.util.SpineScene.Mesh;
 import com.dynamo.bob.util.SpineScene.Transform;
+import com.dynamo.bob.util.SpineScene.UVTransformProvider;
 
 public class SpineSceneTest {
     private static final double EPSILON = 0.000001;
+
+    private static class TestUVTProvider implements UVTransformProvider {
+        @Override
+        public UVTransform getUVTransform(String animId) {
+            return new UVTransform(new Point2d(0.0, 0.0), new Vector2d(0.5, 1.0));
+        }
+    }
 
     private static void assertTuple3(double x, double y, double z, Tuple3d t) {
         assertEquals(x, t.x, EPSILON);
@@ -116,7 +120,7 @@ public class SpineSceneTest {
 
     private SpineScene load() throws Exception {
         InputStream input = getClass().getResourceAsStream("skeleton.json");
-        return SpineScene.loadJson(input);
+        return SpineScene.loadJson(input, new TestUVTProvider());
     }
 
     @Test
@@ -161,8 +165,8 @@ public class SpineSceneTest {
         assertFloatArrays(new float[] {
                 100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
                 100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
-                300.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-                300.0f, 100.0f, 0.0f, 1.0f, 0.0f,
+                300.0f, 0.0f, 0.0f, 0.5f, 1.0f,
+                300.0f, 100.0f, 0.0f, 0.5f, 0.0f,
         }, rootMeshRegion.vertices);
         assertIntArrays(new int[] {
                 0, 1, 2,
@@ -171,10 +175,10 @@ public class SpineSceneTest {
         Mesh rootMeshMesh = scene.meshes.get(1);
         assertEquals("test_sprite", rootMeshMesh.path);
         assertFloatArrays(new float[] {
-                100.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+                100.0f, 0.0f, 0.0f, 0.5f, 1.0f,
                 -100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
                 -100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
-                100.0f, 100.0f, 0.0f, 1.0f, 0.0f,
+                100.0f, 100.0f, 0.0f, 0.5f, 0.0f,
         }, rootMeshMesh.vertices);
         assertIntArrays(new int[] {
                 1, 3, 0,
@@ -183,10 +187,10 @@ public class SpineSceneTest {
         Mesh rootMeshSkinned = scene.meshes.get(2);
         assertEquals("test_sprite", rootMeshSkinned.path);
         assertFloatArrays(new float[] {
-                100.0f, 100.0f, 0.0f, 1.0f, 1.0f,
+                100.0f, 100.0f, 0.0f, 0.5f, 1.0f,
                 -100.0f, 100.0f, 0.0f, 0.0f, 1.0f,
                 -100.0f, 200.0f, 0.0f, 0.0f, 0.0f,
-                100.0f, 200.0f, 0.0f, 1.0f, 0.0f,
+                100.0f, 200.0f, 0.0f, 0.5f, 0.0f,
         }, rootMeshSkinned.vertices);
         assertIntArrays(new int[] {
                 1, 3, 0,
@@ -244,7 +248,7 @@ public class SpineSceneTest {
     @Test
     public void testEmptyScene() throws Exception {
         InputStream input = getClass().getResourceAsStream("empty.json");
-        SpineScene scene = SpineScene.loadJson(input);
+        SpineScene scene = SpineScene.loadJson(input, new TestUVTProvider());
         assertEquals(1, scene.bones.size());
         assertEquals(0, scene.meshes.size());
         assertEquals(0, scene.animations.size());
@@ -254,7 +258,7 @@ public class SpineSceneTest {
     public void testSampleScenes() throws Exception {
         for (int i = 1; i < 9; ++i) {
             InputStream input = getClass().getResourceAsStream(String.format("sample%d.json", i));
-            SpineScene scene = SpineScene.loadJson(input);
+            SpineScene scene = SpineScene.loadJson(input, new TestUVTProvider());
             assertTrue(0 < scene.bones.size());
             assertTrue(0 < scene.meshes.size());
             assertTrue(0 < scene.animations.size());
