@@ -42,4 +42,8 @@ Bundle-ClassPath: bin/,
  lib/tools.analyzer-0.1.0-beta13.jar,
  lib/tools.analyzer.jvm-0.1.0-beta13.jar,
  lib/tools.namespace-0.2.4.jar,
- lib/tools.reader-0.8.3.jar
+ lib/tools.reader-0.8.3.jar,
+ lib/lazymap-3.1.0.jar,
+ lib/plumbing-0.3.1.jar,
+ lib/potemkin-0.3.2.jar,
+ lib/schema-0.2.3.jar
