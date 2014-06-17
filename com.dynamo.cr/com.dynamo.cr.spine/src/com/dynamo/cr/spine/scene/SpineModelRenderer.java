@@ -10,6 +10,7 @@ import javax.vecmath.Point3d;
 
 import com.dynamo.bob.util.SpineScene;
 import com.dynamo.bob.util.SpineScene.Mesh;
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
@@ -101,7 +102,7 @@ public class SpineModelRenderer implements INodeRenderer<SpineModelNode> {
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
             texture.bind(gl);
-            texture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST);
+            texture.setTexParameteri(gl, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_NEAREST);
             texture.setTexParameteri(gl, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST);
             texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_S, GL2.GL_CLAMP);
             texture.setTexParameteri(gl, GL.GL_TEXTURE_WRAP_T, GL2.GL_CLAMP);
@@ -127,7 +128,25 @@ public class SpineModelRenderer implements INodeRenderer<SpineModelNode> {
         } else {
             shader = lineShader;
         }
-        node.getCompositeMesh().draw(gl, shader, renderContext.selectColor(node, COLOR));
+        float[] color = renderContext.selectColor(node, COLOR);
+        if (transparent) {
+            node.getCompositeMesh().draw(gl, shader, color);
+        } else {
+            shader.enable(gl);
+            shader.setUniforms(gl, "color", color);
+            gl.glBegin(GL2.GL_QUADS);
+            AABB aabb = new AABB();
+            node.getAABB(aabb);
+            Point3d min = aabb.getMin();
+            Point3d max = aabb.getMax();
+            gl.glColor4fv(color, 0);
+            gl.glVertex3d(min.getX(), min.getY(), min.getZ());
+            gl.glVertex3d(min.getX(), max.getY(), min.getZ());
+            gl.glVertex3d(max.getX(), max.getY(), min.getZ());
+            gl.glVertex3d(max.getX(), min.getY(), min.getZ());
+            gl.glEnd();
+            shader.disable(gl);
+        }
         if (transparent) {
             texture.disable(gl);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);

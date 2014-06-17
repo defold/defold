@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.vecmath.AxisAngle4d;
+import javax.vecmath.Matrix4d;
 import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -106,6 +107,14 @@ public class SpineScene {
             this.position.set(0.0, 0.0, 0.0);
             apply(p);
             this.position.set(p);
+        }
+
+        public void toMatrix4d(Matrix4d m) {
+            m.set(this.rotation);
+            m.setElement(0, 0, m.getElement(0, 0) * this.scale.getX());
+            m.setElement(1, 1, m.getElement(1, 1) * this.scale.getY());
+            m.setElement(2, 2, m.getElement(2, 2) * this.scale.getZ());
+            m.setColumn(3, this.position.x, this.position.y, this.position.z, 1.0);
         }
     }
 

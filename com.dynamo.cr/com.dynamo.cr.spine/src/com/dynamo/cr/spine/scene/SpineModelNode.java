@@ -1,16 +1,14 @@
 package com.dynamo.cr.spine.scene;
 
 import java.io.InputStream;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.vecmath.Matrix4d;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
@@ -31,7 +29,6 @@ import com.dynamo.cr.properties.Resource;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.cr.spine.Activator;
 import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
@@ -328,6 +325,9 @@ public class SpineModelNode extends ComponentTypeNode {
                 SpineBoneNode node = nodes.get(b.name);
                 if (node == null) {
                     node = new SpineBoneNode(b.name);
+                    Matrix4d transform = new Matrix4d();
+                    b.localT.toMatrix4d(transform);
+                    node.setLocalTransform(transform);
                     nodes.put(b.name, node);
                 }
                 Node parent = this;

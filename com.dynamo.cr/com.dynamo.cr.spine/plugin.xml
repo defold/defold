@@ -72,6 +72,11 @@
             renderer="com.dynamo.cr.spine.scene.SpineModelRenderer"
             resource-type="com.dynamo.cr.spine.resourcetypes.spinemodel">
       </node-type>
+      <node-type
+            id="com.dynamo.cr.spine.scene.spineBoneNode"
+            node="com.dynamo.cr.spine.scene.SpineBoneNode"
+            renderer="com.dynamo.cr.spine.scene.SpineBoneRenderer">
+      </node-type>
    </extension>
    <extension
          point="org.eclipse.ui.navigator.navigatorContent">
