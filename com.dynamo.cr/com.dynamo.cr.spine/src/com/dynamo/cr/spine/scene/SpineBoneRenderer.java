@@ -9,7 +9,9 @@ import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector4d;
 
+import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
@@ -33,6 +35,30 @@ public class SpineBoneRenderer implements INodeRenderer<SpineBoneNode> {
         }
     }
 
+    private SpineModelNode findModel(SpineBoneNode node) {
+        Node parent = node.getParent();
+        while (parent != null) {
+            if (parent instanceof SpineModelNode) {
+                return (SpineModelNode)parent;
+            }
+            parent = parent.getParent();
+        }
+        return null;
+    }
+
+    private double getBoneScale(SpineBoneNode node) {
+        SpineModelNode model = findModel(node);
+        if (model != null) {
+            AABB aabb = new AABB();
+            model.getAABB(aabb);
+            double width = aabb.max.x - aabb.min.x;
+            double height = aabb.max.y - aabb.min.y;
+            double dim = (width + height) * 0.5;
+            return dim * 0.02;
+        }
+        return 1.0;
+    }
+
     @Override
     public void render(RenderContext renderContext, SpineBoneNode node,
             RenderData<SpineBoneNode> renderData) {
@@ -52,7 +78,7 @@ public class SpineBoneRenderer implements INodeRenderer<SpineBoneNode> {
         FloatBuffer v = this.sphereFB;
         v.rewind();
 
-        double scale = Math.max(1.0, p.length() * 0.1);
+        double scale = getBoneScale(node);
         gl.glPushMatrix();
         gl.glScaled(scale, scale, scale);
         gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
