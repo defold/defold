@@ -10,6 +10,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -98,6 +100,13 @@ public class TileSetNode extends TextureSetNode {
         this.convexHulls = new ArrayList<ConvexHull>();
 
         this.textureHandle = null;
+    }
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        this.textureHandle.clear(gl);
+        this.runtimeTextureSet.dispose(gl);
     }
 
     public String getImage() {

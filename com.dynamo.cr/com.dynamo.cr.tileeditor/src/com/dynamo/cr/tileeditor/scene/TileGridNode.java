@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -48,10 +50,10 @@ public class TileGridNode extends ComponentTypeNode {
     private transient FloatBuffer vertexData;
 
     @Override
-    public void dispose() {
-        super.dispose();
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
         if (this.tileSetNode != null) {
-            this.tileSetNode.dispose();
+            this.tileSetNode.dispose(gl);
         }
     }
 

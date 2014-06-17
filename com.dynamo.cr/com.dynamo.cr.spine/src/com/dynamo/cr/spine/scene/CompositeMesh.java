@@ -7,7 +7,6 @@ import java.util.List;
 import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 
-import com.dynamo.bob.util.SpineScene;
 import com.dynamo.bob.util.SpineScene.Mesh;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.cr.sceneed.ui.util.IndexBufferObject;
@@ -27,6 +26,11 @@ public class CompositeMesh {
             new AttributeFormat("texcoord0", 2, GL.GL_UNSIGNED_SHORT, true));
 
     private int indexCount = 0;
+
+    public void dispose(GL2 gl) {
+        this.vbo.dispose(gl);
+        this.ibo.dispose(gl);
+    }
 
     public void update(List<Mesh> meshes, RuntimeTextureSet textureSet) {
         int vertexCount = 0;

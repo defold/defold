@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 
 import org.eclipse.core.resources.IFile;
@@ -75,11 +76,12 @@ public class SpineModelNode extends ComponentTypeNode {
     private transient CompositeMesh mesh = new CompositeMesh();
 
     @Override
-    public void dispose() {
-        super.dispose();
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
         if (this.textureSetNode != null) {
-            this.textureSetNode.dispose();
+            this.textureSetNode.dispose(gl);
         }
+        this.mesh.dispose(gl);
     }
 
     public CompositeMesh getCompositeMesh() {

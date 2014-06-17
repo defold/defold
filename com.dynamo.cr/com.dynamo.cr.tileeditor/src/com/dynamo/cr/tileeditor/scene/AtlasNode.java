@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import javax.media.opengl.GL2;
+
 import org.apache.commons.lang3.Pair;
 import org.eclipse.core.resources.IFile;
 
@@ -43,6 +45,13 @@ public class AtlasNode extends TextureSetNode {
         aabb.union(0, 0, 0);
         aabb.union(512, 512, 0);
         setAABB(aabb);
+    }
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        textureHandle.clear(gl);
+        runtimeTextureSet.dispose(gl);
     }
 
     public int getMargin() {
