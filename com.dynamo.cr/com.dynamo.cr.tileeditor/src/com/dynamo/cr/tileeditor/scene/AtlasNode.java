@@ -7,7 +7,6 @@ import java.util.List;
 
 import javax.media.opengl.GL2;
 
-import org.apache.commons.lang3.Pair;
 import org.eclipse.core.resources.IFile;
 
 import com.dynamo.bob.pipeline.AtlasBuilder;
@@ -20,7 +19,6 @@ import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder;
 import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
