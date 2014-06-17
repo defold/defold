@@ -367,6 +367,16 @@ def build(bld):
 
     test_zlib.install_path = None
 
+    test_lz4 = bld.new_task_gen(features = 'cxx cprogram embed',
+                                source = 'test_lz4.cpp',
+                                embed_source = 'data/foo.lz4',
+                                uselib = 'GTEST THREAD',
+                                uselib_local = "dlib",
+                                includes = ['../../src'],
+                                target = 'test_lz4')
+
+    test_lz4.install_path = None
+
     test_image = bld.new_task_gen(features = 'cxx cprogram embed',
                                  source = 'test_image.cpp',
                                  embed_source = 'data/color_check_2x2.png data/case2319.jpg data/color16_check_2x2.png data/gray_check_2x2.png data/gray_alpha_check_2x2.png data/defold_64.jpg data/defold_64_progressive.jpg',

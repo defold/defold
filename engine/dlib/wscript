@@ -55,6 +55,14 @@ def shutdown():
     from Logs import warn, error
     import urllib2, time, atexit
 
+    test_path = 'src/test/'
+    test_scripts = ['test_dlib']
+    for t in test_scripts:
+        ret = os.system("%s/%s.%s" % (test_path, t, '.py'))
+        if ret != 0:
+            print("Test failed: %s" % t)
+            sys.exit(ret)
+
     if sys.platform != 'win32':
         os.system('scripts/start_proxy_server.sh')
         os.system('scripts/start_http_server.sh')

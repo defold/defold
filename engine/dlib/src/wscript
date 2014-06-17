@@ -54,12 +54,13 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/vmath.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/web_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
     bld.install_files('${PREFIX}/share/doc/images/easing', '../doc/easing/*.png')
 
-    source_dirs = 'dlib dlib/jsmn zlib axtls/crypto axtls/ssl jpgd'.split(' ')
+    source_dirs = 'dlib dlib/jsmn zlib lz4 axtls/crypto axtls/ssl jpgd'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
