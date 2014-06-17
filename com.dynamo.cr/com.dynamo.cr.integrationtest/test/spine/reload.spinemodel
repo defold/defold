@@ -1,7 +1,5 @@
-spine_scene: "/spine/test_spine.json"
-atlas: "/graphics/atlas.atlas"
+spine_scene: "/spine/reload.spinescene"
 default_animation: "idle"
 skin: ""
 blend_mode: BLEND_MODE_ALPHA
-sample_rate: 30.0
 material: "/sprite/sprite.material"

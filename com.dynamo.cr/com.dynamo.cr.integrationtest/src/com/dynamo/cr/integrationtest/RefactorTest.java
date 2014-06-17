@@ -56,6 +56,7 @@ import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.spine.proto.Spine.SpineModelDesc;
+import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.Message;
@@ -594,25 +595,39 @@ public class RefactorTest {
     }
 
     /*
-     * Spine Model
+     * Spine Scene
      */
 
     @Test
-    public void testSpineSceneForSpineModel() throws CoreException, IOException {
-        testRenameAndDelete(SpineModelDesc.newBuilder(), "spine/reload.spinemodel", "/spine/test_spine.json", new ReferenceFetcher<SpineModelDesc>() {
+    public void testSpineJsonForSpineScene() throws CoreException, IOException {
+        testRenameAndDelete(SpineSceneDesc.newBuilder(), "spine/reload.spinescene", "/spine/test_spine.json", new ReferenceFetcher<SpineSceneDesc>() {
             @Override
-            public String[] getReferences(SpineModelDesc desc) {
-                return new String[] { desc.getSpineScene() };
+            public String[] getReferences(SpineSceneDesc desc) {
+                return new String[] { desc.getSpineJson() };
             }
         });
     }
 
     @Test
-    public void testAtlasForSpineModel() throws CoreException, IOException {
-        testRenameAndDelete(SpineModelDesc.newBuilder(), "spine/reload.spinemodel", "/graphics/atlas.atlas", new ReferenceFetcher<SpineModelDesc>() {
+    public void testAtlasForSpineScene() throws CoreException, IOException {
+        testRenameAndDelete(SpineSceneDesc.newBuilder(), "spine/reload.spinescene", "/graphics/atlas.atlas", new ReferenceFetcher<SpineSceneDesc>() {
+            @Override
+            public String[] getReferences(SpineSceneDesc desc) {
+                return new String[] { desc.getAtlas() };
+            }
+        });
+    }
+
+    /*
+     * Spine Model
+     */
+
+    @Test
+    public void testSpineSceneForSpineModel() throws CoreException, IOException {
+        testRenameAndDelete(SpineModelDesc.newBuilder(), "spine/reload.spinemodel", "/spine/reload.spinescene", new ReferenceFetcher<SpineModelDesc>() {
             @Override
             public String[] getReferences(SpineModelDesc desc) {
-                return new String[] { desc.getAtlas() };
+                return new String[] { desc.getSpineScene() };
             }
         });
     }

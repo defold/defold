@@ -25,12 +25,10 @@ public class SpineModelLoader implements INodeLoader<SpineModelNode> {
         SpineModelDesc ddf = builder.build();
         SpineModelNode node = new SpineModelNode();
         node.setSpineScene(ddf.getSpineScene());
-        node.setAtlas(ddf.getAtlas());
         node.setDefaultAnimation(ddf.getDefaultAnimation());
         node.setSkin(ddf.getSkin());
         node.setMaterial(ddf.getMaterial());
         node.setBlendMode(ddf.getBlendMode());
-        node.setSampleRate(ddf.getSampleRate());
         return node;
     }
 
@@ -38,8 +36,8 @@ public class SpineModelLoader implements INodeLoader<SpineModelNode> {
     public Message buildMessage(ILoaderContext context, SpineModelNode node,
             IProgressMonitor monitor) throws IOException, CoreException {
         SpineModelDesc.Builder builder = SpineModelDesc.newBuilder();
-        builder.setSpineScene(node.getSpineScene()).setAtlas(node.getAtlas()).setDefaultAnimation(node.getDefaultAnimation())
-                .setSkin(node.getSkin()).setMaterial(node.getMaterial()).setBlendMode(node.getBlendMode()).setSampleRate(node.getSampleRate());
+        builder.setSpineScene(node.getSpineScene()).setDefaultAnimation(node.getDefaultAnimation())
+                .setSkin(node.getSkin()).setMaterial(node.getMaterial()).setBlendMode(node.getBlendMode());
         return builder.build();
     }
 }

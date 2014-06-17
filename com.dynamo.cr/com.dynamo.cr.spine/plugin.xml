@@ -10,14 +10,14 @@
             name="SpineModel"
             proto-message-class="com.dynamo.spine.proto.Spine$SpineModelDesc"
             resource-refactor-participant-class="com.dynamo.cr.spine.core.refactoring.SpineModelRefactorParticipant"
-            template-data="spine_scene: &quot;&quot; atlas: &quot;&quot; default_animation: &quot;&quot; skin: &quot;&quot;"
+            template-data="spine_scene: &quot;&quot; default_animation: &quot;&quot; skin: &quot;&quot;"
             type-class="component">
          <references>
             <reference-resource-type
                   resource-type="com.dynamo.cr.tileeditor.resourcetypes.Atlas">
             </reference-resource-type>
             <reference-resource-type
-                  resource-type="com.dynamo.cr.spine.resourcetypes.spine">
+                  resource-type="com.dynamo.cr.spine.resourcetypes.spineScene">
             </reference-resource-type>
             <reference-resource-type
                   resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Material">
@@ -25,9 +25,27 @@
          </references>
       </resource-type>
       <resource-type
+            embeddable="false"
+            file-extension="spinescene"
+            id="com.dynamo.cr.spine.resourcetypes.spineScene"
+            name="SpineScene"
+            proto-message-class="com.dynamo.spine.proto.Spine$SpineSceneDesc"
+            resource-refactor-participant-class="com.dynamo.cr.spine.core.refactoring.SpineSceneRefactorParticipant"
+            template-data="spine_json: &quot;&quot; atlas: &quot;&quot; sample_rate: 30.0"
+            type-class="spinescene">
+         <references>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.tileeditor.resourcetypes.Atlas">
+            </reference-resource-type>
+            <reference-resource-type
+                  resource-type="com.dynamo.cr.spine.resourcetypes.spine">
+            </reference-resource-type>
+         </references>
+      </resource-type>
+      <resource-type
             file-extension="json"
             id="com.dynamo.cr.spine.resourcetypes.spine"
-            name="SpineScene"
+            name="Spine"
             type-class="spine">
       </resource-type>
    </extension>
@@ -38,9 +56,18 @@
             contributorClass="com.dynamo.cr.editor.ui.DefoldEditorActionBarContributor"
             default="false"
             extensions="spinemodel"
-            icon="icons/chart_curve.png"
-            id="com.dynamo.cr.spine.editor"
-            name="Spine Editor">
+            icon="icons/draw_wave.png"
+            id="com.dynamo.cr.spine.spineModelEditor"
+            name="Spine Model Editor">
+      </editor>
+      <editor
+            class="com.dynamo.cr.spine.SpineSceneEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="spinescene"
+            icon="icons/linechart.png"
+            id="com.dynamo.cr.spine.spineSceneEditor"
+            name="Spine Scene Editor">
       </editor>
    </extension>
    <extension
@@ -48,9 +75,16 @@
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.spine.wizards.SpineNewWizard"
-            icon="icons/chart_curve.png"
+            icon="icons/draw_wave.png"
             id="com.dynamo.cr.spine.wizards.spineNewWizard"
             name="Spine Model File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.spine.wizards.SpineSceneNewWizard"
+            icon="icons/linechart.png"
+            id="com.dynamo.cr.spine.wizards.spineSceneNewWizard"
+            name="Spine Scene File">
       </wizard>
    </extension>
    <extension
@@ -59,6 +93,9 @@
             targetID="*">
          <newWizardShortcut
                id="com.dynamo.cr.spine.wizards.spineNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.spine.wizards.spineSceneNewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
@@ -83,6 +120,11 @@
       <commonWizard
             type="new"
             wizardId="com.dynamo.cr.spine.wizards.spineNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
+            wizardId="com.dynamo.cr.spine.wizards.spineSceneNewWizard">
          <enablement></enablement>
       </commonWizard>
    </extension>

@@ -4,10 +4,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 
 import org.eclipse.core.commands.ExecutionException;
@@ -16,11 +13,8 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.osgi.util.NLS;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import com.dynamo.cr.sceneed.core.Node;
-import com.dynamo.cr.sceneed.core.SceneUtil;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
 import com.dynamo.cr.spine.scene.Messages;
 import com.dynamo.cr.spine.scene.SpineBoneNode;
@@ -42,8 +36,19 @@ public class SpineModelTest extends AbstractNodeTest {
 
         this.loader = new SpineModelLoader();
 
-        String[] paths = new String[] {"/empty.atlas", "/default.atlas", "/invalid.atlas"};
+        String[] paths = new String[] {"/default.spinescene", "/invalid_atlas.spinescene", "/empty_atlas.spinescene", "/empty_skeleton.spinescene"};
         String[] contents = new String[] {
+                "spine_json: \"/skeleton.json\" atlas: \"/default.atlas\"",
+                "spine_json: \"/skeleton.json\" atlas: \"/invalid.atlas\"",
+                "spine_json: \"/skeleton.json\" atlas: \"/empty.atlas\"",
+                "spine_json: \"/empty.json\" atlas: \"/default.atlas\"",
+        };
+        for (int i = 0; i < paths.length; ++i) {
+            String path = paths[i];
+            registerFile(path, contents[i]);
+        }
+        paths = new String[] {"/empty.atlas", "/default.atlas", "/invalid.atlas"};
+        contents = new String[] {
                 "",
                 "animations { id: \"test_sprite\" images { image: \"/16x16_1.png\" } } animations { id: \"test_sprite2\" images { image: \"/16x16_2.png\" } }",
                 "animations { id: \"test_sprite\" images { image: \"/non_existant.png\" } } animations { id: \"test_sprite2\" images { image: \"/16x16_2.png\" } }",
@@ -74,14 +79,12 @@ public class SpineModelTest extends AbstractNodeTest {
     @Test
     public void testLoad() throws Exception {
         assertThat(this.spineModelNode.getSpineScene(), is(""));
-        assertThat(this.spineModelNode.getAtlas(), is(""));
         assertThat(this.spineModelNode.getDefaultAnimation(), is(""));
         assertThat(this.spineModelNode.getSkin(), is(""));
     }
 
     private void create() throws Exception {
-        setProperty("spineScene", "/skeleton.json");
-        setProperty("atlas", "/default.atlas");
+        setProperty("spineScene", "/default.spinescene");
         setProperty("defaultAnimation", "anim_pos");
     }
 
@@ -92,7 +95,6 @@ public class SpineModelTest extends AbstractNodeTest {
 
         SpineModelDesc ddf = (SpineModelDesc)this.loader.buildMessage(getLoaderContext(), this.spineModelNode, null);
 
-        assertThat(ddf.getAtlas(), is(this.spineModelNode.getAtlas()));
         assertThat(ddf.getDefaultAnimation(), is(this.spineModelNode.getDefaultAnimation()));
     }
 
@@ -122,6 +124,13 @@ public class SpineModelTest extends AbstractNodeTest {
     public void testReloadSpineScene() throws Exception {
         create();
 
+        assertTrue(this.spineModelNode.handleReload(getFile("/default.spinescene"), false));
+    }
+
+    @Test
+    public void testReloadSpineJson() throws Exception {
+        create();
+
         assertTrue(this.spineModelNode.handleReload(getFile("/skeleton.json"), false));
     }
 
@@ -141,23 +150,22 @@ public class SpineModelTest extends AbstractNodeTest {
 
     @Test
     public void testMessages() throws Exception {
-        assertPropertyStatus("atlas", IStatus.INFO, null); // default message
+        assertPropertyStatus("spineScene", IStatus.INFO, null); // default message
 
-        setProperty("atlas", "/non_existant");
-        assertPropertyStatus("atlas", IStatus.ERROR, null); // default message
+        setProperty("spineScene", "/non_existant");
+        assertPropertyStatus("spineScene", IStatus.ERROR, null); // default message
 
-        setProperty("atlas", "/invalid.atlas");
-        assertPropertyStatus("atlas", IStatus.ERROR, Messages.SpineModelNode_atlas_INVALID_REFERENCE);
+        setProperty("spineScene", "/invalid_atlas.spinescene");
+        assertPropertyStatus("spineScene", IStatus.ERROR, Messages.SpineModelNode_atlas_INVALID_REFERENCE);
 
         registerFile("/test.test", "");
-        setProperty("atlas", "/test.test");
-        assertPropertyStatus("atlas", IStatus.ERROR, Messages.SpineModelNode_atlas_CONTENT_ERROR);
+        setProperty("spineScene", "/test.test");
+        assertPropertyStatus("spineScene", IStatus.ERROR, Messages.SpineModelNode_spineScene_CONTENT_ERROR);
 
-        setProperty("spineScene", "/skeleton.json");
-        setProperty("atlas", "/empty.atlas");
-        assertPropertyStatus("atlas", IStatus.ERROR, NLS.bind(Messages.SpineModelNode_atlas_MISSING_ANIMS, "test_sprite"));
+        setProperty("spineScene", "/empty_atlas.spinescene");
+        assertPropertyStatus("spineScene", IStatus.ERROR, NLS.bind(Messages.SpineModelNode_atlas_MISSING_ANIMS, "test_sprite"));
 
-        setProperty("spineScene", "/empty.json");
+        setProperty("spineScene", "/empty_skeleton.spinescene");
         setProperty("defaultAnimation", "test");
         assertPropertyStatus("defaultAnimation", IStatus.ERROR, NLS.bind(Messages.SpineModelNode_defaultAnimation_INVALID, "test"));
 

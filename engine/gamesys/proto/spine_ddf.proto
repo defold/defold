@@ -6,6 +6,13 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.spine.proto";
 option java_outer_classname = "Spine";
 
+message SpineSceneDesc
+{
+    required string spine_json          = 1 [(resource)=true];
+    required string atlas               = 2 [(resource)=true];
+    optional float sample_rate          = 3 [default = 30.0];
+}
+
 message SpineModelDesc
 {
     enum BlendMode
@@ -16,10 +23,8 @@ message SpineModelDesc
     }
 
     required string spine_scene         = 1 [(resource)=true];
-    required string atlas               = 2 [(resource)=true];
-    required string default_animation   = 3;
-    required string skin                = 4;
-    optional BlendMode blend_mode       = 5 [default = BLEND_MODE_ALPHA];
-    optional float sample_rate          = 6 [default = 30.0];
-    optional string material            = 7 [(resource)=true, default="/builtins/materials/sprite.material"];
+    required string default_animation   = 2;
+    required string skin                = 3;
+    optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
+    optional string material            = 5 [(resource)=true, default="/builtins/materials/sprite.material"];
 }

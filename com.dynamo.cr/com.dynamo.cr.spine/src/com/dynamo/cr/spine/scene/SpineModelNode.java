@@ -1,6 +1,7 @@
 package com.dynamo.cr.spine.scene;
 
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -11,6 +12,7 @@ import java.util.Set;
 import javax.media.opengl.GL2;
 import javax.vecmath.Matrix4d;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -22,7 +24,6 @@ import com.dynamo.bob.util.SpineScene.Bone;
 import com.dynamo.bob.util.SpineScene.Mesh;
 import com.dynamo.bob.util.SpineScene.UVTransformProvider;
 import com.dynamo.cr.go.core.ComponentTypeNode;
-import com.dynamo.cr.properties.GreaterThanZero;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
@@ -34,22 +35,20 @@ import com.dynamo.cr.spine.Activator;
 import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.spine.proto.Spine.SpineModelDesc.BlendMode;
+import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
+import com.google.protobuf.TextFormat;
 
 @SuppressWarnings("serial")
 public class SpineModelNode extends ComponentTypeNode {
 
-    @Property(displayName="Spine Scene", editorType=EditorType.RESOURCE, extensions={"json"})
+    @Property(displayName="Spine Scene", editorType=EditorType.RESOURCE, extensions={"spinescene"})
     @Resource
     @NotEmpty
     private String spineScene = "";
 
+    private transient SpineSceneDesc sceneDesc;
     private transient SpineScene scene;
-
-    @Property(displayName="Atlas", editorType=EditorType.RESOURCE, extensions={"atlas"})
-    @Resource
-    @NotEmpty
-    private String atlas = "";
 
     private transient TextureSetNode textureSetNode = null;
 
@@ -68,10 +67,6 @@ public class SpineModelNode extends ComponentTypeNode {
 
     @Property
     private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
-
-    @Property
-    @GreaterThanZero
-    private float sampleRate = 30.0f;
 
     private transient CompositeMesh mesh = new CompositeMesh();
 
@@ -95,23 +90,14 @@ public class SpineModelNode extends ComponentTypeNode {
     public void setSpineScene(String spineScene) {
         if (!this.spineScene.equals(spineScene)) {
             this.spineScene = spineScene;
-            reloadSpineScene();
+            reloadResources();
         }
     }
 
-    public String getAtlas() {
-        return atlas;
-    }
-
-    public void setAtlas(String atlas) {
-        if (!this.atlas.equals(atlas)) {
-            this.atlas = atlas;
-            reloadAtlas();
-            reloadSpineScene();
+    public IStatus validateSpineScene() {
+        if (!this.spineScene.isEmpty() && this.sceneDesc == null) {
+            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpineModelNode_spineScene_CONTENT_ERROR);
         }
-    }
-
-    public IStatus validateAtlas() {
         if (this.textureSetNode != null) {
             this.textureSetNode.updateStatus();
             IStatus status = this.textureSetNode.getStatus();
@@ -144,8 +130,6 @@ public class SpineModelNode extends ComponentTypeNode {
                     }
                 }
             }
-        } else if (!this.atlas.isEmpty()) {
-            return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpineModelNode_atlas_CONTENT_ERROR);
         }
         return Status.OK_STATUS;
     }
@@ -248,14 +232,6 @@ public class SpineModelNode extends ComponentTypeNode {
         this.blendMode = blendMode;
     }
 
-    public float getSampleRate() {
-        return this.sampleRate;
-    }
-
-    public void setSampleRate(float sampleRate) {
-        this.sampleRate = sampleRate;
-    }
-
     @Override
     public void parentSet() {
         if (getParent() != null) {
@@ -269,34 +245,43 @@ public class SpineModelNode extends ComponentTypeNode {
     public void setModel(ISceneModel model) {
         super.setModel(model);
         if (model != null && this.textureSetNode == null) {
-            reloadAtlas();
-            reloadSpineScene();
+            reloadResources();
         }
     }
 
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
         boolean reloaded = false;
-        if (!this.atlas.isEmpty()) {
-            IFile atlasFile = getModel().getFile(this.atlas);
-            if (atlasFile.exists() && atlasFile.equals(file)) {
-                if (reloadAtlas()) {
-                    reloaded = true;
-                }
-            }
-            if (this.textureSetNode != null) {
-                if (this.textureSetNode.handleReload(file, childWasReloaded)) {
+        if (!this.spineScene.isEmpty()) {
+            IFile spineSceneFile = getModel().getFile(this.spineScene);
+            if (spineSceneFile.exists() && spineSceneFile.equals(file)) {
+                if (reloadResources()) {
                     reloaded = true;
                 }
             }
         }
-        if (!this.spineScene.isEmpty()) {
-            IFile spineSceneFile = getModel().getFile(this.spineScene);
-            if (spineSceneFile.exists() && spineSceneFile.equals(file)) {
-                if (reloadSpineScene()) {
-                    reloaded = true;
+        if (this.sceneDesc != null) {
+            String atlas = this.sceneDesc.getAtlas();
+            if (!atlas.isEmpty()) {
+                IFile atlasFile = getModel().getFile(atlas);
+                if (atlasFile.exists() && atlasFile.equals(file)) {
+                    if (reloadResources()) {
+                        reloaded = true;
+                    }
                 }
             }
+            String json = this.sceneDesc.getSpineJson();
+            if (!json.isEmpty()) {
+                IFile jsonFile = getModel().getFile(json);
+                if (jsonFile.exists() && jsonFile.equals(file)) {
+                    if (reloadResources()) {
+                        reloaded = true;
+                    }
+                }
+            }
+        }
+        if (this.textureSetNode != null && this.textureSetNode.handleReload(file, childWasReloaded)) {
+            reloaded = true;
         }
         return reloaded;
     }
@@ -378,47 +363,69 @@ public class SpineModelNode extends ComponentTypeNode {
         }
     }
 
-    private boolean reloadSpineScene() {
+    private static SpineSceneDesc loadSpineSceneDesc(ISceneModel model, String path) {
+        if (!path.isEmpty()) {
+            InputStream in = null;
+            try {
+                IFile file = model.getFile(path);
+                in = file.getContents();
+                SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
+                TextFormat.merge(new InputStreamReader(in), builder);
+                return builder.build();
+            } catch (Exception e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+            } finally {
+                IOUtils.closeQuietly(in);
+            }
+        }
+        return null;
+    }
+
+    private static TextureSetNode loadTextureSetNode(ISceneModel model, String path) {
+        if (!path.isEmpty()) {
+            try {
+                Node node = model.loadNode(path);
+                if (node instanceof TextureSetNode) {
+                    node.setModel(model);
+                    return (TextureSetNode)node;
+                }
+            } catch (Exception e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+            }
+        }
+        return null;
+    }
+
+    private static SpineScene loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
+        if (!path.isEmpty()) {
+            InputStream in = null;
+            try {
+                IFile file = model.getFile(path);
+                in = file.getContents();
+                return SpineScene.loadJson(in, provider);
+            } catch (Exception e) {
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+            } finally {
+                IOUtils.closeQuietly(in);
+            }
+        }
+        return null;
+    }
+
+    private boolean reloadResources() {
         ISceneModel model = getModel();
         if (model != null) {
-            this.scene = null;
-            if (this.textureSetNode != null && this.textureSetNode.getRuntimeTextureSet() != null && !this.spineScene.isEmpty()) {
-                IFile spineSceneFile = model.getFile(this.spineScene);
-                try {
-                    InputStream in = spineSceneFile.getContents();
-                    this.scene = SpineScene.loadJson(in, new TransformProvider(this.textureSetNode.getRuntimeTextureSet()));
-                    updateStatus();
-                } catch (Exception e) {
-                    // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+            this.sceneDesc = loadSpineSceneDesc(model, this.spineScene);
+            if (this.sceneDesc != null) {
+                this.textureSetNode = loadTextureSetNode(model, this.sceneDesc.getAtlas());
+                if (this.textureSetNode != null) {
+                    this.scene = loadSpineScene(model, this.sceneDesc.getSpineJson(), new TransformProvider(this.textureSetNode.getRuntimeTextureSet()));
                 }
             }
             updateMesh();
             updateAABB();
             rebuildBoneHierarchy();
-            // attempted to reload
-            return true;
-        }
-        return false;
-    }
-
-    private boolean reloadAtlas() {
-        ISceneModel model = getModel();
-        if (model != null) {
-            this.textureSetNode = null;
-            if (!this.atlas.isEmpty()) {
-                try {
-                    Node node = model.loadNode(this.atlas);
-                    if (node instanceof TextureSetNode) {
-                        this.textureSetNode = (TextureSetNode)node;
-                        this.textureSetNode.setModel(getModel());
-                        updateStatus();
-                    }
-                } catch (Exception e) {
-                    // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
-                }
-            }
-            updateMesh();
-            updateAABB();
+            updateStatus();
             // attempted to reload
             return true;
         }
