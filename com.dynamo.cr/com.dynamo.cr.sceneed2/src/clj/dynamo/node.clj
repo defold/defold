@@ -42,7 +42,7 @@
   {:label "my name" :icon "my type of icon" :node-ref (:id this) :children children})
 
 (def OutlineParent
-  {:inputs  {}
+  {:inputs  {:children [OutlineItem]}
    :transforms {:tree #'outline-tree-producer}})
 
 (defn resource [] {})
@@ -63,7 +63,7 @@
    :transform  {:frames #'animation-frames}})
 
 (defn outline-child-producer [this g]
-  (assoc this :node-ref (:id this))
+  (assoc (dg/node g this) :node-ref this)
   )
 
 (def OutlineChild 
@@ -91,7 +91,7 @@
     {} input-schema))
 
 (defn has-schema? [v]
-  (and (fn? v) (satisfies? pf/PFnk v)))
+  (and (fn? v) (:schema (meta v))))
 
 (defn perform [transform node g]
   (cond
