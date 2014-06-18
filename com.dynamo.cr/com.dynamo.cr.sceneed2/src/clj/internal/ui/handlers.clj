@@ -27,8 +27,6 @@
 (defmacro context-accessors 
   [cls]
   (let [accessors (clojure.core/map context-accessor-sexp (context-variable-fields cls))]
-    (println accessors)
-    (println (mapv second accessors))
     (apply list 'do `(def ^:private context-accessor-fns '~(mapv second accessors)) accessors)))
 
 (context-accessors org.eclipse.ui.ISources)

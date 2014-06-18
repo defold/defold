@@ -11,6 +11,7 @@
 (defn get-input [])
 (defn refresh-inputs [g n i])
 
+
 (defprotocol Node
   (value [this g output default] "Produce the value for the named output. Supplies nil if the output cannot be produced.")
   (properties [this] "Produce a description of properties supported by this node."))
@@ -36,7 +37,7 @@
         o 'output#
         d 'default#]
     (list 'defrecord name (state-vector behavior)
-          'Node
+          'internal.node/Node
           `(value [~t ~g ~o ~d]
                   (cond
                     ~@(mapcat (fn [x] [(list '= o x) (list 'prn x)]) (keys (:outputs behavior)))

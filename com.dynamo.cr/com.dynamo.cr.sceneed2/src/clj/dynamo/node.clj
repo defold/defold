@@ -2,7 +2,10 @@
   (:require [schema.core :as s]
             [schema.macros :as sm]
             [plumbing.core :refer [fnk defnk]]
-            [internal.node :as in]))
+            [plumbing.fnk.pfnk :as pf]
+            [internal.node :as in]
+            [internal.graph.dgraph :as dg]
+            [internal.graph.lgraph :as lg]))
 
 (def Icon s/Str)
 (def NodeRef s/Int)
@@ -34,7 +37,7 @@
 (def Translatable
   {:properties {:translation {:schema Vector3}}})
 
-(defnk outline-tree-producer :- OutlineItem 
+(defnk outline-tree-producer :- OutlineItem
   [this g children :- [OutlineItem]]
   {:label "my name" :icon "my type of icon" :node-ref (:id this) :children children})
 
@@ -68,8 +71,44 @@
                 :icon (assoc (icon) :default "pretty stuff")}
    :transforms {:child #'outline-child-producer}})
 
+;; helpers
+
+(declare get-value)
+
+(defn get-inputs [target-node g target-label]
+  (map (fn [[source-node source-label]] 
+         (get-value g source-node source-label)) 
+       (lg/sources g target-node target-label)))
+
+(defn collect-inputs [node g input-schema]
+  (reduce-kv 
+    (fn [m k v ] 
+      (case k
+        :g         (assoc m k g)
+        :this      (assoc m k node)
+        s/Keyword  m
+        (assoc m k (get-inputs node g k)))) 
+    {} input-schema))
+
+(defn has-schema? [v]
+  (and (fn? v) (satisfies? pf/PFnk v)))
+
+(defn perform [transform node g]
+  (cond
+    (symbol?     transform)  (perform (resolve transform) node g)
+    (var?        transform)  (perform (var-get transform) node g)
+    (has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform)))
+    (fn?         transform)  (transform node g)
+    :else transform))
+
+(defn get-value [g node label]
+  (perform (get-in (dg/node g node) [:transforms label]) node g))
+
+(defn add-node [g node]
+  (lg/add-labeled-node g (in/node-inputs node) (in/node-outputs node) node))
+
 (defmacro defnode [name & behaviors]
-  (let [behavior (merge-behaviors behaviors)]
+  (let [behavior (in/merge-behaviors behaviors)]
     `(let []
        ~(in/generate-type name behavior)
        ~@(mapcat in/input-mutators (keys (:inputs behavior)))

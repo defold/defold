@@ -13,16 +13,13 @@
   OutlineChild
   Animation)
 
-(defnode AtlasNode 
-  Rotatable 
-  Translatable 
+(defnode AtlasNode
   OutlineParent
   {:inputs {:assets [OutlineItem]}})
 
 
-;;; current-selection returns [graph [selected-node-ids]]
-
 (comment 
+  ;; current-selection returns [graph [selected-node-ids]]
   ;; context menu action
   (defn add-image [^ExecutionEvent event]
     (let [resource   (select-resource IMAGE)
