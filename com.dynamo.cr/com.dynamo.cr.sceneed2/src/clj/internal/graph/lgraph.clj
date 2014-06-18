@@ -27,6 +27,9 @@
         :when (= label (get-in a [:target-attributes :label]))]
     [(:source a) (get-in a [:source-attributes :label])]))
 
+(defn source-labels [g target-node label source-node]
+  (map second (filter #(= source-node (first %)) (sources g target-node label))))
+
 (defn connect 
   [g source source-label target target-label]
   (let [from (dg/node g source)
