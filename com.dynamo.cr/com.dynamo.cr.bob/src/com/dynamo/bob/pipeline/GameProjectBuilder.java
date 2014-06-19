@@ -55,11 +55,17 @@ public class GameProjectBuilder extends Builder<Void> {
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder ab = new ArchiveBuilder(root);
+        boolean doCompress = project.option("compress_disk_archive_entries", "false").equals("true");
         int i = 0;
         for (IResource input : task.getInputs()) {
             if (i > 0) {
                 // First input is game.project
-                ab.add(input.getAbsPath());
+                //
+                // 2:d argument is true to use compression.
+                // We then try to compress all entries.
+                // If the compressed/uncompressed ratio > 0.95 we do not compress
+                // to save on load time...
+                ab.add(input.getAbsPath(), doCompress);
             }
             ++i;
         }

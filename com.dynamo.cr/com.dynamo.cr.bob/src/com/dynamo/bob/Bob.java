@@ -43,6 +43,7 @@ public class Bob {
         options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("h", "help", false, "This help directory");
         options.addOption("a", "archive", false, "Build archive");
+        options.addOption("c", "compress", false, "Compress archive entries (if -a/--archive)");
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -77,6 +78,10 @@ public class Bob {
         Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
         if (cmd.hasOption('a')) {
             project.setOption("build_disk_archive", "true");
+
+            if (cmd.hasOption('c')) {
+                project.setOption("compress_disk_archive_entries", "true");
+            }
         }
 
         ClassLoaderScanner scanner = new ClassLoaderScanner();

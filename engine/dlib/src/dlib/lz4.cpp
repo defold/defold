@@ -12,7 +12,7 @@ namespace dmLZ4
         {
             *decompressed_size = LZ4_decompress_safe((const char*)buffer, (char *)decompressed_buffer, buffer_size, max_output);
             if(*decompressed_size < 0)
-                r = dmLZ4::RESULT_DECOMPRESSION_FAILED;
+                r = dmLZ4::RESULT_OUTBUFFER_TOO_SMALL;
             else
                 r = dmLZ4::RESULT_OK;
         }
