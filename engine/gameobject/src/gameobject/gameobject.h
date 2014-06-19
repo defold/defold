@@ -763,6 +763,13 @@ namespace dmGameObject
     bool ScaleAlongZ(HInstance instance);
 
     /**
+     * Set whether the instance should inherit the scale from its parent or not.
+     * @param instance Instance
+     * @param inherit_scale true if the instance should inherit scale
+     */
+    void SetInheritScale(HInstance instance, bool inherit_scale);
+
+    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */

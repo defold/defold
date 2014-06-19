@@ -592,6 +592,45 @@ TEST_F(HierarchyTest, TestHierarchyScale)
     dmGameObject::Delete(m_Collection, parent);
 }
 
+TEST_F(HierarchyTest, TestHierarchyInheritScale)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+
+    const float scale = 2.0f;
+
+    dmGameObject::SetScale(parent, scale);
+    dmGameObject::SetPosition(child, Point3(1.0f, 0.0f, 0.0f));
+
+    dmGameObject::SetParent(child, parent);
+
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(child);
+
+    // Needs update to obtain new world transform
+    ASSERT_NE(scale, world.GetTranslation().getX());
+    ASSERT_NE(scale, world.GetUniformScale());
+
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    // New world transform updated
+    world = dmGameObject::GetWorldTransform(child);
+    ASSERT_EQ(scale, world.GetTranslation().getX());
+    ASSERT_EQ(scale, world.GetUniformScale());
+
+    dmGameObject::SetInheritScale(child, false);
+
+    ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    world = dmGameObject::GetWorldTransform(child);
+    ASSERT_EQ(scale, world.GetTranslation().getX());
+    ASSERT_NE(scale, world.GetUniformScale());
+
+    dmGameObject::Delete(m_Collection, child);
+    dmGameObject::Delete(m_Collection, parent);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -1134,6 +1134,11 @@ namespace dmGameObject
         return instance->m_ScaleAlongZ != 0;
     }
 
+    void SetInheritScale(HInstance instance, bool inherit_scale)
+    {
+        instance->m_NoInheritScale = !inherit_scale;
+    }
+
     struct DispatchMessagesContext
     {
         HCollection m_Collection;
@@ -1445,6 +1450,10 @@ namespace dmGameObject
                 else
                 {
                     *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                }
+                if (instance->m_NoInheritScale)
+                {
+                    trans->SetScale(instance->m_Transform.GetScale());
                 }
             }
         }
