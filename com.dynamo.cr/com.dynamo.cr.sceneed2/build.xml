@@ -1,4 +1,4 @@
-<project default="compile">
+<project default="all">
 	<property environment="env" />
 
 	<property name="aot-namespaces" value="internal.ui.editors.atlas-editor" />
@@ -14,12 +14,22 @@
 		</fileset>
 	</path>
 
+	<target name="all" depends="compile,current-classpath"/>
+	
 	<target name="clean">
 		<delete dir="bin" />
+	</target>
+
+	<target name="current-classpath">
+		<pathconvert property="classpathProp" refid="total-classpath"/>
+		<echo file=".eclipse-classpath">${classpathProp}</echo>
 	</target>
 		
 	<target name="compile">
 		<mkdir dir="bin" />
+		<javac destdir="bin" target="1.6" srcdir="src/java">
+			<classpath refid="total-classpath"/>
+		</javac>	
 		<java classname="clojure.lang.Compile" failonerror="true">
 			<classpath refid="total-classpath"/>
 			<sysproperty key="clojure.compile.path" value="bin" />

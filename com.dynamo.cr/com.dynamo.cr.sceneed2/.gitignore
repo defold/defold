@@ -1,0 +1,5 @@
+lib/ubersource
+lib/stale
+doc/
+.lein*
+.eclipse-classpath
