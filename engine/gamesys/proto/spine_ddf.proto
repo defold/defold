@@ -28,3 +28,67 @@ message SpineModelDesc
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
     optional string material            = 5 [(resource)=true, default="/builtins/materials/sprite.material"];
 }
+
+message Bone
+{
+    // 0xffff means no parent
+    required uint32 parent = 1;
+    required string id = 2;
+    required dmMath.Point3 position = 3;
+    required dmMath.Quat rotation = 4;
+    required dmMath.Vector3 scale = 5;
+}
+
+message Skeleton
+{
+    repeated Bone bones = 1;
+}
+
+message AnimationTrack
+{
+    required uint32 bone_index = 1;
+    // x0, y0, z0, ...
+    repeated float positions = 2;
+    // x0, x0, z0, w0, …
+    repeated float rotations = 3;
+    // x0, y0, z0, …
+    repeated float scale = 4;
+}
+
+message Animation
+{
+    required string name = 1;
+    required float duration = 2;
+    required float sample_rate = 3;
+    repeated AnimationTrack tracks = 4;
+}
+
+message AnimationSet
+{
+    repeated Animation animations = 1;
+}
+
+message Mesh
+{
+    required string name = 1;
+    repeated float positions = 2;
+    repeated float texcoord0 = 3;
+    repeated uint32 indices  = 4;
+    // w00, w01, w02, w03, w10, … (only specified for skinned meshes)
+    repeated float weights = 5;
+    // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
+    repeated uint32 bone_indices = 6;
+}
+
+message MeshSet
+{
+    repeated Mesh meshes = 1;
+}
+
+message SpineScene
+{
+    required Skeleton skeleton = 1;
+    required AnimationSet animation_set = 2;
+    required MeshSet mesh_set = 3;
+    optional float sample_rate = 4 [default = 30.0];
+}

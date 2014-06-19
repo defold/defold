@@ -228,14 +228,14 @@ public class SpineSceneTest {
         SpineScene scene = load();
         assertEquals(5, scene.animations.size());
 
-        assertSimpleAnim(scene, "anim_pos", Property.POSITION, new float[][] {new float[] {0.0f, 0.0f}, new float[] {100.0f, 0.0f}});
+        assertSimpleAnim(scene, "anim_pos", Property.POSITION, new float[][] {new float[] {0.0f, 0.0f, 0.0f}, new float[] {100.0f, 0.0f, 0.0f}});
         assertSimpleAnim(scene, "anim_rot", Property.ROTATION, new float[][] {new float[] {0.0f}, new float[] {90.0f}});
-        assertSimpleAnim(scene, "anim_scale", Property.SCALE, new float[][] {new float[] {1.0f, 1.0f}, new float[] {2.0f, 1.0f}});
+        assertSimpleAnim(scene, "anim_scale", Property.SCALE, new float[][] {new float[] {1.0f, 1.0f, 1.0f}, new float[] {2.0f, 1.0f, 1.0f}});
 
         Animation animCurve = scene.getAnimation("anim_curve");
         AnimationCurve curve = animCurve.tracks.get(0).keys.get(0).curve;
         assertFloatArrays(new float[] {
-                0.249f, 0.0f, 0.75f, 1.0f
+                0.0f, 0.0f, 1.0f, 1.0f
         }, new float[] {
                 curve.x0, curve.y0, curve.x1, curve.y1
         });

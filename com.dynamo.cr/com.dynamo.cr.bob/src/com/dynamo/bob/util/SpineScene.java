@@ -434,13 +434,13 @@ public class SpineScene {
                             key.t = (float)time;
                             switch (track.property) {
                             case POSITION:
-                                key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f)};
+                                key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f), 0.0f};
                                 break;
                             case ROTATION:
                                 key.value = new float[] {JsonUtil.get(keyNode, "angle", 0.0f)};
                                 break;
                             case SCALE:
-                                key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f)};
+                                key.value = new float[] {JsonUtil.get(keyNode, "x", 1.0f), JsonUtil.get(keyNode, "y", 1.0f), 1.0f};
                                 break;
                             }
                             if (keyNode.has("curve")) {

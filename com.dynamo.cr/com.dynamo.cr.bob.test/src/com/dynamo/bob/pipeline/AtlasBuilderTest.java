@@ -20,22 +20,6 @@ import com.google.protobuf.Message;
 
 public class AtlasBuilderTest extends AbstractProtoBuilderTest {
 
-    BufferedImage newImage(int w, int h) {
-        return new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
-    }
-
-    void addImage(String path, int w, int h) throws IOException {
-        BufferedImage img = newImage(w, h);
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(img, FilenameUtils.getExtension(path), baos);
-        baos.flush();
-        addFile(path, baos.toByteArray());
-    }
-
-    AtlasBuilder.MappedAnimDesc newAnim(String id, List<String> ids) {
-        return new AtlasBuilder.MappedAnimDesc(id, ids, Playback.PLAYBACK_LOOP_BACKWARD, 30, false, false);
-    }
-
     @Test
     public void testAtlas() throws Exception {
         addImage("/test.png", 16, 16);
