@@ -386,8 +386,8 @@ namespace dmGameSystem
             TileGridComponent* tile_grid = tile_grids[i];
             TileGridResource* resource = tile_grid->m_TileGridResource;
             dmGraphics::HTexture texture = resource->m_TextureSet->m_Texture;
-            dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);
-            dmTransform::TransformS1 local(tile_grid->m_Translation, tile_grid->m_Rotation, 1.0f);
+            dmTransform::Transform world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);
+            dmTransform::Transform local(tile_grid->m_Translation, tile_grid->m_Rotation, 1.0f);
             if (dmGameObject::ScaleAlongZ(tile_grid->m_Instance))
             {
                 world = dmTransform::Mul(world, local);
@@ -456,7 +456,7 @@ namespace dmGameSystem
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
             dmGameObject::HInstance instance = component->m_Instance;
-            dmTransform::TransformS1 inv_world(dmTransform::Inv(dmGameObject::GetWorldTransform(instance)));
+            dmTransform::Transform inv_world(dmTransform::Inv(dmGameObject::GetWorldTransform(instance)));
             Point3 cell = st->m_Position;
             if (dmGameObject::ScaleAlongZ(instance))
             {

@@ -5,6 +5,8 @@
 #include <math.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#define THIRD 0.333333333333333f
+
 namespace dmTransform
 {
     using namespace Vectormath::Aos;
@@ -193,6 +195,14 @@ namespace dmTransform
 
         }
 
+        Transform(Vector3 translation, Quat rotation, float uniformScale)
+        : m_Rotation(rotation)
+        , m_Translation(translation)
+        , m_Scale(uniformScale)
+        {
+
+        }
+
         inline void SetIdentity()
         {
             m_Rotation = Quat::identity();
@@ -210,6 +220,11 @@ namespace dmTransform
             m_Translation = translation;
         }
 
+        inline float* GetPositionPtr() const
+        {
+            return (float*)&m_Translation;
+        }
+
         inline Vector3 GetScale() const
         {
             return m_Scale;
@@ -220,6 +235,21 @@ namespace dmTransform
             m_Scale = scale;
         }
 
+        inline float* GetScalePtr() const
+        {
+            return (float*)&m_Scale;
+        }
+
+        inline float GetUniformScale() const
+        {
+            return sum(m_Scale) * THIRD;
+        }
+
+        inline void SetUniformScale(float scale)
+        {
+            m_Scale = Vector3(scale);
+        }
+
         inline Quat GetRotation() const
         {
             return m_Rotation;
@@ -228,6 +258,11 @@ namespace dmTransform
         inline void SetRotation(Quat rotation)
         {
             m_Rotation = rotation;
+        }
+
+        inline float* GetRotationPtr() const
+        {
+            return (float*)&m_Rotation;
         }
     };
 
@@ -337,5 +372,7 @@ namespace dmTransform
         return res;
     }
 }
+
+#undef THIRD
 
 #endif // DM_TRANSFORM_H

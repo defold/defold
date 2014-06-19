@@ -95,7 +95,7 @@ namespace dmGameObject
         {
         }
 
-        dmTransform::TransformS1 m_Transform;
+        dmTransform::Transform m_Transform;
         // Shadowed rotation expressed in euler coordinates
         Vector3 m_EulerRotation;
         // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
@@ -199,7 +199,7 @@ namespace dmGameObject
             }
 
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
-            memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::TransformS1) * max_instances);
+            memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
             memset(&m_LevelInstanceCount[0], 0, sizeof(m_LevelInstanceCount));
             memset(&m_ComponentInstanceCount[0], 0, sizeof(uint32_t) * MAX_COMPONENT_TYPES);
         }
@@ -238,7 +238,7 @@ namespace dmGameObject
         uint16_t                 m_LevelInstanceCount[MAX_HIERARCHICAL_DEPTH];
 
         // Array of world transforms. Calculated using m_LevelIndices above
-        dmArray<dmTransform::TransformS1> m_WorldTransforms;
+        dmArray<dmTransform::Transform> m_WorldTransforms;
 
         // NOTE: Be *very* careful about m_InstancesToDelete
         // m_InstancesToDelete is an array of instances flagged for delete during Update(.)

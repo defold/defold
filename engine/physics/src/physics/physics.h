@@ -80,7 +80,7 @@ namespace dmPhysics
      * @param user_data User data pointing to the external object
      * @param world_transform World transform output parameter
      */
-    typedef void (*GetWorldTransformCallback)(void* user_data, dmTransform::TransformS1& world_transform);
+    typedef void (*GetWorldTransformCallback)(void* user_data, dmTransform::Transform& world_transform);
     /**
      * Callback used to propagate the world transform from the physics simulation to an external object.
      *

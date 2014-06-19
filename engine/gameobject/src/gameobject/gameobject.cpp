@@ -772,14 +772,14 @@ namespace dmGameObject
             assert(collection->m_Instances[instance->m_Index] == instance);
 
             // Update world transforms since some components might need them in their init-callback
-            dmTransform::TransformS1* trans = &collection->m_WorldTransforms[instance->m_Index];
+            dmTransform::Transform* trans = &collection->m_WorldTransforms[instance->m_Index];
             if (instance->m_Parent == INVALID_INSTANCE_INDEX)
             {
                 *trans = instance->m_Transform;
             }
             else
             {
-                const dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
+                const dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
                 if (instance->m_ScaleAlongZ)
                 {
                     *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
@@ -1222,7 +1222,7 @@ namespace dmGameObject
                         dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
 
                 }
-                dmTransform::TransformS1 parent_t;
+                dmTransform::Transform parent_t;
                 parent_t.SetIdentity();
                 if (parent)
                 {
@@ -1230,7 +1230,7 @@ namespace dmGameObject
                 }
                 if (sp->m_KeepWorldTransform == 0)
                 {
-                    dmTransform::TransformS1& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
+                    dmTransform::Transform& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
                     if (instance->m_ScaleAlongZ)
                     {
                         world = dmTransform::Mul(parent_t, instance->m_Transform);
@@ -1431,12 +1431,12 @@ namespace dmGameObject
                 uint16_t index = collection->m_LevelIndices[level * max_instance + i];
                 Instance* instance = collection->m_Instances[index];
                 CheckEuler(instance);
-                dmTransform::TransformS1* trans = &collection->m_WorldTransforms[index];
+                dmTransform::Transform* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
                 assert(parent_index != INVALID_INSTANCE_INDEX);
 
-                dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[parent_index];
+                dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[parent_index];
 
                 if (instance->m_ScaleAlongZ)
                 {
@@ -1758,12 +1758,12 @@ namespace dmGameObject
 
     void SetScale(HInstance instance, float scale)
     {
-        instance->m_Transform.SetScale(scale);
+        instance->m_Transform.SetUniformScale(scale);
     }
 
     float GetScale(HInstance instance)
     {
-        return instance->m_Transform.GetScale();
+        return instance->m_Transform.GetUniformScale();
     }
 
     Point3 GetWorldPosition(HInstance instance)
@@ -1781,10 +1781,10 @@ namespace dmGameObject
     float GetWorldScale(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].GetScale();
+        return collection->m_WorldTransforms[instance->m_Index].GetUniformScale();
     }
 
-    const dmTransform::TransformS1& GetWorldTransform(HInstance instance)
+    const dmTransform::Transform& GetWorldTransform(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
         return collection->m_WorldTransforms[instance->m_Index];
@@ -1937,7 +1937,6 @@ namespace dmGameObject
 
     static void UpdateEulerToRotation(HInstance instance)
     {
-        Quat q = instance->m_Transform.GetRotation();
         instance->m_PrevEulerRotation = instance->m_EulerRotation;
         instance->m_Transform.SetRotation(dmVMath::EulerToQuat(instance->m_EulerRotation));
     }
@@ -1948,11 +1947,13 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
-            float* transform = (float*)&instance->m_Transform;
+            float* position = instance->m_Transform.GetPositionPtr();
+            float* rotation = instance->m_Transform.GetRotationPtr();
+            float* scale = instance->m_Transform.GetScalePtr();
             out_value.m_ValuePtr = 0x0;
             if (property_id == PROP_POSITION)
             {
-                out_value.m_ValuePtr = transform;
+                out_value.m_ValuePtr = position;
                 out_value.m_ElementIds[0] = PROP_POSITION_X;
                 out_value.m_ElementIds[1] = PROP_POSITION_Y;
                 out_value.m_ElementIds[2] = PROP_POSITION_Z;
@@ -1960,27 +1961,27 @@ namespace dmGameObject
             }
             else if (property_id == PROP_POSITION_X)
             {
-                out_value.m_ValuePtr = transform;
+                out_value.m_ValuePtr = position;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Y)
             {
-                out_value.m_ValuePtr = transform + 1;
+                out_value.m_ValuePtr = position + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Z)
             {
-                out_value.m_ValuePtr = transform + 2;
+                out_value.m_ValuePtr = position + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_SCALE)
             {
-                out_value.m_ValuePtr = transform + 3;
+                out_value.m_ValuePtr = scale;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION)
             {
-                out_value.m_ValuePtr = transform + 4;
+                out_value.m_ValuePtr = rotation;
                 out_value.m_ElementIds[0] = PROP_ROTATION_X;
                 out_value.m_ElementIds[1] = PROP_ROTATION_Y;
                 out_value.m_ElementIds[2] = PROP_ROTATION_Z;
@@ -1989,22 +1990,22 @@ namespace dmGameObject
             }
             else if (property_id == PROP_ROTATION_X)
             {
-                out_value.m_ValuePtr = transform + 4;
+                out_value.m_ValuePtr = rotation;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Y)
             {
-                out_value.m_ValuePtr = transform + 5;
+                out_value.m_ValuePtr = rotation + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Z)
             {
-                out_value.m_ValuePtr = transform + 6;
+                out_value.m_ValuePtr = rotation + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_W)
             {
-                out_value.m_ValuePtr = transform + 7;
+                out_value.m_ValuePtr = rotation + 3;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER)
@@ -2094,80 +2095,84 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
-            float* transform = (float*)&instance->m_Transform;
+            float* position = instance->m_Transform.GetPositionPtr();
+            float* rotation = instance->m_Transform.GetRotationPtr();
+            float* scale = instance->m_Transform.GetScalePtr();
             if (property_id == PROP_POSITION)
             {
                 if (value.m_Type != PROPERTY_TYPE_VECTOR3)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[0] = value.m_V4[0];
-                transform[1] = value.m_V4[1];
-                transform[2] = value.m_V4[2];
+                position[0] = value.m_V4[0];
+                position[1] = value.m_V4[1];
+                position[2] = value.m_V4[2];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_X)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[0] = (float)value.m_Number;
+                position[0] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Y)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[1] = (float)value.m_Number;
+                position[1] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Z)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[2] = (float)value.m_Number;
+                position[2] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[3] = (float)value.m_Number;
+                scale[0] = (float)value.m_Number;
+                scale[1] = scale[0];
+                scale[2] = scale[0];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION)
             {
                 if (value.m_Type != PROPERTY_TYPE_QUAT)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[4] = value.m_V4[0];
-                transform[5] = value.m_V4[1];
-                transform[6] = value.m_V4[2];
-                transform[7] = value.m_V4[3];
+                rotation[0] = value.m_V4[0];
+                rotation[1] = value.m_V4[1];
+                rotation[2] = value.m_V4[2];
+                rotation[3] = value.m_V4[3];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_X)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[4] = (float)value.m_Number;
+                rotation[0] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Y)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[5] = (float)value.m_Number;
+                rotation[1] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Z)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[6] = (float)value.m_Number;
+                rotation[2] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_W)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[7] = (float)value.m_Number;
+                rotation[3] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER)

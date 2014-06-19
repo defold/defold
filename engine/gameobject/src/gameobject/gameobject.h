@@ -911,7 +911,7 @@ namespace dmGameObject
      * @param instance Game object instance
      * @return World uniform scale
      */
-    const dmTransform::TransformS1& GetWorldTransform(HInstance instance);
+    const dmTransform::Transform& GetWorldTransform(HInstance instance);
 
     /**
      * Set parent instance to child

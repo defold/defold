@@ -563,11 +563,11 @@ TEST_F(HierarchyTest, TestHierarchyScale)
 
     dmGameObject::SetParent(child, parent);
 
-    dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(child);
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(child);
 
     // Needs update to obtain new world transform
     ASSERT_NE(scale, world.GetTranslation().getX());
-    ASSERT_NE(scale, world.GetScale());
+    ASSERT_NE(scale, world.GetUniformScale());
 
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -575,7 +575,7 @@ TEST_F(HierarchyTest, TestHierarchyScale)
     // New world transform updated
     world = dmGameObject::GetWorldTransform(child);
     ASSERT_EQ(scale, world.GetTranslation().getX());
-    ASSERT_EQ(scale, world.GetScale());
+    ASSERT_EQ(scale, world.GetUniformScale());
 
     // Unparent to verify the scale is reset
     dmGameObject::SetParent(child, 0);
@@ -586,7 +586,7 @@ TEST_F(HierarchyTest, TestHierarchyScale)
     // New world transform updated
     world = dmGameObject::GetWorldTransform(child);
     ASSERT_NE(scale, world.GetTranslation().getX());
-    ASSERT_NE(scale, world.GetScale());
+    ASSERT_NE(scale, world.GetUniformScale());
 
     dmGameObject::Delete(m_Collection, child);
     dmGameObject::Delete(m_Collection, parent);
