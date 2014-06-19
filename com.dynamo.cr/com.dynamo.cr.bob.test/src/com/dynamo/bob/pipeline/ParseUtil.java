@@ -100,6 +100,12 @@ public class ParseUtil {
                 return Spine.SpineScene.parseFrom(content);
             }
         });
+        parseMap.put("spinemodelc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Spine.SpineModelDesc.parseFrom(content);
+            }
+        });
     }
 
     public static Message parse(IResource resource) throws IOException, InvalidProtocolBufferException {
