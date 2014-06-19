@@ -23,7 +23,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.tile.proto.Tile.Playback;
 
 public class AtlasUtil {
-    private static class MappedAnimDesc extends AnimDesc {
+    public static class MappedAnimDesc extends AnimDesc {
         List<String> ids;
 
         public MappedAnimDesc(String id, List<String> ids, Playback playback, int fps, boolean flipHorizontal,
@@ -42,7 +42,7 @@ public class AtlasUtil {
         }
     }
 
-    private static class MappedAnimIterator implements AnimIterator {
+    public static class MappedAnimIterator implements AnimIterator {
         final List<MappedAnimDesc> anims;
         final List<String> imageIds;
         int nextAnimIndex;
