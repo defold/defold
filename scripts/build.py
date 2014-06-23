@@ -530,7 +530,7 @@ instructions.configure=\
 
     def shell(self):
         print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
-        self.exec_command([SHELL])
+        self.exec_env_command([SHELL])
 
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
