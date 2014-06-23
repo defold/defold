@@ -316,7 +316,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
         ProtoUtil.merge(task.input(0), builder);
 
-        TextureSetResult result = AtlasUtil.genereateTextureSet(task.input(2));
+        TextureSetResult result = AtlasUtil.genereateTextureSet(project, task.input(2));
         final Map<String, UVTransform> animToTransform = new HashMap<String, UVTransform>();
         for (TextureSetAnimation animation : result.builder.getAnimationsList()) {
             animToTransform.put(animation.getId(), result.uvTransforms.get(animation.getStart()));

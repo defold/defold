@@ -36,7 +36,7 @@ public class AtlasBuilder extends Builder<Void>  {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        TextureSetResult result = AtlasUtil.genereateTextureSet(task.input(0));
+        TextureSetResult result = AtlasUtil.genereateTextureSet(project, task.input(0));
 
         int buildDirLen = project.getBuildDirectory().length();
         String texturePath = task.output(1).getPath().substring(buildDirLen);

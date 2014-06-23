@@ -16,6 +16,7 @@ import com.dynamo.atlas.proto.AtlasProto.AtlasAnimation;
 import com.dynamo.atlas.proto.AtlasProto.AtlasImage;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IResource;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
@@ -124,7 +125,7 @@ public class AtlasUtil {
         String transform(String path);
     }
 
-    private static List<MappedAnimDesc> createAnimDescs(List<String> images, Atlas atlas, PathTransformer transformer) {
+    private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer) {
         List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount()
                 + atlas.getImagesCount());
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
@@ -143,7 +144,7 @@ public class AtlasUtil {
         return animDescs;
     }
 
-    public static TextureSetResult genereateTextureSet(final IResource atlasResource) throws IOException, CompileExceptionError {
+    public static TextureSetResult genereateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
         ProtoUtil.merge(atlasResource, builder);
         Atlas atlas = builder.build();
@@ -151,12 +152,17 @@ public class AtlasUtil {
         List<String> imagePaths = collectImages(atlas);
         List<IResource> imageResources = toResources(atlasResource, imagePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
-        List<MappedAnimDesc> animDescs = createAnimDescs(imagePaths, atlas, new PathTransformer() {
+        PathTransformer transformer = new PathTransformer() {
             @Override
             public String transform(String path) {
-                return atlasResource.getResource(path).getPath();
+                return project.getResource(path).getPath();
             }
-        });
+        };
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
+        int imagePathCount = imagePaths.size();
+        for (int i = 0; i < imagePathCount; ++i) {
+            imagePaths.set(i, transformer.transform(imagePaths.get(i)));
+        }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         return TextureSetGenerator.generate(images, iterator,
                 Math.max(0, atlas.getMargin()), Math.max(0, atlas.getExtrudeBorders()), false);

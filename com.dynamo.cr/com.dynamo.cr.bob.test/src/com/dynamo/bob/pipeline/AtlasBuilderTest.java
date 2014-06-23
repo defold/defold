@@ -3,19 +3,12 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.List;
 
-import javax.imageio.ImageIO;
-
-import org.apache.commons.io.FilenameUtils;
 import org.junit.Test;
 
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
-import com.dynamo.tile.proto.Tile.Playback;
 import com.google.protobuf.Message;
 
 public class AtlasBuilderTest extends AbstractProtoBuilderTest {
