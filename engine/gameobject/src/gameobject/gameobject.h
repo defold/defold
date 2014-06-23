@@ -770,6 +770,25 @@ namespace dmGameObject
     void SetInheritScale(HInstance instance, bool inherit_scale);
 
     /**
+     * Set whether the instance should be flagged as a bone.
+     * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
+     * Used for animated skeletons.
+     * @param instance Instance
+     * @param bone true if the instance is a bone
+     */
+    void SetBone(HInstance instance, bool bone);
+
+    /**
+     * Set the local transforms recursively of all instances flagged as bones under the given parent instance.
+     * The order of the transforms is breadth-first.
+     * @param parent Parent instance of the hierarchy to set
+     * @param transforms Array of transforms to set breadth-first for the bone instances
+     * @param transform_count Size of the transforms array
+     * @return Number of instances found
+     */
+    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count);
+
+    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */

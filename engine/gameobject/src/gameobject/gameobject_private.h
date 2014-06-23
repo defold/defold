@@ -84,6 +84,7 @@ namespace dmGameObject
             m_Initialized = 0;
             m_ScaleAlongZ = 0;
             m_NoInheritScale = 0;
+            m_Bone = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
             m_LevelIndex = INVALID_INSTANCE_INDEX;
@@ -119,8 +120,10 @@ namespace dmGameObject
         uint16_t        m_ScaleAlongZ : 1;
         // If this game object should keep its local scale, i.e. avoid inheriting the parent's scale
         uint16_t        m_NoInheritScale : 1;
+        // If this game object is part of a skeleton
+        uint16_t        m_Bone : 1;
         // Padding
-        uint16_t        m_Pad : 9;
+        uint16_t        m_Pad : 8;
 
         // Index to parent
         uint16_t        m_Parent : 16;
@@ -167,9 +170,11 @@ namespace dmGameObject
     };
 
     // Max hierarchical depth
-    // 4 is interpreted as up to four levels of child nodes including root-nodes
+    // 8 is interpreted as up to eight levels of child nodes including root-nodes
     // Must be greater than zero
-    const uint32_t MAX_HIERARCHICAL_DEPTH = 4;
+    // TODO A depth of 8 instead of 4 both affects memory used and time spent in UpdateTransforms.
+    // This has been added to the backlog as DEF-313
+    const uint32_t MAX_HIERARCHICAL_DEPTH = 8;
     struct Collection
     {
         Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)

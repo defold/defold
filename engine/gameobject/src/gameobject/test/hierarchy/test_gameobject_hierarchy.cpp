@@ -12,6 +12,8 @@
 #include "../gameobject_private.h"
 #include "../proto/gameobject_ddf.h"
 
+#define EPSILON 0.000001f
+
 using namespace Vectormath::Aos;
 
 class HierarchyTest : public ::testing::Test
@@ -288,33 +290,29 @@ TEST_F(HierarchyTest, TestHierarchy4)
 {
     // Test RESULT_MAXIMUM_HIEARCHICAL_DEPTH
 
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child2 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child3 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HInstance child4 = dmGameObject::New(m_Collection, "/go.goc");
+    static const uint32_t max_levels = dmGameObject::MAX_HIERARCHICAL_DEPTH+1;
+
+    dmGameObject::HInstance instances[max_levels];
+    for (uint32_t i = 0; i < max_levels; ++i)
+    {
+        instances[i] = dmGameObject::New(m_Collection, "/go.goc");
+    }
 
     dmGameObject::Result r;
-
-    r = dmGameObject::SetParent(child1, parent);
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-
-    r = dmGameObject::SetParent(child2, child1);
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-
-    r = dmGameObject::SetParent(child3, child2);
-    ASSERT_EQ(dmGameObject::RESULT_OK, r);
-
-    r = dmGameObject::SetParent(child4, child3);
+    for (uint32_t i = 1; i < max_levels-1; ++i)
+    {
+        r = dmGameObject::SetParent(instances[i], instances[i-1]);
+        ASSERT_EQ(dmGameObject::RESULT_OK, r);
+    }
+    r = dmGameObject::SetParent(instances[max_levels-1], instances[max_levels-2]);
     ASSERT_EQ(dmGameObject::RESULT_MAXIMUM_HIEARCHICAL_DEPTH, r);
 
-    ASSERT_EQ(0U, dmGameObject::GetChildCount(child3));
+    ASSERT_EQ(0U, dmGameObject::GetChildCount(instances[max_levels-2]));
 
-    dmGameObject::Delete(m_Collection, parent);
-    dmGameObject::Delete(m_Collection, child1);
-    dmGameObject::Delete(m_Collection, child2);
-    dmGameObject::Delete(m_Collection, child3);
-    dmGameObject::Delete(m_Collection, child4);
+    for (uint32_t i = 0; i < max_levels; ++i)
+    {
+        dmGameObject::Delete(m_Collection, instances[i]);
+    }
 }
 
 TEST_F(HierarchyTest, TestHierarchy5)
@@ -630,6 +628,60 @@ TEST_F(HierarchyTest, TestHierarchyInheritScale)
     dmGameObject::Delete(m_Collection, child);
     dmGameObject::Delete(m_Collection, parent);
 }
+
+TEST_F(HierarchyTest, TestHierarchyBones)
+{
+    dmGameObject::HInstance root = dmGameObject::New(m_Collection, "/go.goc");
+
+    // First hierarchy that will be transformed by SetBoneTransforms
+    dmGameObject::HInstance p1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetBone(p1, true);
+    dmGameObject::SetParent(p1, root);
+    dmGameObject::HInstance c1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetBone(c1, true);
+    dmGameObject::SetParent(c1, p1);
+    dmGameObject::SetPosition(c1, Point3(1.0f, 0.0f, 0.0f));
+
+    // Second hierarchy, attached to the first, that should not be moved with SetBoneTransforms
+    dmGameObject::HInstance root2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetParent(root2, c1);
+    dmGameObject::HInstance p2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetParent(p2, root2);
+    dmGameObject::HInstance c2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetBone(c2, true);
+    dmGameObject::SetParent(c2, p2);
+
+    dmTransform::Transform t[2];
+    t[0].SetIdentity();
+    t[1].SetIdentity();
+    t[1].SetTranslation(Vector3(2.0f, 0.0f, 0.0f));
+
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(c2);
+
+    ASSERT_NEAR(1.0f, world.GetTranslation().getX(), EPSILON);
+
+    ASSERT_EQ(2, SetBoneTransforms(root, t, 2));
+
+    ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    world = dmGameObject::GetWorldTransform(c2);
+
+    ASSERT_NEAR(2.0f, world.GetTranslation().getX(), EPSILON);
+    ASSERT_NEAR(0.0f, dmGameObject::GetPosition(c2).getX(), EPSILON);
+
+    dmGameObject::Delete(m_Collection, root);
+    dmGameObject::Delete(m_Collection, p1);
+    dmGameObject::Delete(m_Collection, c1);
+    dmGameObject::Delete(m_Collection, root2);
+    dmGameObject::Delete(m_Collection, p2);
+    dmGameObject::Delete(m_Collection, c2);
+}
+
+#undef EPSILON
 
 int main(int argc, char **argv)
 {

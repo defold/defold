@@ -1139,6 +1139,51 @@ namespace dmGameObject
         instance->m_NoInheritScale = !inherit_scale;
     }
 
+    void SetBone(HInstance instance, bool bone)
+    {
+        instance->m_Bone = bone;
+    }
+
+    static uint32_t DoSetBoneTransforms(HCollection collection, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
+    {
+        if (transform_count == 0)
+            return 0;
+        uint16_t current_index = first_index;
+        dmTransform::Transform* current_transform = transforms;
+        uint32_t count = 0;
+        while (current_index != INVALID_INSTANCE_INDEX)
+        {
+            HInstance instance = collection->m_Instances[current_index];
+            if (instance->m_Bone)
+            {
+                instance->m_Transform = *current_transform++;
+                ++count;
+                if (transform_count == count)
+                {
+                    return count;
+                }
+            }
+            current_index = instance->m_SiblingIndex;
+        }
+        current_index = first_index;
+        while (current_index != INVALID_INSTANCE_INDEX)
+        {
+            HInstance instance = collection->m_Instances[current_index];
+            if (instance->m_Bone)
+            {
+                count += DoSetBoneTransforms(collection, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
+            }
+            current_index = instance->m_SiblingIndex;
+        }
+        return count;
+    }
+
+    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count)
+    {
+        HCollection collection = parent->m_Collection;
+        return DoSetBoneTransforms(collection, parent->m_FirstChildIndex, transforms, transform_count);
+    }
+
     struct DispatchMessagesContext
     {
         HCollection m_Collection;
