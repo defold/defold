@@ -8,7 +8,8 @@ Bundle-Vendor: DYNAMO
 Require-Bundle: org.eclipse.core.runtime;visibility:=reexport,
  slf4j;bundle-version="1.6.4",
  org.eclipse.ui;bundle-version="3.8.2",
- org.eclipse.core.expressions;visibility:=reexport
+ org.eclipse.core.expressions;visibility:=reexport,
+ com.dynamo.cr.common;bundle-version="1.0.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Export-Package: clojure,

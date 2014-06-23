@@ -1,6 +1,5 @@
 (defproject com.dynamo.cr.sceneed2 "0.1.0"
-  :description "Dependency list for eleiko project"
-  :url ""
+  :description "Extending the Scene Editor"
   :license {:name "All Rights Reserved" }
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.typed "0.2.42"]
@@ -20,12 +19,12 @@
   :test-paths []
   :clean-targets [:target-path "doc"]
   :profiles {:deps {:source-paths []}
-             :docs {:source-paths ["src/clj"]}}
+             :docs {:source-paths ["src/clj"]}
+             :uberjar {:resource-paths ^:top-displace []}}
   :aliases  {"update-deps" ["do" "deps," "uberjar," "ubersource"]
-             "serve-docs"  ["with-profile" "docs" "do" "doc," "simpleton" "5000" "file" ":from" "doc"]}
-  )
+             "serve-docs"  ["with-profile" "docs" "do" "doc," "simpleton" "5000" "file" ":from" "doc"]})
 
 (def classpath-file ".eclipse-classpath")
 (def classpath-elements (clojure.string/split (slurp (clojure.java.io/resource classpath-file)) #":"))
-(def filters [ #".*/src/clj$" #".*/src/java$" #".*/test/clj$" #".*/bin$"])
+(def filters [#".*/src/clj$" #".*/src/java$" #".*/test/clj$" #".*/bin$" #".*/lib/com.dynamo.cr.sceneed2.*jar"])
 (def project (assoc project :resource-paths (remove (fn [path] (some #(re-matches % path) filters)) classpath-elements)))
