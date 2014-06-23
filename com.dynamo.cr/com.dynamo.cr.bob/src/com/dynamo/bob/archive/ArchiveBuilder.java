@@ -143,10 +143,11 @@ public class ArchiveBuilder {
         for (Entry e : entries) {
             alignBuffer(outFile, 4);
             resourcesOffset.add((int) outFile.getFilePointer());
-            if(e.compressedSize != 0xFFFFFFFF)
+            if(e.compressedSize != 0xFFFFFFFF) {
                 e.compressedSize = compress(e.fileName, e.size, outFile);
-            else
+            } else {
                 copy(e.fileName, outFile);
+            }
         }
 
         alignBuffer(outFile, 4);
@@ -193,22 +194,14 @@ public class ArchiveBuilder {
             System.err.println("USAGE: ArchiveBuilder <ROOT> <OUT> [-c] <FILE1> <FILE2>...");
         }
 
-        System.out.print("## ArchiveBuilder: ");
-        for(int i=0; i<args.length; i++)
-            System.out.print(args[i] + " ");
-        System.out.println("");
-
         int firstFileArg = 2;
         boolean doCompress = false;
         if(args.length > 2)
         {
-            if("-c".equals(args[2]))
-            {
+            if("-c".equals(args[2])) {
                 doCompress = true;
                 firstFileArg = 3;
-            }
-            else
-            {
+            } else {
                 doCompress = false;
                 firstFileArg = 2;
             }
