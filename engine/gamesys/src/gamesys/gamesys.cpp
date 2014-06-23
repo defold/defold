@@ -30,6 +30,8 @@
 #include "resources/res_sprite.h"
 #include "resources/res_textureset.h"
 #include "resources/res_tilegrid.h"
+#include "resources/res_spine_scene.h"
+#include "resources/res_spine_model.h"
 
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
@@ -101,6 +103,8 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetCreate, ResTextureSetDestroy, ResTextureSetRecreate);
         REGISTER_RESOURCE_TYPE("tilegridc", physics_context, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
+        REGISTER_RESOURCE_TYPE("spinescenec", 0, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
+        REGISTER_RESOURCE_TYPE("spinemodelc", 0, ResSpineModelCreate, ResSpineModelDestroy, ResSpineModelRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 

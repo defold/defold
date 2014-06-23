@@ -508,6 +508,16 @@ ResourceFailParams invalid_vp_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, ::testing::ValuesIn(invalid_vp_resources));
 
+/* Spine Scene */
+
+const char* valid_spine_scene_resources[] = {"/spine/valid.spinescenec"};
+INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, ::testing::ValuesIn(valid_spine_scene_resources));
+
+/* Spine Model */
+
+const char* valid_spine_model_resources[] = {"/spine/valid.spinemodelc"};
+INSTANTIATE_TEST_CASE_P(SpineModel, ResourceTest, ::testing::ValuesIn(valid_spine_model_resources));
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -11,7 +11,7 @@ import org.junit.Test;
 
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
-import com.dynamo.spine.proto.Spine.Animation;
+import com.dynamo.spine.proto.Spine.SpineAnimation;
 import com.dynamo.spine.proto.Spine.AnimationTrack;
 import com.dynamo.spine.proto.Spine.Bone;
 import com.dynamo.spine.proto.Spine.MeshSet;
@@ -50,7 +50,7 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(meshes.containsKey("test_skin2"));
     }
 
-    private void assertAnim(Animation anim, boolean pos, boolean rot, boolean scale) {
+    private void assertAnim(SpineAnimation anim, boolean pos, boolean rot, boolean scale) {
         assertTrue(anim != null);
         assertEquals(1, anim.getTracksCount());
         assertEquals(1.0f, anim.getDuration(), 0.0f);
@@ -76,8 +76,8 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
 
     private void assertAnimSet(AnimationSet animSet) {
         assertEquals(5, animSet.getAnimationsCount());
-        Map<String, Animation> anims = new HashMap<String, Animation>();
-        for (Animation anim : animSet.getAnimationsList()) {
+        Map<String, SpineAnimation> anims = new HashMap<String, SpineAnimation>();
+        for (SpineAnimation anim : animSet.getAnimationsList()) {
             anims.put(anim.getName(), anim);
         }
         assertAnim(anims.get("anim_curve"), true, false, false);

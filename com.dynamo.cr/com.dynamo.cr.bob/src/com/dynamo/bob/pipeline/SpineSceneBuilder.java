@@ -26,13 +26,13 @@ import com.dynamo.bob.util.SpineScene;
 import com.dynamo.bob.util.SpineScene.LoadException;
 import com.dynamo.bob.util.SpineScene.UVTransformProvider;
 import com.dynamo.spine.proto.Spine;
-import com.dynamo.spine.proto.Spine.Animation;
 import com.dynamo.spine.proto.Spine.AnimationSet;
 import com.dynamo.spine.proto.Spine.AnimationTrack;
 import com.dynamo.spine.proto.Spine.Bone;
 import com.dynamo.spine.proto.Spine.Mesh;
 import com.dynamo.spine.proto.Spine.MeshSet;
 import com.dynamo.spine.proto.Spine.Skeleton;
+import com.dynamo.spine.proto.Spine.SpineAnimation;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
@@ -267,7 +267,7 @@ public class SpineSceneBuilder extends Builder<Void> {
     }
 
     private static void toDDF(String id, SpineScene.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate) {
-        Animation.Builder animBuilder = Animation.newBuilder();
+        SpineAnimation.Builder animBuilder = SpineAnimation.newBuilder();
         animBuilder.setName(id);
         animBuilder.setDuration(animation.duration);
         animBuilder.setSampleRate((float)sampleRate);
@@ -334,6 +334,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         } catch (LoadException e) {
             throw new CompileExceptionError(task.input(1), -1, e.getMessage());
         }
+        b.setTextureSet(BuilderUtil.replaceExt(builder.getAtlas(), "atlas", "texturesetc"));
         Message msg = b.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         msg.writeTo(out);

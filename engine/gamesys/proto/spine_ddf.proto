@@ -55,7 +55,7 @@ message AnimationTrack
     repeated float scale = 4;
 }
 
-message Animation
+message SpineAnimation
 {
     required string name = 1;
     required float duration = 2;
@@ -65,7 +65,7 @@ message Animation
 
 message AnimationSet
 {
-    repeated Animation animations = 1;
+    repeated SpineAnimation animations = 1;
 }
 
 message Mesh
@@ -90,5 +90,5 @@ message SpineScene
     required Skeleton skeleton = 1;
     required AnimationSet animation_set = 2;
     required MeshSet mesh_set = 3;
-    optional float sample_rate = 4 [default = 30.0];
+    required string texture_set = 4 [(resource)=true];
 }

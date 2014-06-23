@@ -176,6 +176,11 @@ def transform_sound(task, msg):
     msg.sound = msg.sound.replace('.ogg', '.oggc')
     return msg
 
+def transform_spine_model(task, msg):
+    msg.spine_scene = msg.spine_scene.replace('.spinescene', '.spinescenec')
+    msg.material = msg.material.replace('.material', '.materialc')
+    return msg
+
 def write_embedded(task):
     try:
         import google.protobuf.text_format
@@ -305,6 +310,7 @@ proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.sprite
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
+proto_compile_task('spinemodel', 'spine_ddf_pb2', 'SpineModelDesc', '.spinemodel', '.spinemodelc', transform_spine_model)
 
 new_copy_task('project', '.project', '.projectc')
 new_copy_task('emitter', '.emitter', '.emitterc')
@@ -426,5 +432,39 @@ def tileset_file(self, node):
     tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
     tileset.set_inputs(node)
     obj_ext = '.texturesetc'
+    out = node.change_ext(obj_ext)
+    tileset.set_outputs(out)
+
+def compile_spinescene(task):
+    try:
+        import google.protobuf.text_format
+        import spine_ddf_pb2
+        # NOTE: We can't use getattr. msg_type could of form "foo.bar"
+        msg = spine_ddf_pb2.SpineSceneDesc() # Call constructor on message type
+        with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
+            google.protobuf.text_format.Merge(in_f.read(), msg)
+
+        msg_out = spine_ddf_pb2.SpineScene()
+        msg_out.skeleton.CopyFrom(spine_ddf_pb2.Skeleton())
+        msg_out.animation_set.CopyFrom(spine_ddf_pb2.AnimationSet())
+        msg_out.mesh_set.CopyFrom(spine_ddf_pb2.MeshSet())
+        msg_out.texture_set = transform_tilesource_name(msg.atlas)
+
+        with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
+            out_f.write(msg_out.SerializeToString())
+
+        return 0
+    except google.protobuf.text_format.ParseError,e:
+        print >>sys.stderr, '%s:%s' % (task.inputs[0].srcpath(task.env), str(e))
+        return 1
+
+task = Task.task_type_from_func('spinescene',
+                                func    = compile_spinescene,
+                                color   = 'PINK')
+@extension(['.spinescene'])
+def tileset_file(self, node):
+    tileset = self.create_task('spinescene')
+    tileset.set_inputs(node)
+    obj_ext = '.spinescenec'
     out = node.change_ext(obj_ext)
     tileset.set_outputs(out)
