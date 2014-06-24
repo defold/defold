@@ -16,6 +16,14 @@
    :node-ref NodeRef
    :children [(s/recursive #'OutlineItem)]})
 
+(defnk outline-tree-producer :- OutlineItem
+  [this g children :- [OutlineItem]]
+  {:label "my name" :icon "my type of icon" :node-ref this :children children})
+
+(def OutlineNode
+  {:inputs  {:children [(s/recursive #'OutlineNode)]}
+   :transforms {:tree #'outline-tree-producer}})
+
 (defn error-message [m] {:error-message m})
 
 (defn number               [& {:as opts}] (merge {:schema s/Num} opts))
@@ -36,13 +44,6 @@
 (def Translatable
   {:properties {:translation {:schema Vector3}}})
 
-(defnk outline-tree-producer :- OutlineItem
-  [this g children :- [OutlineItem]]
-  {:label "my name" :icon "my type of icon" :node-ref (:id this) :children children})
-
-(def OutlineParent
-  {:inputs  {:children [OutlineItem]}
-   :transforms {:tree #'outline-tree-producer}})
 
 (defn resource [] {})
 
@@ -60,16 +61,6 @@
 (def Animation 
   {:properties {:fps (non-negative-integer :default 30)}
    :transforms {:frames #'animation-frames}})
-
-(defn outline-child-producer [this g]
-  (assoc (dg/node g this) :node-ref this)
-  )
-
-(def OutlineChild 
-  {:properties {:label (string :default "my name") 
-                :icon (icon :default "pretty stuff")}
-   :transforms {:child #'outline-child-producer}})
-
 ;; helpers
 
 (declare get-value)
@@ -81,7 +72,7 @@
 
 (defn collect-inputs [node g input-schema]
   (reduce-kv 
-    (fn [m k v ] 
+    (fn [m k v] 
       (case k
         :g         (assoc m k g)
         :this      (assoc m k node)

@@ -30,7 +30,7 @@
 
 (def labels (gen/elements [:t :u :v :w :x :y :z]))
 
-(defn node [a b] {:inputs (set a) :outputs (set b)})
+(defn node [id a b] {:id id :inputs (set a) :outputs (set b)})
 
 (defn pair
   [m n]
@@ -53,27 +53,29 @@
   (gen/not-empty (gen/vector (gen/elements (g/node-ids g)))))
 
 (def nodes (gen/fmap (partial apply node)
-                     (gen/tuple (gen/not-empty (gen/vector labels)) 
-                                (gen/not-empty (gen/vector labels)))))
+                     (gen/tuple
+                       gen/neg-int
+                       (gen/not-empty (gen/vector labels)) 
+                       (gen/not-empty (gen/vector labels)))))
 
 (defn- add-arcs
   [g arcs]
-  (for-graph g [a arcs]
+  (g/for-graph g [a arcs]
              (apply lg/connect g (flatten a))))
 
 (defn- remove-arcs
   [g arcs]
-  (for-graph g [a arcs]
+  (g/for-graph g [a arcs]
              (apply lg/disconnect g (flatten a))))
 
 (defn populate-graph
   [g nodes]
-  (for-graph g [n nodes]
+  (g/for-graph g [n nodes]
              (lg/add-labeled-node g (:inputs n) (:outputs n) {})))
 
 (defn remove-nodes
   [g nodes]
-  (for-graph g [n nodes]
+  (g/for-graph g [n nodes]
              (g/remove-node g n)))
 
 (def disconnected-graph

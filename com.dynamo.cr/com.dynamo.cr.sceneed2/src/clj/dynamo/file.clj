@@ -45,6 +45,28 @@
       (TextFormat/merge input-reader builder)
       (f nm (.build builder)))))
 
+
+(defmulti message->node
+  "This is an extensible function that you implement to help load a specific file
+   type. Create an implementation by adding something like this to your namespace:
+
+   (defmethod message->node _message-classname_
+     [resource-name _message-instance_]
+     (,,,) ;; implementation
+   )
+
+   You'll replace _message-classname_ with the Java class that matches the message
+   type to convert. The _message-instance_ argument will contain an instance of the
+   class specified in _message-classname_.
+
+   If the message instance contains other messages (as in the case of protocol buffers, 
+   for example) then you should call message->node recursively with the same resource-name 
+   and the child message.
+
+   Given a resource name and message describing the resource,
+   create (and return?) a list of nodes."
+  (fn [resource-name message] (class message)))
+
 (defn load
   "Load a file. This looks up a suitable loader based on the filename. Loaders must be
    registered via register-loader before they can be used.

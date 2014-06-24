@@ -5,12 +5,16 @@
             [internal.graph.dgraph :as dg]
             [camel-snake-kebab :refer [->kebab-case]]))
 
+(def ^:private ^java.util.concurrent.atomic.AtomicInteger
+     nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
+
+(defn tempid [] (- (.getAndIncrement nextid)))
+
 (defn node-inputs [v] (into #{} (keys (:inputs v))))
 (defn node-outputs [v] (into #{} (keys (:transforms v))))
 
 (defn get-input [])
 (defn refresh-inputs [g n i])
-
 
 (defprotocol Node
   (value [this g output default] "Produce the value for the named output. Supplies nil if the output cannot be produced.")
@@ -29,7 +33,7 @@
   (map (comp symbol name) (keys (:properties behavior))))
 
 (defn state-vector [behavior]
-  (into [] (list* 'inputs 'transforms  (property-symbols behavior))))
+  (into [] (list* 'inputs 'transforms 'id (property-symbols behavior))))
 
 (defn generate-type [name behavior]
   (let [t 'this#
@@ -89,4 +93,4 @@
        ~(str "Constructor for " nm ", using default values for any property not in property-values.\nThe properties on " nm " are:\n"
              (describe-properties behavior))
        [& {:as ~'property-values}]
-       (~record-ctor (merge ~(defaults behavior) ~'property-values)))))
+       (~record-ctor (merge {:_id (tempid)} ~(defaults behavior) ~'property-values)))))
