@@ -146,6 +146,8 @@ namespace dmEngine
         m_GuiContext.m_RenderContext = 0x0;
         m_SpriteContext.m_RenderContext = 0x0;
         m_SpriteContext.m_MaxSpriteCount = 0;
+        m_SpineModelContext.m_RenderContext = 0x0;
+        m_SpineModelContext.m_MaxSpineModelCount = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -559,6 +561,9 @@ namespace dmEngine
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
+        engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
+
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
 
@@ -578,7 +583,7 @@ namespace dmEngine
         if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
             goto bail;
 
-        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext);
+        res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_SpineModelContext);
         if (res != dmGameObject::RESULT_OK)
             goto bail;
 

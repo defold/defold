@@ -33,7 +33,7 @@ message Bone
 {
     // 0xffff means no parent
     required uint32 parent = 1;
-    required string id = 2;
+    required uint64 id = 2;
     required dmMath.Point3 position = 3;
     required dmMath.Quat rotation = 4;
     required dmMath.Vector3 scale = 5;
@@ -57,7 +57,7 @@ message AnimationTrack
 
 message SpineAnimation
 {
-    required string name = 1;
+    required uint64 id = 1;
     required float duration = 2;
     required float sample_rate = 3;
     repeated AnimationTrack tracks = 4;
@@ -70,7 +70,7 @@ message AnimationSet
 
 message Mesh
 {
-    required string name = 1;
+    required uint64 id = 1;
     repeated float positions = 2;
     repeated float texcoord0 = 3;
     repeated uint32 indices  = 4;

@@ -112,6 +112,7 @@ namespace dmEngine
         dmGameSystem::SpriteContext                 m_SpriteContext;
         dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
         dmGameSystem::FactoryContext                m_FactoryContext;
+        dmGameSystem::SpineModelContext             m_SpineModelContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
         dmHID::HContext                             m_HidContext;

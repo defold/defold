@@ -9,6 +9,7 @@ import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
 import com.dynamo.spine.proto.Spine.SpineAnimation;
@@ -26,28 +27,36 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
+    private static boolean hasBone(Map<Long, Bone> bones, String id) {
+        return bones.containsKey(MurmurHash.hash64(id));
+    }
+
     private void assertSkeleton(Skeleton skeleton) {
         assertEquals(5, skeleton.getBonesCount());
-        Map<String, Bone> bones = new HashMap<String, Bone>();
+        Map<Long, Bone> bones = new HashMap<Long, Bone>();
         for (Bone bone : skeleton.getBonesList()) {
             bones.put(bone.getId(), bone);
         }
-        assertTrue(bones.containsKey("root"));
-        assertTrue(bones.containsKey("bone_animated"));
-        assertTrue(bones.containsKey("bone_noscale"));
-        assertTrue(bones.containsKey("bone_rotated"));
-        assertTrue(bones.containsKey("bone_scale"));
+        assertTrue(hasBone(bones, "root"));
+        assertTrue(hasBone(bones, "bone_animated"));
+        assertTrue(hasBone(bones, "bone_noscale"));
+        assertTrue(hasBone(bones, "bone_rotated"));
+        assertTrue(hasBone(bones, "bone_scale"));
+    }
+
+    private static boolean hasMesh(Map<Long, Mesh> meshes, String id) {
+        return meshes.containsKey(MurmurHash.hash64(id));
     }
 
     private void assertMeshSet(MeshSet meshSet) {
         assertEquals(3, meshSet.getMeshesCount());
-        Map<String, Mesh> meshes = new HashMap<String, Mesh>();
+        Map<Long, Mesh> meshes = new HashMap<Long, Mesh>();
         for (Mesh mesh : meshSet.getMeshesList()) {
-            meshes.put(mesh.getName(), mesh);
+            meshes.put(mesh.getId(), mesh);
         }
-        assertTrue(meshes.containsKey(""));
-        assertTrue(meshes.containsKey("test_skin"));
-        assertTrue(meshes.containsKey("test_skin2"));
+        assertTrue(hasMesh(meshes, ""));
+        assertTrue(hasMesh(meshes, "test_skin"));
+        assertTrue(hasMesh(meshes, "test_skin2"));
     }
 
     private void assertAnim(SpineAnimation anim, boolean pos, boolean rot, boolean scale) {
@@ -74,17 +83,21 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(scaleCount, track.getScaleCount());
     }
 
+    private static SpineAnimation getAnim(Map<Long, SpineAnimation> animations, String id) {
+        return animations.get(MurmurHash.hash64(id));
+    }
+
     private void assertAnimSet(AnimationSet animSet) {
         assertEquals(5, animSet.getAnimationsCount());
-        Map<String, SpineAnimation> anims = new HashMap<String, SpineAnimation>();
+        Map<Long, SpineAnimation> anims = new HashMap<Long, SpineAnimation>();
         for (SpineAnimation anim : animSet.getAnimationsList()) {
-            anims.put(anim.getName(), anim);
+            anims.put(anim.getId(), anim);
         }
-        assertAnim(anims.get("anim_curve"), true, false, false);
-        assertAnim(anims.get("anim_multi"), true, true, true);
-        assertAnim(anims.get("anim_pos"), true, false, false);
-        assertAnim(anims.get("anim_rot"), false, true, false);
-        assertAnim(anims.get("anim_scale"), false, false, true);
+        assertAnim(getAnim(anims, "anim_curve"), true, false, false);
+        assertAnim(getAnim(anims, "anim_multi"), true, true, true);
+        assertAnim(getAnim(anims, "anim_pos"), true, false, false);
+        assertAnim(getAnim(anims, "anim_rot"), false, true, false);
+        assertAnim(getAnim(anims, "anim_scale"), false, false, true);
     }
 
     @Test

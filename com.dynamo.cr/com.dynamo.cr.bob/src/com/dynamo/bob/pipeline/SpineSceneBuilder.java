@@ -22,6 +22,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.BezierUtil;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.SpineScene;
 import com.dynamo.bob.util.SpineScene.LoadException;
 import com.dynamo.bob.util.SpineScene.UVTransformProvider;
@@ -141,7 +142,7 @@ public class SpineSceneBuilder extends Builder<Void> {
     private static void toDDF(List<SpineScene.Bone> bones, Skeleton.Builder skeletonBuilder) {
         for (SpineScene.Bone bone : bones) {
             Bone.Builder boneBuilder = Bone.newBuilder();
-            boneBuilder.setId(bone.name);
+            boneBuilder.setId(MurmurHash.hash64(bone.name));
             int parentIndex = 0xffff;
             if (bone.parent != null) {
                 parentIndex = bone.parent.index;
@@ -157,6 +158,7 @@ public class SpineSceneBuilder extends Builder<Void> {
     private static void toDDF(SpineScene.Mesh mesh, Mesh.Builder meshBuilder) {
         float[] v = mesh.vertices;
         int vertexCount = v.length / 5;
+        int indexOffset = meshBuilder.getPositionsCount() / 3;
         for (int i = 0; i < vertexCount; ++i) {
             int vi = i * 5;
             for (int pi = 0; pi < 3; ++pi) {
@@ -175,13 +177,13 @@ public class SpineSceneBuilder extends Builder<Void> {
             }
         }
         for (int index : mesh.triangles) {
-            meshBuilder.addIndices(index);
+            meshBuilder.addIndices(index + indexOffset);
         }
     }
 
     private static void toDDF(String skinName, List<SpineScene.Mesh> generics, List<SpineScene.Mesh> specifics, MeshSet.Builder meshSetBuilder) {
         Mesh.Builder meshBuilder = Mesh.newBuilder();
-        meshBuilder.setName(skinName);
+        meshBuilder.setId(MurmurHash.hash64(skinName));
         for (SpineScene.Mesh mesh : generics) {
             toDDF(mesh, meshBuilder);
         }
@@ -268,7 +270,7 @@ public class SpineSceneBuilder extends Builder<Void> {
 
     private static void toDDF(String id, SpineScene.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate) {
         SpineAnimation.Builder animBuilder = SpineAnimation.newBuilder();
-        animBuilder.setName(id);
+        animBuilder.setId(MurmurHash.hash64(id));
         animBuilder.setDuration(animation.duration);
         animBuilder.setSampleRate((float)sampleRate);
         double spf = 1.0 / sampleRate;

@@ -518,6 +518,9 @@ INSTANTIATE_TEST_CASE_P(SpineScene, ResourceTest, ::testing::ValuesIn(valid_spin
 const char* valid_spine_model_resources[] = {"/spine/valid.spinemodelc"};
 INSTANTIATE_TEST_CASE_P(SpineModel, ResourceTest, ::testing::ValuesIn(valid_spine_model_resources));
 
+const char* valid_spine_gos[] = {"/spine/valid_spine.goc"};
+INSTANTIATE_TEST_CASE_P(SpineModel, ComponentTest, ::testing::ValuesIn(valid_spine_gos));
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

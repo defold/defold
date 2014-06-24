@@ -45,6 +45,7 @@
 #include "components/comp_light.h"
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
+#include "components/comp_spine_model.h"
 
 #include "camera_ddf.h"
 #include "physics_ddf.h"
@@ -119,7 +120,8 @@ namespace dmGameSystem
                                                 GuiContext* gui_context,
                                                 SpriteContext* sprite_context,
                                                 CollectionProxyContext* collection_proxy_context,
-                                                FactoryContext* factory_context)
+                                                FactoryContext* factory_context,
+                                                SpineModelContext* spine_model_context)
     {
         uint32_t type;
         dmGameObject::ComponentType component_type;
@@ -223,6 +225,11 @@ namespace dmGameSystem
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
                 CompTileGridCreate, CompTileGridDestroy, 0, 0,
                 CompTileGridUpdate, 0, CompTileGridOnMessage, 0, CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty);
+
+        REGISTER_COMPONENT_TYPE("spinemodelc", 1300, spine_model_context,
+                CompSpineModelNewWorld, CompSpineModelDeleteWorld,
+                CompSpineModelCreate, CompSpineModelDestroy, 0, 0,
+                CompSpineModelUpdate, 0, CompSpineModelOnMessage, 0, CompSpineModelOnReload, CompSpineModelGetProperty, CompSpineModelSetProperty);
 
         #undef REGISTER_COMPONENT_TYPE
 
