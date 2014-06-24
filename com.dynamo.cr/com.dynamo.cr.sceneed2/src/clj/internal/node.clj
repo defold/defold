@@ -78,7 +78,7 @@
   (with-out-str (print-table ["Name" "Type" "Default"] 
                             (reduce-kv 
                               (fn [rows k v] 
-                                (conj rows (assoc (rename-keys v {:schema "Type" :default "Default"}) "Name" k))) 
+                                  (conj rows (assoc (rename-keys v {:schema "Type" :default "Default"}) "Name" k))) 
                               [] 
                               (:properties behavior)))))
 
@@ -89,4 +89,4 @@
        ~(str "Constructor for " nm ", using default values for any property not in property-values.\nThe properties on " nm " are:\n"
              (describe-properties behavior))
        [& {:as ~'property-values}]
-       (~record-ctor (merge ~behavior ~(defaults behavior) ~'property-values)))))
+       (~record-ctor (merge ~(defaults behavior) ~'property-values)))))

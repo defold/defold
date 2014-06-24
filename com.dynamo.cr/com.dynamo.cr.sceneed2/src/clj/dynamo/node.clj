@@ -16,14 +16,13 @@
    :node-ref NodeRef
    :children [(s/recursive #'OutlineItem)]})
 
-(defn list-of [x] [x])
-(defn map-of  [kt vt] {kt vt})
-(defn number  [& {:as opts}] {:schema s/Num})
 (defn error-message [m] {:error-message m})
-(defn string [] {:schema s/Str :default ""})
-(defn icon []   {:schema Icon})
-(defn non-negative-integer [] (assoc (number) :default 0 :such-that #(<= 0 %) :or-else (error-message "Value must be greater than or equal to zero")))
-(defn isotropic-scale []  (assoc (number) :default 1.0 :such-that #(<= 0 %) :or-else (error-message "Value must be greater than zero")))
+
+(defn number               [& {:as opts}] (merge {:schema s/Num} opts))
+(defn string               [& {:as opts}] (merge {:schema s/Str :default ""} opts))
+(defn icon                 [& {:as opts}] (merge {:schema Icon} opts))
+(defn non-negative-integer [& {:as opts}] (merge (number :default 0)   opts ))
+(defn isotropic-scale      [& {:as opts}] (merge (number :default 1.0) opts))
 
 (sm/defrecord Quaternion [a :- s/Num, b :- s/Num, c :- s/Num, d :- s/Num])
 (sm/defrecord Vector3 [x :- s/Num, y :- s/Num, z :- s/Num])
@@ -59,16 +58,16 @@
 (defn animation-frames [])
 
 (def Animation 
-  {:properties {:fps (assoc (non-negative-integer) :default 30)}
-   :transform  {:frames #'animation-frames}})
+  {:properties {:fps (non-negative-integer :default 30)}
+   :transforms {:frames #'animation-frames}})
 
 (defn outline-child-producer [this g]
   (assoc (dg/node g this) :node-ref this)
   )
 
 (def OutlineChild 
-  {:properties {:label (assoc (string) :default "my name") 
-                :icon (assoc (icon) :default "pretty stuff")}
+  {:properties {:label (string :default "my name") 
+                :icon (icon :default "pretty stuff")}
    :transforms {:child #'outline-child-producer}})
 
 ;; helpers
