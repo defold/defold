@@ -22,7 +22,7 @@
 (defn times-found [g q]
    (count (query g q)))
 
-(defn times-expected [hist n] 
+(defn times-expected [hist n]
   (get hist n 0))
 
 (defn random-graph [] (first (gen/sample graph 1)))
@@ -37,7 +37,7 @@
 (defspec no-dangling-arcs
   50
   (prop/for-all [g graph]
-                (every? #(and (node g (:source %)) 
+                (every? #(and (node g (:source %))
                               (node g (:target %)))
                         (arcs g))))
 
@@ -49,8 +49,8 @@
 
 (deftest adding-node
   (let [v "Any node value at all"
-        g  (add-node (random-graph) v) 
-        id (last-node-added g)]
+        g  (add-node (random-graph) v)
+        id (last-node g)]
     (is (= v (node g id)))))
 
 ;; Given an empty graph
@@ -70,7 +70,7 @@
 
 (defn- protocol-count-correct?
   [vs g & prots]
-  (= (count-protocols prots vs)           
+  (= (count-protocols prots vs)
      (times-found g (mapv #(list 'protocol %) prots))))
 
 ;- Query for nodes matching criteria (satisfies a protocol or set of protocols, matches properties)
@@ -134,7 +134,7 @@
 
 (deftest transformable
   (let [g  (add-node (random-graph) {:number 0})
-        n  (last-node-added g)
+        n  (last-node g)
         g' (transform-node g n update-in [:number] inc)]
     (is (not= g g'))
     (is (= 1 (:number (node g' n))))
@@ -143,12 +143,12 @@
 (defn- add-child
   [g pnode cld-val]
   (let [g' (add-labeled-node g #{} #{:parent} cld-val)]
-    (connect g' (last-node-added g') :parent pnode :children)))
+    (connect g' (last-node g') :parent pnode :children)))
 
 (deftest query-by-arc-label
   (let [vs      #{"image1" "image2" "image3"}
         g       (add-labeled-node (empty-graph) #{:children} #{:textureset} {:name "Atlas"})
-        p       (last-node-added g)
+        p       (last-node g)
         g       (for-graph g [n vs] (add-child g p {:name n}))
         kids    (query g '[[:name "Atlas"] (input :children)])
         parent  (query g '[[:name "image1"] (output :parent)])]
@@ -159,4 +159,3 @@
 ;; Cases still needed for the following actions:
 ;- Traverse arcs by label
 ;- Transactions
-

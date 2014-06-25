@@ -20,6 +20,9 @@
   :clean-targets [:target-path "doc"]
   :profiles {:deps {:source-paths []}
              :docs {:source-paths ["src/clj"]}
+             :dev  {:source-paths ["src/clj"]
+                    :java-source-path "src/java"
+                    :test-paths ["test/clj"]}
              :uberjar {:resource-paths ^:top-displace []}}
   :aliases  {"update-deps" ["do" "deps," "uberjar," "ubersource"]
              "serve-docs"  ["with-profile" "docs" "do" "doc," "simpleton" "5000" "file" ":from" "doc"]})

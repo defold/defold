@@ -22,7 +22,7 @@
 
 (defn merge-behaviors [behaviors]
   (apply (partial merge-with merge)
-         (map #(cond 
+         (map #(cond
                  (symbol? %) (var-get (resolve %))
                  (var? %)    (var-get (resolve %))
                  (map? %)    %
@@ -33,7 +33,7 @@
   (map (comp symbol name) (keys (:properties behavior))))
 
 (defn state-vector [behavior]
-  (into [] (list* 'inputs 'transforms 'id (property-symbols behavior))))
+  (into [] (list* 'inputs 'transforms '_id (property-symbols behavior))))
 
 (defn generate-type [name behavior]
   (let [t 'this#
@@ -53,7 +53,7 @@
   (let [g           (first selection)
         target-node (first (second selection))
         g-new       (lg/add-labeled-node g (node-inputs new-node) (node-outputs new-node) new-node)
-        new-node-id (dg/last-node-added g-new)]
+        new-node-id (dg/last-node g-new)]
       (-> g
         (lg/connect new-node-id output target-node input)
         (refresh-inputs target-node input))))
@@ -79,11 +79,11 @@
              behavior (:properties behavior)))
 
 (defn describe-properties [behavior]
-  (with-out-str (print-table ["Name" "Type" "Default"] 
-                            (reduce-kv 
-                              (fn [rows k v] 
-                                  (conj rows (assoc (rename-keys v {:schema "Type" :default "Default"}) "Name" k))) 
-                              [] 
+  (with-out-str (print-table ["Name" "Type" "Default"]
+                            (reduce-kv
+                              (fn [rows k v]
+                                  (conj rows (assoc (rename-keys v {:schema "Type" :default "Default"}) "Name" k)))
+                              []
                               (:properties behavior)))))
 
 (defn generate-constructor [nm behavior]

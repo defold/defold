@@ -5,8 +5,8 @@
             [internal.graph.lgraph :as lg]))
 
 (def names-with-repeats
-  (gen/vector 
-    (gen/frequency [[9 (gen/not-empty gen/string-alpha-numeric)] 
+  (gen/vector
+    (gen/frequency [[9 (gen/not-empty gen/string-alpha-numeric)]
                     [1 (gen/return "A common name")]])))
 
 (defprotocol ProtocolA)
@@ -30,13 +30,13 @@
 
 (def labels (gen/elements [:t :u :v :w :x :y :z]))
 
-(defn node [id a b] {:id id :inputs (set a) :outputs (set b)})
+(defn node [id a b] {:_id id :inputs a :outputs b})
 
 (defn pair
   [m n]
   (gen/tuple (gen/elements m) (gen/elements n)))
 
-(defn graph-endpoints 
+(defn graph-endpoints
   [g efn]
   (for [id    (g/node-ids g)
         input (efn (g/node g id))]
@@ -55,7 +55,7 @@
 (def nodes (gen/fmap (partial apply node)
                      (gen/tuple
                        gen/neg-int
-                       (gen/not-empty (gen/vector labels)) 
+                       (gen/not-empty (gen/vector labels))
                        (gen/not-empty (gen/vector labels)))))
 
 (defn- add-arcs
@@ -86,14 +86,14 @@
 (def connected-graph
   (gen/bind disconnected-graph
             (fn [g]
-              (gen/fmap (partial add-arcs g) 
+              (gen/fmap (partial add-arcs g)
                         (gen/vector (arcs g) min-arc-count max-arc-count)))))
 
 
 (def decimated-graph
   (gen/bind connected-graph
             (fn [g]
-              (gen/fmap (partial remove-nodes g) 
+              (gen/fmap (partial remove-nodes g)
                         (gen/resize (/ (count (g/node-ids g)) 4) (selected-nodes g))))))
 
 (def graph

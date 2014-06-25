@@ -5,7 +5,7 @@
 
 (defonce project-state (ref {:graph (dg/empty-graph)}))
 
-(defn new-resource 
+(defn new-resource
   ([resource]
     (new-resource resource (set (keys (:inputs resource))) (set (keys (:transforms resource)))))
   ([resource inputs outputs]
@@ -14,14 +14,14 @@
         :inputs inputs
         :outputs outputs}]))
 
-(defn update-resource 
+(defn update-resource
   [resource f & args]
   [{:type :update-node
       :node-id (:_id resource)
       :fn f
       :args args}])
 
-(defn connect 
+(defn connect
   [from-resource from-label to-resource to-label]
   [{:type :connect
      :source-id    (:_id from-resource)
@@ -29,7 +29,7 @@
      :target-id    (:_id to-resource)
      :target-label to-label}])
 
-(defn disconnect 
+(defn disconnect
   [tx from-resource from-label to-resource to-label]
   [{:type :disconnect
      :source-id    (:_id from-resource)
@@ -47,9 +47,10 @@
 
 (defmethod perform :create-node
   [{:keys [graph tempids] :as ctx} m]
-  (let [new-graph   (lg/add-labeled-node graph (:inputs m) (:outputs m) (:node m))
-        new-tempids (assoc tempids (get-in m [:node :_id]) (dg/last-node-added new-graph))]
-    (assoc ctx :graph new-graph :tempids new-tempids)))
+  (let [next-id (dg/next-node graph)]
+    (assoc ctx
+      :graph (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id))
+      :tempids (assoc tempids (get-in m [:node :_id]) next-id))))
 
 (defmethod perform :update-node
   [ctx m]
@@ -65,7 +66,7 @@
 
 (defn apply-tx
   [ctx actions]
-  (reduce 
+  (reduce
     (fn [ctx action]
       (cond
         (sequential? action) (apply-tx ctx action)
@@ -73,12 +74,12 @@
     ctx
     actions))
 
-(defn- new-transaction-context 
+(defn- new-transaction-context
   [g]
   {:graph g
    :tempids {}})
 
-(defn commit-transaction 
+(defn commit-transaction
   [tx]
   (dosync
     (let [tx-result (apply-tx (new-transaction-context (:graph @project-state)) tx)]

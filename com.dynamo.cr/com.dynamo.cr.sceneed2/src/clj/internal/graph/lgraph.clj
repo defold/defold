@@ -1,5 +1,5 @@
 (ns internal.graph.lgraph
-  "Labeled graph. Nodes have sets of input and output labels. 
+  "Labeled graph. Nodes have sets of input and output labels.
    Arcs must match those labels when connecting. An edge must
    run from an output label to an input label."
   (:require [internal.graph.dgraph :as dg]))
@@ -30,7 +30,7 @@
 (defn source-labels [g target-node label source-node]
   (map second (filter #(= source-node (first %)) (sources g target-node label))))
 
-(defn connect 
+(defn connect
   [g source source-label target target-label]
   (let [from (dg/node g source)
         to   (dg/node g target)]
