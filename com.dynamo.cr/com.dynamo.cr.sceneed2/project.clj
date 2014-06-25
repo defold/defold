@@ -3,6 +3,7 @@
   :license {:name "All Rights Reserved" }
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.typed "0.2.42"]
+                 [org.clojure/core.cache "0.6.3"]
                  [prismatic/schema "0.2.3"]
                  [prismatic/plumbing "0.3.1"]
                  [org.clojure/tools.nrepl "0.2.3"]
