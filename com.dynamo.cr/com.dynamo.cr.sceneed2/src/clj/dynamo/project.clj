@@ -30,16 +30,12 @@
      :target-label to-label}])
 
 (defn disconnect
-  [tx from-resource from-label to-resource to-label]
+  [from-resource from-label to-resource to-label]
   [{:type :disconnect
      :source-id    (:_id from-resource)
      :source-label from-label
      :target-id    (:_id to-resource)
      :target-label to-label}])
-
-(defn create-transaction
-  []
-  [])
 
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
 
@@ -79,14 +75,9 @@
   {:graph g
    :tempids {}})
 
-(defn commit-transaction
+(defn transact
   [tx]
   (dosync
     (let [tx-result (apply-tx (new-transaction-context (:graph @project-state)) tx)]
       (alter project-state assoc :graph (:graph tx-result))
       (assoc tx-result :status :ok))))
-
-(defmacro transact [& forms]
-  `(commit-transaction
-     (-> (create-transaction)
-       ~@forms)))

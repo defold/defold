@@ -3,7 +3,7 @@
             [dynamo.node :refer :all]
             [dynamo.file :refer [register-loader protocol-buffer-loader message->node]]
             [dynamo.file.protobuf :refer [protocol-buffer-converters]]
-            [dynamo.project :refer [commit-transaction]])
+            [dynamo.project :refer [transact]])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]))
 
 (defnode ImageNode
@@ -44,7 +44,7 @@
 
 (defn on-load
   [^String filename ^AtlasProto$Atlas atlas-message]
-  (commit-transaction
+  (transact
    (message->node atlas-message nil nil nil)))
 
 (register-loader ".atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
