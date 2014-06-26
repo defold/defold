@@ -39,7 +39,7 @@
 
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
 
-(defmulti perform (fn [ctx g m] (:type m)))
+(defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
   [{:keys [graph tempids] :as ctx} m]
