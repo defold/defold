@@ -9,10 +9,21 @@
 
 namespace dmGameSystem
 {
+    struct SpineBone
+    {
+        /// Model space transform
+        dmTransform::Transform m_LocalToModel;
+        /// Inv model space transform
+        dmTransform::Transform m_ModelToLocal;
+        /// Index of parent bone, NOTE root bone has itself as parent
+        uint32_t m_ParentIndex;
+    };
+
     struct SpineSceneResource
     {
-        dmGameSystemDDF::SpineScene*            m_SpineScene;
-        TextureSetResource*                     m_TextureSet;
+        dmArray<SpineBone>              m_BindPose;
+        dmGameSystemDDF::SpineScene*    m_SpineScene;
+        TextureSetResource*             m_TextureSet;
     };
 
     dmResource::Result ResSpineSceneCreate(dmResource::HFactory factory,

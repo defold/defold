@@ -4,6 +4,8 @@
 
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
+
     dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, SpineSceneResource* resource, const char* filename)
     {
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmGameSystemDDF_SpineScene_DESCRIPTOR, (void**) &resource->m_SpineScene);
@@ -12,6 +14,25 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
         dmResource::Result result = dmResource::Get(factory, resource->m_SpineScene->m_TextureSet, (void**) &resource->m_TextureSet);
+        if (result == dmResource::RESULT_OK)
+        {
+            dmGameSystemDDF::Skeleton* skeleton = &resource->m_SpineScene->m_Skeleton;
+            uint32_t bone_count = skeleton->m_Bones.m_Count;
+            resource->m_BindPose.SetCapacity(bone_count);
+            resource->m_BindPose.SetSize(bone_count);
+            for (uint32_t i = 0; i < bone_count; ++i)
+            {
+                SpineBone* bind_bone = &resource->m_BindPose[i];
+                dmGameSystemDDF::Bone* bone = &skeleton->m_Bones[i];
+                bind_bone->m_LocalToModel = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
+                if (i > 0) // Avoid root
+                {
+                    bind_bone->m_LocalToModel = dmTransform::Mul(resource->m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToModel);
+                }
+                bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
+                bind_bone->m_ParentIndex = bone->m_Parent;
+            }
+        }
         return result;
     }
 

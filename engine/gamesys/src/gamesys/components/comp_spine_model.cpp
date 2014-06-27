@@ -27,6 +27,7 @@ using namespace Vectormath::Aos;
 
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
 
@@ -59,6 +60,8 @@ namespace dmGameSystem
         SpineModelResource*         m_Resource;
         dmArray<dmRender::Constant> m_RenderConstants;
         dmArray<Vector4>            m_PrevRenderConstants;
+        /// Animated pose, every transform is local-to-model-space
+        dmArray<dmTransform::Transform> m_Pose;
         /// Currently playing animation
         dmhash_t                    m_Animation;
         /// Currently used mesh
@@ -220,6 +223,19 @@ namespace dmGameSystem
                 break;
             }
         }
+        dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+        uint32_t bone_count = skeleton->m_Bones.m_Count;
+        component->m_Pose.SetCapacity(bone_count);
+        component->m_Pose.SetSize(bone_count);
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            dmGameSystemDDF::Bone* bone = &skeleton->m_Bones[i];
+            component->m_Pose[i] = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
+            if (i > 0)
+            {
+                component->m_Pose[i] = dmTransform::Mul(component->m_Pose[bone->m_Parent], component->m_Pose[i]);
+            }
+        }
         component->m_Animation = NULL_ANIMATION;
         ReHash(component);
         dmhash_t default_animation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
@@ -302,6 +318,7 @@ namespace dmGameSystem
         for (uint32_t i = start_index; i < end_index; ++i)
         {
             const SpineModelComponent* component = &components[sort_buffer[i]];
+            dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
 
             dmGameSystemDDF::Mesh* mesh = component->m_Mesh ;
             if (mesh == 0x0)
@@ -316,7 +333,18 @@ namespace dmGameSystem
                 SpineModelVertex& v = vertex_buffer.Back();
                 uint32_t vi = mesh->m_Indices[ii];
                 uint32_t e = vi*3;
-                *((Vector4*)&v) = w * Point3(mesh->m_Positions[e++], mesh->m_Positions[e++], mesh->m_Positions[e++]);
+                Point3 in_p(mesh->m_Positions[e++], mesh->m_Positions[e++], mesh->m_Positions[e++]);
+                Point3 out_p(0.0f, 0.0f, 0.0f);
+                uint32_t bi_offset = vi * 4;
+                uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
+                float* bone_weights = &mesh->m_Weights[bi_offset];
+                for (uint32_t bi = 0; bi < 4; ++bi)
+                {
+                    uint32_t bone_index = bone_indices[bi];
+                    // TODO include bind-pose-model-to-local in the pose to avoid extra mul
+                    out_p += Vector3(dmTransform::Apply(dmTransform::Mul(component->m_Pose[bone_index], bind_pose[bone_index].m_ModelToLocal), in_p)) * bone_weights[bi];
+                }
+                *((Vector4*)&v) = w * out_p;
                 e = vi*2;
                 v.u = mesh->m_Texcoord0[e++];
                 v.v = mesh->m_Texcoord0[e++];
