@@ -237,7 +237,10 @@ public class SpineScene {
         Transform local = new Transform();
         loadTransform(attNode, local);
         world.mul(local);
-        mesh.vertices = new float[4 * 5];
+        int vertexCount = 4;
+        mesh.vertices = new float[vertexCount * 5];
+        mesh.boneIndices = new int[vertexCount * 4];
+        mesh.boneWeights = new float[vertexCount * 4];
         double width = JsonUtil.get(attNode, "width", 0.0);
         double height = JsonUtil.get(attNode, "height", 0.0);
         double[] boundary = new double[] {-0.5, 0.5};
@@ -252,6 +255,9 @@ public class SpineScene {
                 mesh.vertices[i++] = (float)p.z;
                 mesh.vertices[i++] = (float)uv_boundary[xi];
                 mesh.vertices[i++] = (float)(1.0 - uv_boundary[yi]);
+                int boneOffset = (xi*2+yi)*4;
+                mesh.boneIndices[boneOffset] = bone.index;
+                mesh.boneWeights[boneOffset] = 1.0f;
             }
         }
         mesh.triangles = new int[] {
@@ -265,15 +271,13 @@ public class SpineScene {
         Iterator<JsonNode> vertexIt = attNode.get("vertices").getElements();
         Iterator<JsonNode> uvIt = attNode.get("uvs").getElements();
         mesh.vertices = new float[vertexCount * 5];
-        if (skinned) {
-            mesh.boneIndices = new int[vertexCount * 4];
-            mesh.boneWeights = new float[vertexCount * 4];
-        }
+        mesh.boneIndices = new int[vertexCount * 4];
+        mesh.boneWeights = new float[vertexCount * 4];
         for (int i = 0; i < vertexCount; ++i) {
             Point3d p = null;
+            int boneOffset = i*4;
             if (skinned) {
                 int boneCount = vertexIt.next().asInt();
-                int boneOffset = i*4;
                 for (int bi = 0; bi < boneCount; ++bi) {
                     int boneIndex = vertexIt.next().asInt();
                     double x = vertexIt.next().asDouble();
@@ -291,6 +295,8 @@ public class SpineScene {
                 double x = vertexIt.next().asDouble();
                 double y = vertexIt.next().asDouble();
                 p = new Point3d(x, y, 0.0);
+                mesh.boneIndices[boneOffset] = bone.index;
+                mesh.boneWeights[boneOffset] = 1.0f;
             }
             bone.worldT.apply(p);
             int vi = i*5;

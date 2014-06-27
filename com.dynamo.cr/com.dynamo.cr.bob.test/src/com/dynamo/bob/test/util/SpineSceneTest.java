@@ -156,58 +156,90 @@ public class SpineSceneTest {
         assertTransform(rotated.localT, null, new Quat4d(0.0, 0.0, halfSqrt2, halfSqrt2), null);
     }
 
+    private void assertMesh(Mesh mesh, String path, float[] vertices, int[] triangles, int[] boneIndices, float[] boneWeights) {
+        assertEquals(path, mesh.path);
+        assertFloatArrays(vertices, mesh.vertices);
+        assertIntArrays(triangles, mesh.triangles);
+        assertIntArrays(boneIndices, mesh.boneIndices);
+        assertFloatArrays(boneWeights, mesh.boneWeights);
+    }
+
     @Test
     public void testLoadingMeshes() throws Exception {
         SpineScene scene = load();
         assertEquals(3, scene.meshes.size());
-        Mesh rootMeshRegion = scene.meshes.get(0);
-        assertEquals("test_sprite", rootMeshRegion.path);
-        assertFloatArrays(new float[] {
-                100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-                100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
-                300.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-                300.0f, 100.0f, 0.0f, 0.5f, 0.0f,
-        }, rootMeshRegion.vertices);
-        assertIntArrays(new int[] {
-                0, 1, 2,
-                2, 1, 3,
-        }, rootMeshRegion.triangles);
-        Mesh rootMeshMesh = scene.meshes.get(1);
-        assertEquals("test_sprite", rootMeshMesh.path);
-        assertFloatArrays(new float[] {
-                100.0f, 0.0f, 0.0f, 0.5f, 1.0f,
-                -100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-                -100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
-                100.0f, 100.0f, 0.0f, 0.5f, 0.0f,
-        }, rootMeshMesh.vertices);
-        assertIntArrays(new int[] {
-                1, 3, 0,
-                1, 2, 3,
-        }, rootMeshMesh.triangles);
-        Mesh rootMeshSkinned = scene.meshes.get(2);
-        assertEquals("test_sprite", rootMeshSkinned.path);
-        assertFloatArrays(new float[] {
-                100.0f, 100.0f, 0.0f, 0.5f, 1.0f,
-                -100.0f, 100.0f, 0.0f, 0.0f, 1.0f,
-                -100.0f, 200.0f, 0.0f, 0.0f, 0.0f,
-                100.0f, 200.0f, 0.0f, 0.5f, 0.0f,
-        }, rootMeshSkinned.vertices);
-        assertIntArrays(new int[] {
-                1, 3, 0,
-                1, 2, 3,
-        }, rootMeshSkinned.triangles);
-        assertIntArrays(new int[] {
-                0, 0, 0, 0,
-                0, 0, 0, 0,
-                0, 4, 0, 0, // third vertex mapped 50% to bone 0 and 4
-                0, 0, 0, 0,
-        }, rootMeshSkinned.boneIndices);
-        assertFloatArrays(new float[] {
-                1.0f, 0.0f, 0.0f, 0.0f,
-                1.0f, 0.0f, 0.0f, 0.0f,
-                0.5f, 0.5f, 0.0f, 0.0f, // third vertex mapped 50% to bone 0 and 4
-                1.0f, 0.0f, 0.0f, 0.0f,
-        }, rootMeshSkinned.boneWeights);
+        assertMesh(scene.meshes.get(0), "test_sprite",
+                new float[] {
+                    100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+                    100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
+                    300.0f, 0.0f, 0.0f, 0.5f, 1.0f,
+                    300.0f, 100.0f, 0.0f, 0.5f, 0.0f,
+                },
+                new int[] {
+                    0, 1, 2,
+                    2, 1, 3,
+                },
+                new int[] {
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                },
+                new float[] {
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                }
+        );
+        assertMesh(scene.meshes.get(1), "test_sprite",
+                new float[] {
+                    100.0f, 0.0f, 0.0f, 0.5f, 1.0f,
+                    -100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+                    -100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
+                    100.0f, 100.0f, 0.0f, 0.5f, 0.0f
+                },
+                new int[] {
+                    1, 3, 0,
+                    1, 2, 3,
+                },
+                new int[] {
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                },
+                new float[] {
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                }
+        );
+        assertMesh(scene.meshes.get(2), "test_sprite",
+                new float[] {
+                    100.0f, 100.0f, 0.0f, 0.5f, 1.0f,
+                    -100.0f, 100.0f, 0.0f, 0.0f, 1.0f,
+                    -100.0f, 200.0f, 0.0f, 0.0f, 0.0f,
+                    100.0f, 200.0f, 0.0f, 0.5f, 0.0f,
+                },
+                new int[] {
+                        1, 3, 0,
+                        1, 2, 3,
+                },
+                new int[] {
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 4, 0, 0, // third vertex mapped 50% to bone 0 and 4
+                    0, 0, 0, 0,
+                },
+                new float[] {
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                    0.5f, 0.5f, 0.0f, 0.0f, // third vertex mapped 50% to bone 0 and 4
+                    1.0f, 0.0f, 0.0f, 0.0f,
+                }
+        );
     }
 
     private static void assertSimpleAnim(SpineScene scene, String name, Property property, float[][] values) {
