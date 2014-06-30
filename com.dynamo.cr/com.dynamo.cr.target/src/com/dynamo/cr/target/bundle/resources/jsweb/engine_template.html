@@ -1217,7 +1217,40 @@
       var spinnerElement = document.getElementById('spinner');
 
       var Module = {
-        preRun: [],
+        'noInitialRun': true,
+
+        'preRunTasks': [],
+        'preRunTasksCompleted': 0,
+
+        'preRun': [function() {
+            var bootstrap = Module['preRunTasks'];
+            var i;
+            for (i=0; i<bootstrap.length; ++i) {
+                bootstrap[i]();
+            }
+        }],
+
+        'onBootstrapTaskCompleted': function() {
+            ++Module['preRunTasksCompleted'];
+            if (Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
+                var entry = Module.cwrap('main', 'number');
+                entry();
+            }
+        },
+
+        'registerBootstrapTask': function(fn) {
+            Module['preRunTasks'].push(fn);
+        },
+
+        'mountFilesystem': function() {
+            FS.mkdir('/data');
+            FS.mount(IDBFS, {}, '/data');
+            FS.syncfs(true, function(err) {
+                assert(!err);
+                Module['onBootstrapTaskCompleted']();
+            });
+        },
+
         postRun: [],
         print: (function() {
           var element = document.getElementById('output');
@@ -1272,6 +1305,7 @@
           Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
         }
       };
+      Module['registerBootstrapTask'](Module['mountFilesystem']);
       Module.setStatus('Downloading...');
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');
@@ -1282,6 +1316,14 @@
       };
     </script>
     <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
-    <script async type="text/javascript" src="${DMENGINE_JS}$"></script>
+    <script type="text/javascript" src="modernizr.custom.js"></script>
+    <script type="text/javascript">
+    <!-- We see write errors when using this shim on Safari. -->
+    	Modernizr.load([{
+    		test: Modernizr.indexedDB,
+    		nope: 'IndexedDBShim.min.js',
+    		load: '${DMENGINE_JS}$'
+    	}]);
+    </script>
   </body>
 </html>
