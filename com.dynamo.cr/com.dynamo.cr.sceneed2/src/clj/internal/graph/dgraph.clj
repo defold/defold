@@ -1,6 +1,7 @@
 (ns internal.graph.dgraph
   "Directed graph implementation. Nodes are simply a map from id to value.
-   Arcs are a relation over node IDs.")
+   Arcs are a relation over node IDs."
+  (:require [clojure.set :as set]))
 
 ;;; Implementation details
 
@@ -48,6 +49,33 @@
 (defn remove-arc
   [g source source-attributes target target-attributes]
   (update-in g [:arcs] (fn [arcs] (remove #(= % {:source source :source-attributes source-attributes :target target :target-attributes target-attributes}) arcs))))
+
+(defn arcs-from [g node]
+  (filter #(= node (:source %)) (:arcs g)))
+
+(defn arcs-to [g node]
+  (filter #(= node (:target %)) (:arcs g)))
+
+(defn tclosure*
+  "Find the transitive closure beginning at the given node."
+  [g n]
+  (loop [pending #{n}
+         marked  #{}]
+    (if-let [current (first pending)]
+      (if (some #{current} marked)
+        (recur (rest pending) marked)
+        (recur (into (rest pending) (map :target (arcs-from g current))) (conj marked current)))
+      marked)))
+
+(defn tclosure
+  "Find the transitive closure (i.e., downstream set) from the given nodes.
+   This will include the given nodes and anything reachable via their output
+   arcs.
+
+   A node that is reachable by more than one path only appears once in the
+   return collection."
+  [g ns]
+  (apply set/union (map #(tclosure* g %) ns)))
 
 (defmacro for-graph
   [gsym bindings & body]

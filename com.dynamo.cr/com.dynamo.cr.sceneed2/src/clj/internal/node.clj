@@ -1,6 +1,6 @@
 (ns internal.node
   (:require [clojure.pprint :refer [print-table]]
-            [clojure.set :refer [rename-keys]]
+            [clojure.set :refer [rename-keys union]]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [camel-snake-kebab :refer [->kebab-case]]))
@@ -20,8 +20,17 @@
   (value [this g output default] "Produce the value for the named output. Supplies nil if the output cannot be produced.")
   (properties [this] "Produce a description of properties supported by this node."))
 
+(defn deep-merge
+  "Recursively merges maps. If keys are not maps, the last value wins."
+  [& vals]
+  (cond
+    (every? map? vals)        (apply merge-with deep-merge vals)
+    (every? set? vals)        (apply union vals)
+    (every? sequential? vals) (apply concat vals)
+    :else                     (last vals)))
+
 (defn merge-behaviors [behaviors]
-  (apply (partial merge-with merge)
+  (apply deep-merge
          (map #(cond
                  (symbol? %) (var-get (resolve %))
                  (var? %)    (var-get (resolve %))

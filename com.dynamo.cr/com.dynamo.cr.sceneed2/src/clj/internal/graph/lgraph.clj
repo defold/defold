@@ -11,19 +11,13 @@
 (defn inputs [node]  (::inputs node))
 (defn outputs [node] (::outputs node))
 
-(defn arcs-from [g node]
-  (filter #(= node (:source %)) (:arcs g)))
-
-(defn arcs-to [g node]
-  (filter #(= node (:target %)) (:arcs g)))
-
 (defn targets [g node label]
-  (for [a     (arcs-from g node)
+  (for [a     (dg/arcs-from g node)
         :when (= label (get-in a [:source-attributes :label]))]
     [(:target a) (get-in a [:target-attributes :label])]))
 
 (defn sources [g node label]
-  (for [a     (arcs-to g node)
+  (for [a     (dg/arcs-to g node)
         :when (= label (get-in a [:target-attributes :label]))]
     [(:source a) (get-in a [:source-attributes :label])]))
 

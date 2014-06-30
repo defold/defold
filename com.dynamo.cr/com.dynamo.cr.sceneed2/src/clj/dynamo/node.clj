@@ -58,7 +58,7 @@
 
 (defn animation-frames [])
 
-(def Animation 
+(def Animation
   {:properties {:fps (non-negative-integer :default 30)}
    :transforms {:frames #'animation-frames}})
 ;; helpers
@@ -66,18 +66,21 @@
 (declare get-value)
 
 (defn get-inputs [target-node g target-label]
-  (map (fn [[source-node source-label]] 
-         (get-value g source-node source-label)) 
-       (lg/sources g target-node target-label)))
+  (let [schema (get-in (dg/node g target-node) [:inputs target-label])]
+    (if (coll? schema)
+      (map (fn [[source-node source-label]]
+             (get-value g source-node source-label))
+           (lg/sources g target-node target-label))
+      (apply get-value g (first (lg/sources g target-node target-label))))))
 
 (defn collect-inputs [node g input-schema]
-  (reduce-kv 
-    (fn [m k v] 
-      (case k
+  (reduce-kv
+    (fn [m k v]
+      (condp = k
         :g         (assoc m k g)
         :this      (assoc m k node)
         s/Keyword  m
-        (assoc m k (get-inputs node g k)))) 
+        (assoc m k (get-inputs node g k))))
     {} input-schema))
 
 (defn has-schema? [v]

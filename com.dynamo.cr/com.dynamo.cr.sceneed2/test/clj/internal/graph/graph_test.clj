@@ -156,6 +156,27 @@
     (is (= #{p} parent))))
 
 
-;; Cases still needed for the following actions:
-;- Traverse arcs by label
-;- Transactions
+(deftest transitive-closure
+  (let [g           (empty-graph)
+        g           (add-labeled-node g #{:textureset} #{:datafile} {:name "AtlasSaver"})
+        grandparent (last-node g)
+        g           (add-labeled-node g #{:children} #{:textureset} {:name "Atlas"})
+        parent      (last-node g)
+        g           (connect g parent :textureset grandparent :textureset)
+        g           (add-labeled-node g #{} #{:parent} {:name "image1"})
+        img1        (last-node g)
+        g           (connect g img1 :parent parent :children)
+        g           (add-labeled-node g #{} #{:parent} {:name "image2"})
+        img2        (last-node g)
+        g           (connect g img2 :parent parent :children)
+        g           (add-labeled-node g #{} #{:parent} {:name "image3"})
+        img3        (last-node g)
+        g           (connect g img3 :parent parent :children)
+        g           (add-labeled-node g #{:image} #{} {:name "sprite"})
+        sprite      (last-node g)
+        g           (connect g img3 :parent sprite :image)]
+    (is (= #{img1 parent grandparent}             (tclosure g [img1])))
+    (is (= #{img2 parent grandparent}             (tclosure g [img2])))
+    (is (= #{img3 parent grandparent sprite}      (tclosure g [img3])))
+    (is (= #{parent grandparent}                  (tclosure g [parent])))
+    (is (= #{img1 img3 parent grandparent sprite} (tclosure g [img1 img3])))))

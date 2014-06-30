@@ -1,9 +1,48 @@
 (ns dynamo.project
-  (:require [internal.graph.lgraph :as lg]
+  (:require [clojure.core.cache :as cache]
+            [service.log :as log]
+            [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
-            [internal.graph.query :as q]))
+            [internal.graph.query :as q]
+            [internal.java :as j]
+            [dynamo.node :as node]
+            [internal.cache :refer [make-cache]]
+            [schema.core :as s]))
 
-(defonce project-state (ref {:graph (dg/empty-graph)}))
+(defprotocol IDisposable
+  (dispose [this] "Clean up a value, including thread-jumping as needed"))
+
+(defn background-executor-loop
+  [q]
+  (loop [v (.take q)]
+    (try
+      (v)
+      (catch Throwable t
+        (log/error :exception t :calling v)))
+    (recur (.take q))))
+
+(def ^:private ^java.util.concurrent.atomic.AtomicInteger
+     nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
+
+(defn new-cache-key [] (.getAndIncrement nextkey))
+
+(def CacheKey {s/Int {s/Keyword s/Int}})
+
+(def Project
+  {:cache-keys CacheKey
+   :graph      s/Any
+   :cache      s/Any})
+
+(defn make-project
+  []
+  (let [q (java.util.concurrent.LinkedBlockingQueue.)]
+    {:graph           (dg/empty-graph)
+     :cache-keys      {}
+     :cache           (make-cache)
+     :disposal-queue  q
+     :disposal-thread (j/daemonize #(background-executor-loop q))}))
+
+(defonce project-state (ref (make-project)))
 
 (defn new-resource
   ([resource]
@@ -39,26 +78,44 @@
 
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
 
+(defn resource->cache-keys [m]
+  (apply hash-map
+         (flatten
+           (for [output (:cached m)]
+            [output (new-cache-key)]))))
+
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids] :as ctx} m]
+  [{:keys [graph tempids cache-keys] :as ctx} m]
   (let [next-id (dg/next-node graph)]
     (assoc ctx
       :graph (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id))
-      :tempids (assoc tempids (get-in m [:node :_id]) next-id))))
+      :tempids    (assoc tempids    (get-in m [:node :_id]) next-id)
+      :cache-keys (assoc cache-keys next-id (resource->cache-keys (:node m))))))
 
 (defmethod perform :update-node
-  [ctx m]
-  (update-in ctx [:graph] #(apply dg/transform-node % (resolve-tempid ctx (:node-id m)) (:fn m) (:args m))))
+  [{:keys [graph modified-nodes] :as ctx} m]
+  (let [n (resolve-tempid ctx (:node-id m))]
+    (assoc ctx
+           :graph          (apply dg/transform-node graph n (:fn m) (:args m))
+           :modified-nodes (conj modified-nodes n))))
 
 (defmethod perform :connect
-  [ctx m]
-  (update-in ctx [:graph] lg/connect (resolve-tempid ctx (:source-id m)) (:source-label m) (resolve-tempid ctx (:target-id m)) (:target-label m)))
+  [{:keys [graph modified-nodes] :as ctx} m]
+  (let [src (resolve-tempid ctx (:source-id m))
+        tgt (resolve-tempid ctx (:target-id m))]
+    (assoc ctx
+           :graph          (lg/connect graph src (:source-label m) tgt (:target-label m))
+           :modified-nodes (conj modified-nodes tgt))))
 
 (defmethod perform :disconnect
-  [ctx m]
-  (update-in ctx [:graph] lg/disconnect (resolve-tempid ctx (:source-id m)) (:source-label m) (resolve-tempid ctx (:target-id m)) (:target-label m)))
+  [{:keys [graph modified-nodes] :as ctx} m]
+  (let [src (resolve-tempid ctx (:source-id m))
+        tgt (resolve-tempid ctx (:target-id m))]
+    (assoc ctx
+           :graph          (lg/disconnect graph src (:source-label m) tgt (:target-label m))
+           :modified-nodes (conj modified-nodes tgt))))
 
 (defn apply-tx
   [ctx actions]
@@ -73,11 +130,49 @@
 (defn- new-transaction-context
   [g]
   {:graph g
-   :tempids {}})
+   :cache-keys {}
+   :tempids {}
+   :modified-nodes #{}})
+
+(defn- dispose-value
+  [q cache cache-key]
+  (if-let [old-v (get cache cache-key)]
+    (do
+      (if (satisfies? IDisposable old-v)
+        (.put q (bound-fn [] (.dispose old-v))))
+      (cache/evict cache cache-key))
+    cache))
+
+(defn dispose-values!
+  [cache ns]
+  (->> ns
+    (mapcat #(vals (get-in @project-state [:cache-keys %])))
+    (reduce #(dispose-value (:disposal-queue @project-state) %1 %2) cache)))
 
 (defn transact
   [tx]
   (dosync
     (let [tx-result (apply-tx (new-transaction-context (:graph @project-state)) tx)]
       (alter project-state assoc :graph (:graph tx-result))
+      (alter project-state update-in [:cache-keys] merge (:cache-keys tx-result))
+      (alter project-state update-in [:cache] dispose-values! (dg/tclosure (:graph tx-result) (:modified-nodes tx-result)))
       (assoc tx-result :status :ok))))
+
+(defn- hit-cache [cache-key value]
+  (dosync (alter project-state update-in [:cache] cache/hit cache-key))
+  value)
+
+(defn- miss-cache [cache-key value]
+  (dosync (alter project-state update-in [:cache] cache/miss cache-key value))
+  value)
+
+(defn- produce-value [resource label]
+  (node/get-value (:graph @project-state) (:_id resource) label))
+
+(defn get-resource-value [resource label]
+  (if-let [cache-key (get-in @project-state [:cache-keys (:_id resource) label])]
+    (let [cache (:cache @project-state)]
+      (if (cache/has? cache cache-key)
+          (hit-cache  cache-key (get cache cache-key))
+          (miss-cache cache-key (produce-value resource label))))
+    (produce-value resource label)))

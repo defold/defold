@@ -1,5 +1,6 @@
 (ns dynamo.project-test
   (:require [dynamo.project :as p :refer [new-resource update-resource resolve-tempid transact connect disconnect]]
+            [dynamo.node :as n]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [clojure.test.check :as tc]
@@ -10,7 +11,7 @@
 
 (defn with-clean-project
   [f]
-  (dosync (ref-set p/project-state {:graph (dg/empty-graph)}))
+  (dosync (ref-set p/project-state (p/make-project)))
   (f))
 
 (use-fixtures :each with-clean-project)
@@ -47,12 +48,12 @@
 
 (deftest connection
   (testing "two connected nodes"
-	          (let [[resource1 resource2] (tx-nodes two-simple-resources)
-                 tx-result    (transact [(connect resource1 :next resource2 :previous)])
-                 after        (:graph tx-result)]
-	             (is (= :ok (:status tx-result)))
-	             (is (= [(:_id resource1) :next] (first (lg/sources after (:_id resource2) :previous))))
-	             (is (= [(:_id resource2) :previous] (first (lg/targets after (:_id resource1) :next)))))))
+    (let [[resource1 resource2] (tx-nodes two-simple-resources)
+          tx-result    (transact [(connect resource1 :next resource2 :previous)])
+          after        (:graph tx-result)]
+      (is (= :ok (:status tx-result)))
+      (is (= [(:_id resource1) :next] (first (lg/sources after (:_id resource2) :previous))))
+      (is (= [(:_id resource2) :previous] (first (lg/targets after (:_id resource1) :next)))))))
 
 (deftest disconnection
   (testing "disconnect two singly-connected nodes"
@@ -70,3 +71,19 @@
                  tx-result (transact [(update-resource resource update-in [:counter] + 42)])]
              (is (= :ok (:status tx-result)))
              (is (= 42 (:counter (dg/node (:graph tx-result) (:_id resource))))))))
+
+(comment
+  (def tr1 {:_id -1 :inputs #{} :transforms {:content (fn [n g] "transformed")}})
+  (def tr2 {:_id -2 :inputs #{:content-source} :transforms #{}})
+  (def tr2 {:_id -3 :inputs #{:content-source} :transforms #{}})
+
+	(deftest find-dependencies
+	  (testing "on a graph of three nodes"
+	    (let [[resource1 resource2] (tx-nodes two-simple-resources)
+	          tx-result    (transact [(connect resource1 :next resource2 :previous)])
+	          after        (:graph tx-result)]
+	      (is (= :ok (:status tx-result)))
+	      (is (= [(:_id resource1) :next] (first (lg/sources after (:_id resource2) :previous))))
+	      (is (= [(:_id resource2) :previous] (first (lg/targets after (:_id resource1) :next))))
+	      (is (= nil (n/get-value after (:_id resource1) :next))))))
+)
