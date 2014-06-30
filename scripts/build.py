@@ -315,10 +315,6 @@ class Configuration(object):
                 src = join(dynamo_home, f[0], f[1])
                 self.upload_file(src, '%s/%s' % (full_archive_path, f[1]))
 
-        if 'js-web' in self.target_platform:
-            engine_html = join(dynamo_home, 'bin', bin_dir, 'engine_template.html')
-            self.upload_file(engine_html, '%s/%s' % (full_archive_path, 'engine_template.html'))
-
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
             libs.append('texc')
