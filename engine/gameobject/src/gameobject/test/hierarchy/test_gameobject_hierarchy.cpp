@@ -681,6 +681,25 @@ TEST_F(HierarchyTest, TestHierarchyBones)
     dmGameObject::Delete(m_Collection, c2);
 }
 
+TEST_F(HierarchyTest, TestEmptyInstance)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0x0);
+
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go));
+
+    dmGameObject::Result r;
+    r = dmGameObject::SetIdentifier(m_Collection, go, "go");
+    ASSERT_EQ(dmGameObject::RESULT_OK, r);
+    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go));
+
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 #undef EPSILON
 
 int main(int argc, char **argv)

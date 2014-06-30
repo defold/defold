@@ -31,6 +31,8 @@ namespace dmGameObject
     const char* ID_SEPARATOR = "/";
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 5;
 
+    static Prototype EMPTY_PROTOTYPE;
+
 #define PROP_FLOAT(var_name, prop_name)\
     const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
 
@@ -431,10 +433,17 @@ namespace dmGameObject
         assert(collection->m_InUpdate == 0 && "Creating new instances during Update(.) is not permitted");
         Prototype* proto;
         dmResource::HFactory factory = collection->m_Factory;
-        dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
-        if (error != dmResource::RESULT_OK)
+        if (prototype_name != 0x0)
         {
-            return 0;
+            dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
+            if (error != dmResource::RESULT_OK)
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            proto = &EMPTY_PROTOTYPE;
         }
 
         if (collection->m_InstanceIndices.Remaining() == 0)
@@ -537,7 +546,8 @@ namespace dmGameObject
             }
 
             // We can not call Delete here. Delete call DestroyFunction for every component
-            dmResource::Release(factory, instance->m_Prototype);
+            if (instance->m_Prototype != &EMPTY_PROTOTYPE)
+                dmResource::Release(factory, instance->m_Prototype);
             operator delete (instance_memory);
             collection->m_Instances[instance_index] = 0x0;
             collection->m_InstanceIndices.Push(instance_index);
@@ -1006,7 +1016,8 @@ namespace dmGameObject
         EraseSwapLevelIndex(collection, instance);
         MoveAllUp(collection, instance);
 
-        dmResource::Release(factory, instance->m_Prototype);
+        if (instance->m_Prototype != &EMPTY_PROTOTYPE)
+            dmResource::Release(factory, instance->m_Prototype);
         collection->m_InstanceIndices.Push(instance->m_Index);
         collection->m_Instances[instance->m_Index] = 0;
 
