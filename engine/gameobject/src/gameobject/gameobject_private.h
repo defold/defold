@@ -141,6 +141,7 @@ namespace dmGameObject
         //             A theory was that the bug has something todo with bitfields.
         //             This dummy float breaks up the bitfield in smaller continous parts (<64bits?)...
         //             Remove when mozilla has fixed this properly...
+        //			   The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
         float m_llvm_pad;
 
         // Next sibling index. Index to Collection::m_Instances
