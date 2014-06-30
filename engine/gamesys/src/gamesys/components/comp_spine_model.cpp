@@ -22,12 +22,14 @@
 
 #include "spine_ddf.h"
 #include "sprite_ddf.h"
+#include "tile_ddf.h"
 
 using namespace Vectormath::Aos;
 
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
+    using namespace dmGameSystemDDF;
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
 
@@ -70,11 +72,17 @@ namespace dmGameSystem
         dmhash_t                    m_Skin;
         /// Used to scale the time step when updating the timer
         float                       m_AnimInvDuration;
-        /// Timer in local space: [0,1]
-        float                       m_AnimTimer;
+        /// Playback cursor in the interval [0,duration]
+        float                       m_Cursor;
+        /// Playback mode
+        dmGameSystemDDF::Playback   m_Playback;
         uint8_t                     m_ComponentIndex;
+        /// Component enablement
         uint8_t                     m_Enabled : 1;
+        /// Whether the animation is currently playing
         uint8_t                     m_Playing : 1;
+        /// Whether the animation is playing backwards (e.g. ping pong)
+        uint8_t                     m_Backwards : 1;
     };
 
     struct SpineModelVertex
@@ -147,7 +155,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static bool PlayAnimation(SpineModelComponent* component, dmhash_t animation_id)
+    static bool PlayAnimation(SpineModelComponent* component, dmhash_t animation_id, Playback playback)
     {
         dmGameSystemDDF::AnimationSet* anim_set = &component->m_Resource->m_Scene->m_SpineScene->m_AnimationSet;
         uint32_t anim_count = anim_set->m_Animations.m_Count;
@@ -156,9 +164,15 @@ namespace dmGameSystem
             dmGameSystemDDF::SpineAnimation* anim = &anim_set->m_Animations[i];
             if (anim->m_Id == animation_id)
             {
+                component->m_AnimationId = animation_id;
                 component->m_Animation = anim;
-                component->m_AnimTimer = 0.0f;
+                component->m_Cursor = 0.0f;
                 component->m_Playing = 1;
+                component->m_Playback = playback;
+                if (component->m_Playback == PLAYBACK_ONCE_BACKWARD || component->m_Playback == PLAYBACK_LOOP_BACKWARD)
+                    component->m_Backwards = 1;
+                else
+                    component->m_Backwards = 0;
                 return true;
             }
         }
@@ -230,10 +244,14 @@ namespace dmGameSystem
         }
         component->m_Animation = 0x0;
         component->m_AnimationId = NULL_ANIMATION;
+        component->m_Playback = PLAYBACK_NONE;
         ReHash(component);
         dmhash_t default_animation_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
         if (component->m_AnimationId != default_animation_id)
-            PlayAnimation(component, default_animation_id);
+        {
+            // Loop forward should be the most common for idle anims etc.
+            PlayAnimation(component, default_animation_id, PLAYBACK_LOOP_FORWARD);
+        }
 
         *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
@@ -581,16 +599,62 @@ namespace dmGameSystem
                 continue;
 
             dmGameSystemDDF::SpineAnimation* animation = component->m_Animation;
-            // TODO Fix playback modes, always looping for now
-            component->m_AnimTimer += dt;
-            if (component->m_AnimTimer > animation->m_Duration)
+
+            // Advance cursor
+            if (component->m_Playback != PLAYBACK_NONE)
             {
-                component->m_AnimTimer -= animation->m_Duration;
+                component->m_Cursor += dt;
             }
+            // Adjust cursor
+            bool completed = false;
+            switch (component->m_Playback)
+            {
+            case PLAYBACK_ONCE_FORWARD:
+            case PLAYBACK_ONCE_BACKWARD:
+            case PLAYBACK_ONCE_PINGPONG:
+                if (component->m_Cursor >= animation->m_Duration)
+                {
+                    component->m_Cursor = animation->m_Duration;
+                    completed = true;
+                }
+                break;
+            case PLAYBACK_LOOP_FORWARD:
+            case PLAYBACK_LOOP_BACKWARD:
+                while (component->m_Cursor >= animation->m_Duration)
+                {
+                    component->m_Cursor -= animation->m_Duration;
+                }
+                break;
+            case PLAYBACK_LOOP_PINGPONG:
+                while (component->m_Cursor >= animation->m_Duration)
+                {
+                    component->m_Cursor -= animation->m_Duration;
+                    component->m_Backwards = ~component->m_Backwards;
+                }
+                break;
+            default:
+                break;
+            }
+            if (completed)
+            {
+                component->m_Playing = 0;
+            }
+
+            // Evaluate animation
+            float cursor = component->m_Cursor;
+            if (component->m_Backwards)
+                cursor = animation->m_Duration - cursor;
+            if (component->m_Playback == PLAYBACK_ONCE_PINGPONG) {
+                cursor *= 2.0f;
+                if (cursor > animation->m_Duration) {
+                    cursor = 2.0f * animation->m_Duration - cursor;
+                }
+            }
+
             dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
             dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
             dmArray<dmTransform::Transform>& pose = component->m_Pose;
-            float fraction = component->m_AnimTimer * animation->m_SampleRate;
+            float fraction = cursor * animation->m_SampleRate;
             uint32_t sample = (uint32_t)fraction;
             fraction -= sample;
             // Reset pose
@@ -833,7 +897,7 @@ namespace dmGameSystem
     {
         SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
         if (component->m_Playing)
-            PlayAnimation(component, component->m_AnimationId);
+            PlayAnimation(component, component->m_AnimationId, component->m_Playback);
     }
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
