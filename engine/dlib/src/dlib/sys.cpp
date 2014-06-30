@@ -262,10 +262,10 @@ namespace dmSys
     }
 
 #elif defined(__EMSCRIPTEN__)
-    // TODO: FIXME: Temporary hack to get game data storage to work in browser...
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        if (dmStrlCpy(path, "/", path_len) >= path_len)
+        const char* const DeviceMount = "/data/";
+        if (dmStrlCpy(path, DeviceMount, path_len) >= path_len)
             return RESULT_INVAL;
         if (dmStrlCat(path, ".", path_len) >= path_len)
             return RESULT_INVAL;
