@@ -63,7 +63,8 @@ namespace dmGameSystem
         /// Animated pose, every transform is local-to-model-space
         dmArray<dmTransform::Transform> m_Pose;
         /// Currently playing animation
-        dmhash_t                    m_Animation;
+        dmGameSystemDDF::SpineAnimation* m_Animation;
+        dmhash_t                    m_AnimationId;
         /// Currently used mesh
         dmGameSystemDDF::Mesh*      m_Mesh;
         dmhash_t                    m_Skin;
@@ -148,24 +149,20 @@ namespace dmGameSystem
 
     static bool PlayAnimation(SpineModelComponent* component, dmhash_t animation_id)
     {
-        TextureSetResource* texture_set = component->m_Resource->m_Scene->m_TextureSet;
-        uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation_id);
-        if (anim_id)
+        dmGameSystemDDF::AnimationSet* anim_set = &component->m_Resource->m_Scene->m_SpineScene->m_AnimationSet;
+        uint32_t anim_count = anim_set->m_Animations.m_Count;
+        for (uint32_t i = 0; i < anim_count; ++i)
         {
-            // TODO Implement animation in DEF-252
-            /*
-            component->m_CurrentAnimation = animation_id;
-            dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
-            uint32_t frame_count = animation->m_End - animation->m_Start;
-            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
-                    || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
-                frame_count = dmMath::Max(1u, frame_count * 2 - 2);
-            component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;
-            component->m_AnimTimer = 0.0f;
-            component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
-            */
+            dmGameSystemDDF::SpineAnimation* anim = &anim_set->m_Animations[i];
+            if (anim->m_Id == animation_id)
+            {
+                component->m_Animation = anim;
+                component->m_AnimTimer = 0.0f;
+                component->m_Playing = 1;
+                return true;
+            }
         }
-        return anim_id != 0;
+        return false;
     }
 
     static void ReHash(SpineModelComponent* component)
@@ -229,18 +226,14 @@ namespace dmGameSystem
         component->m_Pose.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            dmGameSystemDDF::Bone* bone = &skeleton->m_Bones[i];
-            component->m_Pose[i] = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-            if (i > 0)
-            {
-                component->m_Pose[i] = dmTransform::Mul(component->m_Pose[bone->m_Parent], component->m_Pose[i]);
-            }
+            component->m_Pose[i].SetIdentity();
         }
-        component->m_Animation = NULL_ANIMATION;
+        component->m_Animation = 0x0;
+        component->m_AnimationId = NULL_ANIMATION;
         ReHash(component);
-        dmhash_t default_animation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
-        if (component->m_Animation != default_animation)
-            PlayAnimation(component, default_animation);
+        dmhash_t default_animation_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
+        if (component->m_AnimationId != default_animation_id)
+            PlayAnimation(component, default_animation_id);
 
         *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
@@ -318,7 +311,6 @@ namespace dmGameSystem
         for (uint32_t i = start_index; i < end_index; ++i)
         {
             const SpineModelComponent* component = &components[sort_buffer[i]];
-            dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
 
             dmGameSystemDDF::Mesh* mesh = component->m_Mesh ;
             if (mesh == 0x0)
@@ -341,8 +333,7 @@ namespace dmGameSystem
                 for (uint32_t bi = 0; bi < 4; ++bi)
                 {
                     uint32_t bone_index = bone_indices[bi];
-                    // TODO include bind-pose-model-to-local in the pose to avoid extra mul
-                    out_p += Vector3(dmTransform::Apply(dmTransform::Mul(component->m_Pose[bone_index], bind_pose[bone_index].m_ModelToLocal), in_p)) * bone_weights[bi];
+                    out_p += Vector3(dmTransform::Apply(component->m_Pose[bone_index], in_p)) * bone_weights[bi];
                 }
                 *((Vector4*)&v) = w * out_p;
                 e = vi*2;
@@ -565,6 +556,18 @@ namespace dmGameSystem
         }
     }
 
+    static Vector3 SampleVec3(uint32_t sample, float frac, float* data)
+    {
+        uint32_t i = sample*3;
+        return lerp(frac, Vector3(data[i+0], data[i+1], data[i+2]), Vector3(data[i+0+3], data[i+1+3], data[i+2+3]));
+    }
+
+    static Quat SampleQuat(uint32_t sample, float frac, float* data)
+    {
+        uint32_t i = sample*4;
+        return lerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
+    }
+
     static void Animate(SpineModelWorld* world, float dt)
     {
         DM_PROFILE(SpineModel, "Animate");
@@ -574,39 +577,60 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             SpineModelComponent* component = &components[i];
-            // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
             if (!component->m_Enabled || !component->m_Playing)
                 continue;
 
-            // TODO handle in DEF-252
-            /*
-            TextureSetResource* texture_set = component->m_Resource->m_Scene->m_TextureSet;
-            uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
-            if (!anim_id)
+            dmGameSystemDDF::SpineAnimation* animation = component->m_Animation;
+            // TODO Fix playback modes, always looping for now
+            component->m_AnimTimer += dt;
+            if (component->m_AnimTimer > animation->m_Duration)
             {
-                continue;
+                component->m_AnimTimer -= animation->m_Duration;
             }
-
-            dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
-
-            // Animate
-            component->m_AnimTimer += dt * component->m_AnimInvDuration;
-            if (component->m_AnimTimer >= 1.0f)
+            dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
+            dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
+            dmArray<dmTransform::Transform>& pose = component->m_Pose;
+            float fraction = component->m_AnimTimer * animation->m_SampleRate;
+            uint32_t sample = (uint32_t)fraction;
+            fraction -= sample;
+            // Reset pose
+            uint32_t bone_count = pose.Size();
+            for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
-                switch (animation_ddf->m_Playback)
+                pose[bi] = bind_pose[bi].m_LocalToModel;
+            }
+            // Sample animation tracks
+            uint32_t track_count = animation->m_Tracks.m_Count;
+            for (uint32_t ti = 0; ti < track_count; ++ti)
+            {
+                dmGameSystemDDF::AnimationTrack* track = &animation->m_Tracks[ti];
+                uint32_t bone_index = track->m_BoneIndex;
+                dmTransform::Transform transform = bind_pose[bone_index].m_LocalToParent;
+                if (track->m_Positions.m_Count > 0)
                 {
-                    case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD:
-                    case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD:
-                    case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG:
-                        component->m_AnimTimer = 1.0f;
-                        break;
-                    default:
-                        component->m_AnimTimer -= floorf(component->m_AnimTimer);
-                        break;
+                    transform.SetTranslation(transform.GetTranslation() + SampleVec3(sample, fraction, track->m_Positions.m_Data));
                 }
+                if (track->m_Rotations.m_Count > 0)
+                {
+                    transform.SetRotation(normalize(transform.GetRotation() * SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
+                }
+                if (track->m_Scale.m_Count > 0)
+                {
+                    transform.SetScale(mulPerElem(transform.GetScale(), SampleVec3(sample, fraction, track->m_Scale.m_Data)));
+                }
+                // Convert every transform into model space
+                if (bone_index > 0) {
+                    dmGameSystemDDF::Bone* bone = &skeleton->m_Bones[bone_index];
+                    transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                }
+                // Store it
+                pose[bone_index] = transform;
             }
-            */
+            // Multiply by bind pose to obtain delta transforms
+            for (uint32_t bi = 0; bi < bone_count; ++bi)
+            {
+                pose[bi] = dmTransform::Mul(pose[bi], bind_pose[bi].m_ModelToLocal);
+            }
         }
     }
 
@@ -809,7 +833,7 @@ namespace dmGameSystem
     {
         SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
         if (component->m_Playing)
-            PlayAnimation(component, component->m_Animation);
+            PlayAnimation(component, component->m_AnimationId);
     }
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)

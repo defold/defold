@@ -11,6 +11,8 @@ namespace dmGameSystem
 {
     struct SpineBone
     {
+        /// Local space transform
+        dmTransform::Transform m_LocalToParent;
         /// Model space transform
         dmTransform::Transform m_LocalToModel;
         /// Inv model space transform

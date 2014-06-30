@@ -3,7 +3,9 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -275,18 +277,29 @@ public class SpineSceneBuilder extends Builder<Void> {
         animBuilder.setSampleRate((float)sampleRate);
         double spf = 1.0 / sampleRate;
         if (!animation.tracks.isEmpty()) {
+            List<AnimationTrack.Builder> builders = new ArrayList<AnimationTrack.Builder>();
             AnimationTrack.Builder animTrackBuilder = AnimationTrack.newBuilder();
             SpineScene.AnimationTrack firstTrack = animation.tracks.get(0);
             animTrackBuilder.setBoneIndex(firstTrack.bone.index);
             for (SpineScene.AnimationTrack track : animation.tracks) {
                 if (animTrackBuilder.getBoneIndex() != track.bone.index) {
-                    animBuilder.addTracks(animTrackBuilder);
+                    builders.add(animTrackBuilder);
                     animTrackBuilder = AnimationTrack.newBuilder();
                     animTrackBuilder.setBoneIndex(track.bone.index);
                 }
                 toDDF(track, animTrackBuilder, animation.duration, sampleRate, spf);
             }
-            animBuilder.addTracks(animTrackBuilder);
+            builders.add(animTrackBuilder);
+            // Compiled anim tracks must be in bone order
+            Collections.sort(builders, new Comparator<AnimationTrack.Builder>() {
+                @Override
+                public int compare(AnimationTrack.Builder o1, AnimationTrack.Builder o2) {
+                    return o1.getBoneIndex() - o2.getBoneIndex();
+                }
+            });
+            for (AnimationTrack.Builder builder : builders) {
+                animBuilder.addTracks(builder);
+            }
         }
         animSetBuilder.addAnimations(animBuilder);
     }

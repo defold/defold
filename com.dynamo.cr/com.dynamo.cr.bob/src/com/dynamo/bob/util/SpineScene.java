@@ -431,6 +431,11 @@ public class SpineScene {
                         AnimationTrack track = new AnimationTrack();
                         track.bone = scene.getBone(boneName);
                         track.property = spineToProperty(propName);
+                        // This value is used to counter how the key values for rotations are interpreted in spine:
+                        // * All values are modulated into the interval 0 <= x < 360
+                        // * If keys k0 and k1 have a difference > 180, the second key is adjusted with +/- 360 to lessen the difference to < 180
+                        // ** E.g. k0 = 0, k1 = 270 are interpolated as k0 = 0, k1 = -90
+                        Float prevAngles = null;
                         Iterator<JsonNode> keyIt = propNode.getElements();
                         while (keyIt.hasNext()) {
                             JsonNode keyNode =  keyIt.next();
@@ -443,7 +448,16 @@ public class SpineScene {
                                 key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f), 0.0f};
                                 break;
                             case ROTATION:
-                                key.value = new float[] {JsonUtil.get(keyNode, "angle", 0.0f)};
+                                // See the comment above why this is done for rotations
+                                float angles = JsonUtil.get(keyNode, "angle", 0.0f);
+                                if (prevAngles != null) {
+                                    float diff = angles - prevAngles;
+                                    if (Math.abs(diff) > 180.0f) {
+                                        angles += 360.0f * -Math.signum(diff);
+                                    }
+                                }
+                                prevAngles = angles;
+                                key.value = new float[] {angles};
                                 break;
                             case SCALE:
                                 key.value = new float[] {JsonUtil.get(keyNode, "x", 1.0f), JsonUtil.get(keyNode, "y", 1.0f), 1.0f};

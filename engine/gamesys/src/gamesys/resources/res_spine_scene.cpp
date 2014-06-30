@@ -24,10 +24,14 @@ namespace dmGameSystem
             {
                 SpineBone* bind_bone = &resource->m_BindPose[i];
                 dmGameSystemDDF::Bone* bone = &skeleton->m_Bones[i];
-                bind_bone->m_LocalToModel = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-                if (i > 0) // Avoid root
+                bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
+                if (i > 0)
                 {
-                    bind_bone->m_LocalToModel = dmTransform::Mul(resource->m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToModel);
+                    bind_bone->m_LocalToModel = dmTransform::Mul(resource->m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
+                }
+                else
+                {
+                    bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
                 }
                 bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
                 bind_bone->m_ParentIndex = bone->m_Parent;

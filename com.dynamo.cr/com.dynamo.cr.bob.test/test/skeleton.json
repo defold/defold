@@ -111,6 +111,25 @@
 				]
 			}
 		}
-	}
+	},
+    "anim_track_order": {
+        "bones": {
+            "bone_animated": {
+                "translate": [
+                    { "time": 0, "x": 0, "y": 0 },
+                    { "time": 1, "x": 100, "y": 0 }
+                ]
+            },
+            "root": {
+                "translate": [
+                    {
+                        "time": 0,
+                        "x": 0,
+                        "y": 0
+                    }
+                ]
+            }
+        }
+    }
 }
 }
