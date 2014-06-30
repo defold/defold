@@ -1160,29 +1160,21 @@ namespace dmGameObject
         if (transform_count == 0)
             return 0;
         uint16_t current_index = first_index;
-        dmTransform::Transform* current_transform = transforms;
         uint32_t count = 0;
         while (current_index != INVALID_INSTANCE_INDEX)
         {
             HInstance instance = collection->m_Instances[current_index];
             if (instance->m_Bone)
             {
-                instance->m_Transform = *current_transform++;
-                ++count;
+                instance->m_Transform = transforms[count++];
+                if (count < transform_count)
+                {
+                    count += DoSetBoneTransforms(collection, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
+                }
                 if (transform_count == count)
                 {
                     return count;
                 }
-            }
-            current_index = instance->m_SiblingIndex;
-        }
-        current_index = first_index;
-        while (current_index != INVALID_INSTANCE_INDEX)
-        {
-            HInstance instance = collection->m_Instances[current_index];
-            if (instance->m_Bone)
-            {
-                count += DoSetBoneTransforms(collection, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
             }
             current_index = instance->m_SiblingIndex;
         }
@@ -1824,6 +1816,11 @@ namespace dmGameObject
     void SetScale(HInstance instance, float scale)
     {
         instance->m_Transform.SetUniformScale(scale);
+    }
+
+    void SetScale(HInstance instance, Vector3 scale)
+    {
+        instance->m_Transform.SetScale(scale);
     }
 
     float GetScale(HInstance instance)

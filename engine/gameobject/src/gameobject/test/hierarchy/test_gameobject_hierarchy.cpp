@@ -629,7 +629,46 @@ TEST_F(HierarchyTest, TestHierarchyInheritScale)
     dmGameObject::Delete(m_Collection, parent);
 }
 
-TEST_F(HierarchyTest, TestHierarchyBones)
+// Test depth-first order
+TEST_F(HierarchyTest, TestHierarchyBonesOrder)
+{
+    dmGameObject::HInstance root = dmGameObject::New(m_Collection, 0x0);
+
+    const uint32_t instance_count = 7;
+    dmGameObject::HInstance instances[instance_count];
+    uint32_t parent_indices[instance_count] = {~0u, 0u, 1u, 1u, 0u, 4u, 4u};
+    dmTransform::Transform transforms[instance_count];
+    for (uint32_t i = 0; i < instance_count; ++i)
+    {
+        instances[i] = dmGameObject::New(m_Collection, 0x0);
+        dmGameObject::SetBone(instances[i], true);
+        transforms[i].SetIdentity();
+        transforms[i].SetTranslation(Vector3((float)i, 0.0f, 0.0f));
+    }
+    for (uint32_t i = 0; i < instance_count; ++i)
+    {
+        uint32_t index = instance_count - 1 - i;
+        dmGameObject::HInstance parent = root;
+        if (parent_indices[index] != ~0u)
+            parent = instances[parent_indices[index]];
+        dmGameObject::SetParent(instances[index], parent);
+    }
+
+    ASSERT_EQ(instance_count, SetBoneTransforms(root, transforms, instance_count));
+
+    for (uint32_t i = 0; i < instance_count; ++i)
+    {
+        ASSERT_NEAR((float)i, dmGameObject::GetPosition(instances[i]).getX(), EPSILON);
+    }
+
+    for (uint32_t i = 0; i < instance_count; ++i)
+    {
+        dmGameObject::Delete(m_Collection, instances[i]);
+    }
+    dmGameObject::Delete(m_Collection, root);
+}
+
+TEST_F(HierarchyTest, TestHierarchyBonesMulti)
 {
     dmGameObject::HInstance root = dmGameObject::New(m_Collection, "/go.goc");
 

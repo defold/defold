@@ -50,8 +50,7 @@ namespace dmGameSystem
     struct SpineModelComponent
     {
         dmGameObject::HInstance     m_Instance;
-        Point3                      m_Position;
-        Quat                        m_Rotation;
+        dmTransform::Transform      m_Transform;
         Matrix4                     m_World;
         SortKeySpine                m_SortKey;
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
@@ -62,8 +61,10 @@ namespace dmGameSystem
         SpineModelResource*         m_Resource;
         dmArray<dmRender::Constant> m_RenderConstants;
         dmArray<Vector4>            m_PrevRenderConstants;
-        /// Animated pose, every transform is local-to-model-space
+        /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
+        /// Nodes corresponding to the bones
+        dmArray<dmGameObject::HInstance> m_NodeInstances;
         /// Currently playing animation
         dmGameSystemDDF::SpineAnimation* m_Animation;
         dmhash_t                    m_AnimationId;
@@ -215,8 +216,7 @@ namespace dmGameSystem
         uint32_t index = world->m_ComponentIndices.Pop();
         SpineModelComponent* component = &world->m_Components[index];
         component->m_Instance = params.m_Instance;
-        component->m_Position = params.m_Position;
-        component->m_Rotation = params.m_Rotation;
+        component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
@@ -234,6 +234,7 @@ namespace dmGameSystem
                 break;
             }
         }
+        dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
         dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         component->m_Pose.SetCapacity(bone_count);
@@ -242,6 +243,39 @@ namespace dmGameSystem
         {
             component->m_Pose[i].SetIdentity();
         }
+        component->m_NodeInstances.SetCapacity(bone_count);
+        component->m_NodeInstances.SetSize(bone_count);
+        memset(component->m_NodeInstances.Begin(), 0, sizeof(dmGameObject::HInstance) * bone_count);
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            dmGameObject::HInstance inst = dmGameObject::New(params.m_Collection, 0x0);
+            if (inst == 0x0)
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            dmGameObject::SetIdentifier(params.m_Collection, inst, dmGameObject::GenerateUniqueInstanceId(params.m_Collection));
+            dmGameObject::SetBone(inst, true);
+            dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
+            if (i == 0)
+            {
+                transform = dmTransform::Mul(component->m_Transform, transform);
+            }
+            dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
+            dmGameObject::SetRotation(inst, transform.GetRotation());
+            dmGameObject::SetScale(inst, transform.GetScale());
+            component->m_NodeInstances[i] = inst;
+        }
+        // Set parents in reverse to account for child-prepending
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            uint32_t index = bone_count - 1 - i;
+            dmGameObject::HInstance inst = component->m_NodeInstances[index];
+            dmGameObject::HInstance parent = params.m_Instance;
+            if (index > 0)
+            {
+                parent = component->m_NodeInstances[skeleton->m_Bones[index].m_Parent];
+            }
+            dmGameObject::SetParent(inst, parent);
+        }
+
         component->m_Animation = 0x0;
         component->m_AnimationId = NULL_ANIMATION;
         component->m_Playback = PLAYBACK_NONE;
@@ -261,6 +295,20 @@ namespace dmGameSystem
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
+        // Delete bone game objects
+        uint32_t bone_count = component->m_NodeInstances.Size();
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            dmGameObject::HInstance inst = component->m_NodeInstances[i];
+            if (inst != 0x0)
+            {
+                dmGameObject::Delete(params.m_Collection, inst);
+            }
+            else
+            {
+                break;
+            }
+        }
         uint32_t index = component - &world->m_Components[0];
         memset(component, 0, sizeof(SpineModelComponent));
         world->m_ComponentIndices.Push(index);
@@ -466,14 +514,13 @@ namespace dmGameSystem
             if (c->m_Mesh != 0x0)
             {
                 dmTransform::Transform world = dmGameObject::GetWorldTransform(c->m_Instance);
-                dmTransform::Transform local(Vector3(c->m_Position), c->m_Rotation, 1.0f);
                 if (dmGameObject::ScaleAlongZ(c->m_Instance))
                 {
-                    world = dmTransform::Mul(world, local);
+                    world = dmTransform::Mul(world, c->m_Transform);
                 }
                 else
                 {
-                    world = dmTransform::MulNoScaleZ(world, local);
+                    world = dmTransform::MulNoScaleZ(world, c->m_Transform);
                 }
                 Matrix4 w = dmTransform::ToMatrix4(world);
                 Vector4 position = w.getCol3();
@@ -661,7 +708,7 @@ namespace dmGameSystem
             uint32_t bone_count = pose.Size();
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
-                pose[bi] = bind_pose[bi].m_LocalToModel;
+                pose[bi] = bind_pose[bi].m_LocalToParent;
             }
             // Sample animation tracks
             uint32_t track_count = animation->m_Tracks.m_Count;
@@ -669,7 +716,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::AnimationTrack* track = &animation->m_Tracks[ti];
                 uint32_t bone_index = track->m_BoneIndex;
-                dmTransform::Transform transform = bind_pose[bone_index].m_LocalToParent;
+                dmTransform::Transform& transform = pose[bone_index];
                 if (track->m_Positions.m_Count > 0)
                 {
                     transform.SetTranslation(transform.GetTranslation() + SampleVec3(sample, fraction, track->m_Positions.m_Data));
@@ -682,18 +729,25 @@ namespace dmGameSystem
                 {
                     transform.SetScale(mulPerElem(transform.GetScale(), SampleVec3(sample, fraction, track->m_Scale.m_Data)));
                 }
-                // Convert every transform into model space
-                if (bone_index > 0) {
-                    dmGameSystemDDF::Bone* bone = &skeleton->m_Bones[bone_index];
-                    transform = dmTransform::Mul(pose[bone->m_Parent], transform);
-                }
-                // Store it
-                pose[bone_index] = transform;
             }
-            // Multiply by bind pose to obtain delta transforms
+            // Include component transform in the GO instance reflecting the root bone
+            dmTransform::Transform root_t = pose[0];
+            pose[0] = dmTransform::Mul(component->m_Transform, root_t);
+            dmGameObject::SetBoneTransforms(component->m_Instance, pose.Begin(), pose.Size());
+            pose[0] = root_t;
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
-                pose[bi] = dmTransform::Mul(pose[bi], bind_pose[bi].m_ModelToLocal);
+                dmTransform::Transform& transform = pose[bi];
+                // Convert every transform into model space
+                if (bi > 0) {
+                    transform = dmTransform::Mul(pose[skeleton->m_Bones[bi].m_Parent], transform);
+                }
+            }
+            for (uint32_t bi = 0; bi < bone_count; ++bi)
+            {
+                dmTransform::Transform& transform = pose[bi];
+                // Multiply by inv bind pose to obtain delta transforms
+                transform = dmTransform::Mul(transform, bind_pose[bi].m_ModelToLocal);
             }
         }
     }

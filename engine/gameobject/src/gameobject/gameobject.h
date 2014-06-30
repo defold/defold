@@ -699,6 +699,15 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
+     * Set instance identifier. Must be unique within the collection.
+     * @param collection Collection
+     * @param instance Instance
+     * @param identifier Identifier
+     * @return RESULT_OK on success
+     */
+    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
+
+    /**
      * Get instance identifier
      * @param instance Instance
      * @return Identifier. dmGameObject::UNNAMED_IDENTIFIER if not set.
@@ -780,9 +789,9 @@ namespace dmGameObject
 
     /**
      * Set the local transforms recursively of all instances flagged as bones under the given parent instance.
-     * The order of the transforms is breadth-first.
+     * The order of the transforms is depth-first.
      * @param parent Parent instance of the hierarchy to set
-     * @param transforms Array of transforms to set breadth-first for the bone instances
+     * @param transforms Array of transforms to set depth-first for the bone instances
      * @param transform_count Size of the transforms array
      * @return Number of instances found
      */
@@ -903,6 +912,13 @@ namespace dmGameObject
      * @param scale New uniform scale
      */
     void SetScale(HInstance instance, float scale);
+
+    /**
+     * Set gameobject instance non-uniform scale
+     * @param instance Gameobject instance
+     * @param scale New uniform scale
+     */
+    void SetScale(HInstance instance, Vector3 scale);
 
     /**
      * Get gameobject instance uniform scale

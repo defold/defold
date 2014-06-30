@@ -141,7 +141,41 @@ public class SpineSceneBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-    private static void toDDF(List<SpineScene.Bone> bones, Skeleton.Builder skeletonBuilder) {
+    private static int reindexNodesDepthFirst(SpineScene.Bone bone, Map<SpineScene.Bone, List<SpineScene.Bone>> children, int index) {
+        List<SpineScene.Bone> c = children.get(bone);
+        if (c != null) {
+            for (SpineScene.Bone child : c) {
+                child.index = index++;
+                index = reindexNodesDepthFirst(child, children, index);
+            }
+        }
+        return index;
+    }
+
+    private static List<Integer> toDDF(List<SpineScene.Bone> bones, Skeleton.Builder skeletonBuilder) {
+        // Order bones strictly breadth-first
+        Map<SpineScene.Bone, List<SpineScene.Bone>> children = new HashMap<SpineScene.Bone, List<SpineScene.Bone>>();
+        for (SpineScene.Bone bone : bones) {
+            if (bone.parent != null) {
+                List<SpineScene.Bone> c = children.get(bone.parent);
+                if (c == null) {
+                    c = new ArrayList<SpineScene.Bone>();
+                    children.put(bone.parent, c);
+                }
+                c.add(bone);
+            }
+        }
+        reindexNodesDepthFirst(bones.get(0), children, 1);
+        List<Integer> indexRemap = new ArrayList<Integer>(bones.size());
+        for (int i = 0; i < bones.size(); ++i) {
+            indexRemap.add(bones.get(i).index);
+        }
+        Collections.sort(bones, new Comparator<SpineScene.Bone>() {
+            @Override
+            public int compare(SpineScene.Bone o1, SpineScene.Bone o2) {
+                return o1.index - o2.index;
+            }
+        });
         for (SpineScene.Bone bone : bones) {
             Bone.Builder boneBuilder = Bone.newBuilder();
             boneBuilder.setId(MurmurHash.hash64(bone.name));
@@ -155,9 +189,10 @@ public class SpineSceneBuilder extends Builder<Void> {
             boneBuilder.setScale(MathUtil.vecmathToDDF(bone.localT.scale));
             skeletonBuilder.addBones(boneBuilder);
         }
+        return indexRemap;
     }
 
-    private static void toDDF(SpineScene.Mesh mesh, Mesh.Builder meshBuilder) {
+    private static void toDDF(SpineScene.Mesh mesh, Mesh.Builder meshBuilder, List<Integer> boneIndexRemap) {
         float[] v = mesh.vertices;
         int vertexCount = v.length / 5;
         int indexOffset = meshBuilder.getPositionsCount() / 3;
@@ -172,7 +207,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
         if (mesh.boneIndices != null) {
             for (int boneIndex : mesh.boneIndices) {
-                meshBuilder.addBoneIndices(boneIndex);
+                meshBuilder.addBoneIndices(boneIndexRemap.get(boneIndex));
             }
             for (float boneWeight : mesh.boneWeights) {
                 meshBuilder.addWeights(boneWeight);
@@ -183,14 +218,14 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static void toDDF(String skinName, List<SpineScene.Mesh> generics, List<SpineScene.Mesh> specifics, MeshSet.Builder meshSetBuilder) {
+    private static void toDDF(String skinName, List<SpineScene.Mesh> generics, List<SpineScene.Mesh> specifics, MeshSet.Builder meshSetBuilder, List<Integer> boneIndexRemap) {
         Mesh.Builder meshBuilder = Mesh.newBuilder();
         meshBuilder.setId(MurmurHash.hash64(skinName));
         for (SpineScene.Mesh mesh : generics) {
-            toDDF(mesh, meshBuilder);
+            toDDF(mesh, meshBuilder, boneIndexRemap);
         }
         for (SpineScene.Mesh mesh : specifics) {
-            toDDF(mesh, meshBuilder);
+            toDDF(mesh, meshBuilder, boneIndexRemap);
         }
         meshSetBuilder.addMeshes(meshBuilder);
     }
@@ -307,13 +342,13 @@ public class SpineSceneBuilder extends Builder<Void> {
     private static void toDDF(SpineScene scene, Spine.SpineScene.Builder b, double sampleRate) {
         // Skeleton
         Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-        toDDF(scene.bones, skeletonBuilder);
+        List<Integer> boneIndexRemap = toDDF(scene.bones, skeletonBuilder);
         b.setSkeleton(skeletonBuilder);
         // MeshSet
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-        toDDF("", scene.meshes, Collections.<SpineScene.Mesh>emptyList(), meshSetBuilder);
+        toDDF("", scene.meshes, Collections.<SpineScene.Mesh>emptyList(), meshSetBuilder, boneIndexRemap);
         for (Map.Entry<String, List<SpineScene.Mesh>> entry : scene.skins.entrySet()) {
-            toDDF(entry.getKey(), scene.meshes, entry.getValue(), meshSetBuilder);
+            toDDF(entry.getKey(), scene.meshes, entry.getValue(), meshSetBuilder, boneIndexRemap);
         }
         b.setMeshSet(meshSetBuilder);
         // AnimationSet

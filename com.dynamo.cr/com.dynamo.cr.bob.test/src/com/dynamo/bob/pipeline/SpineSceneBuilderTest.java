@@ -1,6 +1,7 @@
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
 import java.util.List;
@@ -12,12 +13,11 @@ import org.junit.Test;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
-import com.dynamo.spine.proto.Spine.SpineAnimation;
 import com.dynamo.spine.proto.Spine.AnimationTrack;
-import com.dynamo.spine.proto.Spine.Bone;
-import com.dynamo.spine.proto.Spine.MeshSet;
 import com.dynamo.spine.proto.Spine.Mesh;
+import com.dynamo.spine.proto.Spine.MeshSet;
 import com.dynamo.spine.proto.Spine.Skeleton;
+import com.dynamo.spine.proto.Spine.SpineAnimation;
 import com.google.protobuf.Message;
 
 public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
@@ -27,21 +27,22 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
-    private static boolean hasBone(Map<Long, Bone> bones, String id) {
-        return bones.containsKey(MurmurHash.hash64(id));
+    private static void assertBone(Skeleton skeleton, int index, String id) {
+        assertEquals(skeleton.getBones(index).getId(), MurmurHash.hash64(id));
     }
 
     private void assertSkeleton(Skeleton skeleton) {
-        assertEquals(5, skeleton.getBonesCount());
-        Map<Long, Bone> bones = new HashMap<Long, Bone>();
-        for (Bone bone : skeleton.getBonesList()) {
-            bones.put(bone.getId(), bone);
-        }
-        assertTrue(hasBone(bones, "root"));
-        assertTrue(hasBone(bones, "bone_animated"));
-        assertTrue(hasBone(bones, "bone_noscale"));
-        assertTrue(hasBone(bones, "bone_rotated"));
-        assertTrue(hasBone(bones, "bone_scale"));
+        assertEquals(9, skeleton.getBonesCount());
+        // Verify depth-first order
+        assertBone(skeleton, 0, "root");
+        assertBone(skeleton, 1, "bone_animated");
+        assertBone(skeleton, 2, "bone_animated_child");
+        assertBone(skeleton, 3, "bone_animated_child_2");
+        assertBone(skeleton, 4, "bone_noscale");
+        assertBone(skeleton, 5, "bone_noscale_child");
+        assertBone(skeleton, 6, "bone_noscale_child_2");
+        assertBone(skeleton, 7, "bone_rotated");
+        assertBone(skeleton, 8, "bone_scale");
     }
 
     private static boolean hasMesh(Map<Long, Mesh> meshes, String id) {
