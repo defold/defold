@@ -36,7 +36,6 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.spine.Activator;
 import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
-import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.spine.proto.Spine.SpineModelDesc.BlendMode;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
