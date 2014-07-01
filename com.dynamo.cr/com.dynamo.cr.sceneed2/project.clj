@@ -12,7 +12,7 @@
   :plugins [[codox "0.8.9"]
             [lein-ubersource "0.1.1"]
             [lein-simpleton "1.3.0"]]
-  :codox {:include [dynamo.node dynamo.ui]
+  :codox {:include [dynamo.file dynamo.node dynamo.project dynamo.ui]
           :src-dir-uri "https://github.com/relevance/defold/blob/clojure-sceneed/com.dynamo.cr/com.dynamo.cr.sceneed2/"
           :src-linenum-anchor-prefix "L"}
   :resource-paths []
