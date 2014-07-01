@@ -1217,8 +1217,8 @@
       var spinnerElement = document.getElementById('spinner');
 
       var Module = {
-        'noInitialRun': true,
 
+		'noInitialRun': true,
         'preRunTasks': [],
         'preRunTasksCompleted': 0,
         'mountPoint': '/data',
@@ -1234,9 +1234,15 @@
         'onBootstrapTaskCompleted': function() {
             ++Module['preRunTasksCompleted'];
             if (Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
-                var entry = Module.cwrap('main', 'number');
-                entry();
+            	print('preRun tasks completed.');
+            	Module['attemptLaunch']();
             }
+        },
+
+        'attemptLaunch': function() {
+        	if (this.remainingDependencies == 0 && Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
+        		Module['callMain']();
+        	}
         },
 
         'registerBootstrapTask': function(fn) {
@@ -1313,8 +1319,13 @@
           Module.setStatus.last.time = Date.now();
         },
         totalDependencies: 0,
+        remainingDependencies: 0,
         monitorRunDependencies: function(left) {
           this.totalDependencies = Math.max(this.totalDependencies, left);
+          this.remainingDependencies = left;
+          if (0 == left) {
+          	Module['attemptLaunch']();
+          }
           Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
         }
       };
