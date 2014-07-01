@@ -4,8 +4,63 @@
 #include <stdint.h>
 #include <gameobject/gameobject.h>
 
+#include "../resources/res_spine_model.h"
+
 namespace dmGameSystem
 {
+    using namespace Vectormath::Aos;
+    using namespace dmGameSystemDDF;
+
+    union SortKeySpine
+    {
+        struct
+        {
+            uint64_t m_Index : 16;  // Index is used to ensure stable sort
+            uint64_t m_Z : 16; // Quantified relative z
+            uint64_t m_MixedHash : 32;
+        };
+        uint64_t     m_Key;
+    };
+
+    struct SpineModelComponent
+    {
+        dmGameObject::HInstance     m_Instance;
+        dmTransform::Transform      m_Transform;
+        Matrix4                     m_World;
+        SortKeySpine                m_SortKey;
+        // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
+        // See GenerateKeys
+        uint32_t                    m_MixedHash;
+        dmGameObject::HInstance     m_ListenerInstance;
+        dmhash_t                    m_ListenerComponent;
+        SpineModelResource*         m_Resource;
+        dmArray<dmRender::Constant> m_RenderConstants;
+        dmArray<Vector4>            m_PrevRenderConstants;
+        /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
+        dmArray<dmTransform::Transform> m_Pose;
+        /// Nodes corresponding to the bones
+        dmArray<dmGameObject::HInstance> m_NodeInstances;
+        /// Currently playing animation
+        dmGameSystemDDF::SpineAnimation* m_Animation;
+        dmhash_t                    m_AnimationId;
+        /// Currently used mesh
+        dmGameSystemDDF::Mesh*      m_Mesh;
+        dmhash_t                    m_Skin;
+        /// Used to scale the time step when updating the timer
+        float                       m_AnimInvDuration;
+        /// Playback cursor in the interval [0,duration]
+        float                       m_Cursor;
+        /// Playback mode
+        dmGameSystemDDF::Playback   m_Playback;
+        uint8_t                     m_ComponentIndex;
+        /// Component enablement
+        uint8_t                     m_Enabled : 1;
+        /// Whether the animation is currently playing
+        uint8_t                     m_Playing : 1;
+        /// Whether the animation is playing backwards (e.g. ping pong)
+        uint8_t                     m_Backwards : 1;
+    };
+
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompSpineModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
