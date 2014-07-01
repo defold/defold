@@ -59,5 +59,4 @@
       (add-to-assets target image-node :image)))
 
   (defcommand add-image-command "dynamo.atlas" "dynamo.atlas.add-image")
-  (defhandler add-image-handler add-image-command #'atlas.core/add-image)
-)
+  (defhandler add-image-handler add-image-command #'atlas.core/add-image))

@@ -144,6 +144,11 @@
   [cache keys]
   (reduce cache/evict cache keys))
 
+(defn- pairwise [f coll]
+  (for [n coll
+        x (f n)]
+    [n x]))
+
 (defn transact
   [tx]
   (dosync
@@ -155,8 +160,10 @@
             old-cache           (:cache @project-state)
             affected-values     (map #(get old-cache %) affected-cache-keys)]
         (dispose-values! (:disposal-queue @project-state) affected-values)
-        (alter project-state update-in [:cache] evict-values! affected-cache-keys))
-      (assoc tx-result :status :ok))))
+        (alter project-state update-in [:cache] evict-values! affected-cache-keys)
+        (doseq [expired-output (pairwise :on-update (map #(dg/node (:graph tx-result) %) affected-subgraph))]
+          (apply get-resource-value expired-output))
+        (assoc tx-result :status :ok)))))
 
 (defn- hit-cache [cache-key value]
   (dosync (alter project-state update-in [:cache] cache/hit cache-key))

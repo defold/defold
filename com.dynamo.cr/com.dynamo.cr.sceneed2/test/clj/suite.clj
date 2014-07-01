@@ -5,7 +5,7 @@
                       'atlas.core-test
                       'dynamo.node-test
                       'internal.graph.graph-test
-                      'internal.cache-test
+                      'internal.value-test
                       'internal.node-test])
 
 (defn suite []

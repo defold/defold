@@ -1,4 +1,4 @@
-(ns internal.cache-test
+(ns internal.value-test
   (:require [clojure.test :refer :all]
             [clojure.core.async :as async :refer [chan >!! <! alts!! timeout]]
             [schema.core :as s]
@@ -14,7 +14,17 @@
   (swap! *calls* update-in [node fn-symbol] (fnil inc 0)))
 
 (defn get-tally [resource fn-symbol]
-  (get-in @*calls* [(:_id resource) fn-symbol]))
+  (get-in @*calls* [(:_id resource) fn-symbol] 0))
+
+(defmacro expect-call-when [node fn-symbol & body]
+  `(let [calls-before# (get-tally ~node ~fn-symbol)]
+     ~@body
+     (is (= (inc calls-before#) (get-tally ~node ~fn-symbol)))))
+
+(defmacro expect-no-call-when [node fn-symbol & body]
+  `(let [calls-before# (get-tally ~node ~fn-symbol)]
+     ~@body
+     (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
 (defn tx-nodes [& resources]
   (let [tx-result (p/transact (map p/new-resource resources))
@@ -36,8 +46,12 @@
   "this took a long time to produce")
 
 (def CachedOutputNoInputs
-  {:transforms {:expensive-value #'compute-expensive-value}
+  {:inputs {:operand s/Str}
+   :transforms {:expensive-value #'compute-expensive-value}
    :cached #{:expensive-value}})
+
+(def UpdatesExpensiveValue
+  {:on-update #{:expensive-value}})
 
 (defnk compute-derived-value
   [this first-name last-name]
@@ -53,14 +67,17 @@
 (n/defnode CacheTestNode
   UncachedOutput
   CachedOutputNoInputs
-  CachedOutputFromInputs)
+  CachedOutputFromInputs
+  UpdatesExpensiveValue)
 
 (defn build-sample-project
   []
   (let [nodes (tx-nodes (make-cache-test-node :scalar "Jane") (make-cache-test-node :scalar "Doe")
                         (make-cache-test-node) (make-cache-test-node))
-        [name1 name2 combiner & _]  nodes]
-    (p/transact [(p/connect name1 :uncached-value combiner :first-name) (p/connect name2 :uncached-value combiner :last-name)])
+        [name1 name2 combiner expensive]  nodes]
+    (p/transact [(p/connect name1 :uncached-value combiner :first-name) 
+                 (p/connect name2 :uncached-value combiner :last-name)
+                 (p/connect name1 :uncached-value expensive :operand)])
     nodes))
 
 
@@ -92,17 +109,16 @@
   (testing "cached values are only computed once"
            (let [[name1 name2 combiner expensive] (build-sample-project)]
              (is (= "Jane Doe" (p/get-resource-value combiner :derived-value)))
-             (is (= 1 (get-tally combiner 'compute-derived-value)))
-             (doseq [x (range 100)]
-               (p/get-resource-value combiner :derived-value))
-             (is (= 1 (get-tally combiner 'compute-derived-value)))))
+             (expect-no-call-when combiner 'compute-derived-value
+                                  (doseq [x (range 100)]
+                                    (p/get-resource-value combiner :derived-value)))))
+
   (testing "modifying inputs invalidates the cached value"
            (let [[name1 name2 combiner expensive] (build-sample-project)]
              (is (= "Jane Doe" (p/get-resource-value combiner :derived-value)))
-             (is (= 1 (get-tally combiner 'compute-derived-value)))
-             (p/transact [(p/update-resource name1 assoc :scalar "John")])
-             (is (= "John Doe" (p/get-resource-value combiner :derived-value)))
-             (is (= 2 (get-tally combiner 'compute-derived-value))))))
+             (expect-call-when combiner 'compute-derived-value
+                               (p/transact [(p/update-resource name1 assoc :scalar "John")])             
+                               (is (= "John Doe" (p/get-resource-value combiner :derived-value)))))))
 
 
 (defnk compute-disposable-value
@@ -136,3 +152,14 @@
       (is (= 1 (get-tally disposable-node 'dispose)))
       (testing "the node can recreate the value on demand."
                (is (not (nil? (p/get-resource-value disposable-node :disposable-value))))))))
+
+
+(deftest on-update-values-are-recomputed
+  (let [[name1 name2 combiner expensive] (build-sample-project)]
+    (is (= "this took a long time to produce" (p/get-resource-value expensive :expensive-value)))
+    (expect-call-when expensive 'compute-expensive-value
+                      (p/transact [(p/update-resource name1 assoc :scalar "John")]))))
+
+
+
+
