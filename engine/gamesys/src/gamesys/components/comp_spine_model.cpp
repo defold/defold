@@ -129,6 +129,11 @@ namespace dmGameSystem
         return false;
     }
 
+    static void CancelAnimation(SpineModelComponent* component)
+    {
+        component->m_Playing = 0;
+    }
+
     static void ReHash(SpineModelComponent* component)
     {
         // Hash resource-ptr, material-handle, blend mode and render constants
@@ -812,6 +817,10 @@ namespace dmGameSystem
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
+            }
+            else if (params.m_Message->m_Id == dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash)
+            {
+                CancelAnimation(component);
             }
         }
 

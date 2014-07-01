@@ -109,6 +109,49 @@ namespace dmGameSystem
         }
     }
 
+    /*# cancel all animation on a spine model
+     *
+     * @name spine.cancel
+     * @param url the spine model for which to cancel the animation (url)
+     * @examples
+     * <p>
+     * The following examples assumes that the spine model has id "spinemodel".
+     * </p>
+     * <p>
+     * How to cancel all animation:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     spine.cancel("#spinemodel")
+     * end
+     * </pre>
+     */
+    int SpineComp_Cancel(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        uintptr_t user_data;
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
+        {
+            dmMessage::URL receiver;
+            dmMessage::URL sender;
+            dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+            dmGameSystemDDF::SpineCancelAnimation cancel;
+
+            uint32_t msg_size = sizeof(dmGameSystemDDF::SpineCancelAnimation);
+
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor, &cancel, msg_size);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "spine.play is not available from this script-type.");
+        }
+    }
+
     /*# retrieve the game object corresponding to a spine model skeleton bone
      * The returned game object can be used for parenting and transform queries.
      * This function has complexity O(n), where n is the number of bones in the spine model skeleton.
@@ -183,6 +226,7 @@ namespace dmGameSystem
     static const luaL_reg SPINE_COMP_FUNCTIONS[] =
     {
             {"play",    SpineComp_Play},
+            {"cancel",  SpineComp_Cancel},
             {"get_go",  SpineComp_GetGO},
             {0, 0}
     };
