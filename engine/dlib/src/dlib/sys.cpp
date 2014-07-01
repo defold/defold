@@ -45,6 +45,10 @@
 extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 
 namespace dmSys
 {
@@ -262,9 +266,14 @@ namespace dmSys
     }
 
 #elif defined(__EMSCRIPTEN__)
+    bool IsRunningInBrowser()
+    {
+        return 0 != EM_ASM_INT_V({return (typeof window !== 'undefined');});
+    }
+
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        const char* const DeviceMount = "/data/";
+        const char* const DeviceMount = IsRunningInBrowser() ? "/data/" : "";
         if (dmStrlCpy(path, DeviceMount, path_len) >= path_len)
             return RESULT_INVAL;
         if (dmStrlCat(path, ".", path_len) >= path_len)
