@@ -1,7 +1,9 @@
 package com.dynamo.cr.spine.scene;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -34,6 +36,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.spine.Activator;
 import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
+import com.dynamo.cr.tileeditor.scene.TileSetNode;
 import com.dynamo.spine.proto.Spine.SpineModelDesc.BlendMode;
 import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
@@ -432,4 +435,8 @@ public class SpineModelNode extends ComponentTypeNode {
         return false;
     }
 
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        this.mesh = new CompositeMesh();
+    }
 }
