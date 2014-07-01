@@ -1221,6 +1221,7 @@
 
         'preRunTasks': [],
         'preRunTasksCompleted': 0,
+        'mountPoint': '/data',
 
         'preRun': [function() {
             var bootstrap = Module['preRunTasks'];
@@ -1244,11 +1245,23 @@
 
         'mountFilesystem': function() {
             FS.mkdir('/data');
-            FS.mount(IDBFS, {}, '/data');
+            FS.mount(IDBFS, {}, Module['mountPoint']);
             FS.syncfs(true, function(err) {
                 assert(!err);
                 Module['onBootstrapTaskCompleted']();
             });
+
+			// Might it be that emscripten will do much the same as this one day?
+			// We should check future versions and remove our patch if it becomes redundant.
+            if (typeof _fsync != 'undefined') {
+				_old_fsync = _fsync;
+				_fsync = function(fd) {
+					_old_fsync(fd);
+					FS.syncfs(false, function(err) {
+						assert(!err);
+					});
+				}
+			}
         },
 
         postRun: [],
