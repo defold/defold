@@ -142,7 +142,7 @@
 
 (defn evict-values!
   [cache keys]
-  (reduce cache/evict cache))
+  (reduce cache/evict cache keys))
 
 (defn transact
   [tx]
@@ -151,11 +151,11 @@
       (alter project-state assoc :graph (:graph tx-result))
       (alter project-state update-in [:cache-keys] merge (:cache-keys tx-result))
       (let [affected-subgraph   (dg/tclosure (:graph tx-result) (:modified-nodes tx-result))
-            affected-cache-keys (mapcat #(vals (get-in @project-state [:cache-keys %])) affected-subgraph)
+            affected-cache-keys (keep identity (mapcat #(vals (get-in @project-state [:cache-keys %])) affected-subgraph))
             old-cache           (:cache @project-state)
             affected-values     (map #(get old-cache %) affected-cache-keys)]
         (dispose-values! (:disposal-queue @project-state) affected-values)
-        (alter project-state update-in [:cache] evict-values affected-cache-keys))
+        (alter project-state update-in [:cache] evict-values! affected-cache-keys))
       (assoc tx-result :status :ok))))
 
 (defn- hit-cache [cache-key value]
