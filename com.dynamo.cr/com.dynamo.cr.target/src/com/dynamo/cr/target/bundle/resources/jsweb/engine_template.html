@@ -1234,7 +1234,6 @@
         'onBootstrapTaskCompleted': function() {
             ++Module['preRunTasksCompleted'];
             if (Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
-            	print('preRun tasks completed.');
             	Module['attemptLaunch']();
             }
         },
