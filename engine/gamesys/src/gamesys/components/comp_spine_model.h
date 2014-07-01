@@ -31,8 +31,7 @@ namespace dmGameSystem
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
-        dmGameObject::HInstance     m_ListenerInstance;
-        dmhash_t                    m_ListenerComponent;
+        dmMessage::URL              m_Listener;
         SpineModelResource*         m_Resource;
         dmArray<dmRender::Constant> m_RenderConstants;
         dmArray<Vector4>            m_PrevRenderConstants;
@@ -51,7 +50,7 @@ namespace dmGameSystem
         /// Playback cursor in the interval [0,duration]
         float                       m_Cursor;
         /// Playback mode
-        dmGameSystemDDF::Playback   m_Playback;
+        dmGameObject::Playback      m_Playback;
         uint8_t                     m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;

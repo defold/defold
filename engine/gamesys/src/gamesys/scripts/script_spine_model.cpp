@@ -22,6 +22,92 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# play an animation on a spine model
+     *
+     * @name spine.play
+     * @param url the spine model for which to play the animation (url)
+     * @param animation_id id of the animation to play (string|hash)
+     * @param playback playback mode of the animation (constant)
+     * <ul>
+     *   <li><code>go.PLAYBACK_ONCE_FORWARD</code></li>
+     *   <li><code>go.PLAYBACK_ONCE_BACKWARD</code></li>
+     *   <li><code>go.PLAYBACK_ONCE_PINGPONG</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_FORWARD</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
+     *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
+     * </ul>
+     * @param [complete_function] function to call when the animation has completed (function)
+     * @examples
+     * <p>
+     * The following examples assumes that the spine model has id "spinemodel".
+     * </p>
+     * <p>
+     * How to play the "jump" animation followed by the "run" animation:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     local url = msg.url("#spinemodel")
+     *     spine.play(url, "jump", go.PLAYBACK_ONCE_FORWARD, function (self)
+     *         spine.play(url, "run", go.PLAYBACK_LOOP_FORWARD)
+     *     end)
+     * end
+     * </pre>
+     */
+    int SpineComp_Play(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        uintptr_t user_data;
+        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
+        {
+            dmhash_t anim_id;
+            if (lua_isstring(L, 2))
+            {
+                anim_id = dmHashString64(lua_tostring(L, 2));
+            }
+            else if (dmScript::IsHash(L, 2))
+            {
+                anim_id = dmScript::CheckHash(L, 2);
+            }
+            else
+            {
+                return luaL_error(L, "animation_id must be either a hash or a string");
+            }
+            lua_Integer playback = luaL_checkinteger(L, 3);
+
+            dmMessage::URL receiver;
+            dmMessage::URL sender;
+            dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+            if (top > 3)
+            {
+                if (lua_isfunction(L, 4))
+                {
+                    lua_pushvalue(L, 4);
+                    // see message.h for why 2 is added
+                    sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+                }
+            }
+
+            const uint32_t buffer_size = 256;
+            uint8_t buffer[buffer_size];
+            dmGameSystemDDF::SpinePlayAnimation* play = (dmGameSystemDDF::SpinePlayAnimation*)buffer;
+
+            uint32_t msg_size = sizeof(dmGameSystemDDF::SpinePlayAnimation);
+
+            play->m_AnimationId = anim_id;
+            play->m_Playback = playback;
+
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, buffer, msg_size);
+            assert(top == lua_gettop(L));
+            return 0;
+        }
+        else
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "spine.play is not available from this script-type.");
+        }
+    }
 
     /*# retrieve the game object corresponding to a spine model skeleton bone
      * The returned game object can be used for parenting and transform queries.
@@ -96,6 +182,7 @@ namespace dmGameSystem
 
     static const luaL_reg SPINE_COMP_FUNCTIONS[] =
     {
+            {"play",    SpineComp_Play},
             {"get_go",  SpineComp_GetGO},
             {0, 0}
     };

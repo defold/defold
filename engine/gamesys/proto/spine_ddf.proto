@@ -92,3 +92,17 @@ message SpineScene
     required MeshSet mesh_set = 3;
     required string texture_set = 4 [(resource)=true];
 }
+
+message SpinePlayAnimation
+{
+    required uint64 animation_id = 1;
+    // matches dmGameObject::Playback in gameobject.h
+    required uint32 playback = 2;
+}
+
+message SpineAnimationDone
+{
+    required uint64 animation_id = 1;
+    // matches dmGameObject::Playback in gameobject.h
+    required uint32 playback = 2;
+}
