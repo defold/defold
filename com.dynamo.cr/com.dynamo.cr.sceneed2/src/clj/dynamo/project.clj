@@ -134,17 +134,11 @@
    :tempids {}
    :modified-nodes #{}})
 
-(defn- dispose-all
+(defn dispose-values!
   [q vs]
   (doseq [v vs]
-    (.put q (bound-fn [] (.dispose v)))))
-
-(defn dispose-values!
-  [cache q keys]
-  (->> keys
-    (map #(get cache %))
-    (filter #(satisfies? IDisposable %))
-    (dispose-all q)))
+    (when (satisfies? IDisposable v)
+      (.put q (bound-fn [] (.dispose v))))))
 
 (defn evict-values!
   [cache keys]
@@ -156,9 +150,11 @@
     (let [tx-result (apply-tx (new-transaction-context (:graph @project-state)) tx)]
       (alter project-state assoc :graph (:graph tx-result))
       (alter project-state update-in [:cache-keys] merge (:cache-keys tx-result))
-      (let [affected-subgraph (dg/tclosure (:graph tx-result) (:modified-nodes tx-result))
-            affected-cache-keys (mapcat #(vals (get-in @project-state [:cache-keys %])) affected-subgraph)]
-        (dispose-values! (:cache @project-state) (:disposal-queue @project-state) affected-cache-keys)
+      (let [affected-subgraph   (dg/tclosure (:graph tx-result) (:modified-nodes tx-result))
+            affected-cache-keys (mapcat #(vals (get-in @project-state [:cache-keys %])) affected-subgraph)
+            old-cache           (:cache @project-state)
+            affected-values     (map #(get old-cache %) affected-cache-keys)]
+        (dispose-values! (:disposal-queue @project-state) affected-values)
         (alter project-state update-in [:cache] evict-values affected-cache-keys))
       (assoc tx-result :status :ok))))
 
@@ -180,3 +176,4 @@
           (hit-cache  cache-key (get cache cache-key))
           (miss-cache cache-key (produce-value resource label))))
     (produce-value resource label)))
+
