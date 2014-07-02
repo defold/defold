@@ -19,6 +19,7 @@ import com.dynamo.bob.util.SpineScene.AnimationCurve;
 import com.dynamo.bob.util.SpineScene.AnimationTrack;
 import com.dynamo.bob.util.SpineScene.AnimationTrack.Property;
 import com.dynamo.bob.util.SpineScene.Bone;
+import com.dynamo.bob.util.SpineScene.EventTrack;
 import com.dynamo.bob.util.SpineScene.Mesh;
 import com.dynamo.bob.util.SpineScene.Transform;
 import com.dynamo.bob.util.SpineScene.UVTransformProvider;
@@ -255,10 +256,29 @@ public class SpineSceneTest {
         }
     }
 
+    private static void assertEvents(SpineScene scene, String name, String eventId, Object[] values) {
+        Animation anim = scene.getAnimation(name);
+        assertEquals(1, anim.eventTracks.size());
+        EventTrack track = anim.eventTracks.get(0);
+        assertEquals(eventId, track.name);
+        for (int i = 0; i < values.length; ++i) {
+            Object o = values[i];
+            if (o instanceof Integer) {
+                assertEquals(o, track.keys.get(i).intPayload);
+            } else if (o instanceof Float) {
+                assertEquals(o, track.keys.get(i).floatPayload);
+            } else if (o instanceof String) {
+                assertEquals(o, track.keys.get(i).stringPayload);
+            } else {
+                assertTrue(false);
+            }
+        }
+    }
+
     @Test
     public void testLoadingAnims() throws Exception {
         SpineScene scene = load();
-        assertEquals(5, scene.animations.size());
+        assertEquals(6, scene.animations.size());
 
         assertSimpleAnim(scene, "anim_pos", Property.POSITION, new float[][] {new float[] {0.0f, 0.0f, 0.0f}, new float[] {100.0f, 0.0f, 0.0f}});
         assertSimpleAnim(scene, "anim_rot", Property.ROTATION, new float[][] {new float[] {0.0f}, new float[] {90.0f}});
@@ -275,6 +295,8 @@ public class SpineSceneTest {
         Animation animMulti = scene.getAnimation("anim_multi");
         assertEquals(3, animMulti.tracks.size());
         assertEquals(1.0, animMulti.duration, EPSILON);
+
+        assertEvents(scene, "anim_event", "test_event", new Object[] {1, 0.5f, "test_string"});
     }
 
     @Test

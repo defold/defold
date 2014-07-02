@@ -23,7 +23,7 @@
 			"test_sprite": {
 				"type": "mesh",
 				"uvs": [ 1, 1, 0, 1, 0, 0, 1, 0 ],
-				"triangles": [ 1, 2, 3, 1, 3, 0 ],
+				"triangles": [ 1, 3, 0, 1, 2, 3 ],
 				"vertices": [ 50, -50, -50, -50, -50, 50, 50, 50 ],
 				"hull": 4
 			}
@@ -35,7 +35,7 @@
 			"test_sprite": {
 				"type": "skinnedmesh",
 				"uvs": [ 1, 1, 0, 1, 0, 0, 1, 0 ],
-				"triangles": [ 1, 2, 3, 1, 3, 0 ],
+				"triangles": [ 1, 3, 0, 1, 2, 3 ],
 				"vertices": [ 1, 0, 50, 50, 1, 1, 0, -50, 50, 1, 2, 0, -50, 150, 0.5, 4, -150, 50, 0.5, 1, 0, 50, 150, 1 ],
 				"hull": 4
 			}
@@ -52,6 +52,9 @@
 		}
 	}
 },
+"events": {
+	"test_event": {}
+},
 "animations": {
 	"anim_curve": {
 		"bones": {
@@ -67,6 +70,13 @@
 				]
 			}
 		}
+	},
+	"anim_event": {
+		"events": [
+			{ "time": 0, "name": "test_event", "int": 1 },
+			{ "time": 0.1666, "name": "test_event", "float": 0.5 },
+			{ "time": 0.3333, "name": "test_event", "string": "test_string" }
+		]
 	},
 	"anim_multi": {
 		"bones": {

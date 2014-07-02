@@ -55,12 +55,27 @@ message AnimationTrack
     repeated float scale = 4;
 }
 
+message EventKey
+{
+    required float t = 1;
+    optional int32 integer = 2 [default = 0];
+    optional float float = 3 [default = 0.0];
+    optional uint64 string = 4 [default = 0];
+}
+
+message EventTrack
+{
+    required uint64 event_id = 1;
+    repeated EventKey keys = 2;
+}
+
 message SpineAnimation
 {
     required uint64 id = 1;
     required float duration = 2;
     required float sample_rate = 3;
     repeated AnimationTrack tracks = 4;
+    repeated EventTrack event_tracks = 5;
 }
 
 message AnimationSet
@@ -109,4 +124,13 @@ message SpineAnimationDone
 
 message SpineCancelAnimation
 {
+}
+
+message SpineEvent
+{
+    required uint64 event_id = 1;
+    required float t = 2;
+    optional int32 integer = 3 [default = 0];
+    optional float float = 4 [default = 0.0];
+    optional uint64 string = 5 [default = 0];
 }

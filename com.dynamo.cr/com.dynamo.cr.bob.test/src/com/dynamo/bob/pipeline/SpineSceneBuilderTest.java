@@ -14,6 +14,7 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
 import com.dynamo.spine.proto.Spine.AnimationTrack;
+import com.dynamo.spine.proto.Spine.EventTrack;
 import com.dynamo.spine.proto.Spine.Mesh;
 import com.dynamo.spine.proto.Spine.MeshSet;
 import com.dynamo.spine.proto.Spine.Skeleton;
@@ -89,7 +90,7 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void assertAnimSet(AnimationSet animSet) {
-        assertEquals(6, animSet.getAnimationsCount());
+        assertEquals(7, animSet.getAnimationsCount());
         Map<Long, SpineAnimation> anims = new HashMap<Long, SpineAnimation>();
         for (SpineAnimation anim : animSet.getAnimationsList()) {
             anims.put(anim.getId(), anim);
@@ -103,6 +104,14 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         SpineAnimation animTrackOrder = getAnim(anims, "anim_track_order");
         assertEquals(0, animTrackOrder.getTracks(0).getBoneIndex());
         assertEquals(1, animTrackOrder.getTracks(1).getBoneIndex());
+
+        SpineAnimation animEvent = getAnim(anims, "anim_event");
+        assertEquals(1, animEvent.getEventTracksCount());
+        EventTrack eventTrack = animEvent.getEventTracks(0);
+        assertEquals(MurmurHash.hash64("test_event"), eventTrack.getEventId());
+        assertEquals(1, eventTrack.getKeys(0).getInteger());
+        assertEquals(0.5f, eventTrack.getKeys(1).getFloat(), 0.00000f);
+        assertEquals(MurmurHash.hash64("test_string"), eventTrack.getKeys(2).getString());
     }
 
     @Test

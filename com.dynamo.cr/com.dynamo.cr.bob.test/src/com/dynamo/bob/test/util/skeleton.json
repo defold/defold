@@ -48,6 +48,9 @@
 		}
 	}
 },
+"events": {
+    "test_event": {}
+},
 "animations": {
 	"anim_curve": {
 		"bones": {
@@ -64,6 +67,13 @@
 			}
 		}
 	},
+    "anim_event": {
+        "events": [
+            { "time": 0, "name": "test_event", "int": 1 },
+            { "time": 0.1666, "name": "test_event", "float": 0.5 },
+            { "time": 0.3333, "name": "test_event", "string": "test_string" }
+        ]
+    },
 	"anim_multi": {
 		"bones": {
 			"bone_animated": {

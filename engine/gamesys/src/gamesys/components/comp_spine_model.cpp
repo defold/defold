@@ -105,6 +105,23 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static bool GetSender(SpineModelComponent* component, dmMessage::URL* out_sender)
+    {
+        dmMessage::URL sender;
+        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
+        if (dmMessage::IsSocketValid(sender.m_Socket))
+        {
+            dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
+            if (go_result == dmGameObject::RESULT_OK)
+            {
+                sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
+                *out_sender = sender;
+                return true;
+            }
+        }
+        return false;
+    }
+
     static bool PlayAnimation(SpineModelComponent* component, dmhash_t animation_id, dmGameObject::Playback playback)
     {
         dmGameSystemDDF::AnimationSet* anim_set = &component->m_Resource->m_Scene->m_SpineScene->m_AnimationSet;
@@ -509,6 +526,112 @@ namespace dmGameSystem
         return lerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
     }
 
+    static float CursorToTime(float cursor, float duration, bool backwards, bool once_pingpong)
+    {
+        float t = cursor;
+        if (backwards)
+            t = duration - t;
+        if (once_pingpong && t > duration * 0.5f)
+        {
+            t = duration - t;
+        }
+        return t;
+    }
+
+    static void PostEvent(dmMessage::URL* sender, dmMessage::URL* receiver, dmhash_t event_id, dmGameSystemDDF::EventKey* key)
+    {
+        dmGameSystemDDF::SpineEvent event;
+        event.m_EventId = event_id;
+        event.m_T = key->m_T;
+        event.m_Integer = key->m_Integer;
+        event.m_Float = key->m_Float;
+        event.m_String = key->m_String;
+
+        dmhash_t message_id = dmGameSystemDDF::SpineEvent::m_DDFDescriptor->m_NameHash;
+
+        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
+        uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
+        dmMessage::Result result = dmMessage::Post(sender, receiver, message_id, 0, descriptor, &event, data_size);
+        if (result != dmMessage::RESULT_OK)
+        {
+            dmLogError("Could not send spine_event to listener.");
+        }
+    }
+
+    static void PostEventsInterval(dmMessage::URL* sender, dmMessage::URL* receiver, dmGameSystemDDF::SpineAnimation* animation, float start_cursor, float end_cursor, float duration, bool backwards)
+    {
+        const uint32_t track_count = animation->m_EventTracks.m_Count;
+        for (uint32_t ti = 0; ti < track_count; ++ti)
+        {
+            dmGameSystemDDF::EventTrack* track = &animation->m_EventTracks[ti];
+            const uint32_t key_count = track->m_Keys.m_Count;
+            for (uint32_t ki = 0; ki < key_count; ++ki)
+            {
+                dmGameSystemDDF::EventKey* key = &track->m_Keys[ki];
+                float cursor = key->m_T;
+                if (backwards)
+                    cursor = duration - cursor;
+                if (start_cursor <= cursor && cursor < end_cursor)
+                {
+                    PostEvent(sender, receiver, track->m_EventId, key);
+                }
+            }
+        }
+    }
+
+    static void PostEvents(SpineModelComponent* component, dmGameSystemDDF::SpineAnimation* animation, float dt, float prev_cursor, float duration, bool completed)
+    {
+        dmMessage::URL sender;
+        if (prev_cursor != component->m_Cursor && GetSender(component, &sender))
+        {
+            dmMessage::URL receiver = component->m_Listener;
+            if (!dmMessage::IsSocketValid(receiver.m_Socket))
+            {
+                receiver = sender;
+                receiver.m_Fragment = 0; // broadcast to sibling components
+            }
+            float cursor = component->m_Cursor;
+            // Since the intervals are defined as t0 <= t < t1, make sure we include the end of the animation, i.e. when t1 == duration
+            if (completed)
+                cursor += dt;
+            // If the start cursor is greater than the end cursor, we have looped and handle that as two distinct intervals: [0,end_cursor) and [start_cursor,duration)
+            // Note that for looping ping pong, one event can be triggered twice during the same frame by appearing in both intervals
+            if (prev_cursor > cursor)
+            {
+                bool prev_backwards = component->m_Backwards;
+                // Handle the flipping nature of ping pong
+                if (component->m_Playback == dmGameObject::PLAYBACK_LOOP_PINGPONG)
+                {
+                    prev_backwards = !component->m_Backwards;
+                }
+                PostEventsInterval(&sender, &receiver, animation, prev_cursor, duration, duration, prev_backwards);
+                PostEventsInterval(&sender, &receiver, animation, 0.0f, cursor, duration, component->m_Backwards);
+            }
+            else
+            {
+                // Special handling when we reach the way back of once ping pong playback
+                float half_duration = duration * 0.5f;
+                if (component->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
+                {
+                    // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
+                    if (prev_cursor < half_duration)
+                    {
+                        PostEventsInterval(&sender, &receiver, animation, prev_cursor, half_duration, duration, false);
+                        PostEventsInterval(&sender, &receiver, animation, half_duration, cursor, duration, true);
+                    }
+                    else
+                    {
+                        PostEventsInterval(&sender, &receiver, animation, prev_cursor, cursor, duration, true);
+                    }
+                }
+                else
+                {
+                    PostEventsInterval(&sender, &receiver, animation, prev_cursor, cursor, duration, component->m_Backwards);
+                }
+            }
+        }
+    }
+
     static void Animate(SpineModelWorld* world, float dt)
     {
         DM_PROFILE(SpineModel, "Animate");
@@ -524,9 +647,15 @@ namespace dmGameSystem
             dmGameSystemDDF::SpineAnimation* animation = component->m_Animation;
 
             // Advance cursor
+            float prev_cursor = component->m_Cursor;
             if (component->m_Playback != dmGameObject::PLAYBACK_NONE)
             {
                 component->m_Cursor += dt;
+            }
+            float duration = animation->m_Duration;
+            if (component->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG)
+            {
+                duration *= 2.0f;
             }
             // Adjust cursor
             bool completed = false;
@@ -535,85 +664,39 @@ namespace dmGameSystem
             case dmGameObject::PLAYBACK_ONCE_FORWARD:
             case dmGameObject::PLAYBACK_ONCE_BACKWARD:
             case dmGameObject::PLAYBACK_ONCE_PINGPONG:
-                if (component->m_Cursor >= animation->m_Duration)
+                if (component->m_Cursor >= duration)
                 {
-                    component->m_Cursor = animation->m_Duration;
+                    component->m_Cursor = duration;
                     completed = true;
                 }
                 break;
             case dmGameObject::PLAYBACK_LOOP_FORWARD:
             case dmGameObject::PLAYBACK_LOOP_BACKWARD:
-                while (component->m_Cursor >= animation->m_Duration)
+                while (component->m_Cursor >= duration)
                 {
-                    component->m_Cursor -= animation->m_Duration;
+                    component->m_Cursor -= duration;
                 }
                 break;
             case dmGameObject::PLAYBACK_LOOP_PINGPONG:
-                while (component->m_Cursor >= animation->m_Duration)
+                while (component->m_Cursor >= duration)
                 {
-                    component->m_Cursor -= animation->m_Duration;
+                    component->m_Cursor -= duration;
                     component->m_Backwards = ~component->m_Backwards;
                 }
                 break;
             default:
                 break;
             }
-            if (completed)
-            {
-                component->m_Playing = 0;
-                if (dmMessage::IsSocketValid(component->m_Listener.m_Socket))
-                {
-                    dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
-                    dmGameSystemDDF::SpineAnimationDone message;
-                    message.m_AnimationId = component->m_AnimationId;
-                    message.m_Playback = component->m_Playback;
 
-                    dmMessage::URL receiver = component->m_Listener;
-                    dmMessage::URL sender;
-                    sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
-                    if (dmMessage::IsSocketValid(sender.m_Socket))
-                    {
-                        dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
-                        if (go_result == dmGameObject::RESULT_OK)
-                        {
-                            sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
-                            dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
-                            uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
-                            uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
-                            dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
-                            dmMessage::ResetURL(component->m_Listener);
-                            if (result != dmMessage::RESULT_OK)
-                            {
-                                dmLogError("Could not send animation_done to listener.");
-                            }
-                        }
-                        else
-                        {
-                            dmLogError("Could not send animation_done to listener because of incomplete component.");
-                        }
-                    }
-                    else
-                    {
-                        dmMessage::ResetURL(component->m_Listener);
-                    }
-                }
-            }
+            PostEvents(component, animation, dt, prev_cursor, duration, completed);
 
             // Evaluate animation
-            float cursor = component->m_Cursor;
-            if (component->m_Backwards)
-                cursor = animation->m_Duration - cursor;
-            if (component->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG) {
-                cursor *= 2.0f;
-                if (cursor > animation->m_Duration) {
-                    cursor = 2.0f * animation->m_Duration - cursor;
-                }
-            }
+            float t = CursorToTime(component->m_Cursor, duration, component->m_Backwards, component->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG);
 
             dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
             dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
             dmArray<dmTransform::Transform>& pose = component->m_Pose;
-            float fraction = cursor * animation->m_SampleRate;
+            float fraction = t * animation->m_SampleRate;
             uint32_t sample = (uint32_t)fraction;
             fraction -= sample;
             // Reset pose
@@ -660,6 +743,36 @@ namespace dmGameSystem
                 dmTransform::Transform& transform = pose[bi];
                 // Multiply by inv bind pose to obtain delta transforms
                 transform = dmTransform::Mul(transform, bind_pose[bi].m_ModelToLocal);
+            }
+
+            if (completed)
+            {
+                component->m_Playing = 0;
+                if (dmMessage::IsSocketValid(component->m_Listener.m_Socket))
+                {
+                    dmMessage::URL sender;
+                    if (GetSender(component, &sender))
+                    {
+                        dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
+                        dmGameSystemDDF::SpineAnimationDone message;
+                        message.m_AnimationId = component->m_AnimationId;
+                        message.m_Playback = component->m_Playback;
+
+                        dmMessage::URL receiver = component->m_Listener;
+                        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
+                        uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
+                        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                        dmMessage::ResetURL(component->m_Listener);
+                        if (result != dmMessage::RESULT_OK)
+                        {
+                            dmLogError("Could not send animation_done to listener.");
+                        }
+                    }
+                    else
+                    {
+                        dmLogError("Could not send animation_done to listener because of incomplete component.");
+                    }
+                }
             }
         }
     }

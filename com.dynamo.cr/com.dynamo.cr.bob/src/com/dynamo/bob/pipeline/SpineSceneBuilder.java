@@ -32,6 +32,8 @@ import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
 import com.dynamo.spine.proto.Spine.AnimationTrack;
 import com.dynamo.spine.proto.Spine.Bone;
+import com.dynamo.spine.proto.Spine.EventKey;
+import com.dynamo.spine.proto.Spine.EventTrack;
 import com.dynamo.spine.proto.Spine.Mesh;
 import com.dynamo.spine.proto.Spine.MeshSet;
 import com.dynamo.spine.proto.Spine.Skeleton;
@@ -305,6 +307,15 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
+    private static void toDDF(SpineScene.EventTrack track, EventTrack.Builder builder) {
+        builder.setEventId(MurmurHash.hash64(track.name));
+        for (SpineScene.EventKey key : track.keys) {
+            EventKey.Builder keyBuilder = EventKey.newBuilder();
+            keyBuilder.setT(key.t).setInteger(key.intPayload).setFloat(key.floatPayload).setString(MurmurHash.hash64(key.stringPayload));
+            builder.addKeys(keyBuilder);
+        }
+    }
+
     private static void toDDF(String id, SpineScene.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate) {
         SpineAnimation.Builder animBuilder = SpineAnimation.newBuilder();
         animBuilder.setId(MurmurHash.hash64(id));
@@ -336,6 +347,12 @@ public class SpineSceneBuilder extends Builder<Void> {
                 animBuilder.addTracks(builder);
             }
         }
+        for (SpineScene.EventTrack track : animation.eventTracks) {
+            EventTrack.Builder builder = EventTrack.newBuilder();
+            toDDF(track, builder);
+            animBuilder.addEventTracks(builder);
+        }
+
         animSetBuilder.addAnimations(animBuilder);
     }
 

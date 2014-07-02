@@ -173,10 +173,23 @@ public class SpineScene {
         public List<AnimationKey> keys = new ArrayList<AnimationKey>();
     }
 
+    public static class EventKey {
+        public float t;
+        public String stringPayload;
+        public float floatPayload;
+        public int intPayload;
+    }
+
+    public static class EventTrack {
+        public String name;
+        public List<EventKey> keys = new ArrayList<EventKey>();
+    }
+
     public static class Animation {
         public String name;
         public float duration;
         public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
+        public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
     }
 
     public List<Bone> bones = new ArrayList<Bone>();
@@ -316,6 +329,127 @@ public class SpineScene {
         mesh.triangles = ArrayUtils.toPrimitive(triangles.toArray(new Integer[triangles.size()]));
     }
 
+    private void loadTrack(JsonNode propNode, AnimationTrack track) {
+        // This value is used to counter how the key values for rotations are interpreted in spine:
+        // * All values are modulated into the interval 0 <= x < 360
+        // * If keys k0 and k1 have a difference > 180, the second key is adjusted with +/- 360 to lessen the difference to < 180
+        // ** E.g. k0 = 0, k1 = 270 are interpolated as k0 = 0, k1 = -90
+        Float prevAngles = null;
+        Iterator<JsonNode> keyIt = propNode.getElements();
+        while (keyIt.hasNext()) {
+            JsonNode keyNode =  keyIt.next();
+            AnimationKey key = new AnimationKey();
+            key.t = (float)keyNode.get("time").asDouble();
+            switch (track.property) {
+            case POSITION:
+                key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f), 0.0f};
+                break;
+            case ROTATION:
+                // See the comment above why this is done for rotations
+                float angles = JsonUtil.get(keyNode, "angle", 0.0f);
+                if (prevAngles != null) {
+                    float diff = angles - prevAngles;
+                    if (Math.abs(diff) > 180.0f) {
+                        angles += 360.0f * -Math.signum(diff);
+                    }
+                }
+                prevAngles = angles;
+                key.value = new float[] {angles};
+                break;
+            case SCALE:
+                key.value = new float[] {JsonUtil.get(keyNode, "x", 1.0f), JsonUtil.get(keyNode, "y", 1.0f), 1.0f};
+                break;
+            }
+            if (keyNode.has("curve")) {
+                JsonNode curveNode = keyNode.get("curve");
+                if (curveNode.isArray()) {
+                    AnimationCurve curve = new AnimationCurve();
+                    Iterator<JsonNode> curveIt = curveNode.getElements();
+                    curve.x0 = (float)curveIt.next().asDouble();
+                    curve.y0 = (float)curveIt.next().asDouble();
+                    curve.x1 = (float)curveIt.next().asDouble();
+                    curve.y1 = (float)curveIt.next().asDouble();
+                    key.curve = curve;
+                }
+            }
+            track.keys.add(key);
+        }
+    }
+
+    private void loadAnimation(JsonNode animNode, Animation animation) {
+        JsonNode bonesNode = animNode.get("bones");
+        if (bonesNode != null) {
+            Iterator<Map.Entry<String, JsonNode>> animBoneIt = bonesNode.getFields();
+            while (animBoneIt.hasNext()) {
+                Map.Entry<String, JsonNode> boneEntry = animBoneIt.next();
+                String boneName = boneEntry.getKey();
+                JsonNode boneNode = boneEntry.getValue();
+                Iterator<Map.Entry<String, JsonNode>> propIt = boneNode.getFields();
+                while (propIt.hasNext()) {
+                    Map.Entry<String, JsonNode> propEntry = propIt.next();
+                    String propName = propEntry.getKey();
+                    JsonNode propNode = propEntry.getValue();
+                    AnimationTrack track = new AnimationTrack();
+                    track.bone = getBone(boneName);
+                    track.property = spineToProperty(propName);
+                    loadTrack(propNode, track);
+                    animation.tracks.add(track);
+                }
+            }
+        }
+        JsonNode eventsNode = animNode.get("events");
+        if (eventsNode != null) {
+            Iterator<JsonNode> keyIt = eventsNode.getElements();
+            Map<String, List<EventKey>> tracks = new HashMap<String, List<EventKey>>();
+            while (keyIt.hasNext()) {
+                JsonNode keyNode = keyIt.next();
+                String eventId = keyNode.get("name").asText();
+                List<EventKey> keys = tracks.get(eventId);
+                if (keys == null) {
+                    keys = new ArrayList<EventKey>();
+                    tracks.put(eventId, keys);
+                }
+                EventKey key = new EventKey();
+                key.t = (float)keyNode.get("time").asDouble();
+                key.intPayload = JsonUtil.get(keyNode, "int", 0);
+                key.floatPayload = JsonUtil.get(keyNode, "float", 0.0f);
+                key.stringPayload = JsonUtil.get(keyNode, "string", "");
+                keys.add(key);
+            }
+            for (Map.Entry<String, List<EventKey>> entry : tracks.entrySet()) {
+                EventTrack track = new EventTrack();
+                track.name = entry.getKey();
+                track.keys = entry.getValue();
+                animation.eventTracks.add(track);
+            }
+        }
+        float duration = 0.0f;
+        for (AnimationTrack track : animation.tracks) {
+            for (AnimationKey key : track.keys) {
+                duration = Math.max(duration, key.t);
+            }
+        }
+        for (EventTrack track : animation.eventTracks) {
+            for (EventKey key : track.keys) {
+                duration = Math.max(duration, key.t);
+            }
+        }
+        animation.duration = duration;
+    }
+
+    private void loadAnimations(JsonNode animationsNode) {
+        Iterator<Map.Entry<String, JsonNode>> animationIt = animationsNode.getFields();
+        while (animationIt.hasNext()) {
+            Map.Entry<String, JsonNode> entry = animationIt.next();
+            String animName = entry.getKey();
+            JsonNode animNode = entry.getValue();
+            Animation animation = new Animation();
+            animation.name = animName;
+            loadAnimation(animNode, animation);
+            this.animations.put(animName, animation);
+        }
+    }
+
     public static SpineScene loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
         SpineScene scene = new SpineScene();
         ObjectMapper m = new ObjectMapper();
@@ -410,79 +544,8 @@ public class SpineScene {
             if (!node.has("animations")) {
                 return scene;
             }
-            Iterator<Map.Entry<String, JsonNode>> animationIt = node.get("animations").getFields();
-            while (animationIt.hasNext()) {
-                Map.Entry<String, JsonNode> entry = animationIt.next();
-                String animName = entry.getKey();
-                JsonNode animNode = entry.getValue();
-                Animation animation = new Animation();
-                animation.name = animName;
-                double duration = 0.0;
-                Iterator<Map.Entry<String, JsonNode>> animBoneIt = animNode.get("bones").getFields();
-                while (animBoneIt.hasNext()) {
-                    Map.Entry<String, JsonNode> boneEntry = animBoneIt.next();
-                    String boneName = boneEntry.getKey();
-                    JsonNode boneNode = boneEntry.getValue();
-                    Iterator<Map.Entry<String, JsonNode>> propIt = boneNode.getFields();
-                    while (propIt.hasNext()) {
-                        Map.Entry<String, JsonNode> propEntry = propIt.next();
-                        String propName = propEntry.getKey();
-                        JsonNode propNode = propEntry.getValue();
-                        AnimationTrack track = new AnimationTrack();
-                        track.bone = scene.getBone(boneName);
-                        track.property = spineToProperty(propName);
-                        // This value is used to counter how the key values for rotations are interpreted in spine:
-                        // * All values are modulated into the interval 0 <= x < 360
-                        // * If keys k0 and k1 have a difference > 180, the second key is adjusted with +/- 360 to lessen the difference to < 180
-                        // ** E.g. k0 = 0, k1 = 270 are interpolated as k0 = 0, k1 = -90
-                        Float prevAngles = null;
-                        Iterator<JsonNode> keyIt = propNode.getElements();
-                        while (keyIt.hasNext()) {
-                            JsonNode keyNode =  keyIt.next();
-                            double time = keyNode.get("time").asDouble();
-                            duration = Math.max(duration, time);
-                            AnimationKey key = new AnimationKey();
-                            key.t = (float)time;
-                            switch (track.property) {
-                            case POSITION:
-                                key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f), 0.0f};
-                                break;
-                            case ROTATION:
-                                // See the comment above why this is done for rotations
-                                float angles = JsonUtil.get(keyNode, "angle", 0.0f);
-                                if (prevAngles != null) {
-                                    float diff = angles - prevAngles;
-                                    if (Math.abs(diff) > 180.0f) {
-                                        angles += 360.0f * -Math.signum(diff);
-                                    }
-                                }
-                                prevAngles = angles;
-                                key.value = new float[] {angles};
-                                break;
-                            case SCALE:
-                                key.value = new float[] {JsonUtil.get(keyNode, "x", 1.0f), JsonUtil.get(keyNode, "y", 1.0f), 1.0f};
-                                break;
-                            }
-                            if (keyNode.has("curve")) {
-                                JsonNode curveNode = keyNode.get("curve");
-                                if (curveNode.isArray()) {
-                                    AnimationCurve curve = new AnimationCurve();
-                                    Iterator<JsonNode> curveIt = curveNode.getElements();
-                                    curve.x0 = (float)curveIt.next().asDouble();
-                                    curve.y0 = (float)curveIt.next().asDouble();
-                                    curve.x1 = (float)curveIt.next().asDouble();
-                                    curve.y1 = (float)curveIt.next().asDouble();
-                                    key.curve = curve;
-                                }
-                            }
-                            track.keys.add(key);
-                        }
-                        animation.tracks.add(track);
-                    }
-                }
-                animation.duration = (float)duration;
-                scene.animations.put(animName, animation);
-            }
+            scene.loadAnimations(node.get("animations"));
+
             return scene;
         } catch (JsonParseException e) {
             throw new LoadException(e.getMessage());
@@ -535,6 +598,10 @@ public class SpineScene {
 
         public static String get(JsonNode n, String name, String defaultVal) {
             return n.has(name) ? n.get(name).asText() : defaultVal;
+        }
+
+        public static int get(JsonNode n, String name, int defaultVal) {
+            return n.has(name) ? n.get(name).asInt() : defaultVal;
         }
 
     }
