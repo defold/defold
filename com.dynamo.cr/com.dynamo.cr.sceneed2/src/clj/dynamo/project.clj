@@ -183,3 +183,11 @@
         (doseq [expired-output (pairwise :on-update (map #(dg/node (:graph tx-result) %) affected-subgraph))]
           (apply get-resource-value expired-output))
         (assoc tx-result :status :ok)))))
+
+;; project attributes
+
+(defn build-directory
+  []
+  ;; get build directory
+  )
+

@@ -23,3 +23,11 @@
 
              (is (= 1 (count children)))
              (is (= image-id (:node-ref (first children)))))))
+
+(deftest extension-is-replaced
+  (is (= "foo.new-extension" (replace-extension "foo.old-extension" "new-extension")))
+  (is (= "foo..less-terrible" (replace-extension "foo..terrible" "less-terrible")))
+  (is (= "foo" (replace-extension "foo" "ignore-extension")))
+  (is (= nil (replace-extension nil "doesnt-matter")))) 
+
+(run-tests)

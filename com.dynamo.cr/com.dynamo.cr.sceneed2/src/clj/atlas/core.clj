@@ -122,7 +122,9 @@
   TextureSetCompiler)
 
 (defn build-path [x] x)
-(defn replace-extension [x y] x)
+(defn replace-extension [s ext] 
+  (when s
+    (clojure.string/replace s #"\.[^\.]*$" (str "." ext))))
 
 (defn on-load
   [^String filename ^AtlasProto$Atlas atlas-message]
