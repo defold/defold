@@ -1261,10 +1261,13 @@
             if (typeof _fsync != 'undefined') {
 				_old_fsync = _fsync;
 				_fsync = function(fd) {
-					_old_fsync(fd);
-					FS.syncfs(false, function(err) {
-						assert(!err);
-					});
+					ret = _old_fsync(fd);
+					if (ret == 0) {
+						FS.syncfs(false, function(err) {
+							assert(!err);
+						});
+					}
+					return ret;
 				}
 			}
         },
