@@ -6,7 +6,8 @@
             [internal.cache :as c]
             [internal.graph.dgraph :as dg]
             [dynamo.project :as p]
-            [dynamo.node :as n]))
+            [dynamo.node :as n]
+            [dynamo.types :as t]))
 
 (def ^:private ^:dynamic *calls*)
 
@@ -38,7 +39,7 @@
 
 (def UncachedOutput
   {:transforms {:uncached-value #'produce-simple-value}
-   :properties {:scalar (n/string :default "foo")}})
+   :properties {:scalar (t/string :default "foo")}})
 
 (defn compute-expensive-value
   [node g]
@@ -75,7 +76,7 @@
   (let [nodes (tx-nodes (make-cache-test-node :scalar "Jane") (make-cache-test-node :scalar "Doe")
                         (make-cache-test-node) (make-cache-test-node))
         [name1 name2 combiner expensive]  nodes]
-    (p/transact [(p/connect name1 :uncached-value combiner :first-name) 
+    (p/transact [(p/connect name1 :uncached-value combiner :first-name)
                  (p/connect name2 :uncached-value combiner :last-name)
                  (p/connect name1 :uncached-value expensive :operand)])
     nodes))
@@ -117,7 +118,7 @@
            (let [[name1 name2 combiner expensive] (build-sample-project)]
              (is (= "Jane Doe" (p/get-resource-value combiner :derived-value)))
              (expect-call-when combiner 'compute-derived-value
-                               (p/transact [(p/update-resource name1 assoc :scalar "John")])             
+                               (p/transact [(p/update-resource name1 assoc :scalar "John")])
                                (is (= "John Doe" (p/get-resource-value combiner :derived-value)))))))
 
 
@@ -159,7 +160,3 @@
     (is (= "this took a long time to produce" (p/get-resource-value expensive :expensive-value)))
     (expect-call-when expensive 'compute-expensive-value
                       (p/transact [(p/update-resource name1 assoc :scalar "John")]))))
-
-
-
-

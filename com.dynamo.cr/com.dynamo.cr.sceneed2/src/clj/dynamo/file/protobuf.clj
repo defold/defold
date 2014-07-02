@@ -33,13 +33,14 @@
         mapper-sexps      (message-mapper class (:basic-properties spec))]
     `(do ~mapper-sexps
          (defmethod f/message->node ~class
-            [~msg container# container-target# desired-output#]
-            (let [~node (apply ~ctor (mapcat identity (~converter-name ~msg)))]
+            [~msg container# container-target# desired-output# & {:as overrides#}]
+            (let [~node (apply ~ctor (mapcat identity (merge (~converter-name ~msg) overrides#)))]
               [(p/new-resource ~node)
                (if container#
                  (p/connect ~node desired-output# container# container-target#)
                  [])
-               ~@(for [[node-prop [from _ to]] (:node-properties spec)]
+               ~@(for [[node-prop connections] (:node-properties spec)
+                       [from _ to] (partition 3 connections)]
                    `(for [i# (. ~msg ~(symbol (getter-name node-prop)))]
                       (f/message->node i# ~node ~to ~from)))])))))
 

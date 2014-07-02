@@ -44,6 +44,25 @@
 
 (defonce project-state (ref (make-project)))
 
+(defn- hit-cache [cache-key value]
+  (dosync (alter project-state update-in [:cache] cache/hit cache-key))
+  value)
+
+(defn- miss-cache [cache-key value]
+  (dosync (alter project-state update-in [:cache] cache/miss cache-key value))
+  value)
+
+(defn- produce-value [resource label]
+  (node/get-value (:graph @project-state) (:_id resource) label))
+
+(defn get-resource-value [resource label]
+  (if-let [cache-key (get-in @project-state [:cache-keys (:_id resource) label])]
+    (let [cache (:cache @project-state)]
+      (if (cache/has? cache cache-key)
+          (hit-cache  cache-key (get cache cache-key))
+          (miss-cache cache-key (produce-value resource label))))
+    (produce-value resource label)))
+
 (defn new-resource
   ([resource]
     (new-resource resource (set (keys (:inputs resource))) (set (keys (:transforms resource)))))
@@ -164,23 +183,3 @@
         (doseq [expired-output (pairwise :on-update (map #(dg/node (:graph tx-result) %) affected-subgraph))]
           (apply get-resource-value expired-output))
         (assoc tx-result :status :ok)))))
-
-(defn- hit-cache [cache-key value]
-  (dosync (alter project-state update-in [:cache] cache/hit cache-key))
-  value)
-
-(defn- miss-cache [cache-key value]
-  (dosync (alter project-state update-in [:cache] cache/miss cache-key value))
-  value)
-
-(defn- produce-value [resource label]
-  (node/get-value (:graph @project-state) (:_id resource) label))
-
-(defn get-resource-value [resource label]
-  (if-let [cache-key (get-in @project-state [:cache-keys (:_id resource) label])]
-    (let [cache (:cache @project-state)]
-      (if (cache/has? cache cache-key)
-          (hit-cache  cache-key (get cache cache-key))
-          (miss-cache cache-key (produce-value resource label))))
-    (produce-value resource label)))
-

@@ -30,13 +30,11 @@
       (f nm (.build builder)))))
 
 (defmulti message->node
-  (fn [message container container-target desired-output] (class message)))
+  (fn [message & _] (class message)))
 
 (defn load
-
   [filename]
   ((loader-for filename) filename (io/reader filename)))
-
 
 (doseq [[v doc]
        {#'new-builder
@@ -72,7 +70,7 @@ dynamo.file.protobuf/protocol-buffer-converter macro.
 Create an implementation by adding something like this to your namespace:
 
 (defmethod message->node _message-classname_
-  [_message-instance_ container container-target desired-output]
+  [_message-instance_ container container-target desired-output & {:as overrides}]
   (,,,) ;; implementation
 )
 
@@ -83,6 +81,13 @@ class specified in _message-classname_.
 If the message instance contains other messages (as in the case of protocol buffers,
 for example) then you should call message->node recursively with the same resource-name
 and the child message.
+
+When container is set, it means this node should be connected to the container. In that case,
+container-target is the label to connect _to_ and desired-output is the label to connect
+from. It is an error for a container to ask for a desired-output that doesn't exist on the
+node being created by this function.
+
+Overrides is a map of additional properties to set on the new node.
 
 Given a resource name and message describing the resource,
 create (and return?) a list of nodes."
