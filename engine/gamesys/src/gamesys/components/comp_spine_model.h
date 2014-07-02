@@ -22,8 +22,24 @@ namespace dmGameSystem
         uint64_t     m_Key;
     };
 
+    struct SpinePlayer
+    {
+        /// Currently playing animation
+        dmGameSystemDDF::SpineAnimation*    m_Animation;
+        dmhash_t                            m_AnimationId;
+        /// Playback cursor in the interval [0,duration]
+        float                               m_Cursor;
+        /// Playback mode
+        dmGameObject::Playback              m_Playback;
+        /// Whether the animation is currently playing
+        uint16_t                             m_Playing : 1;
+        /// Whether the animation is playing backwards (e.g. ping pong)
+        uint16_t                             m_Backwards : 1;
+    };
+
     struct SpineModelComponent
     {
+        SpinePlayer                 m_Players[2];
         dmGameObject::HInstance     m_Instance;
         dmTransform::Transform      m_Transform;
         Matrix4                     m_World;
@@ -39,25 +55,18 @@ namespace dmGameSystem
         dmArray<dmTransform::Transform> m_Pose;
         /// Nodes corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
-        /// Currently playing animation
-        dmGameSystemDDF::SpineAnimation* m_Animation;
-        dmhash_t                    m_AnimationId;
         /// Currently used mesh
         dmGameSystemDDF::Mesh*      m_Mesh;
         dmhash_t                    m_Skin;
-        /// Used to scale the time step when updating the timer
-        float                       m_AnimInvDuration;
-        /// Playback cursor in the interval [0,duration]
-        float                       m_Cursor;
-        /// Playback mode
-        dmGameObject::Playback      m_Playback;
+        float                       m_BlendDuration;
+        float                       m_BlendTimer;
         uint8_t                     m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;
-        /// Whether the animation is currently playing
-        uint8_t                     m_Playing : 1;
-        /// Whether the animation is playing backwards (e.g. ping pong)
-        uint8_t                     m_Backwards : 1;
+        /// Current player index
+        uint8_t                     m_CurrentPlayer : 1;
+        /// Whether we are currently X-fading or not
+        uint8_t                     m_Blending : 1;
     };
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);

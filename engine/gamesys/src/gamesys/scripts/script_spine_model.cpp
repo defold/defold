@@ -75,15 +75,17 @@ namespace dmGameSystem
             }
             lua_Integer playback = luaL_checkinteger(L, 3);
 
+            lua_Number blend_duration = luaL_checknumber(L, 4);
+
             dmMessage::URL receiver;
             dmMessage::URL sender;
             dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-            if (top > 3)
+            if (top > 4)
             {
-                if (lua_isfunction(L, 4))
+                if (lua_isfunction(L, 5))
                 {
-                    lua_pushvalue(L, 4);
+                    lua_pushvalue(L, 5);
                     // see message.h for why 2 is added
                     sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
                 }
@@ -97,6 +99,7 @@ namespace dmGameSystem
 
             play->m_AnimationId = anim_id;
             play->m_Playback = playback;
+            play->m_BlendDuration = blend_duration;
 
             dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, buffer, msg_size);
             assert(top == lua_gettop(L));

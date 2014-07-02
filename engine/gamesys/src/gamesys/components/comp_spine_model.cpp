@@ -122,33 +122,71 @@ namespace dmGameSystem
         return false;
     }
 
-    static bool PlayAnimation(SpineModelComponent* component, dmhash_t animation_id, dmGameObject::Playback playback)
+    static dmGameSystemDDF::SpineAnimation* FindAnimation(dmGameSystemDDF::AnimationSet* anim_set, dmhash_t animation_id)
     {
-        dmGameSystemDDF::AnimationSet* anim_set = &component->m_Resource->m_Scene->m_SpineScene->m_AnimationSet;
         uint32_t anim_count = anim_set->m_Animations.m_Count;
         for (uint32_t i = 0; i < anim_count; ++i)
         {
             dmGameSystemDDF::SpineAnimation* anim = &anim_set->m_Animations[i];
             if (anim->m_Id == animation_id)
             {
-                component->m_AnimationId = animation_id;
-                component->m_Animation = anim;
-                component->m_Cursor = 0.0f;
-                component->m_Playing = 1;
-                component->m_Playback = playback;
-                if (component->m_Playback == dmGameObject::PLAYBACK_ONCE_BACKWARD || component->m_Playback == dmGameObject::PLAYBACK_LOOP_BACKWARD)
-                    component->m_Backwards = 1;
-                else
-                    component->m_Backwards = 0;
-                return true;
+                return anim;
             }
+        }
+        return 0x0;
+    }
+
+    static SpinePlayer* GetPlayer(SpineModelComponent* component)
+    {
+        return &component->m_Players[component->m_CurrentPlayer];
+    }
+
+    static SpinePlayer* GetSecondaryPlayer(SpineModelComponent* component)
+    {
+        return &component->m_Players[(component->m_CurrentPlayer+1) % 2];
+    }
+
+    static SpinePlayer* SwitchPlayer(SpineModelComponent* component)
+    {
+        component->m_CurrentPlayer = (component->m_CurrentPlayer + 1) % 2;
+        return &component->m_Players[component->m_CurrentPlayer];
+    }
+
+    static bool PlayAnimation(SpineModelComponent* component, dmhash_t animation_id, dmGameObject::Playback playback, float blend_duration)
+    {
+        dmGameSystemDDF::SpineAnimation* anim = FindAnimation(&component->m_Resource->m_Scene->m_SpineScene->m_AnimationSet, animation_id);
+        if (anim != 0x0)
+        {
+            if (blend_duration > 0.0f)
+            {
+                component->m_BlendTimer = 0.0f;
+                component->m_BlendDuration = blend_duration;
+                component->m_Blending = 1;
+            }
+            else
+            {
+                SpinePlayer* player = GetPlayer(component);
+                player->m_Playing = 0;
+            }
+            SpinePlayer* player = SwitchPlayer(component);
+            player->m_AnimationId = animation_id;
+            player->m_Animation = anim;
+            player->m_Cursor = 0.0f;
+            player->m_Playing = 1;
+            player->m_Playback = playback;
+            if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmGameObject::PLAYBACK_LOOP_BACKWARD)
+                player->m_Backwards = 1;
+            else
+                player->m_Backwards = 0;
+            return true;
         }
         return false;
     }
 
     static void CancelAnimation(SpineModelComponent* component)
     {
-        component->m_Playing = 0;
+        SpinePlayer* player = GetPlayer(component);
+        player->m_Playing = 0;
     }
 
     static void ReHash(SpineModelComponent* component)
@@ -246,15 +284,12 @@ namespace dmGameSystem
             dmGameObject::SetParent(inst, parent);
         }
 
-        component->m_Animation = 0x0;
-        component->m_AnimationId = NULL_ANIMATION;
-        component->m_Playback = dmGameObject::PLAYBACK_NONE;
         ReHash(component);
         dmhash_t default_animation_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
-        if (component->m_AnimationId != default_animation_id)
+        if (default_animation_id != NULL_ANIMATION)
         {
             // Loop forward should be the most common for idle anims etc.
-            PlayAnimation(component, default_animation_id, dmGameObject::PLAYBACK_LOOP_FORWARD);
+            PlayAnimation(component, default_animation_id, dmGameObject::PLAYBACK_LOOP_FORWARD, 0.0f);
         }
 
         *params.m_UserData = (uintptr_t)component;
@@ -579,55 +614,193 @@ namespace dmGameSystem
         }
     }
 
-    static void PostEvents(SpineModelComponent* component, dmGameSystemDDF::SpineAnimation* animation, float dt, float prev_cursor, float duration, bool completed)
+    static void PostEvents(SpinePlayer* player, dmMessage::URL* sender, dmMessage::URL* listener, dmGameSystemDDF::SpineAnimation* animation, float dt, float prev_cursor, float duration, bool completed)
     {
-        dmMessage::URL sender;
-        if (prev_cursor != component->m_Cursor && GetSender(component, &sender))
+        dmMessage::URL receiver = *listener;
+        if (!dmMessage::IsSocketValid(receiver.m_Socket))
         {
-            dmMessage::URL receiver = component->m_Listener;
-            if (!dmMessage::IsSocketValid(receiver.m_Socket))
+            receiver = *sender;
+            receiver.m_Fragment = 0; // broadcast to sibling components
+        }
+        float cursor = player->m_Cursor;
+        // Since the intervals are defined as t0 <= t < t1, make sure we include the end of the animation, i.e. when t1 == duration
+        if (completed)
+            cursor += dt;
+        // If the start cursor is greater than the end cursor, we have looped and handle that as two distinct intervals: [0,end_cursor) and [start_cursor,duration)
+        // Note that for looping ping pong, one event can be triggered twice during the same frame by appearing in both intervals
+        if (prev_cursor > cursor)
+        {
+            bool prev_backwards = player->m_Backwards;
+            // Handle the flipping nature of ping pong
+            if (player->m_Playback == dmGameObject::PLAYBACK_LOOP_PINGPONG)
             {
-                receiver = sender;
-                receiver.m_Fragment = 0; // broadcast to sibling components
+                prev_backwards = !player->m_Backwards;
             }
-            float cursor = component->m_Cursor;
-            // Since the intervals are defined as t0 <= t < t1, make sure we include the end of the animation, i.e. when t1 == duration
-            if (completed)
-                cursor += dt;
-            // If the start cursor is greater than the end cursor, we have looped and handle that as two distinct intervals: [0,end_cursor) and [start_cursor,duration)
-            // Note that for looping ping pong, one event can be triggered twice during the same frame by appearing in both intervals
-            if (prev_cursor > cursor)
+            PostEventsInterval(sender, &receiver, animation, prev_cursor, duration, duration, prev_backwards);
+            PostEventsInterval(sender, &receiver, animation, 0.0f, cursor, duration, player->m_Backwards);
+        }
+        else
+        {
+            // Special handling when we reach the way back of once ping pong playback
+            float half_duration = duration * 0.5f;
+            if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
             {
-                bool prev_backwards = component->m_Backwards;
-                // Handle the flipping nature of ping pong
-                if (component->m_Playback == dmGameObject::PLAYBACK_LOOP_PINGPONG)
+                // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
+                if (prev_cursor < half_duration)
                 {
-                    prev_backwards = !component->m_Backwards;
+                    PostEventsInterval(sender, &receiver, animation, prev_cursor, half_duration, duration, false);
+                    PostEventsInterval(sender, &receiver, animation, half_duration, cursor, duration, true);
                 }
-                PostEventsInterval(&sender, &receiver, animation, prev_cursor, duration, duration, prev_backwards);
-                PostEventsInterval(&sender, &receiver, animation, 0.0f, cursor, duration, component->m_Backwards);
+                else
+                {
+                    PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, true);
+                }
             }
             else
             {
-                // Special handling when we reach the way back of once ping pong playback
-                float half_duration = duration * 0.5f;
-                if (component->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG && cursor > half_duration)
+                PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, player->m_Backwards);
+            }
+        }
+    }
+
+    static float GetCursorDuration(SpinePlayer* player, dmGameSystemDDF::SpineAnimation* animation)
+    {
+        float duration = animation->m_Duration;
+        if (player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG)
+        {
+            duration *= 2.0f;
+        }
+        return duration;
+    }
+
+    static void UpdatePlayer(SpineModelComponent* component, SpinePlayer* player, float dt, dmMessage::URL* listener)
+    {
+        dmGameSystemDDF::SpineAnimation* animation = player->m_Animation;
+        if (animation == 0x0 || !player->m_Playing)
+            return;
+
+        // Advance cursor
+        float prev_cursor = player->m_Cursor;
+        if (player->m_Playback != dmGameObject::PLAYBACK_NONE)
+        {
+            player->m_Cursor += dt;
+        }
+        float duration = GetCursorDuration(player, animation);
+
+        // Adjust cursor
+        bool completed = false;
+        switch (player->m_Playback)
+        {
+        case dmGameObject::PLAYBACK_ONCE_FORWARD:
+        case dmGameObject::PLAYBACK_ONCE_BACKWARD:
+        case dmGameObject::PLAYBACK_ONCE_PINGPONG:
+            if (player->m_Cursor >= duration)
+            {
+                player->m_Cursor = duration;
+                completed = true;
+            }
+            break;
+        case dmGameObject::PLAYBACK_LOOP_FORWARD:
+        case dmGameObject::PLAYBACK_LOOP_BACKWARD:
+            while (player->m_Cursor >= duration)
+            {
+                player->m_Cursor -= duration;
+            }
+            break;
+        case dmGameObject::PLAYBACK_LOOP_PINGPONG:
+            while (player->m_Cursor >= duration)
+            {
+                player->m_Cursor -= duration;
+                player->m_Backwards = ~player->m_Backwards;
+            }
+            break;
+        default:
+            break;
+        }
+
+        dmMessage::URL sender;
+        if (prev_cursor != player->m_Cursor && GetSender(component, &sender))
+        {
+            dmMessage::URL receiver = *listener;
+            receiver.m_Function = 0;
+            PostEvents(player, &sender, &receiver, animation, dt, prev_cursor, duration, completed);
+        }
+
+        if (completed)
+        {
+            player->m_Playing = 0;
+            // Only report completeness for the primary player
+            if (player == GetPlayer(component) && dmMessage::IsSocketValid(listener->m_Socket))
+            {
+                dmMessage::URL sender;
+                if (GetSender(component, &sender))
                 {
-                    // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
-                    if (prev_cursor < half_duration)
+                    dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
+                    dmGameSystemDDF::SpineAnimationDone message;
+                    message.m_AnimationId = player->m_AnimationId;
+                    message.m_Playback = player->m_Playback;
+
+                    dmMessage::URL receiver = *listener;
+                    uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
+                    uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
+                    dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
+                    dmMessage::ResetURL(*listener);
+                    if (result != dmMessage::RESULT_OK)
                     {
-                        PostEventsInterval(&sender, &receiver, animation, prev_cursor, half_duration, duration, false);
-                        PostEventsInterval(&sender, &receiver, animation, half_duration, cursor, duration, true);
-                    }
-                    else
-                    {
-                        PostEventsInterval(&sender, &receiver, animation, prev_cursor, cursor, duration, true);
+                        dmLogError("Could not send animation_done to listener.");
                     }
                 }
                 else
                 {
-                    PostEventsInterval(&sender, &receiver, animation, prev_cursor, cursor, duration, component->m_Backwards);
+                    dmLogError("Could not send animation_done to listener because of incomplete component.");
                 }
+            }
+        }
+    }
+
+    static void UpdatePose(SpinePlayer* player, dmArray<dmTransform::Transform>& pose, float blend_weight)
+    {
+        dmGameSystemDDF::SpineAnimation* animation = player->m_Animation;
+        if (animation == 0x0)
+            return;
+        float duration = GetCursorDuration(player, animation);
+        float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG);
+
+        float fraction = t * animation->m_SampleRate;
+        uint32_t sample = (uint32_t)fraction;
+        fraction -= sample;
+        // Sample animation tracks
+        uint32_t track_count = animation->m_Tracks.m_Count;
+        for (uint32_t ti = 0; ti < track_count; ++ti)
+        {
+            dmGameSystemDDF::AnimationTrack* track = &animation->m_Tracks[ti];
+            uint32_t bone_index = track->m_BoneIndex;
+            dmTransform::Transform& transform = pose[bone_index];
+            if (track->m_Positions.m_Count > 0)
+            {
+                transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), SampleVec3(sample, fraction, track->m_Positions.m_Data)));
+            }
+            if (track->m_Rotations.m_Count > 0)
+            {
+                transform.SetRotation(lerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
+            }
+            if (track->m_Scale.m_Count > 0)
+            {
+                transform.SetScale(lerp(blend_weight, transform.GetScale(), SampleVec3(sample, fraction, track->m_Scale.m_Data)));
+            }
+        }
+    }
+
+    static void UpdateBlend(SpineModelComponent* component, float dt)
+    {
+        if (component->m_Blending)
+        {
+            component->m_BlendTimer += dt;
+            if (component->m_BlendTimer >= component->m_BlendDuration)
+            {
+                component->m_Blending = 0;
+                SpinePlayer* secondary = GetSecondaryPlayer(component);
+                secondary->m_Playing = 0;
             }
         }
     }
@@ -641,90 +814,61 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             SpineModelComponent* component = &components[i];
-            if (!component->m_Enabled || !component->m_Playing)
+            if (!component->m_Enabled || component->m_Pose.Empty())
                 continue;
-
-            dmGameSystemDDF::SpineAnimation* animation = component->m_Animation;
-
-            // Advance cursor
-            float prev_cursor = component->m_Cursor;
-            if (component->m_Playback != dmGameObject::PLAYBACK_NONE)
-            {
-                component->m_Cursor += dt;
-            }
-            float duration = animation->m_Duration;
-            if (component->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG)
-            {
-                duration *= 2.0f;
-            }
-            // Adjust cursor
-            bool completed = false;
-            switch (component->m_Playback)
-            {
-            case dmGameObject::PLAYBACK_ONCE_FORWARD:
-            case dmGameObject::PLAYBACK_ONCE_BACKWARD:
-            case dmGameObject::PLAYBACK_ONCE_PINGPONG:
-                if (component->m_Cursor >= duration)
-                {
-                    component->m_Cursor = duration;
-                    completed = true;
-                }
-                break;
-            case dmGameObject::PLAYBACK_LOOP_FORWARD:
-            case dmGameObject::PLAYBACK_LOOP_BACKWARD:
-                while (component->m_Cursor >= duration)
-                {
-                    component->m_Cursor -= duration;
-                }
-                break;
-            case dmGameObject::PLAYBACK_LOOP_PINGPONG:
-                while (component->m_Cursor >= duration)
-                {
-                    component->m_Cursor -= duration;
-                    component->m_Backwards = ~component->m_Backwards;
-                }
-                break;
-            default:
-                break;
-            }
-
-            PostEvents(component, animation, dt, prev_cursor, duration, completed);
-
-            // Evaluate animation
-            float t = CursorToTime(component->m_Cursor, duration, component->m_Backwards, component->m_Playback == dmGameObject::PLAYBACK_ONCE_PINGPONG);
 
             dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
             dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
             dmArray<dmTransform::Transform>& pose = component->m_Pose;
-            float fraction = t * animation->m_SampleRate;
-            uint32_t sample = (uint32_t)fraction;
-            fraction -= sample;
             // Reset pose
             uint32_t bone_count = pose.Size();
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
-                pose[bi] = bind_pose[bi].m_LocalToParent;
+                pose[bi].SetIdentity();
             }
-            // Sample animation tracks
-            uint32_t track_count = animation->m_Tracks.m_Count;
-            for (uint32_t ti = 0; ti < track_count; ++ti)
+
+            UpdateBlend(component, dt);
+
+            SpinePlayer* player = GetPlayer(component);
+            if (component->m_Blending)
             {
-                dmGameSystemDDF::AnimationTrack* track = &animation->m_Tracks[ti];
-                uint32_t bone_index = track->m_BoneIndex;
-                dmTransform::Transform& transform = pose[bone_index];
-                if (track->m_Positions.m_Count > 0)
+                float fade_rate = component->m_BlendTimer / component->m_BlendDuration;
+                float blend_weight = 1.0f;
+                for (uint32_t pi = 0; pi < 2; ++pi)
                 {
-                    transform.SetTranslation(transform.GetTranslation() + SampleVec3(sample, fraction, track->m_Positions.m_Data));
-                }
-                if (track->m_Rotations.m_Count > 0)
-                {
-                    transform.SetRotation(normalize(transform.GetRotation() * SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
-                }
-                if (track->m_Scale.m_Count > 0)
-                {
-                    transform.SetScale(mulPerElem(transform.GetScale(), SampleVec3(sample, fraction, track->m_Scale.m_Data)));
+                    SpinePlayer* p = &component->m_Players[pi];
+                    UpdatePlayer(component, p, dt, &component->m_Listener);
+                    UpdatePose(p, pose, blend_weight);
+                    if (player == p)
+                    {
+                        blend_weight = 1.0f - fade_rate;
+                    }
+                    else
+                    {
+                        blend_weight = fade_rate;
+                    }
                 }
             }
+            else
+            {
+                UpdatePlayer(component, player, dt, &component->m_Listener);
+                UpdatePose(player, pose, 1.0f);
+            }
+
+            for (uint32_t bi = 0; bi < bone_count; ++bi)
+            {
+                dmTransform::Transform& t = pose[bi];
+                // Normalize quaternions while we blend
+                if (component->m_Blending)
+                {
+                    Quat rotation = t.GetRotation();
+                    if (dot(rotation, rotation) > 0.001f)
+                        rotation = normalize(rotation);
+                    pose[bi].SetRotation(rotation);
+                }
+                pose[bi] = dmTransform::Mul(bind_pose[bi].m_LocalToParent, pose[bi]);
+            }
+
             // Include component transform in the GO instance reflecting the root bone
             dmTransform::Transform root_t = pose[0];
             pose[0] = dmTransform::Mul(component->m_Transform, root_t);
@@ -743,36 +887,6 @@ namespace dmGameSystem
                 dmTransform::Transform& transform = pose[bi];
                 // Multiply by inv bind pose to obtain delta transforms
                 transform = dmTransform::Mul(transform, bind_pose[bi].m_ModelToLocal);
-            }
-
-            if (completed)
-            {
-                component->m_Playing = 0;
-                if (dmMessage::IsSocketValid(component->m_Listener.m_Socket))
-                {
-                    dmMessage::URL sender;
-                    if (GetSender(component, &sender))
-                    {
-                        dmhash_t message_id = dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor->m_NameHash;
-                        dmGameSystemDDF::SpineAnimationDone message;
-                        message.m_AnimationId = component->m_AnimationId;
-                        message.m_Playback = component->m_Playback;
-
-                        dmMessage::URL receiver = component->m_Listener;
-                        uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineAnimationDone::m_DDFDescriptor;
-                        uint32_t data_size = sizeof(dmGameSystemDDF::SpineAnimationDone);
-                        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size);
-                        dmMessage::ResetURL(component->m_Listener);
-                        if (result != dmMessage::RESULT_OK)
-                        {
-                            dmLogError("Could not send animation_done to listener.");
-                        }
-                    }
-                    else
-                    {
-                        dmLogError("Could not send animation_done to listener because of incomplete component.");
-                    }
-                }
             }
         }
     }
@@ -926,7 +1040,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SpinePlayAnimation* ddf = (dmGameSystemDDF::SpinePlayAnimation*)params.m_Message->m_Data;
-                if (PlayAnimation(component, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback))
+                if (PlayAnimation(component, ddf->m_AnimationId, (dmGameObject::Playback)ddf->m_Playback, ddf->m_BlendDuration))
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                 }
@@ -942,9 +1056,7 @@ namespace dmGameSystem
 
     void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
-        if (component->m_Playing)
-            PlayAnimation(component, component->m_AnimationId, component->m_Playback);
+        // TODO Implement in DEF-375
     }
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -957,7 +1069,8 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_ANIMATION)
         {
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Animation);
+            SpinePlayer* player = GetPlayer(component);
+            out_value.m_Variant = dmGameObject::PropertyVar(player->m_Animation);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
