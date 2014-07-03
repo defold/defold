@@ -14,6 +14,7 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.spine.proto.Spine;
 import com.dynamo.spine.proto.Spine.AnimationSet;
 import com.dynamo.spine.proto.Spine.AnimationTrack;
+import com.dynamo.spine.proto.Spine.Bone;
 import com.dynamo.spine.proto.Spine.EventTrack;
 import com.dynamo.spine.proto.Spine.Mesh;
 import com.dynamo.spine.proto.Spine.MeshSet;
@@ -28,8 +29,14 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
+    private static void assertBone(Skeleton skeleton, int index, String id, boolean inheritScale) {
+        Bone bone = skeleton.getBones(index);
+        assertEquals(bone.getId(), MurmurHash.hash64(id));
+        assertEquals(bone.getInheritScale(), inheritScale);
+    }
+
     private static void assertBone(Skeleton skeleton, int index, String id) {
-        assertEquals(skeleton.getBones(index).getId(), MurmurHash.hash64(id));
+        assertBone(skeleton, index, id, true);
     }
 
     private void assertSkeleton(Skeleton skeleton) {
@@ -39,11 +46,11 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertBone(skeleton, 1, "bone_animated");
         assertBone(skeleton, 2, "bone_animated_child");
         assertBone(skeleton, 3, "bone_animated_child_2");
-        assertBone(skeleton, 4, "bone_noscale");
+        assertBone(skeleton, 4, "bone_noscale", false);
         assertBone(skeleton, 5, "bone_noscale_child");
         assertBone(skeleton, 6, "bone_noscale_child_2");
         assertBone(skeleton, 7, "bone_rotated");
-        assertBone(skeleton, 8, "bone_scale");
+        assertBone(skeleton, 8, "bone_scale", true);
     }
 
     private static boolean hasMesh(Map<Long, Mesh> meshes, String id) {

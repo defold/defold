@@ -18,7 +18,6 @@ import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
-import javax.vecmath.Vector4d;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.codehaus.jackson.JsonNode;

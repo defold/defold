@@ -189,6 +189,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             boneBuilder.setPosition(MathUtil.vecmathToDDF(bone.localT.position));
             boneBuilder.setRotation(MathUtil.vecmathToDDF(bone.localT.rotation));
             boneBuilder.setScale(MathUtil.vecmathToDDF(bone.localT.scale));
+            boneBuilder.setInheritScale(bone.inheritScale);
             skeletonBuilder.addBones(boneBuilder);
         }
         return indexRemap;

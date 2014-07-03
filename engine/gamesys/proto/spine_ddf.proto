@@ -37,6 +37,7 @@ message Bone
     required dmMath.Point3 position = 3;
     required dmMath.Quat rotation = 4;
     required dmMath.Vector3 scale = 5;
+    optional bool inherit_scale = 6 [default = true];
 }
 
 message Skeleton

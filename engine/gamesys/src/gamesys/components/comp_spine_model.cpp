@@ -389,6 +389,8 @@ namespace dmGameSystem
 
             const Matrix4& w = component->m_World;
 
+            dmArray<SpineBone>& bind_pose = component->m_Resource->m_Scene->m_BindPose;
+
             uint32_t index_count = mesh->m_Indices.m_Count;
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -403,8 +405,11 @@ namespace dmGameSystem
                 float* bone_weights = &mesh->m_Weights[bi_offset];
                 for (uint32_t bi = 0; bi < 4; ++bi)
                 {
-                    uint32_t bone_index = bone_indices[bi];
-                    out_p += Vector3(dmTransform::Apply(component->m_Pose[bone_index], in_p)) * bone_weights[bi];
+                    if (bone_weights[bi] > 0.0f)
+                    {
+                        uint32_t bone_index = bone_indices[bi];
+                        out_p += Vector3(dmTransform::Apply(component->m_Pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
+                    }
                 }
                 *((Vector4*)&v) = w * out_p;
                 e = vi*2;
@@ -864,9 +869,9 @@ namespace dmGameSystem
                     Quat rotation = t.GetRotation();
                     if (dot(rotation, rotation) > 0.001f)
                         rotation = normalize(rotation);
-                    pose[bi].SetRotation(rotation);
+                    t.SetRotation(rotation);
                 }
-                pose[bi] = dmTransform::Mul(bind_pose[bi].m_LocalToParent, pose[bi]);
+                t = dmTransform::Mul(bind_pose[bi].m_LocalToParent, t);
             }
 
             // Include component transform in the GO instance reflecting the root bone
@@ -879,14 +884,18 @@ namespace dmGameSystem
                 dmTransform::Transform& transform = pose[bi];
                 // Convert every transform into model space
                 if (bi > 0) {
-                    transform = dmTransform::Mul(pose[skeleton->m_Bones[bi].m_Parent], transform);
+                    dmGameSystemDDF::Bone* bone = &skeleton->m_Bones[bi];
+                    if (bone->m_InheritScale)
+                    {
+                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                    }
+                    else
+                    {
+                        Vector3 scale = transform.GetScale();
+                        transform = dmTransform::Mul(pose[bone->m_Parent], transform);
+                        transform.SetScale(scale);
+                    }
                 }
-            }
-            for (uint32_t bi = 0; bi < bone_count; ++bi)
-            {
-                dmTransform::Transform& transform = pose[bi];
-                // Multiply by inv bind pose to obtain delta transforms
-                transform = dmTransform::Mul(transform, bind_pose[bi].m_ModelToLocal);
             }
         }
     }

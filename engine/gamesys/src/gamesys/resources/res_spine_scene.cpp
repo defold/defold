@@ -28,6 +28,10 @@ namespace dmGameSystem
                 if (i > 0)
                 {
                     bind_bone->m_LocalToModel = dmTransform::Mul(resource->m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
+                    if (!bone->m_InheritScale)
+                    {
+                        bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
+                    }
                 }
                 else
                 {
