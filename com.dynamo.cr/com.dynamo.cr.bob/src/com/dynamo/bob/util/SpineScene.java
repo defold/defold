@@ -18,6 +18,7 @@ import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
 
 import org.apache.commons.lang.ArrayUtils;
 import org.codehaus.jackson.JsonNode;
@@ -71,20 +72,9 @@ public class SpineScene {
             this.rotation.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), rads));
         }
 
-        private static void rotate(Quat4d rotation, Point3d p) {
-            // The length is needed for the up-scaling at the end
-            // Quat4d automatically normalizes in the constructor so this info is lost below
-            double length = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
-            Quat4d qp = new Quat4d(p.x, p.y, p.z, 0.0);
-            qp.mul(rotation, qp);
-            qp.mulInverse(rotation);
-            p.set(qp.x, qp.y, qp.z);
-            p.scale(length);
-        }
-
         public void apply(Point3d p) {
             p.set(this.scale.x * p.x, this.scale.y * p.y, this.scale.z * p.z);
-            rotate(this.rotation, p);
+            MathUtil.rotate(this.rotation, p);
             p.add(this.position);
         }
 
