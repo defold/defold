@@ -40,8 +40,8 @@ namespace dmGameSystem
         float x;
         float y;
         float z;
-        float u;
-        float v;
+        uint16_t u;
+        uint16_t v;
     };
 
     struct SpineModelWorld
@@ -84,12 +84,12 @@ namespace dmGameSystem
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
         };
 
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
-        world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         // Assume 4 vertices per mesh
         world->m_VertexBufferData.SetCapacity(4 * world->m_Components.Capacity());
 
@@ -396,6 +396,8 @@ namespace dmGameSystem
         std::sort(buffer->Begin(), buffer->End(), pred);
     }
 
+#define TO_SHORT(val) (uint16_t)((val) * 65535.0f)
+
     static void CreateVertexData(SpineModelWorld* world, dmArray<SpineModelVertex>& vertex_buffer, TextureSetResource* texture_set, uint32_t start_index, uint32_t end_index)
     {
         DM_PROFILE(SpineModel, "CreateVertexData");
@@ -437,11 +439,13 @@ namespace dmGameSystem
                 }
                 *((Vector4*)&v) = w * out_p;
                 e = vi*2;
-                v.u = mesh->m_Texcoord0[e++];
-                v.v = mesh->m_Texcoord0[e++];
+                v.u = TO_SHORT(mesh->m_Texcoord0[e++]);
+                v.v = TO_SHORT(mesh->m_Texcoord0[e++]);
             }
         }
     }
+
+#undef TO_SHORT
 
     static uint32_t RenderBatch(SpineModelWorld* world, dmRender::HRenderContext render_context, dmArray<SpineModelVertex>& vertex_buffer, uint32_t start_index)
     {
