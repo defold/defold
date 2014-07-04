@@ -58,6 +58,8 @@ namespace dmGameSystem
         float                           m_MaxZ;
     };
 
+    static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
+
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpineModelContext* context = (SpineModelContext*)params.m_Context;
@@ -92,6 +94,9 @@ namespace dmGameSystem
         world->m_VertexBufferData.SetCapacity(4 * world->m_Components.Capacity());
 
         *params.m_World = world;
+
+        dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -100,6 +105,8 @@ namespace dmGameSystem
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+
+        dmResource::UnregisterResourceReloadedCallback(((SpineModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
 
         delete world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -955,7 +962,7 @@ namespace dmGameSystem
         vertex_buffer.SetSize(0);
 
         dmArray<SpineModelComponent>& components = world->m_Components;
-        uint32_t sprite_count = world->m_Components.Size();
+        uint32_t sprite_count = components.Size();
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpineModelComponent& component = components[i];
@@ -1080,10 +1087,8 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
+    static void OnResourceReloaded(SpineModelComponent* component)
     {
-        SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
-        component->m_Resource = (SpineModelResource*)params.m_Resource;
         dmGameSystemDDF::SpineScene* scene = component->m_Resource->m_Scene->m_SpineScene;
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
         component->m_Mesh = FindMesh(&scene->m_MeshSet, component->m_Skin);
@@ -1105,6 +1110,13 @@ namespace dmGameSystem
         CreatePose(component);
     }
 
+    void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
+    {
+        SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
+        component->m_Resource = (SpineModelResource*)params.m_Resource;
+        OnResourceReloaded(component);
+    }
+
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
@@ -1116,7 +1128,7 @@ namespace dmGameSystem
         else if (params.m_PropertyId == PROP_ANIMATION)
         {
             SpinePlayer* player = GetPlayer(component);
-            out_value.m_Variant = dmGameObject::PropertyVar(player->m_Animation);
+            out_value.m_Variant = dmGameObject::PropertyVar(player->m_AnimationId);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
@@ -1151,4 +1163,18 @@ namespace dmGameSystem
         }
         return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
     }
+
+    static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
+    {
+        SpineModelWorld* world = (SpineModelWorld*)user_data;
+        dmArray<SpineModelComponent>& components = world->m_Components;
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            SpineModelComponent* component = &components[i];
+            if (component->m_Resource != 0x0 && component->m_Resource->m_Scene == descriptor->m_Resource)
+                OnResourceReloaded(component);
+        }
+    }
+
 }

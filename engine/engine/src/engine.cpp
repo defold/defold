@@ -562,6 +562,7 @@ namespace dmEngine
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
 
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
