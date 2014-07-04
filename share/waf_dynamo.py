@@ -948,8 +948,6 @@ def js_web_link_flags(self):
 def js_web_web_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'js-web':
-        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre-engine.js")
-        self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
         glfw_js = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js', "library_glfw.js")
         self.link_task.env.append_value('LINKFLAGS', ['--js-library', glfw_js])
 

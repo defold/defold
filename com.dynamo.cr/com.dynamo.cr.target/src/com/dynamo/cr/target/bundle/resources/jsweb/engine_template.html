@@ -1211,6 +1211,7 @@
     </div>
     <textarea id="output" rows="8"></textarea>
 
+    <script type='text/javascript' src="combine.js"></script>
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
@@ -1218,10 +1219,91 @@
 
       var Module = {
 
-		'noInitialRun': true,
+        'noInitialRun': true,
         'preRunTasks': [],
         'preRunTasksCompleted': 0,
         'mountPoint': '/data',
+
+        _pendingFiles: [],
+        _totalFiles: 0,
+        _mountedFiles: 0,
+        _allPreloaded: false,
+
+        'initialiseScript': function() {
+            this['registerBootstrapTask'](Module.mountFilesystem);
+            this['registerBootstrapTask'](Module.waitForArchive);
+            Combine['addCombineCompletedListener'](Module.onFilePreloaded);
+            Combine['addAllTargetsBuiltListener'](Module.onAllFilesPreloaded);
+            Combine['addProgressListener'](Module.onPreloadProgress);
+            Combine['process']('${DMENGINE_SPLIT}$', Module.onPreloadDescriptionProcessed);
+            this.setStatus('Downloading...');
+        },
+
+        onPreloadProgress: function(downloaded, total) {
+            progressElement.value = downloaded;
+            progressElement.max = total;
+            progressElement.hidden = false;
+        },
+
+        onPreloadDescriptionProcessed: function(totalFiles) {
+            Module._totalFiles = totalFiles;
+        },
+
+        onFilePreloaded: function(name, data) {
+            Module.mountFile(name, data, true);
+        },
+
+        onAllFilesPreloaded: function() {
+            Module._allPreloaded = true;
+            var fsCreate = Module['FS_createPreloadedFile'];
+            if (typeof fsCreate != 'undefined') {
+            	if (0 < Module._pendingFiles.length) {
+            		Module.mountPendingFiles();
+            	} else {
+            		Combine['cleanUp']();
+            		Module.onBootstrapTaskCompleted();
+            	}
+            }
+            progressElement.hidden = true;
+        },
+
+        mountFile: function(name, data, permitPending) {
+            var fsCreate = Module['FS_createPreloadedFile'];
+            if (typeof fsCreate != 'undefined') {
+                fsCreate(name, null, data, true, true,
+                    function() {
+                        ++Module._mountedFiles;
+                        if (Module._allPreloaded && Module._mountedFiles == Module._totalFiles) {
+                            Combine['cleanUp']();
+                            Module.onBootstrapTaskCompleted();
+                        }
+                    },
+                    function() {
+                         Module.printErr("FAILED TO MOUNT: " + name);
+                    },
+                    false, true);
+            } else {
+                if (permitPending) {
+                    this._pendingFiles.push({path: name, data: data});
+                } else {
+                    throw "FS unavailable";
+                }
+            }
+        },
+
+        waitForArchive: function() {
+            if (Module._totalFiles > Module._mountedFiles) {
+            	Module.mountPendingFiles();
+            }
+        },
+
+        mountPendingFiles: function() {
+        	for (i=0; i<Module._pendingFiles.length; ++i) {
+        		item = Module._pendingFiles[i];
+                Module.mountFile(item.path, item.data, false);
+        	}
+        	Module._pendingFiles = [];
+        },
 
         'preRun': [function() {
             var bootstrap = Module['preRunTasks'];
@@ -1231,45 +1313,43 @@
             }
         }],
 
-        'onBootstrapTaskCompleted': function() {
+        onBootstrapTaskCompleted: function() {
             ++Module['preRunTasksCompleted'];
             if (Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
-            	Module['attemptLaunch']();
+            	Module.attemptLaunch();
             }
         },
 
-        'attemptLaunch': function() {
-        	if (this.remainingDependencies == 0 && Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
-        		Module['callMain']();
-        	}
+        attemptLaunch: function() {
+            if (this.remainingDependencies == 0 && Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
+                Module['callMain']();
+            }
         },
 
         'registerBootstrapTask': function(fn) {
             Module['preRunTasks'].push(fn);
         },
 
-        'mountFilesystem': function() {
+        mountFilesystem: function() {
             FS.mkdir('/data');
             FS.mount(IDBFS, {}, Module['mountPoint']);
             FS.syncfs(true, function(err) {
                 assert(!err);
-                Module['onBootstrapTaskCompleted']();
+                Module.onBootstrapTaskCompleted();
             });
 
-			// Might it be that emscripten will do much the same as this one day?
-			// We should check future versions and remove our patch if it becomes redundant.
+            // Might it be that emscripten will do much the same as this one day?
+            // We should check future versions and remove our patch if it becomes redundant.
             if (typeof _fsync != 'undefined') {
-				_old_fsync = _fsync;
-				_fsync = function(fd) {
-					ret = _old_fsync(fd);
-					if (ret == 0) {
-						FS.syncfs(false, function(err) {
-							assert(!err);
-						});
-					}
-					return ret;
-				}
-			}
+                _old_fsync = _fsync;
+                _fsync = function(fd) {
+                    ret = _old_fsync(fd);
+                    if (ret == 0) {
+                        FS.syncfs(false, function(err) { assert(!err); });
+                    }
+                    return ret;
+                }
+            }
         },
 
         postRun: [],
@@ -1326,13 +1406,13 @@
           this.totalDependencies = Math.max(this.totalDependencies, left);
           this.remainingDependencies = left;
           if (0 == left) {
-          	Module['attemptLaunch']();
+            Module.attemptLaunch();
           }
           Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
         }
       };
-      Module['registerBootstrapTask'](Module['mountFilesystem']);
-      Module.setStatus('Downloading...');
+        Module['initialiseScript']();
+
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');
         spinnerElement.style.display = 'none';
@@ -1345,11 +1425,11 @@
     <script type="text/javascript" src="modernizr.custom.js"></script>
     <script type="text/javascript">
     <!-- We see write errors when using this shim on Safari. -->
-    	Modernizr.load([{
-    		test: Modernizr.indexedDB,
-    		nope: 'IndexedDBShim.min.js',
-    		load: '${DMENGINE_JS}$'
-    	}]);
+    Modernizr.load([{
+        test: Modernizr.indexedDB,
+        nope: 'IndexedDBShim.min.js',
+        load: '${DMENGINE_JS}$'
+    }]);
     </script>
   </body>
 </html>
