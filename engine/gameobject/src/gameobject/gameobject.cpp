@@ -393,22 +393,29 @@ namespace dmGameObject
          * Remove instance from m_LevelIndices using an erase-swap operation
          */
 
-        assert(collection->m_LevelInstanceCount[instance->m_Depth] > 0);
-        assert(instance->m_LevelIndex < collection->m_LevelInstanceCount[instance->m_Depth]);
+        dmArray<uint16_t>& level = collection->m_LevelIndices[instance->m_Depth];
+        assert(level.Size() > 0);
+        assert(instance->m_LevelIndex < level.Size());
 
-        uint32_t abs_level_index = instance->m_Depth * collection->m_MaxInstances + instance->m_LevelIndex;
-        uint32_t abs_level_index_last = instance->m_Depth * collection->m_MaxInstances + (collection->m_LevelInstanceCount[instance->m_Depth]-1);
-
-        assert(collection->m_LevelIndices[abs_level_index] != INVALID_INSTANCE_INDEX);
-
-        uint32_t swap_in_index = collection->m_LevelIndices[abs_level_index_last];
+        uint16_t level_index = instance->m_LevelIndex;
+        uint16_t swap_in_index = level.EraseSwap(level_index);
         HInstance swap_in_instance = collection->m_Instances[swap_in_index];
         assert(swap_in_instance->m_Index == swap_in_index);
-        // Remove index in m_LevelIndices using an "erase-swap operation"
-        collection->m_LevelIndices[abs_level_index] = collection->m_LevelIndices[abs_level_index_last];
-        collection->m_LevelIndices[abs_level_index_last] = INVALID_INSTANCE_INDEX;
-        collection->m_LevelInstanceCount[instance->m_Depth]--;
-        swap_in_instance->m_LevelIndex = abs_level_index - instance->m_Depth * collection->m_MaxInstances;
+        swap_in_instance->m_LevelIndex = level_index;
+    }
+
+    /*
+     * Heuristic for expanding the level indices arrays:
+     * * Increase capacity by 50%, but:
+     * ** 10 elements as min
+     * ** Up to max_instances as max
+     */
+    static void ExpandLevel(dmArray<uint16_t>& level, uint32_t max_instances)
+    {
+        const uint32_t min_offset = 10;
+        const uint32_t max_offset = max_instances - level.Capacity();
+        int32_t offset = dmMath::Min(max_offset, dmMath::Max(min_offset, level.Size() / 2));
+        level.OffsetCapacity(offset);
     }
 
     static void InsertInstanceInLevelIndex(HCollection collection, HInstance instance)
@@ -416,16 +423,15 @@ namespace dmGameObject
         /*
          * Insert instance in m_LevelIndices at level set in instance->m_Depth
          */
+        dmArray<uint16_t>& level = collection->m_LevelIndices[instance->m_Depth];
+        if (level.Full())
+            ExpandLevel(level, collection->m_MaxInstances);
+        assert(!level.Full());
 
-        instance->m_LevelIndex = collection->m_LevelInstanceCount[instance->m_Depth];
-        assert(instance->m_LevelIndex < collection->m_MaxInstances);
-
-        assert(collection->m_LevelInstanceCount[instance->m_Depth] < collection->m_MaxInstances);
-        uint32_t abs_level_index = instance->m_Depth * collection->m_MaxInstances + collection->m_LevelInstanceCount[instance->m_Depth];
-        assert(collection->m_LevelIndices[abs_level_index] == INVALID_INSTANCE_INDEX);
-        collection->m_LevelIndices[abs_level_index] = instance->m_Index;
-
-        collection->m_LevelInstanceCount[instance->m_Depth]++;
+        uint16_t level_index = (uint16_t)level.Size();
+        level.SetSize(level_index + 1);
+        level[level_index] = instance->m_Index;
+        instance->m_LevelIndex = level_index;
     }
 
     HInstance New(HCollection collection, const char* prototype_name)
@@ -973,8 +979,8 @@ namespace dmGameObject
         if (instance->m_Identifier != UNNAMED_IDENTIFIER)
             collection->m_IDToInstance.Erase(instance->m_Identifier);
 
-        assert(collection->m_LevelInstanceCount[instance->m_Depth] > 0);
-        assert(instance->m_LevelIndex < collection->m_LevelInstanceCount[instance->m_Depth]);
+        assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
+        assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
 
         // Reparent child nodes
         uint32_t index = instance->m_FirstChildIndex;
@@ -1465,9 +1471,11 @@ namespace dmGameObject
 
         // Calculate world transforms
         // First root-level instances
-        for (uint32_t i = 0; i < collection->m_LevelInstanceCount[0]; ++i)
+        dmArray<uint16_t>& root_level = collection->m_LevelIndices[0];
+        uint32_t root_count = root_level.Size();
+        for (uint32_t i = 0; i < root_count; ++i)
         {
-            uint16_t index = collection->m_LevelIndices[i];
+            uint16_t index = root_level[i];
             Instance* instance = collection->m_Instances[index];
             CheckEuler(instance);
             collection->m_WorldTransforms[index] = instance->m_Transform;
@@ -1476,12 +1484,13 @@ namespace dmGameObject
         }
 
         // World-transform for levels 1..MAX_HIERARCHICAL_DEPTH-1
-        for (uint32_t level = 1; level < MAX_HIERARCHICAL_DEPTH; ++level)
+        for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
-            uint32_t max_instance = collection->m_Instances.Size();
-            for (uint32_t i = 0; i < collection->m_LevelInstanceCount[level]; ++i)
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t instance_count = level.Size();
+            for (uint32_t i = 0; i < instance_count; ++i)
             {
-                uint16_t index = collection->m_LevelIndices[level * max_instance + i];
+                uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
                 CheckEuler(instance);
                 dmTransform::Transform* trans = &collection->m_WorldTransforms[index];
@@ -1881,11 +1890,11 @@ namespace dmGameObject
                 index = i->m_Parent;
             }
             assert(child->m_Collection == parent->m_Collection);
-            assert(collection->m_LevelInstanceCount[child->m_Depth+1] < collection->m_MaxInstances);
+            assert(collection->m_LevelIndices[child->m_Depth+1].Size() < collection->m_MaxInstances);
         }
         else
         {
-            assert(collection->m_LevelInstanceCount[0] < collection->m_MaxInstances);
+            assert(collection->m_LevelIndices[0].Size() < collection->m_MaxInstances);
         }
 
         if (child->m_Parent != INVALID_INSTANCE_INDEX)
@@ -2318,12 +2327,13 @@ namespace dmGameObject
     void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
     {
         Collection* collection = (Collection*)user_data;
-        for (uint32_t level = 0; level < MAX_HIERARCHICAL_DEPTH; ++level)
+        for (uint32_t level_i = 0; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
-            uint32_t max_instance = collection->m_Instances.Size();
-            for (uint32_t i = 0; i < collection->m_LevelInstanceCount[level]; ++i)
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t instance_count = level.Size();
+            for (uint32_t i = 0; i < instance_count; ++i)
             {
-                uint16_t index = collection->m_LevelIndices[level * max_instance + i];
+                uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
                 uint32_t next_component_instance_data = 0;
                 for (uint32_t j = 0; j < instance->m_Prototype->m_Components.Size(); ++j)
