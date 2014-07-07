@@ -2,12 +2,18 @@
   (:require [clojure.core.async :as a :refer [<! chan go-loop put! close! onto-chan chan sliding-buffer]]
             [com.stuartsierra.component :as component]
             [dynamo.project :as p]
-            [internal.graph.dgraph :as dg])
-  (:import [org.eclipse.core.resources IProject]))
+            [internal.graph.dgraph :as dg]
+            [eclipse.resources :refer :all])
+  (:import [org.eclipse.core.resources IProject IResource IFile]))
 
 (defprotocol ProjectLifecycle
   (open-project [this project]  "Attach to the project and set up any internal state required.")
   (close-project [this] "Dispose any resources held by the project and release it."))
+
+(defn- clojure-source?
+  [^IResource resource]
+  (and (instance? IFile resource)
+       (.endsWith (.getName resource) ".clj")))
 
 (defrecord ProjectSubsystem [project-state tx-report-queue]
   component/Lifecycle
@@ -22,7 +28,10 @@
   (open-project [this eclipse-project]
     (when project-state
       (close-project this))
-    (assoc this :project-state (ref (assoc (p/make-project tx-report-queue) :eclipse-project eclipse-project))))
+    (let [project-state (ref (assoc (p/make-project tx-report-queue) :eclipse-project eclipse-project))]
+      (doseq [source (filter clojure-source? (resource-seq eclipse-project))]
+        (p/load-resource project-state source))
+      (assoc this :project-state project-state)))
 
   (close-project [this]
     (when project-state
@@ -65,16 +74,16 @@
 
 (defn- refresh-messages
   [tx-report]
-  (for [[node output] (:expired-outputs)]
-    {:project (:project-state tx-report)
+  (for [[node output] (:expired-outputs tx-report)]
+    {:project-state (:project-state tx-report)
      :node    node
      :output  output}))
 
 (defn- refresh-loop
   [in]
   (go-loop []
-           (when-let [{:keys [project node output]} (<! in)]
-             (p/get-resource-value project (dg/node (:graph project) node) output)
+           (when-let [{:keys [project-state node output]} (<! in)]
+             (p/get-resource-value project-state node output)
              (recur))))
 
 (defn- refresh-subsystem

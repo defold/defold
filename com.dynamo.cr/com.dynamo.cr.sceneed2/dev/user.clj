@@ -2,6 +2,12 @@
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
+(defn reset-system
+  []
+  (internal.system/stop)
+  (reset! internal.system/the-system (internal.system/system))
+  (internal.system/start))
+
 (comment
 
   (def proj (ref (make-project (dynamo.project-test/->bitbucket))))

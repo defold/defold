@@ -3,7 +3,6 @@
             [clojure.core.async :as a :refer [put! onto-chan]]
             [clojure.core.cache :as cache]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
-            [service.log :as log]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [internal.graph.query :as q]
@@ -13,7 +12,8 @@
             [dynamo.file]
             [internal.cache :refer [make-cache]]
             [plumbing.core :refer [defnk]]
-            [schema.core :as s])
+            [schema.core :as s]
+            [eclipse.markers :as markers])
   (:import [org.eclipse.core.resources IFile]))
 
 (defprotocol IDisposable
@@ -32,12 +32,17 @@
 
 (defnk load-project-file
   [project this g]
-  ;; TODO - error handling and reporting
   (let [source  (:resource this)
         ns-decl (read-file-ns-decl source)]
     (binding [*current-project* project]
-      (Compiler/load (io/reader source) (.toString (.getFullPath source)) (.getName source))
-      (UnloadableNamespace. ns-decl))))
+      (markers/remove-markers source)
+      (try
+        (do
+          (Compiler/load (io/reader source) (.toString (.getFullPath source)) (.getName source))
+          (UnloadableNamespace. ns-decl))
+        (catch clojure.lang.Compiler$CompilerException compile-error
+          (markers/compile-error source (.getMessage (.getCause compile-error)) (.line compile-error))
+          {:compile-error (.getMessage (.getCause compile-error))})))))
 
 (def ClojureSourceFile
   {:properties {:resource {:schema IFile}}
@@ -152,12 +157,13 @@
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys] :as ctx} m]
+  [{:keys [graph tempids cache-keys modified-nodes] :as ctx} m]
   (let [next-id (dg/next-node graph)]
     (assoc ctx
-      :graph (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id))
-      :tempids    (assoc tempids    (get-in m [:node :_id]) next-id)
-      :cache-keys (assoc cache-keys next-id (resource->cache-keys (:node m))))))
+      :graph          (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id))
+      :tempids        (assoc tempids    (get-in m [:node :_id]) next-id)
+      :cache-keys     (assoc cache-keys next-id (resource->cache-keys (:node m)))
+      :modified-nodes (conj modified-nodes next-id))))
 
 (defmethod perform :update-node
   [{:keys [graph modified-nodes] :as ctx} m]
