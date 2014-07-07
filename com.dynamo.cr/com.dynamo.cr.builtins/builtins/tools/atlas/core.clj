@@ -3,13 +3,17 @@
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [dynamo.node :refer :all]
-            [dynamo.file :refer [protocol-buffer-loader message->node]]
+            [dynamo.file :refer [protocol-buffer-loader message->node write-project-file]]
             [dynamo.file.protobuf :refer [protocol-buffer-converters]]
             [dynamo.project :refer [*current-project* register-loader transact new-resource connect]]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
-            [dynamo.outline :refer :all])
-  (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]))
+            [dynamo.outline :refer :all]
+            [camel-snake-kebab :refer :all])
+  (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
+            [com.dynamo.textureset.proto TextureSetProto$TextureSet TextureSetProto$TextureSet$Builder 
+                                         TextureSetProto$TextureSetAnimation TextureSetProto$TextureSetAnimation$Builder]
+            [com.google.protobuf ByteString]))
 
 (defnode ImageNode
  OutlineNode
@@ -63,7 +67,9 @@
 
 (defnk produce-textureset :- TextureSet
   [g this images :- [TextureImage] animations :- [TextureSetAnimation]]
-  nil
+  {:texture "a-texture" :animations [] :convex-hulls [] :vertices (byte-array 0) :vertex-start [0] :vertex-count [0]
+   :outline-vertices (byte-array 0) :outline-vertex-start [] :outline-vertex-count [] :convex-hull-points []
+   :collision-groups [] :tex-coords (byte-array 0) :tile-count 99}
   )
 
 (def AtlasProperties
@@ -97,9 +103,41 @@
  {:constructor #'atlas.core/make-image-node
   :basic-properties [:image]})
 
+(defn- set-if-present [inst k props]
+  (when-let [value (k props)]
+    (. inst (symbol (->camelCase (str "set-" k))) value)))
+
+(defn- build-animation
+  [anim]
+  (.build (doto (TextureSetProto$TextureSetAnimation/newBuilder)
+             (.setId        (:id anim))
+             (.setEnd       (:end anim))
+             (.setWidth     (:width anim))
+             (.setHeight    (:height anim))
+             (set-if-present :playback anim)
+             (set-if-present :fps anim)
+             (set-if-present :flip-horizontal anim) 
+             (set-if-present :flip-vertical anim)
+             (set-if-present :is-animation anim)
+            )))
+
+(defn- build-animations
+  [animations]
+  (map build-animation animations))
+
 (defnk compile-texturesetc :- s/Bool
-  [this g textureset :- TextureSet]
-  true)
+  [this g project textureset :- TextureSet]
+  (let [builder      (TextureSetProto$TextureSet/newBuilder)
+        build-result (.build (doto builder 
+                                (.setTileCount (:tile-count textureset))
+                                (.addAllVertexStart (:vertex-start textureset))
+                                (.addAllVertexCount (:vertex-count textureset))
+                                (.setVertices (ByteString/copyFrom (:vertices textureset)))
+                                (.addAllOutlineVertexStart (:outline-vertex-start textureset))
+                                (.addAllOutlineVertexCount (:outline-vertex-count textureset))
+                                (.setOutlineVertices (ByteString/copyFrom (:outline-vertices textureset)))
+                                (.addAllAnimations (build-animations (:animations textureset)))))]
+    (write-project-file project (:textureset-filename this) (.toByteArray build-result))))
 
 (defnk compile-texturec :- s/Bool
   [this g textureset :- TextureSet]
@@ -107,13 +145,13 @@
 
 (def TextureCompiler
   {:inputs     {:textureset (as-schema TextureSet)}
-   :properties {:texture-filename {:schema s/Str :default ""}}
+   :properties {:texture-filename {:schema s/Any :default ""}}
    :transforms {:texturec    #'compile-texturec}
    :on-update  #{:texturec}})
 
 (def TextureSetCompiler
   {:inputs     {:textureset (as-schema TextureSet)}
-   :properties {:textureset-filename {:schema s/Str :default ""}}
+   :properties {:textureset-filename {:schema s/Any :default ""}}
    :transforms {:texturesetc #'compile-texturesetc}
    :on-update  #{:texturesetc}})
 
@@ -121,7 +159,9 @@
   TextureCompiler
   TextureSetCompiler)
 
-(defn build-path [x] x)
+(defn build-path [project path]
+  (str (:build-path project) path))
+
 (defn replace-extension [s ext]
   (when s
     (clojure.string/replace s #"\.[^\.]*$" (str "." ext))))
@@ -130,8 +170,8 @@
   [project ^String filename ^AtlasProto$Atlas atlas-message]
   (let [atlas-tx (transact (message->node atlas-message nil nil nil :filename filename))
         atlas    {}
-        compiler (make-atlas-compiler :textureset-filename (build-path (replace-extension filename ".texturesetc"))
-                                      :texture-filename    (build-path (replace-extension filename ".texturec")))]
+        compiler (make-atlas-compiler :textureset-filename (build-path project (replace-extension filename "texturesetc"))
+                                      :texture-filename    (build-path project (replace-extension filename "texturec")))]
     (transact project
       [(new-resource compiler)
        (connect atlas :textureset compiler :textureset)])))

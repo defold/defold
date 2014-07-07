@@ -33,10 +33,18 @@
              (future (.setContents x (PipedInputStream. pipe) 0 nil))
              pipe))))
 
+(defn write-project-file 
+  [project path contents]
+  (with-open [out (clojure.java.io/writer (.getFile project path))]
+    (.write out contents)))
+
 (doseq [[v doc]
        {#'new-builder
         "Dynamically construct a protocol buffer builder, given a class as a variable."
 
+        #'write-project-file
+        "Write the given contents into the file at path, relative to a project."
+        
         #'protocol-buffer-loader
           "Create a new loader that knows how to read protocol buffer files in text format.
 
