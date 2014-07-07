@@ -2,7 +2,6 @@
  (:require [clojure.test :as test]))
 
 (def test-namespaces ['dynamo.project-test
-                      'atlas.core-test
                       'dynamo.node-test
                       'internal.graph.graph-test
                       'internal.value-test

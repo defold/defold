@@ -3,52 +3,39 @@
   (:refer-clojure :exclude [load])
   (:require [clojure.java.io :as io]
             [internal.java :as j])
-  (:import [com.google.protobuf TextFormat]))
+  (:import [java.io PipedOutputStream PipedInputStream]
+           [com.google.protobuf TextFormat]
+           [org.eclipse.core.internal.resources File]))
 
 (defn- new-builder
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
-(defonce ^:private loaders (atom {}))
-
-(defn register-loader
-  [filetype loader]
-  (swap! loaders assoc filetype loader))
-
-(defn loader-for
-  [filename]
-  (let [lfs @loaders]
-    (or
-      (some (fn [[filetype lf]] (when (.endsWith filename filetype) lf)) lfs)
-      (fn [_ _] (throw (ex-info (str "No loader has been registered that can handle " filename) {}))))))
-
 (defn protocol-buffer-loader
   [^java.lang.Class class f]
-  (fn [nm input-reader]
+  (fn [project-state nm input-reader]
     (let [builder (new-builder class)]
       (TextFormat/merge input-reader builder)
-      (f nm (.build builder)))))
+      (f project-state nm (.build builder)))))
 
 (defmulti message->node
   (fn [message & _] (class message)))
 
-(defn load
-  [filename]
-  ((loader-for filename) filename (io/reader filename)))
+(extend File
+  io/IOFactory
+  (assoc io/default-streams-impl
+         :make-input-stream
+         (fn [x opts]
+           (.getContents x))
+         :make-output-stream
+         (fn [x opts]
+           (let [pipe (PipedOutputStream.)]
+             (future (.setContents x (PipedInputStream. pipe) 0 nil))
+             pipe))))
 
 (doseq [[v doc]
        {#'new-builder
         "Dynamically construct a protocol buffer builder, given a class as a variable."
-
-        #'register-loader
-        "Associate a filetype (extension) with a loader function. The given loader will be
-used any time a file with that type is opened."
-
-        #'loader-for
-        "Locate a loading function that knows how to work on the given file.
-
-If no suitable function has been registered, this returns a function
-that throws an exception."
 
         #'protocol-buffer-loader
           "Create a new loader that knows how to read protocol buffer files in text format.
@@ -60,7 +47,6 @@ For example, the inner class called AtlasProto.Atlas in Java becomes AtlasProto$
 
 f is a function to call with the deserialised protocol buffer message. f must take two arguments, the
 resource name and the immutable protocol buffer itself."
-
 
         #'message->node
           "This is an extensible function that you implement to help load a specific file
@@ -91,13 +77,7 @@ Overrides is a map of additional properties to set on the new node.
 
 Given a resource name and message describing the resource,
 create (and return?) a list of nodes."
-
-          #'load
-        "Load a file. This looks up a suitable loader based on the filename. Loaders must be
-registered via register-loader before they can be used.
-
-This will invoke the loader function with the filename and a reader to supply the file contents."
-        }]
+          }]
   (alter-meta! v assoc :doc doc))
 
 
