@@ -899,7 +899,10 @@ namespace dmGameSystem
                         rotation = normalize(rotation);
                     t.SetRotation(rotation);
                 }
-                t = dmTransform::Mul(bind_pose[bi].m_LocalToParent, t);
+                const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
+                t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
+                t.SetRotation(bind_t.GetRotation() * t.GetRotation());
+                t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
             }
 
             // Include component transform in the GO instance reflecting the root bone
