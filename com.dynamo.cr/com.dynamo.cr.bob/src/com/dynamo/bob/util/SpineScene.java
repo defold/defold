@@ -128,7 +128,7 @@ public class SpineScene {
         public int[] boneIndices;
     }
 
-    private static class Slot {
+    public static class Slot {
         public Bone bone;
         public int index;
         public String attachment;

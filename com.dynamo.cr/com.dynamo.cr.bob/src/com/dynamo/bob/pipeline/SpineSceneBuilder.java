@@ -224,10 +224,17 @@ public class SpineSceneBuilder extends Builder<Void> {
     private static void toDDF(String skinName, List<SpineScene.Mesh> generics, List<SpineScene.Mesh> specifics, MeshSet.Builder meshSetBuilder, List<Integer> boneIndexRemap) {
         Mesh.Builder meshBuilder = Mesh.newBuilder();
         meshBuilder.setId(MurmurHash.hash64(skinName));
-        for (SpineScene.Mesh mesh : generics) {
-            toDDF(mesh, meshBuilder, boneIndexRemap);
-        }
-        for (SpineScene.Mesh mesh : specifics) {
+        List<SpineScene.Mesh> meshes = new ArrayList<SpineScene.Mesh>(generics.size() + specifics.size());
+        meshes.addAll(generics);
+        meshes.addAll(specifics);
+        Collections.sort(meshes, new Comparator<SpineScene.Mesh>() {
+            @Override
+            public int compare(com.dynamo.bob.util.SpineScene.Mesh arg0,
+                    com.dynamo.bob.util.SpineScene.Mesh arg1) {
+                return arg0.slot.index - arg1.slot.index;
+            }
+        });
+        for (SpineScene.Mesh mesh : meshes) {
             toDDF(mesh, meshBuilder, boneIndexRemap);
         }
         meshSetBuilder.addMeshes(meshBuilder);
