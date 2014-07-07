@@ -258,34 +258,38 @@ public class SpineSceneBuilder extends Builder<Void> {
         int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
         int keyIndex = 0;
         int keyCount = track.keys.size();
-        SpineScene.AnimationKey key = track.keys.get(keyIndex);
-        SpineScene.AnimationKey next = null;
-        if (keyIndex < keyCount - 1) {
-            next = track.keys.get(keyIndex + 1);
-        }
+        SpineScene.AnimationKey key = null;
+        SpineScene.AnimationKey next = track.keys.get(keyIndex);
         T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1).value);
         for (int i = 0; i < sampleCount; ++i) {
             double cursor = i * spf;
-            if (key.t <= cursor) {
-                // Skip passed keys
-                while (next != null && next.t <= cursor) {
-                    ++keyIndex;
-                    key = next;
-                    if (keyIndex < keyCount - 1) {
-                        next = track.keys.get(keyIndex + 1);
-                    } else {
-                        next = null;
-                    }
+            // Skip passed keys
+            while (next != null && next.t <= cursor) {
+                key = next;
+                ++keyIndex;
+                if (keyIndex < keyCount) {
+                    next = track.keys.get(keyIndex);
+                } else {
+                    next = null;
                 }
+            }
+            if (key != null) {
                 if (next != null) {
-                    // Normal sampling
-                    sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+                    if (key.stepped) {
+                        // Stepped sampling only uses current key
+                        for (float v : key.value) {
+                            propertyBuilder.add(v);
+                        }
+                    } else {
+                        // Normal sampling
+                        sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+                    }
                 } else {
                     // Last key reached, use its value for remaining samples
                     propertyBuilder.addComposite(endValue);
                 }
             } else {
-                // No valid key yet, use default (bone) value
+                // No valid key yet, use default value
                 propertyBuilder.addComposite(defaultValue);
             }
         }
@@ -295,15 +299,15 @@ public class SpineSceneBuilder extends Builder<Void> {
         switch (track.property) {
         case POSITION:
             PositionBuilder posBuilder = new PositionBuilder(animTrackBuilder);
-            sampleTrack(track, posBuilder, track.bone.worldT.position, duration, sampleRate, spf);
+            sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf);
             break;
         case ROTATION:
             RotationBuilder rotBuilder = new RotationBuilder(animTrackBuilder);
-            sampleTrack(track, rotBuilder, track.bone.worldT.rotation, duration, sampleRate, spf);
+            sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf);
             break;
         case SCALE:
             ScaleBuilder scaleBuilder = new ScaleBuilder(animTrackBuilder);
-            sampleTrack(track, scaleBuilder, track.bone.worldT.scale, duration, sampleRate, spf);
+            sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf);
             break;
         }
     }

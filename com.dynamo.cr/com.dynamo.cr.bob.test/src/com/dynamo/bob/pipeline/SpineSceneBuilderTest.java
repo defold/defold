@@ -24,6 +24,8 @@ import com.google.protobuf.Message;
 
 public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
 
+    private static final double EPSILON = 0.000001f;
+
     @Before
     public void setup() {
         addTestFiles();
@@ -97,7 +99,7 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void assertAnimSet(AnimationSet animSet) {
-        assertEquals(7, animSet.getAnimationsCount());
+        assertEquals(8, animSet.getAnimationsCount());
         Map<Long, SpineAnimation> anims = new HashMap<Long, SpineAnimation>();
         for (SpineAnimation anim : animSet.getAnimationsList()) {
             anims.put(anim.getId(), anim);
@@ -107,6 +109,7 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertAnim(getAnim(anims, "anim_pos"), true, false, false);
         assertAnim(getAnim(anims, "anim_rot"), false, true, false);
         assertAnim(getAnim(anims, "anim_scale"), false, false, true);
+        assertAnim(getAnim(anims, "anim_stepped"), true, false, false);
 
         SpineAnimation animTrackOrder = getAnim(anims, "anim_track_order");
         assertEquals(0, animTrackOrder.getTracks(0).getBoneIndex());
@@ -119,6 +122,13 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(1, eventTrack.getKeys(0).getInteger());
         assertEquals(0.5f, eventTrack.getKeys(1).getFloat(), 0.00000f);
         assertEquals(MurmurHash.hash64("test_string"), eventTrack.getKeys(2).getString());
+
+        SpineAnimation animStepped = getAnim(anims, "anim_stepped");
+        AnimationTrack trackStepped = animStepped.getTracks(0);
+        int keyCount = trackStepped.getPositionsCount() / 3;
+        assertEquals(0.0, trackStepped.getPositions(0 * 3), EPSILON);
+        assertEquals(0.0, trackStepped.getPositions(1 * 3), EPSILON);
+        assertEquals(100.0, trackStepped.getPositions((keyCount - 1) * 3), EPSILON);
     }
 
     @Test

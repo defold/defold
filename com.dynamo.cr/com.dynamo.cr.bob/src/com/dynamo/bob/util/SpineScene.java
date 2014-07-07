@@ -150,6 +150,7 @@ public class SpineScene {
     public static class AnimationKey {
         public float t;
         public float[] value = new float[4];
+        public boolean stepped;
         public AnimationCurve curve;
     }
 
@@ -359,6 +360,8 @@ public class SpineScene {
                     curve.x1 = (float)curveIt.next().asDouble();
                     curve.y1 = (float)curveIt.next().asDouble();
                     key.curve = curve;
+                } else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
+                    key.stepped = true;
                 }
             }
             track.keys.add(key);

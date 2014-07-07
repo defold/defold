@@ -1,8 +1,13 @@
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.InputStream;
+import java.net.URL;
+import java.util.Enumeration;
+
 import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -11,7 +16,11 @@ import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector2d;
 import javax.vecmath.Vector3d;
 
+import org.apache.commons.io.IOUtils;
 import org.junit.Test;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.FrameworkUtil;
+
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.SpineScene;
 import com.dynamo.bob.util.SpineScene.Animation;
@@ -120,14 +129,26 @@ public class SpineSceneTest {
     }
 
     private SpineScene load() throws Exception {
-        InputStream input = getClass().getResourceAsStream("skeleton.json");
-        return SpineScene.loadJson(input, new TestUVTProvider());
+        InputStream input = null;
+        try {
+            Bundle bundle = FrameworkUtil.getBundle(getClass());
+            Enumeration<URL> entries = bundle.findEntries("/test", "skeleton.json", false);
+            if (entries.hasMoreElements()) {
+                input = entries.nextElement().openStream();
+                return SpineScene.loadJson(input, new TestUVTProvider());
+            }
+            return null;
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            IOUtils.closeQuietly(input);
+        }
     }
 
     @Test
     public void testLoadingBones() throws Exception {
         SpineScene scene = load();
-        assertEquals(5, scene.bones.size());
+        assertEquals(9, scene.bones.size());
         Bone root = scene.getBone("root");
         Bone animated = scene.getBone("bone_animated");
         Bone scale = scene.getBone("bone_scale");
@@ -201,8 +222,8 @@ public class SpineSceneTest {
                     100.0f, 100.0f, 0.0f, 0.5f, 0.0f
                 },
                 new int[] {
-                    1, 3, 0,
                     1, 2, 3,
+                    1, 3, 0,
                 },
                 new int[] {
                     0, 0, 0, 0,
@@ -225,8 +246,8 @@ public class SpineSceneTest {
                     100.0f, 200.0f, 0.0f, 0.5f, 0.0f,
                 },
                 new int[] {
-                        1, 3, 0,
                         1, 2, 3,
+                        1, 3, 0,
                 },
                 new int[] {
                     0, 0, 0, 0,
@@ -278,7 +299,7 @@ public class SpineSceneTest {
     @Test
     public void testLoadingAnims() throws Exception {
         SpineScene scene = load();
-        assertEquals(6, scene.animations.size());
+        assertEquals(8, scene.animations.size());
 
         assertSimpleAnim(scene, "anim_pos", Property.POSITION, new float[][] {new float[] {0.0f, 0.0f, 0.0f}, new float[] {100.0f, 0.0f, 0.0f}});
         assertSimpleAnim(scene, "anim_rot", Property.ROTATION, new float[][] {new float[] {0.0f}, new float[] {90.0f}});
@@ -295,6 +316,9 @@ public class SpineSceneTest {
         Animation animMulti = scene.getAnimation("anim_multi");
         assertEquals(3, animMulti.tracks.size());
         assertEquals(1.0, animMulti.duration, EPSILON);
+
+        Animation animStepped = scene.getAnimation("anim_stepped");
+        assertTrue(animStepped.tracks.get(0).keys.get(0).stepped);
 
         assertEvents(scene, "anim_event", "test_event", new Object[] {1, 0.5f, "test_string"});
     }
