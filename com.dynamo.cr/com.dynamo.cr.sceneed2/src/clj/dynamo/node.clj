@@ -12,7 +12,7 @@
 
 (defn get-inputs [target-node g target-label]
   (let [schema (get-in target-node [:inputs target-label])]
-    (if (coll? schema)
+    (if (vector? schema)
       (map (fn [[source-node source-label]]
              (get-value g (dg/node g source-node) source-label))
            (lg/sources g (:_id target-node) target-label))

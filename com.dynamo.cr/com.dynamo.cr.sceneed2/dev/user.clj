@@ -1,21 +1,15 @@
+(require '[dynamo.project :as p])
+(require '[internal.graph.dgraph :as dg])
+
 (defn macro-pretty-print
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
-(defn reset-system
+(defn nodes-and-classes-in-project
   []
-  (internal.system/stop)
-  (reset! internal.system/the-system (internal.system/system))
-  (internal.system/start))
+  (p/with-current-project
+       (map (fn [n v] [n (class v)]) (keys (get-in @p/*current-project* [:graph :nodes])) (vals (get-in @p/*current-project* [:graph :nodes])))))
 
-(comment
-
-  (def proj (ref (make-project (dynamo.project-test/->bitbucket))))
-  (dosync (alter proj assoc :eclipse-project (.getProject (Activator/getDefault))))
-  (load-resource proj (resource-at-path proj "/content/builtins/tools/atlas/core.clj"))
-  (get-resource-value proj (get-in @proj [:graph :nodes 1]) :namespace)
-
-
-  )
-
-
+(defn node-in-project
+  [id]
+  (p/with-current-project (dg/node (:graph @p/*current-project*) id)))

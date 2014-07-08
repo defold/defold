@@ -3,15 +3,15 @@
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [dynamo.node :refer :all]
-            [dynamo.file :refer [protocol-buffer-loader message->node write-project-file]]
+            [dynamo.file :refer :all]
             [dynamo.file.protobuf :refer [protocol-buffer-converters]]
-            [dynamo.project :refer [*current-project* register-loader transact new-resource connect]]
+            [dynamo.project :refer [*current-project* register-loader transact new-resource connect query]]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.outline :refer :all]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
-            [com.dynamo.textureset.proto TextureSetProto$TextureSet TextureSetProto$TextureSet$Builder 
+            [com.dynamo.textureset.proto TextureSetProto$TextureSet TextureSetProto$TextureSet$Builder
                                          TextureSetProto$TextureSetAnimation TextureSetProto$TextureSetAnimation$Builder]
             [com.google.protobuf ByteString]))
 
@@ -67,10 +67,19 @@
 
 (defnk produce-textureset :- TextureSet
   [g this images :- [TextureImage] animations :- [TextureSetAnimation]]
-  {:texture "a-texture" :animations [] :convex-hulls [] :vertices (byte-array 0) :vertex-start [0] :vertex-count [0]
-   :outline-vertices (byte-array 0) :outline-vertex-start [] :outline-vertex-count [] :convex-hull-points []
-   :collision-groups [] :tex-coords (byte-array 0) :tile-count 99}
-  )
+  {:texture "a-texture"
+   :animations []
+   :convex-hulls []
+   :vertices (byte-array 0)
+   :vertex-start [(int 0)]
+   :vertex-count [(int 0)]
+   :outline-vertices (byte-array 0)
+   :outline-vertex-start []
+   :outline-vertex-count []
+   :convex-hull-points []
+   :collision-groups []
+   :tex-coords (byte-array 0)
+   :tile-count 99})
 
 (def AtlasProperties
   {:inputs {:assets     [OutlineItem]
@@ -103,9 +112,12 @@
  {:constructor #'atlas.core/make-image-node
   :basic-properties [:image]})
 
-(defn- set-if-present [inst k props]
-  (when-let [value (k props)]
-    (. inst (symbol (->camelCase (str "set-" k))) value)))
+(defn- set-if-present
+  ([inst k props]
+    (set-if-present inst k props identity))
+  ([inst k props xform]
+    (when-let [value (k props)]
+      (. inst (symbol (->camelCase (str "set-" k))) (xform value)))))
 
 (defn- build-animation
   [anim]
@@ -116,28 +128,35 @@
              (.setHeight    (:height anim))
              (set-if-present :playback anim)
              (set-if-present :fps anim)
-             (set-if-present :flip-horizontal anim) 
+             (set-if-present :flip-horizontal anim)
              (set-if-present :flip-vertical anim)
-             (set-if-present :is-animation anim)
-            )))
+             (set-if-present :is-animation anim))))
 
 (defn- build-animations
   [animations]
   (map build-animation animations))
 
+(defn- map->TextureSet
+  [textureset]
+  (.build (doto (TextureSetProto$TextureSet/newBuilder)
+            (.setTexture               (:texture textureset))
+            (.setTexCoords             (ByteString/copyFrom (:tex-coords textureset)))
+            (.setTileCount             (int (:tile-count textureset)))
+            (set-if-present            :tile-width textureset int)
+            (set-if-present            :tile-height textureset int)
+            (.addAllVertexStart        (:vertex-start textureset))
+            (.addAllVertexCount        (:vertex-count textureset))
+            (.setVertices              (ByteString/copyFrom (:vertices textureset)))
+            (.addAllOutlineVertexStart (:outline-vertex-start textureset))
+            (.addAllOutlineVertexCount (:outline-vertex-count textureset))
+            (.setOutlineVertices       (ByteString/copyFrom (:outline-vertices textureset)))
+            (.addAllAnimations         (build-animations (:animations textureset))))))
+
 (defnk compile-texturesetc :- s/Bool
   [this g project textureset :- TextureSet]
-  (let [builder      (TextureSetProto$TextureSet/newBuilder)
-        build-result (.build (doto builder 
-                                (.setTileCount (:tile-count textureset))
-                                (.addAllVertexStart (:vertex-start textureset))
-                                (.addAllVertexCount (:vertex-count textureset))
-                                (.setVertices (ByteString/copyFrom (:vertices textureset)))
-                                (.addAllOutlineVertexStart (:outline-vertex-start textureset))
-                                (.addAllOutlineVertexCount (:outline-vertex-count textureset))
-                                (.setOutlineVertices (ByteString/copyFrom (:outline-vertices textureset)))
-                                (.addAllAnimations (build-animations (:animations textureset)))))]
-    (write-project-file project (:textureset-filename this) (.toByteArray build-result))))
+  (write-project-file project
+                      (:textureset-filename this)
+                      (.toByteArray (map->TextureSet textureset))))
 
 (defnk compile-texturec :- s/Bool
   [this g textureset :- TextureSet]
@@ -159,24 +178,19 @@
   TextureCompiler
   TextureSetCompiler)
 
-(defn build-path [project path]
-  (str (:build-path project) path))
 
-(defn replace-extension [s ext]
-  (when s
-    (clojure.string/replace s #"\.[^\.]*$" (str "." ext))))
 
 (defn on-load
-  [project ^String filename ^AtlasProto$Atlas atlas-message]
-  (let [atlas-tx (transact (message->node atlas-message nil nil nil :filename filename))
-        atlas    {}
-        compiler (make-atlas-compiler :textureset-filename (build-path project (replace-extension filename "texturesetc"))
-                                      :texture-filename    (build-path project (replace-extension filename "texturec")))]
+  [project path ^AtlasProto$Atlas atlas-message]
+  (let [atlas-tx (transact project (message->node atlas-message nil nil nil :filename (local-path path)))
+        atlas    (first (query project [:filename (local-path path)]))
+        compiler (make-atlas-compiler :textureset-filename (in-build-directory (replace-extension path "texturesetc"))
+                                      :texture-filename    (in-build-directory (replace-extension path "texturec")))]
     (transact project
       [(new-resource compiler)
        (connect atlas :textureset compiler :textureset)])))
 
-(register-loader *current-project* ".atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
+(register-loader *current-project* "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
 
 (comment
 

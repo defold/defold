@@ -9,7 +9,7 @@
             [internal.java :as j]
             [dynamo.types :as t]
             [dynamo.node :as node :refer [defnode]]
-            [dynamo.file]
+            [dynamo.file :as file]
             [internal.cache :refer [make-cache]]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
@@ -25,6 +25,11 @@
 (defn new-cache-key [] (.getAndIncrement nextkey))
 
 (def ^:dynamic *current-project* nil)
+
+(defmacro with-current-project
+  [& forms]
+  `(binding [dynamo.project/*current-project* (internal.system/current-project)]
+     ~@forms))
 
 (defrecord UnloadableNamespace [ns-decl]
   IDisposable
@@ -61,13 +66,13 @@
             (new-resource (make-clojure-source-node :resource resource))))
 
 (defn make-project
-  [tx-report-chan]
-  {:loaders         {".clj" on-load-code}
+  [eclipse-project tx-report-chan]
+  {:loaders         {"clj" on-load-code}
    :graph           (dg/empty-graph)
    :cache-keys      {}
    :cache           (make-cache)
    :tx-report-chan  tx-report-chan
-   :build-path      "build"})
+   :eclipse-project eclipse-project})
 
 (defn dispose-project
   [project-state]
@@ -80,20 +85,15 @@
   (dosync (alter project-state assoc-in [:loaders filetype] loader)))
 
 (defn- loader-for
-  [project-state filename]
+  [project-state ext]
   (let [lfs (:loaders @project-state)]
     (or
-      (some (fn [[filetype lf]] (when (.endsWith filename filetype) lf)) lfs)
-      (fn [_ _] (throw (ex-info (str "No loader has been registered that can handle " filename) {}))))))
-
-(defn resource-at-path
-  [project-state path]
-  (when-let [eproj (:eclipse-project @project-state)]
-    (.getFile eproj path)))
+      (some (fn [[filetype lf]] (when (= filetype ext) lf)) lfs)
+      (fn [_ _ _] (throw (ex-info (str "No loader has been registered that can handle " ext) {}))))))
 
 (defn load-resource
-  [project-state ^IFile file]
-  ((loader-for project-state (.getName file)) project-state file (io/reader file)))
+  [project-state path]
+  ((loader-for project-state (file/extension path)) project-state path (io/reader path)))
 
 (defn- hit-cache [project-state cache-key value]
   (dosync (alter project-state update-in [:cache] cache/hit cache-key))
@@ -221,22 +221,6 @@
         x (f n)]
     [n x]))
 
-;(defn transact
-;  [tx]
-;  (dosync
-;    (let [tx-result (apply-tx (new-transaction-context (:graph @project-state)) tx)]
-;      (alter project-state assoc :graph (:graph tx-result))
-;      (alter project-state update-in [:cache-keys] merge (:cache-keys tx-result))
-;      (let [affected-subgraph   (dg/tclosure (:graph tx-result) (:modified-nodes tx-result))
-;            affected-cache-keys (keep identity (mapcat #(vals (get-in @project-state [:cache-keys %])) affected-subgraph))
-;            old-cache           (:cache @project-state)
-;            affected-values     (map #(get old-cache %) affected-cache-keys)]
-;        (dispose-values! (:disposal-queue @project-state) affected-values)
-;        (alter project-state update-in [:cache] evict-values! affected-cache-keys)
-;        (doseq [expired-output (pairwise :on-update (map #(dg/node (:graph tx-result) %) affected-subgraph))]
-;          (apply get-resource-value expired-output))
-;        (assoc tx-result :status :ok)))))
-
 (defn- affected-nodes
   [{:keys [graph modified-nodes] :as ctx}]
   (assoc ctx :affected-nodes (dg/tclosure graph modified-nodes)))
@@ -297,6 +281,10 @@
         (ref-set project-state (:state tx-result))
         tx-result))))
 
+(defn query
+  [project-state & clauses]
+  (map #(dg/node (:graph @project-state) %)
+       (q/query (:graph @project-state) clauses)))
 
 (doseq [[v doc]
        {#'register-loader
@@ -309,6 +297,17 @@ Loaders must be registered via register-loader before they can be used.
 
 This will invoke the loader function with the filename and a reader to supply the file contents."
 
+        #'query
+        "Query the project for resources that match all the clauses. Clauses are implicitly anded together.
+A clause may be one of the following forms:
+
+[:attribute value] - returns nodes that contain the given attribute and value.
+(protocol protocolname) - returns nodes that satisfy the given protocol
+(input fromnode)        - returns nodes that have 'fromnode' as an input
+(output tonode)         - returns nodes that have 'tonode' as an output
+
+All the list forms look for symbols in the first position. Be sure to quote the list
+to distinguish it from a function call."
         ;; TODO - much more doco.
         }]
   (alter-meta! v assoc :doc doc))

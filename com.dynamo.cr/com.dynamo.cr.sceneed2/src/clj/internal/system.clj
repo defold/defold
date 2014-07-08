@@ -2,6 +2,7 @@
   (:require [clojure.core.async :as a :refer [<! chan go-loop put! close! onto-chan chan sliding-buffer]]
             [com.stuartsierra.component :as component]
             [dynamo.project :as p]
+            [dynamo.file :as file]
             [internal.graph.dgraph :as dg]
             [eclipse.resources :refer :all])
   (:import [org.eclipse.core.resources IProject IResource IFile]))
@@ -14,6 +15,10 @@
   [^IResource resource]
   (and (instance? IFile resource)
        (.endsWith (.getName resource) ".clj")))
+
+(defn project-relative-path
+  [proj rel]
+  (.getFullPath (.getFile proj rel)))
 
 (defrecord ProjectSubsystem [project-state tx-report-queue]
   component/Lifecycle
@@ -28,9 +33,9 @@
   (open-project [this eclipse-project]
     (when project-state
       (close-project this))
-    (let [project-state (ref (assoc (p/make-project tx-report-queue) :eclipse-project eclipse-project))]
+    (let [project-state (ref (p/make-project eclipse-project tx-report-queue))]
       (doseq [source (filter clojure-source? (resource-seq eclipse-project))]
-        (p/load-resource project-state source))
+        (p/load-resource project-state (file/project-path project-state source)))
       (assoc this :project-state project-state)))
 
   (close-project [this]
@@ -146,3 +151,7 @@
 (defn attach-project
   [project]
   (swap! the-system update-in [:project] open-project project))
+
+(defn current-project
+  []
+  (get-in @the-system [:project :project-state]))

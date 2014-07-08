@@ -2,10 +2,76 @@
   "Functions to help developers load and save files"
   (:refer-clojure :exclude [load])
   (:require [clojure.java.io :as io]
-            [internal.java :as j])
+            [internal.java :as j]
+            [service.log :as log])
   (:import [java.io PipedOutputStream PipedInputStream]
            [com.google.protobuf TextFormat]
-           [org.eclipse.core.internal.resources File]))
+           [org.eclipse.core.internal.resources File]
+           [org.eclipse.core.resources IResource IFile]))
+
+(defprotocol ProjectRelative
+  (eclipse-path [this]          "Return the path relative to a project container")
+  (eclipse-file [this]          "Return the file relative to a project container"))
+
+(defprotocol PathManipulation
+  (extension         [this]         "Return the extension represented by this path")
+  (replace-extension [this new-ext] "Return a new path with the desired extension.")
+  (local-path        [this]         "Return a string representation of the path and extension")
+  (alter-path        [this f]
+                     [this f args]  "Apply the function to the path part, without altering the extension, maybe with a collection of extra args."))
+
+(defrecord ProjectPath [project path ext]
+  PathManipulation
+  (extension         [this]         ext)
+  (replace-extension [this new-ext] (ProjectPath. project path new-ext))
+  (local-path        [this]         (str path "." ext))
+  (alter-path        [this f]       (ProjectPath. project (f path) ext))
+  (alter-path        [this f args]  (ProjectPath. project (apply f path args) ext))
+
+  ProjectRelative
+  (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile project path)) ext))
+  (eclipse-file      [this] (.getFile project (local-path this)))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream (eclipse-file this) opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (eclipse-file this) opts))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+
+(defrecord NativePath [path ext]
+  PathManipulation
+  (extension         [this]         ext)
+  (replace-extension [this new-ext] (NativePath. path new-ext))
+  (local-path        [this]         (str path "." ext))
+  (alter-path        [this f]       (NativePath. (f path) ext))
+  (alter-path        [this f args]  (NativePath. (apply f path args) ext))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream (.toString this) opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (.toString this) opts))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+
+  Object
+  (toString [this] (str path "." ext)))
+
+(defn project-path
+  ([project-state]
+    (let [eproj (:eclipse-project @project-state)]
+    	(ProjectPath. eproj (.toString (.removeFirstSegments (.getFullPath eproj) 1)) nil)))
+  ([project-state resource]
+    (let [eproj (:eclipse-project @project-state)
+          file  (cond
+                  (string? resource)         (.getFile eproj resource)
+                  (instance? IFile resource) resource)
+          pr (.removeFirstSegments (.getFullPath file) 1)]
+      (ProjectPath. eproj (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
+
+(defn in-build-directory
+  [^ProjectPath p]
+  (let [relative-to-build-dir (clojure.string/replace (.path p) "content" "build/default")
+        build-dir-native      (.removeLastSegments (.getLocation (.getFile (.project p) "content/p")) 1)]
+    (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (.ext p))))
 
 (defn- new-builder
   [class]
@@ -29,13 +95,18 @@
            (.getContents x))
          :make-output-stream
          (fn [x opts]
-           (let [pipe (PipedOutputStream.)]
-             (future (.setContents x (PipedInputStream. pipe) 0 nil))
+           (let [pipe (PipedOutputStream.)
+                 sink (PipedInputStream. pipe)]
+             (future
+               (try
+                 (.create x sink IResource/FORCE nil)
+                 (catch Throwable t
+                   (log/error :exception t :message (str "Cannot write output to " x)))))
              pipe))))
 
-(defn write-project-file 
+(defn write-project-file
   [project path contents]
-  (with-open [out (clojure.java.io/writer (.getFile project path))]
+  (with-open [out (clojure.java.io/output-stream (eclipse-file path))]
     (.write out contents)))
 
 (doseq [[v doc]
@@ -44,7 +115,7 @@
 
         #'write-project-file
         "Write the given contents into the file at path, relative to a project."
-        
+
         #'protocol-buffer-loader
           "Create a new loader that knows how to read protocol buffer files in text format.
 
@@ -87,5 +158,4 @@ Given a resource name and message describing the resource,
 create (and return?) a list of nodes."
           }]
   (alter-meta! v assoc :doc doc))
-
 
