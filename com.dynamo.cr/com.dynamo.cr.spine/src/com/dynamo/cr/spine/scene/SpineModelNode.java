@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -186,9 +189,12 @@ public class SpineModelNode extends ComponentTypeNode {
     }
 
     public void setSkin(String skin) {
-        this.skin = skin;
-        updateStatus();
-        updateAABB();
+        if (!this.skin.equals(skin)) {
+            this.skin = skin;
+            updateMesh();
+            updateStatus();
+            updateAABB();
+        }
     }
 
     public Object[] getSkinOptions() {
@@ -341,11 +347,17 @@ public class SpineModelNode extends ComponentTypeNode {
         if (ts == null) {
             return;
         }
-        List<Mesh> meshes = this.scene.meshes;
+        List<Mesh> meshes = new ArrayList<Mesh>(this.scene.meshes);
         if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
-            meshes = this.scene.skins.get(this.skin);
+            meshes.addAll(this.scene.skins.get(this.skin));
         }
-        this.mesh.update(meshes, ts);
+        Collections.sort(meshes, new Comparator<Mesh>() {
+            @Override
+            public int compare(Mesh o1, Mesh o2) {
+                return o1.slot.index - o2.slot.index;
+            }
+        });
+        this.mesh.update(meshes);
     }
 
     private static class TransformProvider implements UVTransformProvider {

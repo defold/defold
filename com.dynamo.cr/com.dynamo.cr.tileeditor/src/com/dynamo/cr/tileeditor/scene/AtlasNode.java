@@ -104,7 +104,7 @@ public class AtlasNode extends TextureSetNode {
                 List<String> ids = new ArrayList<String>(children.size());
                 for (Node n2 : children) {
                     AtlasImageNode imageNode = (AtlasImageNode) n2;
-                    ids.add(imageNode.getId());
+                    ids.add(imageNode.getImage());
                 }
                 animations.add(new AtlasUtil.MappedAnimDesc(animNode.getId(), ids, animNode.getPlayback(), animNode
                         .getFps(), animNode.isFlipHorizontally(), animNode.isFlipVertically()));
@@ -119,7 +119,7 @@ public class AtlasNode extends TextureSetNode {
                     }
                 }
                 if (!found) {
-                    List<String> ids = Collections.singletonList(id);
+                    List<String> ids = Collections.singletonList(imageNode.getImage());
                     animations.add(new AtlasUtil.MappedAnimDesc(id, ids, Playback.PLAYBACK_NONE, 30, false, false));
                 }
             }
@@ -151,7 +151,7 @@ public class AtlasNode extends TextureSetNode {
             }
 
             if (ok) {
-                MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
+                MappedAnimIterator iterator = new MappedAnimIterator(animations, imageNames);
                 TextureSetResult result = TextureSetGenerator.generate(images, iterator,
  Math.max(0, margin),
                         Math.max(0, extrudeBorders), true);

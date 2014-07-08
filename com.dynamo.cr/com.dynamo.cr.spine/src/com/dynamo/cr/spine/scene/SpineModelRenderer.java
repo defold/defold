@@ -110,13 +110,13 @@ public class SpineModelRenderer implements INodeRenderer<SpineModelNode> {
 
             switch (node.getBlendMode()) {
             case BLEND_MODE_ALPHA:
-                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+                gl.glBlendFunc(GL.GL_ONE, GL.GL_ONE_MINUS_SRC_ALPHA);
                 break;
             case BLEND_MODE_ADD:
-                gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE);
+                gl.glBlendFunc(GL.GL_ONE, GL.GL_ONE);
                 break;
             case BLEND_MODE_MULT:
-                gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
+                gl.glBlendFunc(GL.GL_DST_COLOR, GL.GL_ONE_MINUS_SRC_ALPHA);
                 break;
             }
         }

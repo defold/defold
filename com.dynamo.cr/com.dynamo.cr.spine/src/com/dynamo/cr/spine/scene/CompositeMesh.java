@@ -14,7 +14,6 @@ import com.dynamo.cr.sceneed.ui.util.Shader;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.cr.sceneed.ui.util.VertexFormat;
 import com.dynamo.cr.sceneed.ui.util.VertexFormat.AttributeFormat;
-import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 
 public class CompositeMesh {
 
@@ -32,7 +31,7 @@ public class CompositeMesh {
         this.ibo.dispose(gl);
     }
 
-    public void update(List<Mesh> meshes, RuntimeTextureSet textureSet) {
+    public void update(List<Mesh> meshes) {
         int vertexCount = 0;
         int indexCount = 0;
         for (Mesh mesh : meshes) {
