@@ -104,9 +104,14 @@
                    (log/error :exception t :message (str "Cannot write output to " x)))))
              pipe))))
 
+(defn write-native-file
+  [^NativePath path contents]
+  (with-open [out (io/output-stream (local-path path))]
+    (.write out contents)))
+
 (defn write-project-file
   [project path contents]
-  (with-open [out (clojure.java.io/output-stream (eclipse-file path))]
+  (with-open [out (io/output-stream (eclipse-file path))]
     (.write out contents)))
 
 (doseq [[v doc]

@@ -38,15 +38,16 @@
 (defnk load-project-file
   [project this g]
   (let [source  (:resource this)
-        ns-decl (read-file-ns-decl source)]
+        ns-decl (read-file-ns-decl source)
+        source-file (file/eclipse-file source)]
     (binding [*current-project* project]
-      (markers/remove-markers source)
+      (markers/remove-markers source-file)
       (try
         (do
-          (Compiler/load (io/reader source) (.toString (.getFullPath source)) (.getName source))
+          (Compiler/load (io/reader source) (file/local-path source) (.getName source-file))
           (UnloadableNamespace. ns-decl))
         (catch clojure.lang.Compiler$CompilerException compile-error
-          (markers/compile-error source (.getMessage (.getCause compile-error)) (.line compile-error))
+          (markers/compile-error source-file (.getMessage (.getCause compile-error)) (.line compile-error))
           {:compile-error (.getMessage (.getCause compile-error))})))))
 
 (def ClojureSourceFile
@@ -240,6 +241,7 @@
 
 (defn- determine-autoupdates
   [{:keys [graph affected-nodes] :as ctx}]
+(prn "affected-nodes: " affected-nodes)
   (assoc ctx :expired-outputs (pairwise :on-update (map #(dg/node graph %) affected-nodes))))
 
 (defn- recompute-autoupdates

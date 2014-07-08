@@ -82,13 +82,14 @@
    :tile-count 99})
 
 (def AtlasProperties
-  {:inputs {:assets     [OutlineItem]
-            :images     [TextureImage]
-            :animations [Animation]}
+  {:inputs     {:assets     [OutlineItem]
+                :images     [TextureImage]
+                :animations [Animation]}
    :properties {:margin (non-negative-integer)
                 :extrude-borders (non-negative-integer)
                 :filename (string)}
-   :transforms {:textureset #'produce-textureset}})
+   :transforms {:textureset #'produce-textureset}
+   :cached     #{:textureset}})
 
 (defnode AtlasNode
   OutlineNode
@@ -154,9 +155,7 @@
 
 (defnk compile-texturesetc :- s/Bool
   [this g project textureset :- TextureSet]
-  (write-project-file project
-                      (:textureset-filename this)
-                      (.toByteArray (map->TextureSet textureset))))
+  (write-native-file (:textureset-filename this) (.toByteArray (map->TextureSet textureset))))
 
 (defnk compile-texturec :- s/Bool
   [this g textureset :- TextureSet]
@@ -182,13 +181,13 @@
 
 (defn on-load
   [project path ^AtlasProto$Atlas atlas-message]
-  (let [atlas-tx (transact project (message->node atlas-message nil nil nil :filename (local-path path)))
-        atlas    (first (query project [:filename (local-path path)]))
+  (let [atlas-tx (message->node atlas-message nil nil nil :filename (local-path path) :_id -1)
         compiler (make-atlas-compiler :textureset-filename (in-build-directory (replace-extension path "texturesetc"))
                                       :texture-filename    (in-build-directory (replace-extension path "texturec")))]
     (transact project
-      [(new-resource compiler)
-       (connect atlas :textureset compiler :textureset)])))
+      [atlas-tx
+       (new-resource compiler)
+       (connect {:_id -1} :textureset compiler :textureset)])))
 
 (register-loader *current-project* "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
 

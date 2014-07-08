@@ -1,4 +1,5 @@
 (require '[dynamo.project :as p])
+(require '[dynamo.file :as f])
 (require '[internal.graph.dgraph :as dg])
 
 (defn macro-pretty-print
@@ -13,3 +14,12 @@
 (defn node-in-project
   [id]
   (p/with-current-project (dg/node (:graph @p/*current-project*) id)))
+
+(defn load-resource-in-project
+  [res]
+  (p/with-current-project (p/load-resource p/*current-project* (f/project-path p/*current-project* res))))
+
+(defn get-value-in-project
+  [id label]
+  (p/with-current-project
+    (p/get-resource-value p/*current-project* (node-in-project id) label)))
