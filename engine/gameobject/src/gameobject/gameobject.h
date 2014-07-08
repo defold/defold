@@ -95,6 +95,7 @@ namespace dmGameObject
         PROPERTY_RESULT_COMP_NOT_FOUND = -5,
         PROPERTY_RESULT_INVALID_INSTANCE = -6,
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
+        PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
     };
 
     /**

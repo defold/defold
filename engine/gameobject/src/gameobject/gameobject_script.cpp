@@ -415,6 +415,8 @@ namespace dmGameObject
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+        case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
+            return luaL_error(L, "go.set failed because the value is unsupported");
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.set failed with error code %d", result);

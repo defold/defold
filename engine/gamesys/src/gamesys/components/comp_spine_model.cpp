@@ -1162,7 +1162,7 @@ namespace dmGameSystem
             if (mesh == 0x0)
             {
                 dmLogError("Could not find skin '%s' in the mesh set.", (const char*)dmHashReverse64(skin, 0x0));
-                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             }
             component->m_Mesh = mesh;
             component->m_Skin = params.m_Value.m_Hash;
