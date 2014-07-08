@@ -325,21 +325,31 @@ public class SpineSceneTest {
 
     @Test
     public void testEmptyScene() throws Exception {
-        InputStream input = getClass().getResourceAsStream("empty.json");
-        SpineScene scene = SpineScene.loadJson(input, new TestUVTProvider());
-        assertEquals(1, scene.bones.size());
-        assertEquals(0, scene.meshes.size());
-        assertEquals(0, scene.animations.size());
+        InputStream input = null;
+        try {
+            input = getClass().getResourceAsStream("empty.json");
+            SpineScene scene = SpineScene.loadJson(input, new TestUVTProvider());
+            assertEquals(1, scene.bones.size());
+            assertEquals(0, scene.meshes.size());
+            assertEquals(0, scene.animations.size());
+        } finally {
+            IOUtils.closeQuietly(input);
+        }
     }
 
     @Test
     public void testSampleScenes() throws Exception {
         for (int i = 1; i < 9; ++i) {
-            InputStream input = getClass().getResourceAsStream(String.format("sample%d.json", i));
-            SpineScene scene = SpineScene.loadJson(input, new TestUVTProvider());
-            assertTrue(0 < scene.bones.size());
-            assertTrue(0 < scene.meshes.size());
-            assertTrue(0 < scene.animations.size());
+            InputStream input = null;
+            try {
+                input = getClass().getResourceAsStream(String.format("sample%d.json", i));
+                SpineScene scene = SpineScene.loadJson(input, new TestUVTProvider());
+                assertTrue(0 < scene.bones.size());
+                assertTrue(0 < scene.meshes.size());
+                assertTrue(0 < scene.animations.size());
+            } finally {
+                IOUtils.closeQuietly(input);
+            }
         }
     }
 }
