@@ -183,7 +183,7 @@ namespace dmGameSystem
         uintptr_t user_data;
         dmMessage::URL receiver;
         // TODO make lookup type safe, described in DEF-407
-        dmGameObject::GetInstanceFromLua(L, 1, &user_data, &receiver);
+        dmGameObject::GetInstanceFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver);
         SpineModelComponent* component = (SpineModelComponent*) user_data;
 
         dmhash_t bone_id;

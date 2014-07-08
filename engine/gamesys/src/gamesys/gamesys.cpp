@@ -1,5 +1,7 @@
 #include "gamesys.h"
 
+#include "gamesys_private.h"
+
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -103,9 +105,9 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("renderc", render_context, ResRenderPrototypeCreate, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpriteCreate, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetCreate, ResTextureSetDestroy, ResTextureSetRecreate);
-        REGISTER_RESOURCE_TYPE("tilegridc", physics_context, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
+        REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridCreate, ResTileGridDestroy, ResTileGridRecreate);
         REGISTER_RESOURCE_TYPE("spinescenec", 0, ResSpineSceneCreate, ResSpineSceneDestroy, ResSpineSceneRecreate);
-        REGISTER_RESOURCE_TYPE("spinemodelc", 0, ResSpineModelCreate, ResSpineModelDestroy, ResSpineModelRecreate);
+        REGISTER_RESOURCE_TYPE(SPINE_MODEL_EXT, 0, ResSpineModelCreate, ResSpineModelDestroy, ResSpineModelRecreate);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -221,12 +223,12 @@ namespace dmGameSystem
                 CompSpriteCreate, CompSpriteDestroy, 0, 0,
                 CompSpriteUpdate, 0, CompSpriteOnMessage, 0, CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty);
 
-        REGISTER_COMPONENT_TYPE("tilegridc", 1200, render_context,
+        REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, render_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
                 CompTileGridCreate, CompTileGridDestroy, 0, 0,
                 CompTileGridUpdate, 0, CompTileGridOnMessage, 0, CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty);
 
-        REGISTER_COMPONENT_TYPE("spinemodelc", 1300, spine_model_context,
+        REGISTER_COMPONENT_TYPE(SPINE_MODEL_EXT, 1300, spine_model_context,
                 CompSpineModelNewWorld, CompSpineModelDeleteWorld,
                 CompSpineModelCreate, CompSpineModelDestroy, 0, 0,
                 CompSpineModelUpdate, 0, CompSpineModelOnMessage, 0, CompSpineModelOnReload, CompSpineModelGetProperty, CompSpineModelSetProperty);
