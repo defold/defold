@@ -5,7 +5,7 @@
 #include <math.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#define THIRD 0.333333333333333f
+#define DM_THIRD 0.333333333333333f
 
 namespace dmTransform
 {
@@ -177,6 +177,8 @@ namespace dmTransform
      * The scale is non-rotated to avoid shearing in the transform.
      * Two transforms are applied as:
      * T1(T2(p)) = t1(r1(t2(r2(s1(s2(p)))))) = p'
+     * This means that the transform is not associative:
+     * T1(T2(p)) != (T1*T2)(P)
      */
     class Transform
     {
@@ -242,7 +244,7 @@ namespace dmTransform
 
         inline float GetUniformScale() const
         {
-            return sum(m_Scale) * THIRD;
+            return sum(m_Scale) * DM_THIRD;
         }
 
         inline void SetUniformScale(float scale)
@@ -373,6 +375,6 @@ namespace dmTransform
     }
 }
 
-#undef THIRD
+#undef DM_THIRD
 
 #endif // DM_TRANSFORM_H
