@@ -519,15 +519,6 @@ instructions.configure=\
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        with open('engine/engine/src/engine_version.h', 'a+') as f:
-            f.seek(0)
-            engine_version = f.read()
-
-            engine_version = re.sub('const char\* VERSION = "[0-9\.]+";', 'const char* VERSION = "%s";' % new_version, engine_version)
-            engine_version = re.sub('const char\* VERSION_SHA1 = ".*?";', 'const char* VERSION_SHA1 = "%s";' % sha1, engine_version)
-            f.truncate(0)
-            f.write(engine_version)
-
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
 
@@ -538,19 +529,20 @@ instructions.configure=\
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-        prefix = self._get_s3_archive_prefix()
-        lst = bucket.list(prefix = prefix)
-        files = {}
-        for x in lst:
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                p = os.path.relpath(x.name, prefix)
-                sha1 = p.split('/')[0]
-                lst = files.get(sha1, [])
-                name = p.split('/', 1)[1]
-                lst.append({'name': name, 'path': x.name})
-                files[sha1] = lst
+
+        def get_files(sha1):
+            root = urlparse.urlparse(self.archive_path).path[1:]
+            base_prefix = os.path.join(root, sha1)
+            prefix = os.path.join(base_prefix, 'engine')
+            files = []
+            for x in bucket.list(prefix = prefix):
+                if x.name[-1] != '/':
+                    # Skip directory "keys". When creating empty directories
+                    # a psudeo-key is created. Directories isn't a first-class object on s3
+                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                        name = os.path.relpath(x.name, base_prefix)
+                        files.append({'name': name, 'path': '/' + x.name})
+            return files
 
         tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
         tags.reverse()
@@ -563,11 +555,14 @@ instructions.configure=\
             sha1, tag = m.groups()
             epoch = self.exec_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
-            releases.append({'tag': tag,
-                             'sha1': sha1,
-                             'abbrevsha1': sha1[:7],
-                             'date': str(date),
-                             'files': files.get(sha1, [])})
+            files = get_files(sha1)
+            if len(files) > 0:
+                releases.append({'tag': tag,
+                                 'sha1': sha1,
+                                 'abbrevsha1': sha1[:7],
+                                 'date': str(date),
+                                 'files': files})
+
         return releases
 
 
@@ -625,18 +620,31 @@ instructions.configure=\
             {{/has_releases}}
 
             {{#releases}}
-                <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
-
-                <table class="table table-striped">
-                    <tbody>
-                        {{#files}}
-                        <tr><td><a href="{{path}}">{{name}}</a></td></tr>
-                        {{/files}}
-                        {{^files}}
-                        <i>No files</i>
-                        {{/files}}
-                    </tbody>
-                </table>
+                <div class="panel-group" id="accordion">
+                  <div class="panel panel-default">
+                    <div class="panel-heading">
+                      <h4 class="panel-title">
+                        <a data-toggle="collapse" data-parent="#accordion" href="#{{sha1}}">
+                          <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
+                        </a>
+                      </h4>
+                    </div>
+                    <div id="{{sha1}}" class="panel-collapse collapse ">
+                      <div class="panel-body">
+                        <table class="table table-striped">
+                          <tbody>
+                            {{#files}}
+                            <tr><td><a href="{{path}}">{{name}}</a></td></tr>
+                            {{/files}}
+                            {{^files}}
+                            <i>No files</i>
+                            {{/files}}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
             {{/releases}}
         </script>
 
@@ -644,7 +652,6 @@ instructions.configure=\
             var model = %(model)s
             var output = Mustache.render($('#templ-releases').html(), model);
             $("#releases").html(output);
-            console.log(output);
         </script>
       </body>
 </html>
