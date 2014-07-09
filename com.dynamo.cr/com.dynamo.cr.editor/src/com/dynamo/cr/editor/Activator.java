@@ -57,6 +57,8 @@ import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import clojure.osgi.ClojureHelper;
+
 import com.dynamo.cr.builtins.Builtins;
 import com.dynamo.cr.client.BranchStatusChangedEvent;
 import com.dynamo.cr.client.ClientFactory;
@@ -86,7 +88,7 @@ import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 
 public class Activator extends AbstractDefoldPlugin implements IPropertyChangeListener, IResourceChangeListener,
-        IBranchListener {
+IBranchListener {
 
     // The plug-in ID
     public static final String PLUGIN_ID = "com.dynamo.cr.editor"; //$NON-NLS-1$
@@ -549,6 +551,28 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
             branchService.updateBranchStatus(null);
+        }
+
+        try {
+            service.runInUI(service, new IRunnableWithProgress() {
+                @Override
+                public void run(IProgressMonitor monitor) throws InvocationTargetException,
+                InterruptedException {
+                    monitor.beginTask("Loading editor tools", 3);
+                    try {
+                        ClojureHelper.require("internal.system");
+                        monitor.worked(1);
+                        ClojureHelper.invoke("internal.system", "start");
+                        monitor.worked(2);
+                        ClojureHelper.invoke("internal.system", "attach-project", p);
+                        monitor.done();
+                    } catch(Exception e) {
+                        showError("Unable to start editor tools", e);
+                    }
+                }
+            }, null);
+        } catch (Throwable e2) {
+            showError("Error occured when creating project", e2);
         }
     }
 

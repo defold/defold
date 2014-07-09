@@ -5,6 +5,7 @@
                  [org.clojure/core.typed "0.2.42"]
                  [org.clojure/core.cache "0.6.3"]
                  [org.clojure/core.async "0.1.303.0-886421-alpha"]
+                 [com.stuartsierra/component "0.2.1"]
                  [prismatic/schema "0.2.3"]
                  [prismatic/plumbing "0.3.1"]
                  [org.clojure/tools.nrepl "0.2.3"]

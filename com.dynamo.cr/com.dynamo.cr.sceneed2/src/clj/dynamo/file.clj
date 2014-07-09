@@ -2,55 +2,124 @@
   "Functions to help developers load and save files"
   (:refer-clojure :exclude [load])
   (:require [clojure.java.io :as io]
-            [internal.java :as j])
-  (:import [com.google.protobuf TextFormat]))
+            [internal.java :as j]
+            [service.log :as log])
+  (:import [java.io PipedOutputStream PipedInputStream]
+           [com.google.protobuf TextFormat]
+           [org.eclipse.core.internal.resources File]
+           [org.eclipse.core.resources IResource IFile]))
+
+(defprotocol ProjectRelative
+  (eclipse-path [this]          "Return the path relative to a project container")
+  (eclipse-file [this]          "Return the file relative to a project container"))
+
+(defprotocol PathManipulation
+  (extension         [this]         "Return the extension represented by this path")
+  (replace-extension [this new-ext] "Return a new path with the desired extension.")
+  (local-path        [this]         "Return a string representation of the path and extension")
+  (alter-path        [this f]
+                     [this f args]  "Apply the function to the path part, without altering the extension, maybe with a collection of extra args."))
+
+(defrecord ProjectPath [project path ext]
+  PathManipulation
+  (extension         [this]         ext)
+  (replace-extension [this new-ext] (ProjectPath. project path new-ext))
+  (local-path        [this]         (str path "." ext))
+  (alter-path        [this f]       (ProjectPath. project (f path) ext))
+  (alter-path        [this f args]  (ProjectPath. project (apply f path args) ext))
+
+  ProjectRelative
+  (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile project path)) ext))
+  (eclipse-file      [this] (.getFile project (local-path this)))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream (eclipse-file this) opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (eclipse-file this) opts))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+
+(defrecord NativePath [path ext]
+  PathManipulation
+  (extension         [this]         ext)
+  (replace-extension [this new-ext] (NativePath. path new-ext))
+  (local-path        [this]         (str path "." ext))
+  (alter-path        [this f]       (NativePath. (f path) ext))
+  (alter-path        [this f args]  (NativePath. (apply f path args) ext))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream (.toString this) opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (.toString this) opts))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+
+  Object
+  (toString [this] (str path "." ext)))
+
+(defn project-path
+  ([project-state]
+    (let [eproj (:eclipse-project @project-state)]
+    	(ProjectPath. eproj (.toString (.removeFirstSegments (.getFullPath eproj) 1)) nil)))
+  ([project-state resource]
+    (let [eproj (:eclipse-project @project-state)
+          file  (cond
+                  (string? resource)         (.getFile eproj resource)
+                  (instance? IFile resource) resource)
+          pr (.removeFirstSegments (.getFullPath file) 1)]
+      (ProjectPath. eproj (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
+
+(defn in-build-directory
+  [^ProjectPath p]
+  (let [relative-to-build-dir (clojure.string/replace (.path p) "content" "build/default")
+        build-dir-native      (.removeLastSegments (.getLocation (.getFile (.project p) "content/p")) 1)]
+    (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (.ext p))))
 
 (defn- new-builder
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
-(defonce ^:private loaders (atom {}))
-
-(defn register-loader
-  [filetype loader]
-  (swap! loaders assoc filetype loader))
-
-(defn loader-for
-  [filename]
-  (let [lfs @loaders]
-    (or
-      (some (fn [[filetype lf]] (when (.endsWith filename filetype) lf)) lfs)
-      (fn [_ _] (throw (ex-info (str "No loader has been registered that can handle " filename) {}))))))
-
 (defn protocol-buffer-loader
   [^java.lang.Class class f]
-  (fn [nm input-reader]
+  (fn [project-state nm input-reader]
     (let [builder (new-builder class)]
       (TextFormat/merge input-reader builder)
-      (f nm (.build builder)))))
+      (f project-state nm (.build builder)))))
 
 (defmulti message->node
-  (fn [message container container-target desired-output] (class message)))
+  (fn [message & _] (class message)))
 
-(defn load
+(extend File
+  io/IOFactory
+  (assoc io/default-streams-impl
+         :make-input-stream
+         (fn [x opts]
+           (.getContents x))
+         :make-output-stream
+         (fn [x opts]
+           (let [pipe (PipedOutputStream.)
+                 sink (PipedInputStream. pipe)]
+             (future
+               (try
+                 (.create x sink IResource/FORCE nil)
+                 (catch Throwable t
+                   (log/error :exception t :message (str "Cannot write output to " x)))))
+             pipe))))
 
-  [filename]
-  ((loader-for filename) filename (io/reader filename)))
+(defn write-native-file
+  [^NativePath path contents]
+  (with-open [out (io/output-stream (local-path path))]
+    (.write out contents)))
 
+(defn write-project-file
+  [project path contents]
+  (with-open [out (io/output-stream (eclipse-file path))]
+    (.write out contents)))
 
 (doseq [[v doc]
        {#'new-builder
         "Dynamically construct a protocol buffer builder, given a class as a variable."
 
-        #'register-loader
-        "Associate a filetype (extension) with a loader function. The given loader will be
-used any time a file with that type is opened."
-
-        #'loader-for
-        "Locate a loading function that knows how to work on the given file.
-
-If no suitable function has been registered, this returns a function
-that throws an exception."
+        #'write-project-file
+        "Write the given contents into the file at path, relative to a project."
 
         #'protocol-buffer-loader
           "Create a new loader that knows how to read protocol buffer files in text format.
@@ -63,7 +132,6 @@ For example, the inner class called AtlasProto.Atlas in Java becomes AtlasProto$
 f is a function to call with the deserialised protocol buffer message. f must take two arguments, the
 resource name and the immutable protocol buffer itself."
 
-
         #'message->node
           "This is an extensible function that you implement to help load a specific file
 type. Most of the time, these will be created for you by the
@@ -72,7 +140,7 @@ dynamo.file.protobuf/protocol-buffer-converter macro.
 Create an implementation by adding something like this to your namespace:
 
 (defmethod message->node _message-classname_
-  [_message-instance_ container container-target desired-output]
+  [_message-instance_ container container-target desired-output & {:as overrides}]
   (,,,) ;; implementation
 )
 
@@ -84,15 +152,15 @@ If the message instance contains other messages (as in the case of protocol buff
 for example) then you should call message->node recursively with the same resource-name
 and the child message.
 
+When container is set, it means this node should be connected to the container. In that case,
+container-target is the label to connect _to_ and desired-output is the label to connect
+from. It is an error for a container to ask for a desired-output that doesn't exist on the
+node being created by this function.
+
+Overrides is a map of additional properties to set on the new node.
+
 Given a resource name and message describing the resource,
 create (and return?) a list of nodes."
-
-          #'load
-        "Load a file. This looks up a suitable loader based on the filename. Loaders must be
-registered via register-loader before they can be used.
-
-This will invoke the loader function with the filename and a reader to supply the file contents."
-        }]
+          }]
   (alter-meta! v assoc :doc doc))
-
 

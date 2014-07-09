@@ -20,10 +20,13 @@
   (value [this g output default] "Produce the value for the named output. Supplies nil if the output cannot be produced.")
   (properties [this] "Produce a description of properties supported by this node."))
 
+(defn is-schema? [vals] (some :schema (map meta vals)))
+
 (defn deep-merge
   "Recursively merges maps. If keys are not maps, the last value wins."
   [& vals]
   (cond
+    (is-schema? vals)         (last vals)
     (every? map? vals)        (apply merge-with deep-merge vals)
     (every? set? vals)        (apply union vals)
     (every? sequential? vals) (apply concat vals)
