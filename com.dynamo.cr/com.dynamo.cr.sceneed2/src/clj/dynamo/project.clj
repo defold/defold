@@ -241,7 +241,6 @@
 
 (defn- determine-autoupdates
   [{:keys [graph affected-nodes] :as ctx}]
-(prn "affected-nodes: " affected-nodes)
   (assoc ctx :expired-outputs (pairwise :on-update (map #(dg/node graph %) affected-nodes))))
 
 (defn- recompute-autoupdates
