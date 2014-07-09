@@ -1,4 +1,5 @@
 (ns dynamo.project
+  "Functions for performing transactional changes to a project and inspecting its current state."
   (:require [clojure.java.io :as io]
             [clojure.core.async :as a :refer [put! onto-chan]]
             [clojure.core.cache :as cache]
@@ -27,6 +28,7 @@
 (def ^:dynamic *current-project* nil)
 
 (defmacro with-current-project
+  "Gives forms wrapped `with-current-project` access to *current-project*, a ref containing the current project state."
   [& forms]
   `(binding [dynamo.project/*current-project* (internal.system/current-project)]
      ~@forms))
@@ -116,6 +118,9 @@
     (produce-value project-state resource label)))
 
 (defn new-resource
+  "*transaction step* - creates a resource in the project. Expects a map of properties, including transformations. May include an `:_id` key containing a
+tempid if the resource will be referenced again in the same transaction. If included, _input_ and _output_ are sets of input and output labels, respectively.
+If not included, the `:input` and `:output` keys in the property may will be assigned as the resource's inputs and outputs."
   ([resource]
     (new-resource resource (set (keys (:inputs resource))) (set (keys (:transforms resource)))))
   ([resource inputs outputs]
@@ -189,7 +194,7 @@
            :graph          (lg/disconnect graph src (:source-label m) tgt (:target-label m))
            :modified-nodes (conj modified-nodes tgt))))
 
-(defn apply-tx
+(defn- apply-tx
   [ctx actions]
   (reduce
     (fn [ctx action]
@@ -263,7 +268,7 @@
         (assoc tx-result :project-state project-state))
   tx-result)
 
-(defn transact*
+(defn- transact*
   [current-state tx]
   (-> current-state
     new-transaction-context
@@ -289,11 +294,47 @@
        (q/query (:graph @project-state) clauses)))
 
 (doseq [[v doc]
-       {#'register-loader
+       {#'*current-project*
+        "When used within a [[with-current-project]], contains a ref of the current project. Otherwise nil."
+        #'ClojureSourceFile
+        "Behavior included in `ClojureSourceNode`."
+
+        #'perform
+        "A multimethod used for defining methods that perform the individual actions within a
+transaction. Expects to receive transaction context (ctx) and a map (m) containing a value for keyword `:type`, and other keys and
+values appropriate to the transformation it represents. An example, handling the `:update-node` type:
+
+    (defmethod perform :update-node
+      [{:keys [graph modified-nodes] :as ctx} m]
+      (let [n (resolve-tempid ctx (:node-id m))]
+        (assoc ctx
+               :graph          (apply dg/transform-node graph n (:fn m) (:args m))
+               :modified-nodes (conj modified-nodes n))))
+
+In this case, the map passed to perform would look like `{:type :update-node :id tempid :fn update-fn :args update-fn-args}` All calls
+to `perform` return a new (updated) transaction context.
+
+Calls to perform are typically executed by [[transact]]. The data required for `perform` calls are typically constructed in action functions,
+such as [[update-resource]]."
+
+        #'connect
+        "*transaction step* - Creates a transaction step connecting a source label and resource id (`from-resource from-label`) and a target label resource id
+(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Ids passed to `connect` may be tempids."
+
+        #'disconnect
+        "*transaction step* - The reverse of [[connect]]. Creates a transaction step disconnecting a source label and resource id
+(`from-resource from-label`) from a target label resource id
+(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Ids passed to `disconnect` may be tempids."
+
+        #'update-resource
+        "*transaction step* - Expects a map containing `:node-id` key as resource and function f (with optional args) to be performed on the
+resource indicated by the node id. The node id may be a tempid."
+
+        #'register-loader
         "Associate a filetype (extension) with a loader function. The given loader will be
 used any time a file with that type is opened."
 
-          #'load-resource
+        #'load-resource
         "Load a resource, usually from file. This looks up a suitable loader based on the filename.
 Loaders must be registered via register-loader before they can be used.
 
