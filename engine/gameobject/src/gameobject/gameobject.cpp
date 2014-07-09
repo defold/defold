@@ -2018,10 +2018,16 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
+            out_value.m_ValuePtr = 0x0;
+            // Scale used to be a uniform scalar, but is now a non-uniform 3-component scale
+            // We need to still treat it as a uniform scale for backwards compatibility
+            if (property_id == PROP_SCALE)
+            {
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetUniformScale());
+                return PROPERTY_RESULT_OK;
+            }
             float* position = instance->m_Transform.GetPositionPtr();
             float* rotation = instance->m_Transform.GetRotationPtr();
-            float* scale = instance->m_Transform.GetScalePtr();
-            out_value.m_ValuePtr = 0x0;
             if (property_id == PROP_POSITION)
             {
                 out_value.m_ValuePtr = position;
@@ -2043,11 +2049,6 @@ namespace dmGameObject
             else if (property_id == PROP_POSITION_Z)
             {
                 out_value.m_ValuePtr = position + 2;
-                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
-            }
-            else if (property_id == PROP_SCALE)
-            {
-                out_value.m_ValuePtr = scale;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION)
