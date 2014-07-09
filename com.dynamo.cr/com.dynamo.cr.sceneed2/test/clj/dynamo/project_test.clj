@@ -16,7 +16,7 @@
 
 (defn with-clean-project
   [f]
-  (binding [*test-project* (ref (p/make-project (->bitbucket)))]
+  (binding [*test-project* (ref (p/make-project nil (->bitbucket)))]
     (f)))
 
 (use-fixtures :each with-clean-project)
