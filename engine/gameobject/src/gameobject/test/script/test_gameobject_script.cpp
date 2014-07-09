@@ -101,7 +101,7 @@ TEST_F(ScriptTest, TestScript01)
     global_data.m_VecValue.setY(2.0f);
     global_data.m_VecValue.setZ(3.0f);
 
-    dmGameObject::Init(m_Collection);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
