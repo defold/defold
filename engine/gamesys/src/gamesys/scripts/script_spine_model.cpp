@@ -36,6 +36,7 @@ namespace dmGameSystem
      *   <li><code>go.PLAYBACK_LOOP_BACKWARD</code></li>
      *   <li><code>go.PLAYBACK_LOOP_PINGPONG</code></li>
      * </ul>
+     * @param blend_duration duration of a linear blend between the current and new animations
      * @param [complete_function] function to call when the animation has completed (function)
      * @examples
      * <p>
@@ -47,8 +48,9 @@ namespace dmGameSystem
      * <pre>
      * function init(self)
      *     local url = msg.url("#spinemodel")
-     *     spine.play(url, "jump", go.PLAYBACK_ONCE_FORWARD, function (self)
-     *         spine.play(url, "run", go.PLAYBACK_LOOP_FORWARD)
+     *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
+     *     spine.play(url, "jump", go.PLAYBACK_ONCE_FORWARD, 0.1, function (self)
+     *         spine.play(url, "run", go.PLAYBACK_LOOP_FORWARD, 0.2)
      *     end)
      * end
      * </pre>
