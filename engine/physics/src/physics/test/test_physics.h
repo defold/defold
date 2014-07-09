@@ -19,7 +19,7 @@ struct VisualObject
     uint16_t                m_FirstCollisionGroup;
 };
 
-void GetWorldTransform(void* visual_object, dmTransform::TransformS1& world_transform);
+void GetWorldTransform(void* visual_object, dmTransform::Transform& world_transform);
 void SetWorldTransform(void* visual_object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation);
 bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data);
 bool ContactPointCallback(const dmPhysics::ContactPoint& contact_point, void* user_data);

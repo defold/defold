@@ -83,6 +83,8 @@ namespace dmGameObject
             m_Depth = 0;
             m_Initialized = 0;
             m_ScaleAlongZ = 0;
+            m_NoInheritScale = 0;
+            m_Bone = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
             m_LevelIndex = INVALID_INSTANCE_INDEX;
@@ -95,7 +97,7 @@ namespace dmGameObject
         {
         }
 
-        dmTransform::TransformS1 m_Transform;
+        dmTransform::Transform m_Transform;
         // Shadowed rotation expressed in euler coordinates
         Vector3 m_EulerRotation;
         // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
@@ -111,13 +113,17 @@ namespace dmGameObject
         HashState64     m_CollectionPathHashState;
 
         // Hierarchical depth
-        uint16_t        m_Depth : 4;
+        uint16_t        m_Depth : 8;
         // If the instance was initialized or not (Init())
         uint16_t        m_Initialized : 1;
         // If this game object should have the Z component of the position affected by scale
         uint16_t        m_ScaleAlongZ : 1;
+        // If this game object should keep its local scale, i.e. avoid inheriting the parent's scale
+        uint16_t        m_NoInheritScale : 1;
+        // If this game object is part of a skeleton
+        uint16_t        m_Bone : 1;
         // Padding
-        uint16_t        m_Pad : 10;
+        uint16_t        m_Pad : 4;
 
         // Index to parent
         uint16_t        m_Parent : 16;
@@ -164,9 +170,9 @@ namespace dmGameObject
     };
 
     // Max hierarchical depth
-    // 4 is interpreted as up to four levels of child nodes including root-nodes
+    // depth is interpreted as up to <depth> levels of child nodes including root-nodes
     // Must be greater than zero
-    const uint32_t MAX_HIERARCHICAL_DEPTH = 4;
+    const uint32_t MAX_HIERARCHICAL_DEPTH = 128;
     struct Collection
     {
         Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
@@ -177,8 +183,6 @@ namespace dmGameObject
             m_Instances.SetCapacity(max_instances);
             m_Instances.SetSize(max_instances);
             m_InstanceIndices.SetCapacity(max_instances);
-            m_LevelIndices.SetCapacity(max_instances * MAX_HIERARCHICAL_DEPTH);
-            m_LevelIndices.SetSize(max_instances * MAX_HIERARCHICAL_DEPTH);
             m_WorldTransforms.SetCapacity(max_instances);
             m_WorldTransforms.SetSize(max_instances);
             m_InstancesToDelete.SetCapacity(max_instances);
@@ -193,14 +197,9 @@ namespace dmGameObject
             m_ToBeDeleted = 0;
             m_ScaleAlongZ = 0;
 
-            for (uint32_t i = 0; i < m_LevelIndices.Size(); ++i)
-            {
-                m_LevelIndices[i] = INVALID_INSTANCE_INDEX;
-            }
-
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
-            memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::TransformS1) * max_instances);
-            memset(&m_LevelInstanceCount[0], 0, sizeof(m_LevelInstanceCount));
+            memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
+            memset(&m_LevelIndices[0], 0, sizeof(m_LevelIndices));
             memset(&m_ComponentInstanceCount[0], 0, sizeof(uint32_t) * MAX_COMPONENT_TYPES);
         }
         // Resource factory
@@ -226,19 +225,15 @@ namespace dmGameObject
         // Index pool for mapping Instance::m_Index to m_Instances
         dmIndexPool16            m_InstanceIndices;
 
-        // Index array of size m_Instances.Size() * MAX_HIERARCHICAL_DEPTH
-        // Array of instance indices for each hierarchical level
+        // Array of dynamically allocated index arrays, one for each level
         // Used for calculating transforms in scene-graph
         // Two dimensional table of indices with stride "max_instances"
-        // Level 0 contains root-nodes in [0..m_LevelInstanceCount[0]-1]
-        // Level 1 contains level 1 indices in [max_instances..max_instances+m_LevelInstanceCount[1]-1], ...
-        dmArray<uint16_t>        m_LevelIndices;
-
-        // Number of instances in each level
-        uint16_t                 m_LevelInstanceCount[MAX_HIERARCHICAL_DEPTH];
+        // Level 0 contains root-nodes in [0..m_LevelIndices[0].Size()-1]
+        // Level 1 contains level 1 indices in [0..m_LevelIndices[1].Size()-1]
+        dmArray<uint16_t>        m_LevelIndices[MAX_HIERARCHICAL_DEPTH];
 
         // Array of world transforms. Calculated using m_LevelIndices above
-        dmArray<dmTransform::TransformS1> m_WorldTransforms;
+        dmArray<dmTransform::Transform> m_WorldTransforms;
 
         // NOTE: Be *very* careful about m_InstancesToDelete
         // m_InstancesToDelete is an array of instances flagged for delete during Update(.)

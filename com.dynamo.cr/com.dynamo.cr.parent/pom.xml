@@ -117,6 +117,8 @@
         <module>../com.dynamo.cr.go.test</module>
         <module>../com.dynamo.cr.parted</module>
         <module>../com.dynamo.cr.parted.test</module>
+        <module>../com.dynamo.cr.spine</module>
+        <module>../com.dynamo.cr.spine.test</module>
         <module>../com.dynamo.cr.dgit</module>
         <module>../com.dynamo.cr.dgit.test</module>
         <module>../com.dynamo.cr.branchrepo</module>

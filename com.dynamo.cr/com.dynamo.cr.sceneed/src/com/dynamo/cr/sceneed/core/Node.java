@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.media.opengl.GL2;
 import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
@@ -80,9 +81,9 @@ public abstract class Node implements IAdaptable, Serializable {
     private static Map<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>> introspectors =
             new HashMap<Class<? extends Node>, PropertyIntrospector<Node, ISceneModel>>();
 
-    public void dispose() {
+    public void dispose(GL2 gl) {
         for (Node child : this.children) {
-            child.dispose();
+            child.dispose(gl);
         }
     }
 

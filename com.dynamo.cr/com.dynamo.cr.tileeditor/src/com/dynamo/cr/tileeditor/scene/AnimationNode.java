@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
@@ -53,8 +55,8 @@ public class AnimationNode extends Node implements Identifiable {
     }
 
     @Override
-    public void dispose() {
-        super.dispose();
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
         this.playing = false;
     }
 

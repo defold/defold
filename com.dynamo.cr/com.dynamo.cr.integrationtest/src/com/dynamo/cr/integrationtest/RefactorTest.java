@@ -55,6 +55,8 @@ import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.spine.proto.Spine.SpineModelDesc;
+import com.dynamo.spine.proto.Spine.SpineSceneDesc;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.Message;
@@ -478,6 +480,16 @@ public class RefactorTest {
     }
 
     @Test
+    public void testSpineModelForGO() throws CoreException, IOException {
+        testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "/spine/reload.spinemodel", new ReferenceFetcher<PrototypeDesc>() {
+            @Override
+            public String[] getReferences(PrototypeDesc desc) {
+                return new String[] { desc.getComponents(3).getComponent() };
+            }
+        });
+    }
+
+    @Test
     public void testWAVForGO() throws CoreException, IOException {
         testRenameAndDelete(PrototypeDesc.newBuilder(), "logic/session/ball.go", "/sounds/tink.wav", new ReferenceFetcher<PrototypeDesc>() {
             @Override
@@ -578,6 +590,54 @@ public class RefactorTest {
                 } catch (ParseException e) {
                     return new String[] {};
                 }
+            }
+        });
+    }
+
+    /*
+     * Spine Scene
+     */
+
+    @Test
+    public void testSpineJsonForSpineScene() throws CoreException, IOException {
+        testRenameAndDelete(SpineSceneDesc.newBuilder(), "spine/reload.spinescene", "/spine/test_spine.json", new ReferenceFetcher<SpineSceneDesc>() {
+            @Override
+            public String[] getReferences(SpineSceneDesc desc) {
+                return new String[] { desc.getSpineJson() };
+            }
+        });
+    }
+
+    @Test
+    public void testAtlasForSpineScene() throws CoreException, IOException {
+        testRenameAndDelete(SpineSceneDesc.newBuilder(), "spine/reload.spinescene", "/graphics/atlas.atlas", new ReferenceFetcher<SpineSceneDesc>() {
+            @Override
+            public String[] getReferences(SpineSceneDesc desc) {
+                return new String[] { desc.getAtlas() };
+            }
+        });
+    }
+
+    /*
+     * Spine Model
+     */
+
+    @Test
+    public void testSpineSceneForSpineModel() throws CoreException, IOException {
+        testRenameAndDelete(SpineModelDesc.newBuilder(), "spine/reload.spinemodel", "/spine/reload.spinescene", new ReferenceFetcher<SpineModelDesc>() {
+            @Override
+            public String[] getReferences(SpineModelDesc desc) {
+                return new String[] { desc.getSpineScene() };
+            }
+        });
+    }
+
+    @Test
+    public void testMaterialForSpineModel() throws CoreException, IOException {
+        testRenameAndDelete(SpineModelDesc.newBuilder(), "spine/reload.spinemodel", "/sprite/sprite.material", new ReferenceFetcher<SpineModelDesc>() {
+            @Override
+            public String[] getReferences(SpineModelDesc desc) {
+                return new String[] { desc.getMaterial() };
             }
         });
     }

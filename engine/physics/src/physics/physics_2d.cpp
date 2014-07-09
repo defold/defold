@@ -231,7 +231,7 @@ namespace dmPhysics
                 {
                     Vectormath::Aos::Point3 old_position = GetWorldPosition2D(context, body);
                     Vectormath::Aos::Quat old_rotation = GetWorldRotation2D(context, body);
-                    dmTransform::TransformS1 world_transform;
+                    dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                     // Ignore z-component
@@ -655,13 +655,13 @@ namespace dmPhysics
         {
             if (data.m_UserData != 0x0)
             {
-                dmTransform::TransformS1 world_transform;
+                dmTransform::Transform world_transform;
                 (*world->m_GetWorldTransformCallback)(data.m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
                 ToB2(position, def.position, context->m_Scale);
                 def.angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-                scale = world_transform.GetScale();
+                scale = world_transform.GetUniformScale();
             }
             else
             {
@@ -827,7 +827,7 @@ namespace dmPhysics
             body->SetAwake(true);
             if (world->m_GetWorldTransformCallback)
             {
-                dmTransform::TransformS1 world_transform;
+                dmTransform::Transform world_transform;
                 (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());

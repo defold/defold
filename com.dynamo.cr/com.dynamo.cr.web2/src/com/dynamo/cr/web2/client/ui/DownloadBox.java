@@ -13,7 +13,7 @@ public class DownloadBox extends Composite {
     private static DownloadBoxUiBinder uiBinder = GWT
             .create(DownloadBoxUiBinder.class);
 
-    private static final String HREF_BASE = "http://cr.defold.se/downloads/cr-editor/1.0/Defold-";
+    private static final String HREF_BASE = "http://d.defold.com/stable/Defold-";
     private static final String HREF_WIN32 = "win32.win32.x86";
     private static final String HREF_OSX = "macosx.cocoa.x86_64";
     private static final String HREF_LINUX = "linux.gtk.x86";

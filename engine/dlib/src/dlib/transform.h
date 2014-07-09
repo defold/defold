@@ -5,6 +5,8 @@
 #include <math.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#define DM_THIRD 0.333333333333333f
+
 namespace dmTransform
 {
     using namespace Vectormath::Aos;
@@ -167,6 +169,212 @@ namespace dmTransform
         res = appendScale(res, Vector3(t.GetScale()));
         return res;
     }
+
+    /**
+     * Transform with non-uniform (3-component) scale.
+     * Transform applied as:
+     * T(p) = translate(rotate(scale(p))) = p'
+     * The scale is non-rotated to avoid shearing in the transform.
+     * Two transforms are applied as:
+     * T1(T2(p)) = t1(r1(t2(r2(s1(s2(p)))))) = p'
+     * This means that the transform is not associative:
+     * T1(T2(p)) != (T1*T2)(P)
+     */
+    class Transform
+    {
+        Quat    m_Rotation;
+        Vector3 m_Translation;
+        Vector3 m_Scale;
+    public:
+
+        Transform() {}
+
+        Transform(Vector3 translation, Quat rotation, Vector3 scale)
+        : m_Rotation(rotation)
+        , m_Translation(translation)
+        , m_Scale(scale)
+        {
+
+        }
+
+        Transform(Vector3 translation, Quat rotation, float uniformScale)
+        : m_Rotation(rotation)
+        , m_Translation(translation)
+        , m_Scale(uniformScale)
+        {
+
+        }
+
+        inline void SetIdentity()
+        {
+            m_Rotation = Quat::identity();
+            m_Translation = Vector3(0.0f, 0.0f, 0.0f);
+            m_Scale = Vector3(1.0f, 1.0f, 1.0f);
+        }
+
+        inline Vector3 GetTranslation() const
+        {
+            return m_Translation;
+        }
+
+        inline void SetTranslation(Vector3 translation)
+        {
+            m_Translation = translation;
+        }
+
+        inline float* GetPositionPtr() const
+        {
+            return (float*)&m_Translation;
+        }
+
+        inline Vector3 GetScale() const
+        {
+            return m_Scale;
+        }
+
+        inline void SetScale(Vector3 scale)
+        {
+            m_Scale = scale;
+        }
+
+        inline float* GetScalePtr() const
+        {
+            return (float*)&m_Scale;
+        }
+
+        inline float GetUniformScale() const
+        {
+            return sum(m_Scale) * DM_THIRD;
+        }
+
+        inline void SetUniformScale(float scale)
+        {
+            m_Scale = Vector3(scale);
+        }
+
+        inline Quat GetRotation() const
+        {
+            return m_Rotation;
+        }
+
+        inline void SetRotation(Quat rotation)
+        {
+            m_Rotation = rotation;
+        }
+
+        inline float* GetRotationPtr() const
+        {
+            return (float*)&m_Rotation;
+        }
+    };
+
+    /**
+     * Apply the transform on a point (includes the transform translation).
+     * @param t Transform
+     * @param p Point
+     * @return Transformed point
+     */
+    inline Point3 Apply(const Transform& t, const Point3 p)
+    {
+        return Point3(rotate(t.GetRotation(), mulPerElem(Vector3(p), t.GetScale())) + t.GetTranslation());
+    }
+
+    /**
+     * Apply the transform on a point, but without scaling the Z-component of the point (includes the transform translation).
+     * @param t Transform
+     * @param p Point
+     * @return Transformed point
+     */
+    inline Point3 ApplyNoScaleZ(const Transform& t, const Point3 p)
+    {
+        Vector3 s = t.GetScale();
+        s.setZ(1.0f);
+        return Point3(rotate(t.GetRotation(), mulPerElem(Vector3(p), s)) + t.GetTranslation());
+    }
+
+    /**
+     * Apply the transform on a vector (excludes the transform translation).
+     * @param t Transform
+     * @param v Vector
+     * @return Transformed vector
+     */
+    inline Vector3 Apply(const Transform& t, const Vector3 v)
+    {
+        return Vector3(rotate(t.GetRotation(), mulPerElem(v, t.GetScale())));
+    }
+
+    /**
+     * Apply the transform on a vector, but without scaling the Z-component of the vector (excludes the transform translation).
+     * @param t Transform
+     * @param v Vector
+     * @return Transformed vector
+     */
+    inline Vector3 ApplyNoScaleZ(const Transform& t, const Vector3 v)
+    {
+        Vector3 s = t.GetScale();
+        s.setZ(1.0f);
+        return Vector3(rotate(t.GetRotation(), mulPerElem(v, s)));
+    }
+
+    /**
+     * Transforms the right-hand transform by the left-hand transform
+     * @param lhs Transforming transform
+     * @param rhs Transformed transform
+     * @return Transformed transform
+     */
+    inline Transform Mul(const Transform& lhs, const Transform& rhs)
+    {
+        Transform res;
+        res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
+        res.SetTranslation(Vector3(Apply(lhs, Point3(rhs.GetTranslation()))));
+        res.SetScale(mulPerElem(lhs.GetScale(), rhs.GetScale()));
+        return res;
+    }
+
+    /**
+     * Transforms the right-hand transform by the left-hand transform, without scaling the Z-component of the transition of the transformed transform
+     * @param lhs Transforming transform
+     * @param rhs Transformed transform
+     * @return Transformed transform
+     */
+    inline Transform MulNoScaleZ(const Transform& lhs, const Transform& rhs)
+    {
+        Transform res;
+        res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
+        res.SetTranslation(Vector3(ApplyNoScaleZ(lhs, Point3(rhs.GetTranslation()))));
+        res.SetScale(mulPerElem(lhs.GetScale(), rhs.GetScale()));
+        return res;
+    }
+
+    /**
+     * Invert a transform
+     * @param t Transform to invert
+     * @return Inverted transform
+     */
+    inline Transform Inv(const Transform& t)
+    {
+        const Vector3& s = t.GetScale();
+        assert(s.getX() != 0.0f && s.getY() != 0.0f && s.getZ() != 0.0f && "Transform can not be inverted (0 scale-component).");
+        Transform res;
+        res.SetRotation(conj(t.GetRotation()));
+        res.SetScale(recipPerElem(t.GetScale()));
+        res.SetTranslation(mulPerElem(rotate(res.GetRotation(), -t.GetTranslation()), res.GetScale()));
+        return res;
+    }
+
+    /**
+     * Convert a transform into a 4-dim matrix
+     * @param t Transform to convert
+     * @return Matrix representing the same transform
+     */
+    inline Matrix4 ToMatrix4(const Transform& t)
+    {
+        Matrix4 res(t.GetRotation(), t.GetTranslation());
+        res = appendScale(res, t.GetScale());
+        return res;
+    }
 }
+
+#undef DM_THIRD
 
 #endif // DM_TRANSFORM_H

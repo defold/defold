@@ -10,7 +10,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import org.apache.commons.lang3.Pair;
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -19,6 +20,7 @@ import org.eclipse.osgi.util.NLS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.ConvexHull;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.tile.TileSetUtil;
@@ -98,6 +100,13 @@ public class TileSetNode extends TextureSetNode {
         this.convexHulls = new ArrayList<ConvexHull>();
 
         this.textureHandle = null;
+    }
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        this.textureHandle.clear(gl);
+        this.runtimeTextureSet.dispose(gl);
     }
 
     public String getImage() {
@@ -303,15 +312,15 @@ public class TileSetNode extends TextureSetNode {
         TileSetLoader loader = new TileSetLoader();
         try {
             TileSet tileSet = (TileSet) loader.buildMessage(null, this, new NullProgressMonitor());
-            Pair<Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true);
-            if (pair != null) {
-                Builder textureSetBuilder = pair.left;
+            TextureSetResult result = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true);
+            if (result != null) {
+                Builder textureSetBuilder = result.builder;
                 TextureSet textureSet = textureSetBuilder.setTexture("").build();
-                runtimeTextureSet.update(textureSet);
+                runtimeTextureSet.update(textureSet, result.uvTransforms);
                 if (this.textureHandle == null) {
                     this.textureHandle = new TextureHandle();
                 }
-                this.textureHandle.setImage(pair.right);
+                this.textureHandle.setImage(result.image);
             }
         } catch (Exception e) {
             logger.error("Error occurred while creating tile source vertex-data", e);

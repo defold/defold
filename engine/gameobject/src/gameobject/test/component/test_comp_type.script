@@ -1,0 +1,3 @@
+function update(self, dt)
+    test_comp_type("#script")
+end

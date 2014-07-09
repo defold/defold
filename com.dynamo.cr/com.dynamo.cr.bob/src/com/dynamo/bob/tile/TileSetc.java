@@ -16,8 +16,7 @@ import java.io.Reader;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.lang3.Pair;
-
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.tile.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
@@ -84,9 +83,9 @@ public class TileSetc {
             String compiledImageName = imagePath;
             int index = compiledImageName.lastIndexOf('.');
             compiledImageName = compiledImageName.substring(0, index) + ".texturec";
-            Pair<TextureSet.Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet, image, collisionImage,
+            TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage,
                     false);
-            TextureSet.Builder textureSetBuilder = pair.left;
+            TextureSet.Builder textureSetBuilder = result.builder;
             textureSetBuilder.setTexture(compiledImageName).setTileWidth(tileSet.getTileWidth())
                     .setTileHeight(tileSet.getTileHeight());
             textureSetBuilder.build().writeTo(output);

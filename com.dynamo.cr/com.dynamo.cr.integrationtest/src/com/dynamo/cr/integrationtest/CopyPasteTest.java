@@ -27,6 +27,7 @@ import com.dynamo.cr.parted.operations.AddEmitterOperation;
 import com.dynamo.cr.sceneed.core.ISceneView;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.operations.AddChildrenOperation;
+import com.dynamo.cr.spine.scene.SpineModelNode;
 import com.dynamo.cr.tileeditor.operations.AddAnimationGroupNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddAnimationNodeOperation;
 import com.dynamo.cr.tileeditor.operations.AddCollisionGroupNodeOperation;
@@ -150,6 +151,14 @@ public class CopyPasteTest extends AbstractSceneTest {
         TileGridNode tileGrid = new TileGridNode();
         tileGrid.setTileSource("/tileset/test.tileset");
         testCopyPaste(go, tileGrid);
+    }
+
+    @Test
+    public void testSpineModel() throws Exception {
+        GameObjectNode go = new GameObjectNode();
+        SpineModelNode spineModel = new SpineModelNode();
+        spineModel.setSpineScene("/spine/reload.spinescene");
+        testCopyPaste(go, spineModel);
     }
 
     @Test

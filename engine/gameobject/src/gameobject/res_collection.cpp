@@ -48,7 +48,7 @@ namespace dmGameObject
             if (instance != 0x0)
             {
                 instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
-                instance->m_Transform = dmTransform::TransformS1(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
+                instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
 
                 dmHashInit64(&instance->m_CollectionPathHashState, true);
                 const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);
