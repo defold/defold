@@ -467,8 +467,8 @@ class Configuration(object):
 
         p2 = """
 instructions.configure=\
-  addRepository(type:0,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
-  addRepository(type:1,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
+  addRepository(type:0,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
+  addRepository(type:1,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
 """
 
         with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
@@ -796,7 +796,10 @@ instructions.configure=\
         from boto.s3.connection import S3Connection
         from boto.s3.key import Key
 
-        conn = S3Connection(key, secret)
+        # NOTE: We hard-code host (region) here and it should not be required.
+        # but we had problems with certain buckets with period characters in the name.
+        # Probably related to the following issue https://github.com/boto/boto/issues/621
+        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com')
         bucket = conn.get_bucket(bucket_name)
         self.s3buckets[bucket_name] = bucket
         return bucket
@@ -947,7 +950,7 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'No color output. Default is color output')
 
-    default_archive_path = 's3://defold-downloads/archive'
+    default_archive_path = 's3://d.defold.com/archive'
     parser.add_option('--archive-path', dest='archive_path',
                       default = default_archive_path,
                       help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path    )
