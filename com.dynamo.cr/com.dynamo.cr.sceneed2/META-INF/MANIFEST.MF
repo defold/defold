@@ -10,7 +10,8 @@ Require-Bundle: org.eclipse.core.runtime;visibility:=reexport,
  org.eclipse.ui;bundle-version="3.8.2",
  org.eclipse.core.expressions;visibility:=reexport,
  com.dynamo.cr.common;bundle-version="1.0.0",
- org.eclipse.core.resources;bundle-version="3.8.1"
+ org.eclipse.core.resources;bundle-version="3.8.1",
+ org.junit
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Export-Package: clojure,
@@ -29,14 +30,8 @@ Export-Package: clojure,
  clojure.reflect,
  clojure.test,
  com.stuartsierra,
- dynamo.file,
- dynamo.node,
- dynamo.outline,
- dynamo.project,
- dynamo.texture,
- dynamo.types,
- dynamo.ui,
- internal.system
+ dynamo,
+ dynamo.file
 Bundle-ClassPath: bin/,
  .,
  lib/com.dynamo.cr.sceneed2-0.1.0-standalone.jar

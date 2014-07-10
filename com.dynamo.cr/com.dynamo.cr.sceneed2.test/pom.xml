@@ -12,11 +12,11 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.dynamo.cr</groupId>
-    <artifactId>com.dynamo.cr.sceneed2</artifactId>
+    <artifactId>com.dynamo.cr.sceneed2.test</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <packaging>eclipse-plugin</packaging>
+    <packaging>eclipse-test-plugin</packaging>
 
-	<build>
+    <build>
         <plugins>
             <plugin>
                 <groupId>org.eclipse.tycho</groupId>
@@ -24,6 +24,8 @@
                 <version>${tycho-version}</version>
                 <configuration>
                     <useUIHarness>false</useUIHarness>
+                    <useUIThread>false</useUIThread>
+                    <argLine>-XX:MaxPermSize=256m -Xms40m -Xmx512m</argLine>
                 </configuration>
             </plugin>
         </plugins>
