@@ -247,7 +247,6 @@ namespace dmScript
         printer->Indent(2);
 
         while (lua_next(L, -2) != 0) {
-            int key_type = lua_type(L, -2);
             int value_type = lua_type(L, -1);
 
             lua_pushvalue(L, -2);
@@ -352,5 +351,35 @@ namespace dmScript
         lua_pop(L, 1);
 
         return main_thread;
+    }
+
+    bool IsUserType(lua_State* L, int idx, const char* type)
+    {
+        int top = lua_gettop(L);
+        bool result = false;
+        if (lua_type(L, idx) == LUA_TUSERDATA)
+        {
+            // Object meta table
+            if (lua_getmetatable(L, idx))
+            {
+                // Correct meta table
+                lua_getfield(L, LUA_REGISTRYINDEX, type);
+                // Compare them
+                if (lua_rawequal(L, -1, -2))
+                {
+                    result = true;
+                }
+            }
+        }
+        lua_pop(L, lua_gettop(L) - top);
+        return result;
+    }
+
+    void* CheckUserType(lua_State* L, int idx, const char* type)
+    {
+        luaL_checktype(L, idx, LUA_TUSERDATA);
+        void* object = luaL_checkudata(L, idx, type);
+        if (object == 0x0) luaL_typerror(L, idx, type);
+        return object;
     }
 }
