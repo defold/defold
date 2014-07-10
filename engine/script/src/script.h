@@ -374,7 +374,7 @@ namespace dmScript
      */
     void GetInstance(lua_State* L);
     /**
-     * Set the value on the top of the stack as the instance into the global table and pops it from the stack.
+     * Set the value on the top of the stack as the instance into the global table.
      * @param lua state
      */
     void SetInstance(lua_State* L);
@@ -391,25 +391,6 @@ namespace dmScript
      * @return the main thread lua state
      */
     lua_State* GetMainThread(lua_State* L);
-
-    /**
-     * Check if the object at the given index is of the specified user type.
-     * @param L lua state
-     * @param idx object index
-     * @param type user type
-     * @return true if the object has the specified type
-     */
-    bool IsUserType(lua_State* L, int idx, const char* type);
-
-    /**
-     * Check if the object at the given index is of the specified user type.
-     * This might result in lua errors so it should only be called from within a lua context.
-     * @param L lua state
-     * @param idx object index
-     * @param type user type
-     * @return the object if it has the specified type, 0 otherwise
-     */
-    void* CheckUserType(lua_State* L, int idx, const char* type);
 }
 
 #endif // DM_SCRIPT_H

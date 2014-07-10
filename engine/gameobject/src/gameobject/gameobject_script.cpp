@@ -69,30 +69,18 @@ namespace dmGameObject
 
     static ScriptInstance* GetScriptInstance(lua_State *L)
     {
-        int top = lua_gettop(L);
-        (void)top;
-        ScriptInstance* i = 0x0;
         dmScript::GetInstance(L);
-        if (dmScript::IsUserType(L, -1, SCRIPTINSTANCE))
-        {
-            i = (ScriptInstance*)lua_touserdata(L, -1);
-        }
-        // Clear stack and return
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
         return i;
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE);
-    }
-
-    static ScriptInstance* ScriptInstance_Check(lua_State *L)
-    {
-        dmScript::GetInstance(L);
-        ScriptInstance* i = ScriptInstance_Check(L, -1);
-        lua_pop(L, 1);
+        ScriptInstance* i;
+        luaL_checktype(L, index, LUA_TUSERDATA);
+        i = (ScriptInstance*)luaL_checkudata(L, index, SCRIPTINSTANCE);
+        if (i == NULL) luaL_typerror(L, index, SCRIPTINSTANCE);
         return i;
     }
 
@@ -156,6 +144,13 @@ namespace dmGameObject
         {"__newindex",  ScriptInstance_newindex},
         {0, 0}
     };
+
+    static ScriptInstance* ScriptInstance_Check(lua_State *L)
+    {
+        ScriptInstance* i = GetScriptInstance(L);
+        if (i == NULL) luaL_error(L, "Lua state did not contain any script component.");
+        return i;
+    }
 
     /**
      * Get instance utility function helper.
@@ -1085,7 +1080,9 @@ namespace dmGameObject
 
     void GetURLCallback(lua_State* L, dmMessage::URL* url)
     {
-        ScriptInstance* i = GetScriptInstance(L);
+        dmScript::GetInstance(L);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
 
         if (i != 0)
         {
@@ -1133,11 +1130,8 @@ namespace dmGameObject
 
     uintptr_t GetUserDataCallback(lua_State* L)
     {
-        ScriptInstance* i = GetScriptInstance(L);
-        if (i != 0x0) {
-            return (uintptr_t)i->m_Instance;
-        }
-        return 0;
+        ScriptInstance* i = ScriptInstance_Check(L);
+        return (uintptr_t)i->m_Instance;
     }
 
     bool ValidateInstanceCallback(lua_State* L)
@@ -1182,7 +1176,7 @@ namespace dmGameObject
 
         luaL_register(L, SCRIPTINSTANCE, ScriptInstance_methods);   // create methods table, add it to the globals
         int methods = lua_gettop(L);
-        luaL_newmetatable(L, SCRIPTINSTANCE);                         // create metatable for ScriptInstance, add it to the Lua registry
+        luaL_newmetatable(L, SCRIPTINSTANCE);                         // create metatable for Image, add it to the Lua registry
         int metatable = lua_gettop(L);
         luaL_register(L, 0, ScriptInstance_meta);                   // fill metatable
 
@@ -1524,6 +1518,8 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
+        lua_getglobal(L, "__instances__");
+
         ScriptInstance* i = (ScriptInstance *)lua_newuserdata(L, sizeof(ScriptInstance));
         i->m_Script = script;
 
@@ -1544,6 +1540,7 @@ bail:
         luaL_getmetatable(L, SCRIPTINSTANCE);
         lua_setmetatable(L, -2);
 
+        lua_pop(L, 1);
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
