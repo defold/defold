@@ -30,11 +30,7 @@ namespace dmRender
 
     static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
     {
-        HNamedConstantBuffer* cb;
-        luaL_checktype(L, index, LUA_TUSERDATA);
-        cb = (HNamedConstantBuffer*)luaL_checkudata(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
-        if (cb == NULL) luaL_typerror(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
-        return cb;
+        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
     }
 
     static int RenderScriptConstantBuffer_gc (lua_State *L)
@@ -161,10 +157,19 @@ namespace dmRender
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L, int index)
     {
-        RenderScriptInstance* i;
-        luaL_checktype(L, index, LUA_TUSERDATA);
-        i = (RenderScriptInstance*)luaL_checkudata(L, index, RENDER_SCRIPT_INSTANCE);
-        if (i == NULL) luaL_typerror(L, index, RENDER_SCRIPT_INSTANCE);
+        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE);
+    }
+
+    static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        dmScript::GetInstance(L);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, -1);
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
         return i;
     }
 
@@ -185,6 +190,9 @@ namespace dmRender
 
     static int RenderScriptInstance_index(lua_State *L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         assert(i);
 
@@ -192,12 +200,16 @@ namespace dmRender
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_RenderScriptDataReference);
         lua_pushvalue(L, 2);
         lua_gettable(L, -2);
+        lua_remove(L, 3);
+
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
     static int RenderScriptInstance_newindex(lua_State *L)
     {
         int top = lua_gettop(L);
+        (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         assert(i);
@@ -236,15 +248,6 @@ namespace dmRender
         return true;
     }
 
-    static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
-    {
-        dmScript::GetInstance(L);
-        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        if (i == NULL) luaL_error(L, "Lua state did not contain a render script instance.");
-        return i;
-    }
-
     /*#
      * @name render.STATE_DEPTH_TEST
      * @variable
@@ -279,6 +282,9 @@ namespace dmRender
      */
     int RenderScript_EnableState(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t state = luaL_checknumber(L, 1);
 
@@ -295,10 +301,12 @@ namespace dmRender
             default:
                 return luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STATE, state)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STATE, state))) {
+            assert(top == lua_gettop(L));
             return 0;
-        else
+        } else {
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
     }
 
     /*# disables a render state
@@ -314,6 +322,9 @@ namespace dmRender
      */
     int RenderScript_DisableState(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t state = luaL_checknumber(L, 1);
         switch (state)
@@ -329,10 +340,12 @@ namespace dmRender
             default:
                 return luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state))) {
+            assert(top == lua_gettop(L));
             return 0;
-        else
+        } else {
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
     }
 
     /*# sets the render viewport
@@ -472,6 +485,7 @@ namespace dmRender
     int RenderScript_RenderTarget(lua_State* L)
     {
         int top = lua_gettop(L);
+        (void)top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
@@ -544,6 +558,7 @@ namespace dmRender
 
         lua_pushlightuserdata(L, (void*)render_target);
 
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -691,6 +706,9 @@ namespace dmRender
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
@@ -712,6 +730,7 @@ namespace dmRender
         if (texture != 0)
         {
             lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
+            assert(top == lua_gettop(L));
             return 1;
         }
         else
@@ -728,6 +747,9 @@ namespace dmRender
      */
     int RenderScript_GetRenderTargetHeight(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
@@ -749,6 +771,7 @@ namespace dmRender
         if (texture != 0)
         {
             lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
+            assert(top == lua_gettop(L));
             return 1;
         }
         else
@@ -787,6 +810,7 @@ namespace dmRender
         luaL_checktype(L, 1, LUA_TTABLE);
 
         int top = lua_gettop(L);
+        (void)top;
 
         uint32_t flags = 0;
 
@@ -1252,6 +1276,9 @@ namespace dmRender
      */
     int RenderScript_Predicate(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         luaL_checktype(L, 1, LUA_TTABLE);
         if (i->m_PredicateCount < MAX_PREDICATE_COUNT)
@@ -1268,6 +1295,7 @@ namespace dmRender
                     break;
             }
             lua_pushlightuserdata(L, (void*)predicate);
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
         else
@@ -1285,6 +1313,8 @@ namespace dmRender
     int RenderScript_EnableMaterial(lua_State* L)
     {
         int top = lua_gettop(L);
+        (void)top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (!lua_isnil(L, 1))
         {
@@ -1399,6 +1429,7 @@ namespace dmRender
         context.m_LuaState = L;
 
         int top = lua_gettop(L);
+        (void)top;
 
         luaopen_base(L);
         luaopen_table(L);
