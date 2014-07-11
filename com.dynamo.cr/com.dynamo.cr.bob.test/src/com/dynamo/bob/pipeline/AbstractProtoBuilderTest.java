@@ -16,6 +16,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.swt.widgets.Display;
 import org.junit.After;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
@@ -29,7 +30,6 @@ import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.google.protobuf.Message;
-import com.jogamp.newt.Display;
 
 public abstract class AbstractProtoBuilderTest {
     private MockFileSystem fileSystem;

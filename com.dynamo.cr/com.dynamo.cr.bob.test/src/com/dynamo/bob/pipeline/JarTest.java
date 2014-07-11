@@ -19,11 +19,11 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ConsoleProgress;
-import com.dynamo.bob.DefaultFileSystem;
 import com.dynamo.bob.IClassScanner;
-import com.dynamo.bob.IFileSystem;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IFileSystem;
 
 public class JarTest {
 
