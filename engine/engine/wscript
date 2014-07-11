@@ -6,7 +6,7 @@ APPNAME='engine'
 srcdir = '.'
 blddir = 'build'
 
-import os, sys, re
+import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 
 if sys.platform == "win32":
@@ -21,10 +21,39 @@ def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
 
+def git_sha1(dir = '.'):
+    process = subprocess.Popen('git log --pretty=%H -n1'.split(), stdout = subprocess.PIPE)
+    out, err = process.communicate()
+    if process.returncode != 0:
+        sys.exit(process.returncode)
+
+    line = out.split('\n')[0].strip()
+    sha1 = line.split()[0]
+    return sha1
+
 def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.check_tool('java')
     conf.check_tool('waf_resource')
+
+    engine_version = """
+namespace dmEngineVersion
+{
+    static const char* VERSION = "%(version)s";
+    static const char* VERSION_SHA1 = "%(sha1)s";
+}
+"""
+    full = os.sep.join([conf.blddir, conf.env.variant(), 'engine_version.h'])
+    try:
+        os.mkdir(os.path.dirname(full))
+    except:
+        pass
+    full = os.path.normpath(full)
+    with open('../../VERSION', 'r') as f:
+        version = f.readline().strip()
+    sha1 = git_sha1()
+    with open(full, 'w') as f:
+        f.write(engine_version % {"version": version, "sha1": sha1})
 
     waf_graphics.configure(conf)
     waf_ddf.configure(conf)

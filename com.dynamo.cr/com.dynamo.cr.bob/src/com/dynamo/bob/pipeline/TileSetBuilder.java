@@ -9,7 +9,6 @@ import java.io.InputStreamReader;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.Pair;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -17,6 +16,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
@@ -106,8 +106,8 @@ public class TileSetBuilder extends Builder<Void>  {
         if (collisionImage != null && !collisionImage.getColorModel().hasAlpha()) {
             throw new CompileExceptionError(task.input(0), -1, "the collision image does not have an alpha channel");
         }
-        Pair<TextureSet.Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet, image, collisionImage, false);
-        TextureSet.Builder textureSetBuilder = pair.left;
+        TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage, false);
+        TextureSet.Builder textureSetBuilder = result.builder;
 
         int buildDirLen = project.getBuildDirectory().length();
         String texturePath = task.output(1).getPath().substring(buildDirLen);
@@ -115,7 +115,7 @@ public class TileSetBuilder extends Builder<Void>  {
 
         TextureImage texture;
         try {
-            texture = TextureGenerator.generate(pair.right);
+            texture = TextureGenerator.generate(result.image);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

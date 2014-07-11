@@ -23,7 +23,7 @@
     </repositories>
 
     <properties>
-        <tycho-version>0.16.0</tycho-version>
+        <tycho-version>0.20.0</tycho-version>
         <tycho-groupid>org.eclipse.tycho</tycho-groupid>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
@@ -116,6 +116,8 @@
         <module>../com.dynamo.cr.go.test</module>
         <module>../com.dynamo.cr.parted</module>
         <module>../com.dynamo.cr.parted.test</module>
+        <module>../com.dynamo.cr.spine</module>
+        <module>../com.dynamo.cr.spine.test</module>
         <module>../com.dynamo.cr.dgit</module>
         <module>../com.dynamo.cr.dgit.test</module>
         <module>../com.dynamo.cr.branchrepo</module>
@@ -124,10 +126,20 @@
         <module>../com.dynamo.cr.bob</module>
         <module>../com.dynamo.cr.bob.test</module>
         <module>../com.dynamo.cr.templates</module>
+        <module>../com.dynamo.cr.server-product</module>
         <module>../javax.media.opengl</module>
         <module>../com.sun.jna</module>
         <module>../joda.time</module>
         <module>../slf4j</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>editor</id>
+            <modules>
+                <module>../com.dynamo.cr.editor-product</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>

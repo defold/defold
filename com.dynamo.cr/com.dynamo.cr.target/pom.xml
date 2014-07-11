@@ -24,19 +24,32 @@
                 <version>1.1</version>
                 <executions>
                     <execution>
-                        <id>compile</id>
+                        <id>copy-classes.dex</id>
                         <phase>generate-resources</phase>
                         <goals>
                             <goal>exec</goal>
                         </goals>
+                        <configuration>
+                            <executable>sh</executable>
+                            <arguments>
+                                <argument>scripts/copy_classes_dex.sh</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-apkc</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>sh</executable>
+                            <arguments>
+                                <argument>scripts/copy_apkc.sh</argument>
+                            </arguments>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <executable>sh</executable>
-                    <arguments>
-                        <argument>scripts/copy_classes_dex.sh</argument>
-                    </arguments>
-                </configuration>
             </plugin>
         </plugins>
     </build>

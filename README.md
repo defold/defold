@@ -3,8 +3,137 @@ Defold
 
 Repository for engine, editor and server.
 
+Code Style
+----------
+
+Follow current code style and use 4 spaces for tabs. Never commit code
+with trailing white-spaces. For Eclipse [AnyEditTools](http://andrei.gmxhome.de/eclipse.html)
+
+Setup
+-----
+
+**Required Software**
+
+* [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
+* [Eclipse 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
+
+**Eclipse Plugins**
+
+<table>
+<tr>
+<th>Plugin</th>
+<th>Link</th>
+<th>Install</th>
+</tr>
+
+<tr>
+<td>CDT</td>
+<td>http://download.eclipse.org/tools/cdt/releases/juno</td>
+<td>`C/C++ Development Tools`</td>
+</tr>
+
+<tr>
+<td>EclipseLink</td>
+<td>http://download.eclipse.org/rt/eclipselink/updates</td>
+<td>`EclipseLink Target Components`</td>
+</tr>
+
+<tr>
+<td>Google Plugin</td>
+<td>https://dl.google.com/eclipse/plugin/4.2</td>
+<td>
+`Google Plugin for Eclipse`<br/>
+`Google App Engine Java`<br/>
+`Google Web Toolkit SDK`
+</td>
+</tr>
+
+<tr>
+<td>PyDev</td>
+<td>http://pydev.org/updates</td>
+<td>`PyDev for Eclipse`</td>
+</tr>
+</table>
+
+Always launch Eclipse from the **command line** with a development environment
+setup. See `build.py` and the `shell` command below.
+
+**Optional Software**
+
+* [ccache](http://ccache.samba.org) - install with `brew install ccache` on OS X and `sudo apt-get install ccache`
+  on Debian based Linux distributions
+
+**Import Java Projects**
+
+* Import Java projects with `File > Import`
+* Select `General > Existing Projects into Workspace`,
+* Set root directory to `defold/com.dynamo.cr`
+* Select everything apart from `com.dynamo.cr.web` and `com.dynamo.cr.webcrawler`.
+* Ensure that `Copy projects into workspace` is **not** selected
+
+
+**Import Engine Project**
+
+* Create a new C/C++ project
+* Makefile project
+    - `Empty Project`
+    - `-- Other Toolchain --`
+    - Do **not** select `MacOSX GCC` on OS X. Results in out of memory in Eclipse 3.8
+* Use custom project location
+     - `defold/engine`
+* Add `${DYNAMO_HOME}/include`, `${DYNAMO_HOME}/ext/include` and `/usr/include` to project include.
+    - `$DYNAMO_HOME` defaults to `defold/tmp/dynamo_home`
+    - `Project Properties > C/C++ General > Paths and Symbols`
+* Disable `Invalid arguments` in `Preferences > C/C++ > Code Analysis`
+
+
+
+Build Engine
+------------
+
+Setup build environment with `$PATH` and other environment variables.
+
+    $ ./scripts/build.py shell
+
+Install external packages. This step is required once only.
+
+    $ ./scripts/build.py install_ext
+
+Build engine for host target. For other targets use ``--platform=``
+
+    $ ./scripts/build.py build_engine --skip-tests
+
+When the initial build is complete the workflow is to use waf directly. For
+example
+
+    $ cd engine/dlib
+    $ waf
+
+**Unit tests**
+
+Unit tests are run automatically when invoking waf if not --skip-tests is
+specified. A typically workflow when working on a single test is to run
+
+    $ waf --skip-tests && ./build/default/.../test_xxx
+
+With the flag `--gtest_filter=` it's possible to a single test in the suite,
+see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/AdvancedGuide#Running_a_Subset_of_the_Tests)
+
+Build and Run Editor
+--------------------
+
+* With a new project invoke `Project > Build All`
+     - Generates Google Protocol Buffers etc
+* Refresh entire workspace
+* Open `cr.product`
+* Press `Launch an Eclipse application`
+* Speed up launch
+    - Go to `Preferences > Run/Debug`
+    - Deselect `Build` in `General Options`
+    - This disables building of custom build steps and explicit invocation of `Project > Build All` is now required.
+
 Licenses
-========
+--------
 
 * **Sony Vectormath Library**: [http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary](http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary) - **BSD**
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
@@ -101,8 +230,8 @@ From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
 Android
 -------
 
-By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp. 
-g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c. 
+By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp.
+g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c.
 Life-cycle support should probably be moved to dlib at some point.
 
 ### Android Resources and R.java
@@ -122,12 +251,12 @@ This is a known limitation on Android.
 
 
 * Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
-  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1.. 
+  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1..
   Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
 * Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
   mentioned above
 * Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
-* Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively 
+* Put NDK/SDK in ~/android/android-ndk-r9c and ~/android/android-sdk respectively
 
 ### Android testing
 
@@ -145,7 +274,7 @@ For interactive shell run "adb shell"
 
 ### Caveats
 
-If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new 
+If the app is started programatically, the life cycle behaves differently. Deactivating the app and then activating it by clicking on it results in a new
 create message being sent (onCreate/android_main). The normal case is for the app to continue through e.g. onStart.
 
 ### Android debugging
@@ -213,11 +342,11 @@ Some implementation details to note:
 
 E.g. when an APK produces a crash, backing it up is always a good idea before you attempt to fix it.
 
-# Determine package name:
+## Determine package name:
   adb shell pm list packages
-# Get the path on device:
+## Get the path on device:
   adb shell pm path <package-name>
-# Pull the APK to local disk
+## Pull the APK to local disk
   adb pull <package-path>
 
 OpenGL and jogl
@@ -240,12 +369,12 @@ Assets can be loaded from file-system, from an archive or over http.
 
 See *dmResource::LoadResource* for low-level loading of assets, *dmResource* for general resource loading and *engine.cpp*
 for initialization. A current limitation is that we don't have a specific protocol for *resource:* For file-system, archive
-and http url schemes *file:*, *arc:* and *http:* are used respectively. See dmConfigFile for the limitation about the absence 
+and http url schemes *file:*, *arc:* and *http:* are used respectively. See dmConfigFile for the limitation about the absence
 of a resource-scheme.
 
 ### Http Cache
 
-Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism 
+Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism
 used if available in order to speed up the cache-validation process. See dlib, *dmHttpCache* and *ConsistencyPolicy*, for more information.
 
 Engine Extensions
@@ -275,4 +404,3 @@ Energy Consumption
 **Android**
 
       adb shell dumpsys cpuinfo
-

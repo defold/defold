@@ -1,0 +1,8 @@
+components {
+  id: "script"
+  component: "/test_comp_type.scriptc"
+}
+components {
+  id: "a"
+  component: "/a.a"
+}

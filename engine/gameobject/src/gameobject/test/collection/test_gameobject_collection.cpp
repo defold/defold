@@ -195,10 +195,11 @@ TEST_F(CollectionTest, DefaultValues)
     dmGameObject::HCollection coll;
     dmResource::Result r = dmResource::Get(m_Factory, "/defaults.collectionc", (void**) &coll);
     ASSERT_EQ(dmResource::RESULT_OK, r);
-    ASSERT_EQ(2U, coll->m_LevelInstanceCount[0]);
-    for (uint32_t i = 0; i < coll->m_LevelInstanceCount[0]; ++i)
+    uint32_t instance_count = coll->m_LevelIndices[0].Size();
+    ASSERT_EQ(2U, instance_count);
+    for (uint32_t i = 0; i < instance_count; ++i)
     {
-        dmGameObject::HInstance instance = coll->m_Instances[coll->m_LevelIndices[i]];
+        dmGameObject::HInstance instance = coll->m_Instances[coll->m_LevelIndices[0][i]];
         ASSERT_NE((void*)0, instance);
         Vectormath::Aos::Point3 p = dmGameObject::GetPosition(instance);
         ASSERT_EQ(0.0f, p.getX());

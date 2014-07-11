@@ -124,7 +124,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
 
     public void dispose(GL2 gl) {
         if (this.root != null) {
-            this.root.dispose();
+            this.root.dispose(gl);
         }
         this.history.removeOperationHistoryListener(this);
         for (TextureHandle texture : this.textureCache.values()) {

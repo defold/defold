@@ -11,6 +11,7 @@ import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.spine.proto.Spine;
 import com.dynamo.sprite.proto.Sprite.SpriteDesc;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -91,6 +92,18 @@ public class ParseUtil {
                     throw new RuntimeException(e);
                 }
                 return builder.build();
+            }
+        });
+        parseMap.put("spinescenec", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Spine.SpineScene.parseFrom(content);
+            }
+        });
+        parseMap.put("spinemodelc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Spine.SpineModelDesc.parseFrom(content);
             }
         });
     }

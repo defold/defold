@@ -18,12 +18,9 @@ public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
 
 	public static final String PLUGIN_ID = "com.dynamo.cr.editor.core";
 
-    // Version
-    // NOTE: Currently hard-coded. Non-trivial to find the product number :-(
-	// The version-number is updated
-	// with build-script (bump command)
-    public static final String VERSION = "1.2.37";
-    public static final String VERSION_SHA1 = "6b3ae27";
+    private String version;
+    private String sha1;
+    private String channel;
 
     private static BundleContext context;
     private static EditorCorePlugin plugin;
@@ -37,6 +34,36 @@ public class EditorCorePlugin extends Plugin implements IResourceTypeRegistry {
 
     public static EditorCorePlugin getDefault() {
         return plugin;
+    }
+
+    public String getVersion() {
+        if (version == null) {
+            version = System.getProperty("defold.version", "NO VERSION");
+        }
+        return version;
+    }
+
+    public String getSha1() {
+        if (sha1 == null) {
+            sha1 = System.getProperty("defold.sha1", "NO SHA1");
+        }
+        return sha1;
+    }
+
+    public String getChannel() {
+        if (channel == null) {
+            channel = System.getProperty("defold.channel", "stable");
+        }
+        return channel;
+    }
+
+    public String getTitle() {
+        String title = "Defold Editor";
+        String channel = getChannel();
+        if (!channel.equals("stable")) {
+            title += " - " + channel.toUpperCase();
+        }
+        return title;
     }
 
     public static String getPlatform() {

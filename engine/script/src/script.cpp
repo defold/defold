@@ -155,6 +155,9 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)params.m_ValidateInstanceCallback);
         lua_setglobal(L, SCRIPT_VALIDATE_INSTANCE_CALLBACK);
 
+        lua_pushlightuserdata(L, (void*)L);
+        lua_setglobal(L, SCRIPT_MAIN_THREAD);
+
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
@@ -212,7 +215,7 @@ namespace dmScript
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[256];
+        char buffer[2048];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -224,8 +227,8 @@ namespace dmScript
             if (s == 0x0)
                 return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
             if (i > 1)
-                dmStrlCat(buffer, "\t", 256);
-            dmStrlCat(buffer, s, 256);
+                dmStrlCat(buffer, "\t", sizeof(buffer));
+            dmStrlCat(buffer, s, sizeof(buffer));
             lua_pop(L, 1);
         }
         dmLogUserDebug("%s", buffer);
@@ -340,5 +343,14 @@ namespace dmScript
         bool result = callback(L);
         assert(top == lua_gettop(L));
         return result;
+    }
+
+    lua_State* GetMainThread(lua_State* L)
+    {
+        lua_getglobal(L, SCRIPT_MAIN_THREAD);
+        lua_State* main_thread = (lua_State*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        return main_thread;
     }
 }

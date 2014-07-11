@@ -38,6 +38,7 @@ import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.swt.widgets.Display;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -78,6 +79,12 @@ public abstract class AbstractNodeTest {
 
     @Before
     public void setup() throws CoreException, IOException {
+        // Avoid hang when running unit-test on Mac OSX
+        // Related to SWT and threads?
+        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
+            Display.getDefault();
+        }
+
         this.contentRoot = mock(IContainer.class);
 
         this.model = mock(ISceneModel.class);

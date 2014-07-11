@@ -153,6 +153,7 @@ public class GameObjectBuilder extends Builder<Void> {
         {".sprite", ".spritec"},
         {".tilegrid", ".tilegridc"},
         {".tilemap", ".tilegridc"},
+        {".spinemodel", ".spinemodelc"},
     };
 
     private PrototypeDesc.Builder transformGo(IResource resource,

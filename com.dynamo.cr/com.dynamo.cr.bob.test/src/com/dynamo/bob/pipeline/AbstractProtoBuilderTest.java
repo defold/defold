@@ -1,10 +1,24 @@
 package com.dynamo.bob.pipeline;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 
+import javax.imageio.ImageIO;
+
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.eclipse.core.runtime.IPath;
+import org.eclipse.core.runtime.Path;
 import org.junit.After;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
@@ -15,6 +29,7 @@ import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.google.protobuf.Message;
+import com.jogamp.newt.Display;
 
 public abstract class AbstractProtoBuilderTest {
     private MockFileSystem fileSystem;
@@ -26,6 +41,12 @@ public abstract class AbstractProtoBuilderTest {
     }
 
     public AbstractProtoBuilderTest() {
+        // Avoid hang when running unit-test on Mac OSX
+        // Related to SWT and threads?
+        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
+            Display.getDefault();
+        }
+
         this.fileSystem = new MockFileSystem();
         this.fileSystem.setBuildDirectory("");
         this.project = new Project(this.fileSystem);
@@ -59,4 +80,40 @@ public abstract class AbstractProtoBuilderTest {
     protected void addFile(String file, byte[] content) {
         this.fileSystem.addFile(file, content);
     }
+
+    protected void addTestFiles() {
+        Bundle bundle = FrameworkUtil.getBundle(getClass());
+        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
+        if (entries != null) {
+            while (entries.hasMoreElements()) {
+                final URL url = entries.nextElement();
+                IPath path = new Path(url.getPath()).removeFirstSegments(1);
+                InputStream is = null;
+                try {
+                    is = url.openStream();
+                    ByteArrayOutputStream os = new ByteArrayOutputStream();
+                    IOUtils.copy(is, os);
+                    String p = "/" + path.toString();
+                    addFile(p, os.toByteArray());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    IOUtils.closeQuietly(is);
+                }
+            }
+        }
+    }
+
+    private BufferedImage newImage(int w, int h) {
+        return new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
+    }
+
+    protected void addImage(String path, int w, int h) throws IOException {
+        BufferedImage img = newImage(w, h);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(img, FilenameUtils.getExtension(path), baos);
+        baos.flush();
+        addFile(path, baos.toByteArray());
+    }
+
 }

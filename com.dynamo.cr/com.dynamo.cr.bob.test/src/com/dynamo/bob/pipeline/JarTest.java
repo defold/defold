@@ -9,10 +9,21 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
+import org.eclipse.swt.widgets.Display;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ConsoleProgress;
+import com.dynamo.bob.DefaultFileSystem;
+import com.dynamo.bob.IClassScanner;
+import com.dynamo.bob.IFileSystem;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.TaskResult;
 
 public class JarTest {
 
@@ -42,4 +53,38 @@ public class JarTest {
         }
     }
 
+    /**
+     * The purpose with this test is to be as close as possible to testBuild, but make debugging easier by running the same JVM.
+     * @throws Exception
+     */
+    @Test
+    public void testNonJarBuild() throws Exception {
+        // Avoid hang when running unit-test on Mac OSX
+        // Related to SWT and threads?
+        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
+            Display.getDefault();
+        }
+
+        IFileSystem fs = new DefaultFileSystem();
+        String cwd = new File(".").getAbsolutePath();
+        Project p = new Project(fs, cwd, "build/default");
+
+        IClassScanner scanner = new TestClassLoaderScanner();
+        p.scan(scanner, "com.dynamo.bob");
+        p.scan(scanner, "com.dynamo.bob.pipeline");
+
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", "build/default"));
+
+        p.findSources("test", skipDirs);
+        List<TaskResult> result = p.build(new ConsoleProgress(), "distclean", "build");
+        assertFalse(result.isEmpty());
+        boolean res = true;
+        for (TaskResult taskResult : result) {
+            if (!taskResult.isOk()) {
+                res = false;
+                break;
+            }
+        }
+        assertTrue(res);
+    }
 }

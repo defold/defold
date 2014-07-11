@@ -8,6 +8,7 @@
 #define SCRIPT_GET_USER_DATA_CALLBACK "__script_get_user_data_callback"
 #define SCRIPT_VALIDATE_INSTANCE_CALLBACK "__script_validate_instance_callback"
 #define SCRIPT_CONTEXT "__script_context"
+#define SCRIPT_MAIN_THREAD "__script_main_thread"
 
 namespace dmScript
 {

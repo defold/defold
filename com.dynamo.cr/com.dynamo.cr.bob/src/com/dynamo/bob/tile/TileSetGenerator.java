@@ -5,11 +5,10 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.lang3.Pair;
-
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
@@ -85,7 +84,7 @@ public class TileSetGenerator {
         }
     }
 
-    public static Pair<TextureSet.Builder, BufferedImage> generate(TileSet tileSet, BufferedImage image,
+    public static TextureSetResult generate(TileSet tileSet, BufferedImage image,
             BufferedImage collisionImage, boolean genOutlines) {
         TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(image, tileSet.getTileWidth(),
                 tileSet.getTileHeight(), tileSet.getTileMargin(), tileSet.getTileSpacing(), collisionImage, 1.0f, 0.0f);
@@ -98,16 +97,16 @@ public class TileSetGenerator {
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
 
-        Pair<TextureSet.Builder, BufferedImage> pair = TextureSetGenerator.generate(images, iterator, 0,
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
                 tileSet.getExtrudeBorders(), genOutlines);
 
-        TextureSet.Builder builder = pair.left;
+        TextureSet.Builder builder = result.builder;
 
         builder.setTileWidth(tileSet.getTileWidth()).setTileHeight(tileSet.getTileHeight());
 
         buildConvexHulls(tileSet, collisionImage, builder);
 
-        return pair;
+        return result;
     }
 
     private static int calcTileStart(TileSet tileSet, int size, int tileIndex) {

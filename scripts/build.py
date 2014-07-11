@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools
-import optparse, subprocess, urllib, urlparse
+import os, sys, shutil, zipfile, re, itertools, json
+import optparse, subprocess, urllib, urlparse, tempfile
+from datetime import datetime
 from tarfile import TarFile
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
 from glob import glob
+from threading import Thread, Event
+from Queue import Queue
 
 """
 Build utility for installing external packages, building engine, editor and cr
@@ -21,6 +24,47 @@ PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 and
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
 
+class ThreadPool(object):
+    def __init__(self, worker_count):
+        self.workers = []
+        self.work_queue = Queue()
+
+        for i in range(worker_count):
+            w = Thread(target = self.worker)
+            w.setDaemon(True)
+            w.start()
+            self.workers.append(w)
+
+    def worker(self):
+        func, args, future = self.work_queue.get()
+        while func:
+            try:
+                result = func(*args)
+                future.result = result
+            except Exception,e:
+                future.result = e
+            future.event.set()
+            func, args, future = self.work_queue.get()
+
+class Future(object):
+    def __init__(self, pool, f, *args):
+        self.result = None
+        self.event = Event()
+        pool.work_queue.put([f, args, self])
+
+    def __call__(self):
+        try:
+            # In order to respond to ctrl+c wait with timeout...
+            while not self.event.is_set():
+                self.event.wait(0.1)
+        except KeyboardInterrupt,e:
+            sys.exit(0)
+
+        if isinstance(self.result, Exception):
+            raise self.result
+        else:
+            return self.result
+
 class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
@@ -32,7 +76,8 @@ class Configuration(object):
                  archive_path = None,
                  set_version = None,
                  eclipse = False,
-                 branch = None):
+                 branch = None,
+                 channel = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -54,8 +99,21 @@ class Configuration(object):
         self.set_version = set_version
         self.eclipse = eclipse
         self.branch = branch
+        self.channel = channel
+
+        self.thread_pool = None
+        self.s3buckets = {}
+        self.futures = []
+
+        with open('VERSION', 'r') as f:
+            self.version = f.readlines()[0].strip()
 
         self._create_common_dirs()
+
+    def __del__(self):
+        if len(self.futures) > 0:
+            print('ERROR: Pending futures (%d)' % len(self.futures))
+            os._exit(5)
 
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'lib/python', 'share']:
@@ -80,7 +138,7 @@ class Configuration(object):
         version = sys.version_info
         # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
         if self.host == 'linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            self.exec_command(['tar', 'xfz', file], cwd = path)
+            self.exec_env_command(['tar', 'xfz', file], cwd = path)
         else:
             tf = TarFile.open(file, 'r:gz')
             tf.extractall(path)
@@ -160,7 +218,7 @@ class Configuration(object):
 
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
-            self.exec_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
+            self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
 
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
@@ -168,8 +226,11 @@ class Configuration(object):
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
-    def _git_sha1(self, dir = '.'):
-        process = subprocess.Popen('git log --oneline -n1'.split(), stdout = subprocess.PIPE)
+    def _git_sha1(self, dir = '.', ref = None):
+        args = 'git log --pretty=%H -n1'.split()
+        if ref:
+            args.append(ref)
+        process = subprocess.Popen(args, stdout = subprocess.PIPE)
         out, err = process.communicate()
         if process.returncode != 0:
             sys.exit(process.returncode)
@@ -177,6 +238,23 @@ class Configuration(object):
         line = out.split('\n')[0].strip()
         sha1 = line.split()[0]
         return sha1
+
+    def _ziptree(self, path, outfile = None, directory = None):
+        # Directory is similar to -C in tar
+        if not outfile:
+            outfile = tempfile.NamedTemporaryFile(delete = False)
+
+        zip = zipfile.ZipFile(outfile, 'w')
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                p = os.path.join(root, f)
+                an = p
+                if directory:
+                    an = os.path.relpath(p, directory)
+                zip.write(p, an)
+
+        zip.close()
+        return outfile.name
 
     def is_cross_platform(self):
         return self.host != self.target_platform
@@ -203,13 +281,8 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
-        host, path = full_archive_path.split(':', 1)
-        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
+        share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
-        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
-        if self.target_platform == 'win32':
-            dynamo_home = dynamo_home.replace("\\", "/")
-            dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
 
         if self.is_cross_platform():
             # When cross compiling or when compiling for 64-bit the engine is located
@@ -226,34 +299,35 @@ class Configuration(object):
         engine_headless = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_headless' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
-            self._log('Archiving %s' % engine)
-            self.exec_command(['scp', engine,
-                               '%s/%sdmengine%s' % (full_archive_path, exe_prefix, exe_ext)])
-            self.exec_command(['scp', engine_release,
-                               '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext)])
-            self.exec_command(['scp', engine_headless,
-                               '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext)])
+            self.upload_file(engine, '%s/%sdmengine%s' % (full_archive_path, exe_prefix, exe_ext))
+            self.upload_file(engine_release, '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext))
+            self.upload_file(engine_headless, '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext))
+
+        if self.target_platform == 'linux':
+            # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
+            builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
+            self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
 
         if 'android' in self.target_platform:
             files = [
                 ('share/java', 'classes.dex'),
                 ('bin/%s' % (self.target_platform), 'dmengine.apk'),
                 ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
+                ('ext/share/java', 'android.jar'),
             ]
             for f in files:
-                self._log('Archiving %s' % f[1])
                 src = join(dynamo_home, f[0], f[1])
-                self.exec_command(['scp', src,
-                                   '%s/%s' % (full_archive_path, f[1])])
+                self.upload_file(src, '%s/%s' % (full_archive_path, f[1]))
+
+            resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
+            self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
 
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
             libs.append('texc')
         for lib in libs:
             lib_path = join(dynamo_home, 'lib', lib_dir, '%s%s_shared%s' % (lib_prefix, lib, lib_ext))
-            self._log('Archiving %s' % lib_path)
-            self.exec_command(['scp', lib_path,
-                               '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext)])
+            self.upload_file(lib_path, '%s/%s%s_shared%s' % (full_archive_path, lib_prefix, lib, lib_ext))
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -283,126 +357,138 @@ class Configuration(object):
                 if platform != self.host:
                     pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
-                self.exec_command(cmd.split(), cwd = cwd)
+                self.exec_env_command(cmd.split(), cwd = cwd)
 
         self._log('Building bob')
 
-        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                          cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
-                          shell = True)
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                              cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
+                              shell = True)
 
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_command(cmd.split(), cwd = cwd)
+            self.exec_env_command(cmd.split(), cwd = cwd)
 
     def build_go(self):
         # TODO: shell=True is required only on windows
         # otherwise it fails. WHY?
         if not self.skip_tests:
-            self.exec_command('go test defold/...', shell=True)
-        self.exec_command('go install defold/...', shell=True)
+            self.exec_env_command('go test defold/...', shell=True)
+        self.exec_env_command('go install defold/...', shell=True)
         for f in glob(join(self.defold, 'go', 'bin', '*')):
             shutil.copy(f, join(self.dynamo_home, 'bin'))
 
     def archive_go(self):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'go', self.target_platform).replace('\\', '/')
-        host, path = full_archive_path.split(':', 1)
-        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
-
+        full_archive_path = join(self.archive_path, sha1, 'go', self.target_platform)
         for p in glob(join(self.defold, 'go', 'bin', '*')):
-            # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
-            if self.target_platform == 'win32':
-                p = p.replace("\\", "/")
-                p = "/" + p[:1] + p[2:]
-            self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def build_bob(self):
+        # NOTE: A bit expensive to sync everything
+        self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        self.exec_command("./scripts/copy_libtexc.sh",
+        self.exec_env_command("./scripts/copy_libtexc.sh",
                           cwd = cwd,
                           shell = True)
 
-        self.exec_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                           cwd = cwd,
                           shell = True)
 
     def archive_bob(self):
         sha1 = self._git_sha1()
-
-        dynamo_home = self.dynamo_home
-        # TODO: Ugly win fix, make better (https://defold.fogbugz.com/default.asp?1066)
-        if self.target_platform == 'win32':
-            dynamo_home = dynamo_home.replace("\\", "/")
-            dynamo_home = "/" + dynamo_home[:1] + dynamo_home[2:]
-
         full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
-        host, path = full_archive_path.split(':', 1)
-        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
-
         for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
-            self.exec_command(['scp', p, '%s/%s' % (full_archive_path, basename(p))])
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
-        self.exec_command(cmd.split(), cwd = cwd)
+        self.exec_env_command(cmd.split(), cwd = cwd)
 
     def test_cr(self):
+        # NOTE: A bit expensive to sync everything
+        self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
-                          cwd = cwd)
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
+                              cwd = cwd)
 
     def _get_cr_builddir(self, product):
-        return join(os.getcwd(), 'tmp', product)
+        return join(os.getcwd(), 'com.dynamo.cr/com.dynamo.cr.%s-product' % product)
 
     def build_server(self):
-        build_dir = self._get_cr_builddir('server')
-        self._build_cr('server', build_dir)
+        self._build_cr('server')
 
     def build_editor(self):
-        build_dir = self._get_cr_builddir('editor')
+        import xml.etree.ElementTree as ET
 
-        root_properties = '''root.linux.gtk.x86=absolute:${buildDirectory}/plugins/com.dynamo.cr.editor/jre_linux/
-root.linux.gtk.x86.permissions.755=jre/'''
-        self._build_cr('editor', build_dir, root_properties = root_properties)
+        sha1 = self._git_sha1()
 
-        # NOTE:
-        # Due to bug https://bugs.eclipse.org/bugs/show_bug.cgi?id=300812
-        # we cannot add jre to p2 on win32
-        # The jre is explicitly bundled instead
-        prefix = 'Defold'
-        zip = join(build_dir, 'I.Defold/Defold-win32.win32.x86.zip')
-        jre_root = join(build_dir, 'plugins/com.dynamo.cr.editor/jre_win32')
-        zip = zipfile.ZipFile(zip, 'a')
+        if self.channel != 'stable':
+            qualified_version = self.version + ".qualifier"
+        else:
+            qualified_version = self.version
 
-        for root, dirs, files in os.walk(jre_root):
-            for f in files:
-                full = join(root, f)
-                rel = relpath(full, jre_root)
-                with open(full, 'rb') as file:
-                    data = file.read()
-                    path = join(prefix, rel)
-                    zip.writestr(path, data)
-        zip.close()
+        icon_path = '/icons/%s' % self.channel
+
+        tree = ET.parse('com.dynamo.cr/com.dynamo.cr.editor-product/template/cr.product')
+        root = tree.getroot()
+
+        root.attrib['version'] = qualified_version
+        for n in root.find('launcher'):
+            if n.tag == 'win':
+                icon = n.find('ico')
+                name = os.path.basename(icon.attrib['path'])
+                icon.attrib['path'] = 'icons/%s/%s' % (self.channel, name)
+            elif 'icon' in n.attrib:
+                name = os.path.basename(n.attrib['icon'])
+                n.attrib['icon'] = 'icons/%s/%s' % (self.channel, name)
+
+        for n in root.find('configurations').findall('property'):
+            if n.tag == 'property':
+                name = n.attrib['name']
+                if name == 'defold.version':
+                    n.attrib['value'] = self.version
+                elif name == 'defold.sha1':
+                    n.attrib['value'] = sha1
+                elif name == 'defold.channel':
+                    n.attrib['value'] = options.channel
+
+        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.product', 'w') as f:
+            f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            f.write('<?pde version="3.5"?>\n')
+            f.write('\n')
+            tree.write(f, encoding='utf-8')
+
+        p2 = """
+instructions.configure=\
+  addRepository(type:0,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
+  addRepository(type:1,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
+"""
+
+        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
+            f.write(p2 % { 'channel': self.channel })
+
+        self._build_cr('editor')
 
     def _archive_cr(self, product, build_dir):
         sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, product).replace('\\', '/')
+        full_archive_path = join(self.archive_path, sha1, product).replace('\\', '/') + '/'
         host, path = full_archive_path.split(':', 1)
-        self.exec_command(['ssh', host, 'mkdir -p %s' % path])
-        for p in glob(join(build_dir, 'I.*/*.zip')):
-            self.exec_command(['scp', p, full_archive_path])
-        self.exec_command(['tar', '-C', build_dir, '-cz', '-f', join(build_dir, '%s_repository.tgz' % product), 'repository'])
-        self.exec_command(['scp', join(build_dir, '%s_repository.tgz' % product), full_archive_path])
+        for p in glob(join(build_dir, 'target/products/*.zip')):
+            self.upload_file(p, full_archive_path)
 
-        if self.branch:
-            _, base_path = self.archive_path.split(':', 1)
-            self.exec_command(['ssh', host, 'ln -snf %s %s' % (path, join(base_path, '%s_%s' % (product, self.branch)))])
+        repo_dir = join(build_dir, 'target/repository')
+        for root,dirs,files in os.walk(repo_dir):
+            for f in files:
+                p = join(root, f)
+                u = join(full_archive_path, "repository", os.path.relpath(p, repo_dir))
+                self.upload_file(p, u)
 
     def archive_editor(self):
         build_dir = self._get_cr_builddir('editor')
@@ -412,50 +498,10 @@ root.linux.gtk.x86.permissions.755=jre/'''
         build_dir = self._get_cr_builddir('server')
         self._archive_cr('server', build_dir)
 
-    def _build_cr(self, product, build_dir, root_properties = None):
-        equinox_version = '1.3.0.v20120522-1813'
-
-        if os.path.exists(build_dir):
-            shutil.rmtree(build_dir)
-        os.makedirs(join(build_dir, 'plugins'))
-        os.makedirs(join(build_dir, 'features'))
-
-        if root_properties:
-            with open(join(build_dir, 'root.properties'), 'wb') as f:
-                f.write(root_properties)
-
-        workspace = join(os.getcwd(), 'tmp', 'workspace_%s' % product)
-        if os.path.exists(workspace):
-            shutil.rmtree(workspace)
-        os.makedirs(workspace)
-
-        # copy engine
-        p = join(self.defold_root, 'engine')
-        dst = join(build_dir, basename(p))
-        self._log('Copying .../%s -> %s' % (basename(p), dst))
-        shutil.copytree(p, dst)
-
-        # copy plugins
-        for p in glob(join(self.defold_root, 'com.dynamo.cr', '*')):
-            dst = join(build_dir, 'plugins', basename(p))
-            self._log('Copying .../%s -> %s' % (basename(p), dst))
-            shutil.copytree(p, dst)
-
-        args = ['java',
-                # Try to avoid zip-bug in ant 1.8.2, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=346730
-                '-XX:+UseParNewGC',
-                '-Xms256m',
-                '-Xmx1500m',
-                '-jar',
-                '%s/plugins/org.eclipse.equinox.launcher_%s.jar' % (self.eclipse_home, equinox_version),
-                '-application', 'org.eclipse.ant.core.antRunner',
-                '-buildfile', 'ci/cr/build_%s.xml' % product,
-                '-DbaseLocation=%s' % self.eclipse_home,
-                '-DbuildDirectory=%s' % build_dir,
-                '-DbuildProperties=%s' % join(os.getcwd(), 'ci/cr/%s.properties' % product),
-                '-data', workspace]
-
-        self.exec_command(args)
+    def _build_cr(self, product):
+        self._sync_archive()
+        cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product], cwd = cwd)
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -473,40 +519,349 @@ root.linux.gtk.x86.permissions.755=jre/'''
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        with open('com.dynamo.cr/com.dynamo.cr.editor/cr.product', 'a+') as f:
-            f.seek(0)
-            product = f.read()
-
-            product = re.sub('(<product name=.*?)version="[0-9\.]+"(.*?>)', '\g<1>version="%s"\g<2>' % new_version, product)
-            f.truncate(0)
-            f.write(product)
-
-        with open('com.dynamo.cr/com.dynamo.cr.editor.core/src/com/dynamo/cr/editor/core/EditorCorePlugin.java', 'a+') as f:
-            f.seek(0)
-            activator = f.read()
-
-            activator = re.sub('public static final String VERSION = "[0-9\.]+";', 'public static final String VERSION = "%s";' % new_version, activator)
-            activator = re.sub('public static final String VERSION_SHA1 = ".*?";', 'public static final String VERSION_SHA1 = "%s";' % sha1, activator)
-            f.truncate(0)
-            f.write(activator)
-
-        with open('engine/engine/src/engine_version.h', 'a+') as f:
-            f.seek(0)
-            engine_version = f.read()
-
-            engine_version = re.sub('const char\* VERSION = "[0-9\.]+";', 'const char* VERSION = "%s";' % new_version, engine_version)
-            engine_version = re.sub('const char\* VERSION_SHA1 = ".*?";', 'const char* VERSION_SHA1 = "%s";' % sha1, engine_version)
-            f.truncate(0)
-            f.write(engine_version)
-
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
 
     def shell(self):
         print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
-        self.exec_command(['sh', '-l'])
+        self.exec_env_command(['sh', '-l'])
 
-    def exec_command(self, arg_list, **kwargs):
+    def _get_tagged_releases(self):
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+
+        def get_files(sha1):
+            root = urlparse.urlparse(self.archive_path).path[1:]
+            base_prefix = os.path.join(root, sha1)
+            prefix = os.path.join(base_prefix, 'engine')
+            files = []
+            for x in bucket.list(prefix = prefix):
+                if x.name[-1] != '/':
+                    # Skip directory "keys". When creating empty directories
+                    # a psudeo-key is created. Directories isn't a first-class object on s3
+                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                        name = os.path.relpath(x.name, base_prefix)
+                        files.append({'name': name, 'path': '/' + x.name})
+            return files
+
+        tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
+        tags.reverse()
+        releases = []
+        for line in tags:
+            line = line.strip()
+            if not line:
+                continue
+            m = re.match('(.*?) refs/tags/(.*?)$', line)
+            sha1, tag = m.groups()
+            epoch = self.exec_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
+            date = datetime.fromtimestamp(float(epoch))
+            files = get_files(sha1)
+            if len(files) > 0:
+                releases.append({'tag': tag,
+                                 'sha1': sha1,
+                                 'abbrevsha1': sha1[:7],
+                                 'date': str(date),
+                                 'files': files})
+
+        return releases
+
+
+    def release(self):
+        page = """
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Defold Downloads</title>
+        <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" href="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/css/bootstrap.min.css">
+
+        <style>
+            body {
+                padding-top: 50px;
+            }
+            .starter-template {
+                padding: 40px 15px;
+                text-align: center;
+            }
+        </style>
+
+    </head>
+    <body>
+    <div class="navbar navbar-fixed-top">
+        <div class="navbar-inner">
+            <div class="container">
+                <a class="brand" href="/">Defold Downloads</a>
+                <ul class="nav">
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <div id="releases"></div>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+        <script src="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/js/bootstrap.min.js"></script>
+        <script src="http://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
+
+        <script id="templ-releases" type="text/html">
+            <h2>Editor</h2>
+            {{#editor.stable}}
+                <p>
+                    <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
+                </p>
+            {{/editor.stable}}
+
+            {{#has_releases}}
+                <h2>Releases</h2>
+            {{/has_releases}}
+
+            {{#releases}}
+                <div class="panel-group" id="accordion">
+                  <div class="panel panel-default">
+                    <div class="panel-heading">
+                      <h4 class="panel-title">
+                        <a data-toggle="collapse" data-parent="#accordion" href="#{{sha1}}">
+                          <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
+                        </a>
+                      </h4>
+                    </div>
+                    <div id="{{sha1}}" class="panel-collapse collapse ">
+                      <div class="panel-body">
+                        <table class="table table-striped">
+                          <tbody>
+                            {{#files}}
+                            <tr><td><a href="{{path}}">{{name}}</a></td></tr>
+                            {{/files}}
+                            {{^files}}
+                            <i>No files</i>
+                            {{/files}}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+            {{/releases}}
+        </script>
+
+        <script>
+            var model = %(model)s
+            var output = Mustache.render($('#templ-releases').html(), model);
+            $("#releases").html(output);
+        </script>
+      </body>
+</html>
+"""
+
+        artifacts = """<?xml version='1.0' encoding='UTF-8'?>
+<?compositeArtifactRepository version='1.0.0'?>
+<repository name='"Defold"'
+    type='org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'
+    version='1.0.0'>
+  <children size='1'>
+      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+  </children>
+</repository>"""
+
+        content = """<?xml version='1.0' encoding='UTF-8'?>
+<?compositeMetadataRepository version='1.0.0'?>
+<repository name='"Defold"'
+    type='org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'
+    version='1.0.0'>
+  <children size='1'>
+      <child location='http://%(host)s/archive/%(sha1)s/editor/repository'/>
+  </children>
+</repository>
+"""
+
+        if self.exec_command('git config -l').find('remote.origin.url') != -1:
+            # NOTE: Only run fetch when we have a configured remote branch.
+            # When running on buildbot we don't but fetching should not be required either
+            # as we're already up-to-date
+            self._log('Running git fetch to get latest tags and refs...')
+            self.exec_command('git fetch')
+
+        u = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(u.hostname)
+        host = bucket.get_website_endpoint()
+
+        model = {'releases': [],
+                 'has_releases': False}
+
+        if self.channel == 'stable':
+            # Move artifacts to a separate page?
+            model['releases'] = self._get_tagged_releases()
+            model['has_releases'] = True
+
+        # NOTE
+        # - The stable channel is based on the latest tag
+        # - The beta channel is based on the latest commit in the dev-branch, i.e. origin/dev
+        if self.channel == 'stable':
+            release_sha1 = model['releases'][0]['sha1']
+        elif self.channel == 'beta':
+            release_sha1 = self._git_sha1('origin/dev')
+        else:
+            raise Exception('Unknown channel %s' % self.channel)
+
+        if sys.stdin.isatty():
+            sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+            response = sys.stdin.readline()
+            if response[0] != 'y':
+                return
+
+        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.zip' % self.channel),
+                                       dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
+                                       dict(name='Linux', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
+
+        # NOTE: We upload index.html to /CHANNEL/index.html
+        # The root-index, /index.html, redirects to /stable/index.html
+        self._log('Uploading %s/index.html' % self.channel)
+        html = page % {'model': json.dumps(model)}
+        key = bucket.new_key('%s/index.html' % self.channel)
+        key.content_type = 'text/html'
+        key.set_contents_from_string(html)
+
+        self._log('Uploading %s/info.json' % self.channel)
+        key = bucket.new_key('%s/info.json' % self.channel)
+        key.content_type = 'application/json'
+        key.set_contents_from_string(json.dumps({'version': self.version,
+                                                 'sha1' : release_sha1}))
+
+        # Create redirection keys for editor
+        for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip']:
+            key_name = '%s/%s' % (self.channel, name)
+            redirect = '/archive/%s/editor/%s' % (release_sha1, name)
+            self._log('Creating link from %s -> %s' % (key_name, redirect))
+            key = bucket.new_key(key_name)
+            key.set_redirect(redirect)
+
+        for name, template in [['compositeArtifacts.xml', artifacts], ['compositeContent.xml', content]]:
+            full_name = '%s/update/%s' % (self.channel, name)
+            self._log('Uploading %s' % full_name)
+            key = bucket.new_key(full_name)
+            key.content_type = 'text/xml'
+            key.set_contents_from_string(template % {'host': host,
+                                                     'sha1': release_sha1})
+
+    def _get_s3_archive_prefix(self):
+        u = urlparse.urlparse(self.archive_path)
+        assert (u.scheme == 's3')
+        sha1 = self._git_sha1()
+        prefix = os.path.join(u.path, sha1)[1:]
+        return prefix
+
+    def _sync_archive(self):
+        u = urlparse.urlparse(self.archive_path)
+        bucket_name = u.hostname
+        bucket = self._get_s3_bucket(bucket_name)
+
+        local_dir = os.path.join(self.dynamo_home, 'archive')
+        self._mkdirs(local_dir)
+
+        if not self.thread_pool:
+            self.thread_pool = ThreadPool(8)
+
+        def download(key, path):
+            key.get_contents_to_filename(path)
+
+        futures = []
+        sha1 = self._git_sha1()
+        # Only s3 is supported (scp is deprecated)
+        prefix = self._get_s3_archive_prefix()
+        for key in bucket.list(prefix = prefix):
+            rel = os.path.relpath(key.name, prefix)
+            if rel.split('/')[0] != 'editor':
+                p = os.path.join(local_dir, sha1, rel)
+                self._mkdirs(os.path.dirname(p))
+                self._log('s3://%s/%s -> %s' % (bucket_name, key.name, p))
+                f = Future(self.thread_pool, download, key, p)
+                futures.append(f)
+
+        for f in futures:
+            f()
+
+    def _get_s3_bucket(self, bucket_name):
+        if bucket_name in self.s3buckets:
+            return self.s3buckets[bucket_name]
+
+        from ConfigParser import ConfigParser
+        config = ConfigParser()
+        configpath = os.path.expanduser("~/.s3cfg")
+        config.read(configpath)
+
+        key = config.get('default', 'access_key')
+        secret = config.get('default', 'secret_key')
+
+        if not (key and secret):
+            self._log('key/secret not found in "%s"' % configpath)
+            sys.exit(5)
+
+        from boto.s3.connection import S3Connection
+        from boto.s3.key import Key
+
+        # NOTE: We hard-code host (region) here and it should not be required.
+        # but we had problems with certain buckets with period characters in the name.
+        # Probably related to the following issue https://github.com/boto/boto/issues/621
+        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com')
+        bucket = conn.get_bucket(bucket_name)
+        self.s3buckets[bucket_name] = bucket
+        return bucket
+
+    def upload_file(self, path, url):
+        url = url.replace('\\', '/')
+        self._log('%s -> %s' % (path, url))
+
+        u = urlparse.urlparse(url)
+
+        if u.netloc == '':
+            # Assume scp syntax, e.g. host:path
+            if self.host == 'win32':
+                path = path.replace('\\', '/')
+                # scp interpret c:\path as a network location (host "c")
+                if path[1] == ':':
+                    path = "/" + path[:1] + path[2:]
+
+            self.exec_env_command(['ssh', u.scheme, 'mkdir -p %s' % u.path])
+            self.exec_env_command(['scp', path, url])
+        elif u.scheme == 's3':
+            bucket = self._get_s3_bucket(u.netloc)
+
+            if not self.thread_pool:
+                self.thread_pool = ThreadPool(8)
+
+            p = u.path
+            if p[-1] == '/':
+                p += basename(path)
+
+            def upload():
+                key = bucket.new_key(p)
+                key.set_contents_from_filename(path)
+
+            f = Future(self.thread_pool, upload)
+            self.futures.append(f)
+
+        else:
+            raise Exception('Unsupported url %s' % (url))
+
+    def wait_uploads(self):
+        for f in self.futures:
+            f()
+        self.futures = []
+
+    def exec_command(self, args):
+        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = True)
+
+        output = process.communicate()[0]
+        if process.returncode != 0:
+            self._log(output)
+            sys.exit(process.returncode)
+        return output
+
+    def exec_env_command(self, arg_list, **kwargs):
         env = dict(os.environ)
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
@@ -546,6 +901,8 @@ root.linux.gtk.x86.permissions.755=jre/'''
             sys.exit(process.returncode)
 
 if __name__ == '__main__':
+    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
+    sys.path.insert(0, boto_path)
     usage = '''usage: %prog [options] command(s)
 
 Commands:
@@ -564,6 +921,7 @@ build_bob       - Build bob with native libraries included for cross platform de
 archive_bob     - Archive bob to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
+release         - Release editor
 shell           - Start development shell
 
 Multiple commands can be specified'''
@@ -599,9 +957,10 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'No color output. Default is color output')
 
+    default_archive_path = 's3://d.defold.com/archive'
     parser.add_option('--archive-path', dest='archive_path',
-                      default = None,
-                      help = 'Archive build. Set ssh-path, host:path, to archive build to')
+                      default = default_archive_path,
+                      help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path    )
 
     parser.add_option('--set-version', dest='set_version',
                       default = None,
@@ -615,6 +974,10 @@ Multiple commands can be specified'''
     parser.add_option('--branch', dest='branch',
                       default = None,
                       help = 'Current branch. Used only for symbolic information, such as links to latest editor for a branch')
+
+    parser.add_option('--channel', dest='channel',
+                      default = 'stable',
+                      help = 'Editor release channel (stable, beta, ...)')
 
     options, args = parser.parse_args()
 
@@ -636,7 +999,8 @@ Multiple commands can be specified'''
                           archive_path = options.archive_path,
                           set_version = options.set_version,
                           eclipse = options.eclipse,
-                          branch = options.branch)
+                          branch = options.branch,
+                          channel = options.channel)
 
 
         for cmd in args:
@@ -645,6 +1009,7 @@ Multiple commands can be specified'''
                 if not f:
                     parser.error('Unknown command %s' % cmd)
                 f()
+                c.wait_uploads()
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
@@ -656,10 +1021,12 @@ Multiple commands can be specified'''
                       archive_path = options.archive_path,
                       set_version = options.set_version,
                       eclipse = options.eclipse,
-                      branch = options.branch)
+                      branch = options.branch,
+                      channel = options.channel)
 
     for cmd in args:
         f = getattr(c, cmd, None)
         if not f:
             parser.error('Unknown command %s' % cmd)
         f()
+        c.wait_uploads()

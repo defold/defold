@@ -253,6 +253,24 @@ static dmhash_t hash(const char* s)
     return dmHashString64(s);
 }
 
+#define ASSERT_GET_PROP_NUM(go, prop, v0, epsilon)\
+    {\
+        dmGameObject::SetScale(go, v0);\
+        dmGameObject::PropertyDesc desc;\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
+        ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
+    }\
+
+#define ASSERT_SET_PROP_NUM(go, prop, v0, epsilon)\
+    {\
+        dmGameObject::PropertyVar var(v0);\
+        dmGameObject::SetProperty(go, 0, hash(prop), var);\
+        dmGameObject::PropertyDesc desc;\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
+        ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
+    }\
+
 #define ASSERT_GET_PROP_V1(go, prop, v0, epsilon)\
     {\
         dmGameObject::SetScale(go, v0);\
@@ -267,7 +285,7 @@ static dmhash_t hash(const char* s)
         dmGameObject::PropertyVar var(v0);\
         dmGameObject::SetProperty(go, 0, hash(prop), var);\
         dmGameObject::PropertyDesc desc;\
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash("scale"), desc));\
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
     }\
 
@@ -414,8 +432,8 @@ TEST_F(PropsTest, PropsGetSet)
     pos *= 2.0f;
     ASSERT_SET_PROP_V3(go, "position", pos, epsilon);
 
-    ASSERT_GET_PROP_V1(go, "scale", 2.0f, epsilon);
-    ASSERT_SET_PROP_V1(go, "scale", 3.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale", 2.0f, epsilon);
+    ASSERT_SET_PROP_NUM(go, "scale", 3.0f, epsilon);
 
     Quat rot(1, 2, 3, 4);
     dmGameObject::SetRotation(go, rot);
@@ -435,6 +453,8 @@ TEST_F(PropsTest, PropsGetSet)
     dmGameObject::Delete(m_Collection, go);
 }
 
+#undef ASSERT_GET_PROP_NUM
+#undef ASSERT_SET_PROP_NUM
 #undef ASSERT_GET_PROP_V1
 #undef ASSERT_SET_PROP_V1
 #undef ASSERT_GET_PROP_V3

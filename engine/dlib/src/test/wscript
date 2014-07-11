@@ -7,7 +7,7 @@ def build(bld):
                      classpath='../ext/jetty-all-7.0.2.v20100331.jar' + os.pathsep + '../ext/servlet-api-2.5.jar',
                      source_root='http_server')
 
-    bld.env["JAVACFLAGS"] = '-g'
+    bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
 
     test_align = bld.new_task_gen(features = 'cxx cprogram',
                                  source = 'test_align.cpp',

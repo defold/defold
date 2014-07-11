@@ -95,6 +95,7 @@ namespace dmGameObject
         PROPERTY_RESULT_COMP_NOT_FOUND = -5,
         PROPERTY_RESULT_INVALID_INSTANCE = -6,
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
+        PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
     };
 
     /**
@@ -699,6 +700,15 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
+     * Set instance identifier. Must be unique within the collection.
+     * @param collection Collection
+     * @param instance Instance
+     * @param identifier Identifier
+     * @return RESULT_OK on success
+     */
+    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
+
+    /**
      * Get instance identifier
      * @param instance Instance
      * @return Identifier. dmGameObject::UNNAMED_IDENTIFIER if not set.
@@ -724,18 +734,17 @@ namespace dmGameObject
      */
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
-    // TODO: We should have expected component-type here but currently it's difficult to find
-    // componen-type from lua. See case 1998
     /**
      * Get gameobject instance from lua-argument. This function is typically used from lua-bindings
      * and can only be used from protected lua-calls as luaL_error might be invoked
      * @param L lua-state
      * @param index index to argument
+     * @param component_ext when specified, the call will fail if the found component does not have the specified extension
      * @param user_data component user-date output if available
      * @param url instance url. ignored if null
      * @return instance
      */
-    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data, dmMessage::URL* url);
+    HInstance GetInstanceFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url);
 
     /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
@@ -761,6 +770,32 @@ namespace dmGameObject
      * @return if the scale should be applied along Z
      */
     bool ScaleAlongZ(HInstance instance);
+
+    /**
+     * Set whether the instance should inherit the scale from its parent or not.
+     * @param instance Instance
+     * @param inherit_scale true if the instance should inherit scale
+     */
+    void SetInheritScale(HInstance instance, bool inherit_scale);
+
+    /**
+     * Set whether the instance should be flagged as a bone.
+     * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
+     * Used for animated skeletons.
+     * @param instance Instance
+     * @param bone true if the instance is a bone
+     */
+    void SetBone(HInstance instance, bool bone);
+
+    /**
+     * Set the local transforms recursively of all instances flagged as bones under the given parent instance.
+     * The order of the transforms is depth-first.
+     * @param parent Parent instance of the hierarchy to set
+     * @param transforms Array of transforms to set depth-first for the bone instances
+     * @param transform_count Size of the transforms array
+     * @return Number of instances found
+     */
+    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -879,6 +914,13 @@ namespace dmGameObject
     void SetScale(HInstance instance, float scale);
 
     /**
+     * Set gameobject instance non-uniform scale
+     * @param instance Gameobject instance
+     * @param scale New uniform scale
+     */
+    void SetScale(HInstance instance, Vector3 scale);
+
+    /**
      * Get gameobject instance uniform scale
      * @param instance Gameobject instance
      * @return Uniform scale
@@ -911,7 +953,7 @@ namespace dmGameObject
      * @param instance Game object instance
      * @return World uniform scale
      */
-    const dmTransform::TransformS1& GetWorldTransform(HInstance instance);
+    const dmTransform::Transform& GetWorldTransform(HInstance instance);
 
     /**
      * Set parent instance to child

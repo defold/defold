@@ -1,5 +1,7 @@
 package com.dynamo.cr.tileeditor.scene;
 
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -40,10 +42,10 @@ public class SpriteNode extends ComponentTypeNode {
     private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
     @Override
-    public void dispose() {
-        super.dispose();
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
         if (this.textureSetNode != null) {
-            this.textureSetNode.dispose();
+            this.textureSetNode.dispose(gl);
         }
     }
 
