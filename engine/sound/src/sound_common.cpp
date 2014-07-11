@@ -1,9 +1,4 @@
 #include "sound.h"
-#ifdef __EMSCRIPTEN__
-    #define BUFFER_SIZE (12 * 4096)
-#else
-    #define BUFFER_SIZE (4 * 4096)
-#endif
 
 namespace dmSound
 {
@@ -15,7 +10,7 @@ namespace dmSound
         params->m_MaxSoundData = 128;
         params->m_MaxSources = 16;
         params->m_MaxBuffers = 32;
-        params->m_BufferSize = BUFFER_SIZE;
+        params->m_BufferSize = 12 * 4096;
         params->m_FrameCount = 2048;
         params->m_MaxInstances = 256;
     }
