@@ -170,6 +170,7 @@ public class HTML5Bundler {
 
         for (String r : CopiedResourceScripts) {
         	CopyResource(appDir, r);
+        	monolithicFiles.add(new File(r));
         }
 
         CreateManifest();
