@@ -12,7 +12,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -28,6 +32,10 @@ public class HTML5Bundler {
     private String projectHtml;
     private String js;
     private String title;
+    private String version;
+
+    private List<File> monolithicFiles;
+    private List<SplitFile> splitFiles;
 
     private static final String[] CopiedResourceScripts = {
     	"modernizr.custom.js",
@@ -42,6 +50,8 @@ public class HTML5Bundler {
     	"game.projectc",
     	"game.darc"
     };
+
+    private static final String ManifestFileExtension = ".appcache";
 
     class SplitFile {
     	private File source;
@@ -88,6 +98,13 @@ public class HTML5Bundler {
     		}
     	}
 
+    	public void WriteManifestContribution(BufferedWriter writer) throws IOException {
+    		for (File s : subdivisions) {
+    			File relative = new File(SplitFileDir, s.getName());
+    			writer.write(String.format("%s\n", relative.getPath()));
+    		}
+    	}
+
     	private void WriteChunk(File dest, byte[] data) throws IOException {
     		OutputStream output = null;
     		try {
@@ -117,6 +134,7 @@ public class HTML5Bundler {
         }
 
         this.contentRoot = contentRoot;
+        this.version = projectProperties.getStringValue("project", "version", "1.0");
 
         File packageDir = new File(outputDir);
         this.title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -124,6 +142,8 @@ public class HTML5Bundler {
     }
 
     public void bundleApplication() throws IOException, ConfigurationException {
+    	monolithicFiles = new ArrayList<File>();
+
         FileUtils.deleteDirectory(appDir);
 
         File splitDir = new File(appDir, SplitFileDir);
@@ -131,42 +151,51 @@ public class HTML5Bundler {
         CreateSplitFiles(splitDir);
 
         // Copy engine
-        File jsOut = new File(appDir, String.format("%s.js", title));
+        String jsFilename = String.format("%s.js", title);
+        File jsOut = new File(appDir, jsFilename);
         FileUtils.copyFile(new File(js), jsOut);
+        monolithicFiles.add(new File(jsFilename));
 
         // Copy html (and replace placeholders)
         // TODO: More efficient way to do the placeholder replacing needed...
         Charset cs = Charset.forName("UTF-8");
-        File htmlOut = new File(appDir, String.format("%s.html", title));
+        String htmlFilename = String.format("%s.html", title);
+        File htmlOut = new File(appDir, htmlFilename);
         String htmlText = GetHtmlText();
+        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_MANIFEST}$"), GetManifestFilename());
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_SPLIT}$"), new File(SplitFileDir, SplitFileDescriptor).toString());
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_JS}$"), title + ".js");
         IOUtils.write(htmlText, new FileOutputStream(htmlOut), cs);
+        monolithicFiles.add(new File(htmlFilename));
 
         for (String r : CopiedResourceScripts) {
         	CopyResource(appDir, r);
         }
+
+        CreateManifest();
     }
 
     private void CreateSplitFiles(File targetDir) throws IOException {
-    	List<SplitFile> allSplits = new ArrayList<SplitFile>();
+    	splitFiles = new ArrayList<SplitFile>();
     	for (String name : SplitFileNames) {
     		SplitFile toSplit = new SplitFile(new File(contentRoot, name));
     		toSplit.PerformSplit(targetDir);
-    		allSplits.add(toSplit);
+    		splitFiles.add(toSplit);
     	}
-    	CreateSplitFileDescriptor(targetDir, allSplits);
+    	CreateSplitFileDescriptor(targetDir);
     }
 
-    private void CreateSplitFileDescriptor(File targetDir, List<SplitFile> splits) throws IOException {
+    private void CreateSplitFileDescriptor(File targetDir) throws IOException {
     	File descFile = new File(targetDir, SplitFileDescriptor);
 
     	BufferedWriter writer = null;
     	try {
     		writer = new BufferedWriter(new FileWriter(descFile));
-    		for(SplitFile split : splits) {
+    		for(SplitFile split : splitFiles) {
     			split.WriteDescriptor(writer);
     		}
+
+    		monolithicFiles.add(new File(targetDir.getName(), SplitFileDescriptor));
     	}
     	finally {
     		writer.close();
@@ -193,5 +222,41 @@ public class HTML5Bundler {
 
     	InputStream resource = getClass().getResourceAsStream(sourcePath);
     	IOUtils.copy(resource, output);
+    }
+
+    private String GetManifestFilename() {
+    	return this.title + ManifestFileExtension;
+    }
+
+    private void CreateManifest() throws IOException {
+    	File manifestFile = new File(this.appDir, GetManifestFilename());
+
+    	BufferedWriter writer = null;
+    	try {
+    		writer = new BufferedWriter(new FileWriter(manifestFile));
+
+    		writer.write("CACHE MANIFEST\n");
+    		Date now = Calendar.getInstance().getTime();
+    		DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+    		writer.write(String.format("# %1s %2s\n", this.version, dateFormat.format(now)));
+
+    		writer.write("\n");
+
+    		writer.write("CACHE: \n");
+    		for (File m : this.monolithicFiles) {
+    			writer.write(String.format("%s\n", m.getPath()));
+    		}
+    		for (SplitFile s : this.splitFiles) {
+    			s.WriteManifestContribution(writer);
+    		}
+
+    		writer.write("\n");
+
+    		writer.write("NETWORK:\n");
+    		writer.write("*\n");
+    	}
+    	finally {
+    		writer.close();
+    	}
     }
 }
