@@ -7,7 +7,7 @@ Code Style
 ----------
 
 Follow current code style and use 4 spaces for tabs. Never commit code
-with trailing white-spaces.
+with trailing white-spaces. For Eclipse [AnyEditTools](http://andrei.gmxhome.de/eclipse.html)
 
 Setup
 -----
@@ -81,7 +81,7 @@ setup. See `build.py` and the `shell` command below.
     - Do **not** select `MacOSX GCC` on OS X. Results in out of memory in Eclipse 3.8
 * Use custom project location
      - `defold/engine`
-* Add `$DYNAMO_HOME/ext/include` and `/usr/include` to project include.
+* Add `${DYNAMO_HOME}/include`, `${DYNAMO_HOME}/ext/include` and `/usr/include` to project include.
     - `$DYNAMO_HOME` defaults to `defold/tmp/dynamo_home`
     - `Project Properties > C/C++ General > Paths and Symbols`
 * Disable `Invalid arguments` in `Preferences > C/C++ > Code Analysis`
@@ -127,10 +127,6 @@ Build and Run Editor
 * Refresh entire workspace
 * Open `cr.product`
 * Press `Launch an Eclipse application`
-* Expected Launch Error
-* Open `Run > Run Configuration...`
-    - Select `Plug-ins` for the created launcher
-    - Press `Add Required Plug-ins`
 * Speed up launch
     - Go to `Preferences > Run/Debug`
     - Deselect `Build` in `General Options`
@@ -260,7 +256,7 @@ This is a known limitation on Android.
 * Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
   mentioned above
 * Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
-* Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively
+* Put NDK/SDK in ~/android/android-ndk-r9c and ~/android/android-sdk respectively
 
 ### Android testing
 
