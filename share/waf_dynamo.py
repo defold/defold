@@ -137,8 +137,7 @@ def default_flags(self):
     elif platform == "js-web":
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
-        # 256MB ram
-        self.env.append_value('LINKFLAGS', ['-s','TOTAL_MEMORY=268435456'])
+        self.env.append_value('LINKFLAGS', ['-Os', '-s', 'TOTAL_MEMORY=268435456'])
     elif platform == "as3-web":
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
