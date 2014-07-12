@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [clojure.core.async :as a :refer [put! onto-chan]]
             [clojure.core.cache :as cache]
-            [clojure.tools.namespace.file :refer [read-file-ns-decl]]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [internal.graph.query :as q]
@@ -10,14 +9,11 @@
             [dynamo.types :as t]
             [dynamo.node :as node :refer [defnode]]
             [dynamo.file :as file]
+            [dynamo.resource :refer [disposable?]]
             [internal.cache :refer [make-cache]]
+            [internal.clojure :as clojure]
             [plumbing.core :refer [defnk]]
-            [schema.core :as s]
-            [eclipse.markers :as markers])
-  (:import [org.eclipse.core.resources IFile]))
-
-(defprotocol IDisposable
-  (dispose [this] "Clean up a value, including thread-jumping as needed"))
+            [schema.core :as s]))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
@@ -31,40 +27,14 @@
   `(binding [dynamo.project/*current-project* (internal.system/current-project)]
      ~@forms))
 
-(defrecord UnloadableNamespace [ns-decl]
-  IDisposable
-  (dispose [this] (remove-ns (second ns-decl))))
-
-(defnk load-project-file
-  [project this g]
-  (let [source  (:resource this)
-        ns-decl (read-file-ns-decl source)
-        source-file (file/eclipse-file source)]
-    (binding [*current-project* project]
-      (markers/remove-markers source-file)
-      (try
-        (do
-          (Compiler/load (io/reader source) (file/local-path source) (.getName source-file))
-          (UnloadableNamespace. ns-decl))
-        (catch clojure.lang.Compiler$CompilerException compile-error
-          (markers/compile-error source-file (.getMessage (.getCause compile-error)) (.line compile-error))
-          {:compile-error (.getMessage (.getCause compile-error))})))))
-
-(def ClojureSourceFile
-  {:properties {:resource {:schema IFile}}
-   :transforms {:namespace #'load-project-file}
-   :cached     #{:namespace}
-   :on-update  #{:namespace}})
-
-(defnode ClojureSourceNode
- ClojureSourceFile)
-
 (declare transact new-resource)
 
 (defn on-load-code
-  [project-state ^IFile resource input]
+  [project-state resource input]
   (transact project-state
-            (new-resource (make-clojure-source-node :resource resource))))
+            (new-resource
+              (binding [*current-project* project-state]
+                (clojure/make-clojure-source-node :resource resource)))))
 
 (defn make-project
   [eclipse-project tx-report-chan]
@@ -79,7 +49,7 @@
   [project-state]
   (let [report-ch (:tx-report-chan @project-state)
         cached-vals (vals (:cache @project-state))]
-    (onto-chan report-ch (filter #(satisfies? IDisposable %) cached-vals) false)))
+    (onto-chan report-ch (filter disposable? cached-vals) false)))
 
 (defn register-loader
   [project-state filetype loader]
@@ -207,16 +177,6 @@
    :tempids         {}
    :modified-nodes #{}})
 
-(defn dispose-values!
-  [q vs]
-  (doseq [v vs]
-    (when (satisfies? IDisposable v)
-      (.put q (bound-fn [] (.dispose v))))))
-
-(defn evict-values!
-  [cache keys]
-  (reduce cache/evict cache keys))
-
 (defn- pairwise [f coll]
   (for [n coll
         x (f n)]
@@ -233,7 +193,7 @@
 
 (defn- dispose-obsoletes
   [{:keys [state obsolete-cache-keys] :as ctx}]
-  (assoc ctx :values-to-dispose (keep identity (filter #(satisfies? IDisposable (get-in state [:cache %])) obsolete-cache-keys))))
+  (assoc ctx :values-to-dispose (keep identity (filter disposable? (map #(get-in state [:cache %]) obsolete-cache-keys)))))
 
 (defn- evict-obsolete-caches
   [{:keys [state obsolete-cache-keys] :as ctx}]

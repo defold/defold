@@ -13,5 +13,8 @@
     (.setAttribute IMarker/LOCATION    location)
     (.setAttribute IMarker/LINE_NUMBER line)))
 
-(defn compile-error [^IResource resource message line]
-  (attach-marker resource IMarker/PROBLEM IMarker/SEVERITY_ERROR message (str "Line " line) line))
+(defn compile-error
+  ([^IResource resource ^clojure.lang.Compiler$CompilerException error]
+    (compile-error resource (.getMessage (.getCause error)) (.line error)))
+  ([^IResource resource message line]
+    (attach-marker resource IMarker/PROBLEM IMarker/SEVERITY_ERROR message (str "Line " line) line)))
