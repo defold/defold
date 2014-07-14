@@ -332,9 +332,7 @@ namespace dmScript
                         size_t path_size = strlen(path);
                         if (path_size > 0)
                         {
-                            lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
-                            url.m_Path = ((ResolvePathCallback)lua_touserdata(L, -1))((uintptr_t)L, path, path_size);
-                            lua_pop(L, 1);
+                            ResolvePath(L, path, path_size, url.m_Path);
                         }
                         else
                         {
@@ -478,10 +476,7 @@ namespace dmScript
 
         assert(top == lua_gettop(L));
 
-        uintptr_t user_data;
-        GetUserData(L, &user_data);
-
-        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, user_data, (uintptr_t) desc, data, data_size);
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size);
         if (result != dmMessage::RESULT_OK)
         {
             return luaL_error(L, "Could not send message to %s.", dmMessage::GetSocketName(receiver.m_Socket));
@@ -554,19 +549,10 @@ namespace dmScript
 
     bool GetURL(lua_State* L, dmMessage::URL* out_url)
     {
-        lua_getglobal(L, SCRIPT_GET_URL_CALLBACK);
-        GetURLCallback callback = (GetURLCallback)lua_touserdata(L, -1);
-        if (callback != 0x0)
-        {
-            callback(L, out_url);
-            lua_pop(L, 1);
-            return true;
-        }
-        lua_pop(L, 1);
-        return false;
+        return GetURL(L, *out_url);
     }
 
-    dmMessage::Result ResolveURL(ResolvePathCallback resolve_path_callback, uintptr_t resolve_user_data, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url)
+    dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url)
     {
         // Special handling for "." which means default socket + path
         if (url[0] == '.' && url[1] == '\0')
@@ -609,7 +595,7 @@ namespace dmScript
             out_url->m_Socket = default_url->m_Socket;
             if (string_url.m_PathSize > 0)
             {
-                out_url->m_Path = resolve_path_callback(resolve_user_data, string_url.m_Path, string_url.m_PathSize);
+                ResolvePath(L, string_url.m_Path, string_url.m_PathSize, out_url->m_Path);
             }
             else
             {
@@ -709,10 +695,7 @@ namespace dmScript
                 dmMessage::Result result = dmMessage::ParseURL(url, &string_url);
                 if (result == dmMessage::RESULT_OK)
                 {
-                    lua_getglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
-                    ResolvePathCallback callback = (ResolvePathCallback)lua_touserdata(L, -1);
-                    lua_pop(L, 1);
-                    result = ResolveURL(callback, (uintptr_t)L, url, out_url, &default_url);
+                    result = ResolveURL(L, url, out_url, &default_url);
                 }
                 if (result != dmMessage::RESULT_OK)
                 {
@@ -741,20 +724,6 @@ namespace dmScript
             }
         }
         return 0;
-    }
-
-    bool GetUserData(lua_State* L, uintptr_t* out_user_data)
-    {
-        lua_getglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
-        GetUserDataCallback callback = (GetUserDataCallback)lua_touserdata(L, -1);
-        if (callback != 0x0)
-        {
-            *out_user_data = callback(L);
-            lua_pop(L, 1);
-            return true;
-        }
-        lua_pop(L, 1);
-        return false;
     }
 
 #undef SCRIPT_LIB_NAME

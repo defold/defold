@@ -27,6 +27,11 @@ namespace dmScript
 {
     const char* INSTANCE_NAME = "__dm_script_instance__";
 
+    const char* META_TABLE_RESOLVE_PATH     = "__resolve_path";
+    const char* META_TABLE_GET_URL          = "__get_url";
+    const char* META_TABLE_GET_USER_DATA    = "__get_user_data";
+    const char* META_TABLE_IS_VALID         = "__is_valid";
+
     HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory)
     {
         Context* context = new Context();
@@ -35,18 +40,15 @@ namespace dmScript
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
+        context->m_LuaState = lua_open();
         return context;
     }
 
     void DeleteContext(HContext context)
     {
         ClearModules(context);
+        lua_close(context->m_LuaState);
         delete context;
-    }
-
-    ScriptParams::ScriptParams()
-    {
-        memset(this, 0, sizeof(ScriptParams));
     }
 
     int LuaPrint(lua_State* L);
@@ -105,9 +107,12 @@ namespace dmScript
         return 0;
     }
 
-    void Initialize(lua_State* L, const ScriptParams& params)
+    void Initialize(HContext context)
     {
+        lua_State* L = context->m_LuaState;
         int top = lua_gettop(L);
+
+        luaL_openlibs(L);
 
         InitializeHash(L);
         InitializeMsg(L);
@@ -116,7 +121,7 @@ namespace dmScript
         InitializeModule(L);
         InitializeImage(L);
         InitializeJson(L);
-        InitializeHttp(L, params.m_Context->m_ConfigFile);
+        InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
 
         lua_register(L, "print", LuaPrint);
@@ -140,20 +145,8 @@ namespace dmScript
 
         lua_pop(L, 1);
 
-        lua_pushlightuserdata(L, (void*)params.m_Context);
+        lua_pushlightuserdata(L, (void*)context);
         lua_setglobal(L, SCRIPT_CONTEXT);
-
-        lua_pushlightuserdata(L, (void*)params.m_ResolvePathCallback);
-        lua_setglobal(L, SCRIPT_RESOLVE_PATH_CALLBACK);
-
-        lua_pushlightuserdata(L, (void*)params.m_GetURLCallback);
-        lua_setglobal(L, SCRIPT_GET_URL_CALLBACK);
-
-        lua_pushlightuserdata(L, (void*)params.m_GetUserDataCallback);
-        lua_setglobal(L, SCRIPT_GET_USER_DATA_CALLBACK);
-
-        lua_pushlightuserdata(L, (void*)params.m_ValidateInstanceCallback);
-        lua_setglobal(L, SCRIPT_VALIDATE_INSTANCE_CALLBACK);
 
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
@@ -165,11 +158,11 @@ namespace dmScript
         uint32_t i = 0;
         while (ed) {
             dmExtension::Params p;
-            p.m_ConfigFile = params.m_Context->m_ConfigFile;
+            p.m_ConfigFile = context->m_ConfigFile;
             p.m_L = L;
             dmExtension::Result r = ed->Initialize(&p);
             if (r == dmExtension::RESULT_OK) {
-                params.m_Context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
+                context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
             } else {
                 dmLogError("Failed to initialize extension: %s", ed->m_Name);
             }
@@ -180,8 +173,9 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void Finalize(lua_State* L, HContext context)
+    void Finalize(HContext context)
     {
+        lua_State* L = context->m_LuaState;
         FinalizeHttp(L);
 
         const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
@@ -210,6 +204,10 @@ namespace dmScript
     }
 #undef BIT_INDEX
 #undef BIT_OFFSET
+
+    lua_State* GetLuaState(HContext context) {
+        return context->m_LuaState;
+    }
 
     int LuaPrint(lua_State* L)
     {
@@ -329,19 +327,7 @@ namespace dmScript
 
     bool IsInstanceValid(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void)top;
-        lua_getglobal(L, SCRIPT_VALIDATE_INSTANCE_CALLBACK);
-        ValidateInstanceCallback callback = (ValidateInstanceCallback)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        if (callback == 0x0)
-        {
-            dmLogFatal("ValidateInstanceCallback not set, impossible to validate.");
-        }
-        assert(callback != 0x0);
-        bool result = callback(L);
-        assert(top == lua_gettop(L));
-        return result;
+        return IsValidInstance(L);
     }
 
     lua_State* GetMainThread(lua_State* L)
@@ -381,5 +367,70 @@ namespace dmScript
         void* object = luaL_checkudata(L, idx, type);
         if (object == 0x0) luaL_typerror(L, idx, type);
         return object;
+    }
+
+    static bool GetMetaFunction(lua_State* L, int index, const char* meta_table_key) {
+        if (lua_getmetatable(L, index)) {
+            lua_pushstring(L, meta_table_key);
+            lua_rawget(L, -2);
+            lua_remove(L, -2);
+            if (lua_isnil(L, -1)) {
+                lua_pop(L, 1);
+                return false;
+            } else {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash) {
+        int top = lua_gettop(L);
+        GetInstance(L);
+        if (GetMetaFunction(L, -1, META_TABLE_RESOLVE_PATH)) {
+            lua_pushvalue(L, -2);
+            lua_pushlstring(L, path, path_size);
+            lua_call(L, 2, 1);
+            out_hash = CheckHash(L, -1);
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return true;
+        }
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return false;
+    }
+
+    bool GetURL(lua_State* L, dmMessage::URL& out_url) {
+        int top = lua_gettop(L);
+        GetInstance(L);
+        if (GetMetaFunction(L, -1, META_TABLE_GET_URL)) {
+            lua_pushvalue(L, -2);
+            lua_call(L, 1, 1);
+            out_url = *CheckURL(L, -1);
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return true;
+        }
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return false;
+    }
+
+    bool IsValidInstance(lua_State* L) {
+        int top = lua_gettop(L);
+        GetInstance(L);
+        if (GetMetaFunction(L, -1, META_TABLE_IS_VALID)) {
+            lua_pushvalue(L, -2);
+            lua_call(L, 1, 1);
+            assert(top + 1 == lua_gettop(L));
+            bool result = lua_toboolean(L, -1);
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return result;
+        }
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return false;
     }
 }

@@ -1425,20 +1425,11 @@ namespace dmRender
     {
         context.m_CommandBufferSize = command_buffer_size;
 
-        lua_State *L = lua_open();
+        lua_State *L = dmScript::GetLuaState(script_context);
         context.m_LuaState = L;
 
         int top = lua_gettop(L);
         (void)top;
-
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        luaopen_debug(L);
-
-        // Pop all stack values generated from luaopen_*
-        lua_pop(L, lua_gettop(L));
 
         luaL_register(L, RENDER_SCRIPT_INSTANCE, RenderScriptInstance_methods);   // create methods table, add it to the globals
         int methods = lua_gettop(L);
@@ -1564,18 +1555,12 @@ namespace dmRender
         params.m_ResolvePathCallback = ResolvePathCallback;
         params.m_GetUserDataCallback = GetUserDataCallback;
         params.m_ValidateInstanceCallback = ValidateInstanceCallback;
-        dmScript::Initialize(L, params);
 
         assert(top == lua_gettop(L));
-
-
     }
 
     void FinalizeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context)
     {
-        dmScript::Finalize(context.m_LuaState, script_context);
-        if (context.m_LuaState)
-            lua_close(context.m_LuaState);
         context.m_LuaState = 0;
     }
 

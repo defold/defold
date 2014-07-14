@@ -24,20 +24,15 @@ protected:
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
 
         m_Context = dmScript::NewContext(m_ConfigFile, 0);
-
-        L = lua_open();
-        luaL_openlibs(L);
-        dmScript::ScriptParams params;
-        params.m_Context = m_Context;
-        dmScript::Initialize(L, params);
+        dmScript::Initialize(m_Context);
+        L = dmScript::GetLuaState(m_Context);
     }
 
     virtual void TearDown()
     {
         dmConfigFile::Delete(m_ConfigFile);
-        dmScript::Finalize(L, m_Context);
+        dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        lua_close(L);
     }
 
     dmScript::HContext m_Context;

@@ -25,6 +25,9 @@ protected:
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::ScriptParams script_params;
+        script_params.m_Context = m_ScriptContext;
+        dmScript::Initialize(script_params);
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;
         font_map_params.m_Glyphs.SetCapacity(128);
@@ -65,6 +68,7 @@ protected:
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
 };

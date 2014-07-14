@@ -43,9 +43,10 @@ namespace dmGameObject
 
     struct Script
     {
-        int m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
-        PropertySet m_PropertySet;
-        dmLuaDDF::LuaModule* m_LuaModule;
+        int                     m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
+        PropertySet             m_PropertySet;
+        dmLuaDDF::LuaModule*    m_LuaModule;
+        int                     m_InstanceReference;
     };
 
     typedef Script* HScript;

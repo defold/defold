@@ -18,8 +18,6 @@ extern "C"
 
 namespace dmGameObject
 {
-#define SCRIPT_NAME "__script__"
-
     extern const char* ID_SEPARATOR;
 
     extern lua_State* g_LuaState;
