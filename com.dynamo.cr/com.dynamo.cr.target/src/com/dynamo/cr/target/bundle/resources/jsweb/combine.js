@@ -17,7 +17,7 @@ var Combine = {
         //  lastRequestedPiece: index of last data file requested (strictly ascending)
         //  totalLoadedPieces: counts the number of data files received
 
-        MAX_CONCURRENT_XHR: 6,
+        //MAX_CONCURRENT_XHR: 6,	// remove comment if throttling of XHR is desired.
 
         'isCompleted': false,       // status of process
 
@@ -95,7 +95,10 @@ var Combine = {
                 target.data = new Uint8Array(target.size);
             }
             console.log("Produce target: " + target.name + ", " + target.size);
-            limit = Math.min(target.pieces.length, this.MAX_CONCURRENT_XHR);
+            limit = target.pieces.length;
+            if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
+            	limit = Math.min(limit, this.MAX_CONCURRENT_XHR);
+            }
             for (i=0; i<limit; ++i) {
                 this.requestPiece(target, i);
             }
