@@ -44,7 +44,7 @@ public class HTML5Bundler {
     };
 
     private static final String SplitFileDir = "split";
-    private static final String SplitFileDescriptor = "preload_files.txt";
+    private static final String SplitFileJson = "preload_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static final String[] SplitFileNames = {
     	"game.projectc",
@@ -88,14 +88,25 @@ public class HTML5Bundler {
     		}
     	}
 
-    	public void WriteDescriptor(BufferedWriter writer) throws IOException {
-    		writer.write(String.format("/%1s %2d %3d\n", source.getName(), source.length(), subdivisions.size()));
+    	public void WriteJson(BufferedWriter writer) throws IOException {
     		int offset = 0;
-    		for (File split : subdivisions) {
-    			File path = new File(SplitFileDir, split.getName());
-    			writer.write(String.format("%1s %2d\n", path.toString(), offset));
-    			offset += split.length();
-    		}
+    		writer.write("\t{\n");
+    			writer.write(String.format("\t\t\"name\": \"%1s\",\n", source.getName()));
+    			writer.write(String.format("\t\t\"size\": %1d,\n", source.length()));
+    			writer.write("\t\t\"pieces\": [\n");
+    			for (int i=0; i<subdivisions.size(); ++i) {
+    				File split = subdivisions.get(i);
+    				File path = new File(SplitFileDir, split.getName());
+    				writer.write(String.format("\t\t{ \"name\": \"%1s\", \"offset\": %2d }", path.toString(), offset));
+    				if (i < subdivisions.size() -1) {
+    					writer.write(",\n");
+    				} else {
+    					writer.write("\n");
+    				}
+    				offset += split.length();
+    			}
+    			writer.write("\t\t]\n");
+    		writer.write("\t}");
     	}
 
     	public void WriteManifestContribution(BufferedWriter writer) throws IOException {
@@ -163,7 +174,7 @@ public class HTML5Bundler {
         File htmlOut = new File(appDir, htmlFilename);
         String htmlText = GetHtmlText();
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_MANIFEST}$"), GetManifestFilename());
-        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_SPLIT}$"), new File(SplitFileDir, SplitFileDescriptor).toString());
+        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_SPLIT}$"), new File(SplitFileDir, SplitFileJson).toString());
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_JS}$"), title + ".js");
         IOUtils.write(htmlText, new FileOutputStream(htmlOut), cs);
         monolithicFiles.add(new File(htmlFilename));
@@ -183,20 +194,25 @@ public class HTML5Bundler {
     		toSplit.PerformSplit(targetDir);
     		splitFiles.add(toSplit);
     	}
-    	CreateSplitFileDescriptor(targetDir);
+    	CreateSplitFilesJson(targetDir);
     }
 
-    private void CreateSplitFileDescriptor(File targetDir) throws IOException {
-    	File descFile = new File(targetDir, SplitFileDescriptor);
+    private void CreateSplitFilesJson(File targetDir) throws IOException {
+    	File descFile = new File(targetDir, SplitFileJson);
 
     	BufferedWriter writer = null;
     	try {
     		writer = new BufferedWriter(new FileWriter(descFile));
-    		for(SplitFile split : splitFiles) {
-    			split.WriteDescriptor(writer);
+    		writer.write("{ \"content\": [\n");
+    		for (int i=0; i<splitFiles.size(); ++i) {
+    			splitFiles.get(i).WriteJson(writer);
+    			if (i < splitFiles.size() - 1) {
+    				writer.write(",\n");
+    			} else {
+    				writer.write("\n");
+    			}
     		}
-
-    		monolithicFiles.add(new File(targetDir.getName(), SplitFileDescriptor));
+    		writer.write("]}");
     	}
     	finally {
     		writer.close();

@@ -74,58 +74,18 @@ var Combine = {
         },
 
         onReceiveDescription: function(xhr, onDescriptionProcessed) {
+        	json = JSON.parse(xhr.responseText);
+        	this._targets = json.content;
+        	this._totalDownloadBytes = 0;
             text = xhr.responseText;
-            lines = text.match(/[^\r\n]+/g);
-            if (lines) {
-                i = 0;
-                while(i<lines.length) {
-                    target = Combine.createTarget(lines[i++]);
-                    for (j=0; j<target.numExpectedFiles; ++j) {
-                        Combine.addPiece(target, lines[i + j]);
-                    }
-                    i += target.numExpectedFiles;
-                    this._targets.push(target);
-                }
-                targets = this._targets;
-                this._totalDownloadBytes = 0;
-                for(i=0; i<targets.length; ++i) {
-                    this._totalDownloadBytes += targets[i].size;
-                }
-                this.requestContent();
-                if (onDescriptionProcessed) {
-                    onDescriptionProcessed(this._targets.length);
-                }
-            } else {
-                throw "No lines found";
-            }
-        },
 
-        createTarget: function(line) {
-            target = null;
-            entry = line.match(/([^\s]*)\s+([\d]*)?\s+([\d]*)?/);
-            if (entry) {
-                if (4 != entry.length) {
-                    throw "Target format error";
-                }
-                target = { name: '', size: 0, data: null, downloaded: 0, pieces: [], numExpectedFiles: 0, lastRequestedPiece: 0, totalLoadedPieces: 0 };
-                target.name = entry[1];
-                target.size = parseInt(entry[2]);
-                target.numExpectedFiles = parseInt(entry[3]);
-            } else {
-                throw "Target format error";
+            targets = this._targets;
+            for(i=0; i<targets.length; ++i) {
+                this._totalDownloadBytes += targets[i].size;
             }
-            return target;
-        },
-
-        addPiece: function(target, line) {
-            var entry = line.match(/([^\s]*)\s+([\d]*)?/);
-            if (entry) {
-                if (3 != entry.length) {
-                    throw "Line format error";
-                }
-                target.pieces.push({ name: entry[1], offset: parseInt(entry[2]), data: null});
-            } else {
-                throw "Line format error";
+            this.requestContent();
+            if (onDescriptionProcessed) {
+                onDescriptionProcessed(this._targets.length);
             }
         },
 
@@ -194,6 +154,9 @@ var Combine = {
         },
 
         onPieceLoaded: function(target, item) {
+        	if (typeof target.totalLoadedPieces === 'undefined') {
+        		target.totalLoadedPieces = 0;
+        	}
             ++target.totalLoadedPieces;
             if (target.totalLoadedPieces == target.pieces.length) {
                 this.finaliseTarget(target);
