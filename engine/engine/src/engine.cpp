@@ -26,10 +26,6 @@
 #include "physics_debug_render.h"
 #include "profile_render.h"
 
-#ifdef __EMSCRIPTEN__
-    #include <emscripten/emscripten.h>
-#endif
-
 using namespace Vectormath::Aos;
 
 extern unsigned char CONNECT_PROJECT[];
@@ -865,29 +861,16 @@ bail:
         }
     }
 
-#ifdef __EMSCRIPTEN__
-    HEngine g_Engine = 0;
-
-    void StepEmscripten()
+    static int IsRunning(void* context)
     {
-        Step(g_Engine);
+        HEngine engine = (HEngine)context;
+        return engine->m_Alive;
     }
-#endif
 
-    RunResult Run(HEngine engine)
+    static void PerformStep(void* context)
     {
-#ifdef __EMSCRIPTEN__
-        g_Engine = engine;
-        dmLogInfo("Starting emscripten main loop");
-        emscripten_set_main_loop (StepEmscripten, 0, 1);
-#else
-        while (engine->m_Alive)
-        {
-            Step(engine);
-        }
-#endif
-
-        return engine->m_RunResult;
+        HEngine engine = (HEngine)context;
+        Step(engine);
     }
 
     static void Exit(HEngine engine, int32_t code)
@@ -947,7 +930,9 @@ bail:
             {
                 pre_run(engine, context);
             }
-            run_result = dmEngine::Run(engine);
+
+            dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
+            run_result = engine->m_RunResult;
 
             if (post_run)
             {

@@ -7,6 +7,10 @@
 #include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
+
 #include "../graphics.h"
 #include "graphics_opengl.h"
 
@@ -494,6 +498,22 @@ static void LogFrameBufferError(GLenum status)
         {
             glfwIconifyWindow();
         }
+    }
+
+    void RunApplicationLoop(void* user_data, WindowStepMethod stepMethod, WindowIsRunning isRunning)
+    {
+        #ifdef __EMSCRIPTEN__
+        while (0 != isRunning(user_data))
+        {
+            // N.B. Beyond the first test, the above statement is essentially formal since set_main_loop will throw an exception.
+            emscripten_set_main_loop_arg(stepMethod, user_data, 0, 1);
+        }
+        #else
+        while (0 != isRunning(user_data))
+        {
+            stepMethod(user_data);
+        }
+        #endif
     }
 
     uint32_t GetWindowState(HContext context, WindowState state)

@@ -117,6 +117,14 @@ namespace dmGraphics
         assert(context);
     }
 
+    void RunApplicationLoop(void* user_data, WindowStepMethod stepMethod, WindowIsRunning isRunning)
+    {
+        while (0 != isRunning(user_data))
+        {
+            stepMethod(user_data);
+        }
+    }
+
     uint32_t GetWindowState(HContext context, WindowState state)
     {
         switch (state)

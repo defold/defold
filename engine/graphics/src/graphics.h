@@ -31,6 +31,20 @@ namespace dmGraphics
      */
     typedef bool (*WindowCloseCallback)(void* user_data);
 
+    /**
+     * Function used when in the application loop when performing a single iteration.
+     * @param user_data user data that will be passed into the method when running the application loop.
+     */
+    typedef void (*WindowStepMethod)(void* user_data);
+
+    /**
+     * Function used to determine whether the application loop should continue running.
+     * @param user_data user data used that will be passed into the method when making a determination.
+     * @return a non-zero value will indicate that the application should continue running, whereas zero will
+     *  lead to the application loop terminating.
+     */
+    typedef int32_t (*WindowIsRunning)(void* user_data);
+
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
@@ -486,6 +500,14 @@ namespace dmGraphics
             default: return ~0u;
         }
     }
+
+    /**
+     * Iterates the application loop until it should be terminated.
+     * @param user_data user data supplied to both the step and is running methods.
+     * @param stepMethod the method to be used when executing a single iteration of the application loop.
+     * @param isRunning the method used when determining whether iteration of the application loop should continue.
+     */
+    void RunApplicationLoop(void* user_data, WindowStepMethod stepMethod, WindowIsRunning isRunning);
 }
 
 #endif // DMGRAPHICS_GRAPHICS_H
