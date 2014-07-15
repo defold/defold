@@ -143,7 +143,6 @@ def default_flags(self):
         #Nice to have, maybe at a later stage. Link flag: -s ERROR_ON_UNDEFINED_SYMBOLS=1
 
         if (dev):
-            raise Exception("Should not happen")
             for f in ['CCFLAGS', 'CXXFLAGS']:
                 self.env.append_value(f, ['-O1', '-g2'])
             self.env.append_value('LINKFLAGS', ['-O1', '-g2', '-s', 'ASSERTIONS=2', '-s', 'GL_ASSERTIONS=1', '-s', 'SAFE_HEAP=1'])
