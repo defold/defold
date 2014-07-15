@@ -73,6 +73,7 @@ public class ProjectView extends Composite {
     @UiField Label signedExeInfo;
     @UiField
     HTMLPanel unqualifiedWarning;
+    @UiField TextBox libraryUrl;
 
     private final MultiWordSuggestOracle suggestions = new MultiWordSuggestOracle();
     private Presenter listener;
@@ -103,6 +104,8 @@ public class ProjectView extends Composite {
         deleteProject.addStyleName("btn btn-danger");
         updateButton.addStyleName("btn btn-success");
         cancelButton.addStyleName("btn");
+        libraryUrl.setReadOnly(true);
+        libraryUrl.getElement();
     }
 
     public void clear() {
@@ -114,6 +117,7 @@ public class ProjectView extends Composite {
         this.commits2.removeAllRows();
         this.iOSDownload.setVisible(false);
         this.signedExeInfo.setText("");
+        this.libraryUrl.setText("");
     }
 
     public void setProjectInfo(int userId, ProjectInfo projectInfo, String iOSUrl) {
@@ -171,6 +175,8 @@ public class ProjectView extends Composite {
         iOSDownload.setHref("itms-services://?action=download-manifest&url=" + iOSUrl);
 
         unqualifiedWarning.setVisible(projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED));
+
+        libraryUrl.setText(Window.Location.getHost() + "/p/" + projectInfo.getOwner().getId() + "/" + projectInfo.getId() + "/archive");
     }
 
     public void setLog(int userId, Log log) {

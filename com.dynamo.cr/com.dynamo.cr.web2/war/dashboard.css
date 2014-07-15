@@ -97,3 +97,8 @@ button.openIDYahoo {
     font-size: 14px;
 }
 
+input[readonly]
+{
+  cursor: initial;
+}
+

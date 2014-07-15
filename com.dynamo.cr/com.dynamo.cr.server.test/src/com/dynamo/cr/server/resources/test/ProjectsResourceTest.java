@@ -5,16 +5,25 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 import org.junit.After;
@@ -205,7 +214,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     /**
      * The sole purpose of this test is too boot everything up, since the actual test below sometimes fail on the server
      * due to time out exceptions.
-     * 
+     *
      * @see https://defold.fogbugz.com/default.asp?2376
      * @throws Exception
      */
@@ -566,6 +575,58 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         cloneRepoOpenID(bob, projectInfo);
     }
 
+    ClientResponse testGetArchive(String version) throws IOException {
+        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ClientResponse response = joeProjectsWebResource.path(String.format("/%d/%d/archive/%s", -1, projectInfo.getId(), version)).get(ClientResponse.class);
+        return response;
+    }
+
+    void verifyArchive(ClientResponse response) throws IOException {
+        InputStream is = response.getEntityInputStream();
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        IOUtils.copy(is, os);
+        IOUtils.closeQuietly(is);
+
+        ZipInputStream zipIn = new ZipInputStream(new ByteArrayInputStream(os.toByteArray()));
+        Set<String> names = new HashSet<String>();
+        ZipEntry ze = zipIn.getNextEntry();
+        while (ze != null) {
+            names.add(ze.getName());
+            ze = zipIn.getNextEntry();
+        }
+        assertEquals(new HashSet<String>(Arrays.asList("content/test space.txt", "content/file1.txt", "content/file2.txt")), names);
+    }
+
+    // NOTE:
+    // Tests getArchiveX should more accurately be in ProjectResourceTest.java
+    // but current test, including helper functions for creating projects, resides in ProjectsResourceTest.java
+    @Test
+    public void getArchive1() throws Exception {
+        ClientResponse response = testGetArchive("");
+        assertEquals(200, response.getStatus());
+        verifyArchive(response);
+    }
+
+    @Test
+    public void getArchive2() throws Exception {
+        ClientResponse response = testGetArchive("master");
+        assertEquals(200, response.getStatus());
+        verifyArchive(response);
+    }
+
+    @Test
+    public void getArchive3() throws Exception {
+        ClientResponse response = testGetArchive("HEAD");
+        assertEquals(200, response.getStatus());
+        verifyArchive(response);
+    }
+
+    @Test
+    public void getArchive4() throws Exception {
+        ClientResponse response = testGetArchive("INVALID");
+        assertEquals(500, response.getStatus());
+    }
+
     private static void alterFile(String cloneDir, String name, String content) throws IOException {
         File file = new File(cloneDir + "/" + name);
         assertTrue(file.exists());
@@ -631,15 +692,23 @@ public class ProjectsResourceTest extends AbstractResourceTest {
             .post(ProjectInfo.class, newProject);
 
         ClientResponse response;
+        ProjectInfoList list;
 
         response = joeProjectsWebResource.path(String.format("/%d", joeUser.getId())).get(ClientResponse.class);
         assertEquals(200, response.getStatus());
+        list = response.getEntity(ProjectInfoList.class);
+        assertEquals(1, list.getProjectsCount());
+        assertEquals(joeUser.getEmail(), list.getProjects(0).getOwner().getEmail());
 
         response = bobProjectsWebResource.path(String.format("/%d", bobUser.getId())).get(ClientResponse.class);
         assertEquals(200, response.getStatus());
+        list = response.getEntity(ProjectInfoList.class);
+        assertEquals(0, list.getProjectsCount());
 
         response = bobProjectsWebResource.path(String.format("/%d", joeUser.getId())).get(ClientResponse.class);
-        assertEquals(403, response.getStatus());
+        assertEquals(200, response.getStatus());
+        list = response.getEntity(ProjectInfoList.class);
+        assertEquals(0, list.getProjectsCount());
     }
 
     @Test
