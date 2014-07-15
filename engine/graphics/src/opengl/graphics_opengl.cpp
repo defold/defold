@@ -650,29 +650,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        DM_PROFILE(Graphics, "MapVertexBuffer");
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        void* result = glMapBufferARB(GL_ARRAY_BUFFER_ARB, access);
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
-    }
-
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        bool result = glUnmapBufferARB(GL_ARRAY_BUFFER_ARB) == GL_TRUE;
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
-    }
-
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
@@ -708,29 +685,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
-    }
-
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        DM_PROFILE(Graphics, "MapIndexBuffer");
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        void* result = glMapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, access);
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
-    }
-
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        bool result = glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB) == GL_TRUE;
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
     }
 
     static uint32_t GetTypeSize(Type type)
