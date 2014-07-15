@@ -1064,12 +1064,12 @@ def detect(conf):
     if platform == "js-web":
         bin = EMSCRIPTEN_ROOT
         conf.env['CC'] = '%s/emcc' % (bin)
-        conf.env['CXX'] = '%s/emcc' % (bin)
+        conf.env['CXX'] = '%s/em++' % (bin)
         conf.env['LINK_CXX'] = '%s/em++' % (bin)
-        conf.env['CPP'] = '/usr/bin/cpp'
+        conf.env['CPP'] = '%s/em++' % (bin)
         conf.env['AR'] = '%s/emar' % (bin)
         conf.env['RANLIB'] = '%s/emranlib' % (bin)
-        conf.env['LD'] = '/usr/bin/ld'
+        conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
 
     if platform == "as3-web":
