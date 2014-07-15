@@ -1331,10 +1331,14 @@
         },
 
         mountFilesystem: function() {
-            FS.mkdir('/data');
-            FS.mount(IDBFS, {}, Module['mountPoint']);
+        	dir = Module['mountPoint'];
+            FS.mkdir(dir);
+            FS.mount(IDBFS, {}, dir);
             FS.syncfs(true, function(err) {
-                assert(!err);
+            	// This operation will fail if the user is running a private browsing session.
+            	// Since the user is explicit about not wanting data to persist, there's nothing to do
+            	// here other than roll over.
+                // assert(!err);
                 Module.onBootstrapTaskCompleted();
             });
 
@@ -1345,7 +1349,7 @@
                 _fsync = function(fd) {
                     ret = _old_fsync(fd);
                     if (ret == 0) {
-                        FS.syncfs(false, function(err) { assert(!err); });
+                        FS.syncfs(false, function(err) { });
                     }
                     return ret;
                 }
