@@ -141,11 +141,13 @@ public class BobUtil {
         }
     }
 
-    public static void resolveLibs(IFolder contentRoot, IProgressMonitor monitor) throws CoreException {
+    public static void resolveLibs(IFolder contentRoot, String email, String auth, IProgressMonitor monitor) throws CoreException {
         IFolder libFolder = contentRoot.getFolder(Project.LIB_DIR);
         try {
             List<URL> libUrls = BobUtil.getLibraryUrls(contentRoot.getLocation().toOSString());
             Project project = new Project(new DefaultFileSystem(), contentRoot.getLocation().toOSString(), "build/default");
+            project.setOption("email", email);
+            project.setOption("auth", auth);
             project.setLibUrls(libUrls);
             project.resolveLibUrls();
             libFolder.refreshLocal(1, monitor);

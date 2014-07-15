@@ -494,6 +494,11 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         this.project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
         final IProject p = this.project;
 
+        IPreferenceStore store = getPreferenceStore();
+        final String email = store.getString(PreferenceConstants.P_EMAIL);
+        final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+        final boolean useLocalBranches = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
+
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
         try {
             service.runInUI(service, new IRunnableWithProgress() {
@@ -525,7 +530,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         if (!internal.exists()) {
                             internal.create(true, true, monitor);
                         }
-                        BobUtil.resolveLibs(contentRoot, monitor);
+                        BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
                         linkBuiltins(contentRoot, monitor);
                     } catch (CoreException ex) {
                         showError("Error occurred when creating project", ex);
@@ -536,7 +541,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             showError("Error occured when creating project", e2);
         }
 
-        if (getPreferenceStore().getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
+        if (useLocalBranches) {
             String branchLocation = branchClient.getNativeLocation();
             File dest = new File(new Path(branchLocation).append("builtins").toOSString());
             if (dest.exists()) {
