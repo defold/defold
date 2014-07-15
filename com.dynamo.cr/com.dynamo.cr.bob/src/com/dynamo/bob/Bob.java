@@ -99,7 +99,7 @@ public class Bob {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setLibUrls(getLibraryUrls(rootDirectory));
+        project.setLibUrls(getLibraryUrls(FilenameUtils.concat(cwd, rootDirectory)));
         for (String command : commands) {
             if (command.equals("resolve")) {
                 project.resolveLibUrls();
