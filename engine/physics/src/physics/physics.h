@@ -497,10 +497,16 @@ namespace dmPhysics
         float m_Friction;
         /// Restitution, should be 0 for best results, default is 0
         float m_Restitution;
+        /// Linear damping, 1 is full damping and 0 is no damping
+        float m_LinearDamping;
+        /// Angular damping, 1 is full damping and 0 is no damping
+        float m_AngularDamping;
         /// Collision filter group. Two objects a and b are tested for collision if a.group & b.mask != 0 && a.mask & b.group != 0. Default is 1
         uint16_t m_Group;
         /// Collision filter mask @see m_Group. Default is 1.
         uint16_t m_Mask;
+        /// Locked rotation keeps the angular velocity at 0
+        uint16_t m_LockedRotation : 1;
     };
 
     /**
@@ -751,7 +757,7 @@ namespace dmPhysics
     /**
      * Return whether the 3D collision object is enabled or not.
      *
-     * @param collision_object Collision object to enable/disable
+     * @param collision_object Collision object
      * @return true if the collision object is enabled
      */
     bool IsEnabled3D(HCollisionObject3D collision_object);
@@ -759,7 +765,7 @@ namespace dmPhysics
     /**
      * Return whether the 2D collision object is enabled or not.
      *
-     * @param collision_object Collision object to enable/disable
+     * @param collision_object Collision object
      * @return true if the collision object is enabled
      */
     bool IsEnabled2D(HCollisionObject2D collision_object);
@@ -788,8 +794,142 @@ namespace dmPhysics
      */
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled);
 
+    /**
+     * Return whether the 3D collision object is sleeping or not.
+     *
+     * @param collision_object Collision object
+     * @return true if the collision object is sleeping
+     */
     bool IsSleeping3D(HCollisionObject3D collision_object);
+
+    /**
+     * Return whether the 2D collision object is sleeping or not.
+     *
+     * @param collision_object Collision object
+     * @return true if the collision object is sleeping
+     */
     bool IsSleeping2D(HCollisionObject3D collision_object);
+
+    /**
+     * Set whether the 3D collision object has locked rotation or not, which means that the angular velocity will always be 0.
+     *
+     * @param collision_object Collision object to lock
+     * @param locked_rotation true to lock the rotation
+     */
+    void SetLockedRotation3D(HCollisionObject3D collision_object, bool locked_rotation);
+
+    /**
+     * Set whether the 2D collision object has locked rotation or not, which means that the angular velocity will always be 0.
+     *
+     * @param collision_object Collision object to lock
+     * @param locked_rotation true to lock the rotation
+     */
+    void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation);
+
+    /**
+     * Return the linear damping of the 3D collision object, which decreases the linear velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @return the linear damping
+     */
+    float GetLinearDamping3D(HCollisionObject3D collision_object);
+
+    /**
+     * Return the linear damping of the 2D collision object, which decreases the linear velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @return the linear damping
+     */
+    float GetLinearDamping2D(HCollisionObject2D collision_object);
+
+    /**
+     * Set the linear damping of the 3D collision object, which decreases the linear velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @param linear_damping Damping in the interval [0, 1]
+     */
+    void SetLinearDamping3D(HCollisionObject3D collision_object, float linear_damping);
+
+    /**
+     * Set the linear damping of the 2D collision object, which decreases the linear velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @param linear_damping Damping in the interval [0, 1]
+     */
+    void SetLinearDamping2D(HCollisionObject2D collision_object, float linear_damping);
+
+    /**
+     * Return the angular damping of the 3D collision object, which decreases the angular velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @return the linear damping
+     */
+    float GetAngularDamping3D(HCollisionObject3D collision_object);
+
+    /**
+     * Return the angular damping of the 2D collision object, which decreases the angular velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @return the linear damping
+     */
+    float GetAngularDamping2D(HCollisionObject2D collision_object);
+
+    /**
+     * Set the angular damping of the 3D collision object, which decreases the angular velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @param angular_damping Damping in the interval [0, 1]
+     */
+    void SetAngularDamping3D(HCollisionObject3D collision_object, float angular_damping);
+
+    /**
+     * Set the angular damping of the 2D collision object, which decreases the angular velocity over time.
+     *
+     * The damping is applied as:
+     * velocity *= pow(1.0 - damping, dt)
+     *
+     * @param collision_object Collision object
+     * @param angular_damping Damping in the interval [0, 1]
+     */
+    void SetAngularDamping2D(HCollisionObject2D collision_object, float angular_damping);
+
+    /**
+     * Return the mass of the 3D collision object.
+     *
+     * @param collision_object Collision object
+     * @return the total mass
+     */
+    float GetMass3D(HCollisionObject3D collision_object);
+
+    /**
+     * Return the mass of the 2D collision object.
+     *
+     * @param collision_object Collision object
+     * @return the total mass
+     */
+    float GetMass2D(HCollisionObject2D collision_object);
+
     /**
      * Container of data for ray cast queries.
      */
