@@ -27,6 +27,7 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.LibraryUtil;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -236,7 +237,7 @@ public class Project {
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
-        List<File> libFiles = convertLibraryUrlsToFiles(this.libUrls);
+        List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(getLibPath(), this.libUrls);
         boolean missingFiles = false;
         for (File file : libFiles) {
             if (file.exists()) {
@@ -289,20 +290,6 @@ public class Project {
         state.save(stateResource);
         fileSystem.saveCache();
         return result;
-    }
-
-    // Convert lib url into path, e.g. http://localhost:8080/test_lib.zip into LIB_PATH/test_lib.zip
-    private String libUrlToPath(String libPath, URL url) {
-        return FilenameUtils.concat(libPath, FilenameUtils.getName(url.getPath()));
-    }
-
-    private List<File> convertLibraryUrlsToFiles(List<URL> libUrls) {
-        String libPath = getLibPath();
-        List<File> files = new ArrayList<File>();
-        for (URL url : libUrls) {
-            files.add(new File(libUrlToPath(libPath, url)));
-        }
-        return files;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -473,14 +460,14 @@ run:
      * Resolve (i.e. download from server) the stored lib URLs.
      * @throws IOException
      */
-    public void resolveLibUrls() throws IOException {
+    public void resolveLibUrls() throws IOException, FileNotFoundException {
         String libPath = getLibPath();
         File libDir = new File(libPath);
         // Clean lib dir first
         FileUtils.deleteQuietly(libDir);
         FileUtils.forceMkdir(libDir);
         // Download libs
-        List<File> libFiles = convertLibraryUrlsToFiles(libUrls);
+        List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
         int count = this.libUrls.size();
         for (int i = 0; i < count; ++i) {
             URL url = libUrls.get(i);

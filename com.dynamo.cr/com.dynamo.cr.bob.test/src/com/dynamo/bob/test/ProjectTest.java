@@ -1,6 +1,7 @@
 package com.dynamo.bob.test;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -26,7 +27,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
-import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiResourceScanner;
@@ -98,11 +98,17 @@ public class ProjectTest {
         if (lib.exists()) {
             FileUtils.cleanDirectory(new File(project.getLibPath()));
         }
-        assertFalse(libExists("test_lib.zip"));
-        assertFalse(libExists("test_lib2.zip"));
+        String[] filenames = new String[] {
+                "http___localhost_8081_test_lib_zip.zip",
+                "http___localhost_8081_test_lib2_zip.zip",
+        };
+        for (String filename : filenames) {
+            assertFalse(libExists(filename));
+        }
         this.project.resolveLibUrls();
-        assertTrue(libExists("test_lib.zip"));
-        assertTrue(libExists("test_lib2.zip"));
+        for (String filename : filenames) {
+            assertTrue(libExists(filename));
+        }
     }
 
     @Test
@@ -111,7 +117,7 @@ public class ProjectTest {
         project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
         project.setInputs(Arrays.asList("test_lib/file1.in", "test_lib2/file2.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
-        assertFalse(results.isEmpty());
+        assertEquals(3, results.size());
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }

@@ -3,8 +3,10 @@ package com.dynamo.bob.fs;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.ParseException;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -12,12 +14,14 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.fs.IFileSystem.IWalker;
+import com.dynamo.bob.util.LibraryUtil;
 
 public class ZipMountPoint implements IMountPoint {
 
     IFileSystem fileSystem;
     String archivePath;
     ZipFile file;
+    Set<String> includeDirs = null;
 
     private class ZipResource extends AbstractResource<IFileSystem> {
         ZipEntry entry;
@@ -69,6 +73,13 @@ public class ZipMountPoint implements IMountPoint {
     @Override
     public IResource get(String path) {
         if (this.file != null) {
+            int sep = path.indexOf('/');
+            if (sep != -1) {
+                String dir = path.substring(0, sep);
+                if (!this.includeDirs.contains(dir)) {
+                    return null;
+                }
+            }
             ZipEntry entry = this.file.getEntry(path);
             if (entry != null) {
                 return new ZipResource(this.fileSystem, path, entry);
@@ -80,6 +91,11 @@ public class ZipMountPoint implements IMountPoint {
     @Override
     public void mount() throws IOException {
         this.file = new ZipFile(this.archivePath);
+        try {
+            this.includeDirs = LibraryUtil.readIncludeDirsFromArchive(this.file);
+        } catch (ParseException e) {
+            throw new IOException(e);
+        }
     }
 
     @Override

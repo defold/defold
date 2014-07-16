@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import org.eclipse.core.filesystem.IFileStore;
 import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
@@ -38,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
 
 public class BobUtil {
@@ -117,24 +120,32 @@ public class BobUtil {
                 try {
                     Set<String> roots = new HashSet<String>();
                     ZipFile zip = new ZipFile(lib.getLocation().toFile());
-                    Enumeration<? extends ZipEntry> entries = zip.entries();
-                    while (entries.hasMoreElements()) {
-                        ZipEntry entry = entries.nextElement();
-                        if (entry.isDirectory()) {
+                    try {
+                        Set<String> includeRoots = LibraryUtil.readIncludeDirsFromArchive(zip);
+                        Enumeration<? extends ZipEntry> entries = zip.entries();
+                        while (entries.hasMoreElements()) {
+                            ZipEntry entry = entries.nextElement();
                             Path path = new Path(entry.getName());
-                            if (path.segmentCount() == 1) {
-                                roots.add(path.segment(0));
+                            if ((entry.isDirectory() && path.segmentCount() == 1) || path.segmentCount() > 1) {
+                                String dir = path.segment(0);
+                                if (!dir.isEmpty() && includeRoots.contains(dir)) {
+                                    roots.add(dir);
+                                }
                             }
                         }
-                    }
-                    for (String root : roots) {
-                        URI libUri = new URI("zip", null, "/" + root, lib.getLocationURI().toString(), null);
-                        IFolder rootFolder = contentRoot.getFolder(root);
-                        rootFolder.createLink(libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+                        for (String root : roots) {
+                            URI libUri = new URI("zip", null, "/" + root, lib.getLocationURI().toString(), null);
+                            IFolder rootFolder = contentRoot.getFolder(root);
+                            rootFolder.createLink(libUri, IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+                        }
+                    } finally {
+                        zip.close();
                     }
                 } catch (URISyntaxException e) {
                     throw wrapCoreException(e);
                 } catch (IOException e) {
+                    throw wrapCoreException(e);
+                } catch (ParseException e) {
                     throw wrapCoreException(e);
                 }
             }
@@ -152,8 +163,10 @@ public class BobUtil {
             project.resolveLibUrls();
             libFolder.refreshLocal(1, monitor);
             List<String> libPaths = new ArrayList<String>(libUrls.size());
+            IPath libPath = libFolder.getProjectRelativePath().makeRelativeTo(contentRoot.getProjectRelativePath());
             for (URL url : libUrls) {
-                libPaths.add(libFolder.getProjectRelativePath().makeRelativeTo(contentRoot.getProjectRelativePath()).append(FilenameUtils.getName(url.getPath())).toOSString());
+                String fileName = LibraryUtil.libUrlToFilename(url);
+                libPaths.add(libPath.append(fileName).toOSString());
             }
             linkLibraries(contentRoot, libPaths, monitor);
             contentRoot.refreshLocal(1, monitor);
