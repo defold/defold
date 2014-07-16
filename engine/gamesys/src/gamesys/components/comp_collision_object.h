@@ -25,6 +25,10 @@ namespace dmGameSystem
 
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
+    dmGameObject::PropertyResult CompCollisionObjectGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+
+    dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
 }
 
