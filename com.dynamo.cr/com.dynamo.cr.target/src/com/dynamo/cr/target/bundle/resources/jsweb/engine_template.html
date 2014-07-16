@@ -1301,8 +1301,8 @@
         },
 
         mountPendingFiles: function() {
-        	for (i=0; i<Module._pendingFiles.length; ++i) {
-        		item = Module._pendingFiles[i];
+        	for (var i=0; i<Module._pendingFiles.length; ++i) {
+        		var item = Module._pendingFiles[i];
                 Module.mountFile(item.path, item.data, false);
         	}
         	Module._pendingFiles = [];
@@ -1345,10 +1345,9 @@
                 Module.onBootstrapTaskCompleted();
             });
 
-            // Might it be that emscripten will do much the same as this one day?
-            // We should check future versions and remove our patch if it becomes redundant.
+            // Sync IDBFS on fclose.
             if (typeof _fsync != 'undefined') {
-                _old_fsync = _fsync;
+                var _old_fsync = _fsync;
                 _fsync = function(fd) {
                     ret = _old_fsync(fd);
                     if (ret == 0) {

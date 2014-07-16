@@ -74,13 +74,12 @@ var Combine = {
         },
 
         onReceiveDescription: function(xhr, onDescriptionProcessed) {
-        	json = JSON.parse(xhr.responseText);
+        	var json = JSON.parse(xhr.responseText);
         	this._targets = json.content;
         	this._totalDownloadBytes = 0;
-            text = xhr.responseText;
 
-            targets = this._targets;
-            for(i=0; i<targets.length; ++i) {
+            var targets = this._targets;
+            for(var i=0; i<targets.length; ++i) {
                 this._totalDownloadBytes += targets[i].size;
             }
             this.requestContent();
@@ -90,16 +89,16 @@ var Combine = {
         },
 
         requestContent: function() {
-            target = this._targets[this._targetIndex];
+            var target = this._targets[this._targetIndex];
             if (1 < target.pieces.length) {
                 target.data = new Uint8Array(target.size);
             }
             console.log("Produce target: " + target.name + ", " + target.size);
-            limit = target.pieces.length;
+            var limit = target.pieces.length;
             if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
             	limit = Math.min(limit, this.MAX_CONCURRENT_XHR);
             }
-            for (i=0; i<limit; ++i) {
+            for (var i=0; i<limit; ++i) {
                 this.requestPiece(target, i);
             }
         },
@@ -127,15 +126,17 @@ var Combine = {
             };
             xhr.onload = function(evt) {
                 item.data = new Uint8Array(xhr.response);
+                item.dataLength = item.data.length;
                 Combine._currentDownloadBytes += item.data.length;
                 Combine.copyData(target, item);
                 Combine.onPieceLoaded(target, item);
+                item.data = undefined;
             };
             xhr.send(null);
         },
 
         updateProgress: function(target) {
-            for(i=0; i<this._onDownloadProgress.length; ++i) {
+            for(var i=0; i<this._onDownloadProgress.length; ++i) {
                 this._onDownloadProgress[i](this._currentDownloadBytes + target.downloaded, this._totalDownloadBytes);
             }
         },
@@ -144,8 +145,8 @@ var Combine = {
           if (1 == target.pieces.length) {
               target.data = item.data;
           } else {
-              start = item.offset;
-              end = start + item.data.length;
+              var start = item.offset;
+              var end = start + item.data.length;
               if (0 > start) {
                   throw "Buffer underflow";
               }
@@ -164,14 +165,14 @@ var Combine = {
             if (target.totalLoadedPieces == target.pieces.length) {
                 this.finaliseTarget(target);
                 ++this._targetIndex;
-                for (i=0; i<this._onCombineCompleted.length; ++i) {
+                for (var i=0; i<this._onCombineCompleted.length; ++i) {
                     this._onCombineCompleted[i](target.name, target.data);
                 }
                 if (this._targetIndex < this._targets.length) {
                     this.requestContent();
                 } else {
                     Combine['isCompleted'] = true;
-                    for (i=0; i<this._onAllTargetsBuilt.length; ++i) {
+                    for (var i=0; i<this._onAllTargetsBuilt.length; ++i) {
                         this._onAllTargetsBuilt[i]();
                     }
                 }
@@ -184,30 +185,30 @@ var Combine = {
         },
 
         finaliseTarget: function(target) {
-            actualSize = 0;
-            for (i=0;i<target.pieces.length; ++i) {
-                actualSize += target.pieces[i].data.length;
+            var actualSize = 0;
+            for (var i=0;i<target.pieces.length; ++i) {
+                actualSize += target.pieces[i].dataLength;
             }
             if (actualSize != target.size) {
                 throw "Unexpected data size";
             }
 
             if (1 < target.pieces.length) {
-                output = target.data;
-                pieces = target.pieces;
-                for (i=0; i<pieces.length; ++i) {
-                    item = pieces[i];
+                var output = target.data;
+                var pieces = target.pieces;
+                for (var i=0; i<pieces.length; ++i) {
+                    var item = pieces[i];
                     // Bounds check
-                    start = item.offset;
-                    end = start + item.data.length;
+                    var start = item.offset;
+                    var end = start + item.dataLength;
                     if (0 < i) {
-                        previous = pieces[i - 1];
-                        if (previous.offset + previous.data.length > start) {
+                        var previous = pieces[i - 1];
+                        if (previous.offset + previous.dataLength > start) {
                             throw "Segment underflow";
                         }
                     }
                     if (pieces.length - 2 > i) {
-                        next = pieces[i + 1];
+                        var next = pieces[i + 1];
                         if (end > next.offset) {
                             throw "Segment overflow";
                         }
