@@ -103,6 +103,10 @@ public class LibraryUtil {
         List<URL> urls = new ArrayList<URL>();
         BobProjectProperties properties = new BobProjectProperties();
         File projectProps = new File(FilenameUtils.concat(rootPath, "game.project"));
+        if (!projectProps.exists()) {
+            // Silently ignore if game.project does not exist, probably a test
+            return urls;
+        }
         InputStream input = null;
         try {
             input = new BufferedInputStream(new FileInputStream(projectProps));
