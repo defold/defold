@@ -34,19 +34,15 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import com.dynamo.bob.Bob;
+import com.dynamo.bob.LibraryException;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.cr.editor.builders.ProgressDelegate;
 import com.dynamo.cr.editor.core.ProjectProperties;
 
 public class BobUtil {
-
-    private static Logger logger = LoggerFactory
-            .getLogger(BobUtil.class);
 
     /**
      * Retrieve bob specific args from the supplied args map.
@@ -70,7 +66,7 @@ public class BobUtil {
         dstArgs.put("bobArgs", bobArgsEncoded);
     }
 
-    public static List<URL> getLibraryUrls(String rootPath) throws IOException {
+    public static List<URL> getLibraryUrls(String rootPath) throws LibraryException {
         List<URL> urls = new ArrayList<URL>();
         ProjectProperties properties = new ProjectProperties();
         File projectProps = new File(FilenameUtils.concat(rootPath, "game.project"));
@@ -79,13 +75,13 @@ public class BobUtil {
             input = new BufferedInputStream(new FileInputStream(projectProps));
             properties.load(input);
         } catch (Exception e) {
-            logger.warn("Failed to parse game.project");
+            throw new LibraryException("Failed to parse game.project", e);
         } finally {
             IOUtils.closeQuietly(input);
         }
         String dependencies = properties.getStringValue("project", "dependencies", null);
         if (dependencies != null) {
-            urls = Bob.parseLibraryUrls(dependencies);
+            urls = LibraryUtil.parseLibraryUrls(dependencies);
         }
         return urls;
     }
@@ -160,7 +156,7 @@ public class BobUtil {
             project.setOption("email", email);
             project.setOption("auth", auth);
             project.setLibUrls(libUrls);
-            project.resolveLibUrls();
+            project.resolveLibUrls(new ProgressDelegate(monitor));
             libFolder.refreshLocal(1, monitor);
             List<String> libPaths = new ArrayList<String>(libUrls.size());
             IPath libPath = libFolder.getProjectRelativePath().makeRelativeTo(contentRoot.getProjectRelativePath());
@@ -171,6 +167,8 @@ public class BobUtil {
             linkLibraries(contentRoot, libPaths, monitor);
             contentRoot.refreshLocal(1, monitor);
         } catch (IOException e) {
+            throw wrapCoreException(e);
+        } catch (LibraryException e) {
             throw wrapCoreException(e);
         }
     }

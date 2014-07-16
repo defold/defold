@@ -61,4 +61,9 @@ public class ConsoleProgress implements IProgress {
         }
     }
 
+    @Override
+    public boolean isCanceled() {
+        return false;
+    }
+
 }

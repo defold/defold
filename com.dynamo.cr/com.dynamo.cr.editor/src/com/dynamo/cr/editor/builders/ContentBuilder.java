@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.LibraryException;
 import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
@@ -161,6 +162,8 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 }
             }
         } catch (IOException e) {
+            throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));
+        } catch (LibraryException e) {
             throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed", e));
         } catch (CompileExceptionError e) {
             if (e.getResource() != null && e.getResource().exists()) {

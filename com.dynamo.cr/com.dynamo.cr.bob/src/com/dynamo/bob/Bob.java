@@ -1,21 +1,17 @@
 package com.dynamo.bob;
 
-import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -33,10 +29,9 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.LibraryUtil;
 
 public class Bob {
 
@@ -69,7 +64,7 @@ public class Bob {
         return cmd;
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException {
+    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
 
@@ -99,10 +94,10 @@ public class Bob {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setLibUrls(getLibraryUrls(FilenameUtils.concat(cwd, rootDirectory)));
+        project.setLibUrls(LibraryUtil.getLibraryUrlsFromProject(FilenameUtils.concat(cwd, rootDirectory)));
         for (String command : commands) {
             if (command.equals("resolve")) {
-                project.resolveLibUrls();
+                project.resolveLibUrls(new ConsoleProgress());
                 break;
             }
         }
@@ -320,45 +315,4 @@ public class Bob {
         }
     }
 
-    private static List<URL> getLibraryUrls(String rootPath) throws IOException {
-        List<URL> urls = new ArrayList<URL>();
-        BobProjectProperties properties = new BobProjectProperties();
-        File projectProps = new File(FilenameUtils.concat(rootPath, "game.project"));
-        InputStream input = null;
-        try {
-            input = new BufferedInputStream(new FileInputStream(projectProps));
-            properties.load(input);
-        } catch (Exception e) {
-            verbose("Failed to parse game.project");
-        } finally {
-            IOUtils.closeQuietly(input);
-        }
-        String dependencies = properties.getStringValue("project", "dependencies", null);
-        if (dependencies != null) {
-            urls = parseLibraryUrls(dependencies);
-        }
-        return urls;
-    }
-
-    /**
-     * Parse a comma separated string of URLs.
-     * @param urls
-     * @return a list of the parsed URLs
-     */
-    public static List<URL> parseLibraryUrls(String urls) {
-        List<URL> result = new ArrayList<URL>();
-        String[] libUrls = urls.split(",");
-        for (String urlStr : libUrls) {
-            urlStr = urlStr.trim();
-            if (!urlStr.isEmpty()) {
-                try {
-                    URL url = new URL(urlStr);
-                    result.add(url);
-                } catch (MalformedURLException e) {
-                    verbose("Failed to parse library URL: " + e.getMessage());
-                }
-            }
-        }
-        return result;
-    }
 }

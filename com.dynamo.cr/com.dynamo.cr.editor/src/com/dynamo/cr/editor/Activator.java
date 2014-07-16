@@ -189,7 +189,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     public static void showError(String message, Throwable e) {
         Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, message, e);
-        StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
+        StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG | StatusManager.BLOCK);
     }
 
     /*
@@ -530,8 +530,16 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         if (!internal.exists()) {
                             internal.create(true, true, monitor);
                         }
-                        BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
-                        linkBuiltins(contentRoot, monitor);
+                        try {
+                            BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                        } catch (CoreException e) {
+                            showError("Error occurred when fetching libraries", e);
+                        }
+                        try {
+                            linkBuiltins(contentRoot, monitor);
+                        } catch (CoreException e) {
+                            showError("Error occurred when linking builtins", e);
+                        }
                     } catch (CoreException ex) {
                         showError("Error occurred when creating project", ex);
                     }

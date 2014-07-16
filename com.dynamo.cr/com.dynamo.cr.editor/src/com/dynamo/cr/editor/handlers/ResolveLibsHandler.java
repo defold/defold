@@ -1,5 +1,7 @@
 package com.dynamo.cr.editor.handlers;
 
+import java.lang.reflect.InvocationTargetException;
+
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
@@ -7,9 +9,10 @@ import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.ErrorDialog;
+import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
@@ -41,27 +44,36 @@ public class ResolveLibsHandler extends AbstractHandler {
         final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
         if (project != null) {
             final IFolder contentRoot = EditorUtil.getContentRoot(project);
-            Job job = new Job("fetch") {
-                @Override
-                protected IStatus run(IProgressMonitor monitor) {
-                    try {
-                        BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
-                    } catch (Throwable e) {
-                        final String msg = e.getMessage();
-                        final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
-                        shell.getDisplay().asyncExec(new Runnable() {
-                            @Override
-                            public void run() {
-                                ErrorDialog.openError(null, "Error occurred while fetching libraries", "Unable to fetch libraries", status);
-                            }
-                        });
-                        logger.error("Unable to fetch libraries", e);
-                    }
-                    return Status.OK_STATUS;
-                }
-            };
+            try {
+                HandlerUtil.getActiveWorkbenchWindow(event).getWorkbench().getProgressService().busyCursorWhile(new IRunnableWithProgress() {
 
-            job.schedule();
+                    @Override
+                    public void run(IProgressMonitor monitor) throws InvocationTargetException,
+                            InterruptedException {
+                        try {
+                            monitor.beginTask("Fetch Libraries", IProgressMonitor.UNKNOWN);
+                            BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                        } catch (OperationCanceledException e) {
+                            // Normal, pass through
+                        } catch (Throwable e) {
+                            final String msg = e.getMessage();
+                            final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
+                            shell.getDisplay().asyncExec(new Runnable() {
+                                @Override
+                                public void run() {
+                                    ErrorDialog.openError(null, "Error occurred while fetching libraries", "Unable to fetch libraries", status);
+                                }
+                            });
+                            logger.error("Unable to fetch libraries", e);
+                        } finally {
+                            monitor.done();
+                        }
+
+                    }
+                });
+            } catch (Exception e) {
+                throw new ExecutionException(e.getMessage(), e);
+            }
         }
 
         return null;

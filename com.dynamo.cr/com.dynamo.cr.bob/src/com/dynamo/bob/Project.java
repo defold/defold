@@ -6,6 +6,8 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.ConnectException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
@@ -18,9 +20,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
@@ -460,7 +465,7 @@ run:
      * Resolve (i.e. download from server) the stored lib URLs.
      * @throws IOException
      */
-    public void resolveLibUrls() throws IOException, FileNotFoundException {
+    public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
         String libPath = getLibPath();
         File libDir = new File(libPath);
         // Clean lib dir first
@@ -469,16 +474,35 @@ run:
         // Download libs
         List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
         int count = this.libUrls.size();
+        IProgress subProgress = progress.subProgress(count);
+        subProgress.beginTask("Download archives", count);
         for (int i = 0; i < count; ++i) {
+            if (progress.isCanceled()) {
+                break;
+            }
             URL url = libUrls.get(i);
             URLConnection connection = url.openConnection();
             connection.addRequestProperty("X-Email", this.options.get("email"));
             connection.addRequestProperty("X-Auth", this.options.get("auth"));
-            BufferedInputStream input = new BufferedInputStream(connection.getInputStream());
+            InputStream input = null;
             try {
-                FileUtils.copyInputStreamToFile(input, libFiles.get(i));
+                input = new BufferedInputStream(connection.getInputStream());
+                File f = libFiles.get(i);
+                FileUtils.copyInputStreamToFile(input, f);
+                try {
+                    ZipFile zip = new ZipFile(f);
+                    zip.close();
+                } catch (ZipException e) {
+                    f.delete();
+                    throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                }
+            } catch (ConnectException e) {
+                throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
+            } catch (FileNotFoundException e) {
+                throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
             } finally {
-                input.close();
+                IOUtils.closeQuietly(input);
+                subProgress.worked(1);
             }
         }
     }

@@ -1,8 +1,11 @@
 package com.dynamo.bob.util;
 
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -14,6 +17,8 @@ import java.util.zip.ZipFile;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+
+import com.dynamo.bob.LibraryException;
 
 public class LibraryUtil {
 
@@ -70,5 +75,47 @@ public class LibraryUtil {
             }
         }
         return includeDirs;
+    }
+
+    /**
+     * Parse a comma separated string of URLs.
+     * @param urls
+     * @return a list of the parsed URLs
+     */
+    public static List<URL> parseLibraryUrls(String urls) throws LibraryException {
+        List<URL> result = new ArrayList<URL>();
+        String[] libUrls = urls.split("[,\\s]");
+        for (String urlStr : libUrls) {
+            urlStr = urlStr.trim();
+            if (!urlStr.isEmpty()) {
+                try {
+                    URL url = new URL(urlStr);
+                    result.add(url);
+                } catch (MalformedURLException e) {
+                    throw new LibraryException(String.format("The library URL %s is not valid", urlStr), e);
+                }
+            }
+        }
+        return result;
+    }
+
+    public static List<URL> getLibraryUrlsFromProject(String rootPath) throws LibraryException {
+        List<URL> urls = new ArrayList<URL>();
+        BobProjectProperties properties = new BobProjectProperties();
+        File projectProps = new File(FilenameUtils.concat(rootPath, "game.project"));
+        InputStream input = null;
+        try {
+            input = new BufferedInputStream(new FileInputStream(projectProps));
+            properties.load(input);
+        } catch (Exception e) {
+            throw new LibraryException("Failed to parse game.project", e);
+        } finally {
+            IOUtils.closeQuietly(input);
+        }
+        String dependencies = properties.getStringValue("project", "dependencies", null);
+        if (dependencies != null) {
+            urls = parseLibraryUrls(dependencies);
+        }
+        return urls;
     }
 }

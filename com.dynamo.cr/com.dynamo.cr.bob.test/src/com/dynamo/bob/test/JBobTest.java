@@ -25,12 +25,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
+import com.dynamo.bob.LibraryException;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
@@ -39,6 +39,7 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.dynamo.bob.test.util.MockResource;
+import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.TaskResult;
 
 public class JBobTest {
@@ -445,10 +446,15 @@ public class JBobTest {
 
     @Test
     public void testUrlParsing() throws Exception {
-        List<URL> urls = Bob.parseLibraryUrls(" http://localhost ,http://localhost,,httpinvalid");
+        List<URL> urls = LibraryUtil.parseLibraryUrls(" http://localhost ,http://localhost,,");
         assertThat(urls.size(), is(2));
         assertTrue(urls.get(0).toString().equals("http://localhost"));
         assertTrue(urls.get(1).toString().equals("http://localhost"));
+    }
+
+    @Test(expected=LibraryException.class)
+    public void testUrlParsingInvalid() throws Exception {
+        LibraryUtil.parseLibraryUrls(" http://localhost ,http://localhost,,httpinvalid");
     }
 }
 

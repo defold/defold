@@ -105,7 +105,7 @@ public class ProjectTest {
         for (String filename : filenames) {
             assertFalse(libExists(filename));
         }
-        this.project.resolveLibUrls();
+        this.project.resolveLibUrls(new NullProgress());
         for (String filename : filenames) {
             assertTrue(libExists(filename));
         }
@@ -113,7 +113,7 @@ public class ProjectTest {
 
     @Test
     public void testMountPoints() throws Exception {
-        project.resolveLibUrls();
+        project.resolveLibUrls(new NullProgress());
         project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
         project.setInputs(Arrays.asList("test_lib/file1.in", "test_lib2/file2.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
@@ -125,7 +125,7 @@ public class ProjectTest {
 
     @Test
     public void testMountPointFindSources() throws Exception {
-        project.resolveLibUrls();
+        project.resolveLibUrls(new NullProgress());
         project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
         project.findSources(".", null);
         List<TaskResult> results = build("build");
