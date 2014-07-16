@@ -119,6 +119,7 @@ public class ZipFileStore extends FileStore {
         info.setExists(true);
         info.setDirectory(entry.isDirectory());
         info.setLength(entry.getSize());
+        info.setAttribute(EFS.ATTRIBUTE_READ_ONLY, true);
         return info;
     }
 
@@ -156,6 +157,7 @@ public class ZipFileStore extends FileStore {
         FileInfo result = new FileInfo(name);
         result.setExists(true);
         result.setDirectory(true);
+        result.setAttribute(EFS.ATTRIBUTE_READ_ONLY, true);
         return result;
     }
 
