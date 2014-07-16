@@ -47,6 +47,10 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+
+// Implemented in library_sys.js
+extern "C" const char* dmSysGetUserPersistentDataRoot();
+
 #endif
 
 
@@ -266,16 +270,17 @@ namespace dmSys
     }
 
 #elif defined(__EMSCRIPTEN__)
-    bool IsRunningInBrowser()
-    {
-        return 0 != EM_ASM_INT_V({return (typeof window !== 'undefined');});
-    }
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        const char* const DeviceMount = IsRunningInBrowser() ? "/data/" : "";
-        if (dmStrlCpy(path, DeviceMount, path_len) >= path_len)
-            return RESULT_INVAL;
+        const char* const DeviceMount = dmSysGetUserPersistentDataRoot();
+        if (0 < strlen(DeviceMount))
+        {
+            if (dmStrlCpy(path, DeviceMount, path_len) >= path_len)
+                return RESULT_INVAL;
+            if (dmStrlCpy(path, "/", path_len) >= path_len)
+                return RESULT_INVAL;
+        }
         if (dmStrlCat(path, ".", path_len) >= path_len)
             return RESULT_INVAL;
         if (dmStrlCat(path, application_name, path_len) >= path_len)
