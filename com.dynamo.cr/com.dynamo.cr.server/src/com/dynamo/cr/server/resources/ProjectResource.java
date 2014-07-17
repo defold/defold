@@ -156,27 +156,31 @@ public class ProjectResource extends BaseResource {
      * Project
      */
     private static void zipFiles(File directory, File zipFile) throws IOException {
-        ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
+        ZipOutputStream zipOut = null;
 
-        IOFileFilter dirFilter = new AbstractFileFilter() {
-            @Override
-            public boolean accept(File file) {
-                return !file.getName().equals(".git");
-            }
-        };
+        try {
+            zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
+            IOFileFilter dirFilter = new AbstractFileFilter() {
+                @Override
+                public boolean accept(File file) {
+                    return !file.getName().equals(".git");
+                }
+            };
 
-        Collection<File> files = FileUtils.listFiles(directory, TrueFileFilter.INSTANCE, dirFilter);
-        int prefixLength = directory.getAbsolutePath().length();
-        for (File file : files) {
-            String p = file.getAbsolutePath().substring(prefixLength);
-            if (p.startsWith("/")) {
-                p = p.substring(1);
+            Collection<File> files = FileUtils.listFiles(directory, TrueFileFilter.INSTANCE, dirFilter);
+            int prefixLength = directory.getAbsolutePath().length();
+            for (File file : files) {
+                String p = file.getAbsolutePath().substring(prefixLength);
+                if (p.startsWith("/")) {
+                    p = p.substring(1);
+                }
+                ZipEntry ze = new ZipEntry(p);
+                zipOut.putNextEntry(ze);
+                FileUtils.copyFile(file, zipOut);
             }
-            ZipEntry ze = new ZipEntry(p);
-            zipOut.putNextEntry(ze);
-            FileUtils.copyFile(file, zipOut);
+        } finally {
+            IOUtils.closeQuietly(zipOut);
         }
-        zipOut.close();
     }
 
     @GET
