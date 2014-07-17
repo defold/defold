@@ -269,20 +269,25 @@ int Facebook_Login(lua_State* L)
         var callback      = $3;
         var lua_state     = $4;
 
-        FB.login(function(response) {
-            var e = (response && response.error ? response.error.message : 0);
-            if (e == 0 && response.authResponse) {
-                Runtime.dynCall('viii', callback, [lua_state, state_open, 0]);
-            } else if (e != 0) {
-                var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                Runtime.dynCall('viii', callback, [lua_state, state_closed, buf]);
-            } else {
-                // No authResponse. Below text is from facebook's own example of this case.
-                e = 'User cancelled login or did not fully authorize.';
-                var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                Runtime.dynCall('viii', callback, [lua_state, state_failed, buf]);
-            }
-        }, {scope: 'public_profile,user_friends'});
+        try {
+            FB.login(function(response) {
+                var e = (response && response.error ? response.error.message : 0);
+                if (e == 0 && response.authResponse) {
+                    Runtime.dynCall('viii', callback, [lua_state, state_open, 0]);
+                } else if (e != 0) {
+                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('viii', callback, [lua_state, state_closed, buf]);
+                } else {
+                    // No authResponse. Below text is from facebook's own example of this case.
+                    e = 'User cancelled login or did not fully authorize.';
+                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('viii', callback, [lua_state, state_failed, buf]);
+                }
+            }, {scope: 'public_profile,user_friends'});
+        } catch (e){
+            console.error("Facebook login failed " + e);
+        }
+
     }, STATE_OPEN, STATE_CLOSED, STATE_CLOSED_LOGIN_FAILED, (OnLoginCallback) OnLoginComplete, L);
 
     assert(top == lua_gettop(L));
@@ -296,9 +301,14 @@ int Facebook_Logout(lua_State* L)
 
     // https://developers.facebook.com/docs/reference/javascript/FB.logout
     EM_ASM({
-        FB.logout(function(response) {
-            // user is now logged out
-        });
+        try {
+            FB.logout(function(response) {
+                // user is now logged out
+            });
+        } catch (e){
+            console.error("Facebook logout failed " + e);
+        }
+
     });
 
     assert(top == lua_gettop(L));
@@ -353,20 +363,25 @@ int Facebook_RequestReadPermissions(lua_State* L)
         var callback    = $1;
         var lua_state   = $2;
 
-        FB.login(function(response) {
-            var e = (response && response.error ? response.error.message : 0);
-            if (e == 0 && response.authResponse) {
-                Runtime.dynCall('vii', callback, [lua_state, 0]);
-            } else if (e != 0) {
-                var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                Runtime.dynCall('vii', callback, [lua_state, buf]);
-            } else {
-                // No authResponse. Below text is from facebook's own example of this case.
-                e = 'User cancelled login or did not fully authorize.';
-                var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                Runtime.dynCall('vii', callback, [lua_state, buf]);
-            }
-        }, {scope: Pointer_stringify(permissions)});
+        try {
+            FB.login(function(response) {
+                var e = (response && response.error ? response.error.message : 0);
+                if (e == 0 && response.authResponse) {
+                    Runtime.dynCall('vii', callback, [lua_state, 0]);
+                } else if (e != 0) {
+                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('vii', callback, [lua_state, buf]);
+                } else {
+                    // No authResponse. Below text is from facebook's own example of this case.
+                    e = 'User cancelled login or did not fully authorize.';
+                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('vii', callback, [lua_state, buf]);
+                }
+            }, {scope: Pointer_stringify(permissions)});
+        } catch (e){
+            console.error("Facebook request read permissions failed " + e);
+        }
+
     }, permissions, (OnRequestReadPermissionsCallback) OnRequestReadPermissionsComplete, L);
     assert(top == lua_gettop(L));
     return 0;
@@ -405,20 +420,25 @@ int Facebook_RequestPublishPermissions(lua_State* L)
         var callback    = $2;
         var lua_state   = $3;
 
-        FB.login(function(response) {
-            var e = (response && response.error ? response.error.message : 0);
-            if (e == 0 && response.authResponse) {
-                Runtime.dynCall('vii', callback, [lua_state, 0]);
-            } else if (e != 0) {
-                var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                Runtime.dynCall('vii', callback, [lua_state, buf]);
-            } else {
-                // No authResponse. Below text is from facebook's own example of this case.
-                e = 'User cancelled login or did not fully authorize.';
-                var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                Runtime.dynCall('vii', callback, [lua_state, buf]);
-            }
-        }, {scope: Pointer_stringify(permissions)});
+        try {
+            FB.login(function(response) {
+                var e = (response && response.error ? response.error.message : 0);
+                if (e == 0 && response.authResponse) {
+                    Runtime.dynCall('vii', callback, [lua_state, 0]);
+                } else if (e != 0) {
+                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('vii', callback, [lua_state, buf]);
+                } else {
+                    // No authResponse. Below text is from facebook's own example of this case.
+                    e = 'User cancelled login or did not fully authorize.';
+                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('vii', callback, [lua_state, buf]);
+                }
+            }, {scope: Pointer_stringify(permissions)});
+        } catch (e){
+            console.error("Facebook request publish permissions failed " + e);
+        }
+
     }, permissions, audience, (OnRequestPublishPermissionsCallback) OnRequestPublishPermissionsComplete, L);
 
     assert(top == lua_gettop(L));
@@ -450,15 +470,20 @@ int Facebook_AccessToken(lua_State* L)
         var callback = $0;
         var lua_state = $1;
 
-        var response = FB.getAuthResponse(); // Cached??
-        var access_token = (response && response.accessToken ? response.accessToken : 0);
+        try {
+            var response = FB.getAuthResponse(); // Cached??
+            var access_token = (response && response.accessToken ? response.accessToken : 0);
 
-        if(access_token != 0) {
-            var buf = allocate(intArrayFromString(access_token), 'i8', ALLOC_STACK);
-            Runtime.dynCall('vii', callback, [lua_state, buf]);
-        } else {
-            Runtime.dynCall('vii', callback, [lua_state, 0]);
+            if(access_token != 0) {
+                var buf = allocate(intArrayFromString(access_token), 'i8', ALLOC_STACK);
+                Runtime.dynCall('vii', callback, [lua_state, buf]);
+            } else {
+                Runtime.dynCall('vii', callback, [lua_state, 0]);
+            }
+        } catch (e){
+            console.error("Facebook access token failed " + e);
         }
+
     }, (OnAccessTokenCallback) OnAccessTokenComplete, L);
 
     assert(top + 1 == lua_gettop(L));
@@ -501,27 +526,32 @@ int Facebook_Permissions(lua_State* L)
         var callback = $0;
         var lua_state = $1;
 
-        FB.api('/me/permissions', function (response) {
-            var e = (response && response.error ? response.error.message : 0);
-            if(e == 0 && response.data) {
-                var permissions = [];
-                for (var i=0; i<response.data.length; i++) {
-                    if(response.data[i].permission && response.data[i].status) {
-                        if(response.data[i].status === 'granted') {
-                            permissions.push(response.data[i].permission);
-                        } else if(response.data[i].status === 'declined') {
-                            // TODO: Handle declined permissions?
+        try {
+            FB.api('/me/permissions', function (response) {
+                var e = (response && response.error ? response.error.message : 0);
+                if(e == 0 && response.data) {
+                    var permissions = [];
+                    for (var i=0; i<response.data.length; i++) {
+                        if(response.data[i].permission && response.data[i].status) {
+                            if(response.data[i].status === 'granted') {
+                                permissions.push(response.data[i].permission);
+                            } else if(response.data[i].status === 'declined') {
+                                // TODO: Handle declined permissions?
+                            }
                         }
                     }
+                    // Just make json of the acutal permissions (array)
+                    var permissions_data = JSON.stringify(permissions);
+                    var buf = allocate(intArrayFromString(permissions_data), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('vii', callback, [lua_state, buf]);
+                } else {
+                    Runtime.dynCall('vii', callback, [lua_state, 0]);
                 }
-                // Just make json of the acutal permissions (array)
-                var permissions_data = JSON.stringify(permissions);
-                var buf = allocate(intArrayFromString(permissions_data), 'i8', ALLOC_STACK);
-                Runtime.dynCall('vii', callback, [lua_state, buf]);
-            } else {
-                Runtime.dynCall('vii', callback, [lua_state, 0]);
-            }
-        });
+            });
+        } catch (e){
+            console.error("Facebook permissions failed " + e);
+        }
+
     }, (OnPermissionsCallback) OnPermissionsComplete, L);
 
     assert(top + 1 == lua_gettop(L));
@@ -563,17 +593,21 @@ int Facebook_Me(lua_State* L)
         var callback = $0;
         var lua_state = $1;
 
-        FB.api('/me', function (response) {
-            var e = (response && response.error ? response.error.message : 0);
-            if(e == 0) {
-                var me_data = JSON.stringify(response);
-                var buf = allocate(intArrayFromString(me_data), 'i8', ALLOC_STACK);
-                Runtime.dynCall('vii', callback, [lua_state, buf]);
-            } else {
-                // This follows the iOS implementation...
-                Runtime.dynCall('vii', callback, [lua_state, 0]);
-            }
-        });
+        try {
+            FB.api('/me', function (response) {
+                var e = (response && response.error ? response.error.message : 0);
+                if(e == 0) {
+                    var me_data = JSON.stringify(response);
+                    var buf = allocate(intArrayFromString(me_data), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('vii', callback, [lua_state, buf]);
+                } else {
+                    // This follows the iOS implementation...
+                    Runtime.dynCall('vii', callback, [lua_state, 0]);
+                }
+            });
+        } catch (e){
+            console.error("Facebook me failed " + e);
+        }
     }, (OnMeCallback) OnMeComplete, L);
 
     assert(top + 1 == lua_gettop(L));
@@ -630,30 +664,35 @@ int Facebook_ShowDialog(lua_State* L)
         var par = JSON.parse(Pointer_stringify(params));
         par.method = Pointer_stringify(mth);
 
-        FB.ui(par, function(response) {
-            // https://developers.facebook.com/docs/graph-api/using-graph-api/v2.0
-            //   (Section 'Handling Errors')
-            var e = (response && response.error ? response.error.message : 0);
-            if(e == 0) {
-                // TODO: UTF8?
-                // Matches iOS
-                var result = 'fbconnect://success?';
-                for (var key in response) {
-                    if(response.hasOwnProperty(key)) {
-                        result += key + '=' + encodeURIComponent(response[key]) + '&';
+        try {
+            FB.ui(par, function(response) {
+                // https://developers.facebook.com/docs/graph-api/using-graph-api/v2.0
+                //   (Section 'Handling Errors')
+                var e = (response && response.error ? response.error.message : 0);
+                if(e == 0) {
+                    // TODO: UTF8?
+                    // Matches iOS
+                    var result = 'fbconnect://success?';
+                    for (var key in response) {
+                        if(response.hasOwnProperty(key)) {
+                            result += key + '=' + encodeURIComponent(response[key]) + '&';
+                        }
                     }
+                    if(result[result.length-1] === '&') {
+                        result.slice(0, -1);
+                    }
+                    var url = allocate(intArrayFromString(result), 'i8', ALLOC_STACK);
+                    Runtime.dynCall('viii', callback, [lua_state, url, e]);
+                } else {
+                    var error = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
+                    var url = 0;
+                    Runtime.dynCall('viii', callback, [lua_state, url, error]);
                 }
-                if(result[result.length-1] === '&') {
-                    result.slice(0, -1);
-                }
-                var url = allocate(intArrayFromString(result), 'i8', ALLOC_STACK);
-                Runtime.dynCall('viii', callback, [lua_state, url, e]);
-            } else {
-                var error = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                var url = 0;
-                Runtime.dynCall('viii', callback, [lua_state, url, error]);
-            }
-        });
+            });
+        } catch (e){
+            console.error("Facebook show dialog failed " + e);
+        }
+
     }, params_json, dialog, (OnShowDialogCallback) OnShowDialogComplete, L);
 
     assert(top == lua_gettop(L));
@@ -688,13 +727,16 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         // This script tag MUST be located before the engine (game) js script tag.
         EM_ASM_ARGS({
             var app_id = $0;
-
-            FB.init({
-                appId      : Pointer_stringify(app_id),
-                status     : false,
-                xfbml      : false,
-                version    : 'v2.0',
-            });
+            try {
+                FB.init({
+                    appId      : Pointer_stringify(app_id),
+                    status     : false,
+                    xfbml      : false,
+                    version    : 'v2.0',
+                });
+            } catch (e){
+                console.error("Facebook initialize failed " + e);
+            }
         }, g_Facebook.m_appId);
 
         dmLogDebug("FB initialized.");
