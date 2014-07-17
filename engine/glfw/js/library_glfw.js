@@ -189,6 +189,7 @@ var LibraryGLFW = {
       event.preventDefault();
 
       // DOM and glfw have different button codes
+
       var eventButton = event['button'];
       if (eventButton > 0) {
         if (eventButton == 1) {
@@ -198,6 +199,57 @@ var LibraryGLFW = {
         }
       }
       Runtime.dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
+    },
+
+    onTouchEnd: function(event) {
+        if (event.touches.length == 0){
+            GLFW.buttons &= ~(1 << 0);
+        }
+    },
+
+    convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
+        var rect = Module['canvas'].getBoundingClientRect();
+        var canvasWidth = rect.right - rect.left;
+        var canvasHeight = rect.bottom - rect.top;
+        
+        var canvasX = x - rect.left;
+        var canvasY = y - rect.top;
+
+        var canvasXNormalized = canvasX / canvasWidth;
+        var canvasYNormalized = canvasY / canvasHeight;
+
+        var finalX = Module['canvas'].width * canvasXNormalized;
+        var finalY = Module['canvas'].height * canvasYNormalized;
+        return [finalX, finalY];
+    },
+
+    onTouchMove: function(event) {
+        var e = event;
+        var rect = Module['canvas'].getBoundingClientRect();
+        for(var i = 0; i < e.changedTouches.length; ++i) {
+          var touch = e.changedTouches[i];
+          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          var canvasX = coord[0];
+          var canvasY = coord[1];
+          Browser.mouseX = canvasX;
+          Browser.mouseY = canvasY;
+          break;
+        }
+    },
+
+    onTouchStart: function(event) {
+        var e = event;
+        var rect = Module['canvas'].getBoundingClientRect();
+        for(var i = 0; i < e.changedTouches.length; ++i) {
+          var touch = e.changedTouches[i];
+          var coord = GLFW.convertCoordinatesFromMonitorToWebGLPixels(touch.clientX, touch.clientY);
+          var canvasX = coord[0];
+          var canvasY = coord[1];
+          GLFW.buttons |= (1 << 0);
+          Browser.mouseX = canvasX;
+          Browser.mouseY = canvasY;
+          break;
+        }
     },
 
     onMouseButtonDown: function(event) {
@@ -258,7 +310,44 @@ var LibraryGLFW = {
                 document['webkitCancelFullScreen'] ||
           (function() {});
       CFS.apply(document, []);
-    }
+    },
+
+    web_resize_screen_to_aspect_ratio: function() {
+      var canvas = document.getElementById('canvas');
+      var x = canvas.width;
+      var y = canvas.height;
+      // The total screen size in device pixels in integers.
+      var screenWidth = Math.round(window.innerWidth*window.devicePixelRatio);
+      var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
+      console.log('screen size in device pixels: ' + screenWidth + 'x' + screenHeight);
+      // Compute (w,h) that will be the target CSS pixel size of the canvas.
+      var w = screenWidth;
+      var h = screenHeight;
+      // Fix ar
+      if (w*y == x*h) {
+        console.log('Desired aspect ratio matches. No action needed.');
+      } else if (w*y < x*h) {
+        h = (w * y / x) | 0;
+      } else {
+        w = (h * x / y) | 0;
+      }
+      console.log('Aspect-ratio corrected screen size in device pixels: ' + w + 'x' + h);
+      var topMargin = ((screenHeight - h) / 2) | 0;
+      // Back to CSS pixels.
+      topMargin /= window.devicePixelRatio;
+      w /= window.devicePixelRatio;
+      h /= window.devicePixelRatio;
+      // Round to nearest 6 digits of precision.
+      w = Math.round(w*1000000)/1000000;
+      h = Math.round(h*1000000)/1000000;
+      topMargin = Math.round(topMargin*1000000)/1000000;
+      var canvas = document.getElementById('canvas');
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      console.log('Resized canvas size to ' + w + 'x' + h + ' CSS pixels and top aspect ratio margin to ' + topMargin + ' CSS pixels. window.devicePixelRatio=' + window.devicePixelRatio);
+      Module['canvas'].style.marginTop = topMargin + 'px';
+    } 
+
   },
 
 /*******************************************************************************
@@ -277,6 +366,9 @@ var LibraryGLFW = {
     window.addEventListener("mouseup", GLFW.onMouseButtonUp, true);
     window.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
     window.addEventListener('mousewheel', GLFW.onMouseWheel, true);
+    window.addEventListener('touchstart', GLFW.onTouchStart, true);
+    window.addEventListener('touchend', GLFW.onTouchEnd, true);
+    window.addEventListener('touchmove', GLFW.onTouchMove, true);
 
     __ATEXIT__.push({ func: function() {
       window.removeEventListener("keydown", GLFW.onKeydown, true);
@@ -287,6 +379,9 @@ var LibraryGLFW = {
       window.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
       window.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
       window.removeEventListener('mousewheel', GLFW.onMouseWheel, true);
+      window.removeEventListener('touchstart', GLFW.onTouchStart, true);
+      window.removeEventListener('touchend', GLFW.onTouchEnd, true);
+      window.removeEventListener('touchmove', GLFW.onTouchMove, true);
       Module["canvas"].width = Module["canvas"].height = 1;
     }});
 
@@ -369,6 +464,10 @@ var LibraryGLFW = {
       stencil: (GLFW.params[0x0002000A] > 0) // GLFW_STENCIL_BITS
     }
     Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+
+    window.addEventListener("resize", GLFW.web_resize_screen_to_aspect_ratio);
+    GLFW.web_resize_screen_to_aspect_ratio();
+
     return 1; // GL_TRUE
   },
 
@@ -583,7 +682,12 @@ var LibraryGLFW = {
 
   glfwLoadTextureImage2D: function(img, flags) { throw "glfwLoadTextureImage2D is not implemented."; },
 
-  glfwShowKeyboard: function(show_keyboard) {},
+  glfwShowKeyboard: function(show_keyboard) {
+    Module['canvas'].contentEditable = show_keyboard ? true : false;
+    if (show_keyboard) {
+      Module['canvas'].focus();
+    }
+  },
 };
 
 autoAddDeps(LibraryGLFW, '$GLFW');
