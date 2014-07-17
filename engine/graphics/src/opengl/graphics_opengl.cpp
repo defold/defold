@@ -786,8 +786,6 @@ static void LogFrameBufferError(GLenum status)
             }
             else
             {
-                // Clear error
-                glGetError();
                 // TODO: Disabled irritating warning? Should we care about not used streams?
                 //dmLogWarning("Vertex attribute %s is not active or defined", streams[i].m_Name);
                 streams[i].m_PhysicalIndex = -1;
@@ -1059,11 +1057,6 @@ static void LogFrameBufferError(GLenum status)
     int32_t GetUniformLocation(HProgram prog, const char* name)
     {
         GLint location = glGetUniformLocation(prog, name);
-        if (location == -1)
-        {
-            // Clear error if uniform isn't found
-            glGetError();
-        }
         return (uint32_t) location;
     }
 
