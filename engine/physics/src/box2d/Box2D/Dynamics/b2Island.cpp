@@ -26,6 +26,7 @@
 #include <Box2D/Dynamics/Joints/b2Joint.h>
 #include <Box2D/Common/b2StackAllocator.h>
 #include <Box2D/Common/b2Timer.h>
+#include <Box2D/Common/b2Pow.h>
 
 /*
 Position Correction Notes
@@ -206,6 +207,9 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
 			v += h * (b->m_gravityScale * gravity + b->m_invMass * b->m_force);
 			w += h * b->m_invI * b->m_torque;
 
+			// Defold modification
+			// The expression below is incorrect for time steps != 1
+			// Instead we use the same damping as bullet, following this discussion: http://code.google.com/p/bullet/issues/detail?id=74
 			// Apply damping.
 			// ODE: dv/dt + c * v = 0
 			// Solution: v(t) = v0 * exp(-c * t)
@@ -213,8 +217,15 @@ void b2Island::Solve(b2Profile* profile, const b2TimeStep& step, const b2Vec2& g
 			// v2 = exp(-c * dt) * v1
 			// Taylor expansion:
 			// v2 = (1.0f - c * dt) * v1
-			v *= b2Clamp(1.0f - h * b->m_linearDamping, 0.0f, 1.0f);
-			w *= b2Clamp(1.0f - h * b->m_angularDamping, 0.0f, 1.0f);
+
+			// OLD DAMPING
+			// v *= b2Clamp(1.0f - h * b->m_linearDamping, 0.0f, 1.0f);
+			// w *= b2Clamp(1.0f - h * b->m_angularDamping, 0.0f, 1.0f);
+
+			// NEW DAMPING
+			// The clamping is needed because of the approximative power function
+			v *= b2Clamp(b2FastPow(1.0f - b->m_linearDamping, h), 0.0f, 1.0f);
+			w *= b2Clamp(b2FastPow(1.0f - b->m_angularDamping, h), 0.0f, 1.0f);
 		}
 
 		m_positions[i].c = c;
