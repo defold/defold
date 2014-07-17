@@ -37,6 +37,9 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
         collisionObject.setMass(desc.getMass());
         collisionObject.setFriction(desc.getFriction());
         collisionObject.setRestitution(desc.getRestitution());
+        collisionObject.setLinearDamping(desc.getLinearDamping());
+        collisionObject.setAngularDamping(desc.getAngularDamping());
+        collisionObject.setLockedRotation(desc.getLockedRotation());
         collisionObject.setGroup(desc.getGroup());
         StringBuffer mask = new StringBuffer();
         int n = desc.getMaskCount();
@@ -137,6 +140,9 @@ public class CollisionObjectLoader implements INodeLoader<CollisionObjectNode> {
         builder.setMass(collisionObject.getMass());
         builder.setFriction(collisionObject.getFriction());
         builder.setRestitution(collisionObject.getRestitution());
+        builder.setLinearDamping(collisionObject.getLinearDamping());
+        builder.setAngularDamping(collisionObject.getAngularDamping());
+        builder.setLockedRotation(collisionObject.getLockedRotation());
         builder.setGroup(collisionObject.getGroup());
         String[] masks = collisionObject.getMask().split("[ ,]+");
         for (String mask : masks) {

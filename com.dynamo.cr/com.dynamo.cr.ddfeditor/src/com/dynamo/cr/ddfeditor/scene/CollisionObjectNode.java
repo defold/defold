@@ -23,6 +23,9 @@ public class CollisionObjectNode extends ComponentTypeNode {
     @Property private float mass;
     @Property private float friction;
     @Property private float restitution;
+    @Property private float linearDamping;
+    @Property private float angularDamping;
+    @Property private boolean lockedRotation;
     @Property private String group = "";
     @Property private String mask = "";
     private Node collisionShapeNode;
@@ -108,6 +111,30 @@ public class CollisionObjectNode extends ComponentTypeNode {
 
     public void setRestitution(float restitution) {
         this.restitution = restitution;
+    }
+
+    public float getLinearDamping() {
+        return this.linearDamping;
+    }
+
+    public void setLinearDamping(float linearDamping) {
+        this.linearDamping = linearDamping;
+    }
+
+    public float getAngularDamping() {
+        return this.angularDamping;
+    }
+
+    public void setAngularDamping(float angularDamping) {
+        this.angularDamping = angularDamping;
+    }
+
+    public boolean getLockedRotation() {
+        return this.lockedRotation;
+    }
+
+    public void setLockedRotation(boolean lockedRotation) {
+        this.lockedRotation = lockedRotation;
     }
 
     public String getGroup() {

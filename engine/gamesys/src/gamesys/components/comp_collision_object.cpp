@@ -209,6 +209,9 @@ namespace dmGameSystem
         data.m_Restitution = ddf->m_Restitution;
         data.m_Group = GetGroupBitIndex(world, resource->m_Group);
         data.m_Mask = 0;
+        data.m_LinearDamping = ddf->m_LinearDamping;
+        data.m_AngularDamping = ddf->m_AngularDamping;
+        data.m_LockedRotation = ddf->m_LockedRotation;
         for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
         {
             data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
