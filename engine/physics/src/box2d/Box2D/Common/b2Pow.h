@@ -3,6 +3,8 @@
 #ifndef B2_POW_H
 #define B2_POW_H
 
+#include <stdint.h>
+
 inline float b2FastLog2(float x) {
     union { float f; uint32_t i; } vx = { x };
     union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
