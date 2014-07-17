@@ -7,7 +7,6 @@ import javax.annotation.security.RolesAllowed;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
 import javax.ws.rs.core.Response.Status;
 
 import org.slf4j.Logger;
@@ -30,7 +29,9 @@ import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.IGit;
 
-@Path("/projects/{user}")
+//NOTE: {member} isn't currently used.
+//See README.md in this project for additional information
+@Path("/projects/{member}")
 @RolesAllowed(value = { "user" })
 public class ProjectsResource extends BaseResource {
 
@@ -47,13 +48,13 @@ public class ProjectsResource extends BaseResource {
 
     @POST
     @Transactional
-    public ProjectInfo newProject(@PathParam("user") String userId, NewProject newProject) {
-        User user = server.getUser(em, userId);
+    public ProjectInfo newProject(NewProject newProject) {
+        User user = getUser();
 
-        ProjectInfoList list = getProjects(userId);
+        List<Project> projects = em.createQuery("select p from Project p where :user member of p.members", Project.class).setParameter("user", user).getResultList();
         int n = 0;
-        for (ProjectInfo projectInfo : list.getProjectsList()) {
-            if (projectInfo.getOwner().getId() == user.getId()) {
+        for (Project project : projects) {
+            if (project.getOwner().getId() == user.getId()) {
                 // Count only projects the user own
                 ++n;
             }
@@ -108,9 +109,8 @@ public class ProjectsResource extends BaseResource {
     }
 
     @GET
-    public ProjectInfoList getProjects(@PathParam("user") String userId) {
-        User user = server.getUser(em, userId);
-
+    public ProjectInfoList getProjects() {
+        User user = getUser();
         List<Project> list = em.createQuery("select p from Project p where :user member of p.members", Project.class).setParameter("user", user).getResultList();
 
         List<BillingProduct> products = server.getConfiguration().getProductsList();

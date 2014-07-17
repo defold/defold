@@ -102,18 +102,6 @@ public class NewsListResourceTest extends AbstractResourceTest {
     }
 
     @Test
-    public void testSubscribeForbidden() throws Exception {
-        NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
-        assertThat(lst.getSubscribersList().size(), is(2));
-
-        ClientResponse resp = bobResource.path(joeUser.getId().toString()).path("subscribe").put(ClientResponse.class);
-        assertThat(resp.getClientResponseStatus(), is(ClientResponse.Status.FORBIDDEN));
-
-        lst = adminResource.get(NewsSubscriberList.class);
-        assertThat(lst.getSubscribersList().size(), is(2));
-    }
-
-    @Test
     public void testUnsubscribeWithKey() throws Exception {
         NewsSubscriberList lst = adminResource.get(NewsSubscriberList.class);
         assertThat(lst.getSubscribersList().size(), is(2));

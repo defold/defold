@@ -13,10 +13,10 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.lang3.Pair;
 import org.junit.Test;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.tile.TileSetGenerator.IndexedAnimDesc;
 import com.dynamo.bob.tile.TileSetGenerator.IndexedAnimIterator;
@@ -39,8 +39,8 @@ public class TileSetGeneratorTest {
         tileSet.addAnimations(newAnim("a1", 0, 0));
         tileSet.addAnimations(newAnim("a2", 1, 1));
 
-        Pair<TextureSet.Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet.build(), image, image, false);
-        TextureSet textureSet = pair.left.setTexture("").build();
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSet textureSet = result.builder.setTexture("").build();
 
         int vertexSize = TextureSetProto.Constants.VERTEX_SIZE.getNumber();
 
@@ -103,9 +103,9 @@ public class TileSetGeneratorTest {
         int tileCount = 9;
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
 
-        Pair<TextureSet.Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet.build(), image, image, false);
-        TextureSet textureSet = pair.left.setTexture("").build();
-        BufferedImage texture = pair.right;
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSet textureSet = result.builder.setTexture("").build();
+        BufferedImage texture = result.image;
 
         assertEquals(512, texture.getWidth());
         assertEquals(512, texture.getHeight());
@@ -142,9 +142,9 @@ public class TileSetGeneratorTest {
         int tileHeight = 16;
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
 
-        Pair<TextureSet.Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet.build(), image, image, false);
-        TextureSet textureSet = pair.left.setTexture("").build();
-        BufferedImage texture = pair.right;
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSet textureSet = result.builder.setTexture("").build();
+        BufferedImage texture = result.image;
 
         assertEquals(1, texture.getWidth());
         assertEquals(16, texture.getHeight());
@@ -164,9 +164,9 @@ public class TileSetGeneratorTest {
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
         tileSet.setExtrudeBorders(1);
 
-        Pair<TextureSet.Builder, BufferedImage> pair = TileSetGenerator.generate(tileSet.build(), image, image, false);
-        TextureSet textureSet = pair.left.setTexture("").build();
-        BufferedImage texture = pair.right;
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSet textureSet = result.builder.setTexture("").build();
+        BufferedImage texture = result.image;
 
         assertEquals(4, texture.getWidth());
         assertEquals(32, texture.getHeight());

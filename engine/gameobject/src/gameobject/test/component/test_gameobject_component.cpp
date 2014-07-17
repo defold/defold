@@ -381,6 +381,35 @@ TEST_F(ComponentTest, TestIndexId)
     dmGameObject::Delete(m_Collection, go);
 }
 
+static int LuaTestCompType(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    uintptr_t user_data = 0;
+    dmMessage::URL receiver;
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L, 1, "a", &user_data, &receiver);
+    assert(user_data == 1);
+
+    assert(top == lua_gettop(L));
+
+    return 0;
+}
+
+TEST_F(ComponentTest, TestComponentType)
+{
+    lua_State* L = dmGameObject::GetLuaState();
+    lua_pushcfunction(L, LuaTestCompType);
+    lua_setglobal(L, "test_comp_type");
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_comp_type.goc");
+    dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
+
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_FALSE(ret);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

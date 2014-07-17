@@ -45,6 +45,10 @@ public class ResourceMoveParticipant extends MoveParticipant implements ISharabl
         if (!(getArguments().getDestination() instanceof IContainer)) {
             return false;
         }
+        IContainer destination = (IContainer)getArguments().getDestination();
+        if (destination.getResourceAttributes().isReadOnly()) {
+            return false;
+        }
         addElement(element, getArguments());
 
         return true;

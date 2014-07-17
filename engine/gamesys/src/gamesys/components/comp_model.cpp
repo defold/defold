@@ -114,8 +114,8 @@ namespace dmGameSystem
             mesh = model->m_Mesh;
             dmRender::RenderObject& ro = component.m_RenderObject;
 
-            dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(component.m_Instance);
-            dmTransform::TransformS1 local(Vector3(component.m_Position), component.m_Rotation, 1.0f);
+            dmTransform::Transform world = dmGameObject::GetWorldTransform(component.m_Instance);
+            dmTransform::Transform local(Vector3(component.m_Position), component.m_Rotation, 1.0f);
             if (dmGameObject::ScaleAlongZ(component.m_Instance))
             {
                 world = dmTransform::Mul(world, local);

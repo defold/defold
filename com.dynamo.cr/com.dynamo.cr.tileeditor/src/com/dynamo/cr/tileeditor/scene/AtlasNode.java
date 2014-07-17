@@ -5,19 +5,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.commons.lang3.Pair;
+import javax.media.opengl.GL2;
+
 import org.eclipse.core.resources.IFile;
 
-import com.dynamo.bob.pipeline.AtlasBuilder;
-import com.dynamo.bob.pipeline.AtlasBuilder.MappedAnimIterator;
+import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimIterator;
+import com.dynamo.bob.pipeline.AtlasUtil;
 import com.dynamo.bob.textureset.TextureSetGenerator;
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.cr.properties.GreaterEqualThanZero;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
-import com.dynamo.textureset.proto.TextureSetProto.TextureSet.Builder;
 import com.dynamo.tile.proto.Tile.Playback;
 
 @SuppressWarnings("serial")
@@ -42,6 +43,13 @@ public class AtlasNode extends TextureSetNode {
         aabb.union(0, 0, 0);
         aabb.union(512, 512, 0);
         setAABB(aabb);
+    }
+
+    @Override
+    public void dispose(GL2 gl) {
+        super.dispose(gl);
+        textureHandle.clear(gl);
+        runtimeTextureSet.dispose(gl);
     }
 
     public int getMargin() {
@@ -88,7 +96,7 @@ public class AtlasNode extends TextureSetNode {
         }
     }
 
-    private static void collectAnimations(Node node, List<AtlasBuilder.MappedAnimDesc> animations) {
+    private static void collectAnimations(Node node, List<AtlasUtil.MappedAnimDesc> animations) {
         for (Node n : node.getChildren()) {
             if (n instanceof AtlasAnimationNode) {
                 AtlasAnimationNode animNode = (AtlasAnimationNode) n;
@@ -96,23 +104,23 @@ public class AtlasNode extends TextureSetNode {
                 List<String> ids = new ArrayList<String>(children.size());
                 for (Node n2 : children) {
                     AtlasImageNode imageNode = (AtlasImageNode) n2;
-                    ids.add(imageNode.getId());
+                    ids.add(imageNode.getImage());
                 }
-                animations.add(new AtlasBuilder.MappedAnimDesc(animNode.getId(), ids, animNode.getPlayback(), animNode
+                animations.add(new AtlasUtil.MappedAnimDesc(animNode.getId(), ids, animNode.getPlayback(), animNode
                         .getFps(), animNode.isFlipHorizontally(), animNode.isFlipVertically()));
             } else if (n instanceof AtlasImageNode) {
                 AtlasImageNode imageNode = (AtlasImageNode) n;
                 String id = imageNode.getId();
                 boolean found = false;
-                for (AtlasBuilder.MappedAnimDesc animDesc : animations) {
+                for (AtlasUtil.MappedAnimDesc animDesc : animations) {
                     if (animDesc.getId().equals(id)) {
                         found = true;
                         break;
                     }
                 }
                 if (!found) {
-                    List<String> ids = Collections.singletonList(id);
-                    animations.add(new AtlasBuilder.MappedAnimDesc(id, ids, Playback.PLAYBACK_NONE, 30, false, false));
+                    List<String> ids = Collections.singletonList(imageNode.getImage());
+                    animations.add(new AtlasUtil.MappedAnimDesc(id, ids, Playback.PLAYBACK_NONE, 30, false, false));
                 }
             }
         }
@@ -127,7 +135,7 @@ public class AtlasNode extends TextureSetNode {
             List<String> imageNames = new ArrayList<String>(64);
             List<String> ids = new ArrayList<String>(64);
             List<BufferedImage> images = new ArrayList<BufferedImage>(64);
-            List<AtlasBuilder.MappedAnimDesc> animations = new ArrayList<AtlasBuilder.MappedAnimDesc>(32);
+            List<AtlasUtil.MappedAnimDesc> animations = new ArrayList<AtlasUtil.MappedAnimDesc>(32);
             collectImages(this, imageNames, ids);
             collectAnimations(this, animations);
 
@@ -143,16 +151,16 @@ public class AtlasNode extends TextureSetNode {
             }
 
             if (ok) {
-                MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
-                Pair<Builder, BufferedImage> pair = TextureSetGenerator.generate(images, iterator,
+                MappedAnimIterator iterator = new MappedAnimIterator(animations, imageNames);
+                TextureSetResult result = TextureSetGenerator.generate(images, iterator,
  Math.max(0, margin),
                         Math.max(0, extrudeBorders), true);
-                TextureSet textureSet = pair.left.setTexture("").build();
-                runtimeTextureSet.update(textureSet);
+                TextureSet textureSet = result.builder.setTexture("").build();
+                runtimeTextureSet.update(textureSet, result.uvTransforms);
 
                 AABB aabb = new AABB();
                 aabb.union(0, 0, 0);
-                BufferedImage image = pair.right;
+                BufferedImage image = result.image;
                 aabb.union(image.getWidth(), image.getHeight(), 0);
                 this.textureHandle.setImage(image);
                 setAABB(aabb);

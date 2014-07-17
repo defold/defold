@@ -1,0 +1,7 @@
+name: "sprite"
+vertex_program: "/spine/spine.vp"
+fragment_program: "/spine/spine.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}

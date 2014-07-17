@@ -3,10 +3,13 @@ package com.dynamo.cr.tileeditor.scene;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import javax.media.opengl.GL;
 
+import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.ui.util.VertexBufferObject;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
@@ -24,12 +27,13 @@ public class RuntimeTextureSet {
     private VertexBufferObject vertexBuffer = new VertexBufferObject();
     private VertexBufferObject outlineVertexBuffer = new VertexBufferObject();
     private ByteBuffer texCoordsBuffer = ByteBuffer.allocateDirect(0);
+    private List<UVTransform> uvTransforms;
 
     public RuntimeTextureSet() {
     }
 
     public RuntimeTextureSet(TextureSet textureSet) {
-        update(textureSet);
+        update(textureSet, Collections.<UVTransform>emptyList());
     }
 
     public void dispose(GL gl) {
@@ -48,7 +52,7 @@ public class RuntimeTextureSet {
      * Update with new {@link TextureSet}
      * @param textureSet texture set to update with
      */
-    public void update(TextureSet textureSet) {
+    public void update(TextureSet textureSet, List<UVTransform> uvTransforms) {
         this.textureSet = textureSet;
         updateBuffer(vertexBuffer, textureSet.getVertices());
         updateBuffer(outlineVertexBuffer, textureSet.getOutlineVertices());
@@ -56,6 +60,7 @@ public class RuntimeTextureSet {
         texCoordsBuffer = ByteBuffer.allocateDirect(textureSet.getTexCoords().size());
         texCoordsBuffer.put(textureSet.getTexCoords().asReadOnlyByteBuffer());
         texCoordsBuffer.flip();
+        this.uvTransforms = new ArrayList<UVTransform>(uvTransforms);
     }
 
     /**
@@ -240,5 +245,14 @@ public class RuntimeTextureSet {
         return aabb;
     }
 
-
+    /**
+     * Get the transform from the UV space of the original tile to the atlas UV space.
+     *
+     * @param anim Animation from which to fetch frame UV transform
+     * @param frame which frame of the animation to use
+     * @return transform from the original UV space to the modified one
+     */
+    public UVTransform getUvTransform(TextureSetAnimation anim, int frame) {
+        return this.uvTransforms.get(anim.getStart() + frame);
+    }
 }

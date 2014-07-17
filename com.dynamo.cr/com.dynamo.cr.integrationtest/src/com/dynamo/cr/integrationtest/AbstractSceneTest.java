@@ -29,6 +29,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
@@ -97,6 +98,12 @@ public abstract class AbstractSceneTest {
 
     @Before
     public void setup() throws CoreException, IOException {
+        // Avoid hang when running unit-test on Mac OSX
+        // Related to SWT and threads?
+        if (System.getProperty("os.name").toLowerCase().indexOf("mac") != -1) {
+            Display.getDefault();
+        }
+
         System.setProperty("java.awt.headless", "true");
 
         IWorkspace workspace = ResourcesPlugin.getWorkspace();
@@ -140,6 +147,7 @@ public abstract class AbstractSceneTest {
         this.presenterContext = injector.getInstance(ISceneView.IPresenterContext.class);
         this.history = injector.getInstance(IOperationHistory.class);
         this.undoContext = injector.getInstance(IUndoContext.class);
+        this.history.setLimit(this.undoContext, 50); // 20 is default
         this.loaderContext = injector.getInstance(ILoaderContext.class);
 
         ResourcesPlugin.getWorkspace().addResourceChangeListener(new IResourceChangeListener() {

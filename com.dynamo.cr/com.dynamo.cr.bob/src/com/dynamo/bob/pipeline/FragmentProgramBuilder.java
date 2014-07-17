@@ -6,8 +6,8 @@ import java.io.PrintWriter;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CopyBuilder;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 
 @BuilderParams(name = "FragmentProgram", inExts = ".fp", outExt = ".fpc")
 public class FragmentProgramBuilder extends CopyBuilder {

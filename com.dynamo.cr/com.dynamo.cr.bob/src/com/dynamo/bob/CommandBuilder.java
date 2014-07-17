@@ -8,6 +8,8 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.dynamo.bob.fs.IResource;
+
 /**
  * Builder for external commands.
  * TODO: Only a skeleton and not yet functional

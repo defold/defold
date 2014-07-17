@@ -9,6 +9,9 @@
 
 namespace dmGameSystem
 {
+#define SPINE_MODEL_EXT "spinemodelc"
+#define TILE_MAP_EXT "tilegridc"
+
     /**
      * Log message error. The function will send a formatted printf-style string to dmLogError
      * and append message sender/receiver information on the following format:

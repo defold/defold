@@ -218,7 +218,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    HInstance GetInstanceFromLua(lua_State* L, int index, uintptr_t* user_data, dmMessage::URL* url)
+    HInstance GetInstanceFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
@@ -240,22 +240,35 @@ namespace dmGameObject
                 return 0; // Actually never reached
             }
 
+            uint32_t component_type_index;
+            dmGameObject::Result result = GetComponentUserData(instance, receiver.m_Fragment, &component_type_index, user_data);
+            if ((component_ext != 0x0 || user_data != 0x0) && result != dmGameObject::RESULT_OK)
+            {
+                luaL_error(L, "The component could not be found");
+                return 0; // Actually never reached
+            }
+
+            if (component_ext != 0x0)
+            {
+                uint32_t resource_type;
+                dmResource::Result resource_res = dmResource::GetTypeFromExtension(instance->m_Collection->m_Factory, component_ext, &resource_type);
+                if (resource_res != dmResource::RESULT_OK)
+                {
+                    luaL_error(L, "Component type '%s' not found", component_ext);
+                    return 0; // Actually never reached
+                }
+                ComponentType* type = &instance->m_Collection->m_Register->m_ComponentTypes[component_type_index];
+                if (type->m_ResourceType != resource_type)
+                {
+                    luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
+                    return 0; // Actually never reached
+                }
+            }
             if (url)
             {
                 *url = receiver;
             }
 
-            uint32_t component_type_index;
-            GetComponentUserData(instance, receiver.m_Fragment, &component_type_index, user_data);
-            /*
-             TODO: Not supported yet. See comment in header file.
-             We have also discussed the possibility of "resolved" URL:s with handle to actual data
-             and/or a new component reference concept similar to Nodes in gui-system
-            if (actual_type != component_type)
-            {
-                luaL_error(L, "function to applicable for this component");
-                return 0; // Actually never reached
-            }*/
         }
         else
         {
@@ -415,6 +428,8 @@ namespace dmGameObject
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+        case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
+            return luaL_error(L, "go.set failed because the value is unsupported");
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.set failed with error code %d", result);

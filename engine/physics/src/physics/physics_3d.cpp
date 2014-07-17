@@ -58,7 +58,7 @@ namespace dmPhysics
         {
             if (m_GetWorldTransform != 0x0)
             {
-                dmTransform::TransformS1 world_transform;
+                dmTransform::Transform world_transform;
                 m_GetWorldTransform(m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
@@ -277,7 +277,7 @@ namespace dmPhysics
                 {
                     Point3 old_position = GetWorldPosition(context, collision_object);
                     Quat old_rotation = GetWorldRotation(context, collision_object);
-                    dmTransform::TransformS1 world_transform;
+                    dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransform)(collision_object->getUserPointer(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                     Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
@@ -595,7 +595,7 @@ namespace dmPhysics
             btTransform world_t;
             if (world->m_GetWorldTransform != 0x0)
             {
-                dmTransform::TransformS1 world_transform;
+                dmTransform::Transform world_transform;
                 world->m_GetWorldTransform(data.m_UserData, world_transform);
                 Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                 Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
@@ -777,7 +777,7 @@ namespace dmPhysics
                 body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
                 if (world->m_GetWorldTransform != 0x0)
                 {
-                    dmTransform::TransformS1 world_transform;
+                    dmTransform::Transform world_transform;
                     world->m_GetWorldTransform(body->getUserPointer(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
                     Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());

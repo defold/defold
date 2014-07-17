@@ -53,7 +53,7 @@ namespace dmGameSystem
         uint8_t m_3D : 1;
     };
 
-    void GetWorldTransform(void* user_data, dmTransform::TransformS1& world_transform)
+    void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
     {
         if (!user_data)
             return;

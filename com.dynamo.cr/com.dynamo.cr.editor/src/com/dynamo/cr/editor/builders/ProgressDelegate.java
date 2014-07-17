@@ -33,4 +33,9 @@ public class ProgressDelegate implements IProgress {
         this.monitor.done();
     }
 
+    @Override
+    public boolean isCanceled() {
+        return this.monitor.isCanceled();
+    }
+
 }

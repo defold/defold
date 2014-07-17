@@ -75,7 +75,6 @@ void TestScript01SystemDispatch(dmMessage::Message* message, void* user_ptr)
 
     TestGameObjectDDF::FactoryResult result;
     result.m_Status = 1010;
-    dmMessage::URL receiver = message->m_Sender;
     dmDDF::Descriptor* descriptor = TestGameObjectDDF::FactoryResult::m_DDFDescriptor;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&message->m_Receiver, &message->m_Sender, dmHashString64(descriptor->m_Name), 0, (uintptr_t)descriptor, &result, sizeof(TestGameObjectDDF::FactoryResult)));
 
@@ -102,7 +101,7 @@ TEST_F(ScriptTest, TestScript01)
     global_data.m_VecValue.setY(2.0f);
     global_data.m_VecValue.setZ(3.0f);
 
-    dmGameObject::Init(m_Collection);
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 

@@ -11,8 +11,8 @@ import javax.vecmath.Vector4d;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
@@ -50,7 +50,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         for (String module : modules) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
-            BuilderUtil.checkFile(this.project, task.input(0), "module", module_file);
+            BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }

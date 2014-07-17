@@ -15,10 +15,10 @@ import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.PropertiesUtil;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
@@ -179,7 +179,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             double s = collInst.getScale();
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
                 InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
-                BuilderUtil.checkFile(this.project, owner, "prototype", inst.getPrototype());
+                BuilderUtil.checkResource(this.project, owner, "prototype", inst.getPrototype());
                 // merge id
                 String id = pathPrefix + inst.getId();
                 instBuilder.setId(pathPrefix + inst.getId());

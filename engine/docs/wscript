@@ -96,6 +96,7 @@ build
 .project
 .cproject
 builtins
+.internal
 """
 
 def install_sample(bld, sample_dir):

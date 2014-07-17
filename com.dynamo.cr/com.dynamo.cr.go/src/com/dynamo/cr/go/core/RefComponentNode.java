@@ -32,7 +32,7 @@ import com.dynamo.gameobject.proto.GameObject.PropertyType;
 public class RefComponentNode extends ComponentNode {
 
     @Property(editorType=EditorType.RESOURCE, extensions = {
-            "camera", "collectionproxy", "collisionobject", "factory", "gui", "light", "model", "particlefx", "script", "sound", "sprite", "tilegrid", "tilemap", "wav"
+            "camera", "collectionproxy", "collisionobject", "factory", "gui", "light", "model", "particlefx", "script", "sound", "sprite", "tilegrid", "tilemap", "wav", "spinemodel"
     })
     @Resource
     @NotEmpty

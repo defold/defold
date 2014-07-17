@@ -492,8 +492,8 @@ namespace dmGameSystem
                 dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[*anim_id];
 
-                dmTransform::TransformS1 world = dmGameObject::GetWorldTransform(c->m_Instance);
-                dmTransform::TransformS1 local(Vector3(c->m_Position), c->m_Rotation, 1.0f);
+                dmTransform::Transform world = dmGameObject::GetWorldTransform(c->m_Instance);
+                dmTransform::Transform local(Vector3(c->m_Position), c->m_Rotation, 1.0f);
                 if (dmGameObject::ScaleAlongZ(c->m_Instance))
                 {
                     world = dmTransform::Mul(world, local);

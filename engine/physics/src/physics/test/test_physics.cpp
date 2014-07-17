@@ -14,14 +14,14 @@ VisualObject::VisualObject()
 
 }
 
-void GetWorldTransform(void* visual_object, dmTransform::TransformS1& world_transform)
+void GetWorldTransform(void* visual_object, dmTransform::Transform& world_transform)
 {
     if (visual_object != 0x0)
     {
         VisualObject* o = (VisualObject*) visual_object;
         world_transform.SetTranslation(Vector3(o->m_Position));
         world_transform.SetRotation(o->m_Rotation);
-        world_transform.SetScale(o->m_Scale);
+        world_transform.SetUniformScale(o->m_Scale);
     }
     else
     {
