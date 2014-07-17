@@ -4,6 +4,8 @@
 #include <stdint.h>
 #if defined(_WIN32)
 #include "safe_windows.h"
+#elif  defined(__EMSCRIPTEN__)
+#include <emscripten.h>
 #else
 #include <sys/time.h>
 #endif
@@ -288,6 +290,8 @@ namespace dmProfile
 
 #if defined(_WIN32)
             QueryPerformanceCounter((LARGE_INTEGER *)&m_Start);
+#elif defined(__EMSCRIPTEN__)
+            m_Start = (uint64_t)(emscripten_get_now() * 1000.0);
 #else
             timeval tv;
             gettimeofday(&tv, 0);
@@ -305,6 +309,8 @@ namespace dmProfile
             uint64_t end;
 #if defined(_WIN32)
             QueryPerformanceCounter((LARGE_INTEGER *) &end);
+#elif defined(__EMSCRIPTEN__)
+            end = (uint64_t)(emscripten_get_now() * 1000.0);
 #else
             timeval tv;
             gettimeofday(&tv, 0);
