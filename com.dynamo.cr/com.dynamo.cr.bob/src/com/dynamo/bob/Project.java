@@ -579,13 +579,14 @@ run:
      */
     public void findSources(String path, Set<String> skipDirs) throws IOException {
         if (new File(path).isAbsolute()) {
+            path = normalizeNoEndSeparator(path, true);
             if (path.startsWith(rootDirectory)) {
                 path = path.substring(rootDirectory.length());
             } else {
                 throw new FileNotFoundException(String.format("the source '%s' must be located under the root '%s'", path, rootDirectory));
             }
         }
-        String absolutePath = FilenameUtils.concat(rootDirectory, path);
+        String absolutePath = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path), true);
         if (!new File(absolutePath).exists()) {
             throw new FileNotFoundException(String.format("the path '%s' can not be found under the root '%s'", path, rootDirectory));
         }
