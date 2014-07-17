@@ -20,6 +20,8 @@ class Entry(object):
             self.compressed_size = len(self.resource)
             # Store uncompressed if gain is less than 5%
             # We believe that the shorter load time will compensate in this case.
+            if size == 0:
+                print "Warning! Size of %s is 0" % (self.filename)
             comp_ratio = float(self.compressed_size)/float(size) 
             if comp_ratio > 0.95:
                 #print "## Note: Won't compress %s. Compression ratio (compressed/uncompressed) is %f i.e. > 0.95" % (filename, comp_ratio)
