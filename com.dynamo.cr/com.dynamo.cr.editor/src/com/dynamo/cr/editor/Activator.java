@@ -5,15 +5,16 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.Set;
-
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.commons.io.FileUtils;
 import org.eclipse.core.net.proxy.IProxyData;
 import org.eclipse.core.net.proxy.IProxyService;
 import org.eclipse.core.resources.ICommand;
+import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
 import org.eclipse.core.resources.IProjectNature;
@@ -104,6 +105,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     public static final String UNRESOLVED_IMAGE_ID = "UNRESOLVED";
     public static final String YOURS_IMAGE_ID = "YOURS";
     public static final String THEIRS_IMAGE_ID = "THEIRS";
+    public static final String LIBRARY_IMAGE_ID = "LIBRARY";
 
     // The shared instance
     private static Activator plugin;
@@ -187,7 +189,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     public static void showError(String message, Throwable e) {
         Status status = new Status(IStatus.ERROR, Activator.PLUGIN_ID, message, e);
-        StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG);
+        StatusManager.getManager().handle(status, StatusManager.SHOW | StatusManager.LOG | StatusManager.BLOCK);
     }
 
     /*
@@ -467,6 +469,14 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
     }
 
     public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
+
+        try {
+            // Disable the link overlay of the icons in the project explorer
+            PlatformUI.getWorkbench().getDecoratorManager().setEnabled("org.eclipse.ui.LinkedResourceDecorator", false);
+        } catch (CoreException e1) {
+            // Ignore exceptions, decoration only
+        }
+
         this.projectClient = projectClient;
         URI uri = ClientUtils.getBranchUri(projectClient, branch);
         this.branchClient = projectClient.getClientFactory().getBranchClient(uri);
@@ -484,6 +494,11 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         this.project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectInfo.getName());
         final IProject p = this.project;
 
+        IPreferenceStore store = getPreferenceStore();
+        final String email = store.getString(PreferenceConstants.P_EMAIL);
+        final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+        final boolean useLocalBranches = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
+
         IProgressService service = PlatformUI.getWorkbench().getProgressService();
         try {
             service.runInUI(service, new IRunnableWithProgress() {
@@ -500,7 +515,9 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         p.setDefaultCharset("UTF-8", monitor);
 
                         URI uri = UriBuilder.fromUri(branchClient.getURI()).scheme("crepo").build();
-                        EditorUtil.getContentRoot(p).createLink(uri, IResource.REPLACE, monitor);
+
+                        IFolder contentRoot = EditorUtil.getContentRoot(p);
+                        contentRoot.createLink(uri, IResource.REPLACE, monitor);
 
                         IProjectDescription pd = p.getDescription();
                         pd.setNatureIds(new String[] { "com.dynamo.cr.editor.core.crnature" });
@@ -508,6 +525,21 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                         build_command.setBuilderName("com.dynamo.cr.editor.builders.contentbuilder");
                         pd.setBuildSpec(new ICommand[] {build_command});
                         p.setDescription(pd, monitor);
+
+                        IFolder internal = contentRoot.getFolder(".internal");
+                        if (!internal.exists()) {
+                            internal.create(true, true, monitor);
+                        }
+                        try {
+                            BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                        } catch (CoreException e) {
+                            showError("Error occurred when fetching libraries", e);
+                        }
+                        try {
+                            linkBuiltins(contentRoot, monitor);
+                        } catch (CoreException e) {
+                            showError("Error occurred when linking builtins", e);
+                        }
                     } catch (CoreException ex) {
                         showError("Error occurred when creating project", ex);
                     }
@@ -517,7 +549,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             showError("Error occured when creating project", e2);
         }
 
-        if (getPreferenceStore().getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES)) {
+        if (useLocalBranches) {
             String branchLocation = branchClient.getNativeLocation();
             File dest = new File(new Path(branchLocation).append("builtins").toOSString());
             if (dest.exists()) {
@@ -527,7 +559,6 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
                     showError("Could not delete builtins-directory, old resources might remain.", e);
                 }
             }
-            String builtinsDirectory = Builtins.getDefault().getBuiltins();
 
             // Start local http server
             try {
@@ -535,20 +566,22 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             } catch (IOException e) {
                 showError("Unable to start http server", e);
             }
-
-            // Copy builtins directory.
-            // The reason we don't use symlinks is that mklink on windows is broken (privileges).
-            try {
-                FileUtils.copyDirectory(new File(builtinsDirectory), dest);
-            } catch (IOException e) {
-                showError("Unable to copy builtins directory", e);
-            }
         }
 
         setProjectExplorerInput(p.getFolder("content"));
         IBranchService branchService = (IBranchService)PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
             branchService.updateBranchStatus(null);
+        }
+    }
+
+    private void linkBuiltins(IFolder contentRoot, IProgressMonitor monitor) throws CoreException {
+        try {
+            URI uri = new URI("bundle", null, "/builtins/", Builtins.getDefault().getBundle().getSymbolicName(), null);
+            IFolder folder = contentRoot.getFolder("builtins");
+            folder.createLink(uri, IResource.VIRTUAL | IResource.REPLACE | IResource.ALLOW_MISSING_LOCAL, monitor);
+        } catch (URISyntaxException e) {
+            throw new CoreException(new Status(IStatus.ERROR, PLUGIN_ID, e.getMessage(), e));
         }
     }
 
@@ -665,6 +698,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         reg.put(UNRESOLVED_IMAGE_ID, getImageDescriptor("icons/arrow_divide_red.png"));
         reg.put(YOURS_IMAGE_ID, getImageDescriptor("icons/user.png"));
         reg.put(THEIRS_IMAGE_ID, getImageDescriptor("icons/group.png"));
+        reg.put(LIBRARY_IMAGE_ID, getImageDescriptor("icons/plugin.png"));
     }
 
     @Override

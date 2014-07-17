@@ -1,5 +1,7 @@
 package com.dynamo.bob;
 
+import com.dynamo.bob.fs.IResource;
+
 
 /**
  * Compile exception

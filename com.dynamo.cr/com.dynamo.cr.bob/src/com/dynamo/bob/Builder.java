@@ -3,6 +3,8 @@ package com.dynamo.bob;
 import java.io.IOException;
 import java.security.MessageDigest;
 
+import com.dynamo.bob.fs.IResource;
+
 /**
  * Abstract builder class. Extent this class to create a builder
  * @author Christian Murray

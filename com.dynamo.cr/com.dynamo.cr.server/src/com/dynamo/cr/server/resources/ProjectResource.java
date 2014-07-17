@@ -2,13 +2,18 @@ package com.dynamo.cr.server.resources;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.security.RolesAllowed;
 import javax.ws.rs.Consumes;
@@ -26,9 +31,22 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.filefilter.AbstractFileFilter;
+import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
+import org.eclipse.jgit.api.CloneCommand;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.errors.InvalidRefNameException;
+import org.eclipse.jgit.api.errors.JGitInternalException;
+import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
+import org.eclipse.jgit.api.errors.RefNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.branchrepo.BranchRepositoryException;
 import com.dynamo.cr.proto.Config.Application;
@@ -53,6 +71,7 @@ import com.dynamo.inject.persist.Transactional;
 import com.dynamo.server.dgit.GitFactory;
 import com.dynamo.server.dgit.GitFactory.Type;
 import com.dynamo.server.dgit.IGit;
+import com.google.common.io.Files;
 import com.sun.jersey.api.NotFoundException;
 
 /*
@@ -125,13 +144,110 @@ import com.sun.jersey.api.NotFoundException;
  *
  */
 
-@Path("/projects/{user}/{project}")
+// NOTE: {member} isn't currently used.
+// See README.md in this project for additional information
+@Path("/projects/{owner}/{project}")
 @RolesAllowed(value = { "member" })
 public class ProjectResource extends BaseResource {
+
+    protected static Logger logger = LoggerFactory.getLogger(ProjectResource.class);
 
     /*
      * Project
      */
+    private static void zipFiles(File directory, File zipFile) throws IOException {
+        ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
+
+        IOFileFilter dirFilter = new AbstractFileFilter() {
+            @Override
+            public boolean accept(File file) {
+                return !file.getName().equals(".git");
+            }
+        };
+
+        Collection<File> files = FileUtils.listFiles(directory, TrueFileFilter.INSTANCE, dirFilter);
+        int prefixLength = directory.getAbsolutePath().length();
+        for (File file : files) {
+            String p = file.getAbsolutePath().substring(prefixLength);
+            if (p.startsWith("/")) {
+                p = p.substring(1);
+            }
+            ZipEntry ze = new ZipEntry(p);
+            zipOut.putNextEntry(ze);
+            FileUtils.copyFile(file, zipOut);
+        }
+        zipOut.close();
+    }
+
+    @GET
+    @Path("/archive")
+    @RolesAllowed(value = { "member" })
+    public Response getArchive(@PathParam("project") String project) throws IOException {
+        return getArchive(project, "HEAD");
+    }
+
+    @GET
+    @Path("/archive/{version}")
+    @RolesAllowed(value = { "member" })
+    public Response getArchive(@PathParam("project") String project,
+                               @PathParam("version") String version) throws IOException {
+
+        // NOTE: Currently neither caching of created zip-files nor appropriate cache-headers (ETag)
+        // Appropriate ETag might be SHA1 of zip-file or even SHA1 from git (head commit)
+
+        String repository = String.format("%s/%s", server.getConfiguration().getRepositoryRoot(), project);
+        File cloneTo = null;
+        final File zipFile = File.createTempFile("archive", ".zip");
+
+        try {
+            cloneTo = Files.createTempDir();
+            // NOTE: No shallow clone support in current JGit
+            CloneCommand clone = Git.cloneRepository()
+                    .setURI(repository)
+                    .setBare(false)
+                    .setDirectory(cloneTo);
+            Git git = clone.call();
+
+            try {
+                git.checkout().setName(version).call();
+            } catch (JGitInternalException e) {
+                throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
+            } catch (RefAlreadyExistsException e) {
+                throw new ServerException("Failed to checkout repo", e, Status.INTERNAL_SERVER_ERROR);
+            } catch (RefNotFoundException e) {
+                throw new ServerException(String.format("Version not found: %s", version), e, Status.INTERNAL_SERVER_ERROR);
+            } catch (InvalidRefNameException e) {
+                throw new ServerException(String.format("Version not found: %s", version), e, Status.INTERNAL_SERVER_ERROR);
+            }
+
+            zipFiles(cloneTo, zipFile);
+        } catch (IOException e) {
+            // NOTE: Only delete zip-file on error as we need the file
+            // when streaming. See .delete() in StreamingOutput below.
+            zipFile.delete();
+            throw new IOException("Failed to clone and zip project", e);
+        } finally {
+            // NOTE: We always delete temporary cloneTo directory
+            try {
+                FileUtils.deleteDirectory(cloneTo);
+            } catch (IOException e) {
+                logger.error("Failed to remove temporary clone directory", e);
+            }
+        }
+
+        StreamingOutput output = new StreamingOutput() {
+            @Override
+            public void write(OutputStream os) throws IOException, WebApplicationException {
+                FileUtils.copyFile(zipFile, os);
+                os.close();
+                zipFile.delete();
+            }
+        };
+
+        return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM_TYPE)
+                .header("content-disposition", String.format("attachment; filename = archive_%s_%s", project, version))
+                .build();
+    }
 
     @GET
     @Path("/launch_info")
@@ -205,9 +321,8 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = { "member" })
     @Transactional
     public void addMember(@PathParam("project") String projectId,
-                          @PathParam("user") String userId,
                           String memberEmail) {
-        User user = server.getUser(em, userId);
+        User user = getUser();
         User member = ModelUtil.findUserByEmail(em, memberEmail);
         if (member == null) {
             throw new ServerException("User not found", Status.NOT_FOUND);
@@ -228,16 +343,15 @@ public class ProjectResource extends BaseResource {
     @Path("/members/{id}")
     @Transactional
     public void removeMember(@PathParam("project") String projectId,
-                          @PathParam("user") String userId,
                           @PathParam("id") String memberId) {
         // Ensure user is valid
-        User user = server.getUser(em, userId);
+        User user = getUser();
         User member = server.getUser(em, memberId);
 
         Project project = server.getProject(em, projectId);
 
         if (!project.getMembers().contains(member)) {
-            throw new NotFoundException(String.format("User %s is not a member of project %s", userId, projectId));
+            throw new NotFoundException(String.format("User %s is not a member of project %s", user.getId(), projectId));
         }
         // Only owners can remove other users and only non-owners can remove themselves
         boolean isOwner = user.getId() == project.getOwner().getId();
@@ -253,9 +367,8 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/project_info")
-    public ProjectInfo getProjectInfo(@PathParam("user") String userId,
-                                      @PathParam("project") String projectId) {
-        User user = server.getUser(em, userId);
+    public ProjectInfo getProjectInfo(@PathParam("project") String projectId) {
+        User user = getUser();
         Project project = server.getProject(em, projectId);
         return ResourceUtil.createProjectInfo(server.getConfiguration(), user, project,
                 ModelUtil.isMemberQualified(em, user, project, server.getConfiguration().getProductsList()));
@@ -265,16 +378,12 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = { "owner" })
     @Transactional
     @Path("/project_info")
-    public void updateProjectInfo(@PathParam("user") String userId,
-                                  @PathParam("project") String projectId,
+    public void updateProjectInfo(@PathParam("project") String projectId,
                                   ProjectInfo projectInfo) {
         /*
          * Only name and description is updated
          */
 
-        // Ensure user is valid
-        // TODO: Is this really necessary? We do this repeatedly in this file.
-        server.getUser(em, userId);
         Project project = server.getProject(em, projectId);
         project.setName(projectInfo.getName());
         project.setDescription(projectInfo.getDescription());
@@ -283,10 +392,7 @@ public class ProjectResource extends BaseResource {
     @GET
     @Path("/log")
     public Log log(@PathParam("project") String project,
-                              @PathParam("user") String user,
                               @QueryParam("max_count") int maxCount) throws IOException {
-        // Ensure user is valid
-        server.getUser(em, user);
         Log log = server.log(em, project, maxCount);
         return log;
     }
@@ -294,10 +400,7 @@ public class ProjectResource extends BaseResource {
     @DELETE
     @RolesAllowed(value = { "owner" })
     @Transactional
-    public void deleteProject(@PathParam("user") String user,
-            @PathParam("project") String projectId)  {
-        // Ensure user is valid
-        server.getUser(em, user);
+    public void deleteProject(@PathParam("project") String projectId)  {
         Project project = server.getProject(em, projectId);
         Set<User> members = project.getMembers();
         // Remove branches
@@ -331,8 +434,7 @@ public class ProjectResource extends BaseResource {
     @Consumes(MediaType.APPLICATION_OCTET_STREAM)
     @RolesAllowed(value = { "member" })
     @Path("/engine/{platform}")
-    public Response uploadEngine(@PathParam("user") String user,
-                                 @PathParam("project") String projectId,
+    public Response uploadEngine(@PathParam("project") String projectId,
                                  @PathParam("platform") String platform,
                                  InputStream stream) throws IOException {
 
@@ -340,8 +442,6 @@ public class ProjectResource extends BaseResource {
             // Only iOS for now
             throwWebApplicationException(Status.NOT_FOUND, "Unsupported platform");
         }
-        // Ensure user is valid
-        server.getUser(em, user);
         server.uploadEngine(projectId, platform, stream);
         return Response.ok().build();
     }
@@ -350,8 +450,7 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = { "anonymous" })
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     @Path("/engine/{platform}/{key}")
-    public byte[] downloadEngine(@PathParam("user") String user,
-                                 @PathParam("project") String projectId,
+    public byte[] downloadEngine(@PathParam("project") String projectId,
                                  @PathParam("key") String key,
                                  @PathParam("platform") String platform) throws IOException {
 
@@ -374,8 +473,7 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = { "anonymous" })
     @Produces({"text/xml"})
     @Path("/engine_manifest/{platform}/{key}")
-    public String downloadEngineManifest(@PathParam("user") String user,
-                                         @PathParam("project") String projectId,
+    public String downloadEngineManifest(@PathParam("project") String projectId,
                                          @PathParam("key") String key,
                                          @PathParam("platform") String platform,
                                          @Context UriInfo uriInfo) throws IOException {
@@ -396,7 +494,8 @@ public class ProjectResource extends BaseResource {
         String manifest = IOUtils.toString(stream);
         stream.close();
 
-        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(user).path(projectId).path("engine").path(platform).path(key).build();
+        User user = getUser();
+        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(Long.toString(user.getId())).path(projectId).path("engine").path(platform).path(key).build();
         String manifestPrim = manifest.replace("${URL}", engineUri.toString());
         return manifestPrim;
     }
@@ -407,17 +506,16 @@ public class ProjectResource extends BaseResource {
 
     @GET
     @Path("/branches/")
-    public BranchList getBranchList(@PathParam("project") String project,
-                                    @PathParam("user") String user) {
-
+    public BranchList getBranchList(@PathParam("project") String project) {
+        String user = Long.toString(getUser().getId());
         return branchRepository.getBranchList(project, user);
     }
 
     @GET
     @Path("/branches/{branch}")
     public BranchStatus getBranchStatus(@PathParam("project") String project,
-                                        @PathParam("user") String user,
                                         @PathParam("branch") String branch) throws IOException, ServerException, BranchRepositoryException {
+        String user = Long.toString(getUser().getId());
         BranchStatus ret = branchRepository.getBranchStatus(project, user, branch, true);
         return ret;
     }
@@ -425,38 +523,38 @@ public class ProjectResource extends BaseResource {
     @PUT
     @Path("/branches/{branch}")
     public void createBranch(@PathParam("project") String project,
-                             @PathParam("user") String user,
                              @PathParam("branch") String branch) throws IOException, BranchRepositoryException {
+        String user = Long.toString(getUser().getId());
         branchRepository.createBranch(project, user, branch);
     }
 
     @DELETE
     @Path("/branches/{branch}")
     public void deleteBranch(@PathParam("project") String project,
-                             @PathParam("user") String user,
                              @PathParam("branch") String branch) throws ServerException, BranchRepositoryException {
+        String user = Long.toString(getUser().getId());
         branchRepository.deleteBranch(project, user, branch);
     }
 
     @POST
     @Path("/branches/{branch}/update")
     public BranchStatus updateBranch(@PathParam("project") String project,
-                               @PathParam("user") String user,
                                @PathParam("branch") String branch) throws IOException, BranchRepositoryException {
 
+        String user = Long.toString(getUser().getId());
         branchRepository.updateBranch(project, user, branch);
-        BranchStatus ret = getBranchStatus(project, user, branch);
+        BranchStatus ret = getBranchStatus(project, branch);
         return ret;
     }
 
     @POST
     @Path("/branches/{branch}/commit")
     public CommitDesc commitBranch(@PathParam("project") String project,
-                             @PathParam("user") String user,
                              @PathParam("branch") String branch,
                              @QueryParam("all") boolean all,
                              String message) throws IOException, BranchRepositoryException {
 
+        String user = Long.toString(getUser().getId());
         CommitDesc commit;
         if (all)
             commit = branchRepository.commitBranch(project, user, branch, message);
@@ -468,19 +566,18 @@ public class ProjectResource extends BaseResource {
     @POST
     @Path("/branches/{branch}/publish")
     public void publishBranch(@PathParam("project") String project,
-                              @PathParam("user") String user,
                               @PathParam("branch") String branch) throws IOException, BranchRepositoryException {
-
+        String user = Long.toString(getUser().getId());
         branchRepository.publishBranch(project, user, branch);
     }
 
     @POST
     @Path("/branches/{branch}/resolve")
     public void resolve(@PathParam("project") String project,
-                        @PathParam("user") String user,
                         @PathParam("branch") String branch,
                         @QueryParam("path") String path,
                         @QueryParam("stage") String stage) throws IOException, BranchRepositoryException {
+        String user = Long.toString(getUser().getId());
         ResolveStage s;
         if (stage.equals("base"))
             s = ResolveStage.BASE;
@@ -501,10 +598,10 @@ public class ProjectResource extends BaseResource {
     @GET
     @Path("/branches/{branch}/resources/info")
     public ResourceInfo getResourceInfo(@PathParam("project") String project,
-                                          @PathParam("user") String user,
                                           @PathParam("branch") String branch,
                                           @QueryParam("path") String path) throws IOException, BranchRepositoryException {
 
+        String user = Long.toString(getUser().getId());
         ResourceInfo ret = branchRepository.getResourceInfo(project, user, branch, path);
         return ret;
     }
@@ -512,42 +609,42 @@ public class ProjectResource extends BaseResource {
     @DELETE
     @Path("/branches/{branch}/resources/info")
     public void deleteResource(@PathParam("project") String project,
-                               @PathParam("user") String user,
                                @PathParam("branch") String branch,
                                @QueryParam("path") String path) throws IOException, BranchRepositoryException {
 
+        String user = Long.toString(getUser().getId());
         branchRepository.deleteResource(project, user, branch, path);
     }
 
     @POST
     @Path("/branches/{branch}/resources/rename")
     public void renameResource(@PathParam("project") String project,
-                               @PathParam("user") String user,
                                @PathParam("branch") String branch,
                                @QueryParam("source") String source,
                                @QueryParam("destination") String destination) throws IOException, ServerException, BranchRepositoryException {
 
+        String user = Long.toString(getUser().getId());
         branchRepository.renameResource(project, user, branch, source, destination);
     }
 
     @PUT
     @Path("/branches/{branch}/resources/revert")
     public void revertResource(@PathParam("project") String project,
-                               @PathParam("user") String user,
                                @PathParam("branch") String branch,
                                @QueryParam("path") String path) throws IOException, BranchRepositoryException {
 
+        String user = Long.toString(getUser().getId());
         branchRepository.revertResource(project, user, branch, path);
     }
 
     @GET
     @Path("/branches/{branch}/resources/data")
     public byte[] getResourceData(@PathParam("project") String project,
-                                  @PathParam("user") String user,
                                   @PathParam("branch") String branch,
                                   @QueryParam("path") String path,
                                   @QueryParam("revision") String revision) throws IOException, BranchRepositoryException {
 
+        String user = Long.toString(getUser().getId());
         byte[] ret = branchRepository.getResourceData(project, user, branch, path, revision);
         return ret;
     }
@@ -555,12 +652,11 @@ public class ProjectResource extends BaseResource {
     @PUT
     @Path("/branches/{branch}/resources/data")
     public void putResourceData(@PathParam("project") String project,
-                                @PathParam("user") String user,
                                 @PathParam("branch") String branch,
                                 @QueryParam("path") String path,
                                 @DefaultValue("false") @QueryParam("directory") boolean directory,
                                 byte[] data) throws IOException, BranchRepositoryException  {
-
+        String user = Long.toString(getUser().getId());
         if (directory) {
             branchRepository.mkdir(project, user, branch, path);
         }
@@ -572,19 +668,19 @@ public class ProjectResource extends BaseResource {
     @POST
     @Path("/branches/{branch}/reset")
     public void reset(@PathParam("project") String project,
-                                @PathParam("user") String user,
                                 @PathParam("branch") String branch,
                                 @DefaultValue("mixed") @QueryParam("mode") String mode,
                                 @QueryParam("target") String target) throws IOException, BranchRepositoryException  {
+        String user = Long.toString(getUser().getId());
         branchRepository.reset(project, user, branch, mode, target);
     }
 
     @GET
     @Path("/branches/{branch}/log")
     public Log logBranch(@PathParam("project") String project,
-                              @PathParam("user") String user,
                               @PathParam("branch") String branch,
                               @QueryParam("max_count") int maxCount) throws IOException, BranchRepositoryException {
+        String user = Long.toString(getUser().getId());
         return branchRepository.logBranch(project, user, branch, maxCount);
     }
 
@@ -595,40 +691,39 @@ public class ProjectResource extends BaseResource {
     @POST
     @Path("/branches/{branch}/builds")
     public BuildDesc build(@PathParam("project") String project,
-                           @PathParam("user") String user,
                            @PathParam("branch") String branch,
                            @DefaultValue("false") @QueryParam("rebuild") boolean rebuild) {
 
+        String user = Long.toString(getUser().getId());
         return server.build(project, user, branch, rebuild);
     }
 
     @GET
     @Path("/branches/{branch}/builds")
     public BuildDesc buildsStatus(@PathParam("project") String project,
-                                  @PathParam("user") String user,
                                   @PathParam("branch") String branch,
                                   @QueryParam("id") int id) {
-
+        String user = Long.toString(getUser().getId());
         return server.buildStatus(project, user, branch, id);
     }
 
     @DELETE
     @Path("/branches/{branch}/builds")
     public void cancelBuild(@PathParam("project") String project,
-                                 @PathParam("user") String user,
                                  @PathParam("branch") String branch,
                                  @QueryParam("id") int id) {
 
+        String user = Long.toString(getUser().getId());
         server.cancelBuild(project, user, branch, id);
     }
 
     @GET
     @Path("/branches/{branch}/builds/log")
     public BuildLog buildLog(@PathParam("project") String project,
-                              @PathParam("user") String user,
                               @PathParam("branch") String branch,
                               @QueryParam("id") int id) {
 
+        String user = Long.toString(getUser().getId());
         return server.buildLog(project, user, branch, id);
     }
 

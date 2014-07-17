@@ -1,5 +1,8 @@
 <!doctype html>
+<!--
 <html lang="en-us" manifest="${DMENGINE_MANIFEST}$">
+-->
+<html lang="en-us">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -1222,7 +1225,6 @@
         'noInitialRun': true,
         'preRunTasks': [],
         'preRunTasksCompleted': 0,
-        'mountPoint': '/data',
 
         _pendingFiles: [],
         _totalFiles: 0,
@@ -1298,8 +1300,8 @@
         },
 
         mountPendingFiles: function() {
-        	for (i=0; i<Module._pendingFiles.length; ++i) {
-        		item = Module._pendingFiles[i];
+        	for (var i=0; i<Module._pendingFiles.length; ++i) {
+        		var item = Module._pendingFiles[i];
                 Module.mountFile(item.path, item.data, false);
         	}
         	Module._pendingFiles = [];
@@ -1330,22 +1332,31 @@
             Module['preRunTasks'].push(fn);
         },
 
-        mountFilesystem: function() {
-        	dir = Module['mountPoint'];
-            FS.mkdir(dir);
-            FS.mount(IDBFS, {}, dir);
-            FS.syncfs(true, function(err) {
-            	// This operation will fail if the user is running a private browsing session.
-            	// Since the user is explicit about not wanting data to persist, there's nothing to do
-            	// here other than roll over.
-                // assert(!err);
-                Module.onBootstrapTaskCompleted();
-            });
+		_indexedDBAvailable: true,
+        onUnsupportedIndexedDB: function() {
+        	Module._indexedDBAvailable = false;
+        },
 
-            // Might it be that emscripten will do much the same as this one day?
-            // We should check future versions and remove our patch if it becomes redundant.
-            if (typeof _fsync != 'undefined') {
-                _old_fsync = _fsync;
+        mountFilesystem: function() {
+        	dir = _dmSysGetUserPersistentDataRoot();
+            FS.mkdir(dir);
+
+            if (Module._indexedDBAvailable) {
+	            FS.mount(IDBFS, {}, dir);
+	            FS.syncfs(true, function(err) {
+	            	// This operation will fail if the user is running a private browsing session.
+	            	// Since the user is explicit about not wanting data to persist, there's nothing to do
+	            	// here other than roll over.
+	                // assert(!err);
+	                Module.onBootstrapTaskCompleted();
+	            });
+            } else {
+				Module.onBootstrapTaskCompleted();
+            }
+
+            // Sync IDBFS on fclose.
+            if (Module.indexedDBAvailable && typeof _fsync != 'undefined') {
+                var _old_fsync = _fsync;
                 _fsync = function(fd) {
                     ret = _old_fsync(fd);
                     if (ret == 0) {
@@ -1428,10 +1439,10 @@
     <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
     <script type="text/javascript" src="modernizr.custom.js"></script>
     <script type="text/javascript">
-    <!-- We see write errors when using this shim on Safari. -->
+    <!-- We see a bug on first run and write errors when using the shim on Safari. -->
     Modernizr.load([{
         test: Modernizr.indexedDB,
-        nope: 'IndexedDBShim.min.js',
+        nope: Module.onUnsupportedIndexedDB,
         load: '${DMENGINE_JS}$'
     }]);
     </script>

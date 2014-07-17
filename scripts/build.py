@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, zipfile, re, itertools, json
-import optparse, subprocess, urllib, urlparse
+import optparse, subprocess, urllib, urlparse, tempfile
 from datetime import datetime
 from tarfile import TarFile
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
@@ -258,6 +258,23 @@ class Configuration(object):
         sha1 = line.split()[0]
         return sha1
 
+    def _ziptree(self, path, outfile = None, directory = None):
+        # Directory is similar to -C in tar
+        if not outfile:
+            outfile = tempfile.NamedTemporaryFile(delete = False)
+
+        zip = zipfile.ZipFile(outfile, 'w')
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                p = os.path.join(root, f)
+                an = p
+                if directory:
+                    an = os.path.relpath(p, directory)
+                zip.write(p, an)
+
+        zip.close()
+        return outfile.name
+
     def is_cross_platform(self):
         return self.host != self.target_platform
 
@@ -286,6 +303,7 @@ class Configuration(object):
 
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'engine', self.target_platform).replace('\\', '/')
+        share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
         if self.is_cross_platform():
@@ -307,15 +325,24 @@ class Configuration(object):
             self.upload_file(engine_release, '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext))
             self.upload_file(engine_headless, '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext))
 
+        if self.target_platform == 'linux':
+            # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
+            builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
+            self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
+
         if 'android' in self.target_platform:
             files = [
                 ('share/java', 'classes.dex'),
                 ('bin/%s' % (self.target_platform), 'dmengine.apk'),
                 ('bin/%s' % (self.target_platform), 'dmengine_release.apk'),
+                ('ext/share/java', 'android.jar'),
             ]
             for f in files:
                 src = join(dynamo_home, f[0], f[1])
                 self.upload_file(src, '%s/%s' % (full_archive_path, f[1]))
+
+            resources = self._ziptree(join(dynamo_home, 'ext', 'share', 'java', 'res'), directory = join(dynamo_home, 'ext', 'share', 'java'))
+            self.upload_file(resources, '%s/android-resources.zip' % (full_archive_path))
 
         libs = ['particle']
         if not self.is_cross_platform() or self.target_platform == 'x86_64-darwin':
@@ -463,8 +490,8 @@ class Configuration(object):
 
         p2 = """
 instructions.configure=\
-  addRepository(type:0,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
-  addRepository(type:1,location:http${#58}//defold-downloads.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
+  addRepository(type:0,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);\
+  addRepository(type:1,location:http${#58}//d.defold.com.s3-website-eu-west-1.amazonaws.com/%(channel)s/update/);
 """
 
         with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
@@ -515,15 +542,6 @@ instructions.configure=\
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        with open('engine/engine/src/engine_version.h', 'a+') as f:
-            f.seek(0)
-            engine_version = f.read()
-
-            engine_version = re.sub('const char\* VERSION = "[0-9\.]+";', 'const char* VERSION = "%s";' % new_version, engine_version)
-            engine_version = re.sub('const char\* VERSION_SHA1 = ".*?";', 'const char* VERSION_SHA1 = "%s";' % sha1, engine_version)
-            f.truncate(0)
-            f.write(engine_version)
-
         print 'Bumping engine version from %s to %s' % (current, new_version)
         print 'Review changes and commit'
 
@@ -534,19 +552,20 @@ instructions.configure=\
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-        prefix = self._get_s3_archive_prefix()
-        lst = bucket.list(prefix = prefix)
-        files = {}
-        for x in lst:
-            if x.name[-1] != '/':
-                # Skip directory "keys". When creating empty directories
-                # a psudeo-key is created. Directories isn't a first-class object on s3
-                p = os.path.relpath(x.name, prefix)
-                sha1 = p.split('/')[0]
-                lst = files.get(sha1, [])
-                name = p.split('/', 1)[1]
-                lst.append({'name': name, 'path': x.name})
-                files[sha1] = lst
+
+        def get_files(sha1):
+            root = urlparse.urlparse(self.archive_path).path[1:]
+            base_prefix = os.path.join(root, sha1)
+            prefix = os.path.join(base_prefix, 'engine')
+            files = []
+            for x in bucket.list(prefix = prefix):
+                if x.name[-1] != '/':
+                    # Skip directory "keys". When creating empty directories
+                    # a psudeo-key is created. Directories isn't a first-class object on s3
+                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                        name = os.path.relpath(x.name, base_prefix)
+                        files.append({'name': name, 'path': '/' + x.name})
+            return files
 
         tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
         tags.reverse()
@@ -559,11 +578,14 @@ instructions.configure=\
             sha1, tag = m.groups()
             epoch = self.exec_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
-            releases.append({'tag': tag,
-                             'sha1': sha1,
-                             'abbrevsha1': sha1[:7],
-                             'date': str(date),
-                             'files': files.get(sha1, [])})
+            files = get_files(sha1)
+            if len(files) > 0:
+                releases.append({'tag': tag,
+                                 'sha1': sha1,
+                                 'abbrevsha1': sha1[:7],
+                                 'date': str(date),
+                                 'files': files})
+
         return releases
 
 
@@ -621,18 +643,31 @@ instructions.configure=\
             {{/has_releases}}
 
             {{#releases}}
-                <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
-
-                <table class="table table-striped">
-                    <tbody>
-                        {{#files}}
-                        <tr><td><a href="{{path}}">{{name}}</a></td></tr>
-                        {{/files}}
-                        {{^files}}
-                        <i>No files</i>
-                        {{/files}}
-                    </tbody>
-                </table>
+                <div class="panel-group" id="accordion">
+                  <div class="panel panel-default">
+                    <div class="panel-heading">
+                      <h4 class="panel-title">
+                        <a data-toggle="collapse" data-parent="#accordion" href="#{{sha1}}">
+                          <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
+                        </a>
+                      </h4>
+                    </div>
+                    <div id="{{sha1}}" class="panel-collapse collapse ">
+                      <div class="panel-body">
+                        <table class="table table-striped">
+                          <tbody>
+                            {{#files}}
+                            <tr><td><a href="{{path}}">{{name}}</a></td></tr>
+                            {{/files}}
+                            {{^files}}
+                            <i>No files</i>
+                            {{/files}}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
             {{/releases}}
         </script>
 
@@ -640,7 +675,6 @@ instructions.configure=\
             var model = %(model)s
             var output = Mustache.render($('#templ-releases').html(), model);
             $("#releases").html(output);
-            console.log(output);
         </script>
       </body>
 </html>
@@ -717,7 +751,8 @@ instructions.configure=\
         self._log('Uploading %s/info.json' % self.channel)
         key = bucket.new_key('%s/info.json' % self.channel)
         key.content_type = 'application/json'
-        key.set_contents_from_string(json.dumps({'version': self.version}))
+        key.set_contents_from_string(json.dumps({'version': self.version,
+                                                 'sha1' : release_sha1}))
 
         # Create redirection keys for editor
         for name in ['Defold-macosx.cocoa.x86_64.zip', 'Defold-win32.win32.x86.zip', 'Defold-linux.gtk.x86.zip']:
@@ -791,7 +826,10 @@ instructions.configure=\
         from boto.s3.connection import S3Connection
         from boto.s3.key import Key
 
-        conn = S3Connection(key, secret)
+        # NOTE: We hard-code host (region) here and it should not be required.
+        # but we had problems with certain buckets with period characters in the name.
+        # Probably related to the following issue https://github.com/boto/boto/issues/621
+        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com')
         bucket = conn.get_bucket(bucket_name)
         self.s3buckets[bucket_name] = bucket
         return bucket
@@ -887,7 +925,7 @@ instructions.configure=\
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
-    sys.path.append(boto_path)
+    sys.path.insert(0, boto_path)
     usage = '''usage: %prog [options] command(s)
 
 Commands:
@@ -947,7 +985,7 @@ Multiple commands can be specified'''
                       default = False,
                       help = 'No color output. Default is color output')
 
-    default_archive_path = 's3://defold-downloads/archive'
+    default_archive_path = 's3://d.defold.com/archive'
     parser.add_option('--archive-path', dest='archive_path',
                       default = default_archive_path,
                       help = 'Archive build. Set ssh-path, host:path, to archive build to. Default is %s' % default_archive_path    )

@@ -963,7 +963,8 @@ def js_web_web_link_flags(self):
     if platform == 'js-web':
         glfw_js = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js', "library_glfw.js")
         self.link_task.env.append_value('LINKFLAGS', ['--js-library', glfw_js])
-
+        libsys = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js', "library_sys.js")
+        self.link_task.env.append_value('LINKFLAGS', ['--js-library', libsys])
 
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)

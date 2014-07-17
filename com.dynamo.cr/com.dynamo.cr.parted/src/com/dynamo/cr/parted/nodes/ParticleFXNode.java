@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector4d;
@@ -128,8 +129,8 @@ public class ParticleFXNode extends ComponentTypeNode {
     }
 
     @Override
-    public void dispose() {
-       super.dispose();
+    public void dispose(GL2 gl) {
+       super.dispose(gl);
        if (this.context != null) {
            ParticleLibrary.Particle_DestroyInstance(context, instance);
            ParticleLibrary.Particle_DeletePrototype(prototype);

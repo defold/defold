@@ -24,5 +24,6 @@ Require-Bundle: org.eclipse.ui;bundle-version="3.6.1",
  com.dynamo.cr.bob;bundle-version="1.0.0"
 Bundle-Activator: com.dynamo.cr.ddfeditor.Activator
 Bundle-ActivationPolicy: lazy
-Export-Package: com.dynamo.cr.ddfeditor.operations,
+Export-Package: com.dynamo.cr.ddfeditor,
+ com.dynamo.cr.ddfeditor.operations,
  com.dynamo.cr.ddfeditor.scene

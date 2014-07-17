@@ -20,6 +20,11 @@
         <servlet-class>com.dynamo.cr.web2.server.SearchIndexServlet</servlet-class>
     </servlet>
 
+    <servlet>
+        <servlet-name>project-redirect</servlet-name>
+        <servlet-class>com.dynamo.cr.web2.server.ProjectRedirectServlet</servlet-class>
+    </servlet>
+
     <servlet-mapping>
         <servlet-name>static</servlet-name>
         <url-pattern>/doc/*</url-pattern>
@@ -43,6 +48,11 @@
     <servlet-mapping>
         <servlet-name>search-index</servlet-name>
         <url-pattern>/search-index</url-pattern>
+    </servlet-mapping>
+
+    <servlet-mapping>
+        <servlet-name>project-redirect</servlet-name>
+        <url-pattern>/p/*</url-pattern>
     </servlet-mapping>
 
     <error-page>

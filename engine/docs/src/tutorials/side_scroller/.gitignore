@@ -7,3 +7,4 @@ build
 .project
 .cproject
 builtins
+.internal

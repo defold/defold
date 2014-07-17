@@ -31,6 +31,8 @@ namespace dmGameObject
     const char* ID_SEPARATOR = "/";
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 5;
 
+    static Prototype EMPTY_PROTOTYPE;
+
 #define PROP_FLOAT(var_name, prop_name)\
     const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
 
@@ -391,22 +393,29 @@ namespace dmGameObject
          * Remove instance from m_LevelIndices using an erase-swap operation
          */
 
-        assert(collection->m_LevelInstanceCount[instance->m_Depth] > 0);
-        assert(instance->m_LevelIndex < collection->m_LevelInstanceCount[instance->m_Depth]);
+        dmArray<uint16_t>& level = collection->m_LevelIndices[instance->m_Depth];
+        assert(level.Size() > 0);
+        assert(instance->m_LevelIndex < level.Size());
 
-        uint32_t abs_level_index = instance->m_Depth * collection->m_MaxInstances + instance->m_LevelIndex;
-        uint32_t abs_level_index_last = instance->m_Depth * collection->m_MaxInstances + (collection->m_LevelInstanceCount[instance->m_Depth]-1);
-
-        assert(collection->m_LevelIndices[abs_level_index] != INVALID_INSTANCE_INDEX);
-
-        uint32_t swap_in_index = collection->m_LevelIndices[abs_level_index_last];
+        uint16_t level_index = instance->m_LevelIndex;
+        uint16_t swap_in_index = level.EraseSwap(level_index);
         HInstance swap_in_instance = collection->m_Instances[swap_in_index];
         assert(swap_in_instance->m_Index == swap_in_index);
-        // Remove index in m_LevelIndices using an "erase-swap operation"
-        collection->m_LevelIndices[abs_level_index] = collection->m_LevelIndices[abs_level_index_last];
-        collection->m_LevelIndices[abs_level_index_last] = INVALID_INSTANCE_INDEX;
-        collection->m_LevelInstanceCount[instance->m_Depth]--;
-        swap_in_instance->m_LevelIndex = abs_level_index - instance->m_Depth * collection->m_MaxInstances;
+        swap_in_instance->m_LevelIndex = level_index;
+    }
+
+    /*
+     * Heuristic for expanding the level indices arrays:
+     * * Increase capacity by 50%, but:
+     * ** 10 elements as min
+     * ** Up to max_instances as max
+     */
+    static void ExpandLevel(dmArray<uint16_t>& level, uint32_t max_instances)
+    {
+        const uint32_t min_offset = 10;
+        const uint32_t max_offset = max_instances - level.Capacity();
+        int32_t offset = dmMath::Min(max_offset, dmMath::Max(min_offset, level.Size() / 2));
+        level.OffsetCapacity(offset);
     }
 
     static void InsertInstanceInLevelIndex(HCollection collection, HInstance instance)
@@ -414,16 +423,15 @@ namespace dmGameObject
         /*
          * Insert instance in m_LevelIndices at level set in instance->m_Depth
          */
+        dmArray<uint16_t>& level = collection->m_LevelIndices[instance->m_Depth];
+        if (level.Full())
+            ExpandLevel(level, collection->m_MaxInstances);
+        assert(!level.Full());
 
-        instance->m_LevelIndex = collection->m_LevelInstanceCount[instance->m_Depth];
-        assert(instance->m_LevelIndex < collection->m_MaxInstances);
-
-        assert(collection->m_LevelInstanceCount[instance->m_Depth] < collection->m_MaxInstances);
-        uint32_t abs_level_index = instance->m_Depth * collection->m_MaxInstances + collection->m_LevelInstanceCount[instance->m_Depth];
-        assert(collection->m_LevelIndices[abs_level_index] == INVALID_INSTANCE_INDEX);
-        collection->m_LevelIndices[abs_level_index] = instance->m_Index;
-
-        collection->m_LevelInstanceCount[instance->m_Depth]++;
+        uint16_t level_index = (uint16_t)level.Size();
+        level.SetSize(level_index + 1);
+        level[level_index] = instance->m_Index;
+        instance->m_LevelIndex = level_index;
     }
 
     HInstance New(HCollection collection, const char* prototype_name)
@@ -431,10 +439,17 @@ namespace dmGameObject
         assert(collection->m_InUpdate == 0 && "Creating new instances during Update(.) is not permitted");
         Prototype* proto;
         dmResource::HFactory factory = collection->m_Factory;
-        dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
-        if (error != dmResource::RESULT_OK)
+        if (prototype_name != 0x0)
         {
-            return 0;
+            dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
+            if (error != dmResource::RESULT_OK)
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            proto = &EMPTY_PROTOTYPE;
         }
 
         if (collection->m_InstanceIndices.Remaining() == 0)
@@ -537,7 +552,8 @@ namespace dmGameObject
             }
 
             // We can not call Delete here. Delete call DestroyFunction for every component
-            dmResource::Release(factory, instance->m_Prototype);
+            if (instance->m_Prototype != &EMPTY_PROTOTYPE)
+                dmResource::Release(factory, instance->m_Prototype);
             operator delete (instance_memory);
             collection->m_Instances[instance_index] = 0x0;
             collection->m_InstanceIndices.Push(instance_index);
@@ -772,14 +788,14 @@ namespace dmGameObject
             assert(collection->m_Instances[instance->m_Index] == instance);
 
             // Update world transforms since some components might need them in their init-callback
-            dmTransform::TransformS1* trans = &collection->m_WorldTransforms[instance->m_Index];
+            dmTransform::Transform* trans = &collection->m_WorldTransforms[instance->m_Index];
             if (instance->m_Parent == INVALID_INSTANCE_INDEX)
             {
                 *trans = instance->m_Transform;
             }
             else
             {
-                const dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
+                const dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[instance->m_Parent];
                 if (instance->m_ScaleAlongZ)
                 {
                     *trans = dmTransform::Mul(*parent_trans, instance->m_Transform);
@@ -963,8 +979,8 @@ namespace dmGameObject
         if (instance->m_Identifier != UNNAMED_IDENTIFIER)
             collection->m_IDToInstance.Erase(instance->m_Identifier);
 
-        assert(collection->m_LevelInstanceCount[instance->m_Depth] > 0);
-        assert(instance->m_LevelIndex < collection->m_LevelInstanceCount[instance->m_Depth]);
+        assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
+        assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
 
         // Reparent child nodes
         uint32_t index = instance->m_FirstChildIndex;
@@ -1006,7 +1022,8 @@ namespace dmGameObject
         EraseSwapLevelIndex(collection, instance);
         MoveAllUp(collection, instance);
 
-        dmResource::Release(factory, instance->m_Prototype);
+        if (instance->m_Prototype != &EMPTY_PROTOTYPE)
+            dmResource::Release(factory, instance->m_Prototype);
         collection->m_InstanceIndices.Push(instance->m_Index);
         collection->m_Instances[instance->m_Index] = 0;
 
@@ -1134,6 +1151,48 @@ namespace dmGameObject
         return instance->m_ScaleAlongZ != 0;
     }
 
+    void SetInheritScale(HInstance instance, bool inherit_scale)
+    {
+        instance->m_NoInheritScale = !inherit_scale;
+    }
+
+    void SetBone(HInstance instance, bool bone)
+    {
+        instance->m_Bone = bone;
+    }
+
+    static uint32_t DoSetBoneTransforms(HCollection collection, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
+    {
+        if (transform_count == 0)
+            return 0;
+        uint16_t current_index = first_index;
+        uint32_t count = 0;
+        while (current_index != INVALID_INSTANCE_INDEX)
+        {
+            HInstance instance = collection->m_Instances[current_index];
+            if (instance->m_Bone)
+            {
+                instance->m_Transform = transforms[count++];
+                if (count < transform_count)
+                {
+                    count += DoSetBoneTransforms(collection, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
+                }
+                if (transform_count == count)
+                {
+                    return count;
+                }
+            }
+            current_index = instance->m_SiblingIndex;
+        }
+        return count;
+    }
+
+    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count)
+    {
+        HCollection collection = parent->m_Collection;
+        return DoSetBoneTransforms(collection, parent->m_FirstChildIndex, transforms, transform_count);
+    }
+
     struct DispatchMessagesContext
     {
         HCollection m_Collection;
@@ -1222,7 +1281,7 @@ namespace dmGameObject
                         dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
 
                 }
-                dmTransform::TransformS1 parent_t;
+                dmTransform::Transform parent_t;
                 parent_t.SetIdentity();
                 if (parent)
                 {
@@ -1230,7 +1289,7 @@ namespace dmGameObject
                 }
                 if (sp->m_KeepWorldTransform == 0)
                 {
-                    dmTransform::TransformS1& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
+                    dmTransform::Transform& world = context->m_Collection->m_WorldTransforms[instance->m_Index];
                     if (instance->m_ScaleAlongZ)
                     {
                         world = dmTransform::Mul(parent_t, instance->m_Transform);
@@ -1412,9 +1471,11 @@ namespace dmGameObject
 
         // Calculate world transforms
         // First root-level instances
-        for (uint32_t i = 0; i < collection->m_LevelInstanceCount[0]; ++i)
+        dmArray<uint16_t>& root_level = collection->m_LevelIndices[0];
+        uint32_t root_count = root_level.Size();
+        for (uint32_t i = 0; i < root_count; ++i)
         {
-            uint16_t index = collection->m_LevelIndices[i];
+            uint16_t index = root_level[i];
             Instance* instance = collection->m_Instances[index];
             CheckEuler(instance);
             collection->m_WorldTransforms[index] = instance->m_Transform;
@@ -1423,20 +1484,21 @@ namespace dmGameObject
         }
 
         // World-transform for levels 1..MAX_HIERARCHICAL_DEPTH-1
-        for (uint32_t level = 1; level < MAX_HIERARCHICAL_DEPTH; ++level)
+        for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
-            uint32_t max_instance = collection->m_Instances.Size();
-            for (uint32_t i = 0; i < collection->m_LevelInstanceCount[level]; ++i)
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t instance_count = level.Size();
+            for (uint32_t i = 0; i < instance_count; ++i)
             {
-                uint16_t index = collection->m_LevelIndices[level * max_instance + i];
+                uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
                 CheckEuler(instance);
-                dmTransform::TransformS1* trans = &collection->m_WorldTransforms[index];
+                dmTransform::Transform* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
                 assert(parent_index != INVALID_INSTANCE_INDEX);
 
-                dmTransform::TransformS1* parent_trans = &collection->m_WorldTransforms[parent_index];
+                dmTransform::Transform* parent_trans = &collection->m_WorldTransforms[parent_index];
 
                 if (instance->m_ScaleAlongZ)
                 {
@@ -1445,6 +1507,10 @@ namespace dmGameObject
                 else
                 {
                     *trans = dmTransform::MulNoScaleZ(*parent_trans, instance->m_Transform);
+                }
+                if (instance->m_NoInheritScale)
+                {
+                    trans->SetScale(instance->m_Transform.GetScale());
                 }
             }
         }
@@ -1758,12 +1824,17 @@ namespace dmGameObject
 
     void SetScale(HInstance instance, float scale)
     {
+        instance->m_Transform.SetUniformScale(scale);
+    }
+
+    void SetScale(HInstance instance, Vector3 scale)
+    {
         instance->m_Transform.SetScale(scale);
     }
 
     float GetScale(HInstance instance)
     {
-        return instance->m_Transform.GetScale();
+        return instance->m_Transform.GetUniformScale();
     }
 
     Point3 GetWorldPosition(HInstance instance)
@@ -1781,10 +1852,10 @@ namespace dmGameObject
     float GetWorldScale(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
-        return collection->m_WorldTransforms[instance->m_Index].GetScale();
+        return collection->m_WorldTransforms[instance->m_Index].GetUniformScale();
     }
 
-    const dmTransform::TransformS1& GetWorldTransform(HInstance instance)
+    const dmTransform::Transform& GetWorldTransform(HInstance instance)
     {
         HCollection collection = instance->m_Collection;
         return collection->m_WorldTransforms[instance->m_Index];
@@ -1819,11 +1890,11 @@ namespace dmGameObject
                 index = i->m_Parent;
             }
             assert(child->m_Collection == parent->m_Collection);
-            assert(collection->m_LevelInstanceCount[child->m_Depth+1] < collection->m_MaxInstances);
+            assert(collection->m_LevelIndices[child->m_Depth+1].Size() < collection->m_MaxInstances);
         }
         else
         {
-            assert(collection->m_LevelInstanceCount[0] < collection->m_MaxInstances);
+            assert(collection->m_LevelIndices[0].Size() < collection->m_MaxInstances);
         }
 
         if (child->m_Parent != INVALID_INSTANCE_INDEX)
@@ -1937,7 +2008,6 @@ namespace dmGameObject
 
     static void UpdateEulerToRotation(HInstance instance)
     {
-        Quat q = instance->m_Transform.GetRotation();
         instance->m_PrevEulerRotation = instance->m_EulerRotation;
         instance->m_Transform.SetRotation(dmVMath::EulerToQuat(instance->m_EulerRotation));
     }
@@ -1948,11 +2018,19 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
-            float* transform = (float*)&instance->m_Transform;
             out_value.m_ValuePtr = 0x0;
+            // Scale used to be a uniform scalar, but is now a non-uniform 3-component scale
+            // We need to still treat it as a uniform scale for backwards compatibility
+            if (property_id == PROP_SCALE)
+            {
+                out_value.m_Variant = PropertyVar(instance->m_Transform.GetUniformScale());
+                return PROPERTY_RESULT_OK;
+            }
+            float* position = instance->m_Transform.GetPositionPtr();
+            float* rotation = instance->m_Transform.GetRotationPtr();
             if (property_id == PROP_POSITION)
             {
-                out_value.m_ValuePtr = transform;
+                out_value.m_ValuePtr = position;
                 out_value.m_ElementIds[0] = PROP_POSITION_X;
                 out_value.m_ElementIds[1] = PROP_POSITION_Y;
                 out_value.m_ElementIds[2] = PROP_POSITION_Z;
@@ -1960,27 +2038,22 @@ namespace dmGameObject
             }
             else if (property_id == PROP_POSITION_X)
             {
-                out_value.m_ValuePtr = transform;
+                out_value.m_ValuePtr = position;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Y)
             {
-                out_value.m_ValuePtr = transform + 1;
+                out_value.m_ValuePtr = position + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_POSITION_Z)
             {
-                out_value.m_ValuePtr = transform + 2;
-                out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
-            }
-            else if (property_id == PROP_SCALE)
-            {
-                out_value.m_ValuePtr = transform + 3;
+                out_value.m_ValuePtr = position + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION)
             {
-                out_value.m_ValuePtr = transform + 4;
+                out_value.m_ValuePtr = rotation;
                 out_value.m_ElementIds[0] = PROP_ROTATION_X;
                 out_value.m_ElementIds[1] = PROP_ROTATION_Y;
                 out_value.m_ElementIds[2] = PROP_ROTATION_Z;
@@ -1989,22 +2062,22 @@ namespace dmGameObject
             }
             else if (property_id == PROP_ROTATION_X)
             {
-                out_value.m_ValuePtr = transform + 4;
+                out_value.m_ValuePtr = rotation;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Y)
             {
-                out_value.m_ValuePtr = transform + 5;
+                out_value.m_ValuePtr = rotation + 1;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_Z)
             {
-                out_value.m_ValuePtr = transform + 6;
+                out_value.m_ValuePtr = rotation + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_ROTATION_W)
             {
-                out_value.m_ValuePtr = transform + 7;
+                out_value.m_ValuePtr = rotation + 3;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
             else if (property_id == PROP_EULER)
@@ -2094,80 +2167,84 @@ namespace dmGameObject
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
-            float* transform = (float*)&instance->m_Transform;
+            float* position = instance->m_Transform.GetPositionPtr();
+            float* rotation = instance->m_Transform.GetRotationPtr();
+            float* scale = instance->m_Transform.GetScalePtr();
             if (property_id == PROP_POSITION)
             {
                 if (value.m_Type != PROPERTY_TYPE_VECTOR3)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[0] = value.m_V4[0];
-                transform[1] = value.m_V4[1];
-                transform[2] = value.m_V4[2];
+                position[0] = value.m_V4[0];
+                position[1] = value.m_V4[1];
+                position[2] = value.m_V4[2];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_X)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[0] = (float)value.m_Number;
+                position[0] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Y)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[1] = (float)value.m_Number;
+                position[1] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_POSITION_Z)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[2] = (float)value.m_Number;
+                position[2] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_SCALE)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[3] = (float)value.m_Number;
+                scale[0] = (float)value.m_Number;
+                scale[1] = scale[0];
+                scale[2] = scale[0];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION)
             {
                 if (value.m_Type != PROPERTY_TYPE_QUAT)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[4] = value.m_V4[0];
-                transform[5] = value.m_V4[1];
-                transform[6] = value.m_V4[2];
-                transform[7] = value.m_V4[3];
+                rotation[0] = value.m_V4[0];
+                rotation[1] = value.m_V4[1];
+                rotation[2] = value.m_V4[2];
+                rotation[3] = value.m_V4[3];
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_X)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[4] = (float)value.m_Number;
+                rotation[0] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Y)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[5] = (float)value.m_Number;
+                rotation[1] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_Z)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[6] = (float)value.m_Number;
+                rotation[2] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_ROTATION_W)
             {
                 if (value.m_Type != PROPERTY_TYPE_NUMBER)
                     return PROPERTY_RESULT_TYPE_MISMATCH;
-                transform[7] = (float)value.m_Number;
+                rotation[3] = (float)value.m_Number;
                 return PROPERTY_RESULT_OK;
             }
             else if (property_id == PROP_EULER)
@@ -2251,12 +2328,13 @@ namespace dmGameObject
     void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name)
     {
         Collection* collection = (Collection*)user_data;
-        for (uint32_t level = 0; level < MAX_HIERARCHICAL_DEPTH; ++level)
+        for (uint32_t level_i = 0; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
-            uint32_t max_instance = collection->m_Instances.Size();
-            for (uint32_t i = 0; i < collection->m_LevelInstanceCount[level]; ++i)
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t instance_count = level.Size();
+            for (uint32_t i = 0; i < instance_count; ++i)
             {
-                uint16_t index = collection->m_LevelIndices[level * max_instance + i];
+                uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
                 uint32_t next_component_instance_data = 0;
                 for (uint32_t j = 0; j < instance->m_Prototype->m_Components.Size(); ++j)

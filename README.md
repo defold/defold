@@ -3,8 +3,137 @@ Defold
 
 Repository for engine, editor and server.
 
+Code Style
+----------
+
+Follow current code style and use 4 spaces for tabs. Never commit code
+with trailing white-spaces. For Eclipse [AnyEditTools](http://andrei.gmxhome.de/eclipse.html)
+
+Setup
+-----
+
+**Required Software**
+
+* [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
+* [Eclipse 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
+
+**Eclipse Plugins**
+
+<table>
+<tr>
+<th>Plugin</th>
+<th>Link</th>
+<th>Install</th>
+</tr>
+
+<tr>
+<td>CDT</td>
+<td>http://download.eclipse.org/tools/cdt/releases/juno</td>
+<td>`C/C++ Development Tools`</td>
+</tr>
+
+<tr>
+<td>EclipseLink</td>
+<td>http://download.eclipse.org/rt/eclipselink/updates</td>
+<td>`EclipseLink Target Components`</td>
+</tr>
+
+<tr>
+<td>Google Plugin</td>
+<td>https://dl.google.com/eclipse/plugin/4.2</td>
+<td>
+`Google Plugin for Eclipse`<br/>
+`Google App Engine Java`<br/>
+`Google Web Toolkit SDK`
+</td>
+</tr>
+
+<tr>
+<td>PyDev</td>
+<td>http://pydev.org/updates</td>
+<td>`PyDev for Eclipse`</td>
+</tr>
+</table>
+
+Always launch Eclipse from the **command line** with a development environment
+setup. See `build.py` and the `shell` command below.
+
+**Optional Software**
+
+* [ccache](http://ccache.samba.org) - install with `brew install ccache` on OS X and `sudo apt-get install ccache`
+  on Debian based Linux distributions
+
+**Import Java Projects**
+
+* Import Java projects with `File > Import`
+* Select `General > Existing Projects into Workspace`,
+* Set root directory to `defold/com.dynamo.cr`
+* Select everything apart from `com.dynamo.cr.web` and `com.dynamo.cr.webcrawler`.
+* Ensure that `Copy projects into workspace` is **not** selected
+
+
+**Import Engine Project**
+
+* Create a new C/C++ project
+* Makefile project
+    - `Empty Project`
+    - `-- Other Toolchain --`
+    - Do **not** select `MacOSX GCC` on OS X. Results in out of memory in Eclipse 3.8
+* Use custom project location
+     - `defold/engine`
+* Add `${DYNAMO_HOME}/include`, `${DYNAMO_HOME}/ext/include` and `/usr/include` to project include.
+    - `$DYNAMO_HOME` defaults to `defold/tmp/dynamo_home`
+    - `Project Properties > C/C++ General > Paths and Symbols`
+* Disable `Invalid arguments` in `Preferences > C/C++ > Code Analysis`
+
+
+
+Build Engine
+------------
+
+Setup build environment with `$PATH` and other environment variables.
+
+    $ ./scripts/build.py shell
+
+Install external packages. This step is required once only.
+
+    $ ./scripts/build.py install_ext
+
+Build engine for host target. For other targets use ``--platform=``
+
+    $ ./scripts/build.py build_engine --skip-tests
+
+When the initial build is complete the workflow is to use waf directly. For
+example
+
+    $ cd engine/dlib
+    $ waf
+
+**Unit tests**
+
+Unit tests are run automatically when invoking waf if not --skip-tests is
+specified. A typically workflow when working on a single test is to run
+
+    $ waf --skip-tests && ./build/default/.../test_xxx
+
+With the flag `--gtest_filter=` it's possible to a single test in the suite,
+see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/AdvancedGuide#Running_a_Subset_of_the_Tests)
+
+Build and Run Editor
+--------------------
+
+* With a new project invoke `Project > Build All`
+     - Generates Google Protocol Buffers etc
+* Refresh entire workspace
+* Open `cr.product`
+* Press `Launch an Eclipse application`
+* Speed up launch
+    - Go to `Preferences > Run/Debug`
+    - Deselect `Build` in `General Options`
+    - This disables building of custom build steps and explicit invocation of `Project > Build All` is now required.
+
 Licenses
-========
+--------
 
 * **Sony Vectormath Library**: [http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary](http://bullet.svn.sourceforge.net/viewvc/bullet/trunk/Extras/vectormathlibrary) - **BSD**
 * **json**: Based on [https://bitbucket.org/zserge/jsmn/src](https://bitbucket.org/zserge/jsmn/src) - **MIT**
@@ -127,7 +256,7 @@ This is a known limitation on Android.
 * Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
   mentioned above
 * Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
-* Put NDK/SDK in ~/android/android-ndk-r8e and ~/android/android-sdk respectively
+* Put NDK/SDK in ~/android/android-ndk-r9c and ~/android/android-sdk respectively
 
 ### Android testing
 
@@ -213,11 +342,11 @@ Some implementation details to note:
 
 E.g. when an APK produces a crash, backing it up is always a good idea before you attempt to fix it.
 
-# Determine package name:
+## Determine package name:
   adb shell pm list packages
-# Get the path on device:
+## Get the path on device:
   adb shell pm path <package-name>
-# Pull the APK to local disk
+## Pull the APK to local disk
   adb pull <package-path>
 
 OpenGL and jogl
@@ -310,4 +439,3 @@ Energy Consumption
 **Android**
 
       adb shell dumpsys cpuinfo
-

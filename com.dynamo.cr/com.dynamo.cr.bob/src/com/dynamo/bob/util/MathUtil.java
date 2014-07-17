@@ -2,10 +2,12 @@ package com.dynamo.bob.util;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector3;
 
 public class MathUtil {
     public static Point3d ddfToVecmath(Point3 p) {
@@ -24,6 +26,11 @@ public class MathUtil {
     public static Quat vecmathToDDF(Quat4d q) {
         Quat.Builder b = Quat.newBuilder();
         return b.setX((float)q.getX()).setY((float)q.getY()).setZ((float)q.getZ()).setW((float)q.getW()).build();
+    }
+
+    public static Vector3 vecmathToDDF(Vector3d p) {
+        Vector3.Builder b = Vector3.newBuilder();
+        return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
     }
 
     public static void rotate(Quat4d rotation, Point3d p) {

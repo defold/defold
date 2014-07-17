@@ -594,6 +594,27 @@ TEST_F(AnimTest, ScriptedDelayedCompositeCallback)
     }
 }
 
+// Test that the 3 component scale can be animated as a uniform scale (legacy)
+TEST_F(AnimTest, UniformScale)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+
+    m_UpdateContext.m_DT = 0.25f;
+    dmhash_t id = hash("scale");
+    dmGameObject::PropertyVar var(2.f);
+    float duration = 0.25f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result = Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::TYPE_LINEAR, duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
+
+    ASSERT_NEAR(2.0f, dmGameObject::GetScale(go), 0.000001f);
+
+    dmGameObject::Delete(m_Collection, go);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

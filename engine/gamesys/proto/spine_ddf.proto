@@ -1,0 +1,138 @@
+package dmGameSystemDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.spine.proto";
+option java_outer_classname = "Spine";
+
+message SpineSceneDesc
+{
+    required string spine_json          = 1 [(resource)=true];
+    required string atlas               = 2 [(resource)=true];
+    optional float sample_rate          = 3 [default = 30.0];
+}
+
+message SpineModelDesc
+{
+    enum BlendMode
+    {
+        BLEND_MODE_ALPHA     = 0 [(displayName) = "Alpha"];
+        BLEND_MODE_ADD       = 1 [(displayName) = "Add"];
+        BLEND_MODE_MULT      = 3 [(displayName) = "Multiply"];
+    }
+
+    required string spine_scene         = 1 [(resource)=true];
+    required string default_animation   = 2;
+    required string skin                = 3;
+    optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
+    optional string material            = 5 [(resource)=true, default="/builtins/materials/sprite.material"];
+}
+
+message Bone
+{
+    // 0xffff means no parent
+    required uint32 parent = 1;
+    required uint64 id = 2;
+    required dmMath.Point3 position = 3;
+    required dmMath.Quat rotation = 4;
+    required dmMath.Vector3 scale = 5;
+    optional bool inherit_scale = 6 [default = true];
+}
+
+message Skeleton
+{
+    repeated Bone bones = 1;
+}
+
+message AnimationTrack
+{
+    required uint32 bone_index = 1;
+    // x0, y0, z0, ...
+    repeated float positions = 2;
+    // x0, x0, z0, w0, …
+    repeated float rotations = 3;
+    // x0, y0, z0, …
+    repeated float scale = 4;
+}
+
+message EventKey
+{
+    required float t = 1;
+    optional int32 integer = 2 [default = 0];
+    optional float float = 3 [default = 0.0];
+    optional uint64 string = 4 [default = 0];
+}
+
+message EventTrack
+{
+    required uint64 event_id = 1;
+    repeated EventKey keys = 2;
+}
+
+message SpineAnimation
+{
+    required uint64 id = 1;
+    required float duration = 2;
+    required float sample_rate = 3;
+    repeated AnimationTrack tracks = 4;
+    repeated EventTrack event_tracks = 5;
+}
+
+message AnimationSet
+{
+    repeated SpineAnimation animations = 1;
+}
+
+message Mesh
+{
+    required uint64 id = 1;
+    repeated float positions = 2;
+    repeated float texcoord0 = 3;
+    repeated uint32 indices  = 4;
+    // w00, w01, w02, w03, w10, … (only specified for skinned meshes)
+    repeated float weights = 5;
+    // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
+    repeated uint32 bone_indices = 6;
+}
+
+message MeshSet
+{
+    repeated Mesh meshes = 1;
+}
+
+message SpineScene
+{
+    required Skeleton skeleton = 1;
+    required AnimationSet animation_set = 2;
+    required MeshSet mesh_set = 3;
+    required string texture_set = 4 [(resource)=true];
+}
+
+message SpinePlayAnimation
+{
+    required uint64 animation_id = 1;
+    // matches dmGameObject::Playback in gameobject.h
+    required uint32 playback = 2;
+    optional float blend_duration = 3 [default = 0.0];
+}
+
+message SpineAnimationDone
+{
+    required uint64 animation_id = 1;
+    // matches dmGameObject::Playback in gameobject.h
+    required uint32 playback = 2;
+}
+
+message SpineCancelAnimation
+{
+}
+
+message SpineEvent
+{
+    required uint64 event_id = 1;
+    required float t = 2;
+    optional int32 integer = 3 [default = 0];
+    optional float float = 4 [default = 0.0];
+    optional uint64 string = 5 [default = 0];
+}

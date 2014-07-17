@@ -1,3 +1,9 @@
+local function assert_near(exp, act, eps)
+    assert(math.abs(exp - act) < eps, string.format("expected %f but was %f, differing by %f which exceeds %f", exp, act, math.abs(exp - act), eps))
+end
+
+local epsilon = 0.000001
+
 function init(self)
     assert(go.get_id() == hash("my_object01"), "init id mismatch")
     local p = go.get_position()
@@ -6,7 +12,7 @@ function init(self)
     assert(p.z == 0)
 
     local s = go.get_scale()
-    assert(s == 1)
+    assert_near(1, s, epsilon)
 
     self.counter = 0
     assert(self.counter == 0)
@@ -35,7 +41,7 @@ function update(self, dt)
 
         go.set_scale(i, v)
         local s = go.get_scale(v)
-        assert(s == i)
+        assert_near(i, s, epsilon)
     end
 
     msg.post("@system:", "factory", {prototype = "test", pos = vmath.vector3(1, 2, 3)})

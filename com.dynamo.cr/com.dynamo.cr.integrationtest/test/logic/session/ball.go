@@ -10,6 +10,10 @@ components {
   id: "wav"
   component: "/sounds/tink.wav"
 }
+components {
+  id: "spine"
+  component: "/spine/reload.spinemodel"
+}
 embedded_components {
   id: "co"
   type: "collisionobject"

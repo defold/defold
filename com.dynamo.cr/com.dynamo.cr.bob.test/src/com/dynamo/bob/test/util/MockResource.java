@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 
-import com.dynamo.bob.AbstractResource;
+import com.dynamo.bob.fs.AbstractResource;
 
 public class MockResource extends AbstractResource<MockFileSystem> {
 
