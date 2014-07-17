@@ -1225,7 +1225,6 @@
         'noInitialRun': true,
         'preRunTasks': [],
         'preRunTasksCompleted': 0,
-        'mountPoint': '/data',
 
         _pendingFiles: [],
         _totalFiles: 0,
@@ -1339,7 +1338,7 @@
         },
 
         mountFilesystem: function() {
-        	dir = Module['mountPoint'];
+        	dir = _dmSysGetUserPersistentDataRoot();
             FS.mkdir(dir);
 
             if (Module._indexedDBAvailable) {
