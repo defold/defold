@@ -304,10 +304,9 @@ class Configuration(object):
             self.upload_file(engine_headless, '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext))
 
         if self.target_platform == 'linux':
-            # NOTE: It's arbitrary for which platform we archive builtins and bob. Currently set to linux
+            # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
             builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
             self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
-            self._archive_bob()
 
         if 'android' in self.target_platform:
             files = [
