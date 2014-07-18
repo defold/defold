@@ -259,12 +259,6 @@ class Configuration(object):
     def is_cross_platform(self):
         return self.host != self.target_platform
 
-    def _archive_bob(self):
-        sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
-        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
-
     def archive_engine(self):
         exe_prefix = ''
         if self.target_platform == 'win32':
@@ -393,6 +387,12 @@ class Configuration(object):
         for p in glob(join(self.defold, 'go', 'bin', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
+    def archive_bob(self):
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
+        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
     def build_bob(self):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
@@ -401,7 +401,7 @@ class Configuration(object):
                           cwd = cwd,
                           shell = True)
 
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,
                           shell = True)
 
@@ -910,7 +910,7 @@ Commands:
 distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
 build_engine    - Build engine
-archive_engine  - Archive engine (including builtins and bob) to path specified with --archive-path
+archive_engine  - Archive engine (including builtins) to path specified with --archive-path
 build_go        - Build go code
 archive_go      - Archive go binaries
 test_cr         - Test editor and server
@@ -919,6 +919,7 @@ build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
 build_bob       - Build bob with native libraries included for cross platform deployment
+archive_bob     - Archive bob to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
 release         - Release editor
