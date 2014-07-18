@@ -399,6 +399,9 @@ class Configuration(object):
         self.exec_env_command("./scripts/copy_libtexc.sh",
                           cwd = cwd,
                           shell = True)
+        self.exec_env_command("./scripts/copy_builtins_archive.sh",
+                          cwd = cwd,
+                          shell = True)
 
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,

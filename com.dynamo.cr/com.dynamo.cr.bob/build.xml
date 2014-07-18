@@ -153,9 +153,7 @@
             <fileset dir="lib">
                 <include name="**/*texc_shared*"/>
             </fileset>
-            <fileset dir="${env.DYNAMO_HOME}/content">
-                <include name="builtins/**"/>
-            </fileset>
+            <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
