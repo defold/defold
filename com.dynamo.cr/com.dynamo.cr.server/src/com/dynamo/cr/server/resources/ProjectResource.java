@@ -477,7 +477,7 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = { "anonymous" })
     @Produces({"text/xml"})
     @Path("/engine_manifest/{platform}/{key}")
-    public String downloadEngineManifest(@PathParam("user") String user,
+    public String downloadEngineManifest(@PathParam("owner") String owner,
                                          @PathParam("project") String projectId,
                                          @PathParam("key") String key,
                                          @PathParam("platform") String platform,
@@ -499,7 +499,7 @@ public class ProjectResource extends BaseResource {
         String manifest = IOUtils.toString(stream);
         stream.close();
 
-        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(user).path(projectId).path("engine").path(platform).path(key).build();
+        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
         String manifestPrim = manifest.replace("${URL}", engineUri.toString());
         return manifestPrim;
     }
