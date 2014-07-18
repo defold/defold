@@ -21,6 +21,9 @@ PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
+PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
+EMSCRIPTEN_VERSION="sdk-1.21.0-64bit"
+EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', '1.21.0')
 PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL=os.environ['SHELL']
 if not SHELL:
@@ -244,6 +247,34 @@ class Configuration(object):
 
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
+
+    def install_ems(self):
+        def make_path():
+            return join(self.defold_root, 'packages', p)
+
+        binDir = join(self.ext, 'bin')
+        for p in PACKAGES_EMSCRIPTEN_SDK:
+            self._extract_tgz(make_path(), binDir)
+
+        exePath = join(binDir, 'emsdk_portable', 'emsdk')
+
+        self.exec_env_command([exePath, 'update'])
+        self.exec_env_command([exePath, 'install', EMSCRIPTEN_VERSION])
+        self.exec_env_command([exePath, 'activate', EMSCRIPTEN_VERSION])
+
+    def check_ems(self):
+        home = os.path.expanduser('~')
+        config = join(home, '.emscripten')
+        err = False
+        if not os.path.isfile(config):
+            print 'No .emscripten file.'
+            err = True
+        emsDir = join(self.ext, EMSCRIPTEN_DIR)
+        if not os.path.isdir(emsDir):
+            print 'Emscripten tools not installed.'
+            err = True
+        if err:
+            print 'Consider running install_ems'
 
     def _git_sha1(self, dir = '.', ref = None):
         args = 'git log --pretty=%H -n1'.split()
@@ -548,6 +579,7 @@ instructions.configure=\
     def shell(self):
         print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
         self.exec_env_command([SHELL])
+        self.check_ems()
 
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
@@ -910,13 +942,15 @@ instructions.configure=\
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
-        # Force 32-bit python 2.6 on darwin. We should perhaps switch to 2.7 soon?
+        # Force 32-bit python 2.7 on darwin.
         env['VERSIONER_PYTHON_PREFER_32_BIT'] = 'yes'
-        env['VERSIONER_PYTHON_VERSION'] = '2.6'
+        env['VERSIONER_PYTHON_VERSION'] = '2.7'
 
         if self.no_colors:
             env['NOCOLOR'] = '1'
             env['GTEST_COLOR'] = 'no'
+
+        env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR)
 
         process = subprocess.Popen(arg_list, env = env, **kwargs)
         process.wait()
@@ -931,6 +965,7 @@ if __name__ == '__main__':
 Commands:
 distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
+install_ems     - Install emscripten sdk
 build_engine    - Build engine
 archive_engine  - Archive engine to path specified with --archive-path
 build_go        - Build go code
@@ -1029,7 +1064,6 @@ Multiple commands can be specified'''
                           eclipse = options.eclipse,
                           branch = options.branch,
                           channel = options.channel)
-
 
         for cmd in args:
             if cmd in ['distclean', 'install_ext', 'build_engine', 'archive_engine']:

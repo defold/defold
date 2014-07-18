@@ -12,8 +12,6 @@ ANDROID_NDK_API_VERSION='14'
 ANDROID_API_VERSION='17'
 ANDROID_GCC_VERSION='4.8'
 
-# TODO: HACK
-EMSCRIPTEN_ROOT=os.path.join(os.environ['HOME'], 'local', 'emscripten')
 
 # TODO: HACK
 FLASCC_ROOT=os.path.join(os.environ['HOME'], 'local', 'FlasCC1.0', 'sdk')
@@ -138,8 +136,8 @@ def default_flags(self):
         dev = getattr(Options.options, 'dev', False)
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
-            # '-fno-rtti' gtest requires it, but it's nice to have enabled 
-        self.env.append_value('LINKFLAGS', ['--memory-init-file', '1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456'])
+            # '-fno-rtti' gtest requires it, but it's nice to have enabled
+        self.env.append_value('LINKFLAGS', ['-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456'])
         #Nice to have, maybe at a later stage. Link flag: -s ERROR_ON_UNDEFINED_SYMBOLS=1
 
         if (dev):
@@ -151,7 +149,7 @@ def default_flags(self):
             for f in ['CCFLAGS', 'CXXFLAGS']:
                 self.env.append_value(f, ['-O3'])
             self.env.append_value('LINKFLAGS', ['-O3', '--llvm-lto', '1', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1']) # --llvm-lto 1 could cause bugs
-            
+
     elif platform == "as3-web":
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
@@ -1064,7 +1062,10 @@ def detect(conf):
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if platform == "js-web":
-        bin = EMSCRIPTEN_ROOT
+        bin = os.environ.get('EMSCRIPTEN')
+        if None == bin:
+            conf.fatal('EMSCRIPTEN environment variable does not exist')
+        conf.env['EMSCRIPTEN'] = bin
         conf.env['CC'] = '%s/emcc' % (bin)
         conf.env['CXX'] = '%s/em++' % (bin)
         conf.env['LINK_CXX'] = '%s/em++' % (bin)
