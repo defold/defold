@@ -72,14 +72,7 @@ public class ZipMountPoint implements IMountPoint {
 
     @Override
     public IResource get(String path) {
-        if (this.file != null) {
-            int sep = path.indexOf('/');
-            if (sep != -1) {
-                String dir = path.substring(0, sep);
-                if (!this.includeDirs.contains(dir)) {
-                    return null;
-                }
-            }
+        if (this.file != null && includes(path)) {
             ZipEntry entry = this.file.getEntry(path);
             if (entry != null) {
                 return new ZipResource(this.fileSystem, path, entry);
@@ -119,7 +112,8 @@ public class ZipMountPoint implements IMountPoint {
             Enumeration<? extends ZipEntry> entries = this.file.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
-                if (entry.getName().startsWith(path)) {
+                String entryPath = entry.getName();
+                if (includes(entryPath) && entryPath.startsWith(path)) {
                     if (entry.isDirectory()) {
                         walker.handleDirectory(entry.getName(), results);
                     } else {
@@ -128,5 +122,16 @@ public class ZipMountPoint implements IMountPoint {
                 }
             }
         }
+    }
+
+    private boolean includes(String path) {
+        int sep = path.indexOf('/');
+        if (sep != -1) {
+            String dir = path.substring(0, sep);
+            if (this.includeDirs.contains(dir)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -117,7 +117,7 @@
             </zipgroupfileset>
          </jar>
 
-        <jar destfile="dist/bob.jar">
+        <jar destfile="dist/bob-light.jar">
             <fileset dir="${classes.dir}"/>
             <fileset dir="lib">
                 <include name="**/*texc_shared*"/>
@@ -134,7 +134,7 @@
     </target>
 
     <target name="install" depends="dist">
-        <copy file="dist/bob.jar" todir="${env.DYNAMO_HOME}/share/java"/>
+        <copy file="dist/bob-light.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
 
 </project>

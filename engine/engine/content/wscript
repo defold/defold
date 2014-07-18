@@ -1,8 +1,21 @@
 #! /usr/bin/env python
-import os
+import os, shutil, zipfile
+
+import Node
 
 def set_options(opt):
     pass
+
+def package_bob(self):
+    bob = self.outputs[0].bldpath(self.env)
+    bob_light = os.path.join(self.env['DYNAMO_HOME'], 'share/java/bob-light.jar')
+    shutil.copyfile(bob_light, bob)
+    zip = zipfile.ZipFile(bob, 'a')
+    for input in self.inputs:
+        if input.get_type() == Node.FILE:
+            name = os.path.relpath(input.nice_path(), 'content').replace('\\', '/')
+            zip.write(input.srcpath(), name)
+    zip.close()
 
 def build(bld):
     obj = bld.new_task_gen(source = [])
@@ -14,6 +27,14 @@ def build(bld):
 
     for d in ['fonts', 'input', 'render', 'materials', 'graphics']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
+
+    bld.new_task_gen(name = 'bob',
+                     source = bld.path.ant_glob('builtins/**'),
+                     target = 'bob.jar',
+                     rule = package_bob,
+                     always = True)
+    bld.install_files('${PREFIX}/share/java', 'bob.jar')
+
 
 def configure(conf):
     pass
