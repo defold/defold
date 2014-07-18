@@ -1,5 +1,6 @@
 package com.dynamo.bob.fs;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,12 +34,12 @@ public class ZipMountPoint implements IMountPoint {
 
         @Override
         public byte[] getContent() throws IOException {
-            byte[] buffer = new byte[(int)this.entry.getSize()];
             InputStream is = null;
             try {
+                ByteArrayOutputStream os = new ByteArrayOutputStream((int)this.entry.getSize());
                 is = file.getInputStream(this.entry);
-                is.read(buffer);
-                return buffer;
+                IOUtils.copy(is, os);
+                return os.toByteArray();
             } finally {
                 IOUtils.closeQuietly(is);
             }
