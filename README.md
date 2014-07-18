@@ -380,13 +380,29 @@ Hack to compile an engine with archive:
 
     /Users/chmu/local/emscripten/em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc
 
-To use network functionality during development (or until cross origin support is added to QA servers):
-- google-chrome --disable-web-security
-
 To get working keyboard support (until our own glfw is used or glfw is gone):
-- In ~/local/emscripten/src/library_glfw.js, on row after glfwLoadTextureImage2D: ..., add:
+- In ~/local/emscripten/src/library\_glfw.js, on row after glfwLoadTextureImage2D: ..., add:
 glfwShowKeyboard: function(show) {},
 
+To use network functionality during development (or until cross origin support is added to QA servers):
+- google-chrome --disable-web-security
+- firefox requires a http proxy which adds the CORS headers to the web server response, and also a modification in the engine is required.
+
+Setting up Corsproxy with defold:
+To install and run the corsproxy on your network interface of choice for example 172.16.11.23:
+```sh
+sudo npm install -g corsproxy
+corsproxy 172.16.11.23
+```
+
+Then, the engine needs a patch to change all XHR:s:
+remove the line engine/script/src/script_http_js.cpp:
+-            xhr.open(Pointer_stringify(method), Pointer_stringify(url), true);
+and add:
++            var str_url = Pointer_stringify(url);
++            str_url = str_url.replace("http://", "http://172.16.11.23:9292/");
++            str_url = str_url.replace("https://", "http://172.16.11.23:9292/");
++            xhr.open(Pointer_stringify(method), str_url, true);
 
 Flash
 -----
