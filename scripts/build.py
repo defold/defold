@@ -313,7 +313,7 @@ class Configuration(object):
             # NOTE: It's arbitrary for which platform we archive builtins and bob. Currently set to linux
             builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
             self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
-            _archive_bob(self)
+            self._archive_bob()
 
         if 'android' in self.target_platform:
             files = [
