@@ -259,6 +259,12 @@ class Configuration(object):
     def is_cross_platform(self):
         return self.host != self.target_platform
 
+    def _archive_bob(self):
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
+        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
     def archive_engine(self):
         exe_prefix = ''
         if self.target_platform == 'win32':
@@ -304,9 +310,10 @@ class Configuration(object):
             self.upload_file(engine_headless, '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext))
 
         if self.target_platform == 'linux':
-            # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
+            # NOTE: It's arbitrary for which platform we archive builtins and bob. Currently set to linux
             builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
             self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
+            _archive_bob(self)
 
         if 'android' in self.target_platform:
             files = [
@@ -397,12 +404,6 @@ class Configuration(object):
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                           cwd = cwd,
                           shell = True)
-
-    def archive_bob(self):
-        sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
-        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -909,7 +910,7 @@ Commands:
 distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
 build_engine    - Build engine
-archive_engine  - Archive engine to path specified with --archive-path
+archive_engine  - Archive engine (including builtins and bob) to path specified with --archive-path
 build_go        - Build go code
 archive_go      - Archive go binaries
 test_cr         - Test editor and server
@@ -918,7 +919,6 @@ build_editor    - Build editor
 archive_editor  - Archive editor to path specified with --archive-path
 archive_server  - Archive server to path specified with --archive-path
 build_bob       - Build bob with native libraries included for cross platform deployment
-archive_bob     - Archive bob to path specified with --archive-path
 build_docs      - Build documentation
 bump            - Bump version number
 release         - Release editor
