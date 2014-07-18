@@ -23,9 +23,11 @@ PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 and
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
 EMSCRIPTEN_VERSION_STR = "1.21.0"
-EMSCRIPTEN_VERSION_OSX =["sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)]
+EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
+EMSCRIPTEN_VERSION_OSX =[EMSCRIPTEN_SDK_OSX]
+EMSCRIPTEN_SDK_LINUX = "emscripten-{0}".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_VERSION_LINUX = ["clang-master-32bit"]
-EMSCRIPTEN_VERSION_LINUX.append("emscripten-{0}".format(EMSCRIPTEN_VERSION_STR))
+EMSCRIPTEN_VERSION_LINUX.append(EMSCRIPTEN_SDK_LINUX)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', '1.21.0')
 PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL=os.environ['SHELL']
@@ -265,12 +267,14 @@ class Configuration(object):
 
         host = self.host;
         version = EMSCRIPTEN_VERSION_OSX
+        sdk = EMSCRIPTEN_SDK_OSX
         if 'linux' == host:
             version = EMSCRIPTEN_VERSION_LINUX
+            sdk = EMSCRIPTEN_SDK_LINUX
 
         for p in version:
             self.exec_env_command([exePath, 'install', p])
-        self.exec_env_command([exePath, 'activate', version])
+        self.exec_env_command([exePath, 'activate', sdk])
 
     def check_ems(self):
         home = os.path.expanduser('~')
