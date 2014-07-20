@@ -5,5 +5,5 @@ Bundle-SymbolicName: com.dynamo.cr.sceneed2.test;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Bundle-ActivationPolicy: lazy
 Fragment-Host: com.dynamo.cr.sceneed2
+Require-Bundle: org.junit
