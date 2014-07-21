@@ -1,0 +1,21 @@
+images {
+  image: "/background/large_cloud.png"
+}
+images {
+  image: "/background/small_cloud.png"
+}
+animations {
+  id: "anim"
+  images {
+    image: "/spaceship/spaceship.png"
+  }
+  images {
+    image: "/builtins/graphics/particle_blob.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 2
+extrude_borders: 2
