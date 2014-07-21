@@ -1,6 +1,5 @@
 (ns internal.node
-  (:require [clojure.pprint :refer [print-table]]
-            [clojure.set :refer [rename-keys union]]
+  (:require [clojure.set :refer [rename-keys union]]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [camel-snake-kebab :refer [->kebab-case]]))
@@ -90,8 +89,36 @@
   (reduce-kv (fn [m k v] (if (:default v) (assoc m k (:default v)) m))
              behavior (:properties behavior)))
 
+(defn- print-md-table
+  "Prints a collection of maps in a textual table suitable for converting
+   to GMD-flavored markdown. Prints table headings
+   ks, and then a line of output for each row, corresponding to the keys
+   in ks. If ks are not specified, use the keys of the first item in rows.
+
+   Cribbed from `clojure.pprint/print-table`."
+  ([ks rows]
+     (when (seq rows)
+       (let [widths (map
+                     (fn [k]
+                       (apply max (count (str k)) (map #(count (str (get % k))) rows)))
+                     ks)
+             spacers (map #(apply str (repeat % "-")) widths)
+             fmts (map #(str "%" % "s") widths)
+             fmt-row (fn [leader divider trailer row]
+                       (str leader
+                            (apply str (interpose divider
+                                                  (for [[col fmt] (map vector (map #(get row %) ks) fmts)]
+                                                    (format fmt (str col)))))
+                            trailer))]
+         (println)
+         (println (fmt-row "| " " | " " |" (zipmap ks ks)))
+         (println (fmt-row "|-" "-|-" "-|" (zipmap ks spacers)))
+         (doseq [row rows]
+           (println (fmt-row "| " " | " " |" row))))))
+  ([rows] (print-md-table (keys (first rows)) rows)))
+
 (defn describe-properties [behavior]
-  (with-out-str (print-table ["Name" "Type" "Default"]
+  (with-out-str (print-md-table ["Name" "Type" "Default"]
                             (reduce-kv
                               (fn [rows k v]
                                   (conj rows (assoc (rename-keys v {:schema "Type" :default "Default"}) "Name" k)))
