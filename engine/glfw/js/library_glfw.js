@@ -211,7 +211,7 @@ var LibraryGLFW = {
         var rect = Module['canvas'].getBoundingClientRect();
         var canvasWidth = rect.right - rect.left;
         var canvasHeight = rect.bottom - rect.top;
-        
+
         var canvasX = x - rect.left;
         var canvasY = y - rect.top;
 
@@ -346,7 +346,7 @@ var LibraryGLFW = {
       canvas.style.height = h + 'px';
       console.log('Resized canvas size to ' + w + 'x' + h + ' CSS pixels and top aspect ratio margin to ' + topMargin + ' CSS pixels. window.devicePixelRatio=' + window.devicePixelRatio);
       Module['canvas'].style.marginTop = topMargin + 'px';
-    } 
+    }
 
   },
 
@@ -688,6 +688,40 @@ var LibraryGLFW = {
       Module['canvas'].focus();
     }
   },
+
+  glfwGetJoystickParam: function(joy, param) {
+      throw "glfwGetJoystickParam is not implemented.";
+      return 0;
+  },
+
+  glfwGetJoystickPos: function(joy, pos, numaxes) {
+      throw "glfwGetJoystickPos is not implemented.";
+      return 0;
+  },
+
+  glfwGetJoystickButtons: function(joy, buttons, numbuttons) {
+      throw "glfwGetJoystickButtons is not implemented.";
+      return 0;
+  },
+
+  glfwGetJoystickDeviceId: function(joy, device_id) {
+      throw "glfwGetJoystickDeviceId is not implemented.";
+      return 0;
+  },
+
+  glfwSetTouchCallback: function(cbfun) {
+      throw "glfwSetTouchCallback is not implemented.";
+  },
+
+  glfwGetAcceleration: function(x, y, z) {
+      throw "glfwGetAcceleration is not implemented.";
+      return 0;
+  },
+
+  glfwGetTouch: function(touch, count, out_count) {
+      throw "glfwGetTouch is not implemented.";
+      return 0;
+  }
 };
 
 autoAddDeps(LibraryGLFW, '$GLFW');
