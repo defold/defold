@@ -123,7 +123,6 @@
     	var preloadModal = document.getElementById('dlModal');
     	var statusElement = document.getElementById('status');
     	var progressElement = document.getElementById('progress');
-    	var spinnerElement = document.getElementById('spinner');
 
       var Module = {
       	${DMENGINE_STACK_SIZE}$
@@ -308,7 +307,6 @@
 
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');
-        spinnerElement.style.display = 'none';
         Module.setStatus = function(text) {
           if (text) Module.printErr('[post-exception status] ' + text);
         };
