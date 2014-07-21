@@ -278,8 +278,10 @@ namespace dmSys
         {
             if (dmStrlCpy(path, DeviceMount, path_len) >= path_len)
                 return RESULT_INVAL;
-            if (dmStrlCpy(path, "/", path_len) >= path_len)
+            if (dmStrlCat(path, "/", path_len) >= path_len)
                 return RESULT_INVAL;
+        } else {
+            path[0] = '\0';
         }
         if (dmStrlCat(path, ".", path_len) >= path_len)
             return RESULT_INVAL;

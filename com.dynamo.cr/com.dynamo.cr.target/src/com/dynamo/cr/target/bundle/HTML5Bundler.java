@@ -33,6 +33,7 @@ public class HTML5Bundler {
     private String js;
     private String title;
     private String version;
+    private int customHeapSize;
 
     private List<File> monolithicFiles;
     private List<SplitFile> splitFiles;
@@ -57,12 +58,12 @@ public class HTML5Bundler {
     	private File source;
     	private List<File> subdivisions;
 
-    	public SplitFile(File src) {
+    	SplitFile(File src) {
     		source = src;
     		subdivisions = new ArrayList<File>();
     	}
 
-    	public void PerformSplit(File destDir) throws IOException {
+    	void performSplit(File destDir) throws IOException {
     		InputStream input = null;
     		try {
     			input = new BufferedInputStream(new FileInputStream(source));
@@ -75,20 +76,18 @@ public class HTML5Bundler {
     				assert(bytesRead == thisRead);
 
     				File output = new File(destDir, source.getName() + subdivisions.size());
-    				WriteChunk(output, readBuffer);
+    				writeChunk(output, readBuffer);
     				subdivisions.add(output);
 
     				remaining -= thisRead;
     			}
     		}
     		finally {
-    			if (null != input) {
-    				input.close();
-    			}
+    			IOUtils.closeQuietly(input);
     		}
     	}
 
-    	public void WriteJson(BufferedWriter writer) throws IOException {
+    	void writeJson(BufferedWriter writer) throws IOException {
     		int offset = 0;
     		writer.write("\t{\n");
     			writer.write(String.format("\t\t\"name\": \"%1s\",\n", source.getName()));
@@ -109,21 +108,21 @@ public class HTML5Bundler {
     		writer.write("\t}");
     	}
 
-    	public void WriteManifestContribution(BufferedWriter writer) throws IOException {
+    	void writeManifestContribution(BufferedWriter writer) throws IOException {
     		for (File s : subdivisions) {
     			File relative = new File(SplitFileDir, s.getName());
     			writer.write(String.format("%s\n", relative.getPath()));
     		}
     	}
 
-    	private void WriteChunk(File dest, byte[] data) throws IOException {
+    	void writeChunk(File dest, byte[] data) throws IOException {
     		OutputStream output = null;
     		try {
     			output = new BufferedOutputStream(new FileOutputStream(dest));
     			output.write(data);
     		}
     		finally {
-    			output.close();
+    			IOUtils.closeQuietly(output);
     		}
     	}
     }
@@ -139,7 +138,7 @@ public class HTML5Bundler {
     public HTML5Bundler(ProjectProperties projectProperties, String js, String projectRoot, String contentRoot, String outputDir) {
         this.js = js;
 
-        this.projectHtml = projectProperties.getStringValue("project", "htmlfile", null);
+        this.projectHtml = projectProperties.getStringValue("jsweb", "htmlfile", null);
         if (this.projectHtml != null) {
         	this.projectHtml = this.projectHtml.trim();
         }
@@ -150,6 +149,15 @@ public class HTML5Bundler {
         File packageDir = new File(outputDir);
         this.title = projectProperties.getStringValue("project", "title", "Unnamed");
         this.appDir = new File(packageDir, title);
+
+        this.customHeapSize = -1;
+        Boolean use = projectProperties.getBooleanValue("jsweb", "set_custom_heap_size");
+        if (null != use && use.booleanValue()) {
+        	Integer size = projectProperties.getIntValue("jsweb", "custom_heap_size");
+        	if (null != size) {
+        		this.customHeapSize = size.intValue();
+        	}
+        }
     }
 
     public void bundleApplication() throws IOException, ConfigurationException {
@@ -159,7 +167,7 @@ public class HTML5Bundler {
 
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
-        CreateSplitFiles(splitDir);
+        createSplitFiles(splitDir);
 
         // Copy engine
         String jsFilename = String.format("%s.js", title);
@@ -167,45 +175,57 @@ public class HTML5Bundler {
         FileUtils.copyFile(new File(js), jsOut);
         monolithicFiles.add(new File(jsFilename));
 
-        // Copy html (and replace placeholders)
+        createHtmlShell();
+
+        for (String r : CopiedResourceScripts) {
+        	copyResource(appDir, r);
+        	monolithicFiles.add(new File(r));
+        }
+
+        createManifest();
+    }
+
+    private void createHtmlShell() throws FileNotFoundException, IOException {
+    	// Copy html (and replace placeholders)
         // TODO: More efficient way to do the placeholder replacing needed...
         Charset cs = Charset.forName("UTF-8");
         String htmlFilename = String.format("%s.html", title);
         File htmlOut = new File(appDir, htmlFilename);
-        String htmlText = GetHtmlText();
-        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_MANIFEST}$"), GetManifestFilename());
+        String htmlText = getHtmlText();
+        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_APP_TITLE}$"), String.format("%s1 %s2", this.title, this.version));
+        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_MANIFEST}$"), getManifestFilename());
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_SPLIT}$"), new File(SplitFileDir, SplitFileJson).toString());
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_JS}$"), title + ".js");
+
+        String pattern = Pattern.quote("${DMENGINE_STACK_SIZE}$");
+        String js = "";
+        if (0 < this.customHeapSize) {
+        	js = String.format("TOTAL_MEMORY: %d1, \n", this.customHeapSize);
+        }
+        htmlText = htmlText.replaceAll(pattern, js);
+
         IOUtils.write(htmlText, new FileOutputStream(htmlOut), cs);
         monolithicFiles.add(new File(htmlFilename));
-
-        for (String r : CopiedResourceScripts) {
-        	CopyResource(appDir, r);
-        	monolithicFiles.add(new File(r));
-        }
-
-        CreateManifest();
     }
 
-    private void CreateSplitFiles(File targetDir) throws IOException {
+    private void createSplitFiles(File targetDir) throws IOException {
     	splitFiles = new ArrayList<SplitFile>();
     	for (String name : SplitFileNames) {
     		SplitFile toSplit = new SplitFile(new File(contentRoot, name));
-    		toSplit.PerformSplit(targetDir);
+    		toSplit.performSplit(targetDir);
     		splitFiles.add(toSplit);
     	}
-    	CreateSplitFilesJson(targetDir);
+    	createSplitFilesJson(targetDir);
     }
 
-    private void CreateSplitFilesJson(File targetDir) throws IOException {
-    	File descFile = new File(targetDir, SplitFileJson);
-
+    private void createSplitFilesJson(File targetDir) throws IOException {
     	BufferedWriter writer = null;
     	try {
+    		File descFile = new File(targetDir, SplitFileJson);
     		writer = new BufferedWriter(new FileWriter(descFile));
     		writer.write("{ \"content\": [\n");
     		for (int i=0; i<splitFiles.size(); ++i) {
-    			splitFiles.get(i).WriteJson(writer);
+    			splitFiles.get(i).writeJson(writer);
     			if (i < splitFiles.size() - 1) {
     				writer.write(",\n");
     			} else {
@@ -215,38 +235,52 @@ public class HTML5Bundler {
     		writer.write("]}");
     	}
     	finally {
-    		writer.close();
+    		IOUtils.closeQuietly(writer);
     	}
     }
 
-    private String GetHtmlText() throws FileNotFoundException, IOException {
+    private String getHtmlText() throws FileNotFoundException, IOException {
     	String data = null;
-    	if (this.projectHtml != null && this.projectHtml.length() > 0) {
-    		data = IOUtils.toString(new FileInputStream(new File(this.projectHtml)), Charset.forName("UTF-8"));
-    	} else {
-    		InputStream resource = getClass().getResourceAsStream("resources/jsweb/engine_template.html");
-            data = IOUtils.toString(resource);
-            resource.close();
+    	InputStream input = null;
+    	try {
+	    	if (this.projectHtml != null && this.projectHtml.length() > 0) {
+	    		input = new FileInputStream(new File(this.projectHtml));//, Charset.forName("UTF-8");
+	    	} else {
+	    		input = getClass().getResourceAsStream("resources/jsweb/engine_template.html");
+	    	}
+	    	if (null != input) {
+	    		data = IOUtils.toString(input);
+	    	}
+    	}
+    	finally {
+    		IOUtils.closeQuietly(input);
     	}
     	return data;
     }
 
-    private void CopyResource(File targetDir, String sourceFile) throws FileNotFoundException, IOException {
-    	String sourcePath = "resources/jsweb/" + sourceFile;
+    private void copyResource(File targetDir, String sourceFile) throws FileNotFoundException, IOException {
+    	OutputStream output = null;
+    	InputStream resource = null;
+    	try {
+    		String sourcePath = "resources/jsweb/" + sourceFile;
+	    	File file = new File(this.appDir, sourceFile);
+	    	output = new FileOutputStream(file);
 
-    	File file = new File(this.appDir, sourceFile);
-    	FileOutputStream output = new FileOutputStream(file);
-
-    	InputStream resource = getClass().getResourceAsStream(sourcePath);
-    	IOUtils.copy(resource, output);
+	    	resource = getClass().getResourceAsStream(sourcePath);
+	    	IOUtils.copy(resource, output);
+    	}
+    	finally {
+    		IOUtils.closeQuietly(output);
+    		IOUtils.closeQuietly(resource);
+    	}
     }
 
-    private String GetManifestFilename() {
+    private String getManifestFilename() {
     	return this.title + ManifestFileExtension;
     }
 
-    private void CreateManifest() throws IOException {
-    	File manifestFile = new File(this.appDir, GetManifestFilename());
+    private void createManifest() throws IOException {
+    	File manifestFile = new File(this.appDir, getManifestFilename());
 
     	BufferedWriter writer = null;
     	try {
@@ -264,7 +298,7 @@ public class HTML5Bundler {
     			writer.write(String.format("%s\n", m.getPath()));
     		}
     		for (SplitFile s : this.splitFiles) {
-    			s.WriteManifestContribution(writer);
+    			s.writeManifestContribution(writer);
     		}
 
     		writer.write("\n");
@@ -273,7 +307,7 @@ public class HTML5Bundler {
     		writer.write("*\n");
     	}
     	finally {
-    		writer.close();
+    		IOUtils.closeQuietly(writer);
     	}
     }
 }
