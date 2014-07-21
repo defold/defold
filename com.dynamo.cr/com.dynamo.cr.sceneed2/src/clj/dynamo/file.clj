@@ -1,25 +1,4 @@
 (ns dynamo.file
-"Contains functions for loading and saving files. This includes the definitions
-for loaders by file type (extension).
-
-Two record types are defined, `ProjectPath` and `NativePath`.
-
-*ProjectPath*: represents a project-relative path, typically to a resource. The [[project-path]] function
-creates and returns a ProjectPath. Implements [[PathManipulation]] and [[ProjectRelative]]. Members:
-
-* project - a project (see [[dynamo.project/make-project]])
-* path - the path to the resource being represented, relative to the project root, and without the extension (e.g. star/bonus_star)
-* ext - a file extension for the resource represented (e.g., 'atlas'). No dot.
-
-*NativePath*: represents a path, typically to a resource, as represented in
-the native file system. Overrides `.toString()`. Implements [[PathManipulation]]. Members:
-
-* path - the path to the resources being represented, in the native file system.
-* ext - a file extension for the path.
-
-Both `ProjectPath` and `NativePath` implement the `clojure.java.io.IOFactory` interface,
-and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
-`make-output-stream` functions."
   (:refer-clojure :exclude [load])
   (:require [clojure.java.io :as io]
             [internal.java :as j]
@@ -30,15 +9,16 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
            [org.eclipse.core.resources IResource IFile]))
 
 (defprotocol ProjectRelative
-  (eclipse-path [this]          "Returns the path relative to a project container.")
-  (eclipse-file [this]          "Returns the file relative to a project container."))
+  (eclipse-path [this])
+  (eclipse-file [this]))
+
 
 (defprotocol PathManipulation
-  (extension         [this]         "Returns the extension represented by this path.")
-  (replace-extension [this new-ext] "Returns a new path with the desired extension.")
-  (local-path        [this]         "Returns a string representation of the path and extension.")
+  (extension         [this])
+  (replace-extension [this new-ext])
+  (local-path        [this])
   (alter-path        [this f]
-                     [this f args]  "Apply the function to the path part, without altering the extension, maybe with a collection of extra args."))
+                     [this f args]))
 
 (defrecord ProjectPath [project path ext]
   PathManipulation
@@ -134,22 +114,41 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
              pipe))))
 
 (defn write-native-file
-  "given a NativePath and contents, writes the contents to the build path"
   [^NativePath path contents]
   (with-open [out (io/output-stream (local-path path))]
     (.write out contents))
-  "given a ProjectPath and contents, writes the contents to the build path"
   [^ProjectPath path contents]
   (with-open [out (io/output-stream (local-path (in-build-directory path)))]
     (.write out contents)))
 
 (defn write-project-file
-  [project path contents]
+  [^ProjectPath path contents]
   (with-open [out (io/output-stream (eclipse-file path))]
     (.write out contents)))
 
 (doseq [[v doc]
-       {#'new-builder
+       {*ns*
+        "Contains functions for loading and saving files. This includes the definitions
+for loaders by file type (extension).
+
+Two record types are defined, `ProjectPath` and `NativePath`.
+
+*ProjectPath*: represents a project-relative path to a resource. The [[project-path]] function
+creates and returns a ProjectPath. Implements [[PathManipulation]] and [[ProjectRelative]].
+
+*NativePath*: represents a path, typically to a resource, as represented in
+the native file system. Overrides `.toString()`. Implements [[PathManipulation]].
+
+A project path can be converted into a native path, but the reverse is not true.
+
+Both `ProjectPath` and `NativePath` satisfy the `clojure.java.io/IOFactory` protocol,
+and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
+`make-output-stream` functions."
+
+        #'write-native-file
+        "Given a NativePath and contents, writes the contents to the build path"
+
+        #'new-builder
         "Dynamically construct a protocol buffer builder, given a class as a variable."
 
         #'project-path
@@ -162,6 +161,23 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
         "given a ProjectPath, translates that path into a NativePath containing the
          corresponding build location"
 
+        #'eclipse-path
+        "Returns the path relative to a project container."
+
+        #'eclipse-file
+        "Returns the file relative to a project container."
+
+        #'extension
+        "Returns the extension represented by this path."
+
+        #'replace-extension
+        "Returns a new path with the desired extension."
+
+        #'local-path
+        "Returns a string representation of the path and extension."
+
+        #'alter-path
+        "Apply the function to the path part, without altering the extension, maybe with a collection of extra args."
 
         #'protocol-buffer-loader
           "Create a new loader that knows how to read protocol buffer files in text format.

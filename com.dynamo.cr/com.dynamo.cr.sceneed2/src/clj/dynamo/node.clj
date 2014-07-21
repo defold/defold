@@ -1,14 +1,4 @@
 (ns dynamo.node
-  "API methods for interacting with nodes---elements within the project graph.
-
-A node is expected to be a map as follows:
-
-    { :properties { } ; map of properties
-      :transforms { } ; map of transform label (key)
-                      ; to function symbol (value)
-      :inputs     #{} ; set of input labels (keywords)
-      :outputs    #{} ; set of output labels (keywords)
-    }"
   (:require [schema.core :as s]
             [schema.macros :as sm]
             [plumbing.core :refer [fnk defnk]]
@@ -89,7 +79,19 @@ an AtlasCompiler to the project. `defnode` merges the behaviors appropriately."
 
 
 (doseq [[v doc]
-       {#'add-node
+       {*ns*
+        "API methods for interacting with nodes---elements within the project graph.
+
+A node is expected to be a map as follows:
+
+    { :properties { } ; map of properties
+      :transforms { } ; map of transform label (key)
+                      ; to function symbol (value)
+      :inputs     #{} ; set of input labels (keywords)
+      :outputs    #{} ; set of output labels (keywords)
+    }"
+
+        #'add-node
         "adds node `node` to graph `g`. Node is a map, optionally including sets of inputs and outputs as `:inputs` and `:outputs`, respectively."
 
         #'collect-inputs

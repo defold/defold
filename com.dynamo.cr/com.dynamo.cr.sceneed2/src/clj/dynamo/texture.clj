@@ -1,5 +1,4 @@
 (ns dynamo.texture
-  "Schema, behavior, and type information related to textures."
   (:require [dynamo.types :refer :all]
             [schema.core :as s]
             [plumbing.core :refer [defnk]]))
@@ -29,7 +28,10 @@
    :transforms {:frames #'animation-frames}})
 
 (doseq [[v doc]
-       {#'Animation
+       {*ns*
+        "Schema, behavior, and type information related to textures."
+
+        #'Animation
         "*behavior* - Used by [[dynamo.node/defnode]] to define the behavior for an animation resource.
 
 Inputs:
