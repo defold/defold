@@ -23,6 +23,8 @@ import java.util.regex.Pattern;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonGenerator;
 
 import com.dynamo.cr.editor.core.ProjectProperties;
 
@@ -87,25 +89,32 @@ public class HTML5Bundler {
     		}
     	}
 
-    	void writeJson(BufferedWriter writer) throws IOException {
+    	void writeJson(JsonGenerator generator) throws IOException {
+    		generator.writeStartObject();
+
+    		generator.writeFieldName("name");
+    		generator.writeString(source.getName());
+    		generator.writeFieldName("size");
+    		generator.writeNumber(source.length());
+
+    		generator.writeFieldName("pieces");
+    		generator.writeStartArray();
     		int offset = 0;
-    		writer.write("\t{\n");
-    			writer.write(String.format("\t\t\"name\": \"%1s\",\n", source.getName()));
-    			writer.write(String.format("\t\t\"size\": %1d,\n", source.length()));
-    			writer.write("\t\t\"pieces\": [\n");
-    			for (int i=0; i<subdivisions.size(); ++i) {
-    				File split = subdivisions.get(i);
-    				File path = new File(SplitFileDir, split.getName());
-    				writer.write(String.format("\t\t{ \"name\": \"%1s\", \"offset\": %2d }", path.toString(), offset));
-    				if (i < subdivisions.size() -1) {
-    					writer.write(",\n");
-    				} else {
-    					writer.write("\n");
-    				}
-    				offset += split.length();
-    			}
-    			writer.write("\t\t]\n");
-    		writer.write("\t}");
+    		for (File split : this.subdivisions) {
+    			File path = new File(SplitFileDir, split.getName());
+
+    			generator.writeStartObject();
+    			generator.writeFieldName("name");
+    			generator.writeString(path.toString());
+    			generator.writeFieldName("offset");
+    			generator.writeNumber(offset);
+    			generator.writeEndObject();
+
+    			offset += split.length();
+    		}
+    		generator.writeEndArray();
+
+    		generator.writeEndObject();
     	}
 
     	void writeManifestContribution(BufferedWriter writer) throws IOException {
@@ -220,21 +229,27 @@ public class HTML5Bundler {
 
     private void createSplitFilesJson(File targetDir) throws IOException {
     	BufferedWriter writer = null;
+    	JsonGenerator generator = null;
     	try {
     		File descFile = new File(targetDir, SplitFileJson);
     		writer = new BufferedWriter(new FileWriter(descFile));
-    		writer.write("{ \"content\": [\n");
-    		for (int i=0; i<splitFiles.size(); ++i) {
-    			splitFiles.get(i).writeJson(writer);
-    			if (i < splitFiles.size() - 1) {
-    				writer.write(",\n");
-    			} else {
-    				writer.write("\n");
-    			}
+    		generator = (new JsonFactory()).createJsonGenerator(writer);
+
+    		generator.writeStartObject();
+    		generator.writeFieldName("content");
+    		generator.writeStartArray();
+
+    		for (SplitFile split : this.splitFiles) {
+    			split.writeJson(generator);
     		}
-    		writer.write("]}");
+
+    		generator.writeEndArray();
+    		generator.writeEndObject();
     	}
     	finally {
+    		if (null != generator) {
+    			generator.close();
+    		}
     		IOUtils.closeQuietly(writer);
     	}
     }
