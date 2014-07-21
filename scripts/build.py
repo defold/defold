@@ -25,7 +25,7 @@ PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
 EMSCRIPTEN_VERSION_STR = "1.21.0"
 EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_SDK_LINUX = "sdk-master-32bit"
-EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
+EMSCRIPTEN_DIR = join('bin', 'emsdk-portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
 PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL=os.environ['SHELL']
 if not SHELL:
@@ -251,24 +251,33 @@ class Configuration(object):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
     def install_ems(self):
-        def make_path():
-            return join(self.defold_root, 'packages', p)
+        urls = {'darwin': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz',
+                'linux': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz',
+                'win32': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-{0}-portable-64bit.zip'.format(EMSCRIPTEN_VERSION_STR) }
 
+        url= urls[self.host]
+        dlpath = self._download(url)
         binDir = join(self.ext, 'bin')
-        for p in PACKAGES_EMSCRIPTEN_SDK:
-            self._extract_tgz(make_path(), binDir)
+        self._extract(dlpath, binDir)
 
-        exePath = join(binDir, 'emsdk_portable', 'emsdk')
-
+        exePath = self.get_ems_exe_path()
         self.exec_env_command([exePath, 'update'])
 
-        host = self.host;
-        sdk = EMSCRIPTEN_SDK_OSX
-        if 'linux' == host:
-            sdk = EMSCRIPTEN_SDK_LINUX
-
+        sdk = self.get_ems_sdk_name()
         self.exec_env_command([exePath, 'install', sdk])
-        self.exec_env_command([exePath, 'activate', sdk])
+        self.activate_ems()
+
+    def get_ems_sdk_name(self):
+        sdk = EMSCRIPTEN_SDK_OSX
+        if 'linux' == self.host:
+            sdk = EMSCRIPTEN_SDK_LINUX
+        return sdk;
+
+    def get_ems_exe_path(self):
+        return join(self.ext, 'bin', 'emsdk-portable', 'emsdk')
+
+    def activate_ems(self):
+        self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
 
     def check_ems(self):
         home = os.path.expanduser('~')
@@ -924,7 +933,7 @@ instructions.configure=\
             sys.exit(process.returncode)
         return output
 
-    def exec_env_command(self, arg_list, **kwargs):
+    def _form_env(self):
         env = dict(os.environ)
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
@@ -960,6 +969,11 @@ instructions.configure=\
 
         env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR)
 
+        return env
+
+    def exec_env_command(self, arg_list, **kwargs):
+        env = self._form_env()
+
         process = subprocess.Popen(arg_list, env = env, **kwargs)
         process.wait()
         if process.returncode != 0:
@@ -974,6 +988,7 @@ Commands:
 distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
 install_ems     - Install emscripten sdk
+activate_ems    - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine    - Build engine
 archive_engine  - Archive engine to path specified with --archive-path
 build_go        - Build go code
