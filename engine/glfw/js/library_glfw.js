@@ -690,36 +690,29 @@ var LibraryGLFW = {
   },
 
   glfwGetJoystickParam: function(joy, param) {
-      throw "glfwGetJoystickParam is not implemented.";
       return 0;
   },
 
   glfwGetJoystickPos: function(joy, pos, numaxes) {
-      throw "glfwGetJoystickPos is not implemented.";
       return 0;
   },
 
   glfwGetJoystickButtons: function(joy, buttons, numbuttons) {
-      throw "glfwGetJoystickButtons is not implemented.";
       return 0;
   },
 
   glfwGetJoystickDeviceId: function(joy, device_id) {
-      throw "glfwGetJoystickDeviceId is not implemented.";
       return 0;
   },
 
   glfwSetTouchCallback: function(cbfun) {
-      throw "glfwSetTouchCallback is not implemented.";
   },
 
   glfwGetAcceleration: function(x, y, z) {
-      throw "glfwGetAcceleration is not implemented.";
       return 0;
   },
 
   glfwGetTouch: function(touch, count, out_count) {
-      throw "glfwGetTouch is not implemented.";
       return 0;
   }
 };
