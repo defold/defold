@@ -139,6 +139,8 @@ namespace dmGameObject
         uint16_t        m_LevelIndex : 15;
         uint16_t        m_Pad2 : 1;
 
+
+#ifdef __EMSCRIPTEN__
         // TODO: FIX!! Workaround for LLVM/Clang bug when compiling with any optimization level > 0.
         //             Without this hack we get:
         //
@@ -149,6 +151,7 @@ namespace dmGameObject
         //             Remove when mozilla has fixed this properly...
         //			   The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
         float m_llvm_pad;
+#endif
 
         // Next sibling index. Index to Collection::m_Instances
         uint16_t        m_SiblingIndex : 15;
