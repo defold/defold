@@ -154,7 +154,7 @@ namespace dmScript
     void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
     {
 // TODO: Port
-#if !(defined(__EMSCRIPTEN__) || defined(__AVM2__))
+#if !defined(__AVM2__)
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
@@ -177,7 +177,7 @@ namespace dmScript
 
     void FinalizeHttp(lua_State* L)
     {
-#if !(defined(__EMSCRIPTEN__) || defined(__AVM2__))
+#if !defined(__AVM2__)
         assert(g_ServiceRefCount > 0);
         g_ServiceRefCount--;
         if (g_ServiceRefCount == 0) {
