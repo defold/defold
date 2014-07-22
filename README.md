@@ -408,6 +408,31 @@ str_url = str_url.replace("https://", "http://172.16.11.23:9292/");
 xhr.open(Pointer_stringify(method), str_url, true);
 ```
 
+Firefox OS
+----------
+To bundle up a firefox OS app and deploy to a connected firefox OS phone, we need to have a manifest.webapp in the web root directory:
+```
+{
+  "launch_path": "/Keyword.html",
+  "orientation": ["portrait-primary"],
+  "fullscreen": "true",
+  "icons": {
+    "128": "/keyword_120.png"
+  },
+  "name": "Keyword"
+}
+```
+Then use ffdb.py to package, deploy to Firefox OS phone, start on the phone and then tail the log on the phone:
+```
+$EMSCRIPTEN/tools/ffdb.py install . --run --log
+```
+
+Tip is to also use the Firefox App Manager. (in Firefox, press and release Alt) -> Tools -> Web Developer -> App Manager. Click device, then "Connect to localhost:6000" at the bottom of the screen. if it fails, manually run:
+```
+adb forward tcp:6000 localfilesystem:/data/local/debugger-socket
+```
+In that web app manager, you can see the console output, take screenshots or show other web developer options for the phone.
+
 Flash
 -----
 
