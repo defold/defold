@@ -23,9 +23,12 @@ PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 and
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
 EMSCRIPTEN_VERSION_STR = "1.21.0"
+# The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
+EMSCRIPTEN_VERSION_STR_LINUX = "master"
 EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_SDK_LINUX = "sdk-master-32bit"
+EMSCRIPTEN_SDK_LINUX = "sdk-{0}-32bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
 EMSCRIPTEN_DIR = join('bin', 'emsdk-portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
+EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk-portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
 PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL=os.environ['SHELL']
 if not SHELL:
@@ -287,6 +290,8 @@ class Configuration(object):
             print 'No .emscripten file.'
             err = True
         emsDir = join(self.ext, EMSCRIPTEN_DIR)
+        if self.host == 'linux':
+            emsDir = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         if not os.path.isdir(emsDir):
             print 'Emscripten tools not installed.'
             err = True
@@ -967,7 +972,10 @@ instructions.configure=\
             env['NOCOLOR'] = '1'
             env['GTEST_COLOR'] = 'no'
 
-        env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR)
+        if self.host == 'linux':
+            env['EMSCRIPTEN'] = joint(self.ext, EMSCRIPTEN_DIR_LINUX)
+        else:
+            env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR)
 
         return env
 
