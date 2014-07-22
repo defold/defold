@@ -32,6 +32,7 @@ public class HTML5Bundler {
     private String contentRoot;
     private File appDir;
     private String projectHtml;
+    private String projectCss;
     private String js;
     private String title;
     private String version;
@@ -40,10 +41,11 @@ public class HTML5Bundler {
     private List<File> monolithicFiles;
     private List<SplitFile> splitFiles;
 
-    private static final String[] CopiedResourceScripts = {
+    private static final String[] CopiedResources = {
     	"modernizr.custom.js",
     	"IndexedDBShim.min.js",
-    	"combine.js"
+    	"combine.js",
+    	"splash_image.png"
     };
 
     private static final String SplitFileDir = "split";
@@ -152,12 +154,17 @@ public class HTML5Bundler {
         	this.projectHtml = this.projectHtml.trim();
         }
 
+        this.projectCss = projectProperties.getStringValue("jsweb", "cssfile", null);
+        if (this.projectCss != null) {
+        	this.projectCss = this.projectCss.trim();
+        }
+
         this.contentRoot = contentRoot;
         this.version = projectProperties.getStringValue("project", "version", "1.0");
 
         File packageDir = new File(outputDir);
         this.title = projectProperties.getStringValue("project", "title", "Unnamed");
-        this.appDir = new File(packageDir, title);
+        this.appDir = new File(packageDir, this.title);
 
         this.customHeapSize = -1;
         Boolean use = projectProperties.getBooleanValue("jsweb", "set_custom_heap_size");
@@ -185,8 +192,9 @@ public class HTML5Bundler {
         monolithicFiles.add(new File(jsFilename));
 
         createHtmlShell();
+        createCss();
 
-        for (String r : CopiedResourceScripts) {
+        for (String r : CopiedResources) {
         	copyResource(appDir, r);
         	monolithicFiles.add(new File(r));
         }
@@ -197,14 +205,14 @@ public class HTML5Bundler {
     private void createHtmlShell() throws FileNotFoundException, IOException {
     	// Copy html (and replace placeholders)
         // TODO: More efficient way to do the placeholder replacing needed...
-        Charset cs = Charset.forName("UTF-8");
-        String htmlFilename = String.format("%s.html", title);
-        File htmlOut = new File(appDir, htmlFilename);
+        String htmlFilename = String.format("%s.html", this.title);
+        File htmlOut = new File(this.appDir, htmlFilename);
         String htmlText = getHtmlText();
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_APP_TITLE}$"), String.format("%s1 %s2", this.title, this.version));
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_MANIFEST}$"), getManifestFilename());
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_SPLIT}$"), new File(SplitFileDir, SplitFileJson).toString());
         htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_JS}$"), title + ".js");
+        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_CSS}$"), getCssFilename());
 
         String pattern = Pattern.quote("${DMENGINE_STACK_SIZE}$");
         String js = "";
@@ -213,8 +221,19 @@ public class HTML5Bundler {
         }
         htmlText = htmlText.replaceAll(pattern, js);
 
-        IOUtils.write(htmlText, new FileOutputStream(htmlOut), cs);
+        IOUtils.write(htmlText, new FileOutputStream(htmlOut), Charset.forName("UTF-8"));
         monolithicFiles.add(new File(htmlFilename));
+    }
+
+    private void createCss() throws FileNotFoundException, IOException {
+    	String filename = getCssFilename();
+    	File cssOut = new File(this.appDir, filename);
+    	IOUtils.write(this.getCssText(), new FileOutputStream(cssOut), Charset.forName("UTF-8"));
+    	monolithicFiles.add(new File(filename));
+    }
+
+    private String getCssFilename() {
+    	return this.title + ".css";
     }
 
     private void createSplitFiles(File targetDir) throws IOException {
@@ -255,17 +274,25 @@ public class HTML5Bundler {
     }
 
     private String getHtmlText() throws FileNotFoundException, IOException {
+    	return getTextResource(this.projectHtml, "resources/jsweb/engine_template.html");
+    }
+
+    private String getCssText() throws FileNotFoundException, IOException {
+    	return getTextResource(this.projectCss, "resources/jsweb/engine_template.css");
+    }
+
+    private String getTextResource(String projectPath, String resourceDefault) throws FileNotFoundException, IOException {
     	String data = null;
     	InputStream input = null;
     	try {
-	    	if (this.projectHtml != null && this.projectHtml.length() > 0) {
-	    		input = new FileInputStream(new File(this.projectHtml));//, Charset.forName("UTF-8");
-	    	} else {
-	    		input = getClass().getResourceAsStream("resources/jsweb/engine_template.html");
-	    	}
-	    	if (null != input) {
-	    		data = IOUtils.toString(input);
-	    	}
+    		if (projectPath != null && projectPath.length() > 0) {
+    			input = new FileInputStream(new File(projectPath));
+    		} else {
+    			input = getClass().getResourceAsStream(resourceDefault);
+    		}
+    		if (input != null) {
+    			data = IOUtils.toString(input);
+    		}
     	}
     	finally {
     		IOUtils.closeQuietly(input);

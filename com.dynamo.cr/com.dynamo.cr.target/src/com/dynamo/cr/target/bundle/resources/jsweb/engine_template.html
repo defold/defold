@@ -8,114 +8,27 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <title>${DMENGINE_APP_TITLE}$</title>
-    <style>
-      body {
-        font-family: arial;
-        margin: 0;
-        padding: none;
-        width: 100%;
-        height: 100%;
-      }
-
-      object {
-      	display: none;
-      }
-
-      .fullscreenControl {
-        position: absolute;
-        left: 0px;
-        top: 0px;
-        z-index: 1;
-      }
-
-      .download_modal_container {
-      	position: absolute;
-      	width: 100%;
-      	height: 100%;
-      	z-index: 2;
-      }
-
-      .absolute-centre {
-      	margin: auto;
-      	position: absolute;
-      	top: 0; left: 0; bottom: 0; right: 0;
-      }
-
-      .download_modal_content {
-      	width: 50%;
-      	height: 50%;
-      	background-color: rgb(215, 215, 215);
-      }
-
-      .dev_depth {
-      	z-index: 1000;
-      }
-
-      .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
-      div.emscripten { text-align: center; }
-      div.emscripten_border { border: 1px solid black; }
-      /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-      canvas.emscripten { margin: 0 auto; display: block; }
-
-      #statusDiv {
-        vertical-align: top;
-        text-align: center;
-
-        font-weight: bold;
-        color: rgb(120, 120, 120);
-      }
-
-      .statusOffset {
-      	top: 50%;
-      	margin-top: 40px;
-      }
-
-      #progress {
-        height: 20px;
-      }
-
-      #controls {
-        display: inline-block;
-        float: right;
-        vertical-align: top;
-        margin-top: 30px;
-        margin-right: 20px;
-      }
-
-      #output {
-        width: 100%;
-        height: 200px;
-        margin: 0 auto;
-        margin-top: 10px;
-        display: block;
-        background-color: black;
-        color: white;
-        font-family: 'Lucida Console', Monaco, monospace;
-        outline: none;
-      }
-    </style>
+    <link rel="stylesheet" type="text/css" href="${DMENGINE_CSS}$"></style>
   </head>
   <body>
     <div id="fb-root"></div>
 
     <div class="fullscreenControl">
-    	<span id='controls'>
-		  <span><input type="checkbox" id="resize">Resize canvas</span>
-		  <span><input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer &nbsp;&nbsp;&nbsp;</span>
-		  <span><input type="button" value="Fullscreen" onclick="Module.requestFullScreen(document.getElementById('pointerLock').checked,
-		                                                                            document.getElementById('resize').checked)"></span>
-	    </span>
+    	<span>
+    		<input type="button" value="Fullscreen" onclick="Module.requestFullScreen(0,0)">
+    	</span>
     </div>
 
     <div class="download_modal_container" id="dlModal">
-    	<div class="download_modal_content absolute-centre emscripten_border">
-	    	<div class="emscripten absolute-centre" id="statusDiv"><span id="status" class="statusOffset absolute-centre">Downloading...</span></div>
-	    	<progress class="absolute-centre" value="0" max="100" id="progress"></progress>
+    	<div class="download_modal_content absolute-centre splash_border">
+    		<image class="absolute-centre splashImageOffset" src="splash_image.png"></image>
+    		<progress class="absolute-centre gradient" value="0" max="100" id="progress"></progress>
+	    	<div class="absolute-centre statusText" id="statusDiv"><span id="status" class="statusOffset absolute-centre">Downloading...</span></div>
     	</div>
 	</div>
 
-    <div class="emscripten_border">
-      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    <div>
+      <canvas class="application" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
     </div>
 
     <script type='text/javascript' src="combine.js"></script>
