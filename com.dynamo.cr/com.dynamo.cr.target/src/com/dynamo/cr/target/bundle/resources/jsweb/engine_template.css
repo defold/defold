@@ -128,3 +128,34 @@ progress.gradient::-webkit-progress-value  {
 	background-image:
 		-webkit-linear-gradient(135deg, transparent, transparent 33%, rgba(0,0,0,.1) 33%, rgba(0,0,0,.1) 66%, transparent 66%);
 }
+
+.fullscreen {
+	font-family: arial;
+	font-size: 14px;
+	color: #00d5ff;
+	padding: 10px 20px;
+	background: -moz-linear-gradient(
+		top,
+		#ffc800 0%,
+		#fcf37c);
+	background: -webkit-gradient(
+		linear, left top, left bottom,
+		from(#ffc800),
+		to(#fcf37c));
+	-moz-border-radius: 10px;
+	-webkit-border-radius: 10px;
+	border-radius: 10px;
+	border: 1px solid #ffb700;
+	-moz-box-shadow:
+		0px 1px 3px rgba(000,000,000,0.5),
+		inset 0px 0px 2px rgba(255,255,255,1);
+	-webkit-box-shadow:
+		0px 1px 3px rgba(000,000,000,0.5),
+		inset 0px 0px 2px rgba(255,255,255,1);
+	box-shadow:
+		0px 1px 3px rgba(000,000,000,0.5),
+		inset 0px 0px 2px rgba(255,255,255,1);
+	text-shadow:
+		0px -1px 0px rgba(000,000,000,0.4),
+		0px 1px 0px rgba(255,255,255,0.3);
+}
