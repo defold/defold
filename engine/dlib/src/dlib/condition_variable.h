@@ -21,8 +21,8 @@ namespace dmConditionVariable
 #include <pthread.h>
 namespace dmConditionVariable
 {
-    typedef struct {} Dummy;
-    typedef Dummy* ConditionVariable;
+    typedef struct {} dummy_t;
+    typedef dummy_t* ConditionVariable;
 }
 
 #else
