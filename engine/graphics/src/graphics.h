@@ -507,7 +507,7 @@ namespace dmGraphics
      * @param stepMethod the method to be used when executing a single iteration of the application loop.
      * @param isRunning the method used when determining whether iteration of the application loop should continue.
      */
-    void RunApplicationLoop(void* user_data, WindowStepMethod stepMethod, WindowIsRunning isRunning);
+    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
 }
 
 #endif // DMGRAPHICS_GRAPHICS_H

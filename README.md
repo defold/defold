@@ -376,6 +376,13 @@ Emscripten
   However, unaligned loads/stores of floats seems to be valid though.
 * Create a node.js package with uvrun for all platforms (osx, linux and windows)
 
+Installation
+
+To install the emscripten tools, invoke 'build.py install_ems'.
+
+Emscripten creates a configuration file in your home directory (~/.emscripten).Should you wish to change branches to one
+in which a different version of these tools is used then call 'build.py activate_ems' after doing so. This will cause the .emscripten file to be updated.
+
 Hack to compile an engine with archive:
 
     /Users/chmu/local/emscripten/em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc

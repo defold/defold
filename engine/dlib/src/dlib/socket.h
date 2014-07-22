@@ -3,11 +3,6 @@
 
 #include <stdint.h>
 
-#if defined(__EMSCRIPTEN__)
-#include <libc/sys/types.h>
-#include <libc/sys/time.h>
-#endif
-
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <sys/socket.h>
 #include <sys/errno.h>
@@ -156,14 +151,9 @@ namespace dmSocket
      */
     enum ShutdownType
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__)
+#if defined(__linux__) || defined(__MACH__) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
         SHUTDOWNTYPE_READ      = SHUT_RD,
         SHUTDOWNTYPE_WRITE     = SHUT_WR,
-        SHUTDOWNTYPE_READWRITE = SHUT_RDWR,
-#elif defined(__EMSCRIPTEN__)
-        // TODO: SHUT_WR is missing in emscripten SDK. Bug?
-        SHUTDOWNTYPE_READ      = SHUT_RD,
-        SHUTDOWNTYPE_WRITE     = 1,
         SHUTDOWNTYPE_READWRITE = SHUT_RDWR,
 #else
         SHUTDOWNTYPE_READ      = SD_RECEIVE,//!< SHUTDOWNTYPE_READ

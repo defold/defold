@@ -3,7 +3,7 @@
 
 #include <dlib/mutex.h>
 
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <pthread.h>
 namespace dmConditionVariable
 {
@@ -15,14 +15,6 @@ namespace dmConditionVariable
 namespace dmConditionVariable
 {
     typedef CONDITION_VARIABLE* ConditionVariable;
-}
-
-#elif defined(__EMSCRIPTEN__)
-#include <pthread.h>
-namespace dmConditionVariable
-{
-    typedef struct {} dummy_t;
-    typedef dummy_t* ConditionVariable;
 }
 
 #else

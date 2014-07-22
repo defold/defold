@@ -117,11 +117,11 @@ namespace dmGraphics
         assert(context);
     }
 
-    void RunApplicationLoop(void* user_data, WindowStepMethod stepMethod, WindowIsRunning isRunning)
+    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
-        while (0 != isRunning(user_data))
+        while (0 != is_running(user_data))
         {
-            stepMethod(user_data);
+            step_method(user_data);
         }
     }
 
