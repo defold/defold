@@ -162,7 +162,7 @@
            :graph          (lg/disconnect graph src (:source-label m) tgt (:target-label m))
            :modified-nodes (conj modified-nodes tgt))))
 
-(defn apply-tx
+(defn- apply-tx
   [ctx actions]
   (reduce
     (fn [ctx action]
@@ -225,7 +225,7 @@
         (assoc tx-result :project-state project-state))
   tx-result)
 
-(defn transact*
+(defn- transact*
   [current-state tx]
   (-> current-state
     new-transaction-context
@@ -251,11 +251,57 @@
        (q/query (:graph @project-state) clauses)))
 
 (doseq [[v doc]
-       {#'register-loader
+       {*ns*
+        "Functions for performing transactional changes to a project and inspecting its current state."
+
+        #'*current-project*
+        "When used within a [[with-current-project]], contains a ref of the current project. Otherwise nil."
+
+        #'ClojureSourceFile
+        "Behavior included in `ClojureSourceNode`."
+
+        #'dispose
+        "Clean up a value, including thread-jumping as needed"
+
+        #'with-current-project
+        "Gives forms wrapped `with-current-project` access to *current-project*, a ref containing the current project state."
+
+        #'perform
+        "A multimethod used for defining methods that perform the individual actions within a
+transaction. This is for internal use, not intended to be extended by applications.
+
+Perform takes a transaction context (ctx) and a map (m) containing a value for keyword `:type`, and other keys and
+values appropriate to the transformation it represents. Callers should regard the map and context as opaque.
+
+In this case, the map passed to perform would look like `{:type :update-node :id tempid :fn update-fn :args update-fn-args}` All calls
+to `perform` return a new (updated) transaction context.
+
+Calls to perform are only executed by [[transact]]. The data required for `perform` calls are constructed in action functions,
+such as [[connect]] and [[update-resource]]."
+
+        #'connect
+        "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
+(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `connect` may have tempids."
+
+        #'disconnect
+        "*transaction step* - The reverse of [[connect]]. Creates a transaction step disconnecting a source node and label
+(`from-resource from-label`) from a target node and label
+(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `disconnect` may be tempids."
+
+        #'new-resource
+        "*transaction step* - creates a resource in the project. Expects a node. May include an `:_id` key containing a
+tempid if the resource will be referenced again in the same transaction. If supplied, _input_ and _output_ are sets of input and output labels, respectively.
+If not supplied as arguments, the `:input` and `:output` keys in the node may will be assigned as the resource's inputs and outputs."
+
+        #'update-resource
+        "*transaction step* - Expects a node and function f (with optional args) to be performed on the
+resource indicated by the node. The node may be a uncommitted, in which case it will have a tempid."
+
+        #'register-loader
         "Associate a filetype (extension) with a loader function. The given loader will be
 used any time a file with that type is opened."
 
-          #'load-resource
+        #'load-resource
         "Load a resource, usually from file. This looks up a suitable loader based on the filename.
 Loaders must be registered via register-loader before they can be used.
 
@@ -272,6 +318,19 @@ A clause may be one of the following forms:
 
 All the list forms look for symbols in the first position. Be sure to quote the list
 to distinguish it from a function call."
-        ;; TODO - much more doco.
-        }]
+        #'transact
+        "Execute a transaction to create a new project state. This takes in the current project state,
+modifies it according to the transaction steps in txs, and returns a transaction result.
+
+The txs must have been created by the transaction step functions in this namespace: [[connect]],
+[[disconnect]], [[new-resource]], and [[update-resource]]. The collection of txs can be nested.
+
+The transaction result is associative. It will have keys that supply the following:
+
+:project-state - The project state ref. Its value will be the project state _after_ the transaction.
+:expired-outputs - A sequence of [node id, label]. Each one represents an output value that has been invalidated by this transaction.
+:values-to-dispose - A sequence of IDisposable values that are obsoleted by this transaction.
+
+There may be other keys in the transaction result. These keys are not guaranteed as part of the
+contract. You should not rely on them."}]
   (alter-meta! v assoc :doc doc))
