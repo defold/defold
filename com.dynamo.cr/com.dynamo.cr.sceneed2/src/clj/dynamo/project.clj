@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.core.async :as a :refer [put! onto-chan]]
             [clojure.core.cache :as cache]
+            [clojure.tools.namespace.file :refer [read-file-ns-decl]]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [internal.graph.query :as q]
@@ -10,10 +11,12 @@
             [dynamo.node :as node :refer [defnode]]
             [dynamo.file :as file]
             [dynamo.resource :refer [disposable?]]
-            [internal.cache :refer [make-cache]]
             [internal.clojure :as clojure]
+            [internal.cache :refer [make-cache]]
             [plumbing.core :refer [defnk]]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [eclipse.markers :as markers])
+  (:import [org.eclipse.core.resources IFile]))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
