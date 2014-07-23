@@ -9,10 +9,7 @@
 #include <dlib/time.h>
 #include <dlib/socket.h>
 #include <dlib/thread.h>
-
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
+#include <dlib/sys.h>
 
 extern "C"
 {
@@ -89,6 +86,7 @@ protected:
         dmConfigFile::Delete(m_ConfigFile);
     }
 
+    /*
     void Dispatch()
     {
 #ifdef __EMSCRIPTEN__
@@ -98,6 +96,7 @@ protected:
         });
 #endif
     }
+    */
 };
 
 bool RunFile(lua_State* L, const char* filename)
@@ -176,7 +175,7 @@ TEST_F(ScriptHttpTest, TestPost)
     uint64_t start = dmTime::GetTime();
 
     while (1) {
-        Dispatch();
+        dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
 
         lua_getglobal(L, "requests_left");
@@ -228,7 +227,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
     uint64_t start = dmTime::GetTime();
     while (1) {
-        Dispatch();
+        dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
 
         lua_getglobal(L, "requests_left");
@@ -282,7 +281,7 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
     m_DefaultURL.m_Socket = 0;
 
     for (int i = 0; i < 10; ++i) {
-        Dispatch();
+        dmSys::PumpMessageQueue();
         dmTime::Sleep(10 * 1000);
     }
 
