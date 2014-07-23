@@ -970,7 +970,7 @@ instructions.configure=\
             env['GTEST_COLOR'] = 'no'
 
         if self.host == 'linux':
-            env['EMSCRIPTEN'] = joint(self.ext, EMSCRIPTEN_DIR_LINUX)
+            env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         else:
             env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR)
 
