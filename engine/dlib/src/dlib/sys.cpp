@@ -50,6 +50,7 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp ;
 
 // Implemented in library_sys.js
 extern "C" const char* dmSysGetUserPersistentDataRoot();
+extern "C" void dmSysPumpMessageQueue();
 
 #endif
 
@@ -648,4 +649,12 @@ namespace dmSys
         }
 #endif
     }
+
+
+    void PumpMessageQueue() {
+#if defined(__EMSCRIPTEN__)
+        dmSysPumpMessageQueue();
+#endif
+    }
+
 }

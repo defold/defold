@@ -1078,7 +1078,7 @@ def detect(conf):
         conf.env['shlib_CCFLAGS'] = []
         conf.env['shlib_CXXFLAGS'] = []
 
-    if conf.env['CCACHE'] and not 'win32' == platform and not platform == 'js-web':
+    if conf.env['CCACHE'] and not 'win32' == platform:
         if not Options.options.disable_ccache:
             # Prepend gcc/g++ with CCACHE
             for t in ['CC', 'CXX']:

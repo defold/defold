@@ -12,6 +12,13 @@ var LibraryDmSys = {
                     return DMSYS._folder;
                 else
                     return '';
+            },
+
+            PumpMessageQueue: function() {
+               if (typeof window === 'undefined') {
+                   var uvrun = require('uvrun');
+                   uvrun.runOnce();
+               }
             }
         },
 
@@ -27,6 +34,10 @@ var LibraryDmSys = {
                 Module.writeStringToMemory(str, DMSYS._cstr);
             }
             return DMSYS._cstr;
+        },
+
+        dmSysPumpMessageQueue: function() {
+            DMSYS.PumpMessageQueue();
         }
 }
 autoAddDeps(LibraryDmSys, '$DMSYS');
