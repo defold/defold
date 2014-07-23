@@ -82,7 +82,6 @@ class Configuration(object):
     def __init__(self, dynamo_home = None,
                  target_platform = None,
                  eclipse_home = None,
-                 dev = False,
                  skip_tests = False,
                  skip_codesign = False,
                  disable_ccache = False,
@@ -106,7 +105,6 @@ class Configuration(object):
         self.host = get_host_platform()
         self.target_platform = target_platform
         self.skip_tests = skip_tests
-        self.dev = dev
         self.skip_codesign = skip_codesign
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
@@ -406,7 +404,6 @@ class Configuration(object):
 
     def build_engine(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
-        dev = '--dev' if self.dev else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
 
@@ -432,7 +429,7 @@ class Configuration(object):
                 pf_arg = ""
                 if platform != self.host:
                     pf_arg = "--platform=%s" % (platform)
-                cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse, dev)
+                cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
                 self.exec_env_command(cmd.split(), cwd = cwd)
 
         self._log('Building bob')
@@ -444,7 +441,7 @@ class Configuration(object):
         for lib in libs:
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse, dev)
+            cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
             self.exec_env_command(cmd.split(), cwd = cwd)
 
     def build_go(self):
@@ -1026,11 +1023,6 @@ Multiple commands can be specified'''
                       choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android', 'js-web'],
                       help = 'Target platform')
 
-    parser.add_option('--dev', dest='dev',
-                      action = 'store_true',
-                      default = False,
-                      help = 'Enables dev specific compilation flags. Default is false')
-
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',
                       default = False,
@@ -1115,8 +1107,7 @@ Multiple commands can be specified'''
                       set_version = options.set_version,
                       eclipse = options.eclipse,
                       branch = options.branch,
-                      channel = options.channel,
-                      dev = options.dev)
+                      channel = options.channel)
 
     for cmd in args:
         f = getattr(c, cmd, None)
