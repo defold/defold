@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <title>${DMENGINE_APP_TITLE}$</title>
     <link rel="stylesheet" type="text/css" href="${DMENGINE_CSS}$"></style>
+    ${DMENGINE_DEV_HEAD}$
   </head>
   <body>
     <div id="fb-root"></div>
@@ -225,6 +226,7 @@
         };
       };
     </script>
+    ${DMENGINE_DEV_INLINE}$
     <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
     <script type="text/javascript" src="modernizr.custom.js"></script>
     <script type="text/javascript">
@@ -232,7 +234,7 @@
     Modernizr.load([{
         test: Modernizr.indexedDB,
         nope: Module.onUnsupportedIndexedDB,
-        load: '${DMENGINE_JS}$'
+        load: '${DMENGINE_JS}$'${DMENGINE_DEV_INIT}$
     }]);
     </script>
   </body>

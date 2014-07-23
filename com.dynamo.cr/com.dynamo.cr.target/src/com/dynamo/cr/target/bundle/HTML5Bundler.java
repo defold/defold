@@ -37,6 +37,7 @@ public class HTML5Bundler {
     private String title;
     private String version;
     private int customHeapSize;
+    private boolean includeDevTool;
 
     private List<File> monolithicFiles;
     private List<SplitFile> splitFiles;
@@ -57,6 +58,10 @@ public class HTML5Bundler {
     };
 
     private static final String ManifestFileExtension = ".appcache";
+
+    private static final String DevToolInlineHtmlResource = "resources/jsweb/development.inl";
+    private static final String DevToolCss = "development.css";
+    private static final String DevToolJs = "development.js";
 
     class SplitFile {
     	private File source;
@@ -174,6 +179,12 @@ public class HTML5Bundler {
         		this.customHeapSize = size.intValue();
         	}
         }
+
+        this.includeDevTool = false;
+        use = projectProperties.getBooleanValue("jsweb", "include_dev_tool");
+        if (null != use && use.booleanValue()) {
+        	this.includeDevTool = use.booleanValue();
+        }
     }
 
     public void bundleApplication() throws IOException, ConfigurationException {
@@ -200,6 +211,11 @@ public class HTML5Bundler {
         }
 
         createManifest();
+
+        if (this.includeDevTool) {
+        	copyResource(appDir, DevToolCss);
+        	copyResource(appDir, DevToolJs);
+        }
     }
 
     private void createHtmlShell() throws FileNotFoundException, IOException {
@@ -220,6 +236,18 @@ public class HTML5Bundler {
         	js = String.format("TOTAL_MEMORY: %d1, \n", this.customHeapSize);
         }
         htmlText = htmlText.replaceAll(pattern, js);
+
+        String devHead = "";
+        String inlineHtml = "";
+        String devInit = "";
+        if (this.includeDevTool) {
+        	devHead = "<link rel=\"stylesheet\" type=\"text/css\" href=\"development.css\"></style>";
+        	inlineHtml = getTextResource(null, DevToolInlineHtmlResource);
+        	devInit = ", callback: MemoryStats.Initialise";
+        }
+    	htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_DEV_HEAD}$"), devHead);
+    	htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_DEV_INLINE}$"), inlineHtml);
+    	htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_DEV_INIT}$"), devInit);
 
         IOUtils.write(htmlText, new FileOutputStream(htmlOut), Charset.forName("UTF-8"));
         monolithicFiles.add(new File(htmlFilename));
