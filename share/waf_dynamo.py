@@ -133,22 +133,10 @@ def default_flags(self):
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid',
                 '-L%s' % stl_lib])
     elif platform == "js-web":
-        dev = getattr(Options.options, 'dev', False)
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
-            # '-fno-rtti' gtest requires it, but it's nice to have enabled
-        self.env.append_value('LINKFLAGS', ['-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456'])
-        #Nice to have, maybe at a later stage. Link flag: -s ERROR_ON_UNDEFINED_SYMBOLS=1
+            self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
 
-        if (dev):
-            for f in ['CCFLAGS', 'CXXFLAGS']:
-                self.env.append_value(f, ['-O1', '-g2'])
-            self.env.append_value('LINKFLAGS', ['-O1', '-g2', '-s', 'ASSERTIONS=2', '-s', 'GL_ASSERTIONS=1', '--js-opts', '1', '-s', 'SAFE_HEAP=1'])
-        else: # production build, ie. --dev flag not specified
-            # To profile/debug an optimized build, add the flag -g2 to CCFLAGS, CXXFLAGS and LINKFLAGS. This will cause function names and whitespaces to remain in the js file but also increases the size of the file.
-            for f in ['CCFLAGS', 'CXXFLAGS']:
-                self.env.append_value(f, ['-O3'])
-            self.env.append_value('LINKFLAGS', ['-O3', '--llvm-lto', '1', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1']) # --llvm-lto 1 could cause bugs
+        self.env.append_value('LINKFLAGS', ['-O3', '--llvm-lto', '1', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456'])
 
     elif platform == "as3-web":
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
@@ -1144,7 +1132,6 @@ def set_options(opt):
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
-    opt.add_option('--dev', action='store_true', default=False, dest='dev', help='Adds development environment specific compilation configuration.')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
 

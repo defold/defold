@@ -415,6 +415,13 @@ str_url = str_url.replace("https://", "http://172.16.11.23:9292/");
 xhr.open(Pointer_stringify(method), str_url, true);
 ```
 
+For faster builds, change in scripts/build.py -O3 to -O1 in CCFLAGS, CXXFLAGS and LINKFLAGS
+To profile in the browser, add -g2 to CCFLAGS, CXXFLAGS and LINKFLAGS. This will cause function names and whitespaces to remain in the js file but also increases the size of the file.
+
+Some flags that is useful for emscripten projects would be to have:
+-s ERROR_ON_UNDEFINED_SYMBOLS=1
+'-fno-rtti'. Can't be used at the moment as gtest requires it, but it would be nice to have enabled
+
 Firefox OS
 ----------
 To bundle up a firefox OS app and deploy to a connected firefox OS phone, we need to have a manifest.webapp in the web root directory:
