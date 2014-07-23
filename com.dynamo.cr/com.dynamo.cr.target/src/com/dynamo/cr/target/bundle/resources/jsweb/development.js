@@ -121,7 +121,9 @@ var MemoryStats = {
 
 				var peakUsed = FormatBytes(this._peakMemoryAllocated);
 				percet = (this._peakMemoryAllocated * 100.0 / (TOTAL_MEMORY-DYNAMIC_BASE)).toFixed(2);
-				content += '\nDYN PEAK USAGE: ' + peakUsed + ' (' + percent + '%)';
+				content += '\nDYN PEAK USAGE: ' + peakUsed + ' (' + percent + '%)'
+					+ '\nALLOCS: ' + this._numAllocations
+					+ '\nFREES: ' + this._numFrees;
 
 				content += '\nDYNAMIC area size: ' + FormatBytes(DYNAMICTOP-DYNAMIC_BASE)
 					+ '\nDYNAMIC_BASE: ' + ToHex(DYNAMIC_BASE, width)
