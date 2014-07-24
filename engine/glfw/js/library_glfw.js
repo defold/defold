@@ -319,19 +319,15 @@ var LibraryGLFW = {
       // The total screen size in device pixels in integers.
       var screenWidth = Math.round(window.innerWidth*window.devicePixelRatio);
       var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
-      console.log('screen size in device pixels: ' + screenWidth + 'x' + screenHeight);
       // Compute (w,h) that will be the target CSS pixel size of the canvas.
       var w = screenWidth;
       var h = screenHeight;
-      // Fix ar
-      if (w*y == x*h) {
-        console.log('Desired aspect ratio matches. No action needed.');
-      } else if (w*y < x*h) {
+      // Make sure aspect ratio remains after the resize
+      if (w*y < x*h) {
         h = (w * y / x) | 0;
-      } else {
+      } else if (w*y > x*h) {
         w = (h * x / y) | 0;
       }
-      console.log('Aspect-ratio corrected screen size in device pixels: ' + w + 'x' + h);
       var topMargin = ((screenHeight - h) / 2) | 0;
       // Back to CSS pixels.
       topMargin /= window.devicePixelRatio;
@@ -344,7 +340,6 @@ var LibraryGLFW = {
       var canvas = document.getElementById('canvas');
       canvas.style.width = w + 'px';
       canvas.style.height = h + 'px';
-      console.log('Resized canvas size to ' + w + 'x' + h + ' CSS pixels and top aspect ratio margin to ' + topMargin + ' CSS pixels. window.devicePixelRatio=' + window.devicePixelRatio);
       Module['canvas'].style.marginTop = topMargin + 'px';
     }
 
