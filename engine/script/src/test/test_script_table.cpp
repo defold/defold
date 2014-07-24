@@ -555,6 +555,8 @@ TEST_F(LuaTableTest, Stress)
             // Emscripten fastcomp does not support calling setjmp over and over like in this loop.
             // It requires the function calling setjump not to call setjmp more than 10 times before returning.
             // See emscripten bug https://github.com/kripken/emscripten/issues/2379
+            // According on the comments of the task, this seems to be solved in 1.21.1 of emscripten.
+            // As soon as that appears in emsdk list, we should upgrade and remove this work around.
             wrapSetJmp(L, env, buf, buf_size);
             lua_pop(L, 1);
 
