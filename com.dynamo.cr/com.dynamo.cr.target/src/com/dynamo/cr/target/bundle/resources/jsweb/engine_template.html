@@ -1,15 +1,12 @@
 <!doctype html>
-<!--
-<html lang="en-us" manifest="${DMENGINE_MANIFEST}$">
--->
-<html lang="en-us">
+<html lang="en-us" {{DMENGINE_MANIFEST}}>
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
-    <title>${DMENGINE_APP_TITLE}$</title>
-    <link rel="stylesheet" type="text/css" href="${DMENGINE_CSS}$"></style>
-    ${DMENGINE_DEV_HEAD}$
+    <title>{{DMENGINE_APP_TITLE}}</title>
+    <link rel="stylesheet" type="text/css" href="{{DMENGINE_CSS}}"></style>
+    {{{DMENGINE_DEV_HEAD}}}
   </head>
   <body>
     <div id="fb-root"></div>
@@ -41,7 +38,7 @@
     	var progressElement = document.getElementById('progress');
 
       var Module = {
-      	${DMENGINE_STACK_SIZE}$
+      	{{DMENGINE_STACK_SIZE}}
 
         'noInitialRun': true,
         'preRunTasks': [],
@@ -58,7 +55,7 @@
             Combine['addCombineCompletedListener'](Module.onFilePreloaded);
             Combine['addAllTargetsBuiltListener'](Module.onAllFilesPreloaded);
             Combine['addProgressListener'](Module.onPreloadProgress);
-            Combine['process']('${DMENGINE_SPLIT}$', Module.onPreloadDescriptionProcessed);
+            Combine['process']('{{DMENGINE_SPLIT}}', Module.onPreloadDescriptionProcessed);
             this.setStatus('Downloading...');
         },
 
@@ -230,7 +227,7 @@
         };
       };
     </script>
-    ${DMENGINE_DEV_INLINE}$
+    {{{DMENGINE_DEV_INLINE}}}
     <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
     <script type="text/javascript" src="modernizr.custom.js"></script>
     <script type="text/javascript">
@@ -238,7 +235,7 @@
     Modernizr.load([{
         test: Modernizr.indexedDB,
         nope: Module.onUnsupportedIndexedDB,
-        load: '${DMENGINE_JS}$'${DMENGINE_DEV_INIT}$
+        load: '{{DMENGINE_JS}}'{{DMENGINE_DEV_INIT}}
     }]);
     </script>
   </body>

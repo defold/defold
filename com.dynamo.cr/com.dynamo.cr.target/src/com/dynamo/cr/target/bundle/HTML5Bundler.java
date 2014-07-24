@@ -17,8 +17,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
-import java.util.regex.Pattern;
+import java.util.Map;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.io.FileUtils;
@@ -27,6 +28,8 @@ import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
 
 import com.dynamo.cr.editor.core.ProjectProperties;
+import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
 
 public class HTML5Bundler {
     private String contentRoot;
@@ -37,6 +40,7 @@ public class HTML5Bundler {
     private String title;
     private String version;
     private int customHeapSize;
+    private boolean useApplicationCache;
     private boolean includeDevTool;
 
     private List<File> monolithicFiles;
@@ -180,9 +184,15 @@ public class HTML5Bundler {
         	}
         }
 
+        this.useApplicationCache = false;
+        use = projectProperties.getBooleanValue("jsweb", "use_app_cache");
+        if (null != use) {
+        	this.useApplicationCache = use.booleanValue();
+        }
+
         this.includeDevTool = false;
         use = projectProperties.getBooleanValue("jsweb", "include_dev_tool");
-        if (null != use && use.booleanValue()) {
+        if (null != use) {
         	this.includeDevTool = use.booleanValue();
         }
     }
@@ -219,36 +229,44 @@ public class HTML5Bundler {
     }
 
     private void createHtmlShell() throws FileNotFoundException, IOException {
-    	// Copy html (and replace placeholders)
-        // TODO: More efficient way to do the placeholder replacing needed...
-        String htmlFilename = String.format("%s.html", this.title);
+    	String htmlFilename = String.format("%s.html", this.title);
         File htmlOut = new File(this.appDir, htmlFilename);
-        String htmlText = getHtmlText();
-        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_APP_TITLE}$"), String.format("%s1 %s2", this.title, this.version));
-        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_MANIFEST}$"), getManifestFilename());
-        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_SPLIT}$"), new File(SplitFileDir, SplitFileJson).toString());
-        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_JS}$"), title + ".js");
-        htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_CSS}$"), getCssFilename());
 
-        String pattern = Pattern.quote("${DMENGINE_STACK_SIZE}$");
+    	Template infoTemplate = Mustache.compiler().compile(getHtmlText());
+        Map<String, Object> infoData = new HashMap<String, Object>();
+
+        infoData.put("DMENGINE_APP_TITLE", String.format("%s1 %s2", this.title, this.version));
+        infoData.put("DMENGINE_MANIFEST", getManifestFilename());
+        infoData.put("DMENGINE_SPLIT", new File(SplitFileDir, SplitFileJson).toString());
+        infoData.put("DMENGINE_JS", title + ".js");
+        infoData.put("DMENGINE_CSS", getCssFilename());
+
         String js = "";
         if (0 < this.customHeapSize) {
         	js = String.format("TOTAL_MEMORY: %d, \n", this.customHeapSize);
         }
-        htmlText = htmlText.replaceAll(pattern, js);
+        infoData.put("DMENGINE_STACK_SIZE", js);
+
+        String manifest = "";
+        if (this.useApplicationCache) {
+        	manifest = String.format("manifest=\"%s\"", getManifestFilename());
+        }
+        infoData.put("DMENGINE_MANIFEST", manifest);
 
         String devHead = "";
         String inlineHtml = "";
         String devInit = "";
+
         if (this.includeDevTool) {
         	devHead = "<link rel=\"stylesheet\" type=\"text/css\" href=\"development.css\"></style>";
         	inlineHtml = getTextResource(null, DevToolInlineHtmlResource);
         	devInit = ", callback: MemoryStats.Initialise";
         }
-    	htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_DEV_HEAD}$"), devHead);
-    	htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_DEV_INLINE}$"), inlineHtml);
-    	htmlText = htmlText.replaceAll(Pattern.quote("${DMENGINE_DEV_INIT}$"), devInit);
+        infoData.put("DMENGINE_DEV_HEAD", devHead);
+        infoData.put("DMENGINE_DEV_INLINE", inlineHtml);
+        infoData.put("DMENGINE_DEV_INIT", devInit);
 
+        String htmlText = infoTemplate.execute(infoData);
         IOUtils.write(htmlText, new FileOutputStream(htmlOut), Charset.forName("UTF-8"));
         monolithicFiles.add(new File(htmlFilename));
     }
