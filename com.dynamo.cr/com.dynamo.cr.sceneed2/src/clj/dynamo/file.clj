@@ -79,7 +79,7 @@
 (defn in-build-directory
   [^ProjectPath p]
   (let [relative-to-build-dir (clojure.string/replace (.path p) "content" "build/default")
-        build-dir-native      (.removeLastSegments (.getLocation (.getFile (.project p) "content/p")) 1)]
+        build-dir-native      (.removeLastSegments (.getLocation (.getFile (.project p) "content")) 1)]
     (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (.ext p))))
 
 (defn- new-builder

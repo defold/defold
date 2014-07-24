@@ -4,7 +4,8 @@
 (def test-namespaces ['dynamo.project-test
                       'internal.graph.graph-test
                       'internal.value-test
-                      'internal.node-test])
+                      'internal.node-test
+                      'atlas.core-test])
 
 (defn suite []
   (doseq [test-ns test-namespaces]

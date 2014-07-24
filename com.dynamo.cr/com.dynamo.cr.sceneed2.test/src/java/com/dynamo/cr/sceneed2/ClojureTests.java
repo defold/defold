@@ -14,6 +14,7 @@ public class ClojureTests extends ClojureTest {
     public List<String> namespaces() {
         List<String> ns = new ArrayList<String>();
 
+        ns.add("dynamo.texture-test");
         ns.add("dynamo.project-test");
         ns.add("internal.node-test");
         ns.add("internal.value-test");

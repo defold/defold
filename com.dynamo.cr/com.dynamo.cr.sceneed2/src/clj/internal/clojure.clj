@@ -46,7 +46,9 @@
           (recur (load-next there rdr (file/local-path source) (.getName source-file))))))
     (UnloadableNamespace. ns-decl)))
 
-(def ClojureSourceFile
+(def
+  ^{:doc "Behavior included in `ClojureSourceNode`."}
+  ClojureSourceFile
   {:properties {:resource {:schema IFile}}
    :transforms {:namespace #'load-project-file}
    :cached     #{:namespace}

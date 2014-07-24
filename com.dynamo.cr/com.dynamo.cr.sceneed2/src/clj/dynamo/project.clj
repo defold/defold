@@ -28,7 +28,9 @@
 (defmacro with-current-project
   [& forms]
   `(binding [dynamo.project/*current-project* (internal.system/current-project)]
-     ~@forms))
+     (cond dynamo.project/*current-project*
+           (do
+             ~@forms))))
 
 (declare transact new-resource)
 
@@ -256,12 +258,6 @@
 
         #'*current-project*
         "When used within a [[with-current-project]], contains a ref of the current project. Otherwise nil."
-
-        #'ClojureSourceFile
-        "Behavior included in `ClojureSourceNode`."
-
-        #'dispose
-        "Clean up a value, including thread-jumping as needed"
 
         #'with-current-project
         "Gives forms wrapped `with-current-project` access to *current-project*, a ref containing the current project state."

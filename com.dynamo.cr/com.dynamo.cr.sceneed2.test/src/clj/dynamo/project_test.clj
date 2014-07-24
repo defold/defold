@@ -1,5 +1,6 @@
 (ns dynamo.project-test
   (:require [clojure.core.async :as a]
+            [dynamo.project.test-support :as pst :refer :all]
             [dynamo.project :as p :refer [new-resource update-resource resolve-tempid transact connect disconnect]]
             [dynamo.node :as n]
             [internal.graph.dgraph :as dg]
@@ -9,15 +10,6 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]))
-
-(defn ->bitbucket [] (a/chan (a/dropping-buffer 1)))
-
-(def ^:dynamic ^:private *test-project*)
-
-(defn with-clean-project
-  [f]
-  (binding [*test-project* (ref (p/make-project nil (->bitbucket)))]
-    (f)))
 
 (use-fixtures :each with-clean-project)
 

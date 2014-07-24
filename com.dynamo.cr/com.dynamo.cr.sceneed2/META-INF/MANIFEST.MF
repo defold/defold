@@ -33,4 +33,7 @@ Export-Package: clojure,
  dynamo.file
 Bundle-ClassPath: bin/,
  .,
- lib/com.dynamo.cr.sceneed2-0.1.0-standalone.jar
+ lib/com.dynamo.cr.sceneed2-0.1.0-standalone.jar,
+ src/clj/,
+ src/java/
+

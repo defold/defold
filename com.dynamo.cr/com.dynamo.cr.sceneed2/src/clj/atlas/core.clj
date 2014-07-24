@@ -2,6 +2,7 @@
   (:require [dynamo.ui :refer :all]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
+            [schema.macros :as sm]
             [dynamo.node :refer :all]
             [dynamo.file :refer :all]
             [dynamo.file.protobuf :refer [protocol-buffer-converters]]
@@ -9,6 +10,9 @@
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.outline :refer :all]
+            [internal.texture :refer [packer-config]]
+            [internal.graph.lgraph :as lg]
+            [internal.graph.dgraph :as dg]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.textureset.proto TextureSetProto$TextureSet TextureSetProto$TextureSet$Builder
@@ -17,79 +21,77 @@
 
 (defnode ImageNode
  OutlineNode
- Image)
+ ImageSource)
+
+(defnk produce-animation :- Animation
+  [this images :- [Image]]
+  (->Animation images (:fps this) (:flip-horizontal this) (:flip-vertical this) (:playback this)))
 
 (defnode AnimationGroupNode
   OutlineNode
-  Animation)
+  AnimationBehavior
+  {:inputs     {:images     [ImageSource]}
+   :transforms {:animation  #'produce-animation}})
 
-(def ConvexHull
-  {:index           int
-   :count           int
-   :collision-group s/Str})
+(comment
+  (def ConvexHull
+    {:index           int
+     :count           int
+     :collision-group s/Str})
 
-(def Playback
-  (s/enum :PLAYBACK_NONE :PLAYBACK_ONCE_FORWARD :PLAYBACK_ONCE_BACKWARD :PLAYBACK_ONCE_PINGPONG
-          :PLAYBACK_LOOP_FORWARD :PLAYBACK_LOOP_BACKWARD :PLAYBACK_LOOP_PINGPONG))
+	(def TextureSetAnimation
+	  {:id                               s/Str
+	   :width                            int
+	   :height                           int
+	   :start                            int
+	   :end                              int
+	   (s/optional-key :fps)             int
+	   (s/optional-key :playback)        Playback
+	   (s/optional-key :flip-horizontal) int
+	   (s/optional-key :flip-vertical)   int
+	   (s/optional-key :is-animation)    int})
 
-(def TextureSetAnimation
-  {:id                               s/Str
-   :width                            int
-   :height                           int
-   :start                            int
-   :end                              int
-   (s/optional-key :fps)             int
-   (s/optional-key :playback)        Playback
-   (s/optional-key :flip-horizontal) int
-   (s/optional-key :flip-vertical)   int
-   (s/optional-key :is-animation)    int})
+	(def TextureSet
+	  {:texture                      s/Str
+	   :animations                   [TextureSetAnimation]
+	   :convex-hulls                 [ConvexHull]
+	   (s/optional-key :tile-width)  int
+	   (s/optional-key :tile-height) int
 
-(def TextureSet
-  {:texture                      s/Str
-   :animations                   [TextureSetAnimation]
-   :convex-hulls                 [ConvexHull]
-   (s/optional-key :tile-width)  int
-   (s/optional-key :tile-height) int
+	   :vertices                     bytes
+	   :vertex-start                 [int]
+	   :vertex-count                 [int]
 
-   :vertices                     bytes
-   :vertex-start                 [int]
-   :vertex-count                 [int]
+	   :outline-vertices             bytes
+	   :outline-vertex-start         [int]
+	   :outline-vertex-count         [int]
 
-   :outline-vertices             bytes
-   :outline-vertex-start         [int]
-   :outline-vertex-count         [int]
+	   :convex-hull-points           [float]
+	   :collision-groups             [s/Str]
 
-   :convex-hull-points           [float]
-   :collision-groups             [s/Str]
+	   :tex-coords                   bytes
+	   :tile-count                   int})
+)
 
-   :tex-coords                   bytes
-   :tile-count                   int})
+(sm/defn- consolidate :- #{Image}
+  [images :- [Image] containers :- {:images [Image]}]
+  (apply union images (map :images containers)))
 
 (defnk produce-textureset :- TextureSet
-  [g this images :- [TextureImage] animations :- [TextureSetAnimation]]
-  {:texture "a-texture"
-   :animations []
-   :convex-hulls []
-   :vertices (byte-array 0)
-   :vertex-start [(int 0)]
-   :vertex-count [(int 0)]
-   :outline-vertices (byte-array 0)
-   :outline-vertex-start []
-   :outline-vertex-count []
-   :convex-hull-points []
-   :collision-groups []
-   :tex-coords (byte-array 0)
-   :tile-count 99})
+  [this images :- [Image] animations :- [Animation]]
+  (pack-textures (:margin this) (:extrude-border this) (consolidate images animations)))
 
 (def AtlasProperties
   {:inputs     {:assets     [OutlineItem]
-                :images     [TextureImage]
+                :images     [ImageSource]
                 :animations [Animation]}
    :properties {:margin (non-negative-integer)
                 :extrude-borders (non-negative-integer)
                 :filename (string)}
-   :transforms {:textureset #'produce-textureset}
-   :cached     #{:textureset}})
+   :transforms {:textureset #'produce-textureset
+                :imagelist  #'export-image-list-recursive}
+   :cached     #{:textureset}
+   :on-update  #{:textureset}})
 
 (defnode AtlasNode
   OutlineNode
@@ -101,7 +103,8 @@
   :basic-properties [:extrude-borders :margin]
   :node-properties  {:images-list [:tree -> :children,
                                    :image -> :images]
-                     :animations-list [:tree -> :children]}}
+                     :animations-list [:tree -> :children,
+                                       :animation -> :animations]}}
 
  AtlasProto$AtlasAnimation
  {:constructor      #'atlas.core/make-animation-group-node
@@ -158,8 +161,14 @@
   (write-native-file (:textureset-filename this) (.toByteArray (map->TextureSet textureset))))
 
 (defnk compile-texturec :- s/Bool
-  [this g textureset :- TextureSet]
-  true)
+  [this g project textureset :- TextureSet]
+  (let [pconfig (packer-config)
+        images (source-images this g)]
+  ;; extract list of image sets
+  ;; internal.texture/packer-config
+  ;; pack each set internal.texture/pack-images config images
+  #_(write-native-file (:texture-filename this) (.toByteArray (map->TextureSet textureset)))
+  ))
 
 (def TextureCompiler
   {:inputs     {:textureset (as-schema TextureSet)}
@@ -177,8 +186,6 @@
   TextureCompiler
   TextureSetCompiler)
 
-
-
 (defn on-load
   [project path ^AtlasProto$Atlas atlas-message]
   (let [atlas-tx (message->node atlas-message nil nil nil :filename (local-path path) :_id -1)
@@ -189,7 +196,8 @@
        (new-resource compiler)
        (connect {:_id -1} :textureset compiler :textureset)])))
 
-(register-loader *current-project* "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
+(dynamo.project/with-current-project
+  (register-loader *current-project* "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))
 
 (comment
 

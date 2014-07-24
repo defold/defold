@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <launchConfiguration type="org.eclipse.ant.AntBuilderLaunchConfigurationType">
 <stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_AFTER_CLEAN_TARGETS" value="clean,"/>
+<stringAttribute key="org.eclipse.ant.ui.ATTR_ANT_MANUAL_TARGETS" value="compile,current-classpath,"/>
 <booleanAttribute key="org.eclipse.ant.ui.ATTR_TARGETS_UPDATED" value="true"/>
 <booleanAttribute key="org.eclipse.ant.ui.DEFAULT_VM_INSTALL" value="false"/>
 <stringAttribute key="org.eclipse.debug.core.ATTR_REFRESH_SCOPE" value="${project}"/>
@@ -18,7 +19,7 @@
 <stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="com.dynamo.cr.sceneed2"/>
 <stringAttribute key="org.eclipse.ui.externaltools.ATTR_BUILD_SCOPE" value="${working_set:&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;resources&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/.classpath&quot; type=&quot;1&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/.project&quot; type=&quot;1&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/build.xml&quot; type=&quot;1&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/src/clj/eclipse&quot; type=&quot;2&quot;/&gt;&#10;&lt;item path=&quot;/com.dynamo.cr.sceneed2/src/clj/internal/ui/editors/atlas_editor.clj&quot; type=&quot;1&quot;/&gt;&#10;&lt;/resources&gt;}"/>
 <stringAttribute key="org.eclipse.ui.externaltools.ATTR_LOCATION" value="${workspace_loc:/com.dynamo.cr.sceneed2/build.xml}"/>
-<stringAttribute key="org.eclipse.ui.externaltools.ATTR_RUN_BUILD_KINDS" value="full,incremental,auto,"/>
+<stringAttribute key="org.eclipse.ui.externaltools.ATTR_RUN_BUILD_KINDS" value="full,incremental,"/>
 <booleanAttribute key="org.eclipse.ui.externaltools.ATTR_TRIGGERS_CONFIGURED" value="true"/>
 <stringAttribute key="org.eclipse.ui.externaltools.ATTR_WORKING_DIRECTORY" value="${workspace_loc:/com.dynamo.cr.sceneed2}"/>
 <stringAttribute key="process_factory_id" value="org.eclipse.ant.ui.remoteAntProcessFactory"/>

@@ -10,6 +10,9 @@
 
 (declare get-value)
 
+(defn get-node [g id]
+  (dg/node g id))
+
 (defn get-inputs [target-node g target-label]
   (let [schema (get-in target-node [:inputs target-label])]
     (if (vector? schema)

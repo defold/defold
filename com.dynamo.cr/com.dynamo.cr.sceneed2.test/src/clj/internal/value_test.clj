@@ -1,35 +1,16 @@
 (ns internal.value-test
   (:require [clojure.test :refer :all]
+            [dynamo.project.test-support :refer :all]
             [clojure.core.async :as async :refer [chan >!! <! alts!! timeout]]
             [schema.core :as s]
+            [dynamo.resource :as r]
             [plumbing.core :refer [defnk]]
             [internal.cache :as c]
             [internal.graph.dgraph :as dg]
+            [dynamo.project.test-support :refer :all]
             [dynamo.project :as p]
             [dynamo.node :as n]
             [dynamo.types :as t]))
-
-(def ^:private ^:dynamic *calls*)
-
-(defn ->bitbucket [] (async/chan (async/dropping-buffer 1)))
-
-(def ^:dynamic ^:private *test-project*)
-
-(defn tally [node fn-symbol]
-  (swap! *calls* update-in [(:_id node) fn-symbol] (fnil inc 0)))
-
-(defn get-tally [resource fn-symbol]
-  (get-in @*calls* [(:_id resource) fn-symbol] 0))
-
-(defmacro expect-call-when [node fn-symbol & body]
-  `(let [calls-before# (get-tally ~node ~fn-symbol)]
-     ~@body
-     (is (= (inc calls-before#) (get-tally ~node ~fn-symbol)))))
-
-(defmacro expect-no-call-when [node fn-symbol & body]
-  `(let [calls-before# (get-tally ~node ~fn-symbol)]
-     ~@body
-     (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
 (defn tx-nodes [project-state & resources]
   (let [tx-result (p/transact project-state (map p/new-resource resources))
@@ -94,11 +75,6 @@
   (binding [*calls* (atom {})]
     (f)))
 
-(defn with-clean-project
-  [f]
-  (binding [*test-project* (ref (p/make-project nil (->bitbucket)))]
-    (f)))
-
 (use-fixtures :each with-clean-project with-function-counts)
 
 (deftest labels-appear-in-cache-keys
@@ -131,7 +107,7 @@
 (defnk compute-disposable-value
   [this g]
   (tally this 'compute-disposable-value)
-  (reify p/IDisposable
+  (reify r/IDisposable
     (dispose [t]
       (tally this 'dispose)
       (>!! (:channel (dg/node g this)) :gone))))
