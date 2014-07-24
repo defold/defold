@@ -41,6 +41,11 @@ div[class=fullscreenControl] > span {
 	z-index: 2;
 }
 
+.download_modal_content {
+	width: 50%;
+	height: 50%;
+}
+
 .absolute-centre {
 	margin: auto;
 	position: absolute;
@@ -63,19 +68,20 @@ div.splash_border {
 
 	font-weight: bold;
 	color: rgb(120, 120, 120);
+
+	margin-top: 10px;
+	margin-bottom: 10px;
 }
 
 .statusOffset {
 	top: 50%;
-	margin-top: 40px;
 }
 
-.splashImageOffset {
-	margin-top: 100px;
-}
-
-.dev_depth {
-	z-index: 1000;
+.splashImage {
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+	margin-top: 0px;
 }
 
 progress:not([value]) {
@@ -83,6 +89,10 @@ progress:not([value]) {
 }
 
 progress[value] {
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+
 	appearance: none;
 
 	/* Remove trailing borders in Firefox and Opera. */

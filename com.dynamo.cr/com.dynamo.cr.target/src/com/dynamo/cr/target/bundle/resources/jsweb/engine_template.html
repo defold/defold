@@ -22,9 +22,11 @@
 
     <div class="download_modal_container" id="dlModal">
     	<div class="download_modal_content absolute-centre splash_border">
-    		<image class="absolute-centre splashImageOffset" src="splash_image.png"></image>
-    		<progress class="absolute-centre gradient" value="0" max="100" id="progress"></progress>
-	    	<div class="absolute-centre statusText" id="statusDiv"><span id="status" class="statusOffset absolute-centre">Downloading...</span></div>
+			<div class="absolute-centre download_modal_content">
+    			<image class="splashImage" src="splash_image.png"></image>
+    			<div class="statusText" id="statusDiv"><span id="status" class="statusOffset">Downloading...</span></div>
+    			<progress class="gradient" value="0" max="100" id="progress"></progress>
+			</div>
     	</div>
 	</div>
 
@@ -203,7 +205,9 @@
             progressElement.max = parseInt(m[4])*100;
             progressElement.hidden = false;
           }
-          statusElement.innerHTML = text;
+          if (text && 0 < text.length) {
+          	statusElement.innerHTML = text;
+          }
           Module.setStatus.last.time = Date.now();
         },
         totalDependencies: 0,

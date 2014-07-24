@@ -233,7 +233,7 @@ public class HTML5Bundler {
         String pattern = Pattern.quote("${DMENGINE_STACK_SIZE}$");
         String js = "";
         if (0 < this.customHeapSize) {
-        	js = String.format("TOTAL_MEMORY: %d1, \n", this.customHeapSize);
+        	js = String.format("TOTAL_MEMORY: %d, \n", this.customHeapSize);
         }
         htmlText = htmlText.replaceAll(pattern, js);
 
