@@ -128,7 +128,7 @@ namespace dmEngineVersion
         conf.env['STATICLIB_RECORD'] = 'record_null'
         conf.env['LIB_VPX'] = ''
 
-    if sys.platform == "linux2":
+    if platform == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
     elif platform == "darwin":
         pass
