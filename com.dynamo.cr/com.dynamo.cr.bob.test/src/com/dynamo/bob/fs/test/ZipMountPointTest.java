@@ -1,6 +1,7 @@
 package com.dynamo.bob.fs.test;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,6 +51,7 @@ public class ZipMountPointTest {
         FileSystemWalker walker = new FileSystemWalker();
         Collection<String> results = new ArrayList<String>();
         this.mp.walk(".", walker, results);
+        assertEquals(1, results.size());
         assertTrue(results.contains("test_lib/file1.in"));
     }
 }

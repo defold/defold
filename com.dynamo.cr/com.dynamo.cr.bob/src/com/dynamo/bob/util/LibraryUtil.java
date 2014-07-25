@@ -64,7 +64,7 @@ public class LibraryUtil {
                 is = archive.getInputStream(projectEntry);
                 BobProjectProperties properties = new BobProjectProperties();
                 properties.load(is);
-                String dirs = properties.getStringValue("library", "include_dirs");
+                String dirs = properties.getStringValue("library", "include_dirs", "");
                 for (String dir : dirs.split("[,\\s]")) {
                     if (!dir.isEmpty()) {
                         includeDirs.add(dir);
@@ -100,6 +100,7 @@ public class LibraryUtil {
     }
 
     public static List<URL> getLibraryUrlsFromProject(String rootPath) throws LibraryException {
+        rootPath = FilenameUtils.normalizeNoEndSeparator(rootPath, true);
         List<URL> urls = new ArrayList<URL>();
         BobProjectProperties properties = new BobProjectProperties();
         File projectProps = new File(FilenameUtils.concat(rootPath, "game.project"));

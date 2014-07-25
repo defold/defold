@@ -2138,6 +2138,7 @@ namespace dmGameObject
                         user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                     }
                     ComponentGetPropertyParams p;
+                    p.m_Context = type->m_Context;
                     p.m_Instance = instance;
                     p.m_PropertyId = property_id;
                     p.m_UserData = user_data;
@@ -2306,6 +2307,7 @@ namespace dmGameObject
                         user_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                     }
                     ComponentSetPropertyParams p;
+                    p.m_Context = type->m_Context;
                     p.m_Instance = instance;
                     p.m_PropertyId = property_id;
                     p.m_UserData = user_data;

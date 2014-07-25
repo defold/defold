@@ -23,6 +23,12 @@ namespace dmGameSystem
     /// Config key to use for tweaking maximum number of contacts reported
     const char* PHYSICS_MAX_CONTACTS_KEY    = "physics.max_contacts";
 
+    static const dmhash_t PROP_LINEAR_DAMPING = dmHashString64("linear_damping");
+    static const dmhash_t PROP_ANGULAR_DAMPING = dmHashString64("angular_damping");
+    static const dmhash_t PROP_LINEAR_VELOCITY = dmHashString64("linear_velocity");
+    static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
+    static const dmhash_t PROP_MASS = dmHashString64("mass");
+
     struct CollisionWorld
     {
         uint64_t m_Groups[16];
@@ -203,6 +209,9 @@ namespace dmGameSystem
         data.m_Restitution = ddf->m_Restitution;
         data.m_Group = GetGroupBitIndex(world, resource->m_Group);
         data.m_Mask = 0;
+        data.m_LinearDamping = ddf->m_LinearDamping;
+        data.m_AngularDamping = ddf->m_AngularDamping;
+        data.m_LockedRotation = ddf->m_LockedRotation;
         for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
         {
             data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
@@ -791,6 +800,75 @@ namespace dmGameSystem
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
         {
             dmLogError("%s", "Could not recreate collision object component, not reloaded.");
+        }
+    }
+
+    dmGameObject::PropertyResult CompCollisionObjectGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
+            if (physics_context->m_3D) {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping3D(component->m_Object3D));
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearDamping2D(component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_ANGULAR_DAMPING) {
+            if (physics_context->m_3D) {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping3D(component->m_Object3D));
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularDamping2D(component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_LINEAR_VELOCITY) {
+            if (physics_context->m_3D) {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearVelocity3D(physics_context->m_Context3D, component->m_Object3D));
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetLinearVelocity2D(physics_context->m_Context2D, component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_ANGULAR_VELOCITY) {
+            if (physics_context->m_3D) {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularVelocity3D(physics_context->m_Context3D, component->m_Object3D));
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetAngularVelocity2D(physics_context->m_Context2D, component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_MASS) {
+            if (physics_context->m_3D) {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetMass3D(component->m_Object3D));
+            } else {
+                out_value.m_Variant = dmGameObject::PropertyVar(dmPhysics::GetMass2D(component->m_Object2D));
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+    }
+
+    dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        if (params.m_PropertyId == PROP_LINEAR_DAMPING) {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (physics_context->m_3D) {
+                dmPhysics::SetLinearDamping3D(component->m_Object3D, params.m_Value.m_Number);
+            } else {
+                dmPhysics::SetLinearDamping2D(component->m_Object2D, params.m_Value.m_Number);
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else if (params.m_PropertyId == PROP_ANGULAR_DAMPING) {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (physics_context->m_3D) {
+                dmPhysics::SetAngularDamping3D(component->m_Object3D, params.m_Value.m_Number);
+            } else {
+                dmPhysics::SetAngularDamping2D(component->m_Object2D, params.m_Value.m_Number);
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        } else {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
     }
 

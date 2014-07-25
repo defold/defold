@@ -117,7 +117,7 @@
             </zipgroupfileset>
          </jar>
 
-        <jar destfile="dist/bob.jar">
+        <jar destfile="dist/bob-light.jar">
             <fileset dir="${classes.dir}"/>
             <fileset dir="lib">
                 <include name="**/*texc_shared*"/>
@@ -133,8 +133,46 @@
         </jar>
     </target>
 
+    <target name="dist-builtins" depends="compile">
+        <mkdir dir="dist"/>
+        <mkdir dir="tmp"/>
+
+        <jar jarfile="tmp/external-libs-builtins.jar">
+            <zipgroupfileset dir="../com.dynamo.cr.common/ext">
+              <include name="protobuf-java*.jar"/>
+              <include name="commons*.jar"/>
+              <include name="vecmath.jar"/>
+            </zipgroupfileset>
+            <zipgroupfileset dir="lib">
+              <include name="*.jar"/>
+            </zipgroupfileset>
+         </jar>
+
+        <jar destfile="dist/bob.jar">
+            <fileset dir="${classes.dir}"/>
+            <fileset dir="lib">
+                <include name="**/*texc_shared*"/>
+            </fileset>
+            <zipfileset src="lib/builtins.zip"/>
+            <zipfileset src="tmp/external-libs-builtins.jar">
+              <exclude name="**/META-INF/**"/>
+            </zipfileset>
+
+            <manifest>
+                <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
+            </manifest>
+
+        </jar>
+    </target>
+
     <target name="install" depends="dist">
+        <copy file="dist/bob-light.jar" todir="${env.DYNAMO_HOME}/share/java"/>
+    </target>
+
+    <target name="install-builtins" depends="dist-builtins">
         <copy file="dist/bob.jar" todir="${env.DYNAMO_HOME}/share/java"/>
     </target>
+
+    <target name="install-full" depends="install,install-builtins" />
 
 </project>

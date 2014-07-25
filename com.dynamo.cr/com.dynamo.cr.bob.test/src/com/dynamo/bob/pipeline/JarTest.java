@@ -28,7 +28,7 @@ import com.dynamo.bob.fs.IFileSystem;
 public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
-        String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
+        String jarPath = "../com.dynamo.cr.bob/dist/bob-light.jar";
         Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-i", "test", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
         String line;

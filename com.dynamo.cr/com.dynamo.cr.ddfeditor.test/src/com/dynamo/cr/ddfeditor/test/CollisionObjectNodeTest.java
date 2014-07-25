@@ -48,6 +48,9 @@ public class CollisionObjectNodeTest extends AbstractNodeTest {
                 "mass: 0.0 " +
                 "friction: 0.0 " +
                 "restitution: 1.0 " +
+                "linear_damping: 0.0 " +
+                "angular_damping: 0.0 " +
+                "locked_rotation: false " +
                 "group: \"2\" " +
                 "mask: \"1\" ";
         registerFile("/test.collisionobject", ddf);

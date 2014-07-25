@@ -1,6 +1,6 @@
 import Task, TaskGen
 from TaskGen import extension, declare_extension
-import os, sys, shutil, glob
+import os, sys, glob
 import waf_gamesys
 
 def build(bld):
@@ -17,14 +17,11 @@ def build(bld):
         target = 'test_engine')
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
-    if os.path.isdir(builtins_dst):
-        shutil.rmtree(builtins_dst)
-    shutil.copytree(builtins_src, builtins_dst)
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bld.new_task_gen(rule = 'java -Djava.ext.dirs= -jar ${DYNAMO_HOME}/share/java/bob.jar -r ${SRC[0].src_dir(env)} distclean build',
-                     source = 'wscript',
+    bld.new_task_gen(rule = 'java -Djava.ext.dirs= -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} distclean build',
+                     source = '../../content/bob-engine.jar wscript',
                      always = True)
 
     obj.install_path = None

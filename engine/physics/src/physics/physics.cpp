@@ -41,8 +41,11 @@ namespace dmPhysics
     , m_Mass(1.0f)
     , m_Friction(0.5f)
     , m_Restitution(0.0f)
+    , m_LinearDamping(0.0f)
+    , m_AngularDamping(0.0f)
     , m_Group(1)
     , m_Mask(1)
+    , m_LockedRotation(0)
     {
 
     }

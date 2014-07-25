@@ -156,27 +156,31 @@ public class ProjectResource extends BaseResource {
      * Project
      */
     private static void zipFiles(File directory, File zipFile) throws IOException {
-        ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
+        ZipOutputStream zipOut = null;
 
-        IOFileFilter dirFilter = new AbstractFileFilter() {
-            @Override
-            public boolean accept(File file) {
-                return !file.getName().equals(".git");
-            }
-        };
+        try {
+            zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
+            IOFileFilter dirFilter = new AbstractFileFilter() {
+                @Override
+                public boolean accept(File file) {
+                    return !file.getName().equals(".git");
+                }
+            };
 
-        Collection<File> files = FileUtils.listFiles(directory, TrueFileFilter.INSTANCE, dirFilter);
-        int prefixLength = directory.getAbsolutePath().length();
-        for (File file : files) {
-            String p = file.getAbsolutePath().substring(prefixLength);
-            if (p.startsWith("/")) {
-                p = p.substring(1);
+            Collection<File> files = FileUtils.listFiles(directory, TrueFileFilter.INSTANCE, dirFilter);
+            int prefixLength = directory.getAbsolutePath().length();
+            for (File file : files) {
+                String p = file.getAbsolutePath().substring(prefixLength);
+                if (p.startsWith("/")) {
+                    p = p.substring(1);
+                }
+                ZipEntry ze = new ZipEntry(p);
+                zipOut.putNextEntry(ze);
+                FileUtils.copyFile(file, zipOut);
             }
-            ZipEntry ze = new ZipEntry(p);
-            zipOut.putNextEntry(ze);
-            FileUtils.copyFile(file, zipOut);
+        } finally {
+            IOUtils.closeQuietly(zipOut);
         }
-        zipOut.close();
     }
 
     @GET
@@ -473,7 +477,8 @@ public class ProjectResource extends BaseResource {
     @RolesAllowed(value = { "anonymous" })
     @Produces({"text/xml"})
     @Path("/engine_manifest/{platform}/{key}")
-    public String downloadEngineManifest(@PathParam("project") String projectId,
+    public String downloadEngineManifest(@PathParam("owner") String owner,
+                                         @PathParam("project") String projectId,
                                          @PathParam("key") String key,
                                          @PathParam("platform") String platform,
                                          @Context UriInfo uriInfo) throws IOException {
@@ -494,8 +499,7 @@ public class ProjectResource extends BaseResource {
         String manifest = IOUtils.toString(stream);
         stream.close();
 
-        User user = getUser();
-        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(Long.toString(user.getId())).path(projectId).path("engine").path(platform).path(key).build();
+        URI engineUri = uriInfo.getBaseUriBuilder().path("projects").path(owner).path(projectId).path("engine").path(platform).path(key).build();
         String manifestPrim = manifest.replace("${URL}", engineUri.toString());
         return manifestPrim;
     }

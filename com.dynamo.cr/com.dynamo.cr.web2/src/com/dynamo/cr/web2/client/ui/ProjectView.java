@@ -176,7 +176,7 @@ public class ProjectView extends Composite {
 
         unqualifiedWarning.setVisible(projectInfo.getStatus().equals(ProjectInfo.PROJECT_STATUS_UNQUALIFIED));
 
-        libraryUrl.setText(Window.Location.getHost() + "/p/" + projectInfo.getOwner().getId() + "/" + projectInfo.getId() + "/archive");
+        libraryUrl.setText("http://" + Window.Location.getHost() + "/p/" + projectInfo.getOwner().getId() + "/" + projectInfo.getId() + "/archive");
     }
 
     public void setLog(int userId, Log log) {

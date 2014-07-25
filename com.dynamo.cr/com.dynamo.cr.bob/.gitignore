@@ -3,4 +3,5 @@
 /tmp
 /lib/*texc_shared*
 /lib/*/*texc_shared*
+/lib/builtins.zip
 
