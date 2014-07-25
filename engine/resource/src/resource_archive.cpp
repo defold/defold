@@ -245,7 +245,7 @@ bail:
                 }
                 else
                 {
-                    return RESULT_IO_ERROR;
+                    return RESULT_OUTBUFFER_TOO_SMALL;
                 }
             }
         }
