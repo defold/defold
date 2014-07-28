@@ -6,10 +6,6 @@ var LibraryScript = {
   dmScriptHttpRequestAsync: function(method, url, headers, arg, onload, onerror, send_data, send_data_length, timeout) {
       var xhr = new XMLHttpRequest();
 
-      if (timeout > 0) {
-          xhr.timeout = timeout / 1000.0;
-      }
-
       function listener() {
           var resp_headers = xhr.getAllResponseHeaders();
           resp_headers = resp_headers.replace(new RegExp("\r", "g"), "");
@@ -32,6 +28,9 @@ var LibraryScript = {
       xhr.open(Pointer_stringify(method), Pointer_stringify(url), true);
       // TODO: Doesn't work in node.js. Why? xhr2?
       xhr.responseType = 'arraybuffer';
+      if (timeout > 0) {
+          xhr.timeout = timeout / 1000.0;
+      }
 
       var headersArray = Pointer_stringify(headers).split("\n");
       for (var i = 0; i < headersArray.length; i++) {
