@@ -89,6 +89,8 @@ namespace dmEngineVersion
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])
+    elif platform == 'js-web':
+        sound_lib = 'sound2'
 
     conf.env['LIB_GTEST'] = 'gtest'
 

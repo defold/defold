@@ -8,7 +8,7 @@ def build(bld):
     bld.add_subdirs('openal')
 
     source =  'sound_common.cpp sound.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
-    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
+    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp devices/device_null.cpp stb_vorbis/stb_vorbis.c'.split()
 
     include = ''
     if re.match('arm.*?android', bld.env['PLATFORM']):

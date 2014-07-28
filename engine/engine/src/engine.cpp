@@ -456,8 +456,25 @@ namespace dmEngine
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 
+        // The attempt to fallback to other audio devices only has meaning if:
+        // - sound2 is being used
+        // - the matching device symbols have been exported for the target device
         dmSound::InitializeParams sound_params;
-        dmSound::Initialize(engine->m_Config, &sound_params);
+        static const char* audio_devices[] = {
+                "default",
+                "null",
+                NULL
+        };
+        int deviceIndex = 0;
+        while (NULL != audio_devices[deviceIndex]) {
+            sound_params.m_OutputDevice = audio_devices[deviceIndex];
+            dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
+            if (dmSound::RESULT_OK == soundInit) {
+                dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
+                break;
+            }
+            ++deviceIndex;
+        }
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
