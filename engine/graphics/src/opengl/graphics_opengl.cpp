@@ -111,11 +111,10 @@ PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
 #elif defined(__EMSCRIPTEN__)
 #include <GL/glext.h>
-#define glGenBuffersARB glGenBuffers
-#define glDeleteBuffersARB glDeleteBuffers
-#define glBindBufferARB glBindBuffer
-#define glBufferDataARB glBufferData
-#define glBufferSubDataARB glBufferSubData
+#if defined GL_ES_VERSION_2_0
+#undef GL_ARRAY_BUFFER_ARB
+#undef GL_ELEMENT_ARRAY_BUFFER_ARB
+#endif
 #else
 #error "Platform not supported."
 #endif
@@ -123,7 +122,7 @@ PFNGLUNIFORM1IPROC glUniform1i = NULL;
 using namespace Vectormath::Aos;
 
 // OpenGLES compatibility
-#ifdef GL_ES_VERSION_2_0
+#if defined GL_ES_VERSION_2_0
 #define glClearDepth glClearDepthf
 #define glGenBuffersARB glGenBuffers
 #define glDeleteBuffersARB glDeleteBuffers
@@ -1241,6 +1240,12 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
+        if (NULL == params.m_Data) {
+            //DEF-530: calling SetTexture in NewTexture, prior to image data being made available,
+            // was causing RGBA textures to vanish in IE11.
+            return;
+        }
+
         int unpackAlignment = 4;
         /*
          * For RGA-textures the row-alignment may not be a multiple of 4.
@@ -1282,7 +1287,6 @@ static void LogFrameBufferError(GLenum status)
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
         GLint internal_format;
-
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
@@ -1343,6 +1347,7 @@ static void LogFrameBufferError(GLenum status)
             assert(0);
             break;
         }
+
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
