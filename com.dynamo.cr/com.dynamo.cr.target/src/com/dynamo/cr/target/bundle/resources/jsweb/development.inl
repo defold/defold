@@ -25,6 +25,7 @@
 			  	<label for="chk_stack"></label>
 			</div>
 		</div>
+		<div>
 			<textarea type="text" readonly id="memory_summary"></textarea>
 		</div>
 	</div>
