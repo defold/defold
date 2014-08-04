@@ -89,10 +89,7 @@
              (fn [[k v]] (:test (meta v)))
              (ns-interns (symbol ns-name)))))
     (catch Throwable t
-      (binding [*out* *err*]
-        (println (str "Error attempting to get var names for namespace [" ns-name "]"))
-        (.printStackTrace t))
-      []))))
+      (throw (ex-info (str "Error attempting to get var names for namespace [" ns-name "]") {} t))))))
 
 ;; we need to exclude clojure.parallel, as loading it causes an error if ForkJoin framework not present
 (def DEFAULT-EXCLUDES
