@@ -42,6 +42,6 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'script_doc.py')
     bld.install_files('${PREFIX}/include/script', 'script.h')
     if bld.env.PLATFORM == 'js-web':
-        bld.install_files('${PREFIX}/lib/js-web/js', '../lib/js/library_script.js')
+        bld.install_files('${PREFIX}/lib/js-web/js', '../lib/js/library_script.js', postpone = False)
 
     bld.add_subdirs('test')
