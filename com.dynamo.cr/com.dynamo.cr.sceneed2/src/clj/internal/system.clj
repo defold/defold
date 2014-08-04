@@ -3,13 +3,15 @@
             [com.stuartsierra.component :as component]
             [dynamo.project :as p]
             [dynamo.file :as file]
+            [dynamo.env :refer [with-project]]
             [internal.graph.dgraph :as dg]
+            [service.log :as log :refer [logging-exceptions]]
             [eclipse.resources :refer :all])
   (:import [org.eclipse.core.resources IProject IResource IFile]))
 
 (defprotocol ProjectLifecycle
-  (open-project [this project]  "Attach to the project and set up any internal state required.")
-  (close-project [this] "Dispose any resources held by the project and release it."))
+  (open-project [this project branch]  "Attach to the project and set up any internal state required.")
+  (close-project [this]                "Dispose any resources held by the project and release it."))
 
 (defn- clojure-source?
   [^IResource resource]
@@ -30,17 +32,19 @@
       this))
 
   ProjectLifecycle
-  (open-project [this eclipse-project]
+  (open-project [this eclipse-project branch]
     (when project-state
       (close-project this))
-    (let [project-state (ref (p/make-project eclipse-project tx-report-queue))]
-      (doseq [source (filter clojure-source? (resource-seq eclipse-project))]
-        (p/load-resource project-state (file/project-path project-state source)))
-      (assoc this :project-state project-state)))
+    (let [project-state (ref (p/make-project eclipse-project branch tx-report-queue))]
+      (with-project project-state
+        (doseq [source (filter clojure-source? (resource-seq eclipse-project))]
+          (p/load-resource project-state (file/project-path project-state source)))
+        (assoc this :project-state project-state))))
 
   (close-project [this]
     (when project-state
-      (p/dispose-project project-state)
+      (with-project project-state
+        (p/dispose-project project-state))
       (dissoc this :project-state))))
 
 (defn- project-subsystem
@@ -66,11 +70,15 @@
     {:project (:project-state tx-report)
      :value v}))
 
-(defn disposal-loop
+
+
+(defn- disposal-loop
   [in]
   (go-loop []
            (when-let [v (<! in)]
-             (.dispose (:value v))
+             (logging-exceptions "disposal-loop"
+               (with-project (:project v)
+                 (.dispose (:value v))))
              (recur))))
 
 (defn- disposal-subsystem
@@ -88,7 +96,9 @@
   [in]
   (go-loop []
            (when-let [{:keys [project-state node output]} (<! in)]
-             (p/get-resource-value project-state node output)
+             (logging-exceptions "refresh-loop"
+               (with-project project-state
+                 (p/get-resource-value project-state node output)))
              (recur))))
 
 (defn- refresh-subsystem
@@ -136,7 +146,7 @@
       :refresh  (refresh-subsystem  refresh)
       :editor   (component/using (editor) [:project :disposal :refresh])})))
 
-(def ^:private the-system (atom (system)))
+(def the-system (atom (system)))
 
 (defn start
   []
@@ -149,9 +159,5 @@
     (swap! the-system component/stop)))
 
 (defn attach-project
-  [project]
-  (swap! the-system update-in [:project] open-project project))
-
-(defn current-project
-  []
-  (get-in @the-system [:project :project-state]))
+  [project branch]
+  (swap! the-system update-in [:project] open-project project branch))

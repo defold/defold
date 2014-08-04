@@ -7,12 +7,12 @@
             [internal.graph.dgraph :as dg]
             [internal.graph.query :as q]
             [internal.java :as j]
+            [internal.clojure :as clojure]
+            [internal.cache :refer [make-cache]]
             [dynamo.types :as t]
             [dynamo.node :as node :refer [defnode]]
             [dynamo.file :as file]
             [dynamo.resource :refer [disposable?]]
-            [internal.clojure :as clojure]
-            [internal.cache :refer [make-cache]]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [eclipse.markers :as markers])
@@ -23,32 +23,23 @@
 
 (defn new-cache-key [] (.getAndIncrement nextkey))
 
-(def ^:dynamic *current-project* nil)
-
-(defmacro with-current-project
-  [& forms]
-  `(binding [dynamo.project/*current-project* (internal.system/current-project)]
-     (cond dynamo.project/*current-project*
-           (do
-             ~@forms))))
-
 (declare transact new-resource)
 
 (defn on-load-code
   [project-state resource input]
   (transact project-state
             (new-resource
-              (binding [*current-project* project-state]
-                (clojure/make-clojure-source-node :resource resource)))))
+              (clojure/make-clojure-source-node :resource resource))))
 
 (defn make-project
-  [eclipse-project tx-report-chan]
+  [eclipse-project branch tx-report-chan]
   {:loaders         {"clj" on-load-code}
    :graph           (dg/empty-graph)
    :cache-keys      {}
    :cache           (make-cache)
    :tx-report-chan  tx-report-chan
-   :eclipse-project eclipse-project})
+   :eclipse-project eclipse-project
+   :branch          branch})
 
 (defn dispose-project
   [project-state]
@@ -256,12 +247,6 @@
        {*ns*
         "Functions for performing transactional changes to a project and inspecting its current state."
 
-        #'*current-project*
-        "When used within a [[with-current-project]], contains a ref of the current project. Otherwise nil."
-
-        #'with-current-project
-        "Gives forms wrapped `with-current-project` access to *current-project*, a ref containing the current project state."
-
         #'perform
         "A multimethod used for defining methods that perform the individual actions within a
 transaction. This is for internal use, not intended to be extended by applications.
@@ -314,6 +299,7 @@ A clause may be one of the following forms:
 
 All the list forms look for symbols in the first position. Be sure to quote the list
 to distinguish it from a function call."
+
         #'transact
         "Execute a transaction to create a new project state. This takes in the current project state,
 modifies it according to the transaction steps in txs, and returns a transaction result.

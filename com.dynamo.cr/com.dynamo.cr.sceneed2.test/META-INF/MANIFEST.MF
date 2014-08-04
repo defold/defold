@@ -1,9 +1,9 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Tests for the new scene editor
-Bundle-SymbolicName: com.dynamo.cr.sceneed2.test;singleton:=true
+Bundle-SymbolicName: com.dynamo.cr.sceneed2.test
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Fragment-Host: com.dynamo.cr.sceneed2
-Require-Bundle: org.junit
+Require-Bundle: org.junit;bundle-version="4.8.2"

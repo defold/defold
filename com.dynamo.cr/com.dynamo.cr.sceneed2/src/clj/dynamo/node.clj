@@ -13,14 +13,14 @@
 (defn get-node [g id]
   (dg/node g id))
 
-(defn get-inputs [target-node g target-label]
+(defn get-inputs [target-node g target-label seed]
   (let [schema (get-in target-node [:inputs target-label])]
     (if (vector? schema)
       (map (fn [[source-node source-label]]
-             (get-value g (dg/node g source-node) source-label))
+             (get-value g (dg/node g source-node) source-label seed))
            (lg/sources g (:_id target-node) target-label))
       (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-        (get-value g (dg/node g first-source-node) first-source-label)))))
+        (get-value g (dg/node g first-source-node) first-source-label seed)))))
 
 (defn collect-inputs [node g input-schema seed]
   (reduce-kv
@@ -30,7 +30,7 @@
         :this      (assoc m k node)
         :project   m
         s/Keyword  m
-        (assoc m k (get-inputs node g k))))
+        (assoc m k (get-inputs node g k seed))))
     seed input-schema))
 
 (defn- perform [transform node g seed]
@@ -41,7 +41,7 @@
     (fn?         transform)  (transform node g)
     :else transform))
 
-(defn get-value [g node label & [seed]]
+(defn get-value [g node label seed]
   (perform (get-in node [:transforms label]) node g seed))
 
 (defn add-node [g node]

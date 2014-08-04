@@ -4,8 +4,10 @@
             [dynamo.resource :as resource]
             [dynamo.file :as file]
             [dynamo.node :refer [defnode]]
+            [dynamo.env :refer [*current-project*]]
             [plumbing.core :refer [defnk]]
-            [eclipse.markers :as markers])
+            [eclipse.markers :as markers]
+            [service.log :as log])
   (:import [org.eclipse.core.resources IFile]
            [clojure.lang LineNumberingPushbackReader]))
 
@@ -15,36 +17,20 @@
     (when (list? ns-decl)
       (remove-ns (second ns-decl)))))
 
-(defmacro within-ns
-  [ns & body]
-  `(let [old-ns# (ns-name *ns*)]
-     (try
-       (in-ns ~ns)
-       ~@body
-       (finally
-         (in-ns old-ns#)))))
-
-(defn- load-next [there rdr path name]
-  (try
-    (prn (var-get #'clojure.core/*ns*))
-    (within-ns there
-      (Compiler/load rdr path name))
-    (catch clojure.lang.Compiler$CompilerException compile-error
-      compile-error)))
-
 (defnk load-project-file
   [project this g]
   (let [source      (:resource this)
         ns-decl     (read-file-ns-decl source)
-        there       (if (= 'ns (first ns-decl)) (second ns-decl) 'user)
         source-file (file/eclipse-file source)]
     (markers/remove-markers source-file)
-    (let [rdr (LineNumberingPushbackReader. (io/reader source))]
-      (loop [res (load-next there rdr (file/local-path source) (.getName source-file))]
-        (when (instance? Throwable res)
-          (markers/compile-error source-file res)
-          (recur (load-next there rdr (file/local-path source) (.getName source-file))))))
-    (UnloadableNamespace. ns-decl)))
+    (try
+      (do
+        (binding [*current-project* project]
+          (Compiler/load (io/reader source) (file/local-path source) (.getName source-file))
+          (UnloadableNamespace. ns-decl)))
+      (catch clojure.lang.Compiler$CompilerException compile-error
+        (markers/compile-error source-file compile-error)
+        {:compile-error (.getMessage (.getCause compile-error))}))))
 
 (def
   ^{:doc "Behavior included in `ClojureSourceNode`."}

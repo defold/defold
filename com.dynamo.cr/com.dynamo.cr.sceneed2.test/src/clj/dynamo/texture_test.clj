@@ -1,21 +1,28 @@
 (ns dynamo.texture-test
   (:require [dynamo.texture :refer :all]
+            [dynamo.geom :refer :all]
+            [dynamo.image :refer :all]
+            [dynamo.types :refer [rect]]
+            [internal.texture.pack-max-rects :refer [max-rects-packing]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.test :refer :all])
-  (:import [dynamo.texture Rect]))
+            [clojure.test :refer :all]
+            [schema.test :refer [validate-schemas]])
+  (:import [dynamo.types Rect]))
 
-(def rects (gen/fmap (fn [[x y w h]] (Rect. "" x y w h))
+(use-fixtures :once validate-schemas)
+
+(def rects (gen/fmap (fn [[x y w h]] (rect x y w h))
                      (gen/tuple gen/int gen/int gen/s-pos-int gen/s-pos-int)))
 
-(def origin-rects (gen/fmap (fn [[src w h]] (Rect. src 0 0 w h))
+(def origin-rects (gen/fmap (fn [[src w h]] (rect src 0 0 w h))
                      (gen/tuple (gen/resize 10 gen/string-alpha-numeric) gen/s-pos-int gen/s-pos-int)))
 
 (def intersecting-rects
   (gen/bind rects
             #(gen/tuple (gen/return %)
-                        (gen/fmap (fn [[x y w h]] (Rect. "" x y w h))
+                        (gen/fmap (fn [[x y w h]] (rect x y w h))
                                   (gen/tuple gen/int gen/int
                                              (gen/resize (* 2 (.width %)) gen/s-pos-int)
                                              (gen/resize (* 2 (.height %)) gen/s-pos-int))))))
@@ -59,10 +66,10 @@
 (defn total-texture-area-fits [tex textures]
   (< (total-area textures) (area (:aabb tex))))
 
-(defspec texture-packing-invariants
- 100
+(defspec texture-packing-invariant
+ 200
  (prop/for-all [textures (gen/such-that not-empty (gen/resize 20 (gen/vector (gen/resize 128 origin-rects))))]
-               (let [tex (max-rects-pack textures)]
+               (let [tex (max-rects-packing textures)]
                  (or (= :packing-failed tex)
                      (and (packed-textures-fall-within-the-bounds-of-the-texturemap tex textures)
                           (texturemap-inclues-all-textures tex textures)

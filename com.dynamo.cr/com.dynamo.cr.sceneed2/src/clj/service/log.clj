@@ -60,3 +60,9 @@
        ~(log-expr &form 'debug (vector :spy (list 'quote expr)
                                        :value value'))
        ~value')))
+
+(defmacro logging-exceptions [where & body]
+  `(try
+     ~@body
+     (catch Throwable thrown#
+       (log/error :exception thrown# :from ~where))))

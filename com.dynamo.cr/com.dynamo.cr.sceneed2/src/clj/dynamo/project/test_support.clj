@@ -38,5 +38,5 @@
 
 (defn with-clean-project
   [f]
-  (binding [*test-project* (ref (p/make-project (fake-project) (->bitbucket)))]
+  (binding [*test-project* (ref (p/make-project (fake-project)  "test" (->bitbucket)))]
     (f)))

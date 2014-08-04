@@ -29,14 +29,17 @@
   (alter-path        [this f args]  (ProjectPath. project (apply f path args) ext))
 
   ProjectRelative
-  (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile project path)) ext))
-  (eclipse-file      [this] (.getFile project (local-path this)))
+  (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile (:eclipse-project project) path)) ext))
+  (eclipse-file      [this] (.getFile (:eclipse-project project) (local-path this)))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (eclipse-file this) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (io/make-output-stream (eclipse-file this) opts))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+
+  Object
+  (toString [this] (local-path this)))
 
 (alter-meta! #'->ProjectPath update-in [:doc] str "\n\n Takes a project, a string path, and a file extension.")
 
@@ -57,7 +60,7 @@
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   Object
-  (toString [this] (str path "." ext)))
+  (toString [this] (local-path this)))
 
 (alter-meta! #'->NativePath update-in [:doc] str "\n\n Takes a path and extension. See also [[in-build-directory]].")
 
@@ -67,19 +70,22 @@
 (defn project-path
   ([project-state]
     (let [eproj (:eclipse-project @project-state)]
-    	(ProjectPath. eproj (.toString (.removeFirstSegments (.getFullPath eproj) 1)) nil)))
+    	(ProjectPath. @project-state (.toString (.removeFirstSegments (.getFullPath eproj) 1)) nil)))
   ([project-state resource]
     (let [eproj (:eclipse-project @project-state)
           file  (cond
-                  (string? resource)         (.getFile eproj resource)
+                  (string? resource)         (.getFile eproj (str "content/" resource))
                   (instance? IFile resource) resource)
           pr (.removeFirstSegments (.getFullPath file) 1)]
-      (ProjectPath. eproj (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
+      (ProjectPath. @project-state (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
 
 (defn in-build-directory
   [^ProjectPath p]
-  (let [relative-to-build-dir (clojure.string/replace (.path p) "content" "build/default")
-        build-dir-native      (.removeLastSegments (.getLocation (.getFile (.project p) "content")) 1)]
+  (let [project               (.project p)
+        eclipse-project       (:eclipse-project project)
+        branch                (:branch project)
+        relative-to-build-dir (clojure.string/replace (.path p) "content" (str branch "/build/default"))
+        build-dir-native      (.removeLastSegments (.getLocation (.getFile eclipse-project "content")) 1)]
     (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (.ext p))))
 
 (defn- new-builder
@@ -113,13 +119,22 @@
                    (log/error :exception t :message (str "Cannot write output to " x)))))
              pipe))))
 
-(defn write-native-file
-  [^NativePath path contents]
+(defmulti write-native-file (fn [path _] (class path)))
+
+(defmethod write-native-file NativePath
+  [path contents]
   (with-open [out (io/output-stream (local-path path))]
-    (.write out contents))
-  [^ProjectPath path contents]
-  (with-open [out (io/output-stream (local-path (in-build-directory path)))]
     (.write out contents)))
+
+(defmethod write-native-file ProjectPath
+  [path contents]
+  (with-open [out (io/output-stream (local-path (in-build-directory path)))]
+    (.write out contents)
+    (.flush out)))
+
+(defn write-native-text-file
+  [path text]
+  (write-native-file path (.getBytes text)))
 
 (defn write-project-file
   [^ProjectPath path contents]
@@ -152,7 +167,8 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
         "Dynamically construct a protocol buffer builder, given a class as a variable."
 
         #'project-path
-        "given a project-state, returns a ProjectPath containing the path to the project's files."
+        "Given a project-state, returns a ProjectPath containing the path to the project's files.
+         The resource can be a string or an IFile."
 
         #'write-project-file
         "Write the given contents into the file at path."
@@ -198,7 +214,7 @@ dynamo.file.protobuf/protocol-buffer-converter macro.
 Create an implementation by adding something like this to your namespace:
 
     (defmethod message->node message-classname
-      [message-instance container container-target desired-output & {:as overrides}]
+      [message-instance container [container-target desired-output ...] & {:as overrides}]
       (,,,) ;; implementation
     )
 
@@ -211,9 +227,9 @@ for example) then you should call message->node recursively with the same resour
 and the child message.
 
 When container is set, it means this node should be connected to the container. In that case,
-container-target is the label to connect _to_ and desired-output is the label to connect
-from. It is an error for a container to ask for a desired-output that doesn't exist on the
-node being created by this function.
+the third argument is a collection of pairs. In each pair, container-target is the label to
+connect _to_ and desired-output is the label to connect _from_. It is an error for a container
+to ask for a desired-output that doesn't exist on the node being created by this function.
 
 Overrides is a map of additional properties to set on the new node.
 

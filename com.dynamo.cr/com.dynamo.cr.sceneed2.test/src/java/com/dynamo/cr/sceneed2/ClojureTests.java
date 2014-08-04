@@ -19,6 +19,8 @@ public class ClojureTests extends ClojureTest {
         ns.add("internal.node-test");
         ns.add("internal.value-test");
         ns.add("internal.graph.graph-test");
+        ns.add("dynamo.image-test");
+        ns.add("dynamo.geom-test");
 
         return ns;
     }

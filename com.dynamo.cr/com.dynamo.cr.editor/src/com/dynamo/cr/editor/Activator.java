@@ -468,7 +468,7 @@ IBranchListener {
         }
     }
 
-    public void connectToBranch(IProjectClient projectClient, String branch) throws RepositoryException {
+    public void connectToBranch(IProjectClient projectClient, final String branch) throws RepositoryException {
         this.projectClient = projectClient;
         URI uri = ClientUtils.getBranchUri(projectClient, branch);
         this.branchClient = projectClient.getClientFactory().getBranchClient(uri);
@@ -564,7 +564,7 @@ IBranchListener {
                         monitor.worked(1);
                         ClojureHelper.invoke("internal.system", "start");
                         monitor.worked(2);
-                        ClojureHelper.invoke("internal.system", "attach-project", p);
+                        ClojureHelper.invoke("internal.system", "attach-project", p, branch);
                         monitor.done();
                     } catch(Exception e) {
                         showError("Unable to start editor tools", e);

@@ -1,15 +1,73 @@
 (ns dynamo.types
-  (:require [schema.core :as s]))
+  (:require [schema.core :as s]
+            [schema.macros :as sm])
+  (:import [java.awt.image BufferedImage]
+           [java.nio ByteBuffer]
+           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]))
 
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
 
 (defn as-schema   [x] (with-meta x {:schema true}))
-(defn has-schema? [v] (and (fn? v) (:schema (meta v))))
+(defn has-schema? [v] (and (fn? (if (var? v) (var-get v) v)) (:schema (meta v))))
 
+(def Int32 (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon s/Str)
 (def NodeRef s/Int)
+
+(sm/defrecord Rect
+  [path     :- s/Any
+   x        :- Int32
+   y        :- Int32
+   width    :- Int32
+   height   :- Int32])
+
+(sm/defn ^:always-validate rect :- Rect
+  ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
+    (rect "" x y width height))
+  ([path :- s/Any x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
+    (Rect. path (int x) (int y) (int width) (int height))))
+
+(sm/defrecord Image
+  [path     :- s/Any
+   contents :- BufferedImage
+   width    :- Int32
+   height   :- Int32])
+
+(def AnimationPlayback (s/enum :PLAYBACK_NONE :PLAYBACK_ONCE_FORWARD :PLAYBACK_ONCE_BACKWARD
+                               :PLAYBACK_ONCE_PINGPONG :PLAYBACK_LOOP_FORWARD :PLAYBACK_LOOP_BACKWARD
+                               :PLAYBACK_LOOP_PINGPONG))
+
+(sm/defrecord Animation
+  [id              :- s/Str
+   images          :- [Image]
+   fps             :- Int32
+   flip-horizontal :- s/Bool
+   flip-vertical   :- s/Bool
+   playback        :- AnimationPlayback])
+
+(sm/defrecord TextureSet
+  [aabb         :- Rect
+   packed-image :- BufferedImage
+   coords       :- [Rect]
+   sources      :- [Rect]])
+
+(sm/defrecord Vertices
+  [counts   :- [Int32]
+   starts   :- [Int32]
+   vertices :- [s/Num]])
+
+(sm/defrecord EngineFormatTexture
+  [width           :- Int32
+   height          :- Int32
+   original-width  :- Int32
+   original-height :- Int32
+   format          :- Graphics$TextureImage$TextureFormat
+   data            :- ByteBuffer
+   mipmap-sizes    :- [Int32]
+   mipmap-offsets  :- [Int32]])
+
 
 (defn number               [& {:as opts}] (merge {:schema s/Num} opts))
 (defn string               [& {:as opts}] (merge {:schema s/Str :default ""} opts))
