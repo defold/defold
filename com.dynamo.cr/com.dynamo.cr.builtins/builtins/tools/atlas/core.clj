@@ -28,7 +28,7 @@
 ;; consider moving -> protocol-buffer-related place
 (defmacro set-if-present
   ([inst k props]
-    (set-if-present inst k props identity))
+    `(set-if-present ~inst ~k ~props identity))
   ([inst k props xform]
     (let [setter (symbol (->camelCase (str "set-" (name k))))]
       `(when-let [value# (get ~props ~k)]
@@ -109,7 +109,8 @@
 (defnode AtlasNode
   OutlineNode
   AtlasProperties
-  AtlasSave)
+  {:transforms {:save        #'save-atlas-file
+                :text-format #'get-text-format}})
 
 (protocol-buffer-converters
  AtlasProto$Atlas
