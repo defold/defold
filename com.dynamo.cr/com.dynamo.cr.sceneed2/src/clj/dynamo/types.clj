@@ -3,7 +3,8 @@
             [schema.macros :as sm])
   (:import [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
-           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]))
+           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
+           [com.dynamo.tile.proto Tile$Playback]))
 
 ; ----------------------------------------
 ; Functions to create basic value types
@@ -25,7 +26,7 @@
 
 (sm/defn ^:always-validate rect :- Rect
   ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
-    (rect "" x y width height))
+    (rect "" (int  x) (int y) (int width) (int height)))
   ([path :- s/Any x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
     (Rect. path (int x) (int y) (int width) (int height))))
 
@@ -45,13 +46,14 @@
    fps             :- Int32
    flip-horizontal :- s/Bool
    flip-vertical   :- s/Bool
-   playback        :- AnimationPlayback])
+   playback        :- Tile$Playback])
 
 (sm/defrecord TextureSet
   [aabb         :- Rect
    packed-image :- BufferedImage
    coords       :- [Rect]
-   sources      :- [Rect]])
+   sources      :- [Rect]
+   animations   :- [Animation]])
 
 (sm/defrecord Vertices
   [counts   :- [Int32]

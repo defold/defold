@@ -7,9 +7,14 @@
 
 (defn new-byte-buffer [& dims] (new-buffer (reduce * 1 dims)))
 
-
 (sm/defn byte-pack :- ByteString
   "Return a byte string from the given byte-buffer."
-  [buffer :- ByteBuffer]
-  (ByteString/copyFrom buffer))
+  ([buffer :- ByteBuffer]
+    (ByteString/copyFrom buffer))
+  ([buffer :- ByteBuffer & buffers :- [ByteBuffer]]
+    (let [cap (reduce + (.capacity buffer) (map #(.capacity %) buffers))
+          target (ByteBuffer/allocateDirect cap)]
+      (for [buf buffers]
+        (.put target buf))
+      (ByteString/copyFrom target))))
 

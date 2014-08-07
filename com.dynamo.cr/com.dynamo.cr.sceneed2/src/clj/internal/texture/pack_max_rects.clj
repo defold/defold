@@ -61,7 +61,8 @@
       (TextureSet. space-available
                    nil
                    placed
-                   sources))))
+                   sources
+                   []))))
 
 (sm/defn ^:private stepwise-doubling-sizes :- [Rect]
   [start :- s/Int]

@@ -56,7 +56,8 @@
 
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation]]
-  (pack-textures (:margin this) (:extrude-border this) (consolidate images animations)))
+  (-> (pack-textures (:margin this) (:extrude-border this) (consolidate images animations))
+    (assoc :animations animations)))
 
 (def AtlasProperties
   {:inputs     {:assets     [OutlineItem]
@@ -130,19 +131,6 @@
  AtlasProto$AtlasImage
  {:constructor #'atlas.core/make-image-node
   :basic-properties [:image]})
-
-(defn- build-animation
-  [anim]
-  (.build (doto (TextureSetProto$TextureSetAnimation/newBuilder)
-             (.setId        (:id anim))
-             (.setEnd       (:end anim))
-             (.setWidth     (:width anim))
-             (.setHeight    (:height anim))
-             (set-if-present :playback anim)
-             (set-if-present :fps anim)
-             (set-if-present :flip-horizontal anim)
-             (set-if-present :flip-vertical anim)
-             (set-if-present :is-animation anim))))
 
 (sm/defn ^:private put-floats! :- ByteBuffer
   [buf :- ByteBuffer fs :- [s/Num]]
@@ -229,30 +217,74 @@
         (put-vertex buf (- w2)    h2  0 (to-short-uv (* x0 xs)) (to-short-uv (* y0 ys)))))
     buf))
 
-(defn- build-animations
-  [animations]
-  (map build-animation animations))
+(defn build-animation
+  [anim begin]
+  #_(s/validate Animation anim)
+  (let [start     (int begin)
+        end       (int (+ begin (* 6 (count (:images anim)))))]
+    (.build
+      (doto (TextureSetProto$TextureSetAnimation/newBuilder)
+         (.setId        (:id anim))
+         (.setWidth     (int (:width  (first (:images anim)))))
+         (.setHeight    (int (:height (first (:images anim)))))
+         (.setStart     start)
+         (.setEnd       end)
+         (set-if-present :playback anim)
+         (set-if-present :fps anim)
+         (set-if-present :flip-horizontal anim)
+         (set-if-present :flip-vertical anim)
+         (set-if-present :is-animation anim)))))
 
-(defn- texturesetc-protocol-buffer
+(defn build-animations
+  [start-idx aseq]
+  (let [animations (remove #(empty? (:images %)) aseq)
+        starts (into [start-idx] (map #(+ start-idx (* 6 (count (:images %)))) animations))]
+    (map (fn [anim start] (build-animation anim start)) animations starts)))
+
+(defn add-vertices-to-animation
+  [xs ys bounds animation]
+  (assert (contains? animation :placements) "This animation has no :placements. Use `add-placements` first." )
+  (assoc animation :vertices (tex-coords xs ys bounds (:placements animation))))
+
+(defn extract-placements
+  [placement-index animation]
+  (map #(get placement-index (get-in % [:path :path])) (:images animation)))
+
+(defn index-placements-by-path
+  [placements]
+  (zipmap (map #(get-in % [:path :path]) placements) placements))
+
+(defn add-placements-to-animations
+  [placements animations]
+  (let [idx (index-placements-by-path placements)]
+    (map #(assoc % :placements (extract-placements idx %)) animations)))
+
+(defn texturesetc-protocol-buffer
   [texture-name textureset]
-  (s/validate TextureSet textureset)
+  #_(s/validate TextureSet textureset)
   (let [x-scale  (/ 1.0 (.getWidth (.packed-image textureset)))
         y-scale  (/ 1.0 (.getHeight (.packed-image textureset)))
         n-rects  (count (:coords textureset))
+        n-vertices (reduce + n-rects (map #(count (.images %)) (.animations textureset)))
+        anim-groups (->> (.animations textureset)
+                      (add-placements-to-animations (.coords textureset))
+                      (map #(add-vertices-to-animation x-scale y-scale (:aabb textureset) %)))
         integers (iterate (comp int inc) (int 0))]
     (.build (doto (TextureSetProto$TextureSet/newBuilder)
             (.setTexture               texture-name)
             (.setTexCoords             (byte-pack    (tex-coords x-scale y-scale (:aabb textureset) (:coords textureset))))
+            (.addAllAnimations         (build-animations (* 6 n-rects) anim-groups))
 
-            (.addAllVertexStart        (take n-rects (take-nth 6 integers)))
-            (.addAllVertexCount        (take n-rects (repeat (int 6))))
-            (.setVertices              (byte-pack    (tex-vertices x-scale y-scale (:aabb textureset) (:coords textureset))))
+            (.addAllVertexStart        (take n-vertices (take-nth 6 integers)))
+            (.addAllVertexCount        (take n-vertices (repeat (int 6))))
+            (.setVertices              (apply byte-pack
+                                         (tex-vertices x-scale y-scale (:aabb textureset) (:coords textureset))
+                                         (map :vertices anim-groups)))
 
             (.addAllOutlineVertexStart (take n-rects (take-nth 4 integers)))
             (.addAllOutlineVertexCount (take n-rects (repeat (int 4))))
             (.setOutlineVertices       (byte-pack    (tex-outline-vertices x-scale y-scale (:aabb textureset) (:coords textureset))))
 
-            #_(.addAllAnimations         (build-animations (:animations textureset)))
             (.setTileCount             (int 0))))))
 
 (defnk compile-texturesetc :- s/Bool
