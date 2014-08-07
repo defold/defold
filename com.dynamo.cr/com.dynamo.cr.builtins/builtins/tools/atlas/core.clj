@@ -241,6 +241,11 @@
         starts (into [start-idx] (map #(+ start-idx (* 6 (count (:images %)))) animations))]
     (map (fn [anim start] (build-animation anim start)) animations starts)))
 
+(defn add-outline-vertices-to-animation
+  [xs ys bounds animation]
+  (assert (contains? animation :placements) "This animation has no :placements. Use `add-placements` first." )
+  (assoc animation :outline-vertices (tex-outline-vertices xs ys bounds (:placements animation))))
+
 (defn add-vertices-to-animation
   [xs ys bounds animation]
   (assert (contains? animation :placements) "This animation has no :placements. Use `add-placements` first." )
@@ -268,7 +273,8 @@
         n-vertices (reduce + n-rects (map #(count (.images %)) (.animations textureset)))
         anim-groups (->> (.animations textureset)
                       (add-placements-to-animations (.coords textureset))
-                      (map #(add-vertices-to-animation x-scale y-scale (:aabb textureset) %)))
+                      (map #(add-vertices-to-animation         x-scale y-scale (:aabb textureset) %))
+                      (map #(add-outline-vertices-to-animation x-scale y-scale (:aabb textureset) %)))
         integers (iterate (comp int inc) (int 0))]
     (.build (doto (TextureSetProto$TextureSet/newBuilder)
             (.setTexture               texture-name)
@@ -281,9 +287,11 @@
                                          (tex-vertices x-scale y-scale (:aabb textureset) (:coords textureset))
                                          (map :vertices anim-groups)))
 
-            (.addAllOutlineVertexStart (take n-rects (take-nth 4 integers)))
-            (.addAllOutlineVertexCount (take n-rects (repeat (int 4))))
-            (.setOutlineVertices       (byte-pack    (tex-outline-vertices x-scale y-scale (:aabb textureset) (:coords textureset))))
+            (.addAllOutlineVertexStart (take n-vertices (take-nth 4 integers)))
+            (.addAllOutlineVertexCount (take n-vertices (repeat (int 4))))
+            (.setOutlineVertices       (apply byte-pack
+                                         (tex-outline-vertices x-scale y-scale (:aabb textureset) (:coords textureset))
+                                         (map :outline-vertices anim-groups)))
 
             (.setTileCount             (int 0))))))
 
