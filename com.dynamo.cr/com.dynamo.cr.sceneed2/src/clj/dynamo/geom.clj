@@ -57,12 +57,12 @@
 
 	      ;; right slice
 	      (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
-	        (conj! new-rects (Rect. ""
-	                                (+ (.x overlap) (.width overlap))
-	                                (.y overlap)
-	                                (- (+ (.x container) (.width container))
-	                                   (+ (.x overlap)   (.width overlap)))
-	                                (.height overlap)))))
+	        (conj! new-rects (rect ""
+                                (+ (.x overlap) (.width overlap))
+                                (.y overlap)
+                                (- (+ (.x container) (.width container))
+	                                  (+ (.x overlap)   (.width overlap)))
+                                (.height overlap)))))
       (conj! new-rects container))
     (persistent! new-rects)))
 

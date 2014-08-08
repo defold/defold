@@ -168,6 +168,28 @@
      (.putShort ~buf ~u)
      (.putShort ~buf ~v)))
 
+(sm/defn ^:private ->placement :- {}
+  [r :- Rect]
+  {:x0 (.x r)
+   :y0 (.y r)
+   :x1 (+ (.x r) (.width r))
+   :y1 (+ (.y r) (.height r))
+   :w2 (* (.width r) 0.5)
+   :h2 (* (.height r) 0.5)})
+
+(sm/defn put-vertices :- ByteBuffer
+  [buf :- ByteBuffer xs :- s/Num ys :- s/Num ps :- [Rect]]
+  (doseq [p ps]
+    (let [{:keys [x0 y0 x1 y1 w2 h2]} (->placement p)]
+      (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
+      (put-vertex buf    w2  (- h2) 0 (to-short-uv (* x1 xs)) (to-short-uv (* y1 ys)))
+      (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
+
+      (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
+      (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
+      (put-vertex buf (- w2)    h2  0 (to-short-uv (* x0 xs)) (to-short-uv (* y0 ys)))))
+  buf)
+
 (sm/defn ^:private tex-vertices :- ByteBuffer
   "Return a new byte-buffer with the texture vertices packed into it.
    Each vertex is packed as:
@@ -176,23 +198,24 @@
      z :- Float
      u :- Short
      v :- Short"
-  [xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect]]
-  (let [buf (new-byte-buffer (count placements) triangle-vertices-per-placement vertex-size)]
-    (doseq [p placements]
-      (let [x0 (.x p)
-            y0 (.y p)
-            x1 (+ (.x p) (.width p))
-            y1 (+ (.y p) (.height p))
-            w2 (* (.width p) 0.5)
-            h2 (* (.height p) 0.5)]
-        (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
-        (put-vertex buf    w2  (- h2) 0 (to-short-uv (* x1 xs)) (to-short-uv (* y1 ys)))
-        (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
+  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect]]
+    (let [buf (new-byte-buffer (count placements) triangle-vertices-per-placement vertex-size)]
+      (put-vertices buf xs ys placements)))
+  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect] x-placements :- [[Rect]]]
+    (let [pcount (reduce + (count placements ) (map count x-placements))
+          buf   (new-byte-buffer pcount triangle-vertices-per-placement vertex-size)
+          ps     (into placements (apply concat x-placements))]
+      (put-vertices buf xs ys ps))))
 
-        (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
-        (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
-        (put-vertex buf (- w2)    h2  0 (to-short-uv (* x0 xs)) (to-short-uv (* y0 ys)))))
-    buf))
+(sm/defn ^:private put-outline-vertices :- ByteBuffer
+  [buf :- ByteBuffer xs :- s/Num ys :- s/Num ps :- [Rect]]
+  (doseq [p ps]
+    (let [{:keys [x0 y0 x1 y1 w2 h2]} (->placement p)]
+      (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
+      (put-vertex buf    w2  (- h2) 0 (to-short-uv (* x1 xs)) (to-short-uv (* y1 ys)))
+      (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
+      (put-vertex buf (- w2)    h2  0 (to-short-uv (* x0 xs)) (to-short-uv (* y0 ys)))))
+  buf)
 
 (sm/defn ^:private tex-outline-vertices :- ByteBuffer
   "Return a new byte-buffer with the texture vertices packed into it.
@@ -202,20 +225,14 @@
      z :- Float
      u :- Short
      v :- Short"
-  [xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect]]
-  (let [buf (new-byte-buffer (count placements) outline-vertices-per-placement vertex-size)]
-    (doseq [p placements]
-      (let [x0 (.x p)
-            y0 (.y p)
-            x1 (+ (.x p) (.width p))
-            y1 (+ (.y p) (.height p))
-            w2 (* (.width p) 0.5)
-            h2 (* (.height p) 0.5)]
-        (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
-        (put-vertex buf    w2  (- h2) 0 (to-short-uv (* x1 xs)) (to-short-uv (* y1 ys)))
-        (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
-        (put-vertex buf (- w2)    h2  0 (to-short-uv (* x0 xs)) (to-short-uv (* y0 ys)))))
-    buf))
+  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect]]
+    (let [buf (new-byte-buffer (count placements) outline-vertices-per-placement vertex-size)]
+      (put-outline-vertices buf xs ys placements)))
+  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect] x-placements :- [[Rect]]]
+    (let [pcount (reduce + (count placements) (map count x-placements))
+          buf   (new-byte-buffer pcount triangle-vertices-per-placement vertex-size)
+          ps     (into placements (apply concat x-placements))]
+      (put-outline-vertices buf xs ys ps))))
 
 (defn build-animation
   [anim begin]
@@ -241,57 +258,50 @@
         starts (into [start-idx] (map #(+ start-idx (* 6 (count (:images %)))) animations))]
     (map (fn [anim start] (build-animation anim start)) animations starts)))
 
-(defn add-outline-vertices-to-animation
-  [xs ys bounds animation]
-  (assert (contains? animation :placements) "This animation has no :placements. Use `add-placements` first." )
-  (assoc animation :outline-vertices (tex-outline-vertices xs ys bounds (:placements animation))))
+(sm/defn extract-image-coords :- [Rect]
+  "Given an map of paths to coordinates and an animation,
+   return a seq of coordinates representing the images in that animation."
+  [coord-index :- {} animation :- Animation]
+  (map #(get coord-index (get-in % [:path :path])) (:images animation)))
 
-(defn add-vertices-to-animation
-  [xs ys bounds animation]
-  (assert (contains? animation :placements) "This animation has no :placements. Use `add-placements` first." )
-  (assoc animation :vertices (tex-coords xs ys bounds (:placements animation))))
+(sm/defn index-coords-by-path
+  "Given a list of coordinates, produce a map of path -> coordinates."
+  [coords :- [Rect]]
+  (zipmap (map #(get-in % [:path :path]) coords) coords))
 
-(defn extract-placements
-  [placement-index animation]
-  (map #(get placement-index (get-in % [:path :path])) (:images animation)))
-
-(defn index-placements-by-path
-  [placements]
-  (zipmap (map #(get-in % [:path :path]) placements) placements))
-
-(defn add-placements-to-animations
-  [placements animations]
-  (let [idx (index-placements-by-path placements)]
-    (map #(assoc % :placements (extract-placements idx %)) animations)))
+(sm/defn get-animation-image-coords :- [[Rect]]
+  "Given a set of Rect coordinates and a list of animations,
+   return a list of lists of coordinates for the images
+   in the animations."
+  [coords :- [Rect] animations :- [Animation]]
+  (let [idx (index-coords-by-path coords)]
+    (map #(extract-image-coords idx %) animations)))
 
 (defn texturesetc-protocol-buffer
   [texture-name textureset]
   #_(s/validate TextureSet textureset)
-  (let [x-scale  (/ 1.0 (.getWidth (.packed-image textureset)))
-        y-scale  (/ 1.0 (.getHeight (.packed-image textureset)))
-        n-rects  (count (:coords textureset))
-        n-vertices (reduce + n-rects (map #(count (.images %)) (.animations textureset)))
-        anim-groups (->> (.animations textureset)
-                      (add-placements-to-animations (.coords textureset))
-                      (map #(add-vertices-to-animation         x-scale y-scale (:aabb textureset) %))
-                      (map #(add-outline-vertices-to-animation x-scale y-scale (:aabb textureset) %)))
-        integers (iterate (comp int inc) (int 0))]
+  (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
+        y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
+        coords     (:coords textureset)
+        bounds     (:aabb textureset)
+        anims      (remove #(empty? (:images %)) (.animations textureset))
+        acoords    (get-animation-image-coords coords anims)
+        n-rects    (count coords)
+        n-vertices (reduce + n-rects (map #(count (.images %)) anims))
+        integers   (iterate (comp int inc) (int 0))]
+
     (.build (doto (TextureSetProto$TextureSet/newBuilder)
             (.setTexture               texture-name)
-            (.setTexCoords             (byte-pack    (tex-coords x-scale y-scale (:aabb textureset) (:coords textureset))))
-            (.addAllAnimations         (build-animations (* 6 n-rects) anim-groups))
+            (.setTexCoords             (byte-pack    (tex-coords x-scale y-scale bounds coords)))
+            (.addAllAnimations         (build-animations (* 6 n-rects) anims))
 
             (.addAllVertexStart        (take n-vertices (take-nth 6 integers)))
             (.addAllVertexCount        (take n-vertices (repeat (int 6))))
-            (.setVertices              (apply byte-pack
-                                         (tex-vertices x-scale y-scale (:aabb textureset) (:coords textureset))
-                                         (map :vertices anim-groups)))
+            (.setVertices              (byte-pack (tex-vertices x-scale y-scale bounds coords acoords)))
 
             (.addAllOutlineVertexStart (take n-vertices (take-nth 4 integers)))
             (.addAllOutlineVertexCount (take n-vertices (repeat (int 4))))
-            (.setOutlineVertices       (apply byte-pack
-                                         (tex-outline-vertices x-scale y-scale (:aabb textureset) (:coords textureset))
-                                         (map :outline-vertices anim-groups)))
+            (.setOutlineVertices       (byte-pack (tex-outline-vertices x-scale y-scale bounds coords acoords)))
 
             (.setTileCount             (int 0))))))
 
