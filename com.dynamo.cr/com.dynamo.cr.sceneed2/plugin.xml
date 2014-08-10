@@ -79,6 +79,10 @@
             id="com.dynamo.cr.clojure-nrepl.server-running"
             name="com.dynamo.cr.clojure-nrepl.server-running">
       </context>
+      <context
+            id="com.dynamo.cr.sceneed.ui.contexts.sceneEditor"
+            name="Scene Editor">
+      </context>
    </extension>
    <extension
          point="org.eclipse.ui.services">
@@ -93,7 +97,7 @@
    <extension
          point="org.eclipse.ui.editors">
       <editor
-            class="internal.ui.editors.AtlasEditor"
+            class="internal.ui.GenericEditor"
             default="false"
             extensions="atlas"
             icon="icons/images.png"

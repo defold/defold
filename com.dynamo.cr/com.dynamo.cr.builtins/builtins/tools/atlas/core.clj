@@ -8,15 +8,14 @@
             [dynamo.env :as e]
             [dynamo.geom :refer [to-short-uv]]
             [dynamo.node :refer :all]
+            [dynamo.scene-editor :refer [dynamic-scene-editor]]
             [dynamo.file :refer :all]
             [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
-            [dynamo.project :as p :refer [register-loader transact new-resource connect query]]
+            [dynamo.project :as p :refer [register-loader register-editor transact new-resource connect query]]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
             [dynamo.outline :refer :all]
-            [internal.graph.lgraph :as lg]
-            [internal.graph.dgraph :as dg]
             [service.log :as log :refer [logging-exceptions]]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
@@ -310,4 +309,5 @@
        (connect {:_id -1} :textureset compiler :textureset)])))
 
 (logging-exceptions
-  (register-loader (e/current-project) "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))
+  (register-loader (e/current-project) "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
+  (register-editor (e/current-project) "atlas" #'dynamic-scene-editor))
