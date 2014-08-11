@@ -13,8 +13,8 @@
 (defn as-schema   [x] (with-meta x {:schema true}))
 (defn has-schema? [v] (and (fn? (if (var? v) (var-get v) v)) (:schema (meta v))))
 
-(def Int32 (s/pred #(instance? java.lang.Integer %) 'int32?))
-(def Icon s/Str)
+(def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
+(def Icon    s/Str)
 (def NodeRef s/Int)
 
 (sm/defrecord Rect
