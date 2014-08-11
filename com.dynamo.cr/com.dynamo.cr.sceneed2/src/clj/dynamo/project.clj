@@ -33,7 +33,7 @@
 
 (defn make-project
   [eclipse-project branch tx-report-chan]
-  {:loaders         {"clj" on-load-code}
+  {:handlers        {:loaders {"clj" on-load-code}}
    :graph           (dg/empty-graph)
    :cache-keys      {}
    :cache           (make-cache)
@@ -47,16 +47,22 @@
         cached-vals (vals (:cache @project-state))]
     (onto-chan report-ch (filter disposable? cached-vals) false)))
 
-(defn register-loader
-  [project-state filetype loader]
-  (dosync (alter project-state assoc-in [:loaders filetype] loader)))
+(defn- handle
+  [project-state key filetype handler]
+  (dosync (alter project-state assoc-in [:handlers key filetype] handler)))
 
-(defn- loader-for
-  [project-state ext]
-  (let [lfs (:loaders @project-state)]
+(defn- handler
+  [project-state key ext]
+  (let [hs (get-in @project-state [:handlers key])]
     (or
-      (some (fn [[filetype lf]] (when (= filetype ext) lf)) lfs)
-      (fn [_ _ _] (throw (ex-info (str "No loader has been registered that can handle " ext) {}))))))
+      (some (fn [[filetype h]] (when (= filetype ext) h)) hs)
+      (fn [& _] (throw (ex-info (str "No " (name key) " has been registered that can handle " ext) {}))))))
+
+(defn register-loader [project-state filetype loader] (handle project-state :loaders filetype loader))
+(defn loader-for [project-state ext] (handler project-state :loaders ext))
+
+(defn register-editor [project-state filetype editor] (handle project-state :editors filetype editor))
+(defn editor-for [project-state ext] (handler project-state :editors ext))
 
 (defn load-resource
   [project-state path]

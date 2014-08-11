@@ -70,8 +70,6 @@
     {:project (:project-state tx-report)
      :value v}))
 
-
-
 (defn- disposal-loop
   [in]
   (go-loop []
@@ -147,6 +145,8 @@
       :editor   (component/using (editor) [:project :disposal :refresh])})))
 
 (def the-system (atom (system)))
+
+(defn project-state [] (get-in @the-system [:project :project-state]))
 
 (defn start
   []

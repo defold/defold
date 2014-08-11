@@ -1,10 +1,9 @@
 (ns internal.ui.editors
-  (:require [service.log :as log]
-            [service.registry :refer [registered]])
-  (:import [org.eclipse.ui PlatformUI]
-           [org.eclipse.ui.internal.registry FileEditorMapping]
-           [org.eclipse.swt.widgets Display])
-  (:use [clojure.pprint]))
+  (:require [dynamo.project :as p]
+            [dynamo.file :as f]
+            [internal.system :as sys]
+            [service.log :as log])
+  (:import  [org.eclipse.swt.widgets Display]))
 
 (defn swt-thread-safe*
   [f]
@@ -14,3 +13,12 @@
   [& body]
   `(swt-thread-safe* (fn [] (do ~@body))))
 
+(defn implementation-for
+  "Factory for values that implement the Editor protocol.
+   When called with an editor site and an input file, returns an
+   appropriate Editor value."
+  [site file]
+  ((p/editor-for
+     (sys/project-state)
+     (.. file getFullPath getFileExtension))
+    site file))
