@@ -34,8 +34,7 @@
 
         (on-load
          (fn [this]
-           (connect this :textureset (CompilerNode.) :texturesetc)))
-        )
+           (connect this :textureset (CompilerNode.) :texturesetc))))
 
   ;; in this version, each node type gets its own go-loop for
   ;; processing incoming events. (Possible event types are shown
@@ -45,9 +44,32 @@
   ;; the faceted behaviors we use today, plus an event-handling
   ;; function that runs a stateful go loop for each node.
   ;;
-  ;; we can handle a large number of nodes with go-loops because an
-  ;; idle loop does not consume a thread. it only requires some memory
-  ;; for the automatically generated state machine.
+  ;; the go loop should look something like this pseudocode:
+  ;;
+  ;; (go-loop []
+  ;;   (let [msg (<! sub-ch)]
+  ;;     (when msg
+  ;;       (let [nodeid (:node-id msg)
+  ;;             proj   (:project-state msg)
+  ;;             self   (lookup-node proj nodeid)
+  ;;             txn    (case (:event msg)
+  ;;                   'add-image   (do-add-image ...)
+  ;;                   'post-create (do-post-create ...))]
+  ;;         (transact proj txn)))))
+  ;;
+  ;; this means that processing a message results in a new transaction
+  ;; to be applied to the project state. while processing the message,
+  ;; the symbol 'self is bound to the node's current state. this makes
+  ;; expressions like 'attach' read more nicely.
+  ;;
+  ;; sub-ch is a subscription to a pub/sub bus. the dispatch function
+  ;; uses the node-id that the message addresses. thus, each node
+  ;; effectively subscribes to its own channel.
+  ;;
+  ;; we can handle a large number
+  ;; of nodes with go-loops because an idle loop does not consume a
+  ;; thread. it only requires some memory for the automatically
+  ;; generated state machine.
   (defnode Atlas
     (output 'textureset TextureSet
             [arglist]
