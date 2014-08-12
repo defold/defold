@@ -2220,7 +2220,7 @@ namespace dmGui
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 node_transform;
         Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
-        CalculateNodeTransform(scene, n, scale, true, true, true, &node_transform);
+        CalculateNodeTransform(scene, n, scale, true, true, true, &node_transform, 0x0);
         Vector4 p = node_transform * center;
         dmScript::PushVector3(L, Vector3(p.getX(), p.getY(), p.getZ()));
         return 1;

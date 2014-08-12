@@ -33,11 +33,12 @@ namespace dmScript
 {
 #define LIB_NAME "sys"
 
-    const uint32_t MAX_BUFFER_SIZE =  64 * 1024;
+    const uint32_t MAX_BUFFER_SIZE =  128 * 1024;
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
      * Use <code>sys.get_save_file</code> to obtain a valid location for the file.
+     * Internally, this function uses a workspace buffer sized output file sized 128kb. This size reflects the output file size which must not exceed this limit.
      *
      * @name sys.save
      * @param filename file to write to (string)
@@ -104,7 +105,8 @@ namespace dmScript
             return 1;
         }
         fread(buffer, 1, sizeof(buffer), file);
-        bool result = ferror(file) == 0 && feof(file) != 0;
+        bool file_size_ok = feof(file) != 0;
+        bool result = ferror(file) == 0 && file_size_ok;
         fclose(file);
         if (result)
         {
@@ -113,7 +115,10 @@ namespace dmScript
         }
         else
         {
-            return luaL_error(L, "Could not read from the file %s.", filename);
+            if(file_size_ok)
+                return luaL_error(L, "Could not read from the file %s.", filename);
+            else
+                return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
         }
     }
 

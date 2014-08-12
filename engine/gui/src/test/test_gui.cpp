@@ -92,7 +92,7 @@ public:
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
 
-    static void RenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+    static void RenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
     {
         dmGuiTest* self = (dmGuiTest*) context;
         // The node is defined to completely cover the local space (0,1),(0,1)
@@ -296,7 +296,7 @@ static void DynamicSetTextureData(dmGui::HScene scene, void* texture, uint32_t w
 {
 }
 
-static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*) context;
     for (uint32_t i = 0; i < node_count; ++i) {
@@ -2175,7 +2175,7 @@ TEST_F(dmGuiTest, ScriptPicking)
 }
 
 // This render function simply flags a provided boolean when called
-static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     if (node_count > 0)
     {
@@ -2246,7 +2246,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     ASSERT_FALSE(node->m_Node.m_Enabled);
 }
 
-static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     std::map<dmGui::HNode, uint16_t>* order = (std::map<dmGui::HNode, uint16_t>*)context;
     order->clear();
@@ -2404,7 +2404,7 @@ TEST_F(dmGuiTest, MoveNodesScript)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
-static void RenderNodesCount(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, uint32_t node_count, void* context)
+static void RenderNodesCount(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*)context;
     *count = node_count;
@@ -2616,7 +2616,7 @@ TEST_F(dmGuiTest, Parenting)
 }
 
 void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
-        uint32_t node_count, void* context)
+        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
     memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
@@ -2636,9 +2636,9 @@ void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const V
  *   - n2
  *
  * In three cases, the nodes have different pivots and positions, so that their render transforms will be identical:
- * - n1 center, n2 center
- * - n1 south-west, n2 center
- * - n1 west, n2 east
+ * - n1 center, n2 center, n3 center
+ * - n1 south-west, n2 center, n3 south-west
+ * - n1 west, n2 east, n3 west
  */
 TEST_F(dmGuiTest, HierarchicalTransforms)
 {
@@ -2647,27 +2647,95 @@ TEST_F(dmGuiTest, HierarchicalTransforms)
 
     dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
     dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    // parent first to second
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    // parent first to second, second to third
+    dmGui::SetNodeParent(m_Scene, n3, n2);
     dmGui::SetNodeParent(m_Scene, n2, n1);
 
-    Vectormath::Aos::Matrix4 transforms[2];
+    Vectormath::Aos::Matrix4 transforms[3];
 
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
     ASSERT_MAT4(transforms[0], transforms[1]);
+    ASSERT_MAT4(transforms[0], transforms[2]);
 
     dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_SW);
     dmGui::SetNodePosition(m_Scene, n2, Point3(size * 0.5f));
+    dmGui::SetNodePivot(m_Scene, n3, dmGui::PIVOT_SW);
+    dmGui::SetNodePosition(m_Scene, n3, Point3(-size * 0.5f));
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
     ASSERT_MAT4(transforms[0], transforms[1]);
+    ASSERT_MAT4(transforms[0], transforms[2]);
 
     dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_W);
     dmGui::SetNodePivot(m_Scene, n2, dmGui::PIVOT_E);
     dmGui::SetNodePosition(m_Scene, n2, Point3(size.getX(), 0.0f, 0.0f));
+    dmGui::SetNodePivot(m_Scene, n3, dmGui::PIVOT_W);
+    dmGui::SetNodePosition(m_Scene, n3, Point3(-size.getY(), 0.0f, 0.0f));
     dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
     ASSERT_MAT4(transforms[0], transforms[1]);
+    ASSERT_MAT4(transforms[0], transforms[2]);
 }
 
 #undef ASSERT_MAT4
+
+void RenderNodesStoreColor(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
+        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
+{
+    Vectormath::Aos::Vector4* out_colors = (Vectormath::Aos::Vector4*)context;
+    memcpy(out_colors, node_colors, sizeof(Vectormath::Aos::Vector4) * node_count);
+}
+
+/**
+ * Verify that the rendered colors are correct for a hierarchy:
+ * - n1
+ *   - n2
+ *     - n3
+ *       - n4
+ * - n5
+ *   - n6
+ *
+ */
+#define ASSERT_COLOR_EQ(expected, actual)\
+    ASSERT_EQ(expected.getX(), actual.getX());\
+    ASSERT_EQ(expected.getY(), actual.getY());\
+    ASSERT_EQ(expected.getZ(), actual.getZ());\
+    ASSERT_EQ(expected.getW(), actual.getW());
+
+TEST_F(dmGuiTest, HierarchicalColors)
+{
+    return;
+    Vector3 size(1, 1, 0);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n4 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n5 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    dmGui::HNode n6 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+
+    dmGui::SetNodeParent(m_Scene, n6, n5);
+    dmGui::SetNodeParent(m_Scene, n4, n3);
+    dmGui::SetNodeParent(m_Scene, n3, n2);
+    dmGui::SetNodeParent(m_Scene, n2, n1);
+
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+    dmGui::SetNodeProperty(m_Scene, n2, dmGui::PROPERTY_COLOR, Vector4(0.75f, 1.0f, 1.0f, 1.0f));
+    dmGui::SetNodeProperty(m_Scene, n3, dmGui::PROPERTY_COLOR, Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, n4, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.25f));
+    dmGui::SetNodeProperty(m_Scene, n5, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, n6, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    Vector4 colors[6];
+    dmGui::RenderScene(m_Scene, RenderNodesStoreColor, &colors);
+
+    ASSERT_COLOR_EQ(Vector4(1.000f, 1.000f, 1.000f, 1.000f), colors[0]);
+    ASSERT_COLOR_EQ(Vector4(0.750f, 1.000f, 1.000f, 1.000f), colors[1]);
+    ASSERT_COLOR_EQ(Vector4(0.375f, 0.500f, 0.500f, 0.500f), colors[2]);
+    ASSERT_COLOR_EQ(Vector4(0.375f, 0.500f, 0.500f, 0.125f), colors[3]);
+    ASSERT_COLOR_EQ(Vector4(1.000f, 1.000f, 1.000f, 0.500f), colors[4]);
+    ASSERT_COLOR_EQ(Vector4(1.000f, 1.000f, 1.000f, 0.500f), colors[5]);
+}
+
+#undef ASSERT_COLOR_EQ
 
 /**
  * Verify layer rendering order.
