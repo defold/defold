@@ -22,7 +22,7 @@ PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
-EMSCRIPTEN_VERSION_STR = "1.21.0"
+EMSCRIPTEN_VERSION_STR = "1.22.0"
 # The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
 EMSCRIPTEN_VERSION_STR_LINUX = "master"
 EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -251,6 +251,14 @@ class Configuration(object):
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
+    def _form_ems_path(self):
+        path = ''
+        if self.host == 'linux':
+            path = join(self.ext, EMSCRIPTEN_DIR_LINUX)
+        else:
+            path = join(self.ext, EMSCRIPTEN_DIR)
+        return path
+
     def install_ems(self):
         urls = {'darwin': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz',
                 'linux': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz',
@@ -267,6 +275,8 @@ class Configuration(object):
         sdk = self.get_ems_sdk_name()
         self.exec_env_command([exePath, 'install', sdk])
         self.activate_ems()
+
+        os.environ['EMSCRIPTEN'] = self._form_ems_path()
 
     def get_ems_sdk_name(self):
         sdk = EMSCRIPTEN_SDK_OSX
@@ -971,10 +981,7 @@ instructions.configure=\
             env['NOCOLOR'] = '1'
             env['GTEST_COLOR'] = 'no'
 
-        if self.host == 'linux':
-            env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR_LINUX)
-        else:
-            env['EMSCRIPTEN'] = join(self.ext, EMSCRIPTEN_DIR)
+        env['EMSCRIPTEN'] = self._form_ems_path()
 
         return env
 

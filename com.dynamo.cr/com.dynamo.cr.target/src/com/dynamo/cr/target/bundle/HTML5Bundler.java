@@ -37,6 +37,7 @@ public class HTML5Bundler {
     private String projectHtml;
     private String projectCss;
     private String js;
+    private String jsMemInit;
     private String title;
     private String version;
     private int customHeapSize;
@@ -157,6 +158,7 @@ public class HTML5Bundler {
      */
     public HTML5Bundler(ProjectProperties projectProperties, String js, String projectRoot, String contentRoot, String outputDir) {
         this.js = js;
+        this.jsMemInit = js + ".mem";
 
         this.projectHtml = projectProperties.getStringValue("jsweb", "htmlfile", null);
         if (this.projectHtml != null) {
@@ -209,8 +211,14 @@ public class HTML5Bundler {
         // Copy engine
         String jsFilename = String.format("%s.js", title);
         File jsOut = new File(appDir, jsFilename);
-        FileUtils.copyFile(new File(js), jsOut);
+        FileUtils.copyFile(new File(this.js), jsOut);
         monolithicFiles.add(new File(jsFilename));
+
+        // Memory initialisation file
+        File jsMemFile = new File(this.jsMemInit);
+        jsOut = new File(appDir, jsMemFile.getName());
+        FileUtils.copyFile(jsMemFile, jsOut);
+        monolithicFiles.add(new File(jsMemFile.getName()));
 
         createHtmlShell();
         createCss();
