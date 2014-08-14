@@ -148,6 +148,13 @@ def build(bld):
 
     bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0755)
 
+    if 'js-web' in bld.env['PLATFORM']:
+        srcPath = os.path.join('build', 'default', 'src')
+        builds = ['','_release', '_headless']
+        for build in builds:
+            filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
+            bld.install_files('${PREFIX}/bin/js-web', filePath)
+
 import Options
 def shutdown():
     # unit tests disabled on win32 for now
