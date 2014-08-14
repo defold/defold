@@ -386,7 +386,7 @@ in which a different version of these tools is used then call 'build.py activate
 As of 1.22.0, the emscripten tools emit separate *.js.mem memory initialisation files by default, rather than embedding this data directly into files.
 This is more efficient than storing this data as text within the javascript files, however it does add to a new set of files to include in the build process.
 Should you wish to manually update the contents of the editor's engine files (com.dynamo.cr.engine/engine/js-web) then remember to include these items in those
-that you copy. Build scripts have been updated to move these items to the expected location under **DYNAMO_HOME** (bin/js-web), as has the copy_dmengine.sh script.
+that you copy. Build scripts have been updated to move these items to the expected location under **DYNAMO\_HOME** (bin/js-web), as has the copy_dmengine.sh script.
 
 Hack to compile an engine with archive:
 
