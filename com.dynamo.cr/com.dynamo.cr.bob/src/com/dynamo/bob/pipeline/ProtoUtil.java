@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
+import com.dynamo.bob.fs.IResource;
 import com.google.protobuf.Message.Builder;
 import com.google.protobuf.TextFormat;
 

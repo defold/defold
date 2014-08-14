@@ -51,7 +51,7 @@ def apply_jarchive_file(self):
         error('archive_target not specified')
         return
 
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob.jar',
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar',
                  # NOTE: Only needed when running within resource-project.
                  # Should be fixed somehow... in configure perhaps?
                  'default/src/java']

@@ -500,6 +500,8 @@ namespace dmGameObject
      */
     struct ComponentGetPropertyParams
     {
+        /// Context for the component type
+        void* m_Context;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -518,6 +520,8 @@ namespace dmGameObject
      */
     struct ComponentSetPropertyParams
     {
+        /// Context for the component type
+        void* m_Context;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property

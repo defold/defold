@@ -2,9 +2,14 @@ package com.dynamo.bob;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,10 +20,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 
-import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+
+import com.dynamo.bob.fs.ClassLoaderMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.IFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.LibraryUtil;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -26,6 +40,8 @@ import org.apache.commons.io.FilenameUtils;
  *
  */
 public class Project {
+
+    public final static String LIB_DIR = ".internal/lib";
 
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
@@ -35,6 +51,7 @@ public class Project {
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
+    private List<URL> libUrls = new ArrayList<URL>();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -46,8 +63,12 @@ public class Project {
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
-        this.fileSystem.setRootDirectory(rootDirectory);
-        this.fileSystem.setBuildDirectory(buildDirectory);
+        this.fileSystem.setRootDirectory(this.rootDirectory);
+        this.fileSystem.setBuildDirectory(this.buildDirectory);
+    }
+
+    public void dispose() {
+        this.fileSystem.close();
     }
 
     public String getRootDirectory() {
@@ -56,6 +77,10 @@ public class Project {
 
     public String getBuildDirectory() {
         return buildDirectory;
+    }
+
+    public String getLibPath() {
+        return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
     }
 
     /**
@@ -205,6 +230,29 @@ public class Project {
             throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Mounts all the mount point associated with the project.
+     * @param resourceScanner scanner to use for finding resources in the java class path
+     * @throws IOException
+     * @throws CompileExceptionError
+     */
+    public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
+        this.fileSystem.clearMountPoints();
+        this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
+        List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(getLibPath(), this.libUrls);
+        boolean missingFiles = false;
+        for (File file : libFiles) {
+            if (file.exists()) {
+                this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, file.getAbsolutePath()));
+            } else {
+                missingFiles = true;
+            }
+        }
+        if (missingFiles) {
+            logWarning("Some libraries could not be found locally, use the resolve command to fetch them.");
         }
     }
 
@@ -405,6 +453,61 @@ run:
     }
 
     /**
+     * Set URLs of libraries to use.
+     * @param libUrls list of library URLs
+     * @throws IOException
+     */
+    public void setLibUrls(List<URL> libUrls) throws IOException {
+        this.libUrls = libUrls;
+    }
+
+    /**
+     * Resolve (i.e. download from server) the stored lib URLs.
+     * @throws IOException
+     */
+    public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
+        String libPath = getLibPath();
+        File libDir = new File(libPath);
+        // Clean lib dir first
+        FileUtils.deleteQuietly(libDir);
+        FileUtils.forceMkdir(libDir);
+        // Download libs
+        List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
+        int count = this.libUrls.size();
+        IProgress subProgress = progress.subProgress(count);
+        subProgress.beginTask("Download archives", count);
+        for (int i = 0; i < count; ++i) {
+            if (progress.isCanceled()) {
+                break;
+            }
+            URL url = libUrls.get(i);
+            URLConnection connection = url.openConnection();
+            connection.addRequestProperty("X-Email", this.options.get("email"));
+            connection.addRequestProperty("X-Auth", this.options.get("auth"));
+            InputStream input = null;
+            try {
+                input = new BufferedInputStream(connection.getInputStream());
+                File f = libFiles.get(i);
+                FileUtils.copyInputStreamToFile(input, f);
+                try {
+                    ZipFile zip = new ZipFile(f);
+                    zip.close();
+                } catch (ZipException e) {
+                    f.delete();
+                    throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                }
+            } catch (ConnectException e) {
+                throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
+            } catch (FileNotFoundException e) {
+                throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+            } finally {
+                IOUtils.closeQuietly(input);
+                subProgress.worked(1);
+            }
+        }
+    }
+
+    /**
      * Set option
      * @param key option key
      * @param value option value
@@ -427,72 +530,70 @@ run:
             return defaultValue;
     }
 
-    class Walker extends DirectoryWalker<String> {
+    class Walker extends FileSystemWalker {
 
         private Set<String> skipDirs;
-        private ArrayList<String> result;
 
         public Walker(Set<String> skipDirs) {
             this.skipDirs = skipDirs;
         }
 
-        public List<String> walk(String path) throws IOException {
-            path = normalizeNoEndSeparator(path, true);
-
-            result = new ArrayList<String>(1024);
-            walk(new File(path), result);
-            for (int i = 0; i < result.size(); ++i) {
-                String relPath = result.get(i).substring(rootDirectory.length()+1);
-                result.set(i, relPath);
-            }
-            return result;
-        }
-
         @Override
-        protected void handleFile(File file, int depth,
-                Collection<String> results) throws IOException {
-            String p = FilenameUtils.normalize(file.getPath(), true);
-
-            String ext = "." + FilenameUtils.getExtension(p);
-            Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
-            if (builderClass != null)
-                results.add(p);
-        }
-
-        @Override
-        protected boolean handleDirectory(File directory, int depth,
-                Collection<String> results) throws IOException {
-            String path = FilenameUtils.normalize(directory.getPath(), true);
-            for (String sd : skipDirs) {
-                if (path.endsWith(sd)) {
-                    return false;
+        public void handleFile(String path, Collection<String> results) {
+            String p = FilenameUtils.normalize(path, true);
+            boolean include = true;
+            if (skipDirs != null) {
+                for (String sd : skipDirs) {
+                    if (FilenameUtils.wildcardMatch(path, sd + "/*")) {
+                        include = false;
+                    }
                 }
             }
-            return super.handleDirectory(directory, depth, results);
+            if (include) {
+                String ext = "." + FilenameUtils.getExtension(p);
+                Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
+                if (builderClass != null)
+                    results.add(p);
+            }
         }
 
-        public List<String> getResult() {
-            return result;
+        @Override
+        public boolean handleDirectory(String path, Collection<String> results) {
+            path = FilenameUtils.normalize(path, true);
+            if (skipDirs != null) {
+                for (String sd : skipDirs) {
+                    if (FilenameUtils.wildcardMatch(path, sd + "/*")) {
+                        return false;
+                    }
+                }
+            }
+            return super.handleDirectory(path, results);
         }
     }
 
     /**
-     * Find source files
+     * Find source files under the root directory
      * @param path path to begin in. Absolute or relative to root-directory
      * @param skipDirs
      * @throws IOException
      */
     public void findSources(String path, Set<String> skipDirs) throws IOException {
-        if (!new File(path).isAbsolute()) {
-            path = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path));
+        if (new File(path).isAbsolute()) {
+            path = normalizeNoEndSeparator(path, true);
+            if (path.startsWith(rootDirectory)) {
+                path = path.substring(rootDirectory.length());
+            } else {
+                throw new FileNotFoundException(String.format("the source '%s' must be located under the root '%s'", path, rootDirectory));
+            }
         }
-        if (!new File(path).exists()) {
-            throw new FileNotFoundException(String.format("the path '%s' can not be found", path));
+        String absolutePath = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path), true);
+        if (!new File(absolutePath).exists()) {
+            throw new FileNotFoundException(String.format("the path '%s' can not be found under the root '%s'", path, rootDirectory));
         }
         Walker walker = new Walker(skipDirs);
-        walker.walk(path);
-        List<String> result = walker.getResult();
-        inputs = result;
+        List<String> results = new ArrayList<String>(1024);
+        fileSystem.walk(path, walker, results);
+        inputs = results;
     }
 
     public IResource getResource(String path) {

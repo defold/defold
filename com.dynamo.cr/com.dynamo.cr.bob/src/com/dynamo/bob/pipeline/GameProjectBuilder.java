@@ -12,10 +12,10 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.fs.IResource;
 
 /**
  * Game project and disk archive builder.

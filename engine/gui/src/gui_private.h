@@ -32,22 +32,50 @@ namespace dmGui
         MAX_SCRIPT_FUNCTION_COUNT
     };
 
+    template<typename T>
+    struct NodeTraversalCache
+    {
+        void SetCapacity(size_t capacity)
+        {
+            m_State.SetCapacity(capacity);
+            m_State.SetSize(capacity);
+            m_Data.SetCapacity(capacity);
+            m_Data.SetSize(capacity);
+        }
+
+        void Invalidate(size_t size)
+        {
+            memset(m_State.Begin(), 0x0, sizeof(State)*size);
+        }
+
+        struct State
+        {
+            uint8_t     m_Cached : 1;
+        };
+
+        dmArray<State>  m_State;
+        dmArray<T>      m_Data;
+    };
+
     struct Context
     {
-        lua_State*              m_LuaState;
-        GetURLCallback          m_GetURLCallback;
-        GetUserDataCallback     m_GetUserDataCallback;
-        ResolvePathCallback     m_ResolvePathCallback;
-        GetTextMetricsCallback  m_GetTextMetricsCallback;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
-        uint32_t                m_PhysicalWidth;
-        uint32_t                m_PhysicalHeight;
-        dmArray<HScene>         m_Scenes;
-        dmArray<HNode>          m_RenderNodes;
-        dmArray<Matrix4>        m_RenderTransforms;
-        dmHID::HContext         m_HidContext;
-        void*                   m_DefaultFont;
+        lua_State*                  m_LuaState;
+        GetURLCallback              m_GetURLCallback;
+        GetUserDataCallback         m_GetUserDataCallback;
+        ResolvePathCallback         m_ResolvePathCallback;
+        GetTextMetricsCallback      m_GetTextMetricsCallback;
+        NodeTraversalCache<Matrix4> m_NodeTraversalTransformCache;
+        NodeTraversalCache<Vector4> m_NodeTraversalColorCache;
+        uint32_t                    m_Width;
+        uint32_t                    m_Height;
+        uint32_t                    m_PhysicalWidth;
+        uint32_t                    m_PhysicalHeight;
+        dmArray<HScene>             m_Scenes;
+        dmArray<HNode>              m_RenderNodes;
+        dmArray<Matrix4>            m_RenderTransforms;
+        dmArray<Vector4>            m_RenderColors;
+        dmHID::HContext             m_HidContext;
+        void*                       m_DefaultFont;
     };
 
     struct Node
@@ -195,8 +223,19 @@ namespace dmGui
      * @param include_size If the size should be included in the transform
      * @param reset_pivot If the pivot should be ignored in the resulting transform
      * @param out_transform out-parameter to write the calculated transform to
+     * @param traversal_cache optional NodeTraversalCache for caching transform calculation results traversing hiearchies. If set to zero, no caching is performed.
      */
-    void CalculateNodeTransform(HScene scene, InternalNode* parent, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform);
+    void CalculateNodeTransform(HScene scene, InternalNode* parent, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform, NodeTraversalCache<Matrix4>* traversal_cache);
+
+    /** calculates the color of a node
+     * Computation of node color by hierarchical traversal of parents
+     *
+     * @param scene scene of the node
+     * @param node node for which to calculate the color
+     * @param out_color out-parameter to write the calculated color to
+     * @param traversal_cache optional Vector4 type NodeTraversalCache for caching color calculation results traversing hiearchies. If set to zero, no caching is performed.
+     */
+    void CalculateNodeColor(HScene scene, InternalNode* n, Vector4* out_color, NodeTraversalCache<Vector4>* traversal_cache);
 
     /** calculates the reference scale for a context
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.

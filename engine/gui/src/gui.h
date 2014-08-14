@@ -260,12 +260,14 @@ namespace dmGui
      * @param scene
      * @param nodes
      * @param node_transforms
+     * @param node_colors
      * @param node_count
      * @param context
      */
     typedef void (*RenderNodes)(HScene scene,
                                HNode* nodes,
                                const Vectormath::Aos::Matrix4* node_transforms,
+                               const Vectormath::Aos::Vector4* node_colors,
                                uint32_t node_count,
                                void* context);
 

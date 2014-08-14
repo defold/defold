@@ -72,13 +72,12 @@ public class UsersResource extends BaseResource {
     @PUT
     @Path("/{user}/connections/{user2}")
     @Transactional
-    public void connect(@PathParam("user") String user, @PathParam("user2") String user2) {
-        if (user.equals(user2)) {
+    public void connect(@PathParam("user2") String user2) {
+        User u = getUser();
+        User u2 = server.getUser(em, user2);
+        if (u.getId() == u2.getId()) {
             throw new ServerException("A user can not be connected to him/herself.", Response.Status.FORBIDDEN);
         }
-
-        User u = server.getUser(em, user);
-        User u2 = server.getUser(em, user2);
 
         u.getConnections().add(u2);
         em.persist(u);
@@ -86,8 +85,8 @@ public class UsersResource extends BaseResource {
 
     @GET
     @Path("/{user}/connections")
-    public UserInfoList getConnections(@PathParam("user") String user) {
-        User u = server.getUser(em, user);
+    public UserInfoList getConnections() {
+        User u = getUser();
 
         Set<User> connections = u.getConnections();
         UserInfoList.Builder b = UserInfoList.newBuilder();
@@ -131,7 +130,7 @@ public class UsersResource extends BaseResource {
         a.setCurrentCount(a.getCurrentCount() - 1);
         em.persist(a);
 
-        User u = server.getUser(em, user);
+        User u = getUser();
         String inviter = String.format("%s %s", u.getFirstName(), u.getLastName());
         server.invite(em, email, inviter, u.getEmail(), a.getOriginalCount());
 
@@ -149,9 +148,8 @@ public class UsersResource extends BaseResource {
     @POST
     @Path("/{user}/subscription")
     @Transactional
-    public UserSubscriptionInfo subscribe(@PathParam("user") String user,
-            @QueryParam("external_id") String externalId) {
-        User u = server.getUser(em, user);
+    public UserSubscriptionInfo subscribe(@QueryParam("external_id") String externalId) {
+        User u = getUser();
         UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
         if (us == null) {
             UserSubscription subscription = server.getBillingProvider().getSubscription(Long.parseLong(externalId));
@@ -174,8 +172,8 @@ public class UsersResource extends BaseResource {
     @GET
     @Path("/{user}/subscription")
     @Transactional
-    public UserSubscriptionInfo getSubscription(@PathParam("user") String user) {
-        User u = server.getUser(em, user);
+    public UserSubscriptionInfo getSubscription() {
+        User u = getUser();
         UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
         if (us != null) {
             return ResourceUtil.createUserSubscriptionInfo(us, server.getConfiguration());
@@ -203,9 +201,9 @@ public class UsersResource extends BaseResource {
     @Path("/{user}/subscription")
     @Transactional
     public UserSubscriptionInfo setSubscription(
-            @PathParam("user") String user, @QueryParam("product") String product, @QueryParam("state") String state,
+            @QueryParam("product") String product, @QueryParam("state") String state,
             @QueryParam("external_id") String externalId) {
-        User u = server.getUser(em, user);
+        User u = getUser();
         UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
         if (us != null) {
             int nonNull = 0;
@@ -266,8 +264,8 @@ public class UsersResource extends BaseResource {
     @DELETE
     @Path("/{user}/subscription")
     @Transactional
-    public void deleteSubscription(@PathParam("user") String user) {
-        User u = server.getUser(em, user);
+    public void deleteSubscription() {
+        User u = getUser();
         UserSubscription us = ModelUtil.findUserSubscriptionByUser(em, u);
         if (us != null) {
             if (us.getState() == State.CANCELED) {

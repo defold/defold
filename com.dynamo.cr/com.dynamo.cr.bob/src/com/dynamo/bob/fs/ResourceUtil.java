@@ -1,4 +1,4 @@
-package com.dynamo.bob;
+package com.dynamo.bob.fs;
 
 public class ResourceUtil {
 

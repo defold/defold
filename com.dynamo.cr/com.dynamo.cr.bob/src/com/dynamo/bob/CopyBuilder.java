@@ -2,6 +2,8 @@ package com.dynamo.bob;
 
 import java.io.IOException;
 
+import com.dynamo.bob.fs.IResource;
+
 /**
  * Copy builder. This class is abstract. Inherit from this class
  * and add appropriate {@link BuilderParams}

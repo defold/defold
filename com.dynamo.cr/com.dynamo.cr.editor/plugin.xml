@@ -135,6 +135,12 @@
                      value="rebuild">
                </parameter>
             </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.resolveLibs"
+                  icon="icons/plugin.png"
+                  label="Fetch Libraries"
+                  style="push">
+            </command>
          </menu>
       </menuContribution>
       <menuContribution
@@ -380,6 +386,13 @@
       <command
             id="com.dynamo.cr.editor.commands.newFolder"
             name="New Folder">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.ResolveLibsHandler"
+            description="Fetch Libraries"
+            id="com.dynamo.crepo.commands.resolveLibs"
+            name="Fetch Libraries">
       </command>
    </extension>
 
@@ -718,6 +731,19 @@
             </or>
          </enablement>
       </actionProvider>
+      <navigatorContent
+            contentProvider="com.dynamo.cr.editor.LibContentProvider"
+            icon="icons/plugin.png"
+            id="com.dynamo.cr.editor.LibContent"
+            labelProvider="com.dynamo.cr.editor.LibLabelProvider"
+            name="LibContent"
+            priority="highest">
+         <triggerPoints>
+            <instanceof
+                  value="org.eclipse.core.resources.IResource">
+            </instanceof>
+         </triggerPoints>
+      </navigatorContent>
    </extension>
    <extension
          point="org.eclipse.core.expressions.propertyTesters">
@@ -749,5 +775,16 @@
             id="com.dynamo.cr.editor.welcomeEditor"
             name="Welcome">
       </editor>
+   </extension>
+   <extension
+         point="org.eclipse.ui.navigator.viewer">
+      <viewerContentBinding
+            viewerId="org.eclipse.ui.navigator.ProjectExplorer">
+         <includes>
+            <contentExtension
+                  pattern="com.dynamo.cr.editor.LibContent">
+            </contentExtension>
+         </includes>
+      </viewerContentBinding>
    </extension>
 </plugin>

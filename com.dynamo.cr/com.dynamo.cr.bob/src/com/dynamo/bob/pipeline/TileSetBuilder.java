@@ -13,9 +13,9 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -53,9 +53,9 @@ public class TileSetBuilder extends Builder<Void>  {
             return taskBuilder.build();
         } else {
             if (!imgPath.isEmpty()) {
-                BuilderUtil.checkFile(this.project, input, "image", imgPath);
+                BuilderUtil.checkResource(this.project, input, "image", imgPath);
             } else if (!collisionPath.isEmpty()) {
-                BuilderUtil.checkFile(this.project, input, "collision", collisionPath);
+                BuilderUtil.checkResource(this.project, input, "collision", collisionPath);
             } else {
                 throw new CompileExceptionError(input, 0, Messages.TileSetBuilder_MISSING_IMAGE_AND_COLLISION);
             }

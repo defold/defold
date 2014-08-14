@@ -6,5 +6,6 @@ public interface IProgress {
     public void worked(int amount);
     public void beginTask(String name, int work);
     public void done();
+    boolean isCanceled();
 
 }

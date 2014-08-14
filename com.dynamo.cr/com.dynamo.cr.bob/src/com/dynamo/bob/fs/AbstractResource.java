@@ -1,4 +1,4 @@
-package com.dynamo.bob;
+package com.dynamo.bob.fs;
 
 import static org.apache.commons.io.FilenameUtils.concat;
 

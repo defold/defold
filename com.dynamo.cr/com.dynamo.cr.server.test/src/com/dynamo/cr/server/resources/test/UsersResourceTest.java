@@ -227,9 +227,13 @@ public class UsersResourceTest extends AbstractResourceTest {
         response = joeUsersWebResource.path(String.format("/%d/connections/%d", joeUser.getId(), joeUser.getId())).put(ClientResponse.class);
         assertEquals(403, response.getStatus());
 
-        // List other users connections (forbidden)
-        response = joeUsersWebResource.path(String.format("/%d/connections", bobUser.getId())).get(ClientResponse.class);
-        assertEquals(403, response.getStatus());
+        // List joes connections
+        // NOTE: UserId set to -1 (unused)
+        response = joeUsersWebResource.path(String.format("/%d/connections", -1)).get(ClientResponse.class);
+        assertEquals(200, response.getStatus());
+        UserInfoList userList = response.getEntity(UserInfoList.class);
+        assertEquals(1, userList.getUsersCount());
+        assertEquals(bobEmail, userList.getUsers(0).getEmail());
     }
 
     @Test

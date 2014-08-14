@@ -428,7 +428,7 @@ Task.simple_task_type('tileset', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob
 
 @extension(['.tileset', '.tilesource'])
 def tileset_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob.jar']
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     tileset = self.create_task('tileset')
     tileset.env['CLASSPATH'] = os.pathsep.join(classpath)
     tileset.set_inputs(node)

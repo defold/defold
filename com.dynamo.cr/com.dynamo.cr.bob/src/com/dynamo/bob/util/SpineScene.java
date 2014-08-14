@@ -270,9 +270,15 @@ public class SpineScene {
     }
 
     private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) {
-        int vertexCount = attNode.get("hull").asInt();
         Iterator<JsonNode> vertexIt = attNode.get("vertices").getElements();
         Iterator<JsonNode> uvIt = attNode.get("uvs").getElements();
+        int vertexCount = 0;
+        while (uvIt.hasNext()) {
+            uvIt.next();
+            uvIt.next();
+            ++vertexCount;
+        }
+        uvIt = attNode.get("uvs").getElements();
         mesh.vertices = new float[vertexCount * 5];
         mesh.boneIndices = new int[vertexCount * 4];
         mesh.boneWeights = new float[vertexCount * 4];

@@ -14,6 +14,7 @@ import com.dynamo.cr.web2.client.ui.BrowserWarningDialog;
 import com.dynamo.cr.web2.client.ui.EditableLabel;
 import com.dynamo.cr.web2.shared.ClientUtil;
 import com.dynamo.cr.web2.shared.ClientUtil.Browser;
+import com.dynamo.cr.web2.shared.Configuration;
 import com.google.gwt.activity.shared.ActivityManager;
 import com.google.gwt.activity.shared.ActivityMapper;
 import com.google.gwt.core.client.EntryPoint;
@@ -61,7 +62,7 @@ public class Defold implements EntryPoint {
 
     private EventBus eventBus;
 
-    private String url = "http://cr.defold.se:9998";
+    private String url = Configuration.url;
 
     private ClientFactory clientFactory;
 

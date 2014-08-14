@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
 
@@ -63,11 +64,9 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             HashMap<String, String> bobArgs = new HashMap<String, String>();
             bobArgs.put("build_disk_archive", "true");
 
-            String bobArgsEncoded = Base64.encodeBase64String(SerializationUtils.serialize(bobArgs));
-
             Map<String, String> args = new HashMap<String, String>();
             args.put("location", "local");
-            args.put("bobArgs", bobArgsEncoded);
+            BobUtil.putBobArgs(bobArgs, args);
             project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
         }
 

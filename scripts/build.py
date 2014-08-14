@@ -386,6 +386,12 @@ class Configuration(object):
         for p in glob(join(self.defold, 'go', 'bin', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
+    def archive_bob(self):
+        sha1 = self._git_sha1()
+        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
+        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
     def build_bob(self):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
@@ -393,16 +399,13 @@ class Configuration(object):
         self.exec_env_command("./scripts/copy_libtexc.sh",
                           cwd = cwd,
                           shell = True)
-
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self.exec_env_command("./scripts/copy_builtins_archive.sh",
                           cwd = cwd,
                           shell = True)
 
-    def archive_bob(self):
-        sha1 = self._git_sha1()
-        full_archive_path = join(self.archive_path, sha1, 'bob').replace('\\', '/')
-        for p in glob(join(self.dynamo_home, 'share', 'java', 'bob.jar')):
-            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+                          cwd = cwd,
+                          shell = True)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -909,7 +912,7 @@ Commands:
 distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
 build_engine    - Build engine
-archive_engine  - Archive engine to path specified with --archive-path
+archive_engine  - Archive engine (including builtins) to path specified with --archive-path
 build_go        - Build go code
 archive_go      - Archive go binaries
 test_cr         - Test editor and server

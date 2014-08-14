@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class CopyCustomResourcesBuilder extends Builder<Void> {
