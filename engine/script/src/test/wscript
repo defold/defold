@@ -5,7 +5,7 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
-    flist = 'cxx cprogram'
+    flist = 'cxx cprogram test'
     if bld.env['PLATFORM'] == 'js-web':
         flist = flist + ' web'
 

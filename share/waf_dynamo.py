@@ -942,6 +942,16 @@ def js_web_link_flags(self):
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
+@taskgen
+@before('apply_core')
+@feature('test')
+def test_flags(self):
+# When building tests for the web, we disable emission of emscripten js.mem init files,
+# as the assumption when these are loaded is that the cwd will contain these items.
+    if self.env['PLATFORM'] == 'js-web':
+        for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+            self.env.append_value(f, ['--memory-init-file', '0'])
+
 @feature('web')
 @after('apply_obj_vars')
 def js_web_web_link_flags(self):
