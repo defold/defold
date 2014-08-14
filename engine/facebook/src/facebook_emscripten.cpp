@@ -3,7 +3,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/json.h>
-#include <emscripten/emscripten.h>
 #include <script/script.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -47,6 +46,27 @@ struct Facebook
 };
 
 Facebook g_Facebook;
+
+typedef void (*OnAccessTokenCallback)(void *L, const char* access_token);
+typedef void (*OnPermissionsCallback)(void *L, const char* json_arr);
+typedef void (*OnMeCallback)(void *L, const char* json);
+typedef void (*OnShowDialogCallback)(void* L, const char* url, const char* error);
+typedef void (*OnLoginCallback)(void *L, int state, const char* error);
+typedef void (*OnRequestReadPermissionsCallback)(void *L, const char* error);
+typedef void (*OnRequestPublishPermissionsCallback)(void *L, const char* error);
+
+extern "C" {
+    // Implementation in library_facebook.js
+    void dmFacebookInitialize(const char* app_id);
+    void dmFacebookAccessToken(OnAccessTokenCallback callback, lua_State* L);
+    void dmFacebookPermissions(OnPermissionsCallback callback, lua_State* L);
+    void dmFacebookMe(OnMeCallback callback, lua_State* L);
+    void dmFacebookShowDialog(const char* params, const char* method, OnShowDialogCallback callback, lua_State* L);
+    void dmFacebookDoLogin(int state_open, int state_closed, int state_failed, OnLoginCallback callback, lua_State* L);
+    void dmFacebookDoLogout();
+    void dmFacebookRequestReadPermissions(const char* permissions, OnRequestReadPermissionsCallback callback, lua_State* L);
+    void dmFacebookRequestPublishPermissions(const char* permissions, int audience, OnRequestPublishPermissionsCallback callback, lua_State* L);
+}
 
 static void PushError(lua_State*L, const char* error)
 {
@@ -239,9 +259,6 @@ static int ToLua(lua_State*L, dmJson::Document* doc, int index)
     return index;
 }
 
-
-typedef void (*OnLoginCallback)(void *L, int state, const char* error);
-
 void OnLoginComplete(void* L, int state, const char* error)
 {
     dmLogDebug("FB login complete...(%d, %s)", state, error);
@@ -261,34 +278,7 @@ int Facebook_Login(lua_State* L)
     dmScript::GetInstance(L);
     g_Facebook.m_Self = luaL_ref(L, LUA_REGISTRYINDEX);
 
-    // https://developers.facebook.com/docs/reference/javascript/FB.login/v2.0
-    EM_ASM_ARGS({
-        var state_open    = $0;
-        var state_closed  = $1;
-        var state_failed  = $2;
-        var callback      = $3;
-        var lua_state     = $4;
-
-        try {
-            FB.login(function(response) {
-                var e = (response && response.error ? response.error.message : 0);
-                if (e == 0 && response.authResponse) {
-                    Runtime.dynCall('viii', callback, [lua_state, state_open, 0]);
-                } else if (e != 0) {
-                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('viii', callback, [lua_state, state_closed, buf]);
-                } else {
-                    // No authResponse. Below text is from facebook's own example of this case.
-                    e = 'User cancelled login or did not fully authorize.';
-                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('viii', callback, [lua_state, state_failed, buf]);
-                }
-            }, {scope: 'public_profile,user_friends'});
-        } catch (e){
-            console.error("Facebook login failed " + e);
-        }
-
-    }, STATE_OPEN, STATE_CLOSED, STATE_CLOSED_LOGIN_FAILED, (OnLoginCallback) OnLoginComplete, L);
+    dmFacebookDoLogin(STATE_OPEN, STATE_CLOSED, STATE_CLOSED_LOGIN_FAILED, (OnLoginCallback) OnLoginComplete, L);
 
     assert(top == lua_gettop(L));
     return 0;
@@ -299,17 +289,7 @@ int Facebook_Logout(lua_State* L)
     int top = lua_gettop(L);
     VerifyCallback(L);
 
-    // https://developers.facebook.com/docs/reference/javascript/FB.logout
-    EM_ASM({
-        try {
-            FB.logout(function(response) {
-                // user is now logged out
-            });
-        } catch (e){
-            console.error("Facebook logout failed " + e);
-        }
-
-    });
+    dmFacebookDoLogout();
 
     assert(top == lua_gettop(L));
     return 0;
@@ -333,8 +313,6 @@ void AppendArray(lua_State* L, char* buffer, uint32_t buffer_size, int idx)
 }
 
 
-typedef void (*OnRequestReadPermissionsCallback)(void *L, const char* error);
-
 void OnRequestReadPermissionsComplete(void* L, const char* error)
 {
     RunCallback((lua_State*)L, error);
@@ -356,38 +334,11 @@ int Facebook_RequestReadPermissions(lua_State* L)
     char permissions[512];
     AppendArray(L, permissions, 512, top-1);
 
-    // https://developers.facebook.com/docs/reference/javascript/FB.login/v2.0
-    // https://developers.facebook.com/docs/facebook-login/permissions/v2.0
-    EM_ASM_ARGS({
-        var permissions = $0;
-        var callback    = $1;
-        var lua_state   = $2;
+    dmFacebookRequestReadPermissions(permissions, (OnRequestReadPermissionsCallback) OnRequestReadPermissionsComplete, L);
 
-        try {
-            FB.login(function(response) {
-                var e = (response && response.error ? response.error.message : 0);
-                if (e == 0 && response.authResponse) {
-                    Runtime.dynCall('vii', callback, [lua_state, 0]);
-                } else if (e != 0) {
-                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('vii', callback, [lua_state, buf]);
-                } else {
-                    // No authResponse. Below text is from facebook's own example of this case.
-                    e = 'User cancelled login or did not fully authorize.';
-                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('vii', callback, [lua_state, buf]);
-                }
-            }, {scope: Pointer_stringify(permissions)});
-        } catch (e){
-            console.error("Facebook request read permissions failed " + e);
-        }
-
-    }, permissions, (OnRequestReadPermissionsCallback) OnRequestReadPermissionsComplete, L);
     assert(top == lua_gettop(L));
     return 0;
 }
-
-typedef void (*OnRequestPublishPermissionsCallback)(void *L, const char* error);
 
 void OnRequestPublishPermissionsComplete(void* L, const char* error)
 {
@@ -412,41 +363,12 @@ int Facebook_RequestPublishPermissions(lua_State* L)
     char permissions[512];
     AppendArray(L, permissions, 512, top-2);
 
-    // https://developers.facebook.com/docs/reference/javascript/FB.login/v2.0
-    // https://developers.facebook.com/docs/facebook-login/permissions/v2.0
-    EM_ASM_ARGS({
-        var permissions = $0;
-        var audience    = $1;
-        var callback    = $2;
-        var lua_state   = $3;
-
-        try {
-            FB.login(function(response) {
-                var e = (response && response.error ? response.error.message : 0);
-                if (e == 0 && response.authResponse) {
-                    Runtime.dynCall('vii', callback, [lua_state, 0]);
-                } else if (e != 0) {
-                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('vii', callback, [lua_state, buf]);
-                } else {
-                    // No authResponse. Below text is from facebook's own example of this case.
-                    e = 'User cancelled login or did not fully authorize.';
-                    var buf = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('vii', callback, [lua_state, buf]);
-                }
-            }, {scope: Pointer_stringify(permissions)});
-        } catch (e){
-            console.error("Facebook request publish permissions failed " + e);
-        }
-
-    }, permissions, audience, (OnRequestPublishPermissionsCallback) OnRequestPublishPermissionsComplete, L);
+    dmFacebookRequestPublishPermissions(permissions, audience, (OnRequestPublishPermissionsCallback) OnRequestPublishPermissionsComplete, L);
 
     assert(top == lua_gettop(L));
     return 0;
 }
 
-
-typedef void (*OnAccessTokenCallback)(void *L, const char* access_token);
 
 void OnAccessTokenComplete(void* L, const char* access_token)
 {
@@ -465,33 +387,11 @@ int Facebook_AccessToken(lua_State* L)
 {
     int top = lua_gettop(L);
 
-    // https://developers.facebook.com/docs/reference/javascript/FB.getAuthResponse/
-    EM_ASM_ARGS({
-        var callback = $0;
-        var lua_state = $1;
-
-        try {
-            var response = FB.getAuthResponse(); // Cached??
-            var access_token = (response && response.accessToken ? response.accessToken : 0);
-
-            if(access_token != 0) {
-                var buf = allocate(intArrayFromString(access_token), 'i8', ALLOC_STACK);
-                Runtime.dynCall('vii', callback, [lua_state, buf]);
-            } else {
-                Runtime.dynCall('vii', callback, [lua_state, 0]);
-            }
-        } catch (e){
-            console.error("Facebook access token failed " + e);
-        }
-
-    }, (OnAccessTokenCallback) OnAccessTokenComplete, L);
+    dmFacebookAccessToken( (OnAccessTokenCallback) OnAccessTokenComplete, L);
 
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
-
-
-typedef void (*OnPermissionsCallback)(void *L, const char* json_arr);
 
 void OnPermissionsComplete(void* L, const char* json_arr)
 {
@@ -521,45 +421,11 @@ int Facebook_Permissions(lua_State* L)
 {
     int top = lua_gettop(L);
 
-    https://developers.facebook.com/docs/graph-api/reference/v2.0/user/permissions
-    EM_ASM_ARGS({
-        var callback = $0;
-        var lua_state = $1;
-
-        try {
-            FB.api('/me/permissions', function (response) {
-                var e = (response && response.error ? response.error.message : 0);
-                if(e == 0 && response.data) {
-                    var permissions = [];
-                    for (var i=0; i<response.data.length; i++) {
-                        if(response.data[i].permission && response.data[i].status) {
-                            if(response.data[i].status === 'granted') {
-                                permissions.push(response.data[i].permission);
-                            } else if(response.data[i].status === 'declined') {
-                                // TODO: Handle declined permissions?
-                            }
-                        }
-                    }
-                    // Just make json of the acutal permissions (array)
-                    var permissions_data = JSON.stringify(permissions);
-                    var buf = allocate(intArrayFromString(permissions_data), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('vii', callback, [lua_state, buf]);
-                } else {
-                    Runtime.dynCall('vii', callback, [lua_state, 0]);
-                }
-            });
-        } catch (e){
-            console.error("Facebook permissions failed " + e);
-        }
-
-    }, (OnPermissionsCallback) OnPermissionsComplete, L);
+    dmFacebookPermissions((OnPermissionsCallback) OnPermissionsComplete, L);
 
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
-
-
-typedef void (*OnMeCallback)(void *L, const char* json);
 
 void OnMeComplete(void* L, const char* json)
 {
@@ -588,34 +454,14 @@ int Facebook_Me(lua_State* L)
 {
     int top = lua_gettop(L);
 
-    // https://developers.facebook.com/docs/graph-api/reference/v2.0/user/
-    EM_ASM_ARGS({
-        var callback = $0;
-        var lua_state = $1;
-
-        try {
-            FB.api('/me', function (response) {
-                var e = (response && response.error ? response.error.message : 0);
-                if(e == 0) {
-                    var me_data = JSON.stringify(response);
-                    var buf = allocate(intArrayFromString(me_data), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('vii', callback, [lua_state, buf]);
-                } else {
-                    // This follows the iOS implementation...
-                    Runtime.dynCall('vii', callback, [lua_state, 0]);
-                }
-            });
-        } catch (e){
-            console.error("Facebook me failed " + e);
-        }
-    }, (OnMeCallback) OnMeComplete, L);
+    dmFacebookMe((OnMeCallback) OnMeComplete, L);
 
     assert(top + 1 == lua_gettop(L));
     return 1;
 }
 
 
-typedef void (*OnShowDialogCallback)(void* L, const char* url, const char* error);
+
 
 void OnShowDialogComplete(void* L, const char* url, const char* error)
 {
@@ -654,46 +500,7 @@ int Facebook_ShowDialog(lua_State* L)
     }
     dmStrlCat(params_json, "}", sizeof(params_json));
 
-    // https://developers.facebook.com/docs/javascript/reference/FB.ui
-    EM_ASM_ARGS({
-        var params    = $0;
-        var mth       = $1;
-        var callback  = $2;
-        var lua_state = $3;
-
-        var par = JSON.parse(Pointer_stringify(params));
-        par.method = Pointer_stringify(mth);
-
-        try {
-            FB.ui(par, function(response) {
-                // https://developers.facebook.com/docs/graph-api/using-graph-api/v2.0
-                //   (Section 'Handling Errors')
-                var e = (response && response.error ? response.error.message : 0);
-                if(e == 0) {
-                    // TODO: UTF8?
-                    // Matches iOS
-                    var result = 'fbconnect://success?';
-                    for (var key in response) {
-                        if(response.hasOwnProperty(key)) {
-                            result += key + '=' + encodeURIComponent(response[key]) + '&';
-                        }
-                    }
-                    if(result[result.length-1] === '&') {
-                        result.slice(0, -1);
-                    }
-                    var url = allocate(intArrayFromString(result), 'i8', ALLOC_STACK);
-                    Runtime.dynCall('viii', callback, [lua_state, url, e]);
-                } else {
-                    var error = allocate(intArrayFromString(e), 'i8', ALLOC_STACK);
-                    var url = 0;
-                    Runtime.dynCall('viii', callback, [lua_state, url, error]);
-                }
-            });
-        } catch (e){
-            console.error("Facebook show dialog failed " + e);
-        }
-
-    }, params_json, dialog, (OnShowDialogCallback) OnShowDialogComplete, L);
+    dmFacebookShowDialog(params_json, dialog, (OnShowDialogCallback) OnShowDialogComplete, L);
 
     assert(top == lua_gettop(L));
     return 0;
@@ -721,23 +528,7 @@ dmExtension::Result InitializeFacebook(dmExtension::Params* params)
         // Better solution?
         g_Facebook.m_appId = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", "355198514515820");
 
-        // We assume that the Facebook javascript SDK is loaded by now.
-        // This should be done via a script tag (synchronously) in the html page:
-        // <script type="text/javascript" src="//connect/facebook.net/en_US/sdk.js"></script>
-        // This script tag MUST be located before the engine (game) js script tag.
-        EM_ASM_ARGS({
-            var app_id = $0;
-            try {
-                FB.init({
-                    appId      : Pointer_stringify(app_id),
-                    status     : false,
-                    xfbml      : false,
-                    version    : 'v2.0',
-                });
-            } catch (e){
-                console.error("Facebook initialize failed " + e);
-            }
-        }, g_Facebook.m_appId);
+        dmFacebookInitialize(g_Facebook.m_appId);
 
         dmLogDebug("FB initialized.");
 
