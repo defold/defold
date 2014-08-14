@@ -140,8 +140,14 @@
         },
 
         attemptLaunch: function() {
-            if (this.remainingDependencies == 0 && Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
-                Module['callMain']();
+            if (this.remainingDependencies == 0) {
+            	if ( Module['preRunTasksCompleted'] == Module['preRunTasks'].length) {
+                	Module['callMain']();
+                } else if (0 < Module['preRun'].length) {
+                	// If all dependencies are resolved but the preRun tasks haven't executed
+                	// then we should invoke run.
+                	Module['run']();
+                }
             }
         },
 
