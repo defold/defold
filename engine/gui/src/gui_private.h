@@ -32,29 +32,40 @@ namespace dmGui
         MAX_SCRIPT_FUNCTION_COUNT
     };
 
-    template<typename T>
+    enum CalculateNodeTransformFlags
+    {
+        CALCULATE_NODE_BOUNDARY     = (1<<0),   // calculates the boundary transform (if omitted, use the render transform)
+        CALCULATE_NODE_INCLUDE_SIZE = (1<<1),   // include size in the resulting transform
+        CALCULATE_NODE_RESET_PIVOT  = (1<<2)    // ignore pivot in the resulting transform
+    };
+
     struct NodeTraversalCache
     {
+        NodeTraversalCache() : m_CacheIndex(1) {}
+
         void SetCapacity(size_t capacity)
         {
-            m_State.SetCapacity(capacity);
-            m_State.SetSize(capacity);
+            size_t prev_capacity = m_Data.Capacity();
             m_Data.SetCapacity(capacity);
             m_Data.SetSize(capacity);
+            for(size_t i = prev_capacity; i < capacity; ++i)
+                m_Data[i].m_CacheIndex = m_CacheIndex;
         }
 
-        void Invalidate(size_t size)
+        void Invalidate()
         {
-            memset(m_State.Begin(), 0x0, sizeof(State)*size);
+            ++m_CacheIndex;
         }
 
-        struct State
+        struct Data
         {
-            uint8_t     m_Cached : 1;
+            Matrix4 m_Transform;
+            Vector4 m_Color;
+            uint32_t m_CacheIndex : 1;
         };
 
-        dmArray<State>  m_State;
-        dmArray<T>      m_Data;
+        uint32_t m_CacheIndex : 1;
+        dmArray<Data>   m_Data;
     };
 
     struct Context
@@ -64,8 +75,7 @@ namespace dmGui
         GetUserDataCallback         m_GetUserDataCallback;
         ResolvePathCallback         m_ResolvePathCallback;
         GetTextMetricsCallback      m_GetTextMetricsCallback;
-        NodeTraversalCache<Matrix4> m_NodeTraversalTransformCache;
-        NodeTraversalCache<Vector4> m_NodeTraversalColorCache;
+        NodeTraversalCache          m_NodeTraversalCache;
         uint32_t                    m_Width;
         uint32_t                    m_Height;
         uint32_t                    m_PhysicalWidth;
@@ -211,7 +221,7 @@ namespace dmGui
 
     /** calculates the transform of a node
      * A boundary transform maps the local rectangle (0,1),(0,1) to screen space such that it inclusively encapsulates the node boundaries in screen space.
-     * Box nodes are rendered in boundary space (quad with dimensions (0,1),(0,1)), so the same transform is calculated whether or not the boundary-flag is set.
+     * Box nodes are rendered in boundary space (quad with dimensions (0,1),(0,1)), so the same transform is calculated whether or not the CALCULATE_NODE_BOUNDARY flag is set.
      * Text nodes are rendered in a transform where the origin is located at the left edge of the base line, excluding the text size, since it's implicitly spanned by glyph quads.
      * Their boundary transform is analogue to the box boundary transform.
      * This is complicated and could be simplified by supporting different pivots when rendering text.
@@ -219,23 +229,10 @@ namespace dmGui
      * @param scene scene of the node
      * @param node node for which to calculate the transform
      * @param reference_scale the reference scale of the scene which is the ratio between physical and reference dimensions
-     * @param boundary true calculates the boundary transform, false calculates the render transform
-     * @param include_size If the size should be included in the transform
-     * @param reset_pivot If the pivot should be ignored in the resulting transform
+     * @param flags CalculateNodeTransformFlags enumerated behaviour flags
      * @param out_transform out-parameter to write the calculated transform to
-     * @param traversal_cache optional NodeTraversalCache for caching transform calculation results traversing hiearchies. If set to zero, no caching is performed.
      */
-    void CalculateNodeTransform(HScene scene, InternalNode* parent, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform, NodeTraversalCache<Matrix4>* traversal_cache);
-
-    /** calculates the color of a node
-     * Computation of node color by hierarchical traversal of parents
-     *
-     * @param scene scene of the node
-     * @param node node for which to calculate the color
-     * @param out_color out-parameter to write the calculated color to
-     * @param traversal_cache optional Vector4 type NodeTraversalCache for caching color calculation results traversing hiearchies. If set to zero, no caching is performed.
-     */
-    void CalculateNodeColor(HScene scene, InternalNode* n, Vector4* out_color, NodeTraversalCache<Vector4>* traversal_cache);
+    void CalculateNodeTransform(HScene scene, InternalNode* node, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform);
 
     /** calculates the reference scale for a context
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.
