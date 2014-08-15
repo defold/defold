@@ -41,7 +41,12 @@ namespace dmGui
 
     struct NodeTraversalCache
     {
-        NodeTraversalCache() : m_CacheIndex(1) {}
+        NodeTraversalCache() : m_NodeIndex(0), m_CacheIndex(0) {}
+
+        size_t Capacity()
+        {
+            return m_Data.Capacity();
+        }
 
         void SetCapacity(size_t capacity)
         {
@@ -54,18 +59,27 @@ namespace dmGui
 
         void Invalidate()
         {
+            m_NodeIndex = 0;
             ++m_CacheIndex;
+        }
+
+        uint16_t PopNodeIndex()
+        {
+            return m_NodeIndex++;
         }
 
         struct Data
         {
-            Matrix4 m_Transform;
-            Vector4 m_Color;
-            uint32_t m_CacheIndex : 1;
+            Matrix4     m_Transform;
+            Vector4     m_Color;
+            uint32_t    m_CacheIndex : 1;
+            uint32_t    m_Padding : 31;
         };
 
-        uint32_t m_CacheIndex : 1;
         dmArray<Data>   m_Data;
+        uint16_t        m_NodeIndex;
+        uint32_t        m_CacheIndex : 1;
+        uint32_t        m_Padding : 31;
     };
 
     struct Context
@@ -75,7 +89,6 @@ namespace dmGui
         GetUserDataCallback         m_GetUserDataCallback;
         ResolvePathCallback         m_ResolvePathCallback;
         GetTextMetricsCallback      m_GetTextMetricsCallback;
-        NodeTraversalCache          m_NodeTraversalCache;
         uint32_t                    m_Width;
         uint32_t                    m_Height;
         uint32_t                    m_PhysicalWidth;
@@ -136,6 +149,7 @@ namespace dmGui
         uint16_t        m_ChildHead;
         uint16_t        m_ChildTail;
         uint16_t        m_RenderKey;
+        uint16_t        m_TraversalCacheIndex;
         uint16_t        m_Deleted : 1; // Set to true for deferred deletion
         uint16_t        m_Padding : 15;
     };
@@ -201,6 +215,7 @@ namespace dmGui
         Script*                 m_Script;
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
+        NodeTraversalCache      m_NodeTraversalCache;
         dmArray<Animation>      m_Animations;
         dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
