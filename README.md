@@ -386,11 +386,26 @@ in which a different version of these tools is used then call 'build.py activate
 As of 1.22.0, the emscripten tools emit separate *.js.mem memory initialisation files by default, rather than embedding this data directly into files.
 This is more efficient than storing this data as text within the javascript files, however it does add to a new set of files to include in the build process.
 Should you wish to manually update the contents of the editor's engine files (com.dynamo.cr.engine/engine/js-web) then remember to include these items in those
-that you copy. Build scripts have been updated to move these items to the expected location under **DYNAMO\_HOME** (bin/js-web), as has the copy_dmengine.sh script.
+that you copy. Build scripts have been updated to move these items to the expected location under *DYNAMO HOME* (bin/js-web), as has the copy_dmengine.sh script.
+
+### Running Headless Builds
+
+In order to run headless builds of the engine, take the following steps:
+
+* Ensure that you have installed the [xhr2 node module](https://www.npmjs.org/package/xhr2)
+* Select or create a folder in which to run your test
+* Copy dmengine_headless.js, dmengine_headless.js.mem, game.darc and game.projectc into your folder
+* Run dmengine_headless.js with node.js
+
+Since game.darc and game.projectc are not platform specific, you may copy these from any project bundle built with the same engine version that you wish to
+test against.
+
+When running headless builds, you may also find it useful to install [node-inspector](https://github.com/node-inspector/node-inspector). Note that it operates on
+port 8080 by default, so either close your Defold tools or change this port when running such builds.
 
 Hack to compile an engine with archive:
 
-    /Users/chmu/local/emscripten/em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc
+    em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc
 
 To get working keyboard support (until our own glfw is used or glfw is gone):
 - In ~/local/emscripten/src/library\_glfw.js, on row after glfwLoadTextureImage2D: ..., add:

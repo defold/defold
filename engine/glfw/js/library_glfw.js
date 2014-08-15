@@ -116,6 +116,18 @@ var LibraryGLFW = {
       return output;
     },
 
+    addEventListener: function(type, listener, useCapture) {
+        if (typeof window !== 'undefined') {
+            window.addEventListener(type, listener, useCapture);
+        }
+    },
+
+    removeEventListener: function(type, listener, useCapture) {
+        if (typeof window !== 'undefined') {
+            window.removeEventListener(type, listener, useCapture);
+        }
+    },
+
     onKeyPress: function(event) {
       // charCode is only available whith onKeyPress event
       var char = GLFW.getUnicodeChar(event.charCode);
@@ -312,35 +324,37 @@ var LibraryGLFW = {
       CFS.apply(document, []);
     },
 
-    web_resize_screen_to_aspect_ratio: function() {
-      var canvas = document.getElementById('canvas');
-      var x = canvas.width;
-      var y = canvas.height;
-      // The total screen size in device pixels in integers.
-      var screenWidth = Math.round(window.innerWidth*window.devicePixelRatio);
-      var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
-      // Compute (w,h) that will be the target CSS pixel size of the canvas.
-      var w = screenWidth;
-      var h = screenHeight;
-      // Make sure aspect ratio remains after the resize
-      if (w*y < x*h) {
-        h = (w * y / x) | 0;
-      } else if (w*y > x*h) {
-        w = (h * x / y) | 0;
-      }
-      var topMargin = ((screenHeight - h) / 2) | 0;
-      // Back to CSS pixels.
-      topMargin /= window.devicePixelRatio;
-      w /= window.devicePixelRatio;
-      h /= window.devicePixelRatio;
-      // Round to nearest 6 digits of precision.
-      w = Math.round(w*1000000)/1000000;
-      h = Math.round(h*1000000)/1000000;
-      topMargin = Math.round(topMargin*1000000)/1000000;
-      var canvas = document.getElementById('canvas');
-      canvas.style.width = w + 'px';
-      canvas.style.height = h + 'px';
-      Module['canvas'].style.marginTop = topMargin + 'px';
+    webResizeScreenToAspectRatio: function() {
+        if (typeof window != 'undefined') {
+          var canvas = document.getElementById('canvas');
+          var x = canvas.width;
+          var y = canvas.height;
+          // The total screen size in device pixels in integers.
+          var screenWidth = Math.round(window.innerWidth*window.devicePixelRatio);
+          var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
+          // Compute (w,h) that will be the target CSS pixel size of the canvas.
+          var w = screenWidth;
+          var h = screenHeight;
+          // Make sure aspect ratio remains after the resize
+          if (w*y < x*h) {
+            h = (w * y / x) | 0;
+          } else if (w*y > x*h) {
+            w = (h * x / y) | 0;
+          }
+          var topMargin = ((screenHeight - h) / 2) | 0;
+          // Back to CSS pixels.
+          topMargin /= window.devicePixelRatio;
+          w /= window.devicePixelRatio;
+          h /= window.devicePixelRatio;
+          // Round to nearest 6 digits of precision.
+          w = Math.round(w*1000000)/1000000;
+          h = Math.round(h*1000000)/1000000;
+          topMargin = Math.round(topMargin*1000000)/1000000;
+          var canvas = document.getElementById('canvas');
+          canvas.style.width = w + 'px';
+          canvas.style.height = h + 'px';
+          Module['canvas'].style.marginTop = topMargin + 'px';
+        }
     }
 
   },
@@ -353,31 +367,35 @@ var LibraryGLFW = {
   glfwInit: function() {
     GLFW.initTime = Date.now() / 1000;
 
-    window.addEventListener("keydown", GLFW.onKeydown, true);
-    window.addEventListener("keypress", GLFW.onKeyPress, true);
-    window.addEventListener("keyup", GLFW.onKeyup, true);
-    window.addEventListener("mousemove", GLFW.onMousemove, true);
-    window.addEventListener("mousedown", GLFW.onMouseButtonDown, true);
-    window.addEventListener("mouseup", GLFW.onMouseButtonUp, true);
-    window.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
-    window.addEventListener('mousewheel', GLFW.onMouseWheel, true);
-    window.addEventListener('touchstart', GLFW.onTouchStart, true);
-    window.addEventListener('touchend', GLFW.onTouchEnd, true);
-    window.addEventListener('touchmove', GLFW.onTouchMove, true);
+    GLFW.addEventListener("keydown", GLFW.onKeydown, true);
+    GLFW.addEventListener("keypress", GLFW.onKeyPress, true);
+    GLFW.addEventListener("keyup", GLFW.onKeyup, true);
+    GLFW.addEventListener("mousemove", GLFW.onMousemove, true);
+    GLFW.addEventListener("mousedown", GLFW.onMouseButtonDown, true);
+    GLFW.addEventListener("mouseup", GLFW.onMouseButtonUp, true);
+    GLFW.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
+    GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, true);
+    GLFW.addEventListener('touchstart', GLFW.onTouchStart, true);
+    GLFW.addEventListener('touchend', GLFW.onTouchEnd, true);
+    GLFW.addEventListener('touchmove', GLFW.onTouchMove, true);
 
     __ATEXIT__.push({ func: function() {
-      window.removeEventListener("keydown", GLFW.onKeydown, true);
-      window.removeEventListener("keypress", GLFW.onKeyPress, true);
-      window.removeEventListener("keyup", GLFW.onKeyup, true);
-      window.removeEventListener("mousemove", GLFW.onMousemove, true);
-      window.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
-      window.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
-      window.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
-      window.removeEventListener('mousewheel', GLFW.onMouseWheel, true);
-      window.removeEventListener('touchstart', GLFW.onTouchStart, true);
-      window.removeEventListener('touchend', GLFW.onTouchEnd, true);
-      window.removeEventListener('touchmove', GLFW.onTouchMove, true);
-      Module["canvas"].width = Module["canvas"].height = 1;
+        GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
+        GLFW.removeEventListener("keypress", GLFW.onKeyPress, true);
+        GLFW.removeEventListener("keyup", GLFW.onKeyup, true);
+        GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
+        GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
+        GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
+        GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
+        GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, true);
+        GLFW.removeEventListener('touchstart', GLFW.onTouchStart, true);
+        GLFW.removeEventListener('touchend', GLFW.onTouchEnd, true);
+        GLFW.removeEventListener('touchmove', GLFW.onTouchMove, true);
+
+        var canvas = Module["canvas"];
+        if (typeof canvas !== 'undefined') {
+            Module["canvas"].width = Module["canvas"].height = 1;
+        }
     }});
 
     //TODO: Init with correct values
@@ -460,8 +478,8 @@ var LibraryGLFW = {
     }
     Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
 
-    window.addEventListener("resize", GLFW.web_resize_screen_to_aspect_ratio);
-    GLFW.web_resize_screen_to_aspect_ratio();
+    GLFW.addEventListener("resize", GLFW.webResizeScreenToAspectRatio);
+    GLFW.webResizeScreenToAspectRatio();
 
     return 1; // GL_TRUE
   },
