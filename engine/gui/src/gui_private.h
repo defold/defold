@@ -121,7 +121,8 @@ namespace dmGui
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
                 uint32_t    m_DirtyLocal : 1;
-                uint32_t    m_Reserved : 11;
+                uint32_t    m_InheritColor : 1;
+                uint32_t    m_Reserved : 10;
             };
 
             uint32_t m_State;

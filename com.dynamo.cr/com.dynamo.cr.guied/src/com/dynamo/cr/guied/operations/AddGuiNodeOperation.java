@@ -16,6 +16,7 @@ public class AddGuiNodeOperation extends AddChildrenOperation {
         presenterContext.getCameraFocusPoint(position);
         node.setTranslation(position);
         node.setSize(new Vector3d(200.0, 100.0, 0.0));
+        node.setInheritColor(true);
     }
 
 }

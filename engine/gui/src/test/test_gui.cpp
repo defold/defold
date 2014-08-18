@@ -2708,8 +2708,10 @@ TEST_F(dmGuiTest, HierarchicalColors)
     dmGui::HNode node[6];
     const size_t node_count = sizeof(node)/sizeof(dmGui::HNode);
 
-    for(uint32_t i = 0; i < node_count; ++i)
+    for(uint32_t i = 0; i < node_count; ++i) {
         node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
+    }
 
     // test child tree
     dmGui::SetNodeParent(m_Scene, node[4], node[3]);
@@ -2755,6 +2757,7 @@ TEST_F(dmGuiTest, SceneTransformCache)
     for(uint32_t i = 0; i < node_count_h; ++i)
     {
         node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
         dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, c));
         if(i == 0)
             c = 0.5f;
@@ -2763,6 +2766,7 @@ TEST_F(dmGuiTest, SceneTransformCache)
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
         node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
         dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, c));
         if(i == node_count_h)
             c = 0.5f;

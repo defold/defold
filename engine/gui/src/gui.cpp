@@ -1660,6 +1660,12 @@ namespace dmGui
         return SetNodeLayer(scene, node, dmHashString64(layer_id));
     }
 
+    void SetNodeInheritColor(HScene scene, HNode node, bool inherit_color)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_InheritColor = inherit_color;
+    }
+
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
     {
         return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, metrics);
@@ -2138,7 +2144,11 @@ namespace dmGui
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
             CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, traversal_cache);
             out_transform = parent_trans * out_transform;
-            out_color = mulPerElem(n->m_Node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
+            if (node.m_InheritColor) {
+                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
+            } else {
+                out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
+            }
         }
 
         cache_data.m_CacheIndex = traversal_cache.m_CacheIndex;
@@ -2163,7 +2173,11 @@ namespace dmGui
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
             CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, scene->m_NodeTraversalCache);
             out_transform = parent_trans * out_transform;
-            out_color = mulPerElem(n->m_Node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
+            if (node.m_InheritColor) {
+                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
+            } else {
+                out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
+            }
         }
         else
         {
