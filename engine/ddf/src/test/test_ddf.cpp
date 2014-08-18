@@ -666,6 +666,7 @@ TEST(TestDefault, LoadSave)
     ASSERT_EQ((int) defaulto.enum_(), (int) message->m_Enum);
 
     ASSERT_EQ(defaulto.bool_val(), message->m_BoolVal);
+    ASSERT_EQ(defaulto.bool_val_false(), message->m_BoolValFalse);
 
     std::string msg_str2;
     e = DDFSaveToString(message, DUMMY::TestDDF::TestDefault::m_DDFDescriptor, msg_str2);
