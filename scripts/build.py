@@ -251,6 +251,10 @@ class Configuration(object):
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
+        node_modules_dir = os.path.join(self.dynamo_home, 'ext', 'lib')
+        self._mkdirs(node_modules_path)
+        self.exec_env_command(['npm', 'install', '--prefix', node_modules_dir, 'xhr2'])
+
     def _form_ems_path(self):
         path = ''
         if self.host == 'linux':
@@ -982,6 +986,12 @@ instructions.configure=\
             env['GTEST_COLOR'] = 'no'
 
         env['EMSCRIPTEN'] = self._form_ems_path()
+
+        xhr2_path = os.path.join(self.dynamo_home, 'ext', 'lib', 'node_modules', 'xhr2', 'lib')
+        if 'NODE_PATH' in env:
+            env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
+        else:
+            env['NODE_PATH'] = xhr2_path
 
         return env
 

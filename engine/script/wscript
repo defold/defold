@@ -47,8 +47,6 @@ def shutdown():
 
     # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
     # Only required 'in' ddf-lib.
-    node_path = os.environ.get('NODE_PATH', '')
-    os.environ['NODE_PATH'] = 'lib' + os.pathsep + node_path
 
     os.environ['DM_SAVEGAME_HOME'] = 'build'
     sys.path.append('.')
