@@ -383,6 +383,14 @@ To install the emscripten tools, invoke 'build.py install_ems'.
 Emscripten creates a configuration file in your home directory (~/.emscripten).Should you wish to change branches to one
 in which a different version of these tools is used then call 'build.py activate_ems' after doing so. This will cause the .emscripten file to be updated.
 
+waf_dynamo contains changes relating to emscripten. The simplest way to collect these changes is to run 'build_ext'
+
+    # scripts/build.py install_ext
+
+Building for js-web requires installation of the emscripten tools. This is a slow process, so not included int install_ext, instead run install_ems:
+
+    # scritps/build.py install_ems
+
 As of 1.22.0, the emscripten tools emit separate *.js.mem memory initialisation files by default, rather than embedding this data directly into files.
 This is more efficient than storing this data as text within the javascript files, however it does add to a new set of files to include in the build process.
 Should you wish to manually update the contents of the editor's engine files (com.dynamo.cr.engine/engine/js-web) then remember to include these items in those
