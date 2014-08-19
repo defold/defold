@@ -80,6 +80,7 @@ message NodeDesc
     optional bool       line_break   = 18 [default = false];
     optional string     parent       = 19;
     optional string     layer        = 20;
+    optional bool       inherit_color = 21 [default = false];
 }
 
 message SceneDesc

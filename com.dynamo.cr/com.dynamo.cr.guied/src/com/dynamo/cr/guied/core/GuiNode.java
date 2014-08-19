@@ -44,6 +44,9 @@ public class GuiNode extends Node {
     private double alpha = 1.0;
 
     @Property
+    private boolean inheritColor = true;
+
+    @Property
     private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
 
     @Property
@@ -151,6 +154,14 @@ public class GuiNode extends Node {
         this.layer = layer;
     }
 
+    public boolean isInheritColor() {
+        return this.inheritColor;
+    }
+
+    public void setInheritColor(boolean inheritColor) {
+        this.inheritColor = inheritColor;
+    }
+
     public Object[] getLayerOptions() {
         List<Node> layerNodes = getScene().getLayersNode().getChildren();
         List<String> layers = new ArrayList<String>(layerNodes.size());
@@ -193,5 +204,25 @@ public class GuiNode extends Node {
     @Override
     public String toString() {
         return this.id;
+    }
+
+    public float[] calcNormRGBA() {
+        float[] rgba = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+        GuiNode node = this;
+        float inv = 1.0f / 255.0f;
+        while (node != null) {
+            RGB rgb = node.getColor();
+            rgba[0] *= rgb.red * inv;
+            rgba[1] *= rgb.green * inv;
+            rgba[2] *= rgb.blue * inv;
+            rgba[3] *= (float) node.getAlpha();
+            Node parent = node.getParent();
+            if (node.isInheritColor() && parent != null && parent instanceof GuiNode) {
+                node = (GuiNode)parent;
+            } else {
+                node = null;
+            }
+        }
+        return rgba;
     }
 }

@@ -63,6 +63,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setYanchor(desc.getYanchor());
         node.setAdjustMode(desc.getAdjustMode());
         node.setLayer(desc.getLayer());
+        node.setInheritColor(desc.getInheritColor());
         return node;
     }
 
@@ -164,6 +165,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setYanchor(node.getYanchor());
         builder.setAdjustMode(node.getAdjustMode());
         builder.setLayer(node.getLayer());
+        builder.setInheritColor(node.isInheritColor());
         return builder;
     }
 

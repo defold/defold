@@ -62,7 +62,8 @@ public class NodeTypeRegistry implements INodeTypeRegistry {
                 }
 
                 String displayGroup = e.getAttribute("display-group");
-                NodeType type = new NodeType(extension, e, nodeLoader, nodePresenter, resourceType, nodeClass, displayGroup);
+                boolean cached = Boolean.parseBoolean(e.getAttribute("cached"));
+                NodeType type = new NodeType(extension, e, nodeLoader, nodePresenter, resourceType, nodeClass, displayGroup, cached);
                 if (extension != null) {
                     this.extToClass.put(extension, nodeClass);
                 }

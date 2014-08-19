@@ -27,6 +27,7 @@ public class NodeType implements INodeType {
     private final Class<?> nodeClass;
     private final List<INodeType> referenceNodeTypes;
     private final String displayGroup;
+    private final boolean cached;
 
     public NodeType(String extension,
                     IConfigurationElement configurationElement,
@@ -34,7 +35,8 @@ public class NodeType implements INodeType {
                     ISceneView.INodePresenter<Node> presenter,
                     IResourceType resourceType,
                     Class<?> nodeClass,
-                    String displayGroup) {
+                    String displayGroup,
+                    boolean cached) {
         this.extension = extension;
         this.configurationElement = configurationElement;
         this.loader = loader;
@@ -43,6 +45,7 @@ public class NodeType implements INodeType {
         this.nodeClass = nodeClass;
         this.referenceNodeTypes = new ArrayList<INodeType>();
         this.displayGroup = displayGroup;
+        this.cached = cached;
     }
 
     @Override
@@ -96,6 +99,11 @@ public class NodeType implements INodeType {
 
     public void addReferenceNodeType(INodeType referenceNodeType) {
         this.referenceNodeTypes.add(referenceNodeType);
+    }
+
+    @Override
+    public boolean isCached() {
+        return this.cached;
     }
 
 }

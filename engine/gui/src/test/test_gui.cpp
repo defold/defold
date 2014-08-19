@@ -2689,10 +2689,10 @@ void RenderNodesStoreColor(dmGui::HScene scene, dmGui::HNode* nodes, const Vecto
  * Verify that the rendered colors are correct for a hierarchy:
  * - n1
  *   - n2
- *     - n3
- *       - n4
- * - n5
- *   - n6
+ *   - n3
+ * - n4
+ *   - n5
+ *     - n6
  *
  */
 #define ASSERT_COLOR_EQ(expected, actual)\
@@ -2703,37 +2703,121 @@ void RenderNodesStoreColor(dmGui::HScene scene, dmGui::HNode* nodes, const Vecto
 
 TEST_F(dmGuiTest, HierarchicalColors)
 {
-    return;
     Vector3 size(1, 1, 0);
-    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n3 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n4 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n5 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-    dmGui::HNode n6 = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
 
-    dmGui::SetNodeParent(m_Scene, n6, n5);
-    dmGui::SetNodeParent(m_Scene, n4, n3);
-    dmGui::SetNodeParent(m_Scene, n3, n2);
-    dmGui::SetNodeParent(m_Scene, n2, n1);
+    dmGui::HNode node[6];
+    const size_t node_count = sizeof(node)/sizeof(dmGui::HNode);
 
-    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
-    dmGui::SetNodeProperty(m_Scene, n2, dmGui::PROPERTY_COLOR, Vector4(0.75f, 1.0f, 1.0f, 1.0f));
-    dmGui::SetNodeProperty(m_Scene, n3, dmGui::PROPERTY_COLOR, Vector4(0.5f, 0.5f, 0.5f, 0.5f));
-    dmGui::SetNodeProperty(m_Scene, n4, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.25f));
-    dmGui::SetNodeProperty(m_Scene, n5, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.5f));
-    dmGui::SetNodeProperty(m_Scene, n6, dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+    for(uint32_t i = 0; i < node_count; ++i) {
+        node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
+    }
 
-    Vector4 colors[6];
+    // test child tree
+    dmGui::SetNodeParent(m_Scene, node[4], node[3]);
+    dmGui::SetNodeParent(m_Scene, node[5], node[4]);
+    dmGui::SetNodeProperty(m_Scene, node[3], dmGui::PROPERTY_COLOR, Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, node[4], dmGui::PROPERTY_COLOR, Vector4(1.0f, 0.5f, 1.0f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, node[5], dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.25f));
+
+    // test siblings
+    dmGui::SetNodeParent(m_Scene, node[1], node[0]);
+    dmGui::SetNodeParent(m_Scene, node[2], node[0]);
+    dmGui::SetNodeProperty(m_Scene, node[0], dmGui::PROPERTY_COLOR, Vector4(0.5f, 0.5f, 0.5f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, node[1], dmGui::PROPERTY_COLOR, Vector4(1.0f, 0.5f, 1.0f, 0.5f));
+    dmGui::SetNodeProperty(m_Scene, node[2], dmGui::PROPERTY_COLOR, Vector4(1.0f, 1.0f, 1.0f, 0.25f));
+
+    Vector4 colors[node_count];
     dmGui::RenderScene(m_Scene, RenderNodesStoreColor, &colors);
 
-    ASSERT_COLOR_EQ(Vector4(1.000f, 1.000f, 1.000f, 1.000f), colors[0]);
-    ASSERT_COLOR_EQ(Vector4(0.750f, 1.000f, 1.000f, 1.000f), colors[1]);
-    ASSERT_COLOR_EQ(Vector4(0.375f, 0.500f, 0.500f, 0.500f), colors[2]);
-    ASSERT_COLOR_EQ(Vector4(0.375f, 0.500f, 0.500f, 0.125f), colors[3]);
-    ASSERT_COLOR_EQ(Vector4(1.000f, 1.000f, 1.000f, 0.500f), colors[4]);
-    ASSERT_COLOR_EQ(Vector4(1.000f, 1.000f, 1.000f, 0.500f), colors[5]);
+    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.5000f), colors[0]);
+    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.2500f, 0.5000f, 0.2500f), colors[1]);
+    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.1250f), colors[2]);
+
+    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.5000f), colors[3]);
+    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.2500f, 0.5000f, 0.2500f), colors[4]);
+    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.2500f, 0.5000f, 0.0625f), colors[5]);
 }
+
+TEST_F(dmGuiTest, SceneTransformCache)
+{
+    Vector3 size(1, 1, 0);
+
+    dmGui::HNode node[8];
+    const size_t node_count = sizeof(node)/sizeof(dmGui::HNode);
+    const size_t node_count_h = node_count/2;
+    dmGui::HNode dummy_node[node_count];
+
+    for(uint32_t i = 0; i < node_count; ++i)
+    {
+        dummy_node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+    }
+
+    float c = 1.0f;
+    for(uint32_t i = 0; i < node_count_h; ++i)
+    {
+        node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, c));
+        if(i == 0)
+            c = 0.5f;
+    }
+    c = 0.5f;
+    for(uint32_t i = node_count_h; i < node_count; ++i)
+    {
+        node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
+        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, c));
+        if(i == node_count_h)
+            c = 0.5f;
+    }
+    for(uint32_t i = 1; i < node_count_h; ++i)
+    {
+        dmGui::SetNodeParent(m_Scene, node[i], node[i-1]);
+        dmGui::SetNodeParent(m_Scene, node[i+(node_count_h)], node[(i+(node_count_h))-1]);
+    }
+
+    for(uint32_t i = 0; i < node_count; ++i)
+    {
+        DeleteNode(m_Scene, dummy_node[i]);
+    }
+
+    Vector4 colors[node_count];
+    dmGui::RenderScene(m_Scene, RenderNodesStoreColor, &colors);
+
+    c = 1.0f;
+    for(uint32_t i = 0; i < node_count_h; ++i)
+    {
+        ASSERT_COLOR_EQ(Vector4(c,c,c,c), colors[i]);
+        c *= 0.5f;
+    }
+    c = 0.5f;
+    for(uint32_t i = node_count_h; i < node_count; ++i)
+    {
+        ASSERT_COLOR_EQ(Vector4(c,c,c,c), colors[i]);
+        c *= 0.5f;
+    }
+
+    dmGui::RenderScene(m_Scene, RenderNodesStoreColor, &colors);
+
+    dmGui::DeleteNode(m_Scene, node[3]);
+    dmGui::DeleteNode(m_Scene, node[2]);
+    dmGui::RenderScene(m_Scene, RenderNodesStoreColor, &colors);
+
+    c = 1.0f;
+    for(uint32_t i = 0; i < node_count_h-2; ++i)
+    {
+        ASSERT_COLOR_EQ(Vector4(c,c,c,c), colors[i]);
+        c *= 0.5f;
+    }
+    c = 0.5f;
+    for(uint32_t i = node_count_h-2; i < node_count-2; ++i)
+    {
+        ASSERT_COLOR_EQ(Vector4(c,c,c,c), colors[i]);
+        c *= 0.5f;
+    }
+}
+
 
 #undef ASSERT_COLOR_EQ
 

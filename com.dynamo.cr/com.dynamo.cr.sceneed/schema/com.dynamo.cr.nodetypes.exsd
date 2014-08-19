@@ -118,6 +118,13 @@
                </documentation>
             </annotation>
          </attribute>
+         <attribute name="cached" type="boolean" use="default" value="false">
+            <annotation>
+               <documentation>
+                  
+               </documentation>
+            </annotation>
+         </attribute>
       </complexType>
    </element>
 

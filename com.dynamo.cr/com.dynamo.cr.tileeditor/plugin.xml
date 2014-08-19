@@ -1337,6 +1337,7 @@
             node="com.dynamo.cr.tileeditor.scene.CollisionGroupNode">
       </node-type>
       <node-type
+            cached="true"
             id="com.dynamo.cr.tileeditor.nodetypes.atlas"
             loader="com.dynamo.cr.tileeditor.scene.AtlasLoader"
             node="com.dynamo.cr.tileeditor.scene.AtlasNode"

@@ -126,7 +126,7 @@ public:
     void OffsetCapacity(int32_t offset);
 
     /** set size of the array
-     * @param size size of the array, must be less than the capacity
+     * @param size size of the array, must be less or equal to the capacity
      */
     void SetSize(uint32_t size);
 
