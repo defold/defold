@@ -12,6 +12,10 @@ ANDROID_NDK_API_VERSION='14'
 ANDROID_API_VERSION='17'
 ANDROID_GCC_VERSION='4.8'
 
+
+# TODO: HACK
+FLASCC_ROOT=os.path.join(os.environ['HOME'], 'local', 'FlasCC1.0', 'sdk')
+
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
 os.environ['CCACHE_CPP2'] = 'yes'
@@ -128,6 +132,19 @@ def default_flags(self):
                 '--sysroot=%s' % sysroot,
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid',
                 '-L%s' % stl_lib])
+    elif platform == "js-web":
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+
+        self.env.append_value('LINKFLAGS', ['-O3', '--llvm-lto', '1', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456'])
+
+    elif platform == "as3-web":
+        # NOTE: -g set on both C*FLAGS and LINKFLAGS
+        # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
+        # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
+        for f in ['CCFLAGS', 'CXXFLAGS']:
+            self.env.append_value(f, ['-O2', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
+        self.env.append_value('LINKFLAGS', ['-g'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
@@ -877,10 +894,16 @@ def run_gtests(valgrind = False):
     if not Build.bld.env['VALGRIND']:
         valgrind = False
 
+    if Build.bld.env.PLATFORM == 'js-web' and not Build.bld.env['NODEJS']:
+        Logs.info('Not running tests. node.js not found')
+        return
+
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
-            filename = os.path.join(output.abspath(t.env), t.target)
+            filename = os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target)
+            if Build.bld.env.PLATFORM == 'js-web':
+                filename = '%s %s' % (Build.bld.env['NODEJS'], filename)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
                 filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, filename)
@@ -896,6 +919,58 @@ def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'linux':
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
+
+@feature('swf')
+@after('apply_link')
+def as3_link_flags_emit(self):
+    platform = self.env['PLATFORM']
+    if platform == 'as3-web' and 'swf' in self.features:
+        self.link_task.env.append_value('LINKFLAGS', ['-emit-swf'])
+
+@feature('swf')
+@before('apply_link')
+def as3_link_flags_pattern(self):
+    platform = self.env['PLATFORM']
+    if platform == 'as3-web' and 'swf' in self.features:
+        self.env['program_PATTERN']='%s.swf'
+
+@feature('cprogram', 'cxxprogram')
+@after('apply_obj_vars')
+def js_web_link_flags(self):
+    platform = self.env['PLATFORM']
+    if platform == 'js-web':
+        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
+        self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
+
+@taskgen
+@before('apply_core')
+@feature('test')
+def test_flags(self):
+# When building tests for the web, we disable emission of emscripten js.mem init files,
+# as the assumption when these are loaded is that the cwd will contain these items.
+    if self.env['PLATFORM'] == 'js-web':
+        for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+            self.env.append_value(f, ['--memory-init-file', '0'])
+
+@feature('web')
+@after('apply_obj_vars')
+def js_web_web_link_flags(self):
+    platform = self.env['PLATFORM']
+    if platform == 'js-web':
+        lib_dirs = None
+        if 'JS_LIB_PATHS' in self.env:
+            lib_dirs = self.env['JS_LIB_PATHS']
+        else:
+            lib_dirs = {}
+        libs = ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js"]
+        jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js')
+        for lib in libs:
+            js = ''
+            if lib in lib_dirs:
+                js = os.path.join(lib_dirs[lib], lib)
+            else:
+                js = os.path.join(jsLibHome, lib)
+            self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
 
 def create_clang_wrapper(conf, exe):
     clang_wrapper_path = os.path.join(conf.env['DYNAMO_HOME'], 'bin', '%s-wrapper.sh' % exe)
@@ -918,6 +993,9 @@ def create_clang_wrapper(conf, exe):
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
+    conf.find_program('nodejs', var='NODEJS', mandatory = False)
+    if not conf.env['NODEJS']:
+        conf.find_program('node', var='NODEJS', mandatory = False)
 
     dynamo_home = os.getenv('DYNAMO_HOME')
     if not dynamo_home:
@@ -990,6 +1068,35 @@ def detect(conf):
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
 
+    # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
+    if platform == "js-web":
+        bin = os.environ.get('EMSCRIPTEN')
+        if None == bin:
+            conf.fatal('EMSCRIPTEN environment variable does not exist')
+        conf.env['EMSCRIPTEN'] = bin
+        conf.env['CC'] = '%s/emcc' % (bin)
+        conf.env['CXX'] = '%s/em++' % (bin)
+        conf.env['LINK_CXX'] = '%s/em++' % (bin)
+        conf.env['CPP'] = '%s/em++' % (bin)
+        conf.env['AR'] = '%s/emar' % (bin)
+        conf.env['RANLIB'] = '%s/emranlib' % (bin)
+        conf.env['LD'] = '%s/emcc' % (bin)
+        conf.env['program_PATTERN']='%s.js'
+
+    if platform == "as3-web":
+        bin = os.path.join(FLASCC_ROOT, 'usr', 'bin')
+        conf.env['CC'] = '%s/gcc' % (bin)
+        conf.env['CXX'] = '%s/g++' % (bin)
+        conf.env['LINK_CXX'] = '%s/g++' % (bin)
+        conf.env['CPP'] = '%s/cpp' % (bin)
+        conf.env['AR'] = '%s/ar' % (bin)
+        conf.env['RANLIB'] = '%s/ranlib' % (bin)
+        conf.env['LD'] = '%s/ld' % (bin)
+
+        # flascc got confused by -compatibility_version 1 and -current_version 1
+        conf.env['shlib_CCFLAGS'] = []
+        conf.env['shlib_CXXFLAGS'] = []
+
     if conf.env['CCACHE'] and not 'win32' == platform:
         if not Options.options.disable_ccache:
             # Prepend gcc/g++ with CCACHE
@@ -1018,8 +1125,10 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
-    else:
+    elif platform == 'win32':
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi'.split()
+    else:
+        conf.env['LIB_PLATFORM_SOCKET'] = ''
 
 def configure(conf):
     detect(conf)

@@ -22,6 +22,7 @@ def build(bld):
     obj.find_sources_in_dirs('materials')
 
     builtins = bld.new_task_gen(features='archive',
+                                use_compression=True,
                                 archive_target='builtins.arc')
     builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics')
 

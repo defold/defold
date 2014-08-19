@@ -46,6 +46,7 @@ public class Bob {
         options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("h", "help", false, "This help directory");
         options.addOption("a", "archive", false, "Build archive");
+        options.addOption("c", "compress", false, "Compress archive entries (if -a/--archive)");
         options.addOption("e", "email", true, "User email");
         options.addOption("u", "auth", true, "User auth token");
         CommandLineParser parser = new PosixParser();
@@ -82,6 +83,10 @@ public class Bob {
         Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
         if (cmd.hasOption('a')) {
             project.setOption("build_disk_archive", "true");
+
+            if (cmd.hasOption('c')) {
+                project.setOption("compress_disk_archive_entries", "true");
+            }
         }
         if (cmd.hasOption('e')) {
             project.setOption("email", getOptionsValue(cmd, 'e', null));

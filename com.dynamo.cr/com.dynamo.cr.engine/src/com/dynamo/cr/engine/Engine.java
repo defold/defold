@@ -31,6 +31,8 @@ public class Engine extends Plugin {
         } else if (platform.equals("android")) {
             prefix = "lib";
             ext = ".so";
+        } else if (platform.equals("js-web")) {
+            ext = ".js";
         }
 
         URL bundleUrl = null;

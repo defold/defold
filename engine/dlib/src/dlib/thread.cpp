@@ -3,8 +3,7 @@
 
 namespace dmThread
 {
-#if defined(__linux__) || defined(__MACH__)
-
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
     struct ThreadData
     {
         ThreadStart m_Start;
@@ -18,6 +17,7 @@ namespace dmThread
 #if defined(__MACH__)
         int ret = pthread_setname_np(data->m_Name);
         assert(ret == 0);
+#elif defined(__EMSCRIPTEN__)
 #else
         int ret = pthread_setname_np(pthread_self(), data->m_Name);
         assert(ret == 0);

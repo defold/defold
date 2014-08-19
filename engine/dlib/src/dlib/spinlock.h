@@ -112,6 +112,31 @@ namespace dmSpinlock
     }
 }
 
+#elif defined(__EMSCRIPTEN__) || defined(__AVM2__)
+
+namespace dmSpinlock
+{
+    typedef volatile int lock_t;
+
+    static inline void Init(lock_t* lock)
+    {
+        *lock = 0;
+    }
+
+    static inline void Lock(lock_t* lock)
+    {
+        while (*lock != 0)
+        {
+
+        }
+    }
+
+    static inline void Unlock(lock_t* lock)
+    {
+        *lock = 0;
+    }
+}
+
 #else
 #error "Unsupported platform"
 #endif

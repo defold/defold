@@ -2,7 +2,7 @@
 
 def build(bld):
     libs = 'GTEST PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB LUA'
-    test_render = bld.new_task_gen(features = 'cxx cprogram',
+    test_render = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_render.cpp',
                                     uselib = libs,
                                     uselib_local = 'render',
@@ -11,7 +11,7 @@ def build(bld):
 
     test_render.install_path = None
 
-    test_material = bld.new_task_gen(features = 'cxx cprogram',
+    test_material = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_material.cpp',
                                     uselib = libs,
                                     uselib_local = 'render',
@@ -20,7 +20,7 @@ def build(bld):
 
     test_material.install_path = None
 
-    test_render_script = bld.new_task_gen(features = 'cxx cprogram',
+    test_render_script = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_render_script.cpp',
                                     uselib = libs,
                                     uselib_local = 'render',

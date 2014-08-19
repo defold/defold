@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "res_gui.h"
 #include "../proto/gui_ddf.h"
 #include "../components/comp_gui.h"

@@ -22,6 +22,8 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+#include "script_http_util.h"
+
 namespace dmScript
 {
     dmHttpService::HHttpService g_Service = 0;
@@ -149,60 +151,10 @@ namespace dmScript
         {0, 0}
     };
 
-    Result HttpResponseDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
-    {
-        assert(desc == dmHttpDDF::HttpResponse::m_DDFDescriptor);
-        dmHttpDDF::HttpResponse* resp = (dmHttpDDF::HttpResponse*) data;
-
-        char* headers = (char*) resp->m_Headers;
-        char* response = (char*) resp->m_Response;
-
-        lua_newtable(L);
-
-        lua_pushliteral(L, "status");
-        lua_pushinteger(L, resp->m_Status);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "response");
-        lua_pushlstring(L, response, resp->m_ResponseLength);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "headers");
-        lua_newtable(L);
-        if (resp->m_HeadersLength > 0) {
-            headers[resp->m_HeadersLength-1] = '\0';
-
-            char* s, *last;
-            s = dmStrTok(headers, "\n", &last);
-            while (s) {
-                char* colon = strchr(s, ':');
-                *colon = '\0';
-
-                // Convert attribute to lower-case
-                // for simplified handling (http header attributes are case-insensitive)
-                char* tmp = s;
-                while (*tmp) {
-                    *tmp = tolower(*tmp);
-                    tmp++;
-                }
-
-                lua_pushstring(L, s);
-                *colon = ':';
-                lua_pushstring(L, colon + 1);
-                lua_rawset(L, -3);
-                s = dmStrTok(0, "\n", &last);
-            }
-        }
-        lua_rawset(L, -3);
-
-        free(headers);
-        free(response);
-
-        return RESULT_OK;
-    }
-
     void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
     {
+// TODO: Port
+#if !defined(__AVM2__)
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
@@ -220,15 +172,18 @@ namespace dmScript
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
+#endif
     }
 
     void FinalizeHttp(lua_State* L)
     {
+#if !defined(__AVM2__)
         assert(g_ServiceRefCount > 0);
         g_ServiceRefCount--;
         if (g_ServiceRefCount == 0) {
             dmHttpService::Delete(g_Service);
             g_Service = 0;
         }
+#endif
     }
 }
