@@ -221,6 +221,7 @@ public class HTML5Bundler {
         monolithicFiles.add(new File(jsMemFile.getName()));
 
         createHtmlShell();
+        createModuleScript();
         createCss();
 
         for (String r : CopiedResources) {
@@ -236,6 +237,29 @@ public class HTML5Bundler {
         }
     }
 
+    private void createModuleScript() throws FileNotFoundException, IOException {
+    	String jsFilename = getModuleScriptFilename();
+    	File jsOut = new File(this.appDir, jsFilename);
+
+    	Template infoTemplate = Mustache.compiler().compile(getModuleText());
+    	Map<String, Object> infoData = new HashMap<String, Object>();
+
+        infoData.put("DMENGINE_SPLIT", new File(SplitFileDir, SplitFileJson).toString());
+        String js = "";
+        if (0 < this.customHeapSize) {
+        	js = String.format("TOTAL_MEMORY: %d, \n", this.customHeapSize);
+        }
+        infoData.put("DMENGINE_STACK_SIZE", js);
+
+        String jsText = infoTemplate.execute(infoData);
+        IOUtils.write(jsText, new FileOutputStream(jsOut), Charset.forName("UTF-8"));
+        monolithicFiles.add(new File(jsFilename));
+    }
+
+    private String getModuleScriptFilename() {
+    	return String.format("%s_module.js", this.title);
+    }
+
     private void createHtmlShell() throws FileNotFoundException, IOException {
     	String htmlFilename = String.format("%s.html", this.title);
         File htmlOut = new File(this.appDir, htmlFilename);
@@ -245,15 +269,9 @@ public class HTML5Bundler {
 
         infoData.put("DMENGINE_APP_TITLE", String.format("%s1 %s2", this.title, this.version));
         infoData.put("DMENGINE_MANIFEST", getManifestFilename());
-        infoData.put("DMENGINE_SPLIT", new File(SplitFileDir, SplitFileJson).toString());
         infoData.put("DMENGINE_JS", title + ".js");
+        infoData.put("DMENGINE_MODULE_JS", getModuleScriptFilename());
         infoData.put("DMENGINE_CSS", getCssFilename());
-
-        String js = "";
-        if (0 < this.customHeapSize) {
-        	js = String.format("TOTAL_MEMORY: %d, \n", this.customHeapSize);
-        }
-        infoData.put("DMENGINE_STACK_SIZE", js);
 
         String manifest = "";
         if (this.useApplicationCache) {
@@ -325,6 +343,10 @@ public class HTML5Bundler {
     		}
     		IOUtils.closeQuietly(writer);
     	}
+    }
+
+    private String getModuleText() throws FileNotFoundException, IOException {
+    	return getTextResource(null, "resources/jsweb/module_template.js");
     }
 
     private String getHtmlText() throws FileNotFoundException, IOException {
