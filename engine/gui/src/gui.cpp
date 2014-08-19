@@ -219,7 +219,7 @@ namespace dmGui
             InternalNode* n = &scene->m_Nodes[i];
             memset(n, 0, sizeof(*n));
             n->m_Index = INVALID_INDEX;
-            n->m_TraversalCacheIndex = INVALID_INDEX;
+            n->m_SceneTraversalCacheVersion = INVALID_INDEX;
         }
 
         luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
@@ -595,15 +595,15 @@ namespace dmGui
             c->m_RenderTransforms.SetCapacity(capacity);
             c->m_RenderColors.SetCapacity(capacity);
 	    }
-    	scene->m_NodeTraversalCache.Invalidate();
+        scene->m_SceneTraversalCache.Invalidate();
 
         Matrix4 node_transform;
         CollectNodes(scene, scene->m_RenderHead, 0, c->m_RenderNodes);
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), NodeSortPred(scene));
         uint32_t node_count = c->m_RenderNodes.Size();
-        if(node_count > scene->m_NodeTraversalCache.Capacity())
+        if(node_count > scene->m_SceneTraversalCache.Capacity())
         {
-            scene->m_NodeTraversalCache.SetCapacity(node_count);
+            scene->m_SceneTraversalCache.SetCapacity(node_count);
         }
 
         Matrix4 transform;
@@ -1146,7 +1146,7 @@ namespace dmGui
             node->m_ParentIndex = INVALID_INDEX;
             node->m_ChildHead = INVALID_INDEX;
             node->m_ChildTail = INVALID_INDEX;
-            node->m_TraversalCacheIndex = INVALID_INDEX;
+            node->m_SceneTraversalCacheVersion = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
             MoveNodeAbove(scene, hnode, INVALID_HANDLE);
 
@@ -1298,7 +1298,7 @@ namespace dmGui
             free((void*)n->m_Node.m_Text);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
-        n->m_TraversalCacheIndex = INVALID_INDEX;
+        n->m_SceneTraversalCacheVersion = INVALID_INDEX;
     }
 
     void ClearNodes(HScene scene)
@@ -1308,7 +1308,7 @@ namespace dmGui
             InternalNode* n = &scene->m_Nodes[i];
             memset(n, 0, sizeof(*n));
             n->m_Index = INVALID_INDEX;
-            n->m_TraversalCacheIndex = INVALID_INDEX;
+            n->m_SceneTraversalCacheVersion = INVALID_INDEX;
         }
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
@@ -2069,7 +2069,7 @@ namespace dmGui
                 out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
             out_n->m_Version = version;
             out_n->m_Index = index;
-            out_n->m_TraversalCacheIndex = INVALID_INDEX;
+            out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;
             out_n->m_PrevIndex = INVALID_INDEX;
             out_n->m_NextIndex = INVALID_INDEX;
             out_n->m_ParentIndex = INVALID_INDEX;
@@ -2104,38 +2104,37 @@ namespace dmGui
         }
     }
 
-    inline void CalculateParentNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, Vector4& out_color, NodeTraversalCache& traversal_cache)
+    inline void CalculateParentNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, Vector4& out_color, SceneTraversalCache& traversal_cache)
     {
         const Node& node = n->m_Node;
+        bool cached;
+        uint16_t cache_index;
 
-        uint16_t cache_index = n->m_TraversalCacheIndex;
-        if(cache_index == INVALID_INDEX)
+        uint16_t cache_version = n->m_SceneTraversalCacheVersion;
+        if(cache_version != traversal_cache.m_Version)
         {
-            cache_index = traversal_cache.PopNodeIndex();
+            n->m_SceneTraversalCacheVersion = traversal_cache.m_Version;
+            cache_index = n->m_SceneTraversalCacheIndex = traversal_cache.PopNodeIndex();
+            cached = false;
         }
-        NodeTraversalCache::Data& cache_data = traversal_cache.m_Data[cache_index];
+        else
+        {
+            cache_index = n->m_SceneTraversalCacheIndex;
+            cached = true;
+        }
+        SceneTraversalCache::Data& cache_data = traversal_cache.m_Data[cache_index];
 
         if (node.m_DirtyLocal || scene->m_ResChanged)
         {
             UpdateLocalTransform(scene, n, reference_scale);
-            n->m_TraversalCacheIndex = cache_index;
         }
-        else if(n->m_TraversalCacheIndex != INVALID_INDEX)
+        else if(cached)
         {
-            if(traversal_cache.m_CacheIndex == cache_data.m_CacheIndex)
-            {
-                out_transform = cache_data.m_Transform;
-                out_color = cache_data.m_Color;
-                return;
-            }
+            out_transform = cache_data.m_Transform;
+            out_color = cache_data.m_Color;
+            return;
         }
-        else
-        {
-            n->m_TraversalCacheIndex = cache_index;
-        }
-
         out_transform = node.m_LocalTransform;
-        out_color = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR];
 
         if (n->m_ParentIndex != INVALID_INDEX)
         {
@@ -2150,8 +2149,11 @@ namespace dmGui
                 out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
             }
         }
+        else
+        {
+            out_color = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR];
+        }
 
-        cache_data.m_CacheIndex = traversal_cache.m_CacheIndex;
         cache_data.m_Transform = out_transform;
         cache_data.m_Color = out_color;
     }
@@ -2171,7 +2173,7 @@ namespace dmGui
             Matrix4 parent_trans;
             Vector4 parent_color;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, scene->m_NodeTraversalCache);
+            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, scene->m_SceneTraversalCache);
             out_transform = parent_trans * out_transform;
             if (node.m_InheritColor) {
                 out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
