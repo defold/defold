@@ -957,10 +957,19 @@ def test_flags(self):
 def js_web_web_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'js-web':
+        lib_dirs = None
+        if 'JS_LIB_PATHS' in self.env:
+            lib_dirs = self.env['JS_LIB_PATHS']
+        else:
+            lib_dirs = {}
         libs = ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js"]
         jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js')
         for lib in libs:
-            js = os.path.join(jsLibHome, lib)
+            js = ''
+            if lib in lib_dirs:
+                js = os.path.join(lib_dirs[lib], lib)
+            else:
+                js = os.path.join(jsLibHome, lib)
             self.link_task.env.append_value('LINKFLAGS', ['--js-library', js])
 
 def create_clang_wrapper(conf, exe):
