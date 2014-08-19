@@ -23,7 +23,7 @@ def pf_file(self, node):
         self.env['proto_type'] = self.proto_type
 
 def build(bld):
-    test_ddf = bld.new_task_gen(features = 'cxx cprogram ddf',
+    test_ddf = bld.new_task_gen(features = 'cxx cprogram ddf test',
                                 source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
                                 uselib = 'GTEST PROTOBUF DLIB PTHREAD',
                                 uselib_local = 'ddf',

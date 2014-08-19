@@ -3,12 +3,12 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 
 def build(bld):
-    test_extension_lib = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    test_extension_lib = bld.new_task_gen(features = 'cxx cstaticlib ddf test',
                                  includes = '.',
                                  source = 'test_extension_lib.cpp',
                                  target = 'test_extension_lib')
 
-    test_extension = bld.new_task_gen(features = 'cxx cprogram embed',
+    test_extension = bld.new_task_gen(features = 'cxx cprogram embed test',
                                       includes = '../../../src .',
                                       uselib = 'GTEST DLIB LUA',
                                       uselib_local = 'extension test_extension_lib',

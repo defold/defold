@@ -508,6 +508,8 @@ namespace dmProfile
         uint64_t pcnt;
         QueryPerformanceCounter((LARGE_INTEGER *) &pcnt);
         g_BeginTime = (uint32_t) pcnt;
+#elif defined(__EMSCRIPTEN__)
+        g_BeginTime = (uint64_t)(emscripten_get_now() * 1000.0);
 #else
         timeval tv;
         gettimeofday(&tv, 0);

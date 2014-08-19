@@ -26,14 +26,24 @@ def build(bld):
                                archive_target='test.arc',
                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
 
+    compressed_archive = bld.new_task_gen(features = 'archive',
+                               archive_target='test_compressed.arc',
+                               use_compression=True,
+                               source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+
     # Same as above but created with the java-based archive builder
     jarchive = bld.new_task_gen(features = 'jarchive',
                                 archive_target='test.jarc',
                                 source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
 
+    compressed_jarchive = bld.new_task_gen(features = 'jarchive',
+                                archive_target='test_compressed.jarc',
+                                use_compression=True,
+                                source = 'archive_data/file4.ad archive_data/file1.ad archive_data/file3.ad archive_data/file2.ad')
+
     bld.add_group()
 
-    test_resource = bld.new_task_gen(features = 'cxx cprogram embed',
+    test_resource = bld.new_task_gen(features = 'cxx cprogram embed test',
                                      includes = '../../../src ../../proto',
                                      uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
                                      uselib_local = 'resource',
@@ -47,16 +57,17 @@ def build(bld):
     test_resource_arc = bld.new_task_gen(features='archive',
                                          source = bld.path.ant_glob('*.*_pb'),
                                          archive_target='test_resource.arc')
+
     test_resource_arc.install_path = None
 
-    test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed',
+    test_resource_archive = bld.new_task_gen(features = 'cxx cprogram embed test',
                                              includes = '../../../src',
                                              uselib = 'GTEST DDF DLIB PLATFORM_SOCKET THREAD LUA',
                                              uselib_local = 'resource',
                                              proto_gen_py = True,
                                              target = 'test_resource_archive',
                                              source = 'test_resource_archive.cpp',
-                                             embed_source = 'test.arc')
+                                             embed_source = 'test.arc test_compressed.arc')
 
     test_resource_archive.install_path = None
 

@@ -8,6 +8,19 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+// Emscripten requires data access to be aligned and setting __attribute__((aligned(X)) should force emscripten to
+// make multiple access instructions and merge them.
+// However, there's a bug in emscripten which causes __attribute__((aligned(X)) to sometimes fail
+// To work around this, we can use a typedef
+// The bug is tracked: https://github.com/kripken/emscripten/issues/2378
+#ifdef __EMSCRIPTEN__
+typedef lua_Number __attribute__((aligned(4))) lua_Number_4_align;
+typedef uint16_t __attribute__((aligned(1))) uint16_t_1_align;
+#else
+typedef lua_Number lua_Number_4_align ;
+typedef uint16_t uint16_t_1_align;
+#endif
+
 namespace dmScript
 {
     /*
@@ -98,7 +111,7 @@ namespace dmScript
                 if (index > 0xffff)
                     luaL_error(L, "index out of bounds, max is %d", 0xffff);
                 uint16_t key = (uint16_t)index;
-                *((uint16_t*)buffer) = key;
+                *((uint16_t_1_align *)buffer) = key;
                 buffer += 2;
             }
 
@@ -281,7 +294,7 @@ namespace dmScript
         }
         lua_pop(L, 1);
 
-        *((uint16_t*)buffer_start) = count;
+        *((uint16_t_1_align *)buffer_start) = count;
 
         assert(top == lua_gettop(L));
 
@@ -298,7 +311,7 @@ namespace dmScript
         int top = lua_gettop(L);
         (void)top;
         const char* buffer_start = buffer;
-        uint32_t count = *(uint16_t*)buffer;
+        uint32_t count = *(uint16_t_1_align *)buffer;
         buffer += 2;
         lua_newtable(L);
 
@@ -314,7 +327,7 @@ namespace dmScript
             }
             else if (key_type == LUA_TNUMBER)
             {
-                lua_pushnumber(L, *((uint16_t*)buffer));
+                lua_pushnumber(L, *((uint16_t_1_align *)buffer));
                 buffer += 2;
             }
 
@@ -336,7 +349,7 @@ namespace dmScript
                     // Sanity-check. At least 4 bytes alignment (de facto)
                     assert((((intptr_t) buffer) & 3) == 0);
 
-                    lua_pushnumber(L, *((lua_Number*) buffer));
+                    lua_pushnumber(L, *((lua_Number_4_align *) buffer));
                     buffer += sizeof(lua_Number);
                 }
                 break;

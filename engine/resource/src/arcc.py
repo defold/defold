@@ -1,19 +1,36 @@
 #! /usr/bin/env python
 
-import stat, os, sys, struct
+import stat, os, sys, struct, dlib
 from optparse import OptionParser
 
-VERSION = 2
+VERSION = 3
 
 class Entry(object):
-    def __init__(self, root, filename):
+    def __init__(self, root, filename, compress):
         rel_name = os.path.relpath(filename, root)
         rel_name = rel_name.replace('\\', '/')
 
         size = os.stat(filename)[stat.ST_SIZE]
         f = open(filename, 'rb')
         self.filename = '/' + rel_name
-        self.resource = f.read()
+        if compress == True:
+            tmp_buf = f.read()
+            max_compressed_size = dlib.dmLZ4MaxCompressedSize(size)
+            self.resource = dlib.dmLZ4CompressBuffer(tmp_buf, max_compressed_size)
+            self.compressed_size = len(self.resource)
+            # Store uncompressed if gain is less than 5%
+            # We believe that the shorter load time will compensate in this case.
+            comp_ratio = sys.float_info.max
+            if size == 0:
+                print "Warning! Size of %s is 0" % (self.filename)
+            else:
+                comp_ratio = float(self.compressed_size)/float(size)
+            if comp_ratio > 0.95:
+                self.resource = tmp_buf
+                self.compressed_size = 0xFFFFFFFFL
+        else:
+            self.resource = f.read()
+            self.compressed_size = 0xFFFFFFFFL
         self.size = size
         f.close()
 
@@ -49,7 +66,7 @@ def compile(input_files, options):
     string_pool_offset = out_file.tell()
     strings_offset = []
     for i,f in enumerate(input_files):
-        e = Entry(options.root, f)
+        e = Entry(options.root, f, options.compress)
         # Store offset to string
         strings_offset.append(out_file.tell() - string_pool_offset)
         # Write filename string
@@ -71,6 +88,7 @@ def compile(input_files, options):
         out_file.write(struct.pack('!I', strings_offset[i]))
         out_file.write(struct.pack('!I', resources_offset[i]))
         out_file.write(struct.pack('!I', e.size))
+        out_file.write(struct.pack('!I', e.compressed_size))
 
     # Reset file and write actual offsets
     out_file.seek(0)
@@ -96,6 +114,7 @@ if __name__ == '__main__':
     parser = OptionParser(usage)
     parser.add_option('-r', dest='root', help='Root directory', metavar='ROOT', default='')
     parser.add_option('-o', dest='output_file', help='Output file', metavar='OUTPUT')
+    parser.add_option('-c', dest='compress', action='store_true', help='Use compression', metavar='COMPRESSION', default=False)
     (options, args) = parser.parse_args()
     if not options.output_file:
         parser.error('Output file not specified (-o)')

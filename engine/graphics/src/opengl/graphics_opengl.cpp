@@ -7,6 +7,10 @@
 #include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#ifdef __EMSCRIPTEN__
+    #include <emscripten/emscripten.h>
+#endif
+
 #include "../graphics.h"
 #include "graphics_opengl.h"
 
@@ -105,6 +109,12 @@ PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
 PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
 PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
+#elif defined(__EMSCRIPTEN__)
+#include <GL/glext.h>
+#if defined GL_ES_VERSION_2_0
+#undef GL_ARRAY_BUFFER_ARB
+#undef GL_ELEMENT_ARRAY_BUFFER_ARB
+#endif
 #else
 #error "Platform not supported."
 #endif
@@ -112,7 +122,7 @@ PFNGLUNIFORM1IPROC glUniform1i = NULL;
 using namespace Vectormath::Aos;
 
 // OpenGLES compatibility
-#ifdef GL_ES_VERSION_2_0
+#if defined GL_ES_VERSION_2_0
 #define glClearDepth glClearDepthf
 #define glGenBuffersARB glGenBuffers
 #define glDeleteBuffersARB glDeleteBuffers
@@ -145,6 +155,13 @@ void LogGLError(GLint err)
                 LogGLError(err); \
                 assert(0); \
             } \
+        } \
+    }\
+
+#define CLEAR_GL_ERROR \
+    { \
+        if(dLib::IsDebugMode()) { \
+            glGetError(); \
         } \
     }\
 
@@ -489,6 +506,22 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
+    {
+        #ifdef __EMSCRIPTEN__
+        while (0 != is_running(user_data))
+        {
+            // N.B. Beyond the first test, the above statement is essentially formal since set_main_loop will throw an exception.
+            emscripten_set_main_loop_arg(step_method, user_data, 0, 1);
+        }
+        #else
+        while (0 != is_running(user_data))
+        {
+            step_method(user_data);
+        }
+        #endif
+    }
+
     uint32_t GetWindowState(HContext context, WindowState state)
     {
         assert(context);
@@ -623,29 +656,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
-    {
-        DM_PROFILE(Graphics, "MapVertexBuffer");
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        void* result = glMapBufferARB(GL_ARRAY_BUFFER_ARB, access);
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
-    }
-
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
-    {
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        bool result = glUnmapBufferARB(GL_ARRAY_BUFFER_ARB) == GL_TRUE;
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
-    }
-
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
@@ -681,29 +691,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
-    }
-
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
-    {
-        DM_PROFILE(Graphics, "MapIndexBuffer");
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        void* result = glMapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, access);
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
-    }
-
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
-    {
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
-        CHECK_GL_ERROR
-        bool result = glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB) == GL_TRUE;
-        CHECK_GL_ERROR
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-        CHECK_GL_ERROR
-        return result;
     }
 
     static uint32_t GetTypeSize(Type type)
@@ -805,8 +792,7 @@ static void LogFrameBufferError(GLenum status)
             }
             else
             {
-                // Clear error
-                glGetError();
+                CLEAR_GL_ERROR
                 // TODO: Disabled irritating warning? Should we care about not used streams?
                 //dmLogWarning("Vertex attribute %s is not active or defined", streams[i].m_Name);
                 streams[i].m_PhysicalIndex = -1;
@@ -1081,7 +1067,7 @@ static void LogFrameBufferError(GLenum status)
         if (location == -1)
         {
             // Clear error if uniform isn't found
-            glGetError();
+            CLEAR_GL_ERROR
         }
         return (uint32_t) location;
     }
@@ -1254,6 +1240,12 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
+        if (NULL == params.m_Data) {
+            //DEF-530: calling SetTexture in NewTexture, prior to image data being made available,
+            // was causing RGBA textures to vanish in IE11.
+            return;
+        }
+
         int unpackAlignment = 4;
         /*
          * For RGA-textures the row-alignment may not be a multiple of 4.
@@ -1295,7 +1287,6 @@ static void LogFrameBufferError(GLenum status)
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
         GLint internal_format;
-
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
@@ -1356,6 +1347,7 @@ static void LogFrameBufferError(GLenum status)
             assert(0);
             break;
         }
+
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
@@ -1419,7 +1411,7 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         assert(texture);
 
-#ifndef GL_ES_VERSION_2_0
+#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
@@ -1434,7 +1426,7 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
 
-#ifndef GL_ES_VERSION_2_0
+#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif

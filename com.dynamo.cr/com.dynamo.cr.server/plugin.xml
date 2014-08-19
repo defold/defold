@@ -15,10 +15,10 @@
          point="org.eclipse.core.runtime.products">
       <product
             application="com.dynamo.cr.server.application"
-            name="Content Repository Server">
+            name="Defold Editor">
          <property
                name="appName"
-               value="Content Repository Server">
+               value="Defold Editor">
          </property>
       </product>
    </extension>

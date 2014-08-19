@@ -1,3 +1,18 @@
+diff --git a/src/google/protobuf/compiler/subprocess.cc b/src/google/protobuf/compiler/subprocess.cc
+index de46a3e..ab90a38 100644
+--- a/src/google/protobuf/compiler/subprocess.cc
++++ b/src/google/protobuf/compiler/subprocess.cc
+@@ -32,6 +32,10 @@
+ 
+ #include <google/protobuf/compiler/subprocess.h>
+ 
++#ifdef __EMSCRIPTEN__
++#include <sys/select.h>
++#endif
++
+ #ifndef _WIN32
+ #include <errno.h>
+ #include <sys/wait.h>
 diff --git a/src/google/protobuf/compiler/subprocess.h b/src/google/protobuf/compiler/subprocess.h
 index f9e8ae8..7a6fa70 100644
 --- a/src/google/protobuf/compiler/subprocess.h
@@ -11,3 +26,72 @@ index f9e8ae8..7a6fa70 100644
  #endif
  
   private:
+diff --git a/src/google/protobuf/io/coded_stream.h b/src/google/protobuf/io/coded_stream.h
+index dcbb0d4..3ddf0c3 100644
+--- a/src/google/protobuf/io/coded_stream.h
++++ b/src/google/protobuf/io/coded_stream.h
+@@ -109,6 +109,9 @@
+ #ifndef GOOGLE_PROTOBUF_IO_CODED_STREAM_H__
+ #define GOOGLE_PROTOBUF_IO_CODED_STREAM_H__
+ 
++#ifdef __EMSCRIPTEN__
++#include <limits.h>
++#endif
+ #include <string>
+ #ifndef _MSC_VER
+ #include <sys/param.h>
+diff --git a/src/google/protobuf/message.cc b/src/google/protobuf/message.cc
+index 91e6878..fcb97b8 100644
+--- a/src/google/protobuf/message.cc
++++ b/src/google/protobuf/message.cc
+@@ -32,6 +32,9 @@
+ //  Based on original Protocol Buffers design by
+ //  Sanjay Ghemawat, Jeff Dean, and others.
+ 
++#ifdef __EMSCRIPTEN__
++#include <iostream>
++#endif
+ #include <stack>
+ #include <google/protobuf/stubs/hash.h>
+ 
+diff --git a/src/google/protobuf/stubs/common.cc b/src/google/protobuf/stubs/common.cc
+index 1e2d68d..0204bd6 100644
+--- a/src/google/protobuf/stubs/common.cc
++++ b/src/google/protobuf/stubs/common.cc
+@@ -44,6 +44,7 @@
+ #define snprintf _snprintf    // see comment in strutil.cc
+ #elif defined(HAVE_PTHREAD)
+ #include <pthread.h>
++#elif defined(__EMSCRIPTEN__)
+ #else
+ #error "No suitable threading library available."
+ #endif
+@@ -313,6 +314,28 @@ void Mutex::AssertHeld() {
+   // TODO(kenton):  Maybe keep track of locking thread ID like with WIN32?
+ }
+ 
++#elif defined(__EMSCRIPTEN__)
++
++struct Mutex::Internal {
++};
++
++Mutex::Mutex()
++  : mInternal(new Internal) {
++}
++
++Mutex::~Mutex() {
++  delete mInternal;
++}
++
++void Mutex::Lock() {
++}
++
++void Mutex::Unlock() {
++}
++
++void Mutex::AssertHeld() {
++}
++
+ #endif
+ 
+ // ===================================================================

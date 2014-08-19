@@ -2,7 +2,7 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 
 def build(bld):
-    test_texc = bld.new_task_gen(features = 'cc cxx cprogram',
+    test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
                                      uselib = 'GTEST DLIB',
                                      uselib_local = 'texc',
                                      proto_gen_py = True,

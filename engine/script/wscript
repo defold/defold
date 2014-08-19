@@ -45,8 +45,23 @@ def shutdown():
     if not Options.commands['build']:
         return
 
+    # We need to add default/src/ddf to PYTHONPATH here. (ddf_extensions_pb2.py and plugin_pb2.py)
+    # Only required 'in' ddf-lib.
+
     os.environ['DM_SAVEGAME_HOME'] = 'build'
-    waf_dynamo.run_gtests(valgrind = True)
+    sys.path.append('.')
+
+    import server
+
+    serv = None
+    if not getattr(Options.options, 'skip_tests', False):
+        serv = server.Server()
+        serv.start()
+    try:
+        waf_dynamo.run_gtests(valgrind = True)
+    finally:
+        if serv:
+            serv.stop()
 
     if not getattr(Options.options, 'skip_tests', False):
         python_path = os.environ.get('PYTHONPATH', '')

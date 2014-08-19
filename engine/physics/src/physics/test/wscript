@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 def build(bld):
-    test_physics = bld.new_task_gen(features = 'cxx cprogram',
+    test_physics = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_physics.cpp',
                                     uselib = 'DLIB GTEST PLATFORM_THREAD',
                                     uselib_local = 'physics BulletDynamics BulletCollision LinearMath Box2D',
@@ -10,7 +10,7 @@ def build(bld):
 
     test_physics.install_path = None
 
-    test_physics_2d = bld.new_task_gen(features = 'cxx cprogram',
+    test_physics_2d = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_physics_2d.cpp',
                                     uselib = 'DLIB GTEST PLATFORM_THREAD',
                                     uselib_local = 'physics BulletDynamics BulletCollision LinearMath Box2D',
