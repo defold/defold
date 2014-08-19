@@ -27,4 +27,5 @@ public interface INodeType {
 
     String getDisplayGroup();
 
+    boolean isCached();
 }

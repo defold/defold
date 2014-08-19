@@ -11,4 +11,5 @@ public interface ILoaderContext {
     Node loadNodeFromTemplate(Class<? extends Node> nodeClass) throws IOException, CoreException;
     Node loadNodeFromTemplate(String extension) throws IOException, CoreException;
     INodeTypeRegistry getNodeTypeRegistry();
+    void removeFromCache(String path);
 }

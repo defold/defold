@@ -3,6 +3,8 @@ package com.dynamo.cr.sceneed.ui;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
@@ -25,10 +27,13 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
     private final IContainer contentRoot;
     private final INodeTypeRegistry nodeTypeRegistry;
 
+    private Map<String, Node> nodeCache;
+
     @Inject
     public LoaderContext(IContainer contentRoot, INodeTypeRegistry nodeTypeRegistry) {
         this.contentRoot = contentRoot;
         this.nodeTypeRegistry = nodeTypeRegistry;
+        this.nodeCache = new HashMap<String, Node>();
     }
 
     @Override
@@ -36,16 +41,26 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
         if (path != null && !path.equals("")) {
             IFile file = this.contentRoot.getFile(new Path(path));
             if (file.exists()) {
-                return loadNode(file.getFileExtension(), file.getContents());
+                String ext = file.getFileExtension();
+                Node n = null;
+                INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(ext);
+                boolean cached = nodeType != null && nodeType.isCached();
+                if (cached) {
+                    n = nodeCache.get(path);
+                }
+                if (n == null) {
+                    n = loadNode(nodeType, file.getContents());
+                    if (cached) {
+                        nodeCache.put(path, n);
+                    }
+                }
+                return n;
             }
         }
         return null;
     }
 
-    @Override
-    public Node loadNode(String extension, InputStream contents)
-            throws IOException, CoreException {
-        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(extension);
+    private Node loadNode(INodeType nodeType, InputStream contents) throws IOException, CoreException {
         if (nodeType != null) {
             INodeLoader<Node> loader = nodeType.getLoader();
             try {
@@ -55,6 +70,13 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
             }
         }
         return null;
+    }
+
+    @Override
+    public Node loadNode(String extension, InputStream contents)
+            throws IOException, CoreException {
+        INodeType nodeType = this.nodeTypeRegistry.getNodeTypeFromExtension(extension);
+        return loadNode(nodeType, contents);
     }
 
     @Override
@@ -83,4 +105,8 @@ com.dynamo.cr.sceneed.core.ILoaderContext {
         return this.nodeTypeRegistry;
     }
 
+    @Override
+    public void removeFromCache(String path) {
+        this.nodeCache.remove(path);
+    }
 }
