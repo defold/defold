@@ -224,6 +224,7 @@ namespace dmGameSystem
                 dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
                 dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
                 dmGui::SetNodeResetPoint(scene, n);
+                dmGui::SetNodeInheritColor(scene, n, node_desc->m_InheritColor);
             }
             else
             {

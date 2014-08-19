@@ -232,6 +232,7 @@ message TestDefault
     optional TestEnum enum = 13 [ default = TEST_ENUM_VAL2 ];
 
     optional bool bool_val = 14 [ default = true ];
+    optional bool bool_val_false = 15 [ default = false ];
 }
 
 message EmptyMsg {}

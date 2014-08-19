@@ -166,13 +166,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
         double x0 = -pivotOffsetX(node, width);
         double y0 = -pivotOffsetY(node, ascent, descent, lines.size());
 
-        float[] color = new float[4];
-        RGB rgb = node.getColor();
-        float factor = 1.0f / 255.0f;
-        color[0] = rgb.red * factor;
-        color[1] = rgb.green * factor;
-        color[2] = rgb.blue * factor;
-        color[3] = (float) node.getAlpha();
+        float[] color = node.calcNormRGBA();
 
         if (transparent) {
             double[] xOffsets = lineOffsets(node, lines, width);

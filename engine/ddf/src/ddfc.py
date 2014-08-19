@@ -247,6 +247,11 @@ def to_cxx_default_value_string(context, f):
             # Store in little endian
             tmp = struct.pack('<' + form, func(default_value))
             return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(x), tmp))
+        elif f.type == FieldDescriptor.TYPE_BOOL:
+            if f.default_value == "true":
+                return '"\x01"'
+            else:
+                return '"\x00"'
         else:
             form, func = type_to_struct_format[f.type]
             # Store in little endian

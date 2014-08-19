@@ -535,13 +535,6 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Light">
       </node-type>
       <node-type
-            id="com.dynamo.cr.ddfeditor.scene.guiNode"
-            loader="com.dynamo.cr.ddfeditor.scene.GuiLoader"
-            node="com.dynamo.cr.ddfeditor.scene.GuiNode"
-            renderer="com.dynamo.cr.ddfeditor.scene.GuiRenderer"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
-      </node-type>
-      <node-type
             display-group="Models"
             id="com.dynamo.cr.ddfeditor.scene.modelNode"
             loader="com.dynamo.cr.ddfeditor.scene.ModelLoader"
