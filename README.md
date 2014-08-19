@@ -403,10 +403,6 @@ test against.
 When running headless builds, you may also find it useful to install [node-inspector](https://github.com/node-inspector/node-inspector). Note that it operates on
 port 8080 by default, so either close your Defold tools or change this port when running such builds.
 
-Hack to compile an engine with archive:
-
-    em++ default/src/main_3.o -o /Users/chmu/workspace/defold/engine/engine/build/default/src/dmengine_release.html -s TOTAL_MEMORY=134217728 -Ldefault/src -L/Users/chmu/tmp/dynamo-home/lib/js-web -L/Users/chmu/tmp/dynamo-home/ext/lib/js-web -lengine -lfacebookext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -llua -lscript -lextension -lhid_null -linput -lparticle -ldlib -ldmglfw -lgui -lsound_null -lalut -lvpx -lWS2_32 --pre-js /Users/chmu/tmp/dynamo-home/share/js-web-pre.js --preload-file game.arc --preload-file game.projectc
-
 To get working keyboard support (until our own glfw is used or glfw is gone):
 - In ~/local/emscripten/src/library\_glfw.js, on row after glfwLoadTextureImage2D: ..., add:
 glfwShowKeyboard: function(show) {},
