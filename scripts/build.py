@@ -252,7 +252,7 @@ class Configuration(object):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
         node_modules_dir = os.path.join(self.dynamo_home, 'ext', 'lib')
-        self._mkdirs(node_modules_path)
+        self._mkdirs(node_modules_dir)
         self.exec_env_command(['npm', 'install', '--prefix', node_modules_dir, 'xhr2'])
 
     def _form_ems_path(self):
