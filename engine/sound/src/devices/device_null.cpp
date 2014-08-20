@@ -2,7 +2,7 @@
 #include "sound.h"
 #include "sound2.h"
 
-namespace dmDeviceOpenNull
+namespace dmDeviceNull
 {
     dmSound::Result DeviceNullOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
     {
