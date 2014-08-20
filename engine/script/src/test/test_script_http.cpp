@@ -85,18 +85,6 @@ protected:
         dmScript::DeleteContext(m_ScriptContext);
         dmConfigFile::Delete(m_ConfigFile);
     }
-
-    /*
-    void Dispatch()
-    {
-#ifdef __EMSCRIPTEN__
-        EM_ASM({
-            var uvrun = require('uvrun');
-            uvrun.runOnce();
-        });
-#endif
-    }
-    */
 };
 
 bool RunFile(lua_State* L, const char* filename)
