@@ -27,8 +27,8 @@ EMSCRIPTEN_VERSION_STR = "1.22.0"
 EMSCRIPTEN_VERSION_STR_LINUX = "master"
 EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_SDK_LINUX = "sdk-{0}-32bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
-EMSCRIPTEN_DIR = join('bin', 'emsdk-portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk-portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
+EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
+EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
 PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL=os.environ['SHELL']
 if not SHELL:
@@ -173,10 +173,10 @@ class Configuration(object):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
 
-    def _download(self, url):
+    def _download(self, url, use_cache = True):
         name = basename(urlparse.urlparse(url).path)
         path = expanduser('~/.dcache/%s' % name)
-        if os.path.exists(path):
+        if use_cache and os.path.exists(path):
             return path
 
         if not os.path.exists(dirname(path)):
@@ -269,7 +269,7 @@ class Configuration(object):
                 'win32': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-{0}-portable-64bit.zip'.format(EMSCRIPTEN_VERSION_STR) }
 
         url= urls[self.host]
-        dlpath = self._download(url)
+        dlpath = self._download(url, use_cache=False)
         binDir = join(self.ext, 'bin')
         self._extract(dlpath, binDir)
 
@@ -289,7 +289,7 @@ class Configuration(object):
         return sdk;
 
     def get_ems_exe_path(self):
-        return join(self.ext, 'bin', 'emsdk-portable', 'emsdk')
+        return join(self.ext, 'bin', 'emsdk_portable', 'emsdk')
 
     def activate_ems(self):
         self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
