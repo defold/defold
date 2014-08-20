@@ -41,6 +41,10 @@
   Object
   (toString [this] (local-path this)))
 
+(defmethod print-method ProjectPath
+  [v ^java.io.Writer w]
+  (.write w (str "<ProjectPath \"" (.path v) "." (.ext v) "\">")))
+
 (alter-meta! #'->ProjectPath update-in [:doc] str "\n\n Takes a project, a string path, and a file extension.")
 
 (alter-meta! #'map->ProjectPath update-in [:doc] str "\n\n See [[->ProjectPath.]]")
@@ -62,6 +66,10 @@
   Object
   (toString [this] (local-path this)))
 
+(defmethod print-method NativePath
+  [v ^java.io.Writer w]
+  (.write w (str "<NativePath \"" (.path v) "." (.ext v) "\">")))
+
 (alter-meta! #'->NativePath update-in [:doc] str "\n\n Takes a path and extension. See also [[in-build-directory]].")
 
 (alter-meta! #'map->NativePath update-in [:doc] str "\n\n See [[->NativePath.]]")
@@ -70,7 +78,7 @@
 (defn project-path
   ([project-state]
     (let [eproj (:eclipse-project @project-state)]
-    	(ProjectPath. @project-state (.toString (.removeFirstSegments (.getFullPath eproj) 1)) nil)))
+      (ProjectPath. @project-state (.toString (.removeFirstSegments (.getFullPath eproj) 1)) nil)))
   ([project-state resource]
     (let [eproj (:eclipse-project @project-state)
           file  (cond
