@@ -3,7 +3,7 @@
             [com.stuartsierra.component :as component]
             [dynamo.project :as p]
             [dynamo.file :as file]
-            [dynamo.env :refer [with-project]]
+            [dynamo.env :as e]
             [internal.graph.dgraph :as dg]
             [service.log :as log :refer [logging-exceptions]]
             [eclipse.resources :refer :all])
@@ -36,14 +36,14 @@
     (when project-state
       (close-project this))
     (let [project-state (ref (p/make-project eclipse-project branch tx-report-queue))]
-      (with-project project-state
+      (e/with-project project-state
         (doseq [source (filter clojure-source? (resource-seq eclipse-project))]
           (p/load-resource project-state (file/project-path project-state source)))
         (assoc this :project-state project-state))))
 
   (close-project [this]
     (when project-state
-      (with-project project-state
+      (e/with-project project-state
         (p/dispose-project project-state))
       (dissoc this :project-state))))
 
@@ -75,7 +75,7 @@
   (go-loop []
            (when-let [v (<! in)]
              (logging-exceptions "disposal-loop"
-               (with-project (:project v)
+               (e/with-project (:project v)
                  (.dispose (:value v))))
              (recur))))
 
@@ -86,17 +86,17 @@
 (defn- refresh-messages
   [tx-report]
   (for [[node output] (:expired-outputs tx-report)]
-    {:project-state (:project-state tx-report)
+    {:project (:project-state tx-report)
      :node    node
      :output  output}))
 
 (defn- refresh-loop
   [in]
   (go-loop []
-           (when-let [{:keys [project-state node output]} (<! in)]
+           (when-let [{:keys [project node output]} (<! in)]
              (logging-exceptions "refresh-loop"
-               (with-project project-state
-                 (p/get-resource-value project-state node output)))
+               (e/with-project project
+                 (p/get-resource-value project node output)))
              (recur))))
 
 (defn- refresh-subsystem

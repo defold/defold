@@ -63,6 +63,6 @@
 
 (defmacro logging-exceptions [where & body]
   `(try
-     ~@body
+     (do ~@body)
      (catch Throwable thrown#
-       (log/error :exception thrown# :from ~where))))
+       (error :exception thrown# :from ~where))))

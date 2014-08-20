@@ -4,7 +4,8 @@
   (:import [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
-           [com.dynamo.tile.proto Tile$Playback]))
+           [com.dynamo.tile.proto Tile$Playback]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
 ; ----------------------------------------
 ; Functions to create basic value types
@@ -70,6 +71,26 @@
    mipmap-sizes    :- [Int32]
    mipmap-offsets  :- [Int32]])
 
+(defprotocol Pass
+  (selection?       [this])
+  (model-transform? [this]))
+
+(def RenderData {(s/required-key Pass) s/Any})
+
+(sm/defrecord Camera
+  [type           :- (s/enum :perspective :orthographic)
+   position       :- Vector3d
+   rotation       :- Quat4d
+   z-near         :- s/Num
+   z-far          :- s/Num
+   aspect         :- s/Num
+   fov            :- s/Num])
+
+(sm/defrecord Region
+  [left   :- s/Num
+   right  :- s/Num
+   top    :- s/Num
+   bottom :- s/Num])
 
 (defn number               [& {:as opts}] (merge {:schema s/Num} opts))
 (defn string               [& {:as opts}] (merge {:schema s/Str :default ""} opts))
@@ -90,6 +111,9 @@
         #'icon                 "creates a property definition for an [[Icon]] property"
         #'resource             "creates a property definition for a resource (file)"
         #'texture-image        "creates a property definition for a byte array property to be used as an image"
+        #'Pass                 "value for a rendering pass"
+        #'selection?           "Replies true when the pass is used during pick render."
+        #'model-transform?     "Replies true when the pass should apply the node transforms to the current model-view matrix. (Will be true in most cases, false for overlays.)"
         #'non-negative-integer "creates a property definition for a numeric property that must be zero or greater"
         #'isotropic-scale      "creates a property definition for a uniform scaling factor"}]
   (alter-meta! v assoc :doc doc))

@@ -1,7 +1,7 @@
 (ns dynamo.editors)
 
 (defprotocol Editor
-  (init [this site file])
+  (init [this site])
   (create-controls [this parent])
   (save [this file monitor])
   (dirty? [this])
@@ -18,7 +18,7 @@ supplies a protocol that any new editor must implement."
 
          #'init
          "The first function invoked to set up an editor.
-Receives the 'editor site' and the input file."
+Receives the 'editor site'."
 
          #'create-controls
          "The second function in the editor lifecycle. This

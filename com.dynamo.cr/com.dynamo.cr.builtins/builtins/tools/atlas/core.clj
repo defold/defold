@@ -106,11 +106,18 @@
   {:transforms {:save        #'save-atlas-file
                 :text-format #'get-text-format}})
 
+(defnk produce-renderable :- RenderData
+  [this images :- [Image] animations :- [Animation]]
+  {})
+
+(def AtlasRender
+  {:transforms {:renderable #'produce-renderable}})
+
 (defnode AtlasNode
   OutlineNode
   AtlasProperties
-  {:transforms {:save        #'save-atlas-file
-                :text-format #'get-text-format}})
+  AtlasRender
+  AtlasSave)
 
 (protocol-buffer-converters
  AtlasProto$Atlas
@@ -358,6 +365,6 @@
        (new-resource compiler)
        (connect {:_id -1} :textureset compiler :textureset)])))
 
-(logging-exceptions
-  (register-loader (e/current-project) "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
-  (register-editor (e/current-project) "atlas" #'dynamic-scene-editor))
+(logging-exceptions "Atlas tooling"
+  (register-editor (e/current-project) "atlas" #'dynamic-scene-editor)
+  (register-loader (e/current-project) "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))

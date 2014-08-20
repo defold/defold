@@ -1,8 +1,10 @@
 (ns dynamo.geom
   (:require [schema.macros :as sm]
+            [schema.core :as s]
             [dynamo.types :as dt :refer [rect]])
   (:import [dynamo.types Rect]
-           [com.dynamo.bob.textureset TextureSetGenerator]))
+           [com.dynamo.bob.textureset TextureSetGenerator]
+           [javax.vecmath Point3d Matrix4d]))
 
 (defn clamper [low high] (fn [x] (min (max x low) high)))
 
@@ -48,20 +50,20 @@
                                  (- (+ (.y container) (.height container))
                                     (+ (.y overlap)   (.height overlap))))))
 
-	      ;; left slice
-	      (if (< (.x container) (.x overlap))
-	        (conj! new-rects (rect (.x container)
+        ;; left slice
+        (if (< (.x container) (.x overlap))
+          (conj! new-rects (rect (.x container)
                                  (.y overlap)
                                  (- (.x overlap) (.x container))
                                  (.height overlap))))
 
-	      ;; right slice
-	      (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
-	        (conj! new-rects (rect ""
+        ;; right slice
+        (if (< (+ (.x overlap) (.width overlap)) (+ (.x container) (.width container)))
+          (conj! new-rects (rect ""
                                 (+ (.x overlap) (.width overlap))
                                 (.y overlap)
                                 (- (+ (.x container) (.width container))
-	                                  (+ (.x overlap)   (.width overlap)))
+                                    (+ (.x overlap)   (.width overlap)))
                                 (.height overlap)))))
       (conj! new-rects container))
     (persistent! new-rects)))
@@ -80,3 +82,10 @@
 (defn to-short-uv
   [^Float fuv]
   (TextureSetGenerator/toShortUV fuv))
+
+(sm/defn world-space [node :- {:world-transform Matrix4d s/Any s/Any} point :- Point3d]
+  (let [p (Point3d. point)]
+    (.transform (dt/.world-transform node) p)
+    p))
+
+(def Identity4d (doto (Matrix4d.) (.setIdentity)))

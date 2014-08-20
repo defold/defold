@@ -15,7 +15,8 @@
             [dynamo.resource :refer [disposable?]]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
-            [eclipse.markers :as markers])
+            [eclipse.markers :as markers]
+            [service.log :as log])
   (:import [org.eclipse.core.resources IFile]))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
@@ -67,6 +68,10 @@
 (defn load-resource
   [project-state path]
   ((loader-for project-state (file/extension path)) project-state path (io/reader path)))
+
+(defn resource-by-id
+  [project-state id]
+  (dg/node (:graph @project-state) id))
 
 (defn- hit-cache [project-state cache-key value]
   (dosync (alter project-state update-in [:cache] cache/hit cache-key))
@@ -245,7 +250,7 @@
         tx-result))))
 
 (defn query
-  [project-state & clauses]
+  [project-state clauses]
   (map #(dg/node (:graph @project-state) %)
        (q/query (:graph @project-state) clauses)))
 

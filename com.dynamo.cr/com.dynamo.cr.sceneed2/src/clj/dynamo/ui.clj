@@ -1,9 +1,7 @@
 (ns dynamo.ui
-
   (:require [internal.ui.handlers :as h]))
 
 (defmacro defcommand
-
   [name category-id command-id label]
   `(def ^:command ~name (h/make-command ~label ~category-id ~command-id)))
 
@@ -16,31 +14,30 @@
       (assert (var? (resolve fn-var)) "fn-var must be a var.")
       `(def ~name (h/make-handler ~command ~fn-var ~@body))))
 
-
+(defprotocol Repaintable
+  (request-repaint [this]))
 
 (comment
 
-(defn lookup [event]
-  (println "default variable" (.getDefaultVariable (.getApplicationContext event)))
-  (println (active-editor (.getApplicationContext event)))
-  println)
+  (defn lookup [event]
+    (println "default variable" (.getDefaultVariable (.getApplicationContext event)))
+    (println (active-editor (.getApplicationContext event)))
+    println)
 
-(defn say-hello [^ExecutionEvent event] (println "Output here."))
+  (defn say-hello [^ExecutionEvent event] (println "Output here."))
 
-(defcommand a-command "com.dynamo.cr.clojure-eclipse" "com.dynamo.cr.clojure-eclipse.commands.hello" "Speak!")
-(defhandler hello a-command #'say-hello)
-
-)
+  (defcommand a-command "com.dynamo.cr.clojure-eclipse" "com.dynamo.cr.clojure-eclipse.commands.hello" "Speak!")
+  (defhandler hello a-command #'say-hello))
 
 
 (doseq [[v doc]
-       {*ns*
-        "Interaction with the development environment itself.
+        {*ns*
+         "Interaction with the development environment itself.
 
 This namespace has the functions and macros you use to write tools in the editor."
 
-        #'defcommand
-        "Create a command with the given category and id. Binds
+         #'defcommand
+         "Create a command with the given category and id. Binds
 the resulting command to the named variable.
 
 Label should be a human-readable string. It will appear
@@ -50,8 +47,8 @@ If you use the same category-id and command-id more than once,
 this will create independent entities that refer to the same underlying
 command."
 
-        #'defhandler
-  "Creates a handler and binds it to the given command.
+         #'defhandler
+         "Creates a handler and binds it to the given command.
 
 In the first form, the handler will always be enabled. Upon invocation, it
 will call the function bound to fn-var with the
@@ -60,5 +57,11 @@ org.eclipse.core.commands.ExecutionEvent and the additional args.
 In the second form, enablement-fn will be checked. When it returns a truthy
 value, the handler will be enabled. Enablement-fn must have metadata to
 identify the evaluation context variables and properties that affect its
-return value."}]
+return value."
+
+         #'Repaintable
+         "A type that satisfies this protocol can be repainted on demand."
+
+         #'request-repaint
+         "Schedule a repaint to occur at some time in the future."}]
   (alter-meta! v assoc :doc doc))

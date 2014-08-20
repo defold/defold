@@ -70,7 +70,7 @@ public class GenericEditor extends EditorPart {
 
     IFile file = ((IFileEditorInput) input).getFile();
     impl = ClojureHelper.invoke(INTERNAL_NS, "implementation-for", site, file);
-    ClojureHelper.invoke(EDITORS_NS, "init", impl, site, file);
+    ClojureHelper.invoke(EDITORS_NS, "init", impl, site);
   }
 
   @Override

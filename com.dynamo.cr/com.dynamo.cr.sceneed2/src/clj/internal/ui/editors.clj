@@ -13,12 +13,21 @@
   [& body]
   `(swt-thread-safe* (fn [] (do ~@body))))
 
+(defn swt-timed-exec*
+  [after f]
+  (.timerExec (Display/getCurrent) after f))
+
+(defmacro swt-timed-exec
+  [after & body]
+  `(swt-timed-exec* ~after (fn [] (do ~@body))))
+
 (defn implementation-for
   "Factory for values that implement the Editor protocol.
    When called with an editor site and an input file, returns an
    appropriate Editor value."
   [site file]
-  ((p/editor-for
-     (sys/project-state)
-     (.. file getFullPath getFileExtension))
-    site file))
+  (let [proj (sys/project-state)]
+    ((p/editor-for
+       proj
+       (.. file getFullPath getFileExtension))
+      proj site file)))

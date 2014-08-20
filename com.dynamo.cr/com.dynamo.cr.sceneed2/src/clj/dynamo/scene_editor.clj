@@ -1,10 +1,26 @@
 (ns dynamo.scene-editor
-  (:require [internal.ui.scene-editor])
-  (:import [internal.ui.scene_editor SceneEditor]))
+  (:require [internal.ui.scene-editor]
+            [dynamo.ui :as ui]
+            [dynamo.project :as p]
+            [dynamo.file :as f]
+            [internal.ui.scene-editor :refer [->SceneEditor]]))
+
+(defn find-or-load-node
+  [project-state file]
+  (let [f (f/project-path project-state file)]
+    (if-let [node (first (p/query project-state [[:filename f]]))]
+      node
+      (do
+        (p/load-resource project-state f)
+        (first (p/query project-state [[:filename f]]))))))
 
 (defn dynamic-scene-editor
   "Create a scene editor. The editor's behavior will depend mostly
    on the node types that have been registered and the nodes in
    the project graph."
-  [site file]
-  (internal.ui.scene-editor/SceneEditor. (atom {}) file))
+  [project-state site file]
+  (let [scene-node   (find-or-load-node project-state file)
+        editor-state (atom {:project-state project-state})
+        editor       (->SceneEditor editor-state scene-node)]
+    (add-watch editor-state :repaint-needed (fn [_ _ _ _] (ui/request-repaint editor)))
+    editor))
