@@ -494,8 +494,16 @@ static void RandomString(char* s, int max_len)
     *s = '\0';
 }
 
+#if defined(__GNUC__)
+#define NO_INLINE __attribute__ ((noinline))
+#elif defined(_MSC_VER)
+#define NO_INLINE __declspec(noinline)
+#else
+#error "Unsupported compiler: cannot specify 'noinline'."
+#endif
+
 //This is a helper function for working around an emscripten bug. See comment in the test "LuaTableTest Stress"
-__attribute__((noinline)) void wrapSetJmp(lua_State *L, jmp_buf &env, char *buf, int buf_size){
+NO_INLINE void wrapSetJmp(lua_State *L, jmp_buf &env, char *buf, int buf_size){
     int ret = setjmp(env);
     if (ret == 0)
     {
@@ -507,6 +515,8 @@ __attribute__((noinline)) void wrapSetJmp(lua_State *L, jmp_buf &env, char *buf,
         lua_pop(L, 1);
     }
 }
+
+#undef NO_INLINE
 
 TEST_F(LuaTableTest, Stress)
 {
