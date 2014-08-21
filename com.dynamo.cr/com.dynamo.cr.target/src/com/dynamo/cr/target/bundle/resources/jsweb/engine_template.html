@@ -54,6 +54,7 @@
     		onDismissSplash : function() {
     			preloadModal.hidden = true;
     			SplashControl.splashVisible = false;
+    			SplashControl.unregisterResizeHandler();
     		},
 
     		alignSplashScreen: function() {
