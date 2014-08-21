@@ -115,8 +115,8 @@ def build(bld):
         dlib.find_sources_in_dirs(source_dirs)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
             # NOTE: See comment above
-            dlib.source.remove('dlib/sys_cocoa.mm')
-            dlib.source.remove('dlib/socket_cocoa.mm')
+            dlib.source.remove(os.path.join('dlib', 'sys_cocoa.mm'))
+            dlib.source.remove(os.path.join('dlib', 'socket_cocoa.mm'))
 
         if bld.env.PLATFORM == 'as3-web':
             dlib.source.remove(os.path.join('dlib','socket.cpp'))
