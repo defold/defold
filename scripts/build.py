@@ -91,7 +91,8 @@ class Configuration(object):
                  set_version = None,
                  eclipse = False,
                  branch = None,
-                 channel = None):
+                 channel = None,
+                 waf_options = []):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -114,6 +115,7 @@ class Configuration(object):
         self.eclipse = eclipse
         self.branch = branch
         self.channel = channel
+        self.waf_options = waf_options
 
         self.thread_pool = None
         self.s3buckets = {}
@@ -434,7 +436,7 @@ class Configuration(object):
                 if platform != self.host:
                     pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
-                self.exec_env_command(cmd.split(), cwd = cwd)
+                self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
         self._log('Building bob')
 
@@ -446,7 +448,7 @@ class Configuration(object):
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_env_command(cmd.split(), cwd = cwd)
+            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def build_go(self):
         # TODO: shell=True is required only on windows
@@ -489,7 +491,7 @@ class Configuration(object):
         self._log('Building docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
-        self.exec_env_command(cmd.split(), cwd = cwd)
+        self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def test_cr(self):
         # NOTE: A bit expensive to sync everything
@@ -1019,8 +1021,10 @@ bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
 
-Multiple commands can be specified'''
+Multiple commands can be specified
 
+To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
+'''
     parser = optparse.OptionParser(usage)
 
     parser.add_option('--eclipse-home', dest='eclipse_home',
@@ -1074,7 +1078,10 @@ Multiple commands can be specified'''
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
 
-    options, args = parser.parse_args()
+    options, all_args = parser.parse_args()
+
+    args = filter(lambda x: x[:2] != '--', all_args)
+    waf_options = filter(lambda x: x[:2] == '--', all_args)
 
     if len(args) == 0:
         parser.error('No command specified')
@@ -1095,7 +1102,8 @@ Multiple commands can be specified'''
                           set_version = options.set_version,
                           eclipse = options.eclipse,
                           branch = options.branch,
-                          channel = options.channel)
+                          channel = options.channel,
+                          waf_options = waf_options)
 
         for cmd in args:
             if cmd in ['distclean', 'install_ext', 'build_engine', 'archive_engine']:
@@ -1116,7 +1124,8 @@ Multiple commands can be specified'''
                       set_version = options.set_version,
                       eclipse = options.eclipse,
                       branch = options.branch,
-                      channel = options.channel)
+                      channel = options.channel,
+                      waf_options = waf_options)
 
     for cmd in args:
         f = getattr(c, cmd, None)

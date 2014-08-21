@@ -182,6 +182,17 @@ def android_link_flags(self):
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
 
+@taskgen
+@feature('cprogram', 'cxxprogram')
+@after('apply_link')
+def apply_unit_test(self):
+    # Do not execute unit-tests tasks (compile and link)
+    # when --skip-build-tests is set
+    if hasattr(self, 'uselib') and str(self.uselib).find("GTEST") != -1:
+        if getattr(Options.options, 'skip_build_tests', False):
+            for t in self.tasks:
+                t.hasrun = True
+
 @feature('apk')
 @before('apply_core')
 def apply_apk_test(self):
@@ -1150,7 +1161,8 @@ def set_options(opt):
 
     opt.add_option('--eclipse', action='store_true', default=False, dest='eclipse', help='print eclipse friendly command-line')
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg armv7-darwin')
-    opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip unit tests')
+    opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
+    opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
 
