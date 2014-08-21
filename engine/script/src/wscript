@@ -14,9 +14,9 @@ def build(bld):
     script.find_sources_in_dirs(['.', '../proto'])
 
     if bld.env.PLATFORM == 'js-web':
-        script.source.remove('./script_http.cpp')
+        script.source.remove(os.path.join('.','script_http.cpp'))
     else:
-        script.source.remove('./script_http_js.cpp')
+        script.source.remove(os.path.join('.', 'script_http_js.cpp'))
 
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib
