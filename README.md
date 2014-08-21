@@ -376,6 +376,20 @@ Emscripten
   However, unaligned loads/stores of floats seems to be valid though.
 * Create a node.js package with uvrun for all platforms (osx, linux and windows)
 
+### Create SDK Packages
+
+* Download [emsdk_portable](http://kripken.github.io/emscripten-site/docs/getting_started/downloads.html)
+* Compile on 32-bit Linux
+* Run `emsdk update` and `emsdk install`
+* On Linux first remove the following directories
+  - `emsdk_portable/clang/fastcomp/src`
+  - Everything **apart** from `emsdk_portable/clang/fastcomp/build_master_32/bin`
+  - Strip debug information from files in `emsdk_portable/clang/fastcomp/build_master_32/bin`
+* Create a tarball of the package
+* Upload packages to s3-bucket `defold-packages`
+
+In order to run on 64-bit Ubuntu install the following packages `lib32z1 lib32ncurses5 lib32bz2-1.0 lib32stdc++6`
+
 ### Installation
 
 To install the emscripten tools, invoke 'build.py install_ems'.

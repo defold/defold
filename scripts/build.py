@@ -22,7 +22,8 @@ PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
-NODE_MODULE_XHR2_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages/xhr2-0.1.0-common.tar.gz"
+DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
+NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.22.0"
 # The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
@@ -265,22 +266,10 @@ class Configuration(object):
         return path
 
     def install_ems(self):
-        urls = {'darwin': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz',
-                'linux': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz',
-                'win32': 'https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-{0}-portable-64bit.zip'.format(EMSCRIPTEN_VERSION_STR) }
-
-        url= urls[self.host]
-        dlpath = self._download(url, use_cache=False)
-        binDir = join(self.ext, 'bin')
-        self._extract(dlpath, binDir)
-
-        exePath = self.get_ems_exe_path()
-        self.exec_env_command([exePath, 'update'])
-
-        sdk = self.get_ems_sdk_name()
-        self.exec_env_command([exePath, 'install', sdk])
+        url = '%s/emsdk-%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, EMSCRIPTEN_VERSION_STR, self.host)
+        dlpath = self._download(url)
+        self._extract(dlpath, self.ext)
         self.activate_ems()
-
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
 
     def get_ems_sdk_name(self):
