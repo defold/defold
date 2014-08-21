@@ -346,7 +346,13 @@ public class HTML5Bundler {
     }
 
     private String getCssFilename() {
-    	return this.title + ".css";
+    	String filename;
+    	if (null != this.projectCss) {
+    		filename = new File(this.projectCss).getName();
+    	} else {
+    		filename = this.title + ".css";
+    	}
+    	return filename;
     }
 
     private void createSplitFiles(File targetDir) throws IOException {
