@@ -22,6 +22,8 @@ PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
+NODE_MODULE_XHR2_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages/xhr2-0.1.0-common.tar.gz"
+NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.22.0"
 # The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
 EMSCRIPTEN_VERSION_STR_LINUX = "master"
@@ -251,9 +253,10 @@ class Configuration(object):
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
-        node_modules_dir = os.path.join(self.dynamo_home, 'ext', 'lib')
+        node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
         self._mkdirs(node_modules_dir)
-        self.exec_env_command(['npm', 'install', '--prefix', node_modules_dir, 'xhr2'])
+        xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
+        self._extract_tgz(xhr2_tarball, node_modules_dir)
 
     def _form_ems_path(self):
         path = ''
@@ -987,7 +990,7 @@ instructions.configure=\
 
         env['EMSCRIPTEN'] = self._form_ems_path()
 
-        xhr2_path = os.path.join(self.dynamo_home, 'ext', 'lib', 'node_modules', 'xhr2', 'lib')
+        xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'lib')
         if 'NODE_PATH' in env:
             env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
         else:
