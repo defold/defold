@@ -97,13 +97,13 @@ def build(bld):
         # darwin to linux platform
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
-        dlib.source.remove('dlib/sys_cocoa.mm')
-        dlib.source.remove('dlib/socket_cocoa.mm')
+        dlib.source.remove(os.path.join('dlib', 'sys_cocoa.mm'))
+        dlib.source.remove(os.path.join('dlib', 'socket_cocoa.mm'))
 
     if bld.env.PLATFORM == 'as3-web':
-        dlib.source.remove('dlib/socket.cpp')
+        dlib.source.remove(os.path.join('dlib', 'socket.cpp'))
     else:
-        dlib.source.remove('dlib/socket_null.cpp')
+        dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if bld.env['PLATFORM'] != 'as3-web':
         dlib = bld.new_task_gen(features = 'cc cxx cshlib embed',
@@ -119,9 +119,9 @@ def build(bld):
             dlib.source.remove('dlib/socket_cocoa.mm')
 
         if bld.env.PLATFORM == 'as3-web':
-            dlib.source.remove('dlib/socket.cpp')
+            dlib.source.remove(os.path.join('dlib','socket.cpp'))
         else:
-            dlib.source.remove('dlib/socket_null.cpp')
+            dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if bld.env['PLATFORM'] != 'win32' and bld.env['PLATFORM'] != 'as3-web':
         dlib = bld.new_task_gen(features = 'cxx cshlib',
