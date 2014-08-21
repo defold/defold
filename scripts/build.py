@@ -32,10 +32,7 @@ EMSCRIPTEN_SDK_LINUX = "sdk-{0}-32bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
 PACKAGES_FLASH="gtest-1.5.0".split()
-if 'SHELL' in os.environ:
-    SHELL=os.environ['SHELL']
-if not SHELL:
-    SHELL='bash'
+SHELL = os.environ.get('SHELL', 'bash')
 
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
@@ -431,7 +428,7 @@ class Configuration(object):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
-            libs="dlib ddf particle glfw facebook graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record iap push adtruth engine".split()
+            libs="dlib ddf particle glfw  graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
