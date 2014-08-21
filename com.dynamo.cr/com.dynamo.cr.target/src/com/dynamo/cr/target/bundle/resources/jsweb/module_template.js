@@ -196,8 +196,8 @@ var Module = {
         matchToCanvas: function(id) {
 	        if (typeof window != 'undefined') {
 	          var element = document.getElementById(id);
-	          var x = 640;
-	          var y = 960;
+	          var x = {{DMENGINE_DISPLAY_WIDTH}};
+	          var y = {{DMENGINE_DISPLAY_HEIGHT}};
 	          // The total screen size in device pixels in integers.
 	          var screenWidth = Math.round(window.innerWidth*window.devicePixelRatio);
 	          var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
@@ -227,7 +227,7 @@ var Module = {
 
 	    setMarginTop: function(id, sourcePixels) {
 	    	if (typeof window != 'undefined') {
-		    	var sourceHeight = 960;
+		    	var sourceHeight = {{DMENGINE_DISPLAY_HEIGHT}};
 	          	// The total screen size in device pixels in integers.
 	          	var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
 	          	var scale = screenHeight / sourceHeight;
