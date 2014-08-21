@@ -32,14 +32,18 @@ import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
 public class HTML5Bundler {
+	private String projectRoot;
     private String contentRoot;
     private File appDir;
     private String projectHtml;
     private String projectCss;
+    private String projectSplashImage;
     private String js;
     private String jsMemInit;
     private String title;
     private String version;
+    private int displayWidth;
+    private int displayHeight;
     private int customHeapSize;
     private boolean useApplicationCache;
     private boolean includeDevTool;
@@ -51,8 +55,8 @@ public class HTML5Bundler {
     	"modernizr.custom.js",
     	"IndexedDBShim.min.js",
     	"combine.js",
-    	"splash_image.png"
     };
+    private static final String DefaultSplashImage = "splash_image.png";
 
     private static final String SplitFileDir = "split";
     private static final String SplitFileJson = "preload_files.json";
@@ -170,12 +174,21 @@ public class HTML5Bundler {
         	this.projectCss = this.projectCss.trim();
         }
 
+        this.projectSplashImage = projectProperties.getStringValue("jsweb", "splash_image", null);
+        if (this.projectSplashImage != null) {
+        	this.projectSplashImage = this.projectSplashImage.trim();
+        }
+
+        this.projectRoot = projectRoot;
         this.contentRoot = contentRoot;
         this.version = projectProperties.getStringValue("project", "version", "1.0");
 
         File packageDir = new File(outputDir);
         this.title = projectProperties.getStringValue("project", "title", "Unnamed");
         this.appDir = new File(packageDir, this.title);
+
+        this.displayWidth = projectProperties.getIntValue("display", "width");
+        this.displayHeight = projectProperties.getIntValue("display", "height");
 
         this.customHeapSize = -1;
         Boolean use = projectProperties.getBooleanValue("jsweb", "set_custom_heap_size");
@@ -226,7 +239,11 @@ public class HTML5Bundler {
 
         for (String r : CopiedResources) {
         	copyResource(appDir, r);
-        	monolithicFiles.add(new File(r));
+        }
+        if (null != this.projectSplashImage) {
+        	copyProjectFile(this.projectSplashImage);
+        } else {
+        	copyResource(appDir, DefaultSplashImage);
         }
 
         createManifest();
@@ -244,6 +261,8 @@ public class HTML5Bundler {
     	Template infoTemplate = Mustache.compiler().compile(getModuleText());
     	Map<String, Object> infoData = new HashMap<String, Object>();
 
+    	setCommonTemplateData(infoData);
+
         infoData.put("DMENGINE_SPLIT", new File(SplitFileDir, SplitFileJson).toString());
         String js = "";
         if (0 < this.customHeapSize) {
@@ -260,12 +279,27 @@ public class HTML5Bundler {
     	return String.format("%s_module.js", this.title);
     }
 
+    private void setCommonTemplateData(Map<String, Object> infoData) {
+    	infoData.put("DMENGINE_DISPLAY_WIDTH", this.displayWidth);
+        infoData.put("DMENGINE_DISPLAY_HEIGHT", this.displayHeight);
+
+        String splashImage;
+        if (null != this.projectSplashImage) {
+        	splashImage = new File(this.projectSplashImage).getName();
+        } else {
+        	splashImage = DefaultSplashImage;
+        }
+        infoData.put("DMENGINE_SPLASH_IMAGE", splashImage);
+    }
+
     private void createHtmlShell() throws FileNotFoundException, IOException {
     	String htmlFilename = String.format("%s.html", this.title);
         File htmlOut = new File(this.appDir, htmlFilename);
 
     	Template infoTemplate = Mustache.compiler().compile(getHtmlText());
         Map<String, Object> infoData = new HashMap<String, Object>();
+
+        setCommonTemplateData(infoData);
 
         infoData.put("DMENGINE_APP_TITLE", String.format("%s1 %s2", this.title, this.version));
         infoData.put("DMENGINE_MANIFEST", getManifestFilename());
@@ -300,8 +334,15 @@ public class HTML5Bundler {
     private void createCss() throws FileNotFoundException, IOException {
     	String filename = getCssFilename();
     	File cssOut = new File(this.appDir, filename);
-    	IOUtils.write(this.getCssText(), new FileOutputStream(cssOut), Charset.forName("UTF-8"));
-    	monolithicFiles.add(new File(filename));
+
+    	Template infoTemplate = Mustache.compiler().compile(getCssText());
+    	Map<String, Object> infoData = new HashMap<String, Object>();
+
+    	setCommonTemplateData(infoData);
+
+    	String cssText = infoTemplate.execute(infoData);
+        IOUtils.write(cssText, new FileOutputStream(cssOut), Charset.forName("UTF-8"));
+        monolithicFiles.add(new File(filename));
     }
 
     private String getCssFilename() {
@@ -362,7 +403,7 @@ public class HTML5Bundler {
     	InputStream input = null;
     	try {
     		if (projectPath != null && projectPath.length() > 0) {
-    			input = new FileInputStream(new File(projectPath));
+    			input = new FileInputStream(new File(this.projectRoot, projectPath));
     		} else {
     			input = getClass().getResourceAsStream(resourceDefault);
     		}
@@ -376,6 +417,25 @@ public class HTML5Bundler {
     	return data;
     }
 
+    private void copyProjectFile(String projectPath) throws FileNotFoundException, IOException {
+    	InputStream input = null;
+    	OutputStream output = null;
+    	try {
+    		File inFile = new File(this.projectRoot, projectPath);
+    		String filename = inFile.getName();
+
+    		output = new FileOutputStream(new File(this.appDir, filename));
+    		input = new FileInputStream(inFile);
+    		IOUtils.copy(input, output);
+
+    		monolithicFiles.add(new File(filename));
+    	}
+    	finally {
+    		IOUtils.closeQuietly(output);
+    		IOUtils.closeQuietly(input);
+    	}
+    }
+
     private void copyResource(File targetDir, String sourceFile) throws FileNotFoundException, IOException {
     	OutputStream output = null;
     	InputStream resource = null;
@@ -386,6 +446,8 @@ public class HTML5Bundler {
 
 	    	resource = getClass().getResourceAsStream(sourcePath);
 	    	IOUtils.copy(resource, output);
+
+	    	monolithicFiles.add(new File(sourceFile));
     	}
     	finally {
     		IOUtils.closeQuietly(output);

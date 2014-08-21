@@ -106,7 +106,8 @@ public class Meta {
 
                 IFolder root = EditorUtil.getContentRoot(project);
                 // TODO: Hack until we compile game.project file
-                if (!value.endsWith(".icns") && !value.endsWith(".ico") && !value.endsWith(".png")) {
+                if (!value.endsWith(".icns") && !value.endsWith(".ico") && !value.endsWith(".png") &&
+                		!value.endsWith(".html") && !value.endsWith(".css")) {
                     value = value.substring(0, value.length() - 1);
                 }
 

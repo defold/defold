@@ -41,11 +41,6 @@ div[class=fullscreenControl] > span {
 	z-index: 2;
 }
 
-.download_modal_content {
-	width: 50%;
-	height: 50%;
-}
-
 .absolute-centre {
 	margin: auto;
 	position: absolute;
@@ -99,11 +94,11 @@ progress[value] {
 	border: none;
 
 	/* Add dimensions */
-	width: 300px; height: 20px;
+	width: 60%; height: 20px;
 
 	/* No pseudo class with Firefox for containers, but anything applied here will apply to it too. */
 	background-color: #ccc;
-	border-radius: 3px;
+	border-radius: 13px;
 	box-shadow: 0 2px 3px rgba(0,0,0,.5) inset;
 
 	/* On IE10, we may set the background-color of the progress value using the 'color' attribute. */
@@ -112,15 +107,22 @@ progress[value] {
 
 progress[value]::-webkit-progress-bar {
 	background-color: #ccc;
-	border-radius: 3px;
+	border-radius: 13px;
 	box-shadow: 0 2px 3px rgba(0,0,0,.5) inset;
+}
+
+progress[value]::-moz-progress-bar {
+	background-color: #ccc;
+	border-radius: 13px;
+	box-shadow: 0 2px 3px rgba(0,0,0,.5) inset;
+	padding: 3px;
 }
 
 progress[value]::-webkit-progress-value {
 	position: relative;
 
 	background-size: 35px 20px, 100% 100%, 100% 100%;
-	border-radius:3px;
+	border-radius:13px;
 }
 
 progress[value]::-webkit-progress-value:after {
