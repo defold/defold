@@ -5,8 +5,6 @@
 #include <math.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
-#define DM_THIRD 0.333333333333333f
-
 namespace dmTransform
 {
     using namespace Vectormath::Aos;
@@ -244,7 +242,9 @@ namespace dmTransform
 
         inline float GetUniformScale() const
         {
-            return sum(m_Scale) * DM_THIRD;
+        	return m_Scale[0] > m_Scale[1] ?
+        			(m_Scale[1] > m_Scale[2] ? m_Scale[2] : m_Scale[1]) :
+        			(m_Scale[0] > m_Scale[2] ? m_Scale[2] : m_Scale[0]);
         }
 
         inline void SetUniformScale(float scale)
@@ -374,7 +374,5 @@ namespace dmTransform
         return res;
     }
 }
-
-#undef DM_THIRD
 
 #endif // DM_TRANSFORM_H
