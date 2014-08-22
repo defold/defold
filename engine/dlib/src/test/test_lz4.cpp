@@ -58,7 +58,7 @@ char * RandomCharArray(int max, int *real)
     char *tmp;
     uint32_t n = rand() % max;
 
-    tmp = (char *)malloc(n);
+    tmp = (char *)malloc(n + 1);
 
     for (uint32_t j = 0; j < n; ++j)
     {
