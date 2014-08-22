@@ -2,8 +2,8 @@
 #define DM_TRANSFORM_H
 
 #include <assert.h>
-#include <math.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include "math.h"
 
 namespace dmTransform
 {
@@ -240,11 +240,15 @@ namespace dmTransform
             return (float*)&m_Scale;
         }
 
+        /**
+         * Compute a 'uniform' scale for this transform. In the event that the
+         * scale applied to this transform is not uniform then the value is arbitrary:
+         * we make a selection that will not introduce any floating point rounding errors.
+         * @return the uniform scale associated with this transform.
+         */
         inline float GetUniformScale() const
         {
-        	return m_Scale[0] > m_Scale[1] ?
-        			(m_Scale[1] > m_Scale[2] ? m_Scale[2] : m_Scale[1]) :
-        			(m_Scale[0] > m_Scale[2] ? m_Scale[2] : m_Scale[0]);
+        	return dmMath::Min(dmMath::Min(m_Scale[0], m_Scale[1]), m_Scale[2]);
         }
 
         inline void SetUniformScale(float scale)
