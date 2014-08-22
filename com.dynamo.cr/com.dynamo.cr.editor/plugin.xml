@@ -203,67 +203,31 @@
                   commandId="com.dynamo.cr.target.commands.bundleiOS"
                   label="iOS Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleAndroid"
                   label="Android Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleOSX"
                   label="OSX Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleWin32"
                   label="Windows Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleLinux"
                   label="Linux Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleHTML5"
                   label="HTML5 Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
          </menu>
       </menuContribution>
