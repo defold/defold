@@ -4,6 +4,7 @@ mkdir -p engine/darwin
 mkdir -p engine/win32
 mkdir -p engine/ios
 mkdir -p engine/android
+mkdir -p engine/js-web
 
 SHA1=`git log --pretty=%H -n1`
 
