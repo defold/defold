@@ -373,14 +373,14 @@ class Configuration(object):
             bin_dir = ''
             lib_dir = ''
 
-        engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine' + exe_ext)
-        engine_release = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_release' + exe_ext)
-        engine_headless = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_headless' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
-            self.upload_file(engine, '%s/%sdmengine%s' % (full_archive_path, exe_prefix, exe_ext))
-            self.upload_file(engine_release, '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext))
-            self.upload_file(engine_headless, '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext))
+            for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
+                engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext)
+                self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
+                if self.target_platform == 'js-web':
+                    engine_mem = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext + '.mem')
+                    self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
 
         if self.target_platform == 'linux':
             # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
