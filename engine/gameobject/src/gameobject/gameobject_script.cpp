@@ -39,6 +39,8 @@ namespace dmGameObject
 
     using namespace dmPropertiesDDF;
 
+    const char* SCRIPT_INSTANCE_TYPE_NAME = SCRIPTINSTANCE;
+
     const char* SCRIPT_FUNCTION_NAMES[MAX_SCRIPT_FUNCTION_COUNT] =
     {
         "init",
@@ -74,20 +76,7 @@ namespace dmGameObject
         return script;
     }
 
-    static Script* Script_Check(lua_State *L, int index)
-    {
-        return (Script*)dmScript::CheckUserType(L, index, SCRIPT);
-    }
-
-    static Script* Script_Check(lua_State *L)
-    {
-        dmScript::GetInstance(L);
-        Script* script = Script_Check(L, -1);
-        lua_pop(L, 1);
-        return script;
-    }
-
-    int ScriptGetURL(lua_State* L)
+    static int ScriptGetURL(lua_State* L)
     {
         dmMessage::URL url;
         dmMessage::ResetURL(url);
@@ -95,25 +84,16 @@ namespace dmGameObject
         return 1;
     }
 
-    int ScriptResolvePath(lua_State* L)
+    static int ScriptResolvePath(lua_State* L)
     {
-        Script* script = Script_Check(L, 1);
-
-        if (script == 0x0)
-        {
-            return luaL_error(L, "No context available in which to resolve the supplied URL.");
-        }
-        else
-        {
-            // NOTE No resolve takes place here.
-            // If it's called from within a go.property() it doesn't matter, since such URLs are resolved at script instance creation
-            return dmHashString64(luaL_checkstring(L, 2));
-        }
+        const char* path = luaL_checkstring(L, 2);
+        dmScript::PushHash(L, dmHashString64(path));
+        return 1;
     }
 
-    int ScriptIsValid(lua_State* L)
+    static int ScriptIsValid(lua_State* L)
     {
-        Script* script = Script_Check(L, 1);
+        Script* script = (Script*)lua_touserdata(L, 1);
         lua_pushboolean(L, script != 0x0 && script->m_LuaModule != 0x0);
         return 1;
     }
@@ -125,27 +105,11 @@ namespace dmGameObject
 
     static const luaL_reg Script_meta[] =
     {
-        {dmScript::META_TABLE_RESOLVE_PATH, ScriptGetURL},
-        {dmScript::META_TABLE_GET_URL, ScriptResolvePath},
-        {dmScript::META_TABLE_IS_VALID, ScriptIsValid},
+        {dmScript::META_TABLE_GET_URL,      ScriptGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, ScriptResolvePath},
+        {dmScript::META_TABLE_IS_VALID,     ScriptIsValid},
         {0, 0}
     };
-
-    static ScriptInstance* GetScriptInstance(lua_State *L)
-    {
-        int top = lua_gettop(L);
-        (void)top;
-        ScriptInstance* i = 0x0;
-        dmScript::GetInstance(L);
-        if (dmScript::IsUserType(L, -1, SCRIPTINSTANCE))
-        {
-            i = (ScriptInstance*)lua_touserdata(L, -1);
-        }
-        // Clear stack and return
-        lua_pop(L, 1);
-        assert(top == lua_gettop(L));
-        return i;
-    }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
@@ -207,9 +171,33 @@ namespace dmGameObject
         return 0;
     }
 
-    int ScriptInstanceGetURL(lua_State* L)
+    static void ScriptInstanceGetURLCB(lua_State* L, dmMessage::URL* out_url)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, -1);
+        dmScript::GetInstance(L);
+        ScriptInstance* i = ScriptInstance_Check(L);
+        lua_pop(L, 1);
+        Instance* instance = i->m_Instance;
+        out_url->m_Function = 0;
+        out_url->m_Socket = instance->m_Collection->m_ComponentSocket;
+        out_url->m_Path = instance->m_Identifier;
+        out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
+    }
+
+    static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path, uint32_t path_size) {
+        ScriptInstance* i = (ScriptInstance*)resolve_user_data;
+        if (path != 0x0 && *path != 0)
+        {
+            return GetAbsoluteIdentifier(i->m_Instance, path, strlen(path));
+        }
+        else
+        {
+            return i->m_Instance->m_Identifier;
+        }
+    }
+
+    static int ScriptInstanceGetURL(lua_State* L)
+    {
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         Instance* instance = i->m_Instance;
         dmMessage::URL url;
         url.m_Function = 0;
@@ -220,9 +208,16 @@ namespace dmGameObject
         return 1;
     }
 
-    int ScriptInstanceResolvePath(lua_State* L)
+    static int ScriptInstanceGetUserData(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
+        lua_pushlightuserdata(L, i->m_Instance);
+        return 1;
+    }
+
+    static int ScriptInstanceResolvePath(lua_State* L)
+    {
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         const char* path = luaL_checkstring(L, 2);
 
         if (path != 0x0 && *path != 0)
@@ -236,9 +231,9 @@ namespace dmGameObject
         return 1;
     }
 
-    int ScriptInstanceIsValid(lua_State* L)
+    static int ScriptInstanceIsValid(lua_State* L)
     {
-        ScriptInstance* i = ScriptInstance_Check(L, 1);
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         lua_pushboolean(L, i != 0x0 && i->m_Instance != 0x0);
         return 1;
     }
@@ -250,13 +245,14 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",        ScriptInstance_gc},
-        {"__tostring",  ScriptInstance_tostring},
-        {"__index",     ScriptInstance_index},
-        {"__newindex",  ScriptInstance_newindex},
-        {dmScript::META_TABLE_RESOLVE_PATH, ScriptInstanceGetURL},
-        {dmScript::META_TABLE_GET_URL, ScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID, ScriptInstanceIsValid},
+        {"__gc",                            ScriptInstance_gc},
+        {"__tostring",                      ScriptInstance_tostring},
+        {"__index",                         ScriptInstance_index},
+        {"__newindex",                      ScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,      ScriptInstanceGetURL},
+        {dmScript::META_TABLE_GET_USER_DATA,ScriptInstanceGetUserData},
+        {dmScript::META_TABLE_RESOLVE_PATH, ScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,     ScriptInstanceIsValid},
         {0, 0}
     };
 
@@ -807,7 +803,7 @@ namespace dmGameObject
     void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = GetLuaState();
 
         int top = lua_gettop(L);
         (void) top;
@@ -822,11 +818,11 @@ namespace dmGameObject
 
         if (finished)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            dmScript::SetInstance(L);
-
             lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+            lua_pushvalue(L, -1);
+            dmScript::SetInstance(L);
+
             dmScript::PushURL(L, url);
             dmScript::PushHash(L, property_id);
 
@@ -1215,29 +1211,9 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
-        luaL_register(L, SCRIPT, Script_methods);   // create methods table, add it to the globals
-        int methods = lua_gettop(L);
-        luaL_newmetatable(L, SCRIPT);                         // create metatable for ScriptInstance, add it to the Lua registry
-        int metatable = lua_gettop(L);
-        luaL_register(L, 0, Script_meta);                   // fill metatable
+        dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
 
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, methods);                       // dup methods table
-        lua_settable(L, metatable);
-
-        lua_pop(L, 2);
-
-        luaL_register(L, SCRIPTINSTANCE, ScriptInstance_methods);   // create methods table, add it to the globals
-        methods = lua_gettop(L);
-        luaL_newmetatable(L, SCRIPTINSTANCE);                         // create metatable for ScriptInstance, add it to the Lua registry
-        metatable = lua_gettop(L);
-        luaL_register(L, 0, ScriptInstance_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, methods);                       // dup methods table
-        lua_settable(L, metatable);
-
-        lua_pop(L, 2);
+        dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
 
         luaL_register(L, "go", GO_methods);
 
@@ -1314,11 +1290,6 @@ namespace dmGameObject
         {
             dmGameObject::FreeModules(factory, g_ScriptContext);
         }
-        if (g_LuaState)
-        {
-            dmScript::Finalize(context);
-        }
-        g_LuaState = 0;
         g_ScriptContext = 0;
     }
 
@@ -1358,7 +1329,7 @@ namespace dmGameObject
         int ret = lua_load(L, &ReadScript, &data, filename);
         if (ret == 0)
         {
-            lua_pushlightuserdata(L, (void*) script);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
             dmScript::SetInstance(L);
 
             ret = lua_pcall(L, 0, LUA_MULTRET, 0);
@@ -1413,11 +1384,20 @@ bail:
 
     static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
 
+    static void ResetScript(HScript script) {
+        memset(script, 0, sizeof(Script));
+        for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i) {
+            script->m_FunctionReferences[i] = LUA_NOREF;
+        }
+        script->m_InstanceReference = LUA_NOREF;
+    }
+
     HScript NewScript(dmLuaDDF::LuaModule* lua_module, const char* filename)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = GetLuaState();
 
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
+        ResetScript(script);
 
         lua_pushvalue(L, -1);
         script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -1440,21 +1420,24 @@ bail:
     {
         bool result = true;
         script->m_LuaModule = lua_module;
-        if (!LoadScript(g_LuaState, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
+        if (!LoadScript(GetLuaState(), (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
             result = false;
         return result;
     }
 
     void DeleteScript(HScript script)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = GetLuaState();
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
         {
-            if (script->m_FunctionReferences[i])
+            if (script->m_FunctionReferences[i] != LUA_NOREF) {
                 luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+            }
         }
 
         luaL_unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        script->~Script();
+        ResetScript(script);
     }
 
     static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var)
@@ -1560,14 +1543,21 @@ bail:
         return PROPERTY_RESULT_NOT_FOUND;
     }
 
+    static void ResetScriptInstance(HScriptInstance script_instance) {
+        memset(script_instance, 0, sizeof(ScriptInstance));
+        script_instance->m_InstanceReference = LUA_NOREF;
+        script_instance->m_ScriptDataReference = LUA_NOREF;
+    }
+
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = GetLuaState();
 
         int top = lua_gettop(L);
         (void) top;
 
         ScriptInstance* i = (ScriptInstance *)lua_newuserdata(L, sizeof(ScriptInstance));
+        ResetScriptInstance(i);
         i->m_Script = script;
 
         lua_pushvalue(L, -1);
@@ -1579,9 +1569,9 @@ bail:
         i->m_Instance = instance;
         i->m_ComponentIndex = component_index;
         NewPropertiesParams params;
-        params.m_ResolvePathCallback = ScriptInstanceResolvePath;
+        params.m_ResolvePathCallback = ScriptInstanceResolvePathCB;
         params.m_ResolvePathUserData = (uintptr_t)L;
-        params.m_GetURLCallback = ScriptInstanceGetURL;
+        params.m_GetURLCallback = ScriptInstanceGetURLCB;
         i->m_Properties = NewProperties(params);
         SetPropertySet(i->m_Properties, PROPERTY_LAYER_DEFAULT, script->m_PropertySet);
         luaL_getmetatable(L, SCRIPTINSTANCE);
@@ -1596,7 +1586,7 @@ bail:
 
     void DeleteScriptInstance(HScriptInstance script_instance)
     {
-        lua_State* L = g_LuaState;
+        lua_State* L = GetLuaState();
 
         int top = lua_gettop(L);
         (void) top;
@@ -1605,8 +1595,8 @@ bail:
         luaL_unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
         DeleteProperties(script_instance->m_Properties);
-
-        *script_instance = ScriptInstance();
+        script_instance->~ScriptInstance();
+        ResetScriptInstance(script_instance);
 
         assert(top == lua_gettop(L));
     }

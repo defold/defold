@@ -19,7 +19,7 @@ namespace dmGameObject
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        if (!LoadModules(factory, g_ScriptContext, g_LuaState, lua_module))
+        if (!LoadModules(factory, g_ScriptContext, GetLuaState(), lua_module))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;

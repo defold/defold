@@ -22,6 +22,41 @@ namespace dmGui
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
+    static int GuiScriptGetURL(lua_State* L)
+    {
+        dmMessage::URL url;
+        dmMessage::ResetURL(url);
+        dmScript::PushURL(L, url);
+        return 1;
+    }
+
+    static int GuiScriptResolvePath(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 2);
+        dmScript::PushHash(L, dmHashString64(path));
+        return 1;
+    }
+
+    static int GuiScriptIsValid(lua_State* L)
+    {
+        Script* script = (Script*)lua_touserdata(L, 1);
+        lua_pushboolean(L, script != 0x0 && script->m_Context != 0x0);
+        return 1;
+    }
+
+    static const luaL_reg GuiScript_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg GuiScript_meta[] =
+    {
+        {dmScript::META_TABLE_GET_URL,      GuiScriptGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptResolvePath},
+        {dmScript::META_TABLE_IS_VALID,     GuiScriptIsValid},
+        {0, 0}
+    };
+
     static Scene* GetScene(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -94,6 +129,30 @@ namespace dmGui
         return 0;
     }
 
+    static int GuiScriptInstanceGetURL(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        dmMessage::URL url;
+        scene->m_Context->m_GetURLCallback(scene, &url);
+        dmScript::PushURL(L, url);
+        return 1;
+    }
+
+    static int GuiScriptInstanceResolvePath(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        const char* path = luaL_checkstring(L, 2);
+        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, strlen(path)));
+        return 1;
+    }
+
+    static int GuiScriptInstanceIsValid(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        lua_pushboolean(L, scene != 0x0 && scene->m_Context != 0x0);
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -105,6 +164,9 @@ namespace dmGui
         {"__tostring",  GuiScriptInstance_tostring},
         {"__index",     GuiScriptInstance_index},
         {"__newindex",  GuiScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,      GuiScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,     GuiScriptInstanceIsValid},
         {0, 0}
     };
 
@@ -2311,41 +2373,6 @@ namespace dmGui
 
 #undef REGGETSET
 
-    dmhash_t ScriptResolvePathCallback(uintptr_t resolve_user_data, const char* path, uint32_t path_size)
-    {
-        lua_State* L = (lua_State*)resolve_user_data;
-        Scene* scene = GetScene(L);
-        if (scene == 0x0)
-            return 0;
-
-        return scene->m_Context->m_ResolvePathCallback(scene, path, path_size);
-    }
-
-    void ScriptGetURLCallback(lua_State* L, dmMessage::URL* url)
-    {
-        Scene* scene = GetScene(L);
-        if (scene == 0x0)
-        {
-            luaL_error(L, "You can only create URLs inside inside the callback functions (init, update, etc).");
-        }
-
-        scene->m_Context->m_GetURLCallback(scene, url);
-    }
-
-    uintptr_t ScriptGetUserDataCallback(lua_State* L)
-    {
-        Scene* scene = GetScene(L);
-        if (scene == 0x0)
-            return 0;
-        return scene->m_Context->m_GetUserDataCallback(scene);
-    }
-
-    bool ScriptValidateInstanceCallback(lua_State* L)
-    {
-        Scene* scene = GetScene(L);
-        return scene != 0x0 && scene->m_Context != 0x0;
-    }
-
     /*# position property
      *
      * @name gui.PROP_POSITION
@@ -2505,44 +2532,16 @@ namespace dmGui
 
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
-        lua_State* L = lua_open();
+        lua_State* L = dmScript::GetLuaState(script_context);
 
         int top = lua_gettop(L);
         (void)top;
-        luaL_openlibs(L);
 
-        // Pop all stack values generated from luaopen_*
-        lua_pop(L, lua_gettop(L));
+        dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
 
-        dmScript::ScriptParams params;
-        params.m_Context = script_context;
-        params.m_GetURLCallback = ScriptGetURLCallback;
-        params.m_GetUserDataCallback = ScriptGetUserDataCallback;
-        params.m_ResolvePathCallback = ScriptResolvePathCallback;
-        params.m_ValidateInstanceCallback = ScriptValidateInstanceCallback;
-        dmScript::Initialize(L, params);
+        dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
 
-        luaL_register(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods);   // create methods table, add it to the globals
-        lua_pop(L, 1);
-
-        luaL_newmetatable(L, GUI_SCRIPT_INSTANCE);                         // create metatable for Image, add it to the Lua registry
-        luaL_register(L, 0, GuiScriptInstance_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, -3);                       // dup methods table
-        lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
-        lua_pop(L, 1);                              // drop metatable
-
-        luaL_register(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods);   // create methods table, add it to the globals
-        lua_pop(L, 1);
-
-        luaL_newmetatable(L, NODE_PROXY_TYPE_NAME);                         // create metatable for Image, add it to the Lua registry
-        luaL_register(L, 0, NodeProxy_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, -3);                       // dup methods table
-        lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
-        lua_pop(L, 1);                              // drop metatable
+        dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
 
         luaL_register(L, LIB_NAME, Gui_methods);
 
@@ -2705,8 +2704,6 @@ namespace dmGui
 
     void FinalizeScript(lua_State* L, dmScript::HContext script_context)
     {
-        dmScript::Finalize(L, script_context);
-        lua_close(L);
     }
 
     // Documentation for the scripts

@@ -552,6 +552,11 @@ namespace dmScript
         return GetURL(L, *out_url);
     }
 
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type)
+    {
+        return GetUserData(L, *out_user_data, user_type);
+    }
+
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url)
     {
         // Special handling for "." which means default socket + path

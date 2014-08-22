@@ -7,6 +7,8 @@
 #include <dlib/log.h>
 #include <dlib/configfile.h>
 
+#include <string.h>
+
 extern "C"
 {
 #include <lua/lauxlib.h>
@@ -122,6 +124,110 @@ TEST_F(ScriptTest, TestCoroutineCallback)
 
     ASSERT_EQ(top, lua_gettop(L));
 }
+
+struct TestDummy {
+    uint32_t        m_Dummy;
+    dmMessage::URL  m_URL;
+    int             m_InstanceReference;
+};
+
+static int TestGetURL(lua_State* L) {
+    TestDummy* dummy = (TestDummy*)lua_touserdata(L, 1);
+    dmScript::PushURL(L, dummy->m_URL);
+    return 1;
+}
+
+static int TestGetUserData(lua_State* L) {
+    TestDummy* dummy = (TestDummy*)lua_touserdata(L, 1);
+    lua_pushlightuserdata(L, (void*)dummy->m_Dummy);
+    return 1;
+}
+
+static int TestResolvePath(lua_State* L) {
+    dmScript::PushHash(L, dmHashString64(luaL_checkstring(L, 2)));
+    return 1;
+}
+
+static int TestIsValid(lua_State* L)
+{
+    TestDummy* dummy = (TestDummy*)lua_touserdata(L, 1);
+    lua_pushboolean(L, dummy != 0x0 && dummy->m_Dummy != 0);
+    return 1;
+}
+
+static const luaL_reg Test_methods[] =
+{
+    {0,0}
+};
+
+static const luaL_reg Test_meta[] =
+{
+    {dmScript::META_TABLE_GET_URL,          TestGetURL},
+    {dmScript::META_TABLE_GET_USER_DATA,    TestGetUserData},
+    {dmScript::META_TABLE_RESOLVE_PATH,     TestResolvePath},
+    {dmScript::META_TABLE_IS_VALID,         TestIsValid},
+    {0, 0}
+};
+
+#define ASSERT_EQ_URL(exp, act)\
+    ASSERT_EQ(exp.m_Socket, act.m_Socket);\
+    ASSERT_EQ(exp.m_Path, act.m_Path);\
+    ASSERT_EQ(exp.m_Fragment, act.m_Fragment);\
+
+#define ASSERT_NE_URL(exp, act)\
+    ASSERT_NE(exp.m_Socket, act.m_Socket);\
+    ASSERT_NE(exp.m_Path, act.m_Path);\
+    ASSERT_NE(exp.m_Fragment, act.m_Fragment);\
+
+TEST_F(ScriptTest, TestUserType) {
+    const char* type_name = "TestType";
+    dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
+
+    // Create an instance
+    TestDummy* dummy = (TestDummy*)lua_newuserdata(L, sizeof(TestDummy));
+    dummy->m_Dummy = 1;
+    // dummy URL value
+    memset(&dummy->m_URL, 0xABCD, sizeof(dmMessage::URL));
+    luaL_getmetatable(L, type_name);
+    lua_setmetatable(L, -2);
+    dummy->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+
+    // Invalid
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+
+    // Set as current instance
+    lua_rawgeti(L, LUA_REGISTRYINDEX, dummy->m_InstanceReference);
+    dmScript::SetInstance(L);
+
+    // Valid
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    // GetURL
+    dmMessage::URL url;
+    dmMessage::ResetURL(url);
+    ASSERT_NE_URL(dummy->m_URL, url);
+    dmScript::GetURL(L, &url);
+    ASSERT_EQ_URL(dummy->m_URL, url);
+
+    // GetUserData
+    uintptr_t user_data;
+    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, "incorrect_type"));
+    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, type_name));
+    ASSERT_EQ(dummy->m_Dummy, user_data);
+
+    // ResolvePath
+    dmMessage::ResetURL(url);
+    dmMessage::Result result = dmScript::ResolveURL(L, "test_path", &url, &dummy->m_URL);
+    ASSERT_EQ(dmMessage::RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_path"), url.m_Path);
+
+    // Destruction
+    luaL_unref(L, LUA_REGISTRYINDEX, dummy->m_InstanceReference);
+    memset(dummy, 0, sizeof(TestDummy));
+}
+
+#undef ASSERT_EQ_URL
+#undef ASSERT_NE_URL
 
 int main(int argc, char **argv)
 {

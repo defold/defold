@@ -78,7 +78,6 @@ namespace dmGameObject
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
-    extern lua_State* g_LuaState;
     extern dmScript::HContext g_ScriptContext;
 
     PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);

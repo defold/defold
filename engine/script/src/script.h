@@ -12,6 +12,7 @@
 extern "C"
 {
 #include <lua/lua.h>
+#include <lua/lauxlib.h>
 }
 
 namespace dmScript
@@ -28,6 +29,7 @@ namespace dmScript
 
     extern const char* META_TABLE_RESOLVE_PATH;
     extern const char* META_TABLE_GET_URL;
+    extern const char* META_TABLE_GET_USER_DATA;
     extern const char* META_TABLE_IS_VALID;
 
     /**
@@ -282,10 +284,18 @@ namespace dmScript
     /**
      * Returns the URL of a script currently operating on the given lua state.
      * @param L Lua state
-     * @param Pointer to a URL to be written to
+     * @param out_url Pointer to a URL to be written to
      * @return true if a URL could be found
      */
     bool GetURL(lua_State* L, dmMessage::URL* out_url);
+
+    /**
+     * Returns the user data of a script currently operating on the given lua state.
+     * @param L Lua state
+     * @param out_user_data Pointer to a uintptr_t to be written to
+     * @return true if the user data could be found
+     */
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
 
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
@@ -399,6 +409,15 @@ namespace dmScript
      * @return the object if it has the specified type, 0 otherwise
      */
     void* CheckUserType(lua_State* L, int idx, const char* type);
+
+    /**
+     * Register a user type along with methods and meta methods.
+     * @param L lua state
+     * @param name user type name
+     * @param methods array of methods
+     * @param meta array of meta methods
+     */
+    void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
 }
 
 #endif // DM_SCRIPT_H

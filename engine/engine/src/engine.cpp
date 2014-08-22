@@ -196,12 +196,18 @@ namespace dmEngine
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
 
-        if (engine->m_GOScriptContext)
+        if (engine->m_GOScriptContext) {
+            dmScript::Finalize(engine->m_GOScriptContext);
             dmScript::DeleteContext(engine->m_GOScriptContext);
-        if (engine->m_RenderScriptContext)
+        }
+        if (engine->m_RenderScriptContext) {
+            dmScript::Finalize(engine->m_RenderScriptContext);
             dmScript::DeleteContext(engine->m_RenderScriptContext);
-        if (engine->m_GuiScriptContext)
+        }
+        if (engine->m_GuiScriptContext) {
+            dmScript::Finalize(engine->m_GuiScriptContext);
             dmScript::DeleteContext(engine->m_GuiScriptContext);
+        }
 
         if (engine->m_GraphicsContext)
         {
@@ -451,8 +457,11 @@ namespace dmEngine
         }
 
         engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        dmScript::Initialize(engine->m_GOScriptContext);
         engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        dmScript::Initialize(engine->m_RenderScriptContext);
         engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        dmScript::Initialize(engine->m_GuiScriptContext);
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 

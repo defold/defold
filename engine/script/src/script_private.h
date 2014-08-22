@@ -31,6 +31,8 @@ namespace dmScript
 
     bool GetURL(lua_State* L, dmMessage::URL& out_url);
 
+    bool GetUserData(lua_State* L, uintptr_t& out_user_data, const char* user_type);
+
     bool IsValidInstance(lua_State* L);
 }
 

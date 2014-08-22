@@ -29,12 +29,14 @@ protected:
         m_Path = "build/default/src/gameobject/test/script";
         m_Factory = dmResource::NewFactory(&params, m_Path);
         m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
-        assert(dmMessage::NewSocket("@system", &m_Socket) == dmMessage::RESULT_OK);
+        dmMessage::Result result = dmMessage::NewSocket("@system", &m_Socket);
+        assert(result == dmMessage::RESULT_OK);
     }
 
     virtual void TearDown()
@@ -45,6 +47,7 @@ protected:
         dmGameObject::Finalize(m_ScriptContext, m_Factory);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
 

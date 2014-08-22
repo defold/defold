@@ -71,6 +71,7 @@ public:
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::Initialize(m_ScriptContext);
 
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
         dmGui::NewContextParams context_params;
@@ -116,6 +117,7 @@ public:
         dmGui::DeleteScene(m_Scene);
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmMessage::DeleteSocket(m_Socket);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
 };

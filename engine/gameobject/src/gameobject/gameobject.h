@@ -21,6 +21,10 @@ namespace dmGameObject
 {
     using namespace Vectormath::Aos;
 
+    // Type name of the script instances
+    // TODO Fix this better, weird to have this here in the public API. Used by components to fish for lua user data (e.g. GO instance)
+    extern const char* SCRIPT_INSTANCE_TYPE_NAME;
+
     /// Instance handle
     typedef struct Instance* HInstance;
 

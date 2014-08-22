@@ -19,7 +19,6 @@
 
 extern "C"
 {
-#include <lua/lauxlib.h>
 #include <lua/lualib.h>
 }
 
@@ -111,6 +110,7 @@ namespace dmScript
     {
         lua_State* L = context->m_LuaState;
         int top = lua_gettop(L);
+        (void)top;
 
         luaL_openlibs(L);
 
@@ -206,7 +206,10 @@ namespace dmScript
 #undef BIT_OFFSET
 
     lua_State* GetLuaState(HContext context) {
-        return context->m_LuaState;
+        if (context != 0x0) {
+            return context->m_LuaState;
+        }
+        return 0x0;
     }
 
     int LuaPrint(lua_State* L)
@@ -369,6 +372,19 @@ namespace dmScript
         return object;
     }
 
+    void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
+        luaL_register(L, name, methods);   // create methods table, add it to the globals
+        int methods_idx = lua_gettop(L);
+        luaL_newmetatable(L, name);                         // create metatable for ScriptInstance, add it to the Lua registry
+        int metatable_idx = lua_gettop(L);
+        luaL_register(L, 0, meta);                   // fill metatable
+
+        lua_pushliteral(L, "__metatable");
+        lua_pushvalue(L, methods_idx);                       // dup methods table
+        lua_settable(L, metatable_idx);
+        lua_pop(L, 2);
+    }
+
     static bool GetMetaFunction(lua_State* L, int index, const char* meta_table_key) {
         if (lua_getmetatable(L, index)) {
             lua_pushstring(L, meta_table_key);
@@ -386,6 +402,7 @@ namespace dmScript
 
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash) {
         int top = lua_gettop(L);
+        (void)top;
         GetInstance(L);
         if (GetMetaFunction(L, -1, META_TABLE_RESOLVE_PATH)) {
             lua_pushvalue(L, -2);
@@ -403,6 +420,7 @@ namespace dmScript
 
     bool GetURL(lua_State* L, dmMessage::URL& out_url) {
         int top = lua_gettop(L);
+        (void)top;
         GetInstance(L);
         if (GetMetaFunction(L, -1, META_TABLE_GET_URL)) {
             lua_pushvalue(L, -2);
@@ -417,13 +435,34 @@ namespace dmScript
         return false;
     }
 
+    bool GetUserData(lua_State* L, uintptr_t& out_user_data, const char* user_type) {
+        int top = lua_gettop(L);
+        (void)top;
+        GetInstance(L);
+        if (!dmScript::IsUserType(L, -1, user_type)) {
+            return false;
+        }
+        if (GetMetaFunction(L, -1, META_TABLE_GET_USER_DATA)) {
+            lua_pushvalue(L, -2);
+            lua_call(L, 1, 1);
+            out_user_data = (uintptr_t)lua_touserdata(L, -1);
+            lua_pop(L, 2);
+            assert(top == lua_gettop(L));
+            return true;
+        }
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return false;
+    }
+
     bool IsValidInstance(lua_State* L) {
         int top = lua_gettop(L);
+        (void)top;
         GetInstance(L);
         if (GetMetaFunction(L, -1, META_TABLE_IS_VALID)) {
             lua_pushvalue(L, -2);
             lua_call(L, 1, 1);
-            assert(top + 1 == lua_gettop(L));
+            assert(top + 2 == lua_gettop(L));
             bool result = lua_toboolean(L, -1);
             lua_pop(L, 2);
             assert(top == lua_gettop(L));
