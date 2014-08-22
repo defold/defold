@@ -248,7 +248,7 @@ namespace dmTransform
          */
         inline float GetUniformScale() const
         {
-        	return dmMath::Min(dmMath::Min(m_Scale[0], m_Scale[1]), m_Scale[2]);
+        	return minElem(m_Scale);
         }
 
         inline void SetUniformScale(float scale)
