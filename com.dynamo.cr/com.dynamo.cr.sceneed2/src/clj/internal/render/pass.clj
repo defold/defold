@@ -1,13 +1,15 @@
 (ns internal.render.pass
-  (:require [dynamo.types :as t]))
+  (:require [dynamo.types :as t])
+  (:import [javax.media.opengl GL GL2]
+           [javax.media.opengl.glu GLU]))
 
-(defrecord RenderPass [selection model-transform]
+(defrecord RenderPass [nm selection model-transform]
   t/Pass
-  (t/selection? [this] selection)
+  (t/selection?       [this] selection)
   (t/model-transform? [this] model-transform))
 
 (defmacro make-pass [lbl sel model-xfm]
-  `(def ~lbl (RenderPass. ~sel ~model-xfm)))
+  `(def ~lbl (RenderPass. ~(str lbl) ~sel ~model-xfm)))
 
 (defmacro make-passes [& forms]
   (let [ps (partition 3 forms)]
@@ -27,6 +29,97 @@
   selection      true  true
   icon           false false
   icon-selection true false)
+
+(defmulti prepare-gl (fn [pass gl glu] pass))
+
+(defmethod prepare-gl background
+  [_ gl glu]
+  (.glMatrixMode gl GL2/GL_PROJECTION)
+  (.glLoadIdentity gl)
+  (.gluOrtho2D glu -1.0 1.0 -1.0 1.0)
+  (.glMatrixMode gl GL2/GL_MODELVIEW)
+  (.glLoadIdentity gl)
+  (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+  (.glDisable gl GL/GL_BLEND)
+  (.glDisable gl GL/GL_DEPTH_TEST)
+  (.glDepthMask gl false))
+
+(defmethod prepare-gl opaque
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glDisable GL/GL_BLEND)
+    (.glEnable GL/GL_DEPTH_TEST)
+    (.glDepthMask true)))
+
+(defmethod prepare-gl outline
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
+    (.glDisable GL/GL_BLEND)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
+
+(defmethod prepare-gl transparent
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glEnable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
+
+(defmethod prepare-gl selection
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glEnable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
+
+(defmethod prepare-gl manipulator
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glDisable GL/GL_BLEND)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
+
+(defmethod prepare-gl overlay
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
+
+(defmethod prepare-gl icon
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
+
+(defmethod prepare-gl icon-selection
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
+    (.glEnable GL/GL_BLEND)
+    (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
+
+(defmethod prepare-gl icon-outline
+  [_ gl glu]
+  (doto gl
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
+    (.glDisable GL/GL_BLEND)
+    (.glDisable GL/GL_DEPTH_TEST)
+    (.glDepthMask false)))
 
 (doseq [[v doc]
         {*ns*

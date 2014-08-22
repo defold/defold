@@ -20,7 +20,5 @@
    the project graph."
   [project-state site file]
   (let [scene-node   (find-or-load-node project-state file)
-        editor-state (atom {:project-state project-state})
-        editor       (->SceneEditor editor-state scene-node)]
-    (add-watch editor-state :repaint-needed (fn [_ _ _ _] (ui/request-repaint editor)))
-    editor))
+        editor-state (atom {:project-state project-state})]
+    (->SceneEditor editor-state scene-node)))

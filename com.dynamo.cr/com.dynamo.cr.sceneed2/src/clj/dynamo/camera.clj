@@ -1,24 +1,24 @@
 (ns dynamo.camera
   (:require [schema.macros :as sm]
             [schema.core :as s]
+            [plumbing.core :refer [defnk]]
             [dynamo.types :as t]
+            [dynamo.node :as n]
             [internal.cache :refer [caching]])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d]
            [dynamo.types Camera Region]))
 
-(def camera-view-matrix
-  (caching
-    (fn [camera]
-      (let [pos (Vector3d. (.position camera))
-            m   (doto (Matrix4d.)
-                  .setIdentity
-                  (.set (.rotation camera))
-                  (.transpose)
-                  (.transform pos))]
-        (.transform m pos)
-        (.negate pos)
-        (.setColumn m 3 (.x pos) (.y pos) (.z pos) 1.0)
-        m))))
+(defn camera-view-matrix
+  [camera]
+  (let [pos (Vector3d. (.position camera))
+        m   (Matrix4d.)]
+    (.setIdentity m)
+    (.set m (.rotation camera))
+    (.transpose m)
+    (.transform m pos)
+    (.negate pos)
+    (.setColumn m 3 (.x pos) (.y pos) (.z pos) 1.0)
+    m))
 
 (sm/defn camera-perspective-projection-matrix :- Matrix4d
   [camera :- Camera]
@@ -93,17 +93,26 @@
 
 (def camera-projection-matrix
   (caching
-    (fn [t near far aspect fov]
-      (case t
-        :perspective  (camera-perspective-projection-matrix near far aspect fov)
-        :orthographic (camera-orthographic-projection-matrix near far aspect fov)))))
+    (fn [camera]
+      (case (:type camera)
+        :perspective  (camera-perspective-projection-matrix camera)
+        :orthographic (camera-orthographic-projection-matrix camera)))))
 
 (sm/defn make-camera :- Camera
-  [t :- (s/enum :perspective :orthographic)]
-  (let [distance 44.0
-        position (doto (Vector3d.) (.set 0.0 0.0 1.0) (.scale distance))
-        rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-    (t/->Camera t position rotation 1 2000 1 30)))
+  ([] (make-camera :perspective))
+  ([t :- (s/enum :perspective :orthographic)]
+    (let [distance 44.0
+          position (doto (Vector3d.) (.set 0.0 0.0 1.0) (.scale distance))
+          rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
+      (t/->Camera t position rotation 1 2000 1 30))))
+
+(sm/defn set-orthographic :- Camera
+  [camera :- Camera fov :- s/Num aspect :- s/Num z-near :- s/Num z-far :- s/Num]
+  (assoc camera
+         :fov fov
+         :aspect aspect
+         :z-near z-near
+         :z-far z-far))
 
 (sm/defn camera-rotate :- Camera
   [camera :- Camera q :- Quat4d]
@@ -124,6 +133,7 @@
     (set! (. p y) y)
     (set! (. p z) z)
     camera))
+
 
 (sm/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
@@ -148,3 +158,27 @@
 
           device-y (- (.bottom viewport) (.top viewport) ry 1)]
       (Point3d. rx device-y rz))))
+
+(sm/defn viewproj-frustum-planes
+  [camera :- Camera]
+  (let [view-proj   (doto (camera-view-matrix camera)
+                      (.mul (camera-projection-matrix camera)))
+        persp-vec   (let [x (Vector4d.)] (.getRow view-proj 3 x) x)
+        temp-vec    (Vector4d.)
+        rows        (mapcat #(repeat 2 %) (range 3))
+        scales      (take 6 (cycle [-1 1]))]
+    (map (fn [row scale]
+           (let [temp (Vector4d.)]
+             (.getRow view-proj row temp)
+             (.scale  temp scale)
+             (.add    temp persp-vec)
+             temp))
+         rows scales)))
+
+(defnk produce-camera :- Camera
+  [this]
+  (:camera this))
+
+(n/defnode CameraNode
+  {:properties {:camera {:schema Camera :default (make-camera :perspective)}}
+   :transforms {:camera #'produce-camera}})

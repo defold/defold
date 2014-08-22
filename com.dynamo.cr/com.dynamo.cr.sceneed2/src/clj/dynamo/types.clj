@@ -25,6 +25,10 @@
    width    :- Int32
    height   :- Int32])
 
+(sm/defrecord AABB
+  [min :- Vector3d
+   max :- Vector3d])
+
 (sm/defn ^:always-validate rect :- Rect
   ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
     (rect "" (int  x) (int y) (int width) (int height)))
@@ -92,12 +96,14 @@
    top    :- s/Num
    bottom :- s/Num])
 
+(defn bool                 [& {:as opts}] (merge {:schema s/Bool} opts))
 (defn number               [& {:as opts}] (merge {:schema s/Num} opts))
 (defn string               [& {:as opts}] (merge {:schema s/Str :default ""} opts))
 (defn icon                 [& {:as opts}] (merge {:schema Icon} opts))
 (defn resource             [& {:as opts}] (merge {:schema s/Str :default ""} opts))
 (defn texture-image        [& {:as opts}] (merge {:schema bytes} opts))
 (defn non-negative-integer [& {:as opts}] (merge (number :default 0) opts))
+(defn color                [& {:as opts}] (merge {:schema [s/Num s/Num s/Num s/Num]} opts))
 (defn isotropic-scale      [& {:as opts}] (merge (number :default 1.0) opts))
 
 (doseq [[v doc]

@@ -47,15 +47,44 @@
 (defmacro gl-quads [gl & body]
   `(gl-begin ~gl GL2/GL_QUADS ~@body))
 
+(defmacro gl-lines [gl & body]
+  `(gl-begin ~gl GL/GL_LINES ~@body))
+
 (defmacro with-context [ctx bindings & body]
   (assert (= 2 (count bindings)) "Bindings vector must provide names to bind to the GL2 and GLU objects")
   `(try
      (.makeCurrent ~ctx)
-     (let [~(first bindings) (.. ~ctx getGL getGL2)
+     (let [~(first bindings)  (.. ~ctx getGL getGL2)
            ~(second bindings) (GLU.)]
        ~@body)
      (finally
        (.release ~ctx))))
 
-(defmacro gl-color-3fv [gl cv off] `(.glColor3fv ~gl ~cv ~off))
-(defmacro gl-vertex-2f [gl x y] `(.glVertex2f ~gl ~x ~y))
+(defmacro gl-push-matrix [gl & body]
+  `(try
+     (.glPushMatrix ~gl)
+     ~@body
+     (finally
+       (.glPopMatrix ~gl))))
+
+(defn gl-load-matrix-4d [gl mat]
+  (let [dbuf (double-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
+                            (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
+                            (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
+                            (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
+    (.glLoadMatrixd gl dbuf 0)))
+
+(defn gl-mult-matrix-4d [gl mat]
+  (let [dbuf (double-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
+                            (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
+                            (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
+                            (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
+    (.glMultMatrixd gl dbuf 0)))
+
+(defmacro gl-color-4d  [gl r g b a]   `(.glColor4d ~gl ~r ~g ~b ~a))
+(defmacro gl-color-3fv [gl cv off]    `(.glColor3fv ~gl ~cv ~off))
+(defmacro gl-vertex-2f [gl x y]       `(.glVertex2f ~gl ~x ~y))
+(defmacro gl-vertex-3dv [gl vtx off]  `(.glVertex3dv ~gl ~vtx ~off))
+
+(defmacro glu-ortho [glu region]
+  `(.gluOrtho2D ~glu (double (:left ~region)) (double (:right ~region)) (double (:bottom ~region)) (double (:top ~region))))
