@@ -380,7 +380,8 @@ class Configuration(object):
                 self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
                 if self.target_platform == 'js-web':
                     engine_mem = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext + '.mem')
-                    self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
+                    if os.path.exists(engine_mem):
+                        self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
 
         if self.target_platform == 'linux':
             # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
