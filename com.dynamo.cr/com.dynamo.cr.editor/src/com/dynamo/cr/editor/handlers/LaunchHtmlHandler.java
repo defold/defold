@@ -3,8 +3,10 @@ package com.dynamo.cr.editor.handlers;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
@@ -157,9 +159,14 @@ public class LaunchHtmlHandler extends AbstractHandler {
         bundler.bundleApplication();
 	}
 
-	private void launchBrowser() throws IOException, URISyntaxException, UnsupportedOperationException {
+	private String getEscapedTitle() throws UnsupportedEncodingException {
 		String title = projectProperties.getStringValue("project",  "title", "Unnamed");
-        String launchPath = String.format("http://localhost:8080/build/default/%1$s/%2$s/%2$s.html", HTML_DIR, title);
+		return URLEncoder.encode(title, "UTF-8").replace("+", "%20");
+	}
+
+	private void launchBrowser() throws IOException, URISyntaxException, UnsupportedOperationException {
+
+        String launchPath = String.format("http://localhost:8080/build/default/%1$s/%2$s/%2$s.html", HTML_DIR, getEscapedTitle());
         if (Desktop.isDesktopSupported()) {
         	Desktop desktop = Desktop.getDesktop();
         	if (desktop.isSupported(Desktop.Action.BROWSE)) {
