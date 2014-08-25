@@ -196,7 +196,9 @@ var Module = {
           if (0 == left) {
             Module.attemptLaunch();
           }
-          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+          if (Module._allPreloaded) {
+        	  Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+          }
         },
 
         matchToCanvas: function(id) {
