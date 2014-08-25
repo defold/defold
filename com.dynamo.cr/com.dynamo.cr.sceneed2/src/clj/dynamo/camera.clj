@@ -164,7 +164,6 @@
   (let [view-proj   (doto (camera-view-matrix camera)
                       (.mul (camera-projection-matrix camera)))
         persp-vec   (let [x (Vector4d.)] (.getRow view-proj 3 x) x)
-        temp-vec    (Vector4d.)
         rows        (mapcat #(repeat 2 %) (range 3))
         scales      (take 6 (cycle [-1 1]))]
     (map (fn [row scale]
