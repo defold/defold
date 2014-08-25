@@ -13,8 +13,8 @@
   [x :- s/Num]
   (assert (> x 0) "Does not work for negative numbers")
   (let [[lesser greater] (split-with #(> x %) (doubling 1))
-        prev (last lesser)
-        next (first greater)]
+        prev             (last lesser)
+        next             (first greater)]
     (if (<= (- next x) (- x prev))
       next
       prev)))

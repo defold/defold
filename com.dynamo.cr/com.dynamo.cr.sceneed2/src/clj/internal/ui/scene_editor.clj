@@ -70,6 +70,7 @@
   {:transforms {:renderable #'background-renderable}})
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
+(def grid-color [0.44705 0.44314 0.5098])
 
 (defmulti as-array class)
 
@@ -100,9 +101,9 @@
   (let [min-values (as-array (.min aabb))
        max-values (as-array (.max aabb))
        u-axis     (mod (inc fixed-axis) 3)
-       v-axis     (mod (inc u-axis) 3)
        u-min      (nth min-values u-axis)
        u-max      (nth max-values u-axis)
+       v-axis     (mod (inc u-axis) 3)
        v-min      (nth min-values v-axis)
        v-max      (nth max-values v-axis)
        vertex     (double-array 3)]
@@ -120,9 +121,6 @@
              view-matrix (c/camera-view-matrix camera)
              dir         (double-array 4)
              _           (.getRow view-matrix 2 dir)]
-         (def *cam camera)
-         (def *viewm view-matrix)
-         (def *dirv dir)
          (doall
            (for [grid-index (range 2)
                   axis      (range 3)
@@ -131,7 +129,7 @@
                              alpha (* (aget dir axis) ratio)]
                  :when      (> ratio 0.0)]
              (gl-lines gl
-                       (gl-color-4d 1.0 1.0 1.0 alpha)
+                       (gl-color-3dv+a grid-color alpha)
                        (render-grid axis
                                     (nth (:sizes grids) grid-index)
                                     (nth (:aabbs grids) grid-index)))))))}]})

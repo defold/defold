@@ -5,9 +5,13 @@
             [service.log :as log])
   (:import  [org.eclipse.swt.widgets Display]))
 
+(defn- display
+  []
+  (or (Display/getCurrent) (Display/getDefault)))
+
 (defn swt-thread-safe*
   [f]
-  (.asyncExec (or (Display/getCurrent) (Display/getDefault)) f))
+  (.asyncExec (display) f))
 
 (defmacro swt-safe
   [& body]
@@ -15,7 +19,8 @@
 
 (defn swt-timed-exec*
   [after f]
-  (.timerExec (Display/getCurrent) after f))
+  (when-let [cur (display)]
+    (.timerExec cur after f)))
 
 (defmacro swt-timed-exec
   [after & body]
