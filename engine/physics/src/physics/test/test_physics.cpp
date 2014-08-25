@@ -1481,6 +1481,19 @@ TYPED_TEST(PhysicsTest, KinematicSleep)
 
     ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
 
+    for (int i = 0; i < steps; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    ASSERT_TRUE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
+    // 1 degree rotation
+    box0_vo.m_Rotation = Vectormath::Aos::Quat::rotationZ(1.0f * M_PI / 180.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box0_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box0_shape);
 }
