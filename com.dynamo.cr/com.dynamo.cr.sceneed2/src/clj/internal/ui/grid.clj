@@ -14,6 +14,9 @@
 
 (def min-align (/ (Math/sqrt 2.0) 2.0))
 (def grid-color [0.44705 0.44314 0.5098])
+(def x-axis-color (color 200   0   0))
+(def y-axis-color (color   0 200   0))
+(def z-axis-color (color   0   0 200))
 
 (defmulti as-array class)
 
@@ -54,6 +57,33 @@
     (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
     (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
 
+(defn render-primary-axes
+  [gl aabb]
+  (gl-color-3fv gl x-axis-color 0)
+  (gl-vertex-3d gl (.. aabb min x) 0.0 0.0)
+  (gl-vertex-3d gl (.. aabb max x) 0.0 0.0)
+  (gl-color-3fv gl y-axis-color 0)
+  (gl-vertex-3d gl 0.0 (.. aabb min y) 0.0)
+  (gl-vertex-3d gl 0.0 (.. aabb max y) 0.0)
+  (gl-color-3fv gl z-axis-color 0)
+  (gl-vertex-3d gl 0.0 0.0 (.. aabb min z))
+  (gl-vertex-3d gl 0.0 0.0 (.. aabb max z)))
+
+(defn render-grid-sizes
+  [gl dir grids]
+  (doall
+    (for [grid-index (range 2)
+         axis      (range 3)
+         :when      (> (aget dir axis) min-align)
+         :let       [ratio (nth (:ratios grids) grid-index)
+                     alpha (* (aget dir axis) ratio)]
+         :when      (> ratio 0.0)]
+     (do
+       (gl-color-3dv+a gl grid-color alpha)
+       (render-grid gl axis
+                    (nth (:sizes grids) grid-index)
+                    (nth (:aabbs grids) grid-index))))))
+
 (defnk grid-renderable :- t/RenderData
   [this g project camera]
   {pass/transparent
@@ -64,18 +94,9 @@
              view-matrix (c/camera-view-matrix camera)
              dir         (double-array 4)
              _           (.getRow view-matrix 2 dir)]
-         (doall
-           (for [grid-index (range 2)
-                  axis      (range 3)
-                 :when      (> (aget dir axis) min-align)
-                 :let       [ratio (nth (:ratios grids) grid-index)
-                             alpha (* (aget dir axis) ratio)]
-                 :when      (> ratio 0.0)]
-             (gl-lines gl
-                       (gl-color-3dv+a grid-color alpha)
-                       (render-grid axis
-                                    (nth (:sizes grids) grid-index)
-                                    (nth (:aabbs grids) grid-index)))))))}]})
+         (gl-lines gl
+           (render-grid-sizes dir grids)
+           (render-primary-axes (apply g/aabb-union (:aabbs grids))))))}]})
 
 (def axis-vectors
   [(Vector4d. 1.0 0.0 0.0 0.0)

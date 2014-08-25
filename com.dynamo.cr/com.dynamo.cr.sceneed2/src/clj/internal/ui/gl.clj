@@ -84,8 +84,10 @@
 (defmacro color          [r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
 (defmacro gl-color-4d    [gl r g b a]   `(.glColor4d ~gl ~r ~g ~b ~a))
 (defmacro gl-color-3dv+a [gl dv alpha]  `(gl-color-4d ~gl (first ~dv) (second ~dv) (nth ~dv 2) ~alpha))
+(defmacro gl-color-3dv   [gl cv off]    `(.glColor3dv ~gl ~cv ~off))
 (defmacro gl-color-3fv   [gl cv off]    `(.glColor3fv ~gl ~cv ~off))
 (defmacro gl-vertex-2f   [gl x y]       `(.glVertex2f ~gl ~x ~y))
+(defmacro gl-vertex-3d   [gl x y z]     `(.glVertex3d ~gl ~x ~y ~z))
 (defmacro gl-vertex-3dv  [gl vtx off]   `(.glVertex3dv ~gl ~vtx ~off))
 
 (defmacro glu-ortho [glu region]
