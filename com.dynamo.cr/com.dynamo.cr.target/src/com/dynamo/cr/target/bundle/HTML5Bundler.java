@@ -172,7 +172,7 @@ public class HTML5Bundler {
         	this.projectCss = this.projectCss.trim();
         }
 
-        this.projectSplashImage = projectProperties.getStringValue("jsweb", "splash_image", null);
+        this.projectSplashImage = projectProperties.getStringValue("html5", "splash_image", null);
         if (this.projectSplashImage != null) {
         	this.projectSplashImage = this.projectSplashImage.trim();
         }
