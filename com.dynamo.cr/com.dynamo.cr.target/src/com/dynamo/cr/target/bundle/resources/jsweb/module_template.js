@@ -4,7 +4,7 @@
  */
 
 var Module = {
-		{{DMENGINE_STACK_SIZE}}
+		{{DEFOLD_STACK_SIZE}}
 
         'noInitialRun': true,
         'preRunTasks': [],
@@ -21,7 +21,7 @@ var Module = {
             Combine['addCombineCompletedListener'](Module.onFilePreloaded);
             Combine['addAllTargetsBuiltListener'](Module.onAllFilesPreloaded);
             Combine['addProgressListener'](Module.onPreloadProgress);
-            Combine['process']('{{DMENGINE_SPLIT}}', Module.onPreloadDescriptionProcessed);
+            Combine['process']('{{DEFOLD_SPLIT}}', Module.onPreloadDescriptionProcessed);
             this.setStatus('Downloading...');
         },
 
@@ -124,16 +124,22 @@ var Module = {
             Module['preRunTasks'].push(fn);
         },
 
-		_indexedDBAvailable: true,
-        onUnsupportedIndexedDB: function() {
-        	Module._indexedDBAvailable = false;
+        hasIndexedDB : function() {
+        	var has = false;
+
+        	has |= typeof(window.IndexedDB) !== 'undefined'
+        		|| typeof(window.webkitIndexedDB) !== 'undefined'
+        		|| typeof(window.mozIndexedDB) !== 'undefined'
+        		|| typeof(window.msIndexedDB) !== 'undefined'
+        		|| typeof(window.oIndexedDB) !== 'undefined';
+        	return has;
         },
 
         mountFilesystem: function() {
         	var dir = DMSYS.GetUserPersistentDataRoot();
             FS.mkdir(dir);
 
-            if (Module._indexedDBAvailable) {
+            if (Module.hasIndexedDB()) {
 	            FS.mount(IDBFS, {}, dir);
 	            FS.syncfs(true, function(err) {
 	            	// This operation will fail if the user is running a private browsing session.
@@ -190,14 +196,16 @@ var Module = {
           if (0 == left) {
             Module.attemptLaunch();
           }
-          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+          if (Module._allPreloaded) {
+        	  Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+          }
         },
 
         matchToCanvas: function(id) {
 	        if (typeof window != 'undefined') {
 	          var element = document.getElementById(id);
-	          var x = {{DMENGINE_DISPLAY_WIDTH}};
-	          var y = {{DMENGINE_DISPLAY_HEIGHT}};
+	          var x = {{DEFOLD_DISPLAY_WIDTH}};
+	          var y = {{DEFOLD_DISPLAY_HEIGHT}};
 	          // The total screen size in device pixels in integers.
 	          var screenWidth = Math.round(window.innerWidth*window.devicePixelRatio);
 	          var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
@@ -227,7 +235,7 @@ var Module = {
 
 	    setMarginTop: function(id, sourcePixels) {
 	    	if (typeof window != 'undefined') {
-		    	var sourceHeight = {{DMENGINE_DISPLAY_HEIGHT}};
+		    	var sourceHeight = {{DEFOLD_DISPLAY_HEIGHT}};
 	          	// The total screen size in device pixels in integers.
 	          	var screenHeight = Math.round(window.innerHeight*window.devicePixelRatio);
 	          	var scale = screenHeight / sourceHeight;

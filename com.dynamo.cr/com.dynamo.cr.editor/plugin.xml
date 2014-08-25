@@ -136,6 +136,16 @@
                </parameter>
             </command>
             <command
+            	commandId="com.dynamo.crepo.commands.launchHtml"
+            	icon="icons/play.png"
+            	label="Build HTML and launch"
+            	style="push">
+            	<parameter
+            		name="com.dynamo.crepo.command.launchHtml.type"
+            		value="build">
+            	</parameter>
+            </command>
+            <command
                   commandId="com.dynamo.crepo.commands.resolveLibs"
                   icon="icons/plugin.png"
                   label="Fetch Libraries"
@@ -193,67 +203,31 @@
                   commandId="com.dynamo.cr.target.commands.bundleiOS"
                   label="iOS Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleAndroid"
                   label="Android Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleOSX"
                   label="OSX Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleWin32"
                   label="Windows Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleLinux"
                   label="Linux Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleHTML5"
                   label="HTML5 Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
          </menu>
       </menuContribution>
@@ -302,6 +276,18 @@
                name="com.dynamo.crepo.commands.launch.type"
                optional="true">
          </commandParameter>
+      </command>
+      <command
+      		categoryId="com.dynamo.crepo.category"
+      		defaultHandler="com.dynamo.cr.editor.handlers.LaunchHtmlHandler"
+      		description="Launch HTML game"
+      		id="com.dynamo.crepo.commands.launchHtml"
+      		name="Launch HTML game">
+      	<commandParameter
+      		id="com.dynamo.crepo.command.launchHtml.type"
+      		name="com.dynamo.crepo.commands.launchHtml.type"
+      		optional="true">
+      	</commandParameter>
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
