@@ -261,12 +261,12 @@ public class HTML5Bundler {
 
     	setCommonTemplateData(infoData);
 
-        infoData.put("DMENGINE_SPLIT", new File(SplitFileDir, SplitFileJson).toString());
+        infoData.put("DEFOLD_SPLIT", new File(SplitFileDir, SplitFileJson).toString());
         String js = "";
         if (0 < this.customHeapSize) {
         	js = String.format("TOTAL_MEMORY: %d, \n", this.customHeapSize);
         }
-        infoData.put("DMENGINE_STACK_SIZE", js);
+        infoData.put("DEFOLD_STACK_SIZE", js);
 
         String jsText = infoTemplate.execute(infoData);
         IOUtils.write(jsText, new FileOutputStream(jsOut), Charset.forName("UTF-8"));
@@ -278,8 +278,8 @@ public class HTML5Bundler {
     }
 
     private void setCommonTemplateData(Map<String, Object> infoData) {
-    	infoData.put("DMENGINE_DISPLAY_WIDTH", this.displayWidth);
-        infoData.put("DMENGINE_DISPLAY_HEIGHT", this.displayHeight);
+    	infoData.put("DEFOLD_DISPLAY_WIDTH", this.displayWidth);
+        infoData.put("DEFOLD_DISPLAY_HEIGHT", this.displayHeight);
 
         String splashImage;
         if (null != this.projectSplashImage) {
@@ -287,7 +287,7 @@ public class HTML5Bundler {
         } else {
         	splashImage = DefaultSplashImage;
         }
-        infoData.put("DMENGINE_SPLASH_IMAGE", splashImage);
+        infoData.put("DEFOLD_SPLASH_IMAGE", splashImage);
     }
 
     private void createHtmlShell() throws FileNotFoundException, IOException {
@@ -299,21 +299,21 @@ public class HTML5Bundler {
 
         setCommonTemplateData(infoData);
 
-        infoData.put("DMENGINE_APP_TITLE", String.format("%s %s", this.title, this.version));
-        infoData.put("DMENGINE_MANIFEST", getManifestFilename());
+        infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", this.title, this.version));
+        infoData.put("DEFOLD_MANIFEST", getManifestFilename());
 
         String jsModule = title + ".js";
-        infoData.put("DMENGINE_JS", jsModule);
+        infoData.put("DEFOLD_JS", jsModule);
 
 
-        infoData.put("DMENGINE_MODULE_JS", getModuleScriptFilename());
-        infoData.put("DMENGINE_CSS", getCssFilename());
+        infoData.put("DEFOLD_MODULE_JS", getModuleScriptFilename());
+        infoData.put("DEFOLD_CSS", getCssFilename());
 
         String manifest = "";
         if (this.useApplicationCache) {
         	manifest = String.format("manifest=\"%s\"", getManifestFilename());
         }
-        infoData.put("DMENGINE_MANIFEST", manifest);
+        infoData.put("DEFOLD_MANIFEST", manifest);
 
         String devHead = "";
         String inlineHtml = "";
@@ -325,10 +325,10 @@ public class HTML5Bundler {
         	jsInit += " onload=\"MemoryStats.Initialise()\"";
         }
         jsInit += "></script>";
-        infoData.put("DMENGINE_JS_INIT", jsInit);
+        infoData.put("DEFOLD_JS_INIT", jsInit);
 
-        infoData.put("DMENGINE_DEV_HEAD", devHead);
-        infoData.put("DMENGINE_DEV_INLINE", inlineHtml);
+        infoData.put("DEFOLD_DEV_HEAD", devHead);
+        infoData.put("DEFOLD_DEV_INLINE", inlineHtml);
 
         String htmlText = infoTemplate.execute(infoData);
         IOUtils.write(htmlText, new FileOutputStream(htmlOut), Charset.forName("UTF-8"));
