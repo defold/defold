@@ -86,13 +86,6 @@
     </script>
     {{{DMENGINE_DEV_INLINE}}}
     <script type="text/javascript" src="//connect.facebook.net/en_US/sdk.js"></script>
-    <script type="text/javascript" src="modernizr.custom.js"></script>
-    <script type="text/javascript">
-    Modernizr.load([{
-        test: Modernizr.indexedDB,
-        nope: Module.onUnsupportedIndexedDB,
-        load: '{{DMENGINE_JS}}'{{DMENGINE_DEV_INIT}}
-    }]);
-    </script>
+    {{{DMENGINE_JS_INIT}}}
   </body>
 </html>

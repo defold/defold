@@ -52,8 +52,6 @@ public class HTML5Bundler {
     private List<SplitFile> splitFiles;
 
     private static final String[] CopiedResources = {
-    	"modernizr.custom.js",
-    	"IndexedDBShim.min.js",
     	"combine.js",
     };
     private static final String DefaultSplashImage = "splash_image.png";
@@ -301,9 +299,13 @@ public class HTML5Bundler {
 
         setCommonTemplateData(infoData);
 
-        infoData.put("DMENGINE_APP_TITLE", String.format("%s1 %s2", this.title, this.version));
+        infoData.put("DMENGINE_APP_TITLE", String.format("%s %s", this.title, this.version));
         infoData.put("DMENGINE_MANIFEST", getManifestFilename());
-        infoData.put("DMENGINE_JS", title + ".js");
+
+        String jsModule = title + ".js";
+        infoData.put("DMENGINE_JS", jsModule);
+
+
         infoData.put("DMENGINE_MODULE_JS", getModuleScriptFilename());
         infoData.put("DMENGINE_CSS", getCssFilename());
 
@@ -315,16 +317,18 @@ public class HTML5Bundler {
 
         String devHead = "";
         String inlineHtml = "";
-        String devInit = "";
+        String jsInit = String.format("<script type=\"text/javascript\" src=\"%s\" async", jsModule);
 
         if (this.includeDevTool) {
         	devHead = "<link rel=\"stylesheet\" type=\"text/css\" href=\"development.css\"></style>";
         	inlineHtml = getTextResource(null, DevToolInlineHtmlResource);
-        	devInit = ", callback: MemoryStats.Initialise";
+        	jsInit += " onload=\"MemoryStats.Initialise()\"";
         }
+        jsInit += "></script>";
+        infoData.put("DMENGINE_JS_INIT", jsInit);
+
         infoData.put("DMENGINE_DEV_HEAD", devHead);
         infoData.put("DMENGINE_DEV_INLINE", inlineHtml);
-        infoData.put("DMENGINE_DEV_INIT", devInit);
 
         String htmlText = infoTemplate.execute(infoData);
         IOUtils.write(htmlText, new FileOutputStream(htmlOut), Charset.forName("UTF-8"));

@@ -124,16 +124,22 @@ var Module = {
             Module['preRunTasks'].push(fn);
         },
 
-		_indexedDBAvailable: true,
-        onUnsupportedIndexedDB: function() {
-        	Module._indexedDBAvailable = false;
+        hasIndexedDB : function() {
+        	var has = false;
+
+        	has |= typeof(window.IndexedDB) !== 'undefined'
+        		|| typeof(window.webkitIndexedDB) !== 'undefined'
+        		|| typeof(window.mozIndexedDB) !== 'undefined'
+        		|| typeof(window.msIndexedDB) !== 'undefined'
+        		|| typeof(window.oIndexedDB) !== 'undefined';
+        	return has;
         },
 
         mountFilesystem: function() {
         	var dir = DMSYS.GetUserPersistentDataRoot();
             FS.mkdir(dir);
 
-            if (Module._indexedDBAvailable) {
+            if (Module.hasIndexedDB()) {
 	            FS.mount(IDBFS, {}, dir);
 	            FS.syncfs(true, function(err) {
 	            	// This operation will fail if the user is running a private browsing session.
