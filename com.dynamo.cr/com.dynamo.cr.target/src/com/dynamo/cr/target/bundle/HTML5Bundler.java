@@ -162,12 +162,12 @@ public class HTML5Bundler {
         this.js = js;
         this.jsMemInit = js + ".mem";
 
-        this.projectHtml = projectProperties.getStringValue("jsweb", "htmlfile", null);
+        this.projectHtml = projectProperties.getStringValue("html5", "htmlfile", null);
         if (this.projectHtml != null) {
         	this.projectHtml = this.projectHtml.trim();
         }
 
-        this.projectCss = projectProperties.getStringValue("jsweb", "cssfile", null);
+        this.projectCss = projectProperties.getStringValue("html5", "cssfile", null);
         if (this.projectCss != null) {
         	this.projectCss = this.projectCss.trim();
         }
@@ -189,22 +189,22 @@ public class HTML5Bundler {
         this.displayHeight = projectProperties.getIntValue("display", "height");
 
         this.customHeapSize = -1;
-        Boolean use = projectProperties.getBooleanValue("jsweb", "set_custom_heap_size");
+        Boolean use = projectProperties.getBooleanValue("html5", "set_custom_heap_size");
         if (null != use && use.booleanValue()) {
-        	Integer size = projectProperties.getIntValue("jsweb", "custom_heap_size");
+        	Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
         	if (null != size) {
         		this.customHeapSize = size.intValue();
         	}
         }
 
         this.useApplicationCache = false;
-        use = projectProperties.getBooleanValue("jsweb", "use_app_cache");
+        use = projectProperties.getBooleanValue("html5", "use_app_cache");
         if (null != use) {
         	this.useApplicationCache = use.booleanValue();
         }
 
         this.includeDevTool = false;
-        use = projectProperties.getBooleanValue("jsweb", "include_dev_tool");
+        use = projectProperties.getBooleanValue("html5", "include_dev_tool");
         if (null != use) {
         	this.includeDevTool = use.booleanValue();
         }
