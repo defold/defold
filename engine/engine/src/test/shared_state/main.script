@@ -1,0 +1,6 @@
+function update(self, dt)
+    local shared = sys.get_config("script.shared_state", "0")
+    if shared ~= "1" or global_value == 1 then
+        msg.post("main:/main#script", "done")
+    end
+end
