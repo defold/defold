@@ -81,6 +81,7 @@
                             (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
     (.glMultMatrixd gl dbuf 0)))
 
+(defmacro color          [r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
 (defmacro gl-color-4d    [gl r g b a]   `(.glColor4d ~gl ~r ~g ~b ~a))
 (defmacro gl-color-3dv+a [gl dv alpha]  `(gl-color-4d ~gl (first ~dv) (second ~dv) (nth ~dv 2) ~alpha))
 (defmacro gl-color-3fv   [gl cv off]    `(.glColor3fv ~gl ~cv ~off))
