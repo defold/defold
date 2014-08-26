@@ -2720,7 +2720,7 @@ TEST_F(dmGuiTest, HierarchicalColors)
 
     for(uint32_t i = 0; i < node_count; ++i) {
         node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
-        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
+        dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
     }
 
     // test child tree
@@ -2741,12 +2741,12 @@ TEST_F(dmGuiTest, HierarchicalColors)
     dmGui::RenderScene(m_Scene, RenderNodesStoreColorAndTransform, &cbres);
 
     ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.5000f), cbres[0].m_Color);
-    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.2500f, 0.5000f, 0.2500f), cbres[1].m_Color);
-    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.1250f), cbres[2].m_Color);
+    ASSERT_COLOR_EQ(Vector4(1.0000f, 0.5000f, 1.0000f, 0.2500f), cbres[1].m_Color);
+    ASSERT_COLOR_EQ(Vector4(1.0000f, 1.0000f, 1.0000f, 0.1250f), cbres[2].m_Color);
 
     ASSERT_COLOR_EQ(Vector4(0.5000f, 0.5000f, 0.5000f, 0.5000f), cbres[3].m_Color);
-    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.2500f, 0.5000f, 0.2500f), cbres[4].m_Color);
-    ASSERT_COLOR_EQ(Vector4(0.5000f, 0.2500f, 0.5000f, 0.0625f), cbres[5].m_Color);
+    ASSERT_COLOR_EQ(Vector4(1.0000f, 0.5000f, 1.0000f, 0.2500f), cbres[4].m_Color);
+    ASSERT_COLOR_EQ(Vector4(1.0000f, 1.0000f, 1.0000f, 0.0625f), cbres[5].m_Color);
 }
 
 /**
@@ -2781,25 +2781,26 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
         dummy_node[i] = dmGui::NewNode(m_Scene, Point3(0.0f, 0.0f, 0.0f), size, dmGui::NODE_TYPE_BOX);
     }
 
-    float c = 1.0f;
+    float c,a;
+    c = a = 1.0f;
     for(uint32_t i = 0; i < node_count_h; ++i)
     {
         node[i] = dmGui::NewNode(m_Scene, Point3(1.0f, 1.0f, 1.0f), size, dmGui::NODE_TYPE_BOX);
-        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
+        dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
         dmGui::SetNodePivot(m_Scene, node[i], dmGui::PIVOT_SW);
-        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, c));
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, a));
         if(i == 0)
-            c = 0.5f;
+            a = 0.5f;
     }
-    c = 0.5f;
+    c = a = 0.5f;
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
         node[i] = dmGui::NewNode(m_Scene, Point3(0.5f, 0.5f, 0.5f), size, dmGui::NODE_TYPE_BOX);
-        dmGui::SetNodeInheritColor(m_Scene, node[i], true);
+        dmGui::SetNodeInheritAlpha(m_Scene, node[i], true);
         dmGui::SetNodePivot(m_Scene, node[i], dmGui::PIVOT_SW);
-        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, c));
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, a));
         if(i == node_count_h)
-            c = 0.5f;
+            a = 0.5f;
     }
     for(uint32_t i = 1; i < node_count_h; ++i)
     {
@@ -2816,7 +2817,7 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
     memset(cbres, 0x0, sizeof(TransformColorData)*node_count);
     dmGui::RenderScene(m_Scene, RenderNodesStoreColorAndTransform, &cbres);
 
-    c = 1.0f;
+    c = a = 1.0f;
     for(uint32_t i = 0; i < node_count_h; ++i)
     {
         if(i > 0)
@@ -2824,10 +2825,10 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+1.0f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,c), cbres[i].m_Color);
-        c *= 0.5f;
+        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        a *= 0.5f;
     }
-    c = 0.5f;
+    c = a = 0.5f;
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
         if(i > node_count_h)
@@ -2835,24 +2836,24 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+0.5f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,c), cbres[i].m_Color);
-        c *= 0.5f;
+        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        a *= 0.5f;
     }
 
-    c = 1.0f;
+    c = a = 1.0f;
     for(uint32_t i = node_count_h; i < node_count; ++i)
     {
-        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, c));
+        dmGui::SetNodeProperty(m_Scene, node[i], dmGui::PROPERTY_COLOR, Vector4(c, c, c, a));
         dmGui::SetNodePosition(m_Scene, node[i], Point3(0.25f, 0.25f, 0.25f));
         if(i == node_count_h)
-            c = 0.25f;
+            a = 0.25f;
     }
 
     dmGui::DeleteNode(m_Scene, node[3]);
     dmGui::DeleteNode(m_Scene, node[2]);
     dmGui::RenderScene(m_Scene, RenderNodesStoreColorAndTransform, &cbres);
 
-    c = 1.0f;
+    c = a = 1.0f;
     for(uint32_t i = 0; i < node_count_h-2; ++i)
     {
         if(i > 0)
@@ -2860,10 +2861,10 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+1.0f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,c), cbres[i].m_Color);
-        c *= 0.5f;
+        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        a *= 0.5f;
     }
-    c = 1.0f;
+    c = a = 1.0f;
     for(uint32_t i = node_count_h-2; i < node_count-2; ++i)
     {
         if(i > node_count_h-2)
@@ -2871,8 +2872,8 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             for(uint32_t e = 0; e < 3; e++)
                 ASSERT_NEAR(cbres[i].m_Transform.getTranslation().getElem(e), cbres[i-1].m_Transform.getTranslation().getElem(e)+0.25f, EPSILON);
         }
-        ASSERT_COLOR_EQ(Vector4(c,c,c,c), cbres[i].m_Color);
-        c *= 0.25f;
+        ASSERT_COLOR_EQ(Vector4(c,c,c,a), cbres[i].m_Color);
+        a *= 0.25f;
     }
 }
 

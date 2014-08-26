@@ -45,7 +45,7 @@ namespace dmGui
         struct Data
         {
             Matrix4     m_Transform;
-            Vector4     m_Color;
+            float       m_Alpha;
         };
         dmArray<Data>   m_Data;
         uint16_t        m_NodeIndex;
@@ -92,7 +92,7 @@ namespace dmGui
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
                 uint32_t    m_DirtyLocal : 1;
-                uint32_t    m_InheritColor : 1;
+                uint32_t    m_InheritAlpha : 1;
                 uint32_t    m_Reserved : 10;
             };
 
