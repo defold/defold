@@ -1,4 +1,4 @@
-(ns internal.ui.gl
+(ns dynamo.gl
   (:import [java.awt Font]
            [javax.media.opengl GL GL2 GLDrawableFactory GLProfile]
            [javax.media.opengl.glu GLU]
@@ -92,3 +92,4 @@
 
 (defmacro glu-ortho [glu region]
   `(.gluOrtho2D ~glu (double (:left ~region)) (double (:right ~region)) (double (:bottom ~region)) (double (:top ~region))))
+

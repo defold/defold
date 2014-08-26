@@ -6,7 +6,7 @@
             [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.types :as t]
-            [internal.ui.gl :refer :all]
+            [dynamo.gl :refer :all]
             [internal.render.pass :as pass])
   (:import [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d]
            [dynamo.types Camera]))

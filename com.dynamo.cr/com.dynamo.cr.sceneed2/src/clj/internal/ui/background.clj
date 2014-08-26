@@ -3,7 +3,7 @@
             [dynamo.geom :as g]
             [dynamo.node :as n]
             [dynamo.types :as t]
-            [internal.ui.gl :refer :all]
+            [dynamo.gl :refer :all]
             [internal.render.pass :as p]))
 
 (def bg-top-color (color 123 143 167))

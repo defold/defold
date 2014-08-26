@@ -8,7 +8,7 @@
             [dynamo.project :as p]
             [dynamo.ui :as ui]
             [schema.core :as s]
-            [internal.ui.gl :refer :all]
+            [dynamo.gl :refer :all]
             [internal.ui.editors :refer :all]
             [internal.render.pass :as pass]
             [internal.ui.background :as back]
