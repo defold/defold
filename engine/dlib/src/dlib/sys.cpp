@@ -294,6 +294,12 @@ namespace dmSys
         else
             return r;
     }
+
+    Result OpenURL(const char* url)
+    {
+    	return RESULT_UNKNOWN;
+    }
+
 #elif defined(__linux__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
