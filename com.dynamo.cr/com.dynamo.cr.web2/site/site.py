@@ -34,7 +34,11 @@ render('landing.html', 'index.html')
 render('plans.html', 'plans/index.html', active_page = 'plans')
 render('signup.html', 'signup/index.html')
 
-docs = ['game_project.html',
+docs = ['application_lifecycle.html',
+        'collection_proxies.html',
+        'example.html',
+        'game_project.html',
+        'gui.html',
         'hud.html',
         'input.html',
         'introduction.html',
@@ -42,18 +46,20 @@ docs = ['game_project.html',
         'level_complete.html',
         'main_menu.html',
         'message_passing.html',
+        'modules.html',
         'parallax.html',
+        'particlefx.html',
         'physics.html',
         'platformer.html',
         'platformer_script.html',
+        'properties.html',
         'reload.html',
         'scene_editing.html',
-        'properties.html',
         'script_properties.html',
+        'scripting.html',
         'scripting_debugging.html',
         'side_scroller.html',
-        'tiles.html',
-        'particlefx.html']
+        'tiles.html']
 
 for d in docs:
     asciidoc('doc/%s' % d, active_page = 'documentation', disqus = True)
