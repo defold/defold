@@ -622,7 +622,7 @@ instructions.configure=\
                 if x.name[-1] != '/':
                     # Skip directory "keys". When creating empty directories
                     # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|bob.jar)$', x.name):
                         name = os.path.relpath(x.name, base_prefix)
                         files.append({'name': name, 'path': '/' + x.name})
             return files
