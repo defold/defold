@@ -112,14 +112,14 @@ public class LaunchHtmlHandler extends AbstractHandler {
 		// save all editors depending on user preferences (this is set to true by default in plugin_customization.ini)
         BuildUtilities.saveEditors(null);
 
-        Job job = new Job("LaunchingHtml") {
+        Job job = new Job("Launching HTML") {
         	@Override
         	protected IStatus run(IProgressMonitor monitor) {
                  try {
                 	 IProject project = EditorUtil.getProject();
                 	 loadProjectProperties(project);
 
-                	 buildProject(project, IncrementalProjectBuilder.FULL_BUILD, new SubProgressMonitor(monitor, 9));
+                	 buildProject(project, IncrementalProjectBuilder.FULL_BUILD, monitor);
                      int severity = project.findMaxProblemSeverity(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
 
                      if (severity < IMarker.SEVERITY_ERROR) {
@@ -127,7 +127,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
                          launchBrowser();
                      }
 
-                     buildProject(project, IncrementalProjectBuilder.CLEAN_BUILD, new SubProgressMonitor(monitor, 1));
+                     buildProject(project, IncrementalProjectBuilder.CLEAN_BUILD, monitor);
                      projectProperties = null;
 
                      return Status.OK_STATUS;
@@ -141,7 +141,7 @@ public class LaunchHtmlHandler extends AbstractHandler {
                  }
         	}
         };
-        job.setProperty(new QualifiedName("com.dynamo.cr.editor", "buildHtml"), true);
+        job.setProperty(new QualifiedName("com.dynamo.cr.editor", "build"), true);
         job.schedule();
 		return null;
 	}
