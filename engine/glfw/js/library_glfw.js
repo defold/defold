@@ -727,6 +727,10 @@ var LibraryGLFW = {
 
   glfwGetTouch: function(touch, count, out_count) {
       return 0;
+  },
+
+  glfwGetDefaultFramebuffer: function() {
+	  return 0;
   }
 };
 

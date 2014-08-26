@@ -73,6 +73,8 @@ def build(bld):
         source_dirs.append('dlib/win32')
     elif ('linux'  in bld.env.PLATFORM) or ('android' in bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
+    elif 'js-web' == bld.env.PLATFORM:
+        source_dirs.append('dlib/js')
 
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
     extra_defines = ['ZLIB_CONST', 'CONFIG_SSL_CTX_MUTEXING']
