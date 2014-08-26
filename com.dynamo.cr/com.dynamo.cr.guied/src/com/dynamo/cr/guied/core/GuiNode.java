@@ -44,7 +44,7 @@ public class GuiNode extends Node {
     private double alpha = 1.0;
 
     @Property
-    private boolean inheritColor = true;
+    private boolean inheritAlpha = true;
 
     @Property
     private BlendMode blendMode = BlendMode.BLEND_MODE_ALPHA;
@@ -154,12 +154,12 @@ public class GuiNode extends Node {
         this.layer = layer;
     }
 
-    public boolean isInheritColor() {
-        return this.inheritColor;
+    public boolean isInheritAlpha() {
+        return this.inheritAlpha;
     }
 
-    public void setInheritColor(boolean inheritColor) {
-        this.inheritColor = inheritColor;
+    public void setInheritAlpha(boolean inheritAlpha) {
+        this.inheritAlpha = inheritAlpha;
     }
 
     public Object[] getLayerOptions() {
@@ -210,15 +210,17 @@ public class GuiNode extends Node {
         float[] rgba = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
         GuiNode node = this;
         float inv = 1.0f / 255.0f;
+        RGB rgb = node.getColor();
+        rgba[0] *= rgb.red * inv;
+        rgba[1] *= rgb.green * inv;
+        rgba[2] *= rgb.blue * inv;
+        rgba[3] *= (float) node.getAlpha();
+
         while (node != null) {
-            RGB rgb = node.getColor();
-            rgba[0] *= rgb.red * inv;
-            rgba[1] *= rgb.green * inv;
-            rgba[2] *= rgb.blue * inv;
-            rgba[3] *= (float) node.getAlpha();
             Node parent = node.getParent();
-            if (node.isInheritColor() && parent != null && parent instanceof GuiNode) {
+            if (node.isInheritAlpha() && parent != null && parent instanceof GuiNode) {
                 node = (GuiNode)parent;
+                rgba[3] *= (float) node.getAlpha();
             } else {
                 node = null;
             }

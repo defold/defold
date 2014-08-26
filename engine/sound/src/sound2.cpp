@@ -112,6 +112,7 @@ namespace dmSound
         DeviceType* device_type;
         r = OpenDevice(params->m_OutputDevice, &device_params, &device_type, &device);
         if (r != RESULT_OK) {
+        	dmLogError("Failed to Open device '%s'", params->m_OutputDevice);
             return r;
         }
 
@@ -328,6 +329,7 @@ namespace dmSound
         sound_instance->m_SoundDataIndex = 0xffff;
         dmSoundCodec::DeleteDecoder(sound->m_CodecContext, sound_instance->m_Decoder);
         sound_instance->m_Decoder = 0;
+        sound_instance->m_FrameCount = 0;
 
         return RESULT_OK;
     }
@@ -377,6 +379,7 @@ namespace dmSound
         const uint32_t mask = (1 << RESAMPLE_FRACTION_BITS) - 1;
         const float range_recip = 1.0f / mask; // TODO: Divide by (1 << RESAMPLE_FRACTION_BITS) OR (1 << RESAMPLE_FRACTION_BITS) - 1?
 
+        uint32_t startFrac = instance->m_FrameFraction;
         uint32_t frac = instance->m_FrameFraction;
         uint32_t prev_index = 0;
         uint32_t index = 0;
@@ -410,7 +413,7 @@ namespace dmSound
         }
         instance->m_FrameFraction = frac;
 
-        assert(prev_index < instance->m_FrameCount);
+        assert(prev_index <= instance->m_FrameCount);
 
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T), (instance->m_FrameCount - index) * sizeof(T));
         instance->m_FrameCount -= index;
@@ -462,7 +465,7 @@ namespace dmSound
         }
         instance->m_FrameFraction = frac;
 
-        assert(prev_index < instance->m_FrameCount);
+        assert(prev_index <= instance->m_FrameCount);
 
         memmove(instance->m_Frames, (char*) instance->m_Frames + index * sizeof(T) * 2, (instance->m_FrameCount - index) * sizeof(T) * 2);
         instance->m_FrameCount -= index;
