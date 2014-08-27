@@ -12,6 +12,7 @@ Task.simple_task_type('resource_archive', 'python ${ARCC} ${ARCCFLAGS} -o ${TGT}
 @before('apply_core')
 def apply_archive(self):
     Utils.def_attrs(self, archive_target = None)
+    Utils.def_attrs(self, use_compression = False)
 
 @feature('archive')
 @after('apply_core')
@@ -19,7 +20,6 @@ def apply_archive_file(self):
     if not self.archive_target:
         error('archive_target not specified')
         return
-
     out = self.path.find_or_declare(self.archive_target)
     arcc = self.create_task('resource_archive')
     inputs = []
@@ -30,8 +30,10 @@ def apply_archive_file(self):
     arcc.inputs = inputs
     arcc.outputs = [out]
     arcc.env['ARCCFLAGS'] = ['-r', self.path.bldpath(self.env)]
+    if self.use_compression:
+        arcc.env.append_value('ARCCFLAGS', ['-c'])
 
-Task.simple_task_type('resource_jarchive', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.archive.ArchiveBuilder ${ARCCFLAGS} ${TGT} ${SRC}',
+Task.simple_task_type('resource_jarchive', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.archive.ArchiveBuilder ${ARCCFLAGS} ${TGT} ${COMPRESS} ${SRC}',
                       color='PINK',
                       shell=False)
 
@@ -43,6 +45,7 @@ Task.simple_task_type('resource_jarchive', '${JAVA} -classpath ${CLASSPATH} com.
 @before('apply_core')
 def apply_jarchive(self):
     Utils.def_attrs(self, archive_target = None)
+    Utils.def_attrs(self, use_compression = False)
 
 @feature('jarchive')
 @after('apply_core')
@@ -69,6 +72,8 @@ def apply_jarchive_file(self):
     arcc.inputs = inputs
     arcc.outputs = [out]
     arcc.env['ARCCFLAGS'] = self.path.bldpath(self.env)
+    if self.use_compression:
+        arcc.env['COMPRESS'] = '-c';
 
 def detect(conf):
     conf.find_file('arcc.py', var='ARCC', mandatory = True)

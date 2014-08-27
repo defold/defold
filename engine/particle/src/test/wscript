@@ -15,7 +15,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
 create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
 
 def build(bld):
-    test_particle = bld.new_task_gen(features = 'cc cxx cprogram',
+    test_particle = bld.new_task_gen(features = 'cc cxx cprogram test',
                                      includes = '. .. ../../proto',
                                      uselib = 'GTEST DDF DLIB PLATFORM_SOCKET PLATFORM_THREAD',
                                      uselib_local = 'particle',

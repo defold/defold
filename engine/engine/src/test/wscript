@@ -5,7 +5,7 @@ import waf_gamesys
 
 def build(bld):
     obj = bld.new_task_gen(
-        features = 'cc cxx cprogram',
+        features = 'cc cxx cprogram test',
         uselib = 'RECORD VPX GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID_NULL INPUT PARTICLE GUI SOUND_NULL DLIB',
         uselib_local = 'engine',
         includes = '../build ../proto .',
@@ -24,3 +24,4 @@ def build(bld):
                      source = '../../content/bob-engine.jar wscript',
                      always = True)
 
+    obj.install_path = None

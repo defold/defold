@@ -4,6 +4,7 @@ mkdir -p engine/darwin
 mkdir -p engine/win32
 mkdir -p engine/ios
 mkdir -p engine/android
+mkdir -p engine/js-web
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -23,3 +24,5 @@ copy armv7-darwin/dmengine engine/ios/dmengine
 copy armv7-darwin/dmengine_release engine/ios/dmengine_release
 copy armv7-android/libdmengine.so engine/android/libdmengine.so
 copy armv7-android/libdmengine_release.so engine/android/libdmengine_release.so
+copy js-web/dmengine.js engine/js-web/dmengine.js
+copy js-web/dmengine_release.js engine/js-web/dmengine_release.js

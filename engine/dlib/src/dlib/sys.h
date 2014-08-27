@@ -170,6 +170,10 @@ namespace dmSys
      */
     Result OpenURL(const char* url);
 
+    /**
+     * Causes message events to be dispatched, on platforms that require it (currently only node/headless)
+     */
+    void PumpMessageQueue();
 }
 
 #endif

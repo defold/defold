@@ -145,6 +145,8 @@ namespace dmScript
                 assert(top == lua_gettop(L));
                 return RESULT_LUA_ERROR;
             }
+            // As we only run the module for the sake of reloading (updating data), it is safe to remove any module return values here
+            lua_pop(L, lua_gettop(L) - top);
         }
         else
         {

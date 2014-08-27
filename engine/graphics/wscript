@@ -27,6 +27,8 @@ def configure(conf):
 
     if platform == "linux":
         conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESSARB'])
+    elif platform == "js-web":
+        conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES'])
 
     if os.getenv('PYTHONPATH'):
         if sys.platform == "win32":

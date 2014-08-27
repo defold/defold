@@ -49,17 +49,17 @@ def build(bld):
 
     bld.add_group()
 
-    embedded_wavs = bld.new_task_gen(features = 'cxx cstaticlib embed',
+    embedded_wavs = bld.new_task_gen(features = 'cxx cstaticlib embed test',
                                      target = 'embedded_wavs',
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = wavs)
 
-    embedded_oggs = bld.new_task_gen(features = 'cxx cstaticlib embed',
+    embedded_oggs = bld.new_task_gen(features = 'cxx cstaticlib embed test',
                                      target = 'embedded_oggs',
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = bld.path.ant_glob('**/*.ogg'))
 
-    test_sound = bld.new_task_gen(features = 'cxx cprogram embed',
+    test_sound = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
                                   uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
                                   uselib_local = 'sound2 embedded_wavs embedded_oggs',
@@ -69,7 +69,7 @@ def build(bld):
 
     test_sound.install_path = None
 
-    test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed',
+    test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
                                   uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
                                   uselib_local = 'sound_null embedded_wavs embedded_oggs',
@@ -79,7 +79,7 @@ def build(bld):
 
     test_sound_null.install_path = None
 
-    test_sound2 = bld.new_task_gen(features = 'cxx cprogram embed',
+    test_sound2 = bld.new_task_gen(features = 'cxx cprogram embed test',
                                   includes = '../../../src .',
                                   uselib = 'GTEST DLIB PLATFORM_SOCKET OPENAL',
                                   uselib_local = 'sound2 embedded_wavs embedded_oggs',

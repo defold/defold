@@ -486,8 +486,25 @@ namespace dmEngine
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 
+        // The attempt to fallback to other audio devices only has meaning if:
+        // - sound2 is being used
+        // - the matching device symbols have been exported for the target device
         dmSound::InitializeParams sound_params;
-        dmSound::Initialize(engine->m_Config, &sound_params);
+        static const char* audio_devices[] = {
+                "default",
+                "null",
+                NULL
+        };
+        int deviceIndex = 0;
+        while (NULL != audio_devices[deviceIndex]) {
+            sound_params.m_OutputDevice = audio_devices[deviceIndex];
+            dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
+            if (dmSound::RESULT_OK == soundInit) {
+                dmLogInfo("Initialised sound device '%s'\n", sound_params.m_OutputDevice);
+                break;
+            }
+            ++deviceIndex;
+        }
 
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
@@ -745,7 +762,7 @@ bail:
         }
     }
 
-    RunResult Run(HEngine engine)
+    void Step(HEngine engine)
     {
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
@@ -757,7 +774,7 @@ bail:
         float dt = fixed_dt;
         bool variable_dt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
 
-        while (engine->m_Alive)
+        if (engine->m_Alive)
         {
             if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
             {
@@ -770,7 +787,7 @@ bail:
                 time = dmTime::GetTime();
                 prev_time = time - fixed_dt * 1000000;
                 dt = fixed_dt;
-                continue;
+                return;
             }
 
             dmProfile::HProfile profile = dmProfile::Begin();
@@ -799,7 +816,7 @@ bail:
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
                         dmProfile::Release(profile);
-                        continue;
+                        return;
                     }
 
                     dmSound::Update();
@@ -810,7 +827,7 @@ bail:
                     if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC) || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
                     {
                         engine->m_Alive = false;
-                        break;
+                        return;
                     }
 
                     dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
@@ -901,7 +918,18 @@ bail:
                 dt = 1.0f / fps;
             }
         }
-        return engine->m_RunResult;
+    }
+
+    static int IsRunning(void* context)
+    {
+        HEngine engine = (HEngine)context;
+        return engine->m_Alive;
+    }
+
+    static void PerformStep(void* context)
+    {
+        HEngine engine = (HEngine)context;
+        Step(engine);
     }
 
     static void Exit(HEngine engine, int32_t code)
@@ -961,7 +989,9 @@ bail:
             {
                 pre_run(engine, context);
             }
-            run_result = dmEngine::Run(engine);
+
+            dmGraphics::RunApplicationLoop(engine, PerformStep, IsRunning);
+            run_result = engine->m_RunResult;
 
             if (post_run)
             {

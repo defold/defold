@@ -20,6 +20,20 @@ PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30".split()
+PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
+PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
+DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
+NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
+NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
+EMSCRIPTEN_VERSION_STR = "1.22.0"
+# The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
+EMSCRIPTEN_VERSION_STR_LINUX = "master"
+EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
+EMSCRIPTEN_SDK_LINUX = "sdk-{0}-32bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
+EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
+EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
+PACKAGES_FLASH="gtest-1.5.0".split()
+SHELL = os.environ.get('SHELL', 'bash')
 
 def get_host_platform():
     return 'linux' if sys.platform == 'linux2' else sys.platform
@@ -77,7 +91,8 @@ class Configuration(object):
                  set_version = None,
                  eclipse = False,
                  branch = None,
-                 channel = None):
+                 channel = None,
+                 waf_options = []):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -100,6 +115,7 @@ class Configuration(object):
         self.eclipse = eclipse
         self.branch = branch
         self.channel = channel
+        self.waf_options = waf_options
 
         self.thread_pool = None
         self.s3buckets = {}
@@ -116,7 +132,7 @@ class Configuration(object):
             os._exit(5)
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'lib/python', 'share']:
+        for p in ['ext/lib/python', 'lib/python', 'share', 'lib/js-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -160,10 +176,10 @@ class Configuration(object):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
 
-    def _download(self, url):
+    def _download(self, url, use_cache = True):
         name = basename(urlparse.urlparse(url).path)
         path = expanduser('~/.dcache/%s' % name)
-        if os.path.exists(path):
+        if use_cache and os.path.exists(path):
             return path
 
         if not os.path.exists(dirname(path)):
@@ -216,15 +232,75 @@ class Configuration(object):
         for p in PACKAGES_ANDROID:
             self._extract_tgz(make_path('armv7-android'), self.ext)
 
+        for p in PACKAGES_EMSCRIPTEN:
+            self._extract_tgz(make_path('js-web'), self.ext)
+
+        for p in PACKAGES_FLASH:
+            self._extract_tgz(make_path('as3-web'), self.ext)
+
         for egg in glob(join(self.defold_root, 'packages', '*.egg')):
             self._log('Installing %s' % basename(egg))
             self.exec_env_command(['easy_install', '-q', '-d', join(self.ext, 'lib', 'python'), '-N', egg])
+
+        for n in 'js-web-pre.js'.split():
+            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
+
+        for n in 'js-web-pre-engine.js'.split():
+            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
         for n in 'waf_dynamo.py waf_content.py'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
 
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
+
+        node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
+        self._mkdirs(node_modules_dir)
+        xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
+        self._extract_tgz(xhr2_tarball, node_modules_dir)
+
+    def _form_ems_path(self):
+        path = ''
+        if self.host == 'linux':
+            path = join(self.ext, EMSCRIPTEN_DIR_LINUX)
+        else:
+            path = join(self.ext, EMSCRIPTEN_DIR)
+        return path
+
+    def install_ems(self):
+        url = '%s/emsdk-%s-%s.tar.gz' % (DEFOLD_PACKAGES_URL, EMSCRIPTEN_VERSION_STR, self.host)
+        dlpath = self._download(url)
+        self._extract(dlpath, self.ext)
+        self.activate_ems()
+        os.environ['EMSCRIPTEN'] = self._form_ems_path()
+
+    def get_ems_sdk_name(self):
+        sdk = EMSCRIPTEN_SDK_OSX
+        if 'linux' == self.host:
+            sdk = EMSCRIPTEN_SDK_LINUX
+        return sdk;
+
+    def get_ems_exe_path(self):
+        return join(self.ext, 'bin', 'emsdk_portable', 'emsdk')
+
+    def activate_ems(self):
+        self.exec_env_command([self.get_ems_exe_path(), 'activate', self.get_ems_sdk_name()])
+
+    def check_ems(self):
+        home = os.path.expanduser('~')
+        config = join(home, '.emscripten')
+        err = False
+        if not os.path.isfile(config):
+            print 'No .emscripten file.'
+            err = True
+        emsDir = join(self.ext, EMSCRIPTEN_DIR)
+        if self.host == 'linux':
+            emsDir = join(self.ext, EMSCRIPTEN_DIR_LINUX)
+        if not os.path.isdir(emsDir):
+            print 'Emscripten tools not installed.'
+            err = True
+        if err:
+            print 'Consider running install_ems'
 
     def _git_sha1(self, dir = '.', ref = None):
         args = 'git log --pretty=%H -n1'.split()
@@ -266,6 +342,9 @@ class Configuration(object):
         elif 'android' in self.target_platform:
             exe_prefix = 'lib'
             exe_ext = '.so'
+        elif 'js-web' in self.target_platform:
+            exe_prefix = ''
+            exe_ext = '.js'
         else:
             exe_ext = ''
 
@@ -294,14 +373,15 @@ class Configuration(object):
             bin_dir = ''
             lib_dir = ''
 
-        engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine' + exe_ext)
-        engine_release = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_release' + exe_ext)
-        engine_headless = join(dynamo_home, 'bin', bin_dir, exe_prefix + 'dmengine_headless' + exe_ext)
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
-            self.upload_file(engine, '%s/%sdmengine%s' % (full_archive_path, exe_prefix, exe_ext))
-            self.upload_file(engine_release, '%s/%sdmengine_release%s' % (full_archive_path, exe_prefix, exe_ext))
-            self.upload_file(engine_headless, '%s/%sdmengine_headless%s' % (full_archive_path, exe_prefix, exe_ext))
+            for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
+                engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext)
+                self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
+                if self.target_platform == 'js-web':
+                    engine_mem = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext + '.mem')
+                    if os.path.exists(engine_mem):
+                        self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
 
         if self.target_platform == 'linux':
             # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
@@ -340,7 +420,7 @@ class Configuration(object):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
-            libs="dlib ddf particle glfw graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record facebook iap push adtruth engine".split()
+            libs="dlib ddf particle glfw  graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
@@ -357,7 +437,7 @@ class Configuration(object):
                 if platform != self.host:
                     pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
-                self.exec_env_command(cmd.split(), cwd = cwd)
+                self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
         self._log('Building bob')
 
@@ -369,7 +449,7 @@ class Configuration(object):
             self._log('Building %s' % lib)
             cwd = join(self.defold_root, 'engine/%s' % lib)
             cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_env_command(cmd.split(), cwd = cwd)
+            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def build_go(self):
         # TODO: shell=True is required only on windows
@@ -412,7 +492,7 @@ class Configuration(object):
         self._log('Building docs')
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
-        self.exec_env_command(cmd.split(), cwd = cwd)
+        self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 
     def test_cr(self):
         # NOTE: A bit expensive to sync everything
@@ -527,7 +607,7 @@ instructions.configure=\
 
     def shell(self):
         print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
-        self.exec_env_command(['sh', '-l'])
+        self.exec_env_command([SHELL, '-l'], preexec_fn=self.check_ems)
 
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
@@ -542,7 +622,7 @@ instructions.configure=\
                 if x.name[-1] != '/':
                     # Skip directory "keys". When creating empty directories
                     # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|bob.jar)$', x.name):
                         name = os.path.relpath(x.name, base_prefix)
                         files.append({'name': name, 'path': '/' + x.name})
             return files
@@ -864,7 +944,7 @@ instructions.configure=\
             sys.exit(process.returncode)
         return output
 
-    def exec_env_command(self, arg_list, **kwargs):
+    def _form_env(self):
         env = dict(os.environ)
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
@@ -890,13 +970,26 @@ instructions.configure=\
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
-        # Force 32-bit python 2.6 on darwin. We should perhaps switch to 2.7 soon?
+        # Force 32-bit python 2.7 on darwin.
         env['VERSIONER_PYTHON_PREFER_32_BIT'] = 'yes'
-        env['VERSIONER_PYTHON_VERSION'] = '2.6'
+        env['VERSIONER_PYTHON_VERSION'] = '2.7'
 
         if self.no_colors:
             env['NOCOLOR'] = '1'
             env['GTEST_COLOR'] = 'no'
+
+        env['EMSCRIPTEN'] = self._form_ems_path()
+
+        xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'lib')
+        if 'NODE_PATH' in env:
+            env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
+        else:
+            env['NODE_PATH'] = xhr2_path
+
+        return env
+
+    def exec_env_command(self, arg_list, **kwargs):
+        env = self._form_env()
 
         process = subprocess.Popen(arg_list, env = env, **kwargs)
         process.wait()
@@ -911,6 +1004,8 @@ if __name__ == '__main__':
 Commands:
 distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
+install_ems     - Install emscripten sdk
+activate_ems    - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine    - Build engine
 archive_engine  - Archive engine (including builtins) to path specified with --archive-path
 build_go        - Build go code
@@ -927,8 +1022,10 @@ bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
 
-Multiple commands can be specified'''
+Multiple commands can be specified
 
+To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
+'''
     parser = optparse.OptionParser(usage)
 
     parser.add_option('--eclipse-home', dest='eclipse_home',
@@ -937,7 +1034,7 @@ Multiple commands can be specified'''
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android'],
+                      choices = ['linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'armv7-android', 'js-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
@@ -982,7 +1079,10 @@ Multiple commands can be specified'''
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
 
-    options, args = parser.parse_args()
+    options, all_args = parser.parse_args()
+
+    args = filter(lambda x: x[:2] != '--', all_args)
+    waf_options = filter(lambda x: x[:2] == '--', all_args)
 
     if len(args) == 0:
         parser.error('No command specified')
@@ -1003,8 +1103,8 @@ Multiple commands can be specified'''
                           set_version = options.set_version,
                           eclipse = options.eclipse,
                           branch = options.branch,
-                          channel = options.channel)
-
+                          channel = options.channel,
+                          waf_options = waf_options)
 
         for cmd in args:
             if cmd in ['distclean', 'install_ext', 'build_engine', 'archive_engine']:
@@ -1025,7 +1125,8 @@ Multiple commands can be specified'''
                       set_version = options.set_version,
                       eclipse = options.eclipse,
                       branch = options.branch,
-                      channel = options.channel)
+                      channel = options.channel,
+                      waf_options = waf_options)
 
     for cmd in args:
         f = getattr(c, cmd, None)

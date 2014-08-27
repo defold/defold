@@ -1,347 +1,268 @@
-Defold Game Engine Introduction and Concepts
-============================================
+OVERVIEW
+========
 
-This introduction describes some basic concepts in our platform, the most important features and how the editor works.
+This introduction to Defold covers the core concepts of Defold, how the editor works and the most important features. The overview presents the editor, concepts and building blocks briefly and links to more thorough documentation where such exists.
 
 Concepts
 --------
 
-Let's start with explaining some of the concepts to share our view of game development.
-We recommend that you give it a glance even if you are an experienced game developer, since we might have different views.
+Defold is built upon a set of quite simple concepts that are designed and built on the basis of our view on games development. If you are an experienced developer, these concepts should be pretty straightforward to understand, but please take the time to read this overview carefully--some of our concepts are, even though simple, different from how other tools and engines are designed and built.
 
-Game Objects
-~~~~~~~~~~~~
+=== The editor
 
-Game worlds consist of game objects.
-Everything you can see or interact with is a game object.
-A player avatar, a fired projectile, enemies, decorations and graphical user interfaces are different examples.
-A game object works like a blueprint and can be cloned into multiple copies.
-When you modify the blueprint, all copies are updated automatically.
+The Defold editor is a collection of integrated tools that allow you to import, organize, create and manipulate content that you need for your game or app. The editor contains almost all the tools necessary to make your games, except graphics and sound editing.
 
-((((
-image::images/engine/blueprint.png["Game Object", align="center"]
-((((
+The editor is structured into a set of panes that provide different views into your data. The view panes are organized like the image below by default, but it is easy to detach and reorganize the views to your likings.
 
-Components
-~~~~~~~~~~
+The editor reacts to standard mouse manipulations of objects. You left-click to mark, left-click and drag to region mark. A right-click on an object or in a view brings up a context sensitive pop-up menu with the available operations.
 
-Components are used to extend game objects with functionality, e.g. graphics, sounds, collisions or behaviour.
-A component can't exist by itself, it always needs a game object to be present in the game.
-You can think of a game object as linking its components into the game.
-Components are usually defined in the same files as the game objects.
-If you want to reuse a component among several game objects, you can put it into a separate file.
-This file can then be referenced from the different game object files.
+image::images/overview/overview_editor.png["The editor", align="center"]
 
-((((
-image::images/engine/components_2.png["Components", align="center"]
-((((
+Project Explorer :: The file structure of your project. Here you can see all files and folders that your project consists of. You can create, rename, move and delete files and folders through this view. File manipulations trigger automatic refactoring (refences to the files are updated) that is built into the editor--all to make restructuring of your project as easy as possible.
 
-Messages
-~~~~~~~~
+Changed Files :: Your projects are automatically tracked and versioned by the Git source control system. Any changes you have made to a file is shown in this view. You can revert changes or open a diff-view (text only) of your changes. 
 
-Components communicate with each other and other systems through message passing.
-Messages are used to notify components that something should happen, e.g. hide graphics, turn off collisions or play a sound.
-Everything in the game has an address, a URL (similar to how the web works).
-This means that messages can be sent between any two components present in the game, whether or not they belong to the same game object.
+Editors :: The central pane shows one editor per file. Different file types open different editors. Defold provides visual editors for game objects, collections, atlases, tile maps, GUI:s, particles etc and a capable text editor for Lua script files. The "Scene editor" that is used to work with game objects and collections and give tools for moving, resizing and rotating objects as well as zooming and panning through the scene. See the link:/doc/scene_editing[Scene Editor documentation] for details. 
 
-Collections
-~~~~~~~~~~~
+Outline :: The outline pane shows the content of the current editor in a hierarchial tree view. You can add, remove, select and modify objects and components that are in the editor view.
 
-A collection contains positioned game objects.
-They are most commonly used to build levels.
-Collections can contain other collections, which are then called sub-collections.
-This allows you to reuse recurring game object setups at different locations in your level, like an enemy carrying a power-up item.
+Properties :: The properties pane shows all properties that are associated with the currently selected object or component. Some properties are edited with special purpose editors that are opened in a separate view pane--for instance the link:/doc/particlefx[Particle FX] "Curve Editor".
 
-This is an example of how a common game scenario can be constructed.
-We have two players, each controlling a space ship.
-At the top of the screen, their different scores are displayed.
+Console :: The console at the bottom center prints engine diagnostics and error messages and also any custom +print()+ and +pprint()+ debug messages. If your app or game won't start the console is the first thing to check.
 
-((((
-image::images/engine/level.png["Level", align="center"]
-((((
+The editor can be downloaded from the http://www.defold.com/dashboard[dashboard]. From there you also create new projects and edit the project members. Select *File > Open Project* from the Editor menu to select a project to work on. When you have selected your project, you also need to select a branch to work on (or create one of there aren't any). A branch is like a personal view of your project. To share the content you make with the other members in your project, select *File > Synchronize* in the editor menu. This also updates your own branch with any changes made by other team members.
 
-Factories
-~~~~~~~~~
+=== Game objects
 
-When a collection is loaded in the game, all the game objects it contains will be created and end up at their specified positions.
-If you want to add game objects on the fly during the game, you can use a factory component.
+Game worlds that you build in Defond consist of game objects. Everything you can see or interact with is a game object: the player character, projectiles, enemies, landscape decorations an GUI interfaces are all game objects. A game object contains a set of _components_ that give the game object presence and functionality.
 
-((((
-image::images/engine/factory.png["Factory", align="center"]
-((((
+image::images/overview/overview_blueprint.png["Game object blueprint", align="center"]
 
-Each factory has a reference to the game objects it can create.
-To make it create more game objects, send it a message:
+You can create a game object _in place_ in a collection. That results in a one-of a kind object. You can copy that object but each copy is separate--changing one does not affect the others. This means that if you create 10 copies of a game object and realize that you want to change them all, you will need to edit all 10 instances of the object. Therefore, in place created game objects should be used for objects that you do not intend to make a lot of copies of.
 
-[source-code, lua]
-----
-msg.post("#factory", "create", {position = some_position, rotation = some_rotation})
-----
+image::images/overview/overview_object_inplace.png["Game object in place", align="center"]
 
-where +factory+ is the identifier of the factory component attached to the game object and +create+ is the message the factory component responds to.
-The +position+ and +rotation+ parameters lets you tell the game where and how you want the game object to end up when created.
+However, a game object that is stored _in a file_ works as a blueprint. When you place instances of a file stored game object in a collection each object is placed by _reference_ -- it is a clone based on the blueprint. If you decide you need to change the blueprint, every single placed game object based on that blueprint is instantly updated.
 
-Scripting
-~~~~~~~~~
+image::images/overview/overview_object_file.png["Game object on file", align="center"]
 
-All scripts in Defold are written in the Lua programming language.
-They let you specify the rules of your game, like how game objects should interact and respond to player input.
-We have extended Lua with functions and messages, which are explained in the link:/ref/engine[reference manual].
-It also contains example code of how to use them from your scripts.
+This ability of either create something in place or store it on file as a blueprint is an idea that runs through Defold.
 
-Lua in itself comes with many great features.
-Please see the documentation on the link:http://www.lua.org[Lua site] and on the link:http://lua-users.org/wiki/LuaDirectory[Lua wiki].
+=== Components
 
-The actual Lua-code to play an explosion sound of a game object can look like this:
+Components are used to extend game objects with presence (graphics, sound) and functionality (collisions, scripted behaviors). A component can’t exist by itself but has to reside inside a game object. Components are usually defined _in place_ in the same file as the game object. However, if you want to reuse a component you can store it in a separate file (like you can with game objects) and include it as a refence in any game object file. Some component types (Lua scripts, for instance) has to be placed in a separate component file and then included as reference in your objects.
 
-[source-code, lua]
+image::images/overview/overview_component.png["Component", align="center"]
+
+=== Collections
+
+A collection is a container of game objects that you have placed and put into position. Collections are most commonly used to build game levels. A simple game or app can be built in the default "main" collection that is automatically loaded by the engine on startup. This collection is usually called "main.collection" but can be changed in the link:/doc/game_project[project settings]. However, collections are a powerful tool that you can use to group game objects that belong together into reusable units, for example an enemy carrying a power-up item. Collections can also contain other collections (then called "sub-collections").
+
+Below is a simple example of a collection containing three game objects:
+
+1. A HUD game object that present scores for two players.
+2. Two Flying Saucer game objects, each controlled by a separate player.
+
+The game objects in turn contain components.
+
+image::images/overview/overview_collection.png["Collection example", align="center"]
+
+With a more complex setup of collections (with hierarchies of sub-collections) it is important to understand how addressing works. The link:/doc/message_passing[Message passing documentation] gives you the details.
+
+Collections can be dynamically loaded and unloaded in and out of your game or app by using link:/doc/collection_proxies[Collection proxies].
+
+=== Scripts
+
+A script is a component that contains a program that defines game object behaviors. With scripts you can specify the rules of your game, how objects should respond to various interactions (with the player as well as other objects). All scripts are written in the Lua programming language. To be able to work with Defold, you or someone on your team needs to learn how to program in Lua.
+
+To allow communication between objects, Defold extends Lua with link:/doc/message_passing[Message passing]. Defold also provides a library of useful functions.
+
+Lua comes with many great features. Please see the documentation on http://www.lua.org and on the http://lua-users.org/wiki/LuaDirectory[Lua wiki].
+
+The Lua-code required to play an explosion sound from a game object looks like this:
+
+[source-code]
 ----
 msg.post("#explosion", "play_sound")
 ----
 
-where +explosion+ is the identifier of the sound component attached to the game object and +play_sound+ the message the sound component responds to.
-When scripting, remember that no data is shared among the scripts.
-Components (including scripts) only exchange information through message passing (by using the function link:/ref/script#msg.post[+msg.post+]).
+Here, "explosion" is the name of the object's sound component where the script resides. +play_sound+ is a message that sound components respond to. This is a simple example of message passing, which is how components interact. When scripting, no data is shared between scripts or objects. Components (including scripts) only exchange information by passing messages using the function +msg.post()+. Read the link:doc/scripting[Scripting documentation] for more information on Lua scripting in Defold.
+
+=== Messages
+
+Components communicate with each other and other systems through message passing. Components also respond to a set of predefined messages that alter them or trigger specific actions. You send messages to hide graphics, play sounds or nudge physics objects. The engine also uses messages to notify components of events, for instance when physics shapes collide.
+
+The message passing mechanism needs a recipient for each sent message. Therefore, everything in the game has an address, or an URL. Every game object and component has a unique URL which allows any two components in your app or game to send messages to each other.
+
+See the link:/doc/message_passing[Message passing documentation] for an in depth explanation of how message passing works.
+
+=== Factories
+
+All objects that have been placed in a collection will start at the specified position when the collection is loaded into the game. However, it is common that an app or game needs game objects created dynamically, on the fly. For example, a player might fire bullets and each shot should be dynamically spawned and sent off whenever the player presses the trigger. To create game objects dynamically, you use a factory component.
+
+image::images/overview/overview_factory.png["Factory", align="center"]
+
+When you add a factory component to a game object you specify what game object file the factory should use as a blueprint for the objects it creates. To trigger the creation of a game object, sent the factory a message:
+
+[source-code]
+----
+msg.post("#factory", "create", { position = some_position, rotation = some_rotation })
+----
+
+Here, "factory" is the name of the factoy component attached to the game object. +create+ is the message that the factory component responds to by creating a new object. The type of object is set in a property in the factory component. The parameters +position+ and +rotation+ specify where the new object should be placed, and how it should be oriented.
 
 Collaboration
-~~~~~~~~~~~~~
+-------------
 
-Very few people can make games by themselves.
-We think the ability to work together is key for a fast development cycle.
-This is why we have tried to make collaboration a corner stone of the Defold platform.
+Most games are created as a collaborative effort between two or more people. We believe that the ability to work together is key for a fast development cycle. Collaboration is therefore a cornerstone of the Defold platform.
 
-((((
-image::images/engine/collaboration.png["Collaboration", align="center"]
-((((
+image::images/overview/overview_collaboration.png["Collaboration", align="center"]
 
-When you create a new project, a central repository is automatically created on our servers.
-During development, the files you create and modify are actually a personal view of this repository.
-When you are ready to share your changes, you can synchronize your personal view with the central repository from inside the editor.
-This allows other members to receive your changes and you to receive any changes from them.
-The changes are recorded and available as a history of what's happened in your project.
-Backup or emailing files back and forth won't be necessary.
+When you create a new project, a central repository is automatically created on our servers. During development, the files you create and modify are your personal view of this repository. When you have done some work and is ready to share your changes, just synchronize your personal view with the central repository. The editor uploads your changes, downloads any new changes (from other team members) and helps resolve conflicts if you and someone else has edited the same piece of project data. All changes are recorded and logged so there is a clear history of what has happened in your project. You don't have to worry about backups and you will never need to email files back and forth with your team.
 
-Common Building Blocks
-----------------------
+Defold's collaboration tools are built on the popular and extremely powerful distributed verion control system "Git". (If you're interested in Git, you can read more on http://git-scm.com).
 
-These are the most common building blocks used when creating a game.
+Building blocks
+---------------
 
-Game Object
-~~~~~~~~~~~
+This is a list of all the available building blocks for creating apps and games. They are listed together with the icon used for the type of building block in the Defold editor.
 
-image:images/icons/brick.png["Game Object"]
+=== Game object
 
-Game objects are blueprints which describe the types of elements that make up your game, e.g. player avatars, enemies, weapons and power-ups.
+image::images/icons/brick.png["Game object", align="left"]
 
-Collection
-~~~~~~~~~~
+See above for a description of game objects.
 
-((((
-image::images/icons/bricks.png["Collection"]
-((((
+=== Collection
 
-A collection defines which game objects should appear where.
-They can be used for many things, from large levels to small recurring sets of game objects.
+image::images/icons/bricks.png["Collection", align="left"]
 
-Script
-~~~~~~
+See above for a description of collections.
 
-image:images/icons/cog.png["Script"]
+=== Script
 
-A script component defines the behavior of a game object, like how it should move around in the game world.
-They can also define how the user can control it through input and how the other components in the game object should behave.
-An example of this can be to turn on some special effect whenever the player is invulnerable.
+image::images/icons/cog.png["Script", align="left"]
 
-Sound
-~~~~~
+See above for a description of scripts.
 
-image:images/icons/sound.png["Sound"]
+=== Sound
 
-The sound component is responsible for playing a specific sound.
-Currently only wav-files are supported.
+image::images/icons/sound.png["Sound", align="left"]
 
-Collision Object
-~~~~~~~~~~~~~~~~
+The sound component is responsible for playing a specific sound. Currently, Defold supports soundfiles of the type WAV.
 
-image:images/icons/weight.png["Collision Object"]
+=== Collision object
 
-Collision objects are components that extend game objects with physical properties and how they should collide with other game objects.
-The most common types of collision objects are kinematic and dynamic.
-Basically, a kinematic collision object follows its game object around, where a dynamic makes its game object obey the laws of physics, like gravitation and forces.
+image::images/icons/weight.png["Collision object", align="left"]
 
-Factory
-~~~~~~~
+Collision objects are components that extend game objects with physical properties (like spatial shape, weight, friction and restitution). These properties govern how the collision object should collide with other collision objects. The most common types of collision objects are kinematic objects, dynamic objects and triggers. A kinematic object gives detailed collision information that you have to manually respond to, a dynamic object is automatically simulated by the physics engine to obey Newtonian laws of physics. Triggers are simple shapes that detect if other shapes have entered or exited the trigger.
 
-image:images/icons/factory.png["Factory"]
+=== Factory
 
-A factory is a component that can create other game objects in the game world on the fly.
-They can be used to make enemies or power-ups appear when the game is running.
+image::images/icons/factory.png["Factory", align="left"]
 
-Tile Source
-~~~~~~~~~~~
-image:images/icons/small_tiles.png["Tile Source"]
+See above for a description of factories.
 
-A tile source describes a texture that is composed of multiple smaller images.
-You can define animations of the smaller images in the tile source.
-It can also calculate collision shapes automatically from image data.
-They are used by the sprite and tile map components to share graphics resources.
+=== Sprite
 
-((((
-image::images/editor/tileset.png["Tile Source", align="center"]
-((((
-((((
-image::images/editor/tile_set_hull.png["Tile Source", align="center"]
-((((
+image::images/icons/pictures.png["Sprite", align="left"]
 
-Sprite
-~~~~~~
+A sprite is a component that extends game objects with graphics. It displays an image either from a Tile source or from an Atlas. Sprites have built-in support for flip-book animation. Sprites are usually used for characters and items. See the link:/doc/tiles[2D graphics documentation] for more information.
 
-image:images/icons/pictures.png["Sprite"]
+=== Atlas
 
-A sprite is a component that extends game objects with graphics.
-It displays one of the smaller images of a tile source and have built-in support for flip-book-animation.
-It is usually used for characters and items.
+image::images/icons/pictures_atlas.png["Atlas", align="left"]
 
-Tile Map
-~~~~~~~~
+An atlas is a set of separate images that are compiled into a larger sheet for performance and memory reasons. You can store still images or flip-book animated series of images. Atlases are used by Sprite and ParticleFX components to share graphics resources. See the link:/doc/tiles[2D graphics documentation] for more information.
 
-image:images/icons/layer_grid.png["Tile Map"]
+image::images/overview/overview_atlas.png["Atlas", align="center"]
 
-Tile map components display images from a tile source in a grid based fashion.
-It is most commonly used to build the environment of the game world, e.g. ledges in a platform-game or obstacles in an RTS-game.
-It also supports automatic generation of collision shapes based on the images.
-The displayed images can be changed to visualize changes in the game world, like a ledge being destroyed.
+=== Tile source
 
-((((
-image::images/editor/tilegrid_1.png["Tile Map", align="center"]
-((((
-((((
-image::images/editor/tilegrid_2.png["Tile Map", align="center"]
-((((
+image::images/icons/small_tiles.png["Tile source", align="left"]
 
-Gui
-~~~
+A tile source describes a texture that is composed of multiple smaller images, everyone with the same size. The component support flip-book animation. You can define animations over a sequence of images in the tile source. Tile sources can also automatically calculate collision shapes automatically from image data. This is very useful for creating tiled levels that object can collide and interact with. Tile sources are used by Tile map (and Sprite and ParticleFX although Atlases are usually to prefer) components to share graphics resources. See the link:/doc/tiles[2D graphics documentation] for more information.
 
-image:images/icons/text_allcaps.png["Gui"]
+image::images/overview/overview_tilesource.png["Tile source", align="center"]
 
-A gui component contains different elements used for user interfaces, like texts and textured blocks.
-The elements can be animated and are typically used for Heads-Up Displays, menu systems and notifications for the users.
-It uses a gui script, which defines the behaviour of the Gui and how the user can interact with it.
+image::images/overview/overview_tilesource_animation.png["Tile source animation", align="center"]
 
-((((
-image::images/editor/gui.png["Gui", align="center"]
-((((
+image::images/overview/overview_tilesource_hull.png["Tile source shape", align="center"]
 
-Gui Script
-~~~~~~~~~~
+=== Tile map
 
-image:images/icons/cog.png["Script"]
+image::images/icons/layer_grid.png["Tile map", align="left"]
 
-Gui scripts are used to define the behaviour of gui components.
-This include how the user can interact with them, how information such as score and lives are presented as well as animations when specific events occur.
+Tile map components display images from a tile source in one or more overlaid grids. They are most commonly used to build game environments: ground, walls, buildings and obstacles. A tile map can display several layers aligned on top of each other with specified blend mode. This is useful to, for example, put foilage on top of grass background tiles. It is also possible to dynamically change the displayed image in a tile. That allows you to, for instance, destroy a bridge and make it impassable by simply replacing the tiles with ones depicting the broken down bridge and containing the corresponding physics shape.
 
-Font
-~~~~
+image::images/overview/overview_tilemap.png["Tile map", align="center"]
 
-image:images/icons/font.png["Font"]
+image::images/overview/overview_tilemap_palette.png["Tile map palette", align="center"]
 
-Fonts are based on a TrueType Font-file.
-They specify which font size to use and what type of decoration (outline and shadow) it should have.
-They are used by the gui components.
+=== ParticleFX
 
-((((
-image::images/editor/font.png["Font", align="center"]
-((((
+image::images/icons/clouds.png["ParticleFX", align="left"]
 
-Input Binding
-~~~~~~~~~~~~~
+Particles are very useful for creating nice visual effects, particularly in games. you can use them to create fog, smoke, fire, rain or falling leaves. Defold contains a powerful particle effects editor that allows you to build and tweak effects while you run them real time in your game. The link:/doc/particlefx[ParticleFX documentation] gives you the details on how that works.
 
-image:images/icons/keyboard.png["Input Binding"]
+image::images/overview/overview_particlefx.png["ParticleFX", align="center"]
 
-Input binding files define how the game should interpret hardware input (e.g. keyboard/mouse, touch pads and game pads).
-In short, you define high-level input actions, like "jump", "move_forward", etc, which are then mapped to hardware input.
-You can then take action on the high-level input in the Lua-scripts, without having to consider which hardware was actually used.
+=== GUI
 
-((((
-image::images/editor/input_binding.png["Input Binding", align="center"]
-((((
+image::images/icons/text_allcaps.png["GUI", align="left"]
 
-Other Building Blocks
----------------------
+A GUI component contains elements used to construct user interfaces: text and colored and/or textured blocks. Elements can be organized into hierarchial structures, scripted and animated. GUI components are typically used to create heads-up displays, menu systems and on-screen notifications. GUI components are controlled with GUI scripts that defines the behavior of the GUI and controls the user interaction with it. Read more in the link:/doc/gui[GUI documentation].
 
-Camera
-~~~~~~
+image::images/overview/overview_gui.png["GUI", align="center"]
 
-image:images/icons/camera.png["Camera"]
+=== GUI script
 
-Camera components helps to decide what part of the game world should be visible and how it should be projected.
-A common example is to attach a camera to the player game object, or having a separate game object with a camera that follows the player around.
+image::images/icons/cog.png["GUI script", align="left"]
 
-Material
-~~~~~~~~
+GUI scripts are used to define the behaviour of GUI components. They control GUI animations and how the user interacts with the GUI.
 
-image:images/icons/large_tiles.png["Material"]
+=== Font
+
+image::images/icons/font.png["Font", align="left"]
+
+A Font is built from a TrueType or OpenType font file. The Font specifies which size to render the font in and what type of decoration (outline and shadow) the rendered font should have. Fonts are used by GUI components.
+
+image::images/overview/overview_font.png["GUI", align="center"]
+
+=== Input binding
+
+image::images/icons/keyboard.png["Input binding", align="left"]
+
+Input binding files define how the game should interpret hardware input (mouse, keyboard, touchscreen and game pads). The file bind hardware input to high level input _actions_ like "jump" and "move_forward". In script components that listens to input you are then able to script the actions the game or app should take given certain input. See the link:/doc/input[Input documentation] for details.
+
+image::images/overview/overview_input_binding.png["Input binding", align="center"]
+
+=== Camera
+
+image::images/icons/camera.png["Camera", align="left"]
+
+Camera components helps to decide what part of the game world should be visible and how it should be projected. A common use case is to attach a camera to the player game object, or having a separate game object with a camera that follows the player around with some smoothing algorithm.
+
+=== Material
+
+image::images/icons/large_tiles.png["Material", align="left"]
 
 Materials define how different objects should be rendered by specifying shaders and their properties.
 
-Render
-~~~~~~
+=== Render
 
-image:images/icons/paintcan.png["Render"]
+image::images/icons/paintcan.png["Render", align="left"]
 
-Render files contains settings used when rendering the game onto the screen.
-They define which Render Script to use for rendering and the different materials to use for things such as post effects.
+Render files contains settings used when rendering the game to the screen. Render files define which Render script to use for rendering and which materials to use.
 
-Render Script
-~~~~~~~~~~~~~
+=== Render script
 
-image:images/icons/cog.png["Render Script"]
+image::images/icons/cog.png["Render script", align="left"]
 
-A render script controls how the game should be rendered to the screen.
-The default render script should cover the most common cases, but you can write your own for custom lighting models and other effects.
+A Render script is a Lua script that controls how the game or app should be rendered to the screen. There is a default Render script that covers most common cases, but you can write your own if you need custom lighting models and other effects.
 
-Collection Proxy
-~~~~~~~~~~~~~~~~
+=== Collection proxy
 
-image:images/icons/bricks_proxy.png["Collection Proxy"]
+image::images/icons/bricks_proxy.png["Collection proxy", align="left"]
 
-A collection proxy can be used to load and present collections on the fly during a game.
-The most common example would be that you want to start your game as fast as possible without loading any level-data.
-You can then use collection proxies to load and start your levels at a later time.
-
-Editor Overview
----------------
-
-The editor contains almost all the tools necessary to make your games, except graphics and sound editing.
-The different areas are described in the image below.
-
-((((
-image::images/editor/editor.png["Editor Overview", align="center"]
-((((
-
-*File > Open Project* is the place to start.
-When you have selected your project, you also need to create a branch.
-A branch is like a personal view of your project.
-To share the content you make with the other members in your project, use *File > Synchronize*.
-This also updates your own branch with any changes made by the others.
-
-The Project Explorer, Outline and Changed Files views have different context menus you should check out.
-The main menu is also updated to reflect your current selection, so keep an eye on that too.
-
-To use and navigate in the Scene Editor, which is the center area in the overview image above, we use key bindings similar to Maya.
-
-* Use your mouse and keyboard modifiers to navigate.
-* Windows/Linux: Alt+Middle Mouse Button and Alt+Right Mouse Button
-  - Mac: Alt+Mouse Button and Alt+Ctrl+Mouse Button
-  - Hold down Shift to select multiple objects.
-* When an object is selected, you can activate different manipulators for that object in the Scene menu.
-
-The Editor checks for updates automatically at start-up.
-Each time we release a new version, we post a thorough description of the changes in the blog.
-
-Let's get to work!
-------------------
-
-The editor can be downloaded from the link:/dashboard[dashboard].
-We recommend you follow the link:/doc/side_scroller[Side-Scroller Tutorial] now to see what our platform is like in practice.
-For more information, please see the link:/doc/[documentation page] (the tutorial is available there as well).
+A Collection proxy is used to load and enable collections on the fly while an app or game is running. The most common use case for Collection proxies are to load levels as they are to be played. See the link:/doc/collection_proxies[Collection proxies documentation] for details. 

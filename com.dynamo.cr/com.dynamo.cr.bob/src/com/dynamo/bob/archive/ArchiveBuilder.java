@@ -8,19 +8,24 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4Compressor;
 
 public class ArchiveBuilder {
 
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     class Entry implements Comparable<Entry> {
 
         int size;
+        int compressedSize;
         String relName;
         private String fileName;
 
-        public Entry(String fileName) throws IOException {
+        public Entry(String fileName, boolean compress) throws IOException {
             File file = new File(fileName);
             if (!file.exists()) {
                 throw new IOException(String.format("File %s doens't exists",
@@ -35,6 +40,12 @@ public class ArchiveBuilder {
             }
 
             this.size = (int) file.length();
+            if(compress) {
+                // Will be set to real value after compression
+                this.compressedSize = 0;
+            } else {
+                this.compressedSize = 0xFFFFFFFF;
+            }
             this.relName = fileName.substring(root.length());
             this.fileName = fileName;
         }
@@ -48,14 +59,43 @@ public class ArchiveBuilder {
 
     private List<Entry> entries = new ArrayList<ArchiveBuilder.Entry>();
     private String root;
+    private LZ4Compressor lz4Compressor;
 
     public ArchiveBuilder(String root) {
         this.root = new File(root).getAbsolutePath();
+        this.lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
+    }
+
+    public void add(String fileName, boolean doCompress) throws IOException {
+        Entry e = new Entry(fileName, doCompress);
+        entries.add(e);
     }
 
     public void add(String fileName) throws IOException {
-        Entry e = new Entry(fileName);
+        Entry e = new Entry(fileName, false);
         entries.add(e);
+    }
+
+    private int compress(String fileName, int fileSize, RandomAccessFile outFile) throws IOException {
+        // Read source data
+        byte[] tmp_buf = FileUtils.readFileToByteArray(new File(fileName));
+
+        int maxCompressedSize = lz4Compressor.maxCompressedLength(tmp_buf.length);
+
+        // Compress data
+        byte[] compress_buf = new byte[maxCompressedSize];
+        int compressedSize = lz4Compressor.compress(tmp_buf, compress_buf);
+
+        double compRatio = (double)compressedSize/(double)fileSize;
+        if(compRatio > 0.95) {
+            // Store uncompressed if we gain less than 5%
+            outFile.write(tmp_buf, 0, fileSize);
+            compressedSize = 0xFFFFFFFF;
+        } else {
+            outFile.write(compress_buf, 0, compressedSize);
+        }
+
+        return compressedSize;
     }
 
     private void copy(String fileName, RandomAccessFile outFile) throws IOException {
@@ -103,7 +143,11 @@ public class ArchiveBuilder {
         for (Entry e : entries) {
             alignBuffer(outFile, 4);
             resourcesOffset.add((int) outFile.getFilePointer());
-            copy(e.fileName, outFile);
+            if(e.compressedSize != 0xFFFFFFFF) {
+                e.compressedSize = compress(e.fileName, e.size, outFile);
+            } else {
+                copy(e.fileName, outFile);
+            }
         }
 
         alignBuffer(outFile, 4);
@@ -113,6 +157,7 @@ public class ArchiveBuilder {
             outFile.writeInt(stringsOffset.get(i));
             outFile.writeInt(resourcesOffset.get(i));
             outFile.writeInt((int) e.size);
+            outFile.writeInt((int) e.compressedSize);
             ++i;
         }
 
@@ -132,7 +177,6 @@ public class ArchiveBuilder {
         outFile.writeInt(entries.size());
         // EntryOffset
         outFile.writeInt(entryOffset);
-
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -147,12 +191,25 @@ public class ArchiveBuilder {
 
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
-            System.err.println("USAGE: ArchiveBuilder <ROOT> <OUT> <FILE1> <FILE2>...");
+            System.err.println("USAGE: ArchiveBuilder <ROOT> <OUT> [-c] <FILE1> <FILE2>...");
+        }
+
+        int firstFileArg = 2;
+        boolean doCompress = false;
+        if(args.length > 2)
+        {
+            if("-c".equals(args[2])) {
+                doCompress = true;
+                firstFileArg = 3;
+            } else {
+                doCompress = false;
+                firstFileArg = 2;
+            }
         }
 
         ArchiveBuilder ab = new ArchiveBuilder(args[0]);
-        for (int i = 2; i < args.length; ++i) {
-            ab.add(args[i]);
+        for (int i = firstFileArg; i < args.length; ++i) {
+            ab.add(args[i], doCompress);
         }
 
         RandomAccessFile outFile = new RandomAccessFile(args[1], "rw");

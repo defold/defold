@@ -260,10 +260,9 @@ namespace dmPhysics
         HContext3D context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
-        // Values are picked by inspection, rotation should go down after the quat => angle conversion has been fixed
-        // Current value is roughly equivalent to 1 degree
+        // Values are picked by inspection, current rot value is roughly equivalent to 1 degree
         const float POS_EPSILON = 0.00005f * scale;
-        const float ROT_EPSILON = 0.0025f;
+        const float ROT_EPSILON = 0.00007f;
         // Update all trigger transforms before physics world step
         if (world->m_GetWorldTransform != 0x0)
         {

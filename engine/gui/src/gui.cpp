@@ -214,7 +214,6 @@ namespace dmGui
             InternalNode* n = &scene->m_Nodes[i];
             memset(n, 0, sizeof(*n));
             n->m_Index = INVALID_INDEX;
-            n->m_SceneTraversalCacheVersion = INVALID_INDEX;
         }
 
         luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
@@ -589,18 +588,19 @@ namespace dmGui
             c->m_RenderNodes.SetCapacity(capacity);
             c->m_RenderTransforms.SetCapacity(capacity);
             c->m_RenderColors.SetCapacity(capacity);
+            c->m_SceneTraversalCache.m_Data.SetCapacity(capacity);
+            c->m_SceneTraversalCache.m_Data.SetSize(capacity);
 	    }
-        scene->m_SceneTraversalCache.Invalidate();
+        c->m_SceneTraversalCache.m_NodeIndex = 0;
+        if(++c->m_SceneTraversalCache.m_Version == INVALID_INDEX)
+        {
+            c->m_SceneTraversalCache.m_Version = 0;
+        }
 
         Matrix4 node_transform;
         CollectNodes(scene, scene->m_RenderHead, 0, c->m_RenderNodes);
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), NodeSortPred(scene));
         uint32_t node_count = c->m_RenderNodes.Size();
-        if(node_count > scene->m_SceneTraversalCache.Capacity())
-        {
-            scene->m_SceneTraversalCache.SetCapacity(node_count);
-        }
-
         Matrix4 transform;
         Vector4 color;
         for (uint32_t i = 0; i < node_count; ++i)
@@ -1293,7 +1293,6 @@ namespace dmGui
             free((void*)n->m_Node.m_Text);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
-        n->m_SceneTraversalCacheVersion = INVALID_INDEX;
     }
 
     void ClearNodes(HScene scene)
@@ -1303,7 +1302,6 @@ namespace dmGui
             InternalNode* n = &scene->m_Nodes[i];
             memset(n, 0, sizeof(*n));
             n->m_Index = INVALID_INDEX;
-            n->m_SceneTraversalCacheVersion = INVALID_INDEX;
         }
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
@@ -1655,10 +1653,10 @@ namespace dmGui
         return SetNodeLayer(scene, node, dmHashString64(layer_id));
     }
 
-    void SetNodeInheritColor(HScene scene, HNode node, bool inherit_color)
+    void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_Node.m_InheritColor = inherit_color;
+        n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
@@ -2099,17 +2097,16 @@ namespace dmGui
         }
     }
 
-    inline void CalculateParentNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, Vector4& out_color, SceneTraversalCache& traversal_cache)
+    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, float& out_alpha, SceneTraversalCache& traversal_cache)
     {
         const Node& node = n->m_Node;
-        bool cached;
         uint16_t cache_index;
-
+        bool cached;
         uint16_t cache_version = n->m_SceneTraversalCacheVersion;
         if(cache_version != traversal_cache.m_Version)
         {
             n->m_SceneTraversalCacheVersion = traversal_cache.m_Version;
-            cache_index = n->m_SceneTraversalCacheIndex = traversal_cache.PopNodeIndex();
+            cache_index = n->m_SceneTraversalCacheIndex = traversal_cache.m_NodeIndex++;
             cached = false;
         }
         else
@@ -2126,7 +2123,7 @@ namespace dmGui
         else if(cached)
         {
             out_transform = cache_data.m_Transform;
-            out_color = cache_data.m_Color;
+            out_alpha = cache_data.m_Alpha;
             return;
         }
         out_transform = node.m_LocalTransform;
@@ -2134,23 +2131,23 @@ namespace dmGui
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
-            Vector4 parent_color;
+            float parent_alpha;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, traversal_cache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, reference_scale, parent_trans, parent_alpha, traversal_cache);
             out_transform = parent_trans * out_transform;
-            if (node.m_InheritColor) {
-                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
-            } else {
-                out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
+            out_alpha = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
+            if (node.m_InheritAlpha)
+            {
+                out_alpha *=  parent_alpha;
             }
         }
         else
         {
-            out_color = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR];
+            out_alpha = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
         }
 
         cache_data.m_Transform = out_transform;
-        cache_data.m_Color = out_color;
+        cache_data.m_Alpha = out_alpha;
     }
 
     inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color)
@@ -2166,19 +2163,23 @@ namespace dmGui
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
-            Vector4 parent_color;
+            float parent_alpha;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, scene->m_SceneTraversalCache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, reference_scale, parent_trans, parent_alpha, scene->m_Context->m_SceneTraversalCache);
             out_transform = parent_trans * out_transform;
-            if (node.m_InheritColor) {
-                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
-            } else {
+            if (node.m_InheritAlpha)
+            {
+                Vector4 c(node.m_Properties[dmGui::PROPERTY_COLOR]);
+                out_color = Vector4(c.getX(), c.getY(), c.getZ(), c.getW()*parent_alpha);
+            }
+            else
+            {
                 out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
             }
         }
         else
         {
-            out_color = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR];
+            out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
         }
     }
 

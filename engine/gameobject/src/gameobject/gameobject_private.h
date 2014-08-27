@@ -135,6 +135,20 @@ namespace dmGameObject
         uint16_t        m_LevelIndex : 15;
         uint16_t        m_Pad2 : 1;
 
+
+#ifdef __EMSCRIPTEN__
+        // TODO: FIX!! Workaround for LLVM/Clang bug when compiling with any optimization level > 0.
+        //             Without this hack we get:
+        //
+        //               LLVM ERROR: I->getOperand(0)->getType() == i64
+        //
+        //             A theory was that the bug has something todo with bitfields.
+        //             This dummy float breaks up the bitfield in smaller continous parts (<64bits?)...
+        //             Remove when mozilla has fixed this properly...
+        //			   The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
+        float m_llvm_pad;
+#endif
+
         // Next sibling index. Index to Collection::m_Instances
         uint16_t        m_SiblingIndex : 15;
         uint16_t        m_Pad3 : 1;

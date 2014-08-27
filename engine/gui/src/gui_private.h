@@ -43,35 +43,11 @@ namespace dmGui
     struct SceneTraversalCache
     {
         SceneTraversalCache() : m_NodeIndex(0), m_Version(0) {}
-
-        size_t Capacity()
-        {
-            return m_Data.Capacity();
-        }
-
-        void SetCapacity(size_t capacity)
-        {
-            m_Data.SetCapacity(capacity);
-            m_Data.SetSize(capacity);
-        }
-
-        void Invalidate()
-        {
-            m_NodeIndex = 0;
-            m_Version = (m_Version + 1) == INVALID_INDEX ? m_Version + 2 : m_Version + 1;
-        }
-
-        uint16_t PopNodeIndex()
-        {
-            return m_NodeIndex++;
-        }
-
         struct Data
         {
             Matrix4     m_Transform;
-            Vector4     m_Color;
+            float       m_Alpha;
         };
-
         dmArray<Data>   m_Data;
         uint16_t        m_NodeIndex;
         uint16_t        m_Version;
@@ -94,6 +70,7 @@ namespace dmGui
         dmArray<Vector4>            m_RenderColors;
         dmHID::HContext             m_HidContext;
         void*                       m_DefaultFont;
+        SceneTraversalCache         m_SceneTraversalCache;
     };
 
     struct Node
@@ -116,7 +93,7 @@ namespace dmGui
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
                 uint32_t    m_DirtyLocal : 1;
-                uint32_t    m_InheritColor : 1;
+                uint32_t    m_InheritAlpha : 1;
                 uint32_t    m_Reserved : 10;
             };
 
@@ -209,7 +186,6 @@ namespace dmGui
         Script*                 m_Script;
         dmIndexPool16           m_NodePool;
         dmArray<InternalNode>   m_Nodes;
-        SceneTraversalCache     m_SceneTraversalCache;
         dmArray<Animation>      m_Animations;
         dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;

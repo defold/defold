@@ -33,12 +33,16 @@ namespace dmResourceArchive
         RESULT_NOT_FOUND = 1,
         RESULT_VERSION_MISMATCH = -1,
         RESULT_IO_ERROR = -2,
+        RESULT_MEM_ERROR = -3,
+        RESULT_OUTBUFFER_TOO_SMALL = -4,
     };
 
     struct EntryInfo
     {
         const char* m_Name;
         uint32_t    m_Size;
+        // 0xFFFFFFFF if uncompressed
+        uint32_t    m_CompressedSize;
         uint32_t    m_Offset; // For internal use
     };
 

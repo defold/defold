@@ -9,6 +9,8 @@ ANDROID_NDK_VERSION=8b
 ANDROID_VERSION=14
 ANDROID_GCC_VERSION='4.6'
 
+FLASCC=~/local/FlasCC1.0/sdk
+
 function download() {
     mkdir -p ../download
 	[ ! -f ../download/$FILE_URL ] && curl -O $BASE_URL/$FILE_URL && mv $FILE_URL ../download
@@ -23,7 +25,7 @@ function cmi_do() {
     tar xfz ../../download/$FILE_URL --strip-components=1
     [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 
-    ./configure $CONFIGURE_ARGS $2 \
+    ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
         --disable-shared \
         --prefix=${PREFIX} \
         --bindir=${PREFIX}/bin/$1 \
@@ -34,13 +36,20 @@ function cmi_do() {
         --with-x=no
 
     set -e
-    make
+    make -j8
     make install
     set +e
 }
 
 function cmi_cross() {
-    cmi_do $1 "--host=$2"
+    if [[ $2 == "js-web" ]]; then
+        # Cross compiling protobuf for js-web with --host doesn't work 
+        # Unknown host in reported by configure script
+        # TODO: Use another target, e.g. i386-freebsd as for as3-web?
+        cmi_do $1
+    else
+        cmi_do $1 "--host=$2"
+    fi
 
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
@@ -147,6 +156,19 @@ function cmi() {
             export AR=i586-mingw32msvc-ar
             export RANLIB=i586-mingw32msvc-ranlib
             cmi_cross $1 $1
+            ;;
+        js-web)
+            export CONFIGURE_WRAPPER=emconfigure
+            cmi_cross $1 $1
+            ;;
+        as3-web)
+            export CPP="$FLASCC/usr/bin/cpp"
+            export CC=$FLASCC/usr/bin/gcc
+            export CXX=$FLASCC/usr/bin/g++
+            export AR=$FLASCC/usr/bin/ar
+            export RANLIB=$FLASCC/usr/bin/ranlib
+            # NOTE: We use a fake platform in order to make configure-scripts happy
+            cmi_cross $1 i386-freebsd 
             ;;
 
 		*)
