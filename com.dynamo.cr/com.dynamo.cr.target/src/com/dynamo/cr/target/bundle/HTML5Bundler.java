@@ -261,7 +261,7 @@ public class HTML5Bundler {
 
     	setCommonTemplateData(infoData);
 
-        infoData.put("DEFOLD_SPLIT", new File(SplitFileDir, SplitFileJson).toString());
+        infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         String js = "";
         if (0 < this.customHeapSize) {
         	js = String.format("TOTAL_MEMORY: %d, \n", this.customHeapSize);
