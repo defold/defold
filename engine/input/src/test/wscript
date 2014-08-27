@@ -22,7 +22,7 @@ create_simple_protoc_task('input_binding', '.input_binding', '.input_bindingc', 
 create_simple_protoc_task('gamepads', '.gamepads', '.gamepadsc', 'dmInputDDF.GamepadMaps', before='cc cxx')
 
 def build(bld):
-    test_input = bld.new_task_gen(features = 'cc cxx cprogram',
+    test_input = bld.new_task_gen(features = 'cc cxx cprogram test',
                                      includes = '. .. ../../proto',
                                      uselib = 'GTEST DLIB DDF PLATFORM_SOCKET PLATFORM_THREAD HID_NULL',
                                      uselib_local = 'input',

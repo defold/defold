@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
 
@@ -57,23 +58,32 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
     protected abstract void bundleApp(ProjectProperties projectProperties, String projectRoot, String contentRoot, String outputDir) throws ConfigurationException, IOException;
 
     class BundleRunnable implements IRunnableWithProgress {
+        private ProjectProperties projectProperties = null;
 
         private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
 
             HashMap<String, String> bobArgs = new HashMap<String, String>();
             bobArgs.put("build_disk_archive", "true");
-
-            String bobArgsEncoded = Base64.encodeBase64String(SerializationUtils.serialize(bobArgs));
+            if (this.projectProperties.getBooleanValue("project", "compress_archive", true)) {
+                bobArgs.put("compress_disk_archive_entries", "true");
+            }
 
             Map<String, String> args = new HashMap<String, String>();
             args.put("location", "local");
-            args.put("bobArgs", bobArgsEncoded);
+            BobUtil.putBobArgs(bobArgs, args);
             project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
         }
 
         private void bundle(IProgressMonitor monitor, IProject project)
                 throws CoreException, IOException, ConfigurationException, ParseException {
 
+            String projectRoot = getProjectRoot(project);
+            String contentRoot = getCompiledContent(project);
+            bundleApp(this.projectProperties, projectRoot, contentRoot, outputDirectory);
+            monitor.worked(1);
+        }
+
+        private void loadProjectProperties(IProject project) throws CoreException, IOException, ParseException {
             URI projectPropertiesLocation = EditorUtil.getContentRoot(project).getFile("game.project").getRawLocationURI();
             File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0, new NullProgressMonitor());
 
@@ -81,14 +91,10 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             FileInputStream in = new FileInputStream(localProjectPropertiesFile);
             try {
                 projectProperties.load(in);
+                this.projectProperties = projectProperties;
             } finally {
                 IOUtils.closeQuietly(in);
             }
-
-            String projectRoot = getProjectRoot(project);
-            String contentRoot = getCompiledContent(project);
-            bundleApp(projectProperties, projectRoot, contentRoot, outputDirectory);
-            monitor.worked(1);
         }
 
         private String getProjectRoot(IProject project) throws CoreException {
@@ -108,6 +114,7 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             IProject project = EditorUtil.getProject();
             monitor.beginTask("Bundling Application...", 11);
             try {
+                loadProjectProperties(project);
                 buildProject(project, IncrementalProjectBuilder.FULL_BUILD, new SubProgressMonitor(monitor, 9));
                 bundle(monitor, project);
                 buildProject(project, IncrementalProjectBuilder.CLEAN_BUILD, new SubProgressMonitor(monitor, 1));

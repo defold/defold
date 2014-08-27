@@ -26,6 +26,8 @@ namespace dmGui
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
+    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color);
+
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
         "init",
@@ -584,25 +586,37 @@ namespace dmGui
         Vector4 scale = CalculateReferenceScale(c);
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
+        c->m_RenderColors.SetSize(0);
         uint32_t capacity = scene->m_NodePool.Size();
         if (capacity > c->m_RenderNodes.Capacity())
         {
             c->m_RenderNodes.SetCapacity(capacity);
             c->m_RenderTransforms.SetCapacity(capacity);
+            c->m_RenderColors.SetCapacity(capacity);
+            c->m_SceneTraversalCache.m_Data.SetCapacity(capacity);
+            c->m_SceneTraversalCache.m_Data.SetSize(capacity);
+	    }
+        c->m_SceneTraversalCache.m_NodeIndex = 0;
+        if(++c->m_SceneTraversalCache.m_Version == INVALID_INDEX)
+        {
+            c->m_SceneTraversalCache.m_Version = 0;
         }
+
         Matrix4 node_transform;
         CollectNodes(scene, scene->m_RenderHead, 0, c->m_RenderNodes);
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), NodeSortPred(scene));
         uint32_t node_count = c->m_RenderNodes.Size();
         Matrix4 transform;
+        Vector4 color;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             InternalNode* n = &scene->m_Nodes[c->m_RenderNodes[i] & 0xffff];
-            CalculateNodeTransform(scene, n, scale, false, true, true, &transform);
+            CalculateNodeTransformAndColorCached(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, color);
             c->m_RenderTransforms.Push(transform);
+            c->m_RenderColors.Push(color);
         }
         scene->m_ResChanged = 0;
-        params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderNodes.Size(), context);
+        params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderColors.Begin(), c->m_RenderNodes.Size(), context);
     }
 
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
@@ -1132,6 +1146,7 @@ namespace dmGui
             node->m_ParentIndex = INVALID_INDEX;
             node->m_ChildHead = INVALID_INDEX;
             node->m_ChildTail = INVALID_INDEX;
+            node->m_SceneTraversalCacheVersion = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
             MoveNodeAbove(scene, hnode, INVALID_HANDLE);
 
@@ -1643,6 +1658,12 @@ namespace dmGui
         return SetNodeLayer(scene, node, dmHashString64(layer_id));
     }
 
+    void SetNodeInheritColor(HScene scene, HNode node, bool inherit_color)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_InheritColor = inherit_color;
+    }
+
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
     {
         return GetTextMetrics(scene, text, dmHashString64(font_id), width, line_break, metrics);
@@ -1892,7 +1913,7 @@ namespace dmGui
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 transform;
         InternalNode* n = GetNode(scene, node);
-        CalculateNodeTransform(scene, n, scale, true, true, true, &transform);
+        CalculateNodeTransform(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_BOUNDARY | CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
         transform = inverse(transform);
         Vector4 screen_pos(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
         Vector4 node_pos = transform * screen_pos;
@@ -2046,6 +2067,7 @@ namespace dmGui
                 out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
             out_n->m_Version = version;
             out_n->m_Index = index;
+            out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;
             out_n->m_PrevIndex = INVALID_INDEX;
             out_n->m_NextIndex = INVALID_INDEX;
             out_n->m_ParentIndex = INVALID_INDEX;
@@ -2059,39 +2081,143 @@ namespace dmGui
         }
     }
 
-    void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform)
+    inline void CalculateNodeExtents(const Node& node, const CalculateNodeTransformFlags flags, Matrix4& transform)
+    {
+        Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
+        if (flags & CALCULATE_NODE_INCLUDE_SIZE)
+        {
+            size = node.m_Properties[dmGui::PROPERTY_SIZE];
+        }
+        // Reset the pivot of the node, so that the resulting transform has the origin in the lower left, which is used for quad rendering etc.
+        if (flags & CALCULATE_NODE_RESET_PIVOT)
+        {
+            Vector4 pivot_delta = transform * CalcPivotDelta(node.m_Pivot, size);
+            transform.setCol3(pivot_delta);
+        }
+
+        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !(flags & CALCULATE_NODE_BOUNDARY);
+        if ((flags & CALCULATE_NODE_INCLUDE_SIZE) && !render_text)
+        {
+            transform.setUpper3x3(transform.getUpper3x3() * Matrix3::scale(Vector3(size.getX(), size.getY(), 1)));
+        }
+    }
+
+    inline void CalculateParentNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, Vector4& out_color, SceneTraversalCache& traversal_cache)
+    {
+        const Node& node = n->m_Node;
+        uint16_t cache_index;
+        bool cached;
+        uint16_t cache_version = n->m_SceneTraversalCacheVersion;
+        if(cache_version != traversal_cache.m_Version)
+        {
+            n->m_SceneTraversalCacheVersion = traversal_cache.m_Version;
+            cache_index = n->m_SceneTraversalCacheIndex = traversal_cache.m_NodeIndex++;
+            cached = false;
+        }
+        else
+        {
+            cache_index = n->m_SceneTraversalCacheIndex;
+            cached = true;
+        }
+        SceneTraversalCache::Data& cache_data = traversal_cache.m_Data[cache_index];
+
+        if (node.m_DirtyLocal || scene->m_ResChanged)
+        {
+            UpdateLocalTransform(scene, n, reference_scale);
+        }
+        else if(cached)
+        {
+            out_transform = cache_data.m_Transform;
+            out_color = cache_data.m_Color;
+            return;
+        }
+        out_transform = node.m_LocalTransform;
+
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            Matrix4 parent_trans;
+            Vector4 parent_color;
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, traversal_cache);
+            out_transform = parent_trans * out_transform;
+            if (node.m_InheritColor) {
+                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
+            } else {
+                out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
+            }
+        }
+        else
+        {
+            out_color = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR];
+        }
+
+        cache_data.m_Transform = out_transform;
+        cache_data.m_Color = out_color;
+    }
+
+    inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color)
     {
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || scene->m_ResChanged)
         {
             UpdateLocalTransform(scene, n, reference_scale);
         }
-        *out_transform = node.m_LocalTransform;
-        Vector4 size(1.0f, 1.0f, 0.0f, 0.0f);
-        if (include_size)
-        {
-            size = node.m_Properties[dmGui::PROPERTY_SIZE];
-        }
-        // Reset the pivot of the node, so that the resulting transform has the origin in the lower left, which is used for quad rendering etc.
-        if (reset_pivot)
-        {
-            Vector4 pivot_delta = (*out_transform) * CalcPivotDelta(node.m_Pivot, size);
-            out_transform->setCol3(pivot_delta);
-        }
+        out_transform = node.m_LocalTransform;
+        CalculateNodeExtents(node, flags, out_transform);
 
-        bool render_text = node.m_NodeType == NODE_TYPE_TEXT && !boundary;
-        if (include_size && !render_text)
+        if (n->m_ParentIndex != INVALID_INDEX)
         {
-            out_transform->setUpper3x3(out_transform->getUpper3x3() * Matrix3::scale(Vector3(size.getX(), size.getY(), 1)));
+            Matrix4 parent_trans;
+            Vector4 parent_color;
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, scene->m_Context->m_SceneTraversalCache);
+            out_transform = parent_trans * out_transform;
+            if (node.m_InheritColor) {
+                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
+            } else {
+                out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
+            }
         }
+        else
+        {
+            out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
+        }
+    }
+
+    inline void CalculateParentNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform)
+    {
+        const Node& node = n->m_Node;
+        if (node.m_DirtyLocal || scene->m_ResChanged)
+        {
+            UpdateLocalTransform(scene, n, reference_scale);
+        }
+        out_transform = node.m_LocalTransform;
 
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateNodeTransform(scene, parent, reference_scale, boundary, false, false, &parent_trans);
+            CalculateParentNodeTransform(scene, parent, reference_scale, parent_trans);
+            out_transform = parent_trans * out_transform;
+        }
+    }
 
-            *out_transform = parent_trans * (*out_transform);
+    inline void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform)
+    {
+        const Node& node = n->m_Node;
+        if (node.m_DirtyLocal || scene->m_ResChanged)
+        {
+            UpdateLocalTransform(scene, n, reference_scale);
+        }
+        out_transform = node.m_LocalTransform;
+        CalculateNodeExtents(node, flags, out_transform);
+
+        if (n->m_ParentIndex != INVALID_INDEX)
+        {
+            Matrix4 parent_trans;
+            InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
+            CalculateParentNodeTransform(scene, parent, reference_scale, parent_trans);
+            out_transform = parent_trans * out_transform;
         }
     }
 

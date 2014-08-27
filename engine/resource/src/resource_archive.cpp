@@ -1,9 +1,11 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "resource_archive.h"
+#include "dlib/lz4.h"
 
-#if defined(__linux__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <netinet/in.h>
 #elif defined(_WIN32)
 #include <winsock2.h>
@@ -13,13 +15,15 @@
 
 namespace dmResourceArchive
 {
-    const static uint32_t VERSION = 2;
+    const static uint32_t VERSION = 3;
 
     struct Entry
     {
         uint32_t m_NameOffset;
         uint32_t m_ResourceOffset;
         uint32_t m_ResourceSize;
+        // 0xFFFFFFFF if uncompressed
+        uint32_t m_ResourceCompressedSize;
     };
 
     struct Meta
@@ -186,6 +190,7 @@ bail:
                 //entry->m_Resource = (const void*) (htonl(file_entry->m_ResourceOffset) + uintptr_t(archive));
                 entry->m_Offset = htonl(file_entry->m_ResourceOffset);
                 entry->m_Size = htonl(file_entry->m_ResourceSize);
+                entry->m_CompressedSize = htonl(file_entry->m_ResourceCompressedSize);
                 return RESULT_OK;
             }
         }
@@ -196,24 +201,77 @@ bail:
     Result Read(HArchive archive, EntryInfo* entry_info, void* buffer)
     {
         uint32_t size = entry_info->m_Size;
+        uint32_t compressed_size = entry_info->m_CompressedSize;
+        int decompressed_size = 0;
+
         if (archive->m_Meta)
         {
             Meta* meta = archive->m_Meta;
             fseek(meta->m_File, entry_info->m_Offset, SEEK_SET);
-            if (fread(buffer, 1, size, meta->m_File) == size)
+
+            if (compressed_size != 0xFFFFFFFF)
             {
-                return RESULT_OK;
+                // Entry is compressed
+                char *compressed_buf = (char *)malloc(compressed_size);
+                if(!compressed_buf)
+                {
+                    return RESULT_MEM_ERROR;
+                }
+                if (fread(compressed_buf, 1, compressed_size, meta->m_File) != compressed_size)
+                {
+                    free(compressed_buf);
+
+                    return RESULT_IO_ERROR;
+                }
+
+                dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
+                free(compressed_buf);
+
+                if (r == dmLZ4::RESULT_OK && decompressed_size == size)
+                {
+                    return RESULT_OK;
+                }
+                else
+                {
+                    return RESULT_OUTBUFFER_TOO_SMALL;
+                }
             }
             else
             {
-                return RESULT_IO_ERROR;
+                // Entry is uncompressed
+                if (fread(buffer, 1, size, meta->m_File) == size)
+                {
+                    return RESULT_OK;
+                }
+                else
+                {
+                    return RESULT_OUTBUFFER_TOO_SMALL;
+                }
             }
         }
         else
         {
             void* r = (void*) (entry_info->m_Offset + uintptr_t(archive));
-            memcpy(buffer, r, size);
-            return RESULT_OK;
+
+            if (compressed_size != 0xFFFFFFFF)
+            {
+                // Entry is compressed
+                dmLZ4::Result result = dmLZ4::DecompressBuffer(r, compressed_size, buffer, size, &decompressed_size);
+                if (result == dmLZ4::RESULT_OK && decompressed_size == size)
+                {
+                    return RESULT_OK;
+                }
+                else
+                {
+                    return RESULT_OUTBUFFER_TOO_SMALL;
+                }
+            }
+            else
+            {
+                // Entry is uncompressed
+                memcpy(buffer, r, size);
+                return RESULT_OK;
+            }
         }
     }
 

@@ -35,7 +35,7 @@ protected:
     static int AtPanic(lua_State *L)
     {
         if (g_LuaTableTest->accept_panic)
-            longjmp(g_LuaTableTest->env, 0);
+            longjmp(g_LuaTableTest->env, 1);
         dmLogError("Unexpected error: %s", lua_tostring(L, -1));
         exit(5);
         return 0;
@@ -51,6 +51,7 @@ protected:
     }
 
     char DM_ALIGNED(16) m_Buf[256];
+
     bool accept_panic;
     jmp_buf env;
     int top;
@@ -493,6 +494,30 @@ static void RandomString(char* s, int max_len)
     *s = '\0';
 }
 
+#if defined(__GNUC__)
+#define NO_INLINE __attribute__ ((noinline))
+#elif defined(_MSC_VER)
+#define NO_INLINE __declspec(noinline)
+#else
+#error "Unsupported compiler: cannot specify 'noinline'."
+#endif
+
+//This is a helper function for working around an emscripten bug. See comment in the test "LuaTableTest Stress"
+NO_INLINE void wrapSetJmp(lua_State *L, jmp_buf &env, char *buf, int buf_size){
+    int ret = setjmp(env);
+    if (ret == 0)
+    {
+        uint32_t buffer_used = dmScript::CheckTable(L, buf, buf_size, -1);
+        (void) buffer_used;
+
+
+        dmScript::PushTable(L, buf);
+        lua_pop(L, 1);
+    }
+}
+
+#undef NO_INLINE
+
 TEST_F(LuaTableTest, Stress)
 {
     accept_panic = true;
@@ -537,18 +562,12 @@ TEST_F(LuaTableTest, Stress)
             }
             char* buf = new char[buf_size];
 
-            bool check_ok = false;
-            int ret = setjmp(env);
-            if (ret == 0)
-            {
-                uint32_t buffer_used = dmScript::CheckTable(L, buf, buf_size, -1);
-                check_ok = true;
-                (void) buffer_used;
-
-
-                dmScript::PushTable(L, buf);
-                lua_pop(L, 1);
-            }
+            // Emscripten fastcomp does not support calling setjmp over and over like in this loop.
+            // It requires the function calling setjump not to call setjmp more than 10 times before returning.
+            // See emscripten bug https://github.com/kripken/emscripten/issues/2379
+            // According on the comments of the task, this seems to be solved in 1.21.1 of emscripten.
+            // As soon as that appears in emsdk list, we should upgrade and remove this work around.
+            wrapSetJmp(L, env, buf, buf_size);
             lua_pop(L, 1);
 
             delete[] buf;

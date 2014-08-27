@@ -9,6 +9,8 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.dynamo.bob.fs.IResource;
+
 /**
  * Bob state abstraction for persistent sha1-checksums
  * @author Christian Murray

@@ -6,13 +6,22 @@ def set_options(opt):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                           includes = ['. opengl'],
-                           proto_gen_py = True,
-                           protoc_includes = '../proto',
-                           target = 'graphics')
+    if bld.env.PLATFORM != 'as3-web':
+        obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                               includes = ['. opengl'],
+                               proto_gen_py = True,
+                               protoc_includes = '../proto',
+                               target = 'graphics')
 
-    obj.find_sources_in_dirs('. opengl ../proto')
+        obj.find_sources_in_dirs('. opengl ../proto')
+    else:
+        obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                               includes = ['. flash'],
+                               proto_gen_py = True,
+                               protoc_includes = '../proto',
+                               target = 'graphics')
+
+        obj.find_sources_in_dirs('. flash ../proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib',
                            includes = ['. null'],

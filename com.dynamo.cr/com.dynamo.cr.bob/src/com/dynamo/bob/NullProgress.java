@@ -19,4 +19,9 @@ public class NullProgress implements IProgress {
     public void done() {
     }
 
+    @Override
+    public boolean isCanceled() {
+        return false;
+    }
+
 }

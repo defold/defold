@@ -100,6 +100,12 @@ Test3D::Test3D()
 , m_IsEnabledFunc(dmPhysics::IsEnabled3D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled3D)
 , m_IsSleepingFunc(dmPhysics::IsSleeping3D)
+, m_SetLockedRotationFunc(dmPhysics::SetLockedRotation3D)
+, m_GetLinearDampingFunc(dmPhysics::GetLinearDamping3D)
+, m_SetLinearDampingFunc(dmPhysics::SetLinearDamping3D)
+, m_GetAngularDampingFunc(dmPhysics::GetAngularDamping3D)
+, m_SetAngularDampingFunc(dmPhysics::SetAngularDamping3D)
+, m_GetMassFunc(dmPhysics::GetMass3D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast3D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks3D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape3D)
@@ -146,6 +152,12 @@ Test2D::Test2D()
 , m_IsEnabledFunc(dmPhysics::IsEnabled2D)
 , m_SetEnabledFunc(dmPhysics::SetEnabled2D)
 , m_IsSleepingFunc(dmPhysics::IsSleeping2D)
+, m_SetLockedRotationFunc(dmPhysics::SetLockedRotation2D)
+, m_GetLinearDampingFunc(dmPhysics::GetLinearDamping2D)
+, m_SetLinearDampingFunc(dmPhysics::SetLinearDamping2D)
+, m_GetAngularDampingFunc(dmPhysics::GetAngularDamping2D)
+, m_SetAngularDampingFunc(dmPhysics::SetAngularDamping2D)
+, m_GetMassFunc(dmPhysics::GetMass2D)
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
@@ -220,9 +232,15 @@ TYPED_TEST(PhysicsTest, DynamicConstruction)
     ASSERT_EQ((void*)0, (void*)co);
 
     data.m_Mass = 1.0f;
+    data.m_LinearDamping = 0.5f;
+    data.m_AngularDamping = 0.25f;
     co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
 
     ASSERT_NE((void*)0, (void*)co);
+
+    ASSERT_NEAR(1.0f, (*TestFixture::m_Test.m_GetMassFunc)(co), 0.000001f);
+    ASSERT_NEAR(0.5f, (*TestFixture::m_Test.m_GetLinearDampingFunc)(co), 0.000001f);
+    ASSERT_NEAR(0.25f, (*TestFixture::m_Test.m_GetAngularDampingFunc)(co), 0.000001f);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
 
@@ -1463,6 +1481,19 @@ TYPED_TEST(PhysicsTest, KinematicSleep)
 
     ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
 
+    for (int i = 0; i < steps; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    ASSERT_TRUE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
+    // 1 degree rotation
+    box0_vo.m_Rotation = Vectormath::Aos::Quat::rotationZ(1.0f * M_PI / 180.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    ASSERT_FALSE((*TestFixture::m_Test.m_IsSleepingFunc)(box0_co));
+
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box0_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box0_shape);
 }
@@ -1868,6 +1899,51 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitExpansion)
         (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, trigger_bodies[i]);
         (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(trigger_shapes[i]);
     }
+}
+
+TYPED_TEST(PhysicsTest, LockedRotation)
+{
+    float ground_height_half_ext = 1.0f;
+    float box_half_ext = 0.5f;
+
+    VisualObject ground_visual_object;
+    dmPhysics::CollisionObjectData ground_data;
+    typename TypeParam::CollisionShapeType ground_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(100, ground_height_half_ext, 100));
+    ground_data.m_Mass = 0.0f;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_UserData = &ground_visual_object;
+    typename TypeParam::CollisionObjectType ground_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, ground_data, &ground_shape, 1u);
+
+    VisualObject box_visual_object;
+    box_visual_object.m_Position = Point3(0, 10, 0);
+    box_visual_object.m_Rotation = Quat(0, 0, 0.7, 0.7);
+    dmPhysics::CollisionObjectData box_data;
+    typename TypeParam::CollisionShapeType box_shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(box_half_ext, box_half_ext, box_half_ext));
+    box_data.m_UserData = &box_visual_object;
+    typename TypeParam::CollisionObjectType box_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, box_data, &box_shape, 1u);
+
+    (*TestFixture::m_Test.m_SetLockedRotationFunc)(box_co, true);
+
+    box_visual_object.m_CollisionCount = 0;
+    ground_visual_object.m_CollisionCount = 0;
+    TestFixture::m_CollisionCount = 0;
+    TestFixture::m_ContactPointCount = 0;
+    for (int i = 0; i < 100 && TestFixture::m_CollisionCount == 0; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+    for (int i = 0; i < 10; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    Vector3 angular_velocity = (*TestFixture::m_Test.m_GetAngularVelocityFunc)(TestFixture::m_Context, box_co);
+    ASSERT_NEAR(0.0f, angular_velocity.getZ(), 0.000001f);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, ground_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, box_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(ground_shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box_shape);
 }
 
 int main(int argc, char **argv)

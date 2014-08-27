@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include "script.h"
-#include "test/test_ddf.h"
 
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
@@ -10,7 +9,7 @@
 #include <dlib/time.h>
 #include <dlib/socket.h>
 #include <dlib/thread.h>
-#include <dlib/web_server.h>
+#include <dlib/sys.h>
 
 extern "C"
 {
@@ -44,7 +43,6 @@ class ScriptHttpTest : public ::testing::Test
 {
 public:
     int m_HttpResponseCount;
-    dmWebServer::HServer m_WebServer;
     uint16_t m_WebServerPort;
     dmScript::HContext m_ScriptContext;
     lua_State* L;
@@ -52,36 +50,6 @@ public:
     dmConfigFile::HConfig m_ConfigFile;
 
 protected:
-
-    static void Handler(void* user_data, dmWebServer::Request* request)
-    {
-        char buf[1024];
-
-        if (strcmp(request->m_Resource, "/") == 0) {
-            if (strcmp(request->m_Method, "GET") == 0) {
-                const char* a = dmWebServer::GetHeader(request, "X-A");
-                const char* b = dmWebServer::GetHeader(request, "X-B");
-                if (a && b) {
-                    DM_SNPRINTF(buf, sizeof(buf), "Hello %s%s", a, b);
-                } else {
-                    DM_SNPRINTF(buf, sizeof(buf), "Hello");
-                }
-                dmWebServer::Send(request, buf, strlen(buf));
-            } else {
-                // POST
-                uint32_t received = 0;
-                dmWebServer::Result r = dmWebServer::Receive(request, buf, request->m_ContentLength, &received);
-                if (r == dmWebServer::RESULT_OK) {
-                    dmWebServer::Send(request, "PONG ", 4);
-                    dmWebServer::Send(request, buf, received);
-                }
-            }
-        } else if (strcmp(request->m_Resource, "/sleep") == 0) {
-            dmTime::Sleep(2000 * 1000);
-        } else {
-            dmWebServer::SetStatusCode(request, 404);
-        }
-    }
 
     virtual void SetUp()
     {
@@ -104,21 +72,11 @@ protected:
         m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
         dmScript::PushURL(L, m_DefaultURL);
         lua_setglobal(L, "__default_url");
-
-        dmWebServer::NewParams web_params;
-        dmWebServer::Result wr = dmWebServer::New(&web_params, &m_WebServer);
-        ASSERT_EQ(dmWebServer::RESULT_OK, wr);
-        dmWebServer::HandlerParams handler_params;
-        handler_params.m_Handler = &Handler;
-        handler_params.m_Userdata = this;
-        dmWebServer::AddHandler(m_WebServer, "/", &handler_params);
-        dmSocket::Address address;
-        dmWebServer::GetName(m_WebServer, &address, &m_WebServerPort);
+        m_WebServerPort = 9001;
     }
 
     virtual void TearDown()
     {
-        dmWebServer::Delete(m_WebServer);
         if (m_DefaultURL.m_Socket) {
             dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
         }
@@ -203,8 +161,9 @@ TEST_F(ScriptHttpTest, TestPost)
     lua_pop(L, 1);
 
     uint64_t start = dmTime::GetTime();
+
     while (1) {
-        dmWebServer::Update(m_WebServer);
+        dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
 
         lua_getglobal(L, "requests_left");
@@ -256,7 +215,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
     uint64_t start = dmTime::GetTime();
     while (1) {
-        dmWebServer::Update(m_WebServer);
+        dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
 
         lua_getglobal(L, "requests_left");
@@ -310,7 +269,7 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
     m_DefaultURL.m_Socket = 0;
 
     for (int i = 0; i < 10; ++i) {
-        dmWebServer::Update(m_WebServer);
+        dmSys::PumpMessageQueue();
         dmTime::Sleep(10 * 1000);
     }
 

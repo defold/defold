@@ -260,12 +260,14 @@ namespace dmGui
      * @param scene
      * @param nodes
      * @param node_transforms
+     * @param node_colors
      * @param node_count
      * @param context
      */
     typedef void (*RenderNodes)(HScene scene,
                                HNode* nodes,
                                const Vectormath::Aos::Matrix4* node_transforms,
+                               const Vectormath::Aos::Vector4* node_colors,
                                uint32_t node_count,
                                void* context);
 
@@ -583,6 +585,8 @@ namespace dmGui
     dmhash_t GetNodeLayerId(HScene scene, HNode node);
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
+
+    void SetNodeInheritColor(HScene scene, HNode node, bool inherit_color);
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics);

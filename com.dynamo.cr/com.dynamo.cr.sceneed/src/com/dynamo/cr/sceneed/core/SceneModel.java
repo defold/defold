@@ -289,6 +289,9 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
                         texture.setImage(null);
                     }
                 }
+                if (loaderContext != null) {
+                    loaderContext.removeFromCache(path);
+                }
                 if (handleReload(root, (IFile)resource)) {
                     this.reloaded = true;
                 }

@@ -6,8 +6,6 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
-import org.eclipse.swt.graphics.RGB;
-
 import com.dynamo.cr.guied.core.BoxNode;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -119,13 +117,7 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         double y0 = -pivotOffsetY(node, node.getSize().y);
         double x1 = x0 + node.getSize().x;
         double y1 = y0 + node.getSize().y;
-        float[] color = new float[4];
-        float inv = 1.0f / 255.0f;
-        RGB rgb = node.getColor();
-        color[0] = rgb.red * inv;
-        color[1] = rgb.green * inv;
-        color[2] = rgb.blue * inv;
-        color[3] = (float) node.getAlpha();
+        float[] color = node.calcNormRGBA();
         gl.glColor4fv(renderContext.selectColor(node, color), 0);
         gl.glBegin(GL2.GL_QUADS);
         gl.glTexCoord2d(0.0, 0.0);

@@ -48,8 +48,8 @@ public class NewsListResource extends BaseResource {
     @RolesAllowed(value = { "user" })
     @Transactional
     @Path("/{user}/subscribe")
-    public Response subscribe(@PathParam("user") String user) {
-        User u = server.getUser(em, user);
+    public Response subscribe() {
+        User u = getUser();
 
         TypedQuery<NewsSubscriber> q = em.createQuery("select s from NewsSubscriber s where s.email = :email", NewsSubscriber.class);
         List<NewsSubscriber> lst = q.setParameter("email", u.getEmail()).getResultList();
@@ -67,8 +67,8 @@ public class NewsListResource extends BaseResource {
     @GET
     @RolesAllowed(value = { "user" })
     @Path("/{user}/subscribe")
-    public String subscribed(@PathParam("user") String user) {
-        User u = server.getUser(em, user);
+    public String subscribed() {
+        User u = getUser();
 
         TypedQuery<NewsSubscriber> q = em.createQuery("select s from NewsSubscriber s where s.email = :email", NewsSubscriber.class);
         List<NewsSubscriber> lst = q.setParameter("email", u.getEmail()).getResultList();
@@ -86,8 +86,8 @@ public class NewsListResource extends BaseResource {
     @RolesAllowed(value = { "user" })
     @Transactional
     @Path("/{user}/subscribe")
-    public Response unsubscribe(@PathParam("user") String user) {
-        User u = server.getUser(em, user);
+    public Response unsubscribe() {
+        User u = getUser();
 
         TypedQuery<NewsSubscriber> q = em.createQuery("select s from NewsSubscriber s where s.email = :email", NewsSubscriber.class);
         List<NewsSubscriber> lst = q.setParameter("email", u.getEmail()).getResultList();

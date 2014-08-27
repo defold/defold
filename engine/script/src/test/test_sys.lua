@@ -1,23 +1,39 @@
 function test_sys()
     local filename = "save001.save"
+    local max_table_size = 128*1024
     local file = sys.get_save_file("my_game", filename)
     -- Get file again, test mkdir
     file = sys.get_save_file("my_game", filename)
     result, error = os.remove(file)
 
+    -- test resource missing, expected to return an empty table
     local data = sys.load(file)
     assert(#data == 0)
 
+    -- save file exceeding max buffer size, expected to fail
+    for i=1,max_table_size+1 do data[i] = i end
+    local ret, msg = pcall(function() sys.save(file, data) end)
+    if ret then assert(false, "expected lua error for sys.save with data table exceeding max size " .. max_table_size .. " bytes") end
+
+    -- save file
     local data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
     local result = sys.save(file, data)
     assert(result)
 
+    -- reload saved file
     local data_prim = sys.load(file)
 
     assert(data['high_score'] == data_prim['high_score'])
     assert(data['location'] == data_prim['location'])
     assert(data['xp'] == data_prim['xp'])
     assert(data['name'] == data_prim['name'])
+
+    -- load file exceeding max buffer size, expected to fail
+    fh = io.open(file, "a+")
+    for i=1,(max_table_size/8) do fh:write("deadbeef") end
+    fh:close()
+    local ret, msg = pcall(function() sys.load(file, data) end)
+    if ret then assert(false, "expected lua error for sys.load with data table exceeding max size " .. max_table_size .. " bytes") end
 
     -- get_config
     assert(sys.get_config("main.does_not_exists") == nil)

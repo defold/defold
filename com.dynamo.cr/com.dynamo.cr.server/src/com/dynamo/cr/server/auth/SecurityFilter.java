@@ -157,28 +157,12 @@ public class SecurityFilter implements ContainerRequestFilter {
 
         public Authorizer(final User user) {
             this.user = user;
-            this.principal = new Principal() {
-
-                @Override
-                public String getName() {
-                    return user.getEmail();
-                }
-            };
+            this.principal = new UserPrincipal(user);
         }
 
         @Override
         public Principal getUserPrincipal() {
             return this.principal;
-        }
-
-        private boolean affectsOtherUser() {
-            List<String> userParams = uriInfo.getPathParameters().get("user");
-            if (userParams != null && !userParams.isEmpty()) {
-                if (!userParams.get(0).equals(user.getId().toString())) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         @Override
@@ -187,27 +171,21 @@ public class SecurityFilter implements ContainerRequestFilter {
                 return user.getRole() == Role.ADMIN;
             }
             else if (role.equals("owner")) {
-                if (!affectsOtherUser()) {
-                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
-                    for (Project p : user.getProjects()) {
-                        if (p.getId().longValue() == projectId && p.getOwner().getId() == user.getId())
-                            return true;
-                    }
+                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                for (Project p : user.getProjects()) {
+                    if (p.getId().longValue() == projectId && p.getOwner().getId() == user.getId())
+                        return true;
                 }
             }
             else if (role.equals("member")) {
-                if (!affectsOtherUser()) {
-                    long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
-                    for (Project p : user.getProjects()) {
-                        if (p.getId().longValue() == projectId)
-                            return true;
-                    }
+                long projectId = Long.parseLong(uriInfo.getPathParameters().get("project").get(0));
+                for (Project p : user.getProjects()) {
+                    if (p.getId().longValue() == projectId)
+                        return true;
                 }
             }
             else if (role.equals("user")) {
-                if (!affectsOtherUser()) {
-                    return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
-                }
+                return user.getRole() == Role.USER || user.getRole() == Role.ADMIN;
             }
             else if (role.equals("anonymous")) {
                 return true;

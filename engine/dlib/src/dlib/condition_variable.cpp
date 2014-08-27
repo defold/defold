@@ -68,6 +68,38 @@ namespace dmConditionVariable
         WakeAllConditionVariable(condition);
     }
 
+#elif defined(__EMSCRIPTEN__)
+
+    ConditionVariable New()
+    {
+        ConditionVariable condition = new pthread_cond_t;
+        int ret = pthread_cond_init(condition, 0);
+        assert(ret == 0);
+        return condition;
+    }
+
+    void Delete(ConditionVariable condition)
+    {
+        int ret = pthread_cond_destroy(condition);
+        delete condition;
+        assert(ret == 0);
+    }
+
+    void Wait(ConditionVariable condition, dmMutex::Mutex mutex)
+    {
+        // dmLog uses dmMessage, which in turn uses dmConditionVariable (Wait & Signal).
+        // We cannot place assertions here.
+    }
+
+    void Signal(ConditionVariable condition)
+    {
+
+    }
+
+    void Broadcast(ConditionVariable condition)
+    {
+        assert(false);
+    }
 #else
 #error "Unsupported platform"
 #endif

@@ -5,8 +5,19 @@ from waf_dynamo import new_copy_task
 new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
+    flist = 'cxx cprogram test'
+    if bld.env['PLATFORM'] == 'js-web':
+        flist = flist + ' web'
+        lib_dirs = None
+        if 'JS_LIB_PATHS' in bld.env:
+            lib_dirs = bld.env['JS_LIB_PATHS']
+        else:
+            lib_dirs = {}
+            lib_dirs['library_script.js'] = '../lib/js'
+            bld.env['JS_LIB_PATHS'] = lib_dirs
+
     libs = 'GTEST PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA'
-    test_script_ddf = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_ddf = bld.new_task_gen(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
@@ -16,7 +27,7 @@ def build(bld):
 
     test_script_ddf.install_path = None
 
-    test_script_msg = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_msg = bld.new_task_gen(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
@@ -26,7 +37,7 @@ def build(bld):
 
     test_script_msg.install_path = None
 
-    test_script_hash = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_hash = bld.new_task_gen(features = flist,
                                         includes = '..',
                                         uselib = libs,
                                         uselib_local = 'script',
@@ -36,7 +47,7 @@ def build(bld):
 
     test_script_hash.install_path = None
 
-    test_script_vmath = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_vmath = bld.new_task_gen(features = flist,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
@@ -46,7 +57,7 @@ def build(bld):
 
     test_script_vmath.install_path = None
 
-    test_script_table = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_table = bld.new_task_gen(features = flist,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
@@ -56,7 +67,7 @@ def build(bld):
 
     test_script_table.install_path = None
 
-    test_script_sys = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_sys = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -66,7 +77,7 @@ def build(bld):
 
     test_script_sys.install_path = None
 
-    test_script = bld.new_task_gen(features = 'cxx cprogram',
+    test_script = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -76,7 +87,7 @@ def build(bld):
 
     test_script.install_path = None
 
-    test_script_module = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_module = bld.new_task_gen(features = flist,
                                           includes = '..',
                                           uselib = libs,
                                           uselib_local = 'script',
@@ -86,7 +97,7 @@ def build(bld):
 
     test_script_module.install_path = None
 
-    test_script_json = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_json = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -96,7 +107,7 @@ def build(bld):
 
     test_script_json.install_path = None
 
-    test_script_http = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_http = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -106,7 +117,7 @@ def build(bld):
 
     test_script_http.install_path = None
 
-    test_script_zlib = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_zlib = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',
@@ -116,7 +127,7 @@ def build(bld):
 
     test_script_zlib.install_path = None
 
-    test_script_image = bld.new_task_gen(features = 'cxx cprogram',
+    test_script_image = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,
                                        uselib_local = 'script',

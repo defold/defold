@@ -135,6 +135,22 @@
                      value="rebuild">
                </parameter>
             </command>
+            <command
+            	commandId="com.dynamo.crepo.commands.launchHtml"
+            	icon="icons/play.png"
+            	label="Build HTML and launch"
+            	style="push">
+            	<parameter
+            		name="com.dynamo.crepo.command.launchHtml.type"
+            		value="build">
+            	</parameter>
+            </command>
+            <command
+                  commandId="com.dynamo.crepo.commands.resolveLibs"
+                  icon="icons/plugin.png"
+                  label="Fetch Libraries"
+                  style="push">
+            </command>
          </menu>
       </menuContribution>
       <menuContribution
@@ -187,56 +203,31 @@
                   commandId="com.dynamo.cr.target.commands.bundleiOS"
                   label="iOS Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleAndroid"
                   label="Android Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleOSX"
                   label="OSX Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleWin32"
                   label="Windows Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
             </command>
             <command
                   commandId="com.dynamo.cr.target.commands.bundleLinux"
                   label="Linux Application..."
                   style="push">
-               <visibleWhen
-                     checkEnabled="false">
-                  <test
-                        property="com.dynamo.cr.editor.is_dev">
-                  </test>
-               </visibleWhen>
+            </command>
+            <command
+                  commandId="com.dynamo.cr.target.commands.bundleHTML5"
+                  label="HTML5 Application..."
+                  style="push">
             </command>
          </menu>
       </menuContribution>
@@ -285,6 +276,18 @@
                name="com.dynamo.crepo.commands.launch.type"
                optional="true">
          </commandParameter>
+      </command>
+      <command
+      		categoryId="com.dynamo.crepo.category"
+      		defaultHandler="com.dynamo.cr.editor.handlers.LaunchHtmlHandler"
+      		description="Launch HTML game"
+      		id="com.dynamo.crepo.commands.launchHtml"
+      		name="Launch HTML game">
+      	<commandParameter
+      		id="com.dynamo.crepo.command.launchHtml.type"
+      		name="com.dynamo.crepo.commands.launchHtml.type"
+      		optional="true">
+      	</commandParameter>
       </command>
       <command
             categoryId="com.dynamo.crepo.category"
@@ -374,12 +377,24 @@
             name="Bundle Linux Application">
       </command>
       <command
+            defaultHandler="com.dynamo.cr.editor.handlers.BundleHTML5Handler"
+            id="com.dynamo.cr.target.commands.bundleHTML5"
+            name="Bundle HTML5 Application">
+      </command>
+      <command
             id="com.dynamo.cr.editor.commands.openWelcome"
             name="Welcome">
       </command>
       <command
             id="com.dynamo.cr.editor.commands.newFolder"
             name="New Folder">
+      </command>
+      <command
+            categoryId="com.dynamo.crepo.category"
+            defaultHandler="com.dynamo.cr.editor.handlers.ResolveLibsHandler"
+            description="Fetch Libraries"
+            id="com.dynamo.crepo.commands.resolveLibs"
+            name="Fetch Libraries">
       </command>
    </extension>
 
@@ -718,6 +733,19 @@
             </or>
          </enablement>
       </actionProvider>
+      <navigatorContent
+            contentProvider="com.dynamo.cr.editor.LibContentProvider"
+            icon="icons/plugin.png"
+            id="com.dynamo.cr.editor.LibContent"
+            labelProvider="com.dynamo.cr.editor.LibLabelProvider"
+            name="LibContent"
+            priority="highest">
+         <triggerPoints>
+            <instanceof
+                  value="org.eclipse.core.resources.IResource">
+            </instanceof>
+         </triggerPoints>
+      </navigatorContent>
    </extension>
    <extension
          point="org.eclipse.core.expressions.propertyTesters">
@@ -749,5 +777,16 @@
             id="com.dynamo.cr.editor.welcomeEditor"
             name="Welcome">
       </editor>
+   </extension>
+   <extension
+         point="org.eclipse.ui.navigator.viewer">
+      <viewerContentBinding
+            viewerId="org.eclipse.ui.navigator.ProjectExplorer">
+         <includes>
+            <contentExtension
+                  pattern="com.dynamo.cr.editor.LibContent">
+            </contentExtension>
+         </includes>
+      </viewerContentBinding>
    </extension>
 </plugin>

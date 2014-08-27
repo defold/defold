@@ -1,5 +1,17 @@
 # Defold Server
 
+## REST API
+
+**NOTES**
+
+The `user-id` present in the majority of the REST API:s is almost always not used
+anymore. It was a mistake to include the `user-id` in the URL as URL:s should
+be universal.
+The interpretation of the `user-id` should be changed to `owner-id`. This
+change is related to namespaces and user-friendly id:s. Compare with github.
+Note that namespaces isn't currently required as project-id:s are globally unique but
+with support for namespaces, similar to github, we must include `owner-id` in the URL.
+
 ## SSL Certificates
 
 Example based on certificates provided by Trustwave.

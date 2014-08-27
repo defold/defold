@@ -32,22 +32,44 @@ namespace dmGui
         MAX_SCRIPT_FUNCTION_COUNT
     };
 
+    enum CalculateNodeTransformFlags
+    {
+        CALCULATE_NODE_BOUNDARY     = (1<<0),   // calculates the boundary transform (if omitted, use the render transform)
+        CALCULATE_NODE_INCLUDE_SIZE = (1<<1),   // include size in the resulting transform
+        CALCULATE_NODE_RESET_PIVOT  = (1<<2)    // ignore pivot in the resulting transform
+    };
+
+    struct SceneTraversalCache
+    {
+        SceneTraversalCache() : m_NodeIndex(0), m_Version(0) {}
+        struct Data
+        {
+            Matrix4     m_Transform;
+            Vector4     m_Color;
+        };
+        dmArray<Data>   m_Data;
+        uint16_t        m_NodeIndex;
+        uint16_t        m_Version;
+    };
+
     struct Context
     {
-        lua_State*              m_LuaState;
-        GetURLCallback          m_GetURLCallback;
-        GetUserDataCallback     m_GetUserDataCallback;
-        ResolvePathCallback     m_ResolvePathCallback;
-        GetTextMetricsCallback  m_GetTextMetricsCallback;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
-        uint32_t                m_PhysicalWidth;
-        uint32_t                m_PhysicalHeight;
-        dmArray<HScene>         m_Scenes;
-        dmArray<HNode>          m_RenderNodes;
-        dmArray<Matrix4>        m_RenderTransforms;
-        dmHID::HContext         m_HidContext;
-        void*                   m_DefaultFont;
+        lua_State*                  m_LuaState;
+        GetURLCallback              m_GetURLCallback;
+        GetUserDataCallback         m_GetUserDataCallback;
+        ResolvePathCallback         m_ResolvePathCallback;
+        GetTextMetricsCallback      m_GetTextMetricsCallback;
+        uint32_t                    m_Width;
+        uint32_t                    m_Height;
+        uint32_t                    m_PhysicalWidth;
+        uint32_t                    m_PhysicalHeight;
+        dmArray<HScene>             m_Scenes;
+        dmArray<HNode>              m_RenderNodes;
+        dmArray<Matrix4>            m_RenderTransforms;
+        dmArray<Vector4>            m_RenderColors;
+        dmHID::HContext             m_HidContext;
+        void*                       m_DefaultFont;
+        SceneTraversalCache         m_SceneTraversalCache;
     };
 
     struct Node
@@ -70,7 +92,8 @@ namespace dmGui
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
                 uint32_t    m_DirtyLocal : 1;
-                uint32_t    m_Reserved : 11;
+                uint32_t    m_InheritColor : 1;
+                uint32_t    m_Reserved : 10;
             };
 
             uint32_t m_State;
@@ -98,6 +121,8 @@ namespace dmGui
         uint16_t        m_ChildHead;
         uint16_t        m_ChildTail;
         uint16_t        m_RenderKey;
+        uint16_t        m_SceneTraversalCacheIndex;
+        uint16_t        m_SceneTraversalCacheVersion;
         uint16_t        m_Deleted : 1; // Set to true for deferred deletion
         uint16_t        m_Padding : 15;
     };
@@ -183,7 +208,7 @@ namespace dmGui
 
     /** calculates the transform of a node
      * A boundary transform maps the local rectangle (0,1),(0,1) to screen space such that it inclusively encapsulates the node boundaries in screen space.
-     * Box nodes are rendered in boundary space (quad with dimensions (0,1),(0,1)), so the same transform is calculated whether or not the boundary-flag is set.
+     * Box nodes are rendered in boundary space (quad with dimensions (0,1),(0,1)), so the same transform is calculated whether or not the CALCULATE_NODE_BOUNDARY flag is set.
      * Text nodes are rendered in a transform where the origin is located at the left edge of the base line, excluding the text size, since it's implicitly spanned by glyph quads.
      * Their boundary transform is analogue to the box boundary transform.
      * This is complicated and could be simplified by supporting different pivots when rendering text.
@@ -191,12 +216,10 @@ namespace dmGui
      * @param scene scene of the node
      * @param node node for which to calculate the transform
      * @param reference_scale the reference scale of the scene which is the ratio between physical and reference dimensions
-     * @param boundary true calculates the boundary transform, false calculates the render transform
-     * @param include_size If the size should be included in the transform
-     * @param reset_pivot If the pivot should be ignored in the resulting transform
+     * @param flags CalculateNodeTransformFlags enumerated behaviour flags
      * @param out_transform out-parameter to write the calculated transform to
      */
-    void CalculateNodeTransform(HScene scene, InternalNode* parent, const Vector4& reference_scale, bool boundary, bool include_size, bool reset_pivot, Matrix4* out_transform);
+    void CalculateNodeTransform(HScene scene, InternalNode* node, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform);
 
     /** calculates the reference scale for a context
      * The reference scale is defined as scaling from the predefined screen space to the actual screen space.

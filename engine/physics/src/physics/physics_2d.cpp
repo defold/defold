@@ -217,10 +217,9 @@ namespace dmPhysics
         HContext2D context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
-        // Values are picked by inspection, rotation should go down after the quat => angle conversion has been fixed
-        // Current value is roughly equivalent to 1 degree
+        // Values are picked by inspection, current rot value is roughly equivalent to 1 degree
         const float POS_EPSILON = 0.00005f * scale;
-        const float ROT_EPSILON = 0.0025f;
+        const float ROT_EPSILON = 0.00007f;
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
@@ -681,6 +680,9 @@ namespace dmPhysics
                 break;
         }
         def.userData = data.m_UserData;
+        def.linearDamping = data.m_LinearDamping;
+        def.angularDamping = data.m_AngularDamping;
+        def.fixedRotation = data.m_LockedRotation;
         b2Body* body = world->m_World.CreateBody(&def);
         Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i) {
@@ -843,6 +845,39 @@ namespace dmPhysics
     {
         b2Body* body = ((b2Body*)collision_object);
         return !body->IsAwake();
+    }
+
+    void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation) {
+        b2Body* body = ((b2Body*)collision_object);
+        body->SetFixedRotation(locked_rotation);
+        if (locked_rotation) {
+            body->SetAngularVelocity(0.0f);
+        }
+    }
+
+    float GetLinearDamping2D(HCollisionObject2D collision_object) {
+        b2Body* body = ((b2Body*)collision_object);
+        return body->GetLinearDamping();
+    }
+
+    void SetLinearDamping2D(HCollisionObject2D collision_object, float linear_damping) {
+        b2Body* body = ((b2Body*)collision_object);
+        body->SetLinearDamping(linear_damping);
+    }
+
+    float GetAngularDamping2D(HCollisionObject2D collision_object) {
+        b2Body* body = ((b2Body*)collision_object);
+        return body->GetAngularDamping();
+    }
+
+    void SetAngularDamping2D(HCollisionObject2D collision_object, float angular_damping) {
+        b2Body* body = ((b2Body*)collision_object);
+        body->SetAngularDamping(angular_damping);
+    }
+
+    float GetMass2D(HCollisionObject2D collision_object) {
+        b2Body* body = ((b2Body*)collision_object);
+        return body->GetMass();
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)

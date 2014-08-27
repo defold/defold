@@ -303,7 +303,7 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
 }
 
 void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
-        uint32_t node_count, void* context)
+        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
     memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);

@@ -8,7 +8,7 @@ def build(bld):
     bld.add_subdirs('openal')
 
     source =  'sound_common.cpp sound.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
-    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
+    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp devices/device_null.cpp stb_vorbis/stb_vorbis.c'.split()
 
     include = ''
     if re.match('arm.*?android', bld.env['PLATFORM']):
@@ -26,15 +26,18 @@ def build(bld):
     else:
         source2.append('devices/device_openal.cpp')
 
-    sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                             includes = '. vorbis_tremor %s' % include,
-                             target = 'sound',
-                             source = source)
+    # NOTE: This if was just for 'sound' in EMSCRIPTEN branch,
+    # assumed it applied to both sound and sound2
+    if bld.env.platform != 'js-web':
+      sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                               includes = '. vorbis_tremor %s' % include,
+                               target = 'sound',
+                               source = source)
 
-    sound2 = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                              includes = '. vorbis_tremor %s' % include,
-                              target = 'sound2',
-                              source = source2)
+      sound2 = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
+                                includes = '. vorbis_tremor %s' % include,
+                                target = 'sound2',
+                                source = source2)
 
     sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                                   includes = '.',

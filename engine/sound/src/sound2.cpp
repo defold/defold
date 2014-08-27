@@ -191,10 +191,10 @@ namespace dmSound
             for (uint32_t i = 0; i < sound->m_Instances.Size(); ++i)
             {
                 SoundInstance* instance = &sound->m_Instances[i];
-                memset(instance, 0, sizeof(*instance));
                 instance->m_Index = 0xffff;
                 instance->m_SoundDataIndex = 0xffff;
                 free(instance->m_Frames);
+                memset(instance, 0, sizeof(*instance));
             }
 
             free((void*) sound->m_MixBuffer);

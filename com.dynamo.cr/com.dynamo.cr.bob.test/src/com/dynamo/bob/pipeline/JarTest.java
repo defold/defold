@@ -19,16 +19,16 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ConsoleProgress;
-import com.dynamo.bob.DefaultFileSystem;
 import com.dynamo.bob.IClassScanner;
-import com.dynamo.bob.IFileSystem;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IFileSystem;
 
 public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
-        String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
+        String jarPath = "../com.dynamo.cr.bob/dist/bob-light.jar";
         Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-i", "test", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
         String line;

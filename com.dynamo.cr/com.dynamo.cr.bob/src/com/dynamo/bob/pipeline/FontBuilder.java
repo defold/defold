@@ -2,16 +2,15 @@ package com.dynamo.bob.pipeline;
 
 import java.awt.FontFormatException;
 import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.IResource;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.render.proto.Font.FontDesc;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
@@ -40,11 +39,11 @@ public class FontBuilder extends Builder<Void>  {
         ProtoUtil.merge(task.input(0), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        File ttfFile = BuilderUtil.checkFile(this.project, task.input(0), "font", fontDesc.getFont());
-        BuilderUtil.checkFile(this.project, task.input(0), "material", fontDesc.getMaterial());
+        IResource ttfFile = BuilderUtil.checkResource(this.project, task.input(0), "font", fontDesc.getFont());
+        BuilderUtil.checkResource(this.project, task.input(0), "material", fontDesc.getMaterial());
 
         Fontc fontc = new Fontc();
-        BufferedInputStream fontStream = new BufferedInputStream(new FileInputStream(ttfFile));
+        BufferedInputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(ttfFile.getContent()));
         try {
             // TODO: The api for Fontc#run should perhaps be changed to accept an OutputStream instead
             // of a path to the file

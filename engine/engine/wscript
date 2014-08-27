@@ -89,6 +89,8 @@ namespace dmEngineVersion
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])
+    elif platform == 'js-web':
+        sound_lib = 'sound2'
 
     conf.env['LIB_GTEST'] = 'gtest'
 
@@ -121,14 +123,14 @@ namespace dmEngineVersion
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
 
-    if conf.env.PLATFORM.find('arm') == -1:
+    if conf.env.PLATFORM.find('arm') == -1 and conf.env.PLATFORM.find('web') == -1:
         conf.env['STATICLIB_RECORD'] = 'record'
         conf.env['LIB_VPX'] = 'vpx'
     else:
         conf.env['STATICLIB_RECORD'] = 'record_null'
         conf.env['LIB_VPX'] = ''
 
-    if sys.platform == "linux2":
+    if platform == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
     elif platform == "darwin":
         pass
@@ -145,6 +147,14 @@ def build(bld):
     bld.add_subdirs('src')
 
     bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0755)
+
+    if 'js-web' in bld.env['PLATFORM']:
+        srcPath = os.path.join('build', 'default', 'src')
+        builds = ['','_release', '_headless']
+        for build in builds:
+            filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
+            if (os.path.exists(filePath)):
+                bld.install_files('${PREFIX}/bin/js-web', filePath)
 
 import Options
 def shutdown():

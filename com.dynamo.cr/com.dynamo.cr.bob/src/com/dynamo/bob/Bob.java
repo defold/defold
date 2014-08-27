@@ -30,6 +30,9 @@ import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.LibraryUtil;
+
 public class Bob {
 
     private static String texcLibDir = null;
@@ -43,6 +46,9 @@ public class Bob {
         options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("h", "help", false, "This help directory");
         options.addOption("a", "archive", false, "Build archive");
+        options.addOption("c", "compress", false, "Compress archive entries (if -a/--archive)");
+        options.addOption("e", "email", true, "User email");
+        options.addOption("u", "auth", true, "User auth token");
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -59,7 +65,7 @@ public class Bob {
         return cmd;
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException {
+    public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
 
@@ -77,14 +83,32 @@ public class Bob {
         Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
         if (cmd.hasOption('a')) {
             project.setOption("build_disk_archive", "true");
+
+            if (cmd.hasOption('c')) {
+                project.setOption("compress_disk_archive_entries", "true");
+            }
+        }
+        if (cmd.hasOption('e')) {
+            project.setOption("email", getOptionsValue(cmd, 'e', null));
+        }
+        if (cmd.hasOption('u')) {
+            project.setOption("auth", getOptionsValue(cmd, 'u', null));
         }
 
         ClassLoaderScanner scanner = new ClassLoaderScanner();
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory));
+        project.setLibUrls(LibraryUtil.getLibraryUrlsFromProject(FilenameUtils.concat(cwd, rootDirectory)));
+        for (String command : commands) {
+            if (command.equals("resolve")) {
+                project.resolveLibUrls(new ConsoleProgress());
+                break;
+            }
+        }
+        project.mount(new ClassLoaderResourceScanner());
 
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", buildDirectory, ".internal"));
         project.findSources(sourceDirectory, skipDirs);
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);
         boolean ret = true;
@@ -122,6 +146,7 @@ public class Bob {
             System.out.println("The build failed for the following reasons:");
             System.out.println(errors.toString());
         }
+        project.dispose();
         System.exit(ret ? 0 : 1);
     }
 
@@ -294,4 +319,5 @@ public class Bob {
             System.out.println("Bob: " + String.format(message, args));
         }
     }
+
 }

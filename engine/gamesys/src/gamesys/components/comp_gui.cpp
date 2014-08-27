@@ -224,6 +224,7 @@ namespace dmGameSystem
                 dmGui::SetNodeYAnchor(scene, n, (dmGui::YAnchor) node_desc->m_Yanchor);
                 dmGui::SetNodeAdjustMode(scene, n, adjust_mode);
                 dmGui::SetNodeResetPoint(scene, n);
+                dmGui::SetNodeInheritColor(scene, n, node_desc->m_InheritColor);
             }
             else
             {
@@ -366,6 +367,7 @@ namespace dmGameSystem
     void RenderTextNodes(dmGui::HScene scene,
                          dmGui::HNode* nodes,
                          const Matrix4* node_transforms,
+                         const Vector4* node_colors,
                          uint32_t node_count,
                          void* context)
     {
@@ -374,7 +376,7 @@ namespace dmGameSystem
         {
             dmGui::HNode node = nodes[i];
 
-            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = node_colors[i];
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
             const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
 
@@ -440,6 +442,7 @@ namespace dmGameSystem
     void RenderBoxNodes(dmGui::HScene scene,
                         dmGui::HNode* nodes,
                         const Matrix4* node_transforms,
+                        const Vector4* node_colors,
                         uint32_t node_count,
                         void* context)
     {
@@ -481,9 +484,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            dmGui::HNode node = nodes[i];
-
-            const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            const Vector4& color = node_colors[i];
 
             ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
             // Pre-multiplied alpha
@@ -521,6 +522,7 @@ namespace dmGameSystem
     void RenderNodes(dmGui::HScene scene,
                     dmGui::HNode* nodes,
                     const Matrix4* node_transforms,
+                    const Vector4* node_colors,
                     uint32_t node_count,
                     void* context)
     {
@@ -552,9 +554,9 @@ namespace dmGameSystem
             if (flush) {
                 uint32_t n = i - start;
                 if (prev_node_type == dmGui::NODE_TYPE_TEXT) {
-                    RenderTextNodes(scene, nodes + start, node_transforms + start, n, context);
+                    RenderTextNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
                 } else {
-                    RenderBoxNodes(scene, nodes + start, node_transforms + start, n, context);
+                    RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
                 }
 
                 start = i;
@@ -578,9 +580,9 @@ namespace dmGameSystem
         uint32_t n = i - start;
         if (n > 0) {
             if (prev_node_type == dmGui::NODE_TYPE_TEXT) {
-                RenderTextNodes(scene, nodes + start, node_transforms + start, n, context);
+                RenderTextNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
             } else {
-                RenderBoxNodes(scene, nodes + start, node_transforms + start, n, context);
+                RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
             }
         }
 

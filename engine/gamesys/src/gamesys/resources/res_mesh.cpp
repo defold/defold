@@ -1,6 +1,7 @@
 #include "res_mesh.h"
 
 #include <render/render.h>
+#include <stdlib.h>
 
 #include "mesh_ddf.h"
 
