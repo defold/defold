@@ -227,8 +227,10 @@ public class HTML5Bundler {
         // Memory initialisation file
         File jsMemFile = new File(this.jsMemInit);
         jsOut = new File(appDir, jsMemFile.getName());
-        FileUtils.copyFile(jsMemFile, jsOut);
-        monolithicFiles.add(new File(jsMemFile.getName()));
+        if (jsMemFile.exists()) {
+        	FileUtils.copyFile(jsMemFile, jsOut);
+        	monolithicFiles.add(new File(jsMemFile.getName()));
+        }
 
         createHtmlShell();
         createModuleScript();
