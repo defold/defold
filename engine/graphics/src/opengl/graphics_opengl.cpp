@@ -1213,13 +1213,13 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Width = params.m_Width;
         tex->m_Height = params.m_Height;
 
-		if (params.m_OriginalWidth == 0) {
-			tex->m_OriginalWidth = params.m_Width;
-			tex->m_OriginalHeight = params.m_Height;
-		} else {
-			tex->m_OriginalWidth = params.m_OriginalWidth;
-			tex->m_OriginalHeight = params.m_OriginalHeight;
-		}
+        if (params.m_OriginalWidth == 0){
+        	tex->m_OriginalWidth = params.m_Width;
+        	tex->m_OriginalHeight = params.m_Height;
+        } else {
+        	tex->m_OriginalWidth = params.m_OriginalWidth;
+        	tex->m_OriginalHeight = params.m_OriginalHeight;
+        }
 
         return (HTexture) tex;
     }
