@@ -74,6 +74,7 @@
 /index.html
 /plans/index.html
 /signup/index.html
+/doc/2dgraphics.html
 /doc/application_lifecycle.html
 /doc/collection_proxies.html
 /doc/example.html

@@ -1,4 +1,4 @@
-﻿INPUT
+﻿Input
 =====
 
 Defold listens to input from a variety of devices and allows you to write script logic that matches your design. The input device types that Defold supports are:
@@ -21,8 +21,7 @@ image::images/input/input_bindings.png["Input bindings", align="center"]
 
 Depending on the components that have acquired input focus, and whether they consume this input or pass it on, the input may or may not reach a specific component's +on_input()+. We will look at how this works in detail below.
 
-Input bindings
---------------
+== Input bindings
 
 The input bindings is a project wide table that allows you to specify how raw input should translated into meaningful *actions* before they are dispatched to your Lua scripts. The input bindings is by default named "game.input_binding" and and is found in the "input" folder at the root of your project. You can, however, easily change its name and location and update the project settings so the engine will find the bindings (see link:http://www.defold.com/doc/game_project[Project settings]).
 
@@ -46,8 +45,7 @@ image::images/input/input_key_bindings.png["Input key bindings", align="center"]
 
 Here, the inputs +KEY_LEFT+ (the left arrow key on the keyboard) and +KEY_RIGHT+ (the right arrow key) are bound to the action names "move_left" and "move_right" respectively. The benefit of separating the hardware input from the logical actions is that if you decide later on that you want to change which hardware inputs trigger what actions, there is only one place to modify.
 
-Acquiring and releasing input focus
------------------------------------
+== Acquiring and releasing input focus
 
 To listen to input actions, create a game object with a script (or GUI script) component. In the script, send the game object itself a message "acquire_input_focus":
 
@@ -68,8 +66,7 @@ msg.post(".", "release_input_focus")
 ...
 ----
 
-on_input()
-----------
+== on_input()
 
 To react on input actions, you need a component in your game object (that has acquired input focus) with a script and an +on_input()+ function. The engine will then dispatch input actions to the function.
 
@@ -105,8 +102,7 @@ end
 When working with collection proxies it is imperative to understand how input is dispatched through collections. If you can't get input to work with your collection proxies, make sure to read <<anchor-iacp, Input and Collection Proxies>> below.
 ====
 
-Action fields
--------------
+=== Action fields
 
 The +action+ parameter sent to +on_input()+ for each input message is a Lua table containing useful data like the value of the input, the position of the input, whether button input was "pressed", "repeated" or "released".
 
@@ -116,8 +112,7 @@ See link:ref/go#on_input[on_input()] for details on the available action fields.
 
 ====
 
-Screen positions
-----------------
+=== Screen positions
 
 Mouse and touch input set fields in the +action+ table for location (+x+ and +y+) as well as movement (+dx+ and +dy+). These inputs also set specific fields that are calculated against the real screen space. These fields are called:
 
@@ -126,20 +121,17 @@ Mouse and touch input set fields in the +action+ table for location (+x+ and +y+
 
 These fields are useful on devices where the screen pixel position differs from the game position--for instance if you run a lower resolution game on a retina screen that scales the game. For instance, on the iPad you can have a screen that is 1024x768 but each "logical" pixels consists of 4 real ones and maps to a physical resolution of 2048x1536.
 
-Key triggers
-------------
+=== Key triggers
 
 Key triggers are simple one-key inputs that acts as button input. They are useful for games that needs to tie specific buttons to specific functions, like the "move_left" and "move_right" button setup above. If you need to read arbitrary key input, use text triggers (see below).
 
-Multi touch triggers
---------------------
+=== Multi touch triggers
 
 Multi touch triggers populate a subtable in the action table called +action.touch+. The elements in the table are numbered 1-N (where N is the number of touch points) and each element contains fields with input data.
 
 [NOTE]
 ====
 See link:ref/go#on_input[on_input()] for details on the available touch action fields.
-
 ====
 
 Since the elements are in a numbered table, array-like, you can traverse it easily:
@@ -162,21 +154,18 @@ Here, a component "factory" is used to spawn a simple particle effect with +fact
 
 image::images/input/input_multitouch.png["Input multitouch", align="center"]
 
-Mouse triggers
---------------
+=== Mouse triggers
 
 Mouse triggers come in two forms. The first one is mouse button and wheel input that you set up in your input bindings.
 
 [NOTE]
 ====
 The inputs MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT and MOUSE_BUTTON_MIDDLE are equivalent to MOUSE_BUTTON_1, MOUSE_BUTTON_2 and MOUSE_BUTTON_3.
-
 ====
 
 The second form of mouse trigger is mouse movement input. Mouse movements cannot be bound in the input bindings, and does not set the +action_id+ to a name. Instead, the +action_id+ is set to +nil+ and the action table is populated with the location and delta movement of the mouse position.
 
-Gamepad triggers
-----------------
+=== Gamepad triggers
 
 The gamepad triggers allows you to bind standard gamepad input to game functions. Defold supports gamepads through the host operating system and offers bindings for:
 
@@ -189,11 +178,9 @@ The gamepad triggers allows you to bind standard gamepad input to game functions
 [NOTE]
 ====
 Right pad usually translates to the A, B, X and Y buttons on the Xbox controller and square, circle, triangle and cross buttons on the Playstation controller.
-
 ====
 
-Text trigger
-------------
+=== Text trigger
 
 Text triggers allows you to read arbitrary text input. A text trigger sets the "text" field of the action table to a string containing the typed character. The action is only fired at the press of the button, no "release" or "repeated" action is sent.
 
@@ -273,7 +260,6 @@ A component's +on_input()+ code can actively control whether actions should be p
 A game object can contain several script components. All input actions are broadcast to the game object's components.
 
 A game object that lacks an +on_input()+ function will pass on input actions down the stack just as if it had returned +false+ in an +on_input()+  function.
-
 ====
 
 image::images/input/input_stack_consume.png["Consuming input", align="center"]
