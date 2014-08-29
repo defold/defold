@@ -13,8 +13,7 @@ The application then enters the update loop where the application will spend a m
 
 At some point the applications lifecycle will come to an end. Before the application quits the engine steps out of the update loop and enters a finalization stage. It prepares all loaded game objects for deletion. All object components’ +link:/ref/go#final[final()]+ functions are called, which allows for custom cleanup. Then the objects are deleted and the main collection is unloaded.
 
-Initialization
---------------
+== Initialization
 
 image::images/application_lifecycle/application_lifecycle_init.png["Lifecycle overview", align="center"]
 
@@ -59,22 +58,19 @@ function on_message(self, message_id, message, sender)
 end
 ----
 
-The update loop
----------------
+== The update loop
 
 The update loop runs through a long sequence once every frame. The update sequence in the diagram below are divided into logical sequence blocks for clarity. "Dispatch messages" is also broken out separately for the same reason:
 
 image::images/application_lifecycle/application_lifecycle_update.png["Update loop", align="center"]
 
-Input
------
+=== Input
 
 Input is is read from available devices, mapped against link:/doc/input[input bindings] and then dispatched. Any game object that has acquired input focus gets input sent to all its component +on_input()+ functions. A game object with a script component and a GUI component with a GUI script will get input to both components’ +on_input()+ functions--given that they are defined and that they have acquired input focus.
 
 Any game object that has acquired input focus and that contain collection proxy components dispatches input further to components in the proxy collection belonging to game objects that has acquired input focus. This process continues recursively down enabled collection proxies within enabled collection proxies.
 
-Update
-------
+=== Update
 
 Each game object component in the main collection is traversed. If any of these component has a script +update(),+ then it will be called. If the component is a collection proxy, each component in the proxy collection is recursively updated with all the steps in the "update" sequence in the diagram above.
 
@@ -89,13 +85,11 @@ Child transforms are then done, applying any game object movement, rotation and 
 
 In the next step all posted messages are dispatched. Since any receiver component’s +on_message()+ code can post additional messages the message dispatcher will continue to dispatch posted messaged until the message queue is empty. There is, however, a limit to how many runs through the message queue the message dispatcher performs. See link:/doc/message_passing[Message passing] and the section "Advanced topics" for details.
 
-Render update
--------------
+=== Render update
 
 The render update block dispatches messages to the @render socket (camera component "set_view_projection" messages, "set_clear_color" messages etc). The render script +update()+ is then called.
 
-Post update
------------
+=== Post update
 
 After the updates, a post update sequence is run. It unloads from memory collection proxies that are marked for unloading (this happens during the "dispatch messages" sequence). Any game object that is marked for deletion will call all of its components’ +final()+ functions called—if there are any. The code in +final()+ functions often posts new messages to the queue so a "dispatch messages" pass is run afterwards.
 
@@ -103,15 +97,13 @@ Any factory components that has been told to spawn a game object will do that ne
 
 The last steps in the update loop involves dispatching @system messages ("exit", "reboot" messages, toggling the profiler, starting and stopping video capture etc). Then graphics is rendered. During the graphics rendering, video capture is done, as is any rendering of the visual profiler (see the link:/doc/scripting[Scripting documentation].)
 
-Frame rate and collection time step
------------------------------------
+=== Frame rate and collection time step
 
 The number of frame updates per seconds (which equals the number of update-loop runs per second) can be set in the project settings, or programmatically by sending an "set_update_frequency" message to the +@system+ socket. In addition, it is possible to set the _time step_ for collection proxies individually by sending a "set_time_step" message to the proxy. Changing a collection's time step does not affect the frame rate. It has an effect on the physics update time step as well as the "dt" variable passed to +update().+ Also note that altering the time step does not alter the number of times +update()+ will be called each frame--it is always exactly once.
 
 (See link:/doc/collection_proxies[Collection proxies] and link:ref/collection_proxy#set_time_step[set_time_step] for details)
 
-Finalization
-------------
+== Finalization
 
 At the point when the application exits, it finishes the last update loop sequence, which will unload any collection proxies: finalizing and deleting all game objects in the proxy collection.
 
