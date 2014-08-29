@@ -115,11 +115,11 @@ public class HTML5Bundler {
     		generator.writeStartArray();
     		int offset = 0;
     		for (File split : this.subdivisions) {
-    			File path = new File(SplitFileDir, split.getName());
+    			String path = String.format("%s/%s", SplitFileDir, split.getName());
 
     			generator.writeStartObject();
     			generator.writeFieldName("name");
-    			generator.writeString(path.toString());
+    			generator.writeString(path);
     			generator.writeFieldName("offset");
     			generator.writeNumber(offset);
     			generator.writeEndObject();
@@ -133,8 +133,7 @@ public class HTML5Bundler {
 
     	void writeManifestContribution(BufferedWriter writer) throws IOException {
     		for (File s : subdivisions) {
-    			File relative = new File(SplitFileDir, s.getName());
-    			writer.write(String.format("%s\n", relative.getPath()));
+    			writer.write(String.format("%s/%s\n", SplitFileDir, s.getName()));
     		}
     	}
 
