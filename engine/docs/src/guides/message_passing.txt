@@ -6,7 +6,6 @@ Message passing is the mechanism used by Defold to permit objects to communicate
 [NOTE]
 ====
 You can read more about message passing here: http://en.wikipedia.org/wiki/Message_passing
-
 ====
 
 Consider this simple example: suppose that your game features a HUD with a set of on screen elements like stats (health, score and number of bonus stars). The HUD is controlled by a game object "hud".
@@ -36,8 +35,7 @@ function on_message(self, message_id, message, sender)
 end
 ----
 
-Message data
-------------
+== Message data
 
 The complete signature of the +msg.post()+ call is
 
@@ -82,7 +80,7 @@ If we inspect the variables received in the "hud" object’s script it contains:
 +message+ :: {  stars = 2,  score = 100,  health = 4 }
 +sender+ :: url: [default:/rulemaster#script]
 
-The message_id and sender values might look unfamiliar. In order to properly grasp how they are used we need to look at how Defold addresses objects, but first we should look at how "hud" implements a simple version of "set_stats”:
+The "message_id" and "sender" values might look unfamiliar. In order to properly grasp how they are used we need to look at how Defold addresses objects, but first we should look at how "hud" implements a simple version of "set_stats”:
 
 [source-code]
 ----
@@ -135,8 +133,7 @@ end
 
 ----
 
-Addressing and URLs
--------------------
+== Addressing and URLs
 
 Every object in Defold is uniquely addressed through a URL (Uniform Resource Locator). The address is set at compile time and stays fixed throughout  the object’s lifetime. This means that if you save the address to an object it will stay valid for as long as the object exists; you never have to worry about updating object references that you store.
 
@@ -246,7 +243,6 @@ This will address the message to the specified object inside the current top lev
 [NOTE]
 ====
 There are some quite rare situations where you need to specifically address a socket. See <<anchor-at, Advanced topics>> below for more information.)
-
 ====
 
 It is also valid to leave out the fragment part of the address:
@@ -349,7 +345,7 @@ When we send message between top level collections like this, we have to use the
 
 [NOTE]
 ====
-A more in depth description can be found in the link:/doc/collection_proxies[Collection proxies] documentation.
+A more in depth description can be found in the link:/doc/collection_proxies[Collection Proxies] documentation.
 ====
 
 === Message chains

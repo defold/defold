@@ -34,7 +34,8 @@ render('landing.html', 'index.html')
 render('plans.html', 'plans/index.html', active_page = 'plans')
 render('signup.html', 'signup/index.html')
 
-docs = ['application_lifecycle.html',
+docs = ['2dgraphics.html',
+        'application_lifecycle.html',
         'collection_proxies.html',
         'example.html',
         'game_project.html',

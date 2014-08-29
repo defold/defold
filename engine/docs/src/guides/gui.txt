@@ -13,7 +13,6 @@ A graphical user interface in Defold is a game object component that you build a
 [NOTE]
 ====
 The rendering behavior can be changed in the render script but it is usually desirable to have it that way since the user interface is a separate visual "layer" on top of the game view and you usually want HUD items and menus on certain spots on screen.
-
 ====
 
 Because the GUI is not part of the collection’s coordinate system but is rendered independently of the game view it is not placed in a particular location in the collection editor and it has no visual representation in the collection editor. However, the GUI component have to reside in a game object that has a location in the collection. Changing that location has no effect on the GUI.
@@ -101,6 +100,7 @@ In this example the orange box node "box2" is part of layer "front" which is dra
 Both "box1" and "box3" are set to layer "back". The drawing order within a layer is determined by the node’s index, it’s place in the node list. "box1" comes before "box3" and is thus drawn first, behind "box3".
 
 === Batch rendering
+
 In order to render your gui as efficiently as possible, there are steps that you can take that will permit the engine to organise drawing of your gui nodes in batches, reducing the overall number of drawcalls that the engine must create. If groups of nodes meet the following conditions, then they may be handled within a single batch:
 
 . If they are all box nodes, they use the same texture.
@@ -221,7 +221,7 @@ Text nodes behave in exactly the same way. The adjust mode applies to the invisi
 
 Anchors control the behavior of a node’s position when the window is resized. New nodes are created _non anchored_ meaning that they are positioned relative to the center of the screen.
 
-==== Node repositioning without anchors
+=== Node repositioning without anchors
 
 The default behavior of a created node is the following
 
@@ -236,7 +236,7 @@ Similarly, if the window is shrunk and gets relatively narrower, the added heigh
 
 image::images/gui/gui_no_anchor_sizedown.png["No anchor size down", align="center"]
 
-==== Node repositioning with anchors
+=== Node repositioning with anchors
 
 By setting the Xanchor and/or the Yanchor properties you can lock the position of nodes relative to the edges of the window.
 
@@ -249,7 +249,7 @@ In practice this means that if you set the Xanchor property to "Right" and the Y
 
 image::images/gui/gui_anchor_topright.png["Anchor top right", align="center"]
 
-==== Pivot
+=== Pivot
 
 Each node has a position, scale and rotation inside the GUI coordinate system. A node is placed on that position so that its pivot is at the set coordinate and any rotation is done around that same pivot.
 
