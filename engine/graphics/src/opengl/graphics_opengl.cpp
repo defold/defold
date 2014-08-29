@@ -1100,7 +1100,7 @@ static void LogFrameBufferError(GLenum status)
         glUniform1i(location, unit);
     }
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget;
         memset(rt, 0, sizeof(RenderTarget));
@@ -1123,7 +1123,8 @@ static void LogFrameBufferError(GLenum status)
         {
             if (buffer_type_flags & BUFFER_TYPES[i])
             {
-                rt->m_BufferTextures[i] = NewTexture(context, params[i]);
+                rt->m_BufferTextures[i] = NewTexture(context, creation_params[i]);
+                SetTexture(rt->m_BufferTextures[i], params[i]);
                 // attach the texture to FBO color attachment point
                 glFramebufferTexture2D(GL_FRAMEBUFFER, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
                 CHECK_GL_ERROR
@@ -1200,7 +1201,7 @@ static void LogFrameBufferError(GLenum status)
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
-    HTexture NewTexture(HContext context, const TextureParams& params)
+    HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
         GLuint t;
         glGenTextures( 1, &t );
@@ -1209,7 +1210,16 @@ static void LogFrameBufferError(GLenum status)
         Texture* tex = new Texture;
         tex->m_Texture = t;
 
-        SetTexture(tex, params);
+        tex->m_Width = params.m_Width;
+        tex->m_Height = params.m_Height;
+
+        if (params.m_OriginalWidth == 0){
+        	tex->m_OriginalWidth = params.m_Width;
+        	tex->m_OriginalHeight = params.m_Height;
+        } else {
+        	tex->m_OriginalWidth = params.m_OriginalWidth;
+        	tex->m_OriginalHeight = params.m_OriginalHeight;
+        }
 
         return (HTexture) tex;
     }
@@ -1226,26 +1236,6 @@ static void LogFrameBufferError(GLenum status)
 
     void SetTexture(HTexture texture, const TextureParams& params)
     {
-        if (params.m_MipMap == 0)
-        {
-            texture->m_Width = params.m_Width;
-            texture->m_Height = params.m_Height;
-
-            if (params.m_OriginalWidth == 0) {
-                texture->m_OriginalWidth = params.m_Width;
-                texture->m_OriginalHeight = params.m_Height;
-            } else {
-                texture->m_OriginalWidth = params.m_OriginalWidth;
-                texture->m_OriginalHeight = params.m_OriginalHeight;
-            }
-        }
-
-        if (NULL == params.m_Data) {
-            //DEF-530: calling SetTexture in NewTexture, prior to image data being made available,
-            // was causing RGBA textures to vanish in IE11.
-            return;
-        }
-
         int unpackAlignment = 4;
         /*
          * For RGA-textures the row-alignment may not be a multiple of 4.

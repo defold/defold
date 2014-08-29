@@ -80,17 +80,24 @@ namespace dmGameSystem
                                     0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff };
 
+        dmGraphics::TextureCreationParams tex_create_params;
         dmGraphics::TextureParams tex_params;
+
+        tex_create_params.m_Width = 2;
+        tex_create_params.m_Height = 2;
+        tex_create_params.m_OriginalWidth = 2;
+        tex_create_params.m_OriginalHeight = 2;
+
         tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
         tex_params.m_Data = white_texture;
         tex_params.m_DataSize = sizeof(white_texture);
         tex_params.m_Width = 2;
         tex_params.m_Height = 2;
-        tex_params.m_OriginalWidth = 2;
-        tex_params.m_OriginalHeight = 2;
         tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_params);
+
+        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_create_params);
+        dmGraphics::SetTexture(gui_world->m_WhiteTexture, tex_params);
 
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
@@ -614,7 +621,14 @@ namespace dmGameSystem
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
 
+        dmGraphics::TextureCreationParams tcparams;
         dmGraphics::TextureParams tparams;
+
+        tcparams.m_Width = width;
+        tcparams.m_Height = height;
+        tcparams.m_OriginalWidth = width;
+        tcparams.m_OriginalHeight = height;
+
         tparams.m_Width = width;
         tparams.m_Height = height;
         tparams.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
@@ -623,7 +637,8 @@ namespace dmGameSystem
         tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
         tparams.m_Format = ToGraphicsFormat(type);
 
-        dmGraphics::HTexture t =  dmGraphics::NewTexture(gcontext, tparams);
+        dmGraphics::HTexture t =  dmGraphics::NewTexture(gcontext, tcparams);
+        dmGraphics::SetTexture(t, tparams);
         return (void*) t;
     }
 
