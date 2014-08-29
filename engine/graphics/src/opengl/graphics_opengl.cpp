@@ -1211,7 +1211,7 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Texture = t;
 
         tex->m_Width = params.m_Width;
-		tex->m_Height = params.m_Height;
+        tex->m_Height = params.m_Height;
 
 		if (params.m_OriginalWidth == 0) {
 			tex->m_OriginalWidth = params.m_Width;

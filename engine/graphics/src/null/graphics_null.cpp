@@ -750,7 +750,7 @@ namespace dmGraphics
         Texture* tex = new Texture();
 
         tex->m_Width = params.m_Width;
-		tex->m_Height = params.m_Height;
+        tex->m_Height = params.m_Height;
 
 		if (params.m_OriginalWidth == 0) {
 			tex->m_OriginalWidth = params.m_Width;
