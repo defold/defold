@@ -1,4 +1,4 @@
-﻿MODULES
+﻿Modules
 =======
 
 It is generally a good idea to avoid duplication in your projects. Script code that replicates identical behavior between different game objects can simply be copied and pasted. However, if instead the script code could be shared between the game objects, any changes to the single script code instance would instantly affect both game objects.
@@ -40,7 +40,6 @@ image::images/modules/modules_new_name.png["New module name", align="center"]
 
 [source-code]
 ----
-
 -- We need to store the original position.
 local origin
 
@@ -343,7 +342,7 @@ print(summult.mult(5,2))
 
 Now, even after being overridden, *summult.mult(5,2)* still returns 10 (while you would expect 1). The problem is that the user changes the *sum()* function on the module table, but internally in *multi()* the local and unmodified function is still used.
 
-== Don’t pollute the global scope and don’t leak or expose internal state
+=== Don’t pollute the global scope and don’t leak or expose internal state
 
 This best practice is not specific to modules, but it’s worth reiterating the importance of not using the global scope to store state or define functions. One obvious risk of storing state in the global scope is that you expose the state of the module. Another is the risk of two modules using the same global variables (coupling). Note, though that Defold shares the Lua context only between objects in the same collection, so there is no truly global scope.
 
@@ -492,16 +491,15 @@ print(dict.get(d, "foo")) -- prints nothing
 dict.set(d, "foo", "bar"
 print(dict.get(d, "foo")) -- prints "bar"
 ----
+
 === Stateless modules using metatables
 
 [NOTE]
 ====
 Metatables is a powerful feature in Lua. A good tutorial on how they work can be found here: http://nova-fusion.com/2011/06/30/lua-metatables-tutorial/
-
 ====
 
 Another approach is to use a constructor function that returns a new table with state _and_ the public functions of the module each time it’s called:
-
 
 [source-code]
 ----
@@ -539,7 +537,6 @@ print(d:get("foo")) -- prints "bar"
 Note the use of the colon operator when calling and defining functions on the module. An expression like *o:foo(x)* is just another way to write *o.foo(o, x)*, that is, to call *o.foo()* adding *o* as a first extra argument. In a function declaration, a first parameter *self* is added.
 
 Read more here: http://www.lua.org/pil/5.html 
-
 ====
 
 === Modules and module functions should have a clear purpose and behave expectedly
@@ -555,6 +552,5 @@ When documenting a module or function, remember to write documentation only when
 [NOTE]
 ====
 Details on the LDoc documentation standard can be found here: https://github.com/stevedonovan/LDoc
-
 ====
 

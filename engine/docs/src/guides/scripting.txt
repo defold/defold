@@ -1,4 +1,4 @@
-SCRIPTING
+Scripting
 =========
 
 All application and game logic in your Defold project is controlled through _script_. The Defold engine has the Lua language embedded for scripting. Lua is a lightweight dynamic language that is very powerful. It is widely used as a videogame scripting language. Lua implements a rather small set of advanced features such as:
@@ -23,8 +23,7 @@ Lua also comes with a limited set of data types. (See http://lua-users.org/wiki/
 
 Lua is quite easy to learn if you have some experience with other languages like C, Python or Javascript. There is extensive documentation on the language online (check out http://www.lua.org) and there are several good books. In particular http://www.lua.org/pil/[Programming in Lua] by Roberto Ierusalimschy, the leading architect of the language.
 
-Script types
-------------
+== Script types
 
 There are three types of script in Defold, each type written in the Lua language but with different libraries available.
 
@@ -34,15 +33,13 @@ GUI scripts :: Extension _.guiscript_. Run by GUI components and usually contain
 
 Render scripts :: Extension _.renderscript_. Run by the rendering pipeline and contains the logic required to render all app/game graphics each frame. Render scripts has access to the link:/ref/render[Render] library functions.
 
-Editor support
---------------
+== Editor support
 
 The Defold editor supports Lua script editing with syntax coloring and auto-completion. To fill out function names, press *Ctrl+Space* to bring up a list of the functions matching what you are typing.
 
 image::images/scripting/scripting_completion.png["Auto completion", align="center"] 
 
-Message passing and shared data
--------------------------------
+== Message passing and shared data
 
 When designing any software system or application it is generally best to couple all objects, modules or components http://en.wikipedia.org/wiki/Loose_coupling[as loosely as possible]. Any object that creates dependencies to the inner workings of another object is considered to be _tightly coupled_ and such coupling often lead to code that is harder to maintain. Since tight coupling increases the dependencies between sections of code and one object might modify another object’s internals, it is a common source of bugs--some of which can be very hard to track down.
 
@@ -58,8 +55,7 @@ It is, however, possible to deliberately sidestep Defold’s message passing. Lu
 
 Lua modules provide powerful means to build reusable code that can easily be shared between objects--in a project or between different projects. When creating a module, it is important to take great care and consider how the module fits into the loosely coupled nature of Defold.
 
-Lua contexts
-------------
+== Lua contexts
 
 When Defold reads and executes code, this happens within a ‘Lua context’: everything that exists in the same context shares the same data and sees the same things. This means that if a script file that is evaluated in a context defines a function, that function is also available from other script files that are evaluated in the same context--automatically.
 
@@ -67,8 +63,7 @@ For each top level collection, Defold evaluates Lua code in two separate context
 
 image::images/scripting/scripting_contexts.png["Contexts", align="center"] 
 
-Reactive logic
---------------
+== Reactive logic
 
 A game object with a script component implements some logic. Often, that logic is dependent on some external factor. An enemy AI might react to the player being within a certain radius from the AI; a door might unlock and open as a result of player interaction, etc, etc.
 
@@ -140,8 +135,7 @@ end
 
 This is cleaner and easier to follow. We get rid of internal state variables that are often hard to follow through the logic--and which might lead to subtle bugs. We also dispose of the +update()+ function completely. That relieves the engine from calling our script 60 times a second, even if it's just idling.
 
-Debugging
----------
+== Debugging
 
 The simplest way to debug your game in Defold is to use http://en.wikipedia.org/wiki/Debugging#Techniques[print debugging]. The technique is simply to use +print()+ or link:/ref/builtins#pprint[pprint()] statements to watch variables or indicate the flow of execution. If a game object without a script acts weird, you can just attach a script to it with the sole purpose of debugging.
 
@@ -198,8 +192,7 @@ The profiler displays live information on the running application:
 
 image::images/scripting/scripting_profiling.png["Visual profiler", align="center"] 
 
-Performance considerations
---------------------------
+== Performance considerations
 
 In a high performance game that is intended to run at a smooth 60 FPS small performance mistakes can have a large impact on the experience. There are some simple general things to consider and some things that might not seem problematic. 
 
@@ -287,11 +280,9 @@ Defold uses Lua _Userdata_ objects to store the following types of data:
 
 == Best practices
 
-=== Implementing behaviors
+A common implementation design consideration is how to structure code for shared behaviors. Several possible approaches are possible.
 
-The "Behaviors" example shows a few different ways to implement a simple behavior:
-
-==== Modules
+=== Behaviors in a module
 
 image::images/scripting/scripting_module.png["Module", align="center"]
 
@@ -299,13 +290,13 @@ Encapsulating a behavior in a module allows you to easily share code between dif
 
 Also, even if it is possible to have module code directly modify the internals of a game object (by passing "self" to a module function) it is strongly disencouraged to do so since you create very tight coupling.
 
-==== A helper game object with encapsulated behavior
+=== A helper game object with encapsulated behavior
 
 image::images/scripting/scripting_helper.png["Helper", align="center"]
 
 Just like you can contain script code in a Lua module, you can contained it in a game object with a script component. The difference is that if you contain it in a game object and you communicate with it strictly through message passing.
 
-==== Grouping game object with helper behavior object inside a collection
+=== Grouping game object with helper behavior object inside a collection
 
 image::images/scripting/scripting_collection.png["Collection", align="center"]
 

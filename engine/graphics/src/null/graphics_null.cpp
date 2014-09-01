@@ -664,7 +664,7 @@ namespace dmGraphics
     {
     }
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget();
         memset(rt, 0, sizeof(RenderTarget));
@@ -679,7 +679,7 @@ namespace dmGraphics
                 uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
                 *(buffers[i]) = new char[buffer_size];
                 *(buffer_sizes[i]) = buffer_size;
-                rt->m_BufferTextures[i] = NewTexture(context, params[i]);
+                rt->m_BufferTextures[i] = NewTexture(context, creation_params[i]);
                 rt->m_BufferTextureParams[i] = params[i];
                 rt->m_BufferTextureParams[i].m_Data = 0x0;
                 rt->m_BufferTextureParams[i].m_DataSize = 0;
@@ -745,10 +745,21 @@ namespace dmGraphics
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
-    HTexture NewTexture(HContext context, const TextureParams& params)
+    HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
         Texture* tex = new Texture();
-        SetTexture(tex, params);
+
+        tex->m_Width = params.m_Width;
+        tex->m_Height = params.m_Height;
+
+        if (params.m_OriginalWidth == 0) {
+        	tex->m_OriginalWidth = params.m_Width;
+        	tex->m_OriginalHeight = params.m_Height;
+        } else {
+        	tex->m_OriginalWidth = params.m_OriginalWidth;
+        	tex->m_OriginalHeight = params.m_OriginalHeight;
+        }
+
         return tex;
     }
 
@@ -766,19 +777,6 @@ namespace dmGraphics
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Format = params.m_Format;
-        if (params.m_MipMap == 0)
-        {
-            texture->m_Width = params.m_Width;
-            texture->m_Height = params.m_Height;
-
-            if (params.m_OriginalWidth == 0) {
-                texture->m_OriginalWidth = params.m_Width;
-                texture->m_OriginalHeight = params.m_Height;
-            } else {
-                texture->m_OriginalWidth = params.m_OriginalWidth;
-                texture->m_OriginalHeight = params.m_OriginalHeight;
-            }
-        }
         if (params.m_DataSize > 0)
         {
             texture->m_Data = new char[params.m_DataSize];

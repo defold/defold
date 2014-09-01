@@ -97,18 +97,24 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
+        dmGraphics::TextureCreationParams tex_create_params;
         dmGraphics::TextureParams tex_params;
+
+        tex_create_params.m_Width = params.m_TextureWidth;
+        tex_create_params.m_Height = params.m_TextureHeight;
+        tex_create_params.m_OriginalWidth = params.m_TextureWidth;
+        tex_create_params.m_OriginalHeight = params.m_TextureHeight;
+
         tex_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
         tex_params.m_Data = params.m_TextureData;
         tex_params.m_DataSize = params.m_TextureDataSize;
         tex_params.m_Width = params.m_TextureWidth;
         tex_params.m_Height = params.m_TextureHeight;
-        tex_params.m_OriginalWidth = params.m_TextureWidth;
-        tex_params.m_OriginalHeight = params.m_TextureHeight;
         // NOTE: No mipmap support in fonts yet therefore TEXTURE_FILTER_LINEAR
         tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_params);
+        font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
+        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
 
         return font_map;
     }
