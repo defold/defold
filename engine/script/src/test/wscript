@@ -83,7 +83,7 @@ def build(bld):
                                        uselib_local = 'script',
                                        proto_gen_py = True,
                                        target = 'test_script',
-                                       source = 'test_script.cpp test_script.lua test_script_coroutine.lua')
+                                       source = 'test_script.cpp test_script.lua test_script_coroutine.lua test_circular_ref_pprint.lua')
 
     test_script.install_path = None
 

@@ -26,6 +26,7 @@ extern "C"
 namespace dmScript
 {
     const char* INSTANCE_NAME = "__dm_script_instance__";
+    const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 
     HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory)
     {
@@ -237,7 +238,7 @@ namespace dmScript
         return 0;
     }
 
-    static int DoLuaPPrintTable(lua_State*L, int index, dmPPrint::Printer* printer) {
+    static int DoLuaPPrintTable(lua_State*L, int index, dmPPrint::Printer* printer, int call_depth) {
         int top = lua_gettop(L);
 
         lua_pushvalue(L, index);
@@ -270,8 +271,13 @@ namespace dmScript
             lua_pop(L, 1);
 
             if (value_type == LUA_TTABLE) {
-                printer->Printf("%s = ", s1);
-                DoLuaPPrintTable(L, -2, printer);
+                if (MAX_PPRINT_TABLE_CALL_DEPTH > ++call_depth) {
+                    printer->Printf("%s = ", s1);
+                    DoLuaPPrintTable(L, -2, printer, call_depth);
+                } else {
+                    printer->Printf("%s...\n", s1);
+                    printer->Printf("Printing truncated. Circular refs?\n");
+                }
             } else {
                 printer->Printf("%s = %s,\n", s1, s2);
             }
@@ -301,7 +307,7 @@ namespace dmScript
         dmPPrint::Printer printer(buf, sizeof(buf));
         if (lua_type(L, 1) == LUA_TTABLE) {
             printer.Printf("\n");
-            DoLuaPPrintTable(L, 1, &printer);
+            DoLuaPPrintTable(L, 1, &printer, 0);
         } else {
             lua_getglobal(L, "tostring");
             lua_pushvalue(L, 1);
