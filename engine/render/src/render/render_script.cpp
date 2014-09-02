@@ -524,6 +524,7 @@ namespace dmRender
 
         uint32_t buffer_type_flags = 0;
         luaL_checktype(L, 2, LUA_TTABLE);
+        dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         lua_pushnil(L);
         while (lua_next(L, 2))
@@ -532,6 +533,7 @@ namespace dmRender
             buffer_type_flags |= buffer_type;
             uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
             dmGraphics::TextureParams* p = &params[index];
+            dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
             while (lua_next(L, -2))
@@ -544,10 +546,12 @@ namespace dmRender
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
                     p->m_Width = luaL_checknumber(L, -1);
+                    cp->m_Width = p->m_Width;
                 }
                 else if (strncmp(key, RENDER_SCRIPT_HEIGHT_NAME, strlen(RENDER_SCRIPT_HEIGHT_NAME)) == 0)
                 {
                     p->m_Height = luaL_checknumber(L, -1);
+                    cp->m_Height = p->m_Height;
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
@@ -584,7 +588,7 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
+        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
         RegisterRenderTarget(i->m_RenderContext, render_target, dmHashString64(name));
 
         lua_pushlightuserdata(L, (void*)render_target);

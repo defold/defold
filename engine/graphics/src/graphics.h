@@ -224,6 +224,21 @@ namespace dmGraphics
         bool            m_Normalize;
     };
 
+    struct TextureCreationParams {
+
+    	TextureCreationParams() :
+    		m_Width(0),
+    		m_Height(0),
+    		m_OriginalWidth(0),
+    		m_OriginalHeight(0)
+    	{}
+
+		uint16_t m_Width;
+		uint16_t m_Height;
+		uint16_t m_OriginalWidth;
+		uint16_t m_OriginalHeight;
+    };
+
     struct TextureParams
     {
         TextureParams()
@@ -237,8 +252,6 @@ namespace dmGraphics
         , m_MipMap(0)
         , m_Width(0)
         , m_Height(0)
-        , m_OriginalWidth(0)
-        , m_OriginalHeight(0)
         {}
 
         TextureFormat m_Format;
@@ -251,8 +264,6 @@ namespace dmGraphics
         uint16_t m_MipMap;
         uint16_t m_Width;
         uint16_t m_Height;
-        uint16_t m_OriginalWidth;
-        uint16_t m_OriginalHeight;
     };
 
     // Parameters structure for OpenWindow
@@ -464,7 +475,7 @@ namespace dmGraphics
     void SetCullFace(HContext context, FaceType face_type);
     void SetPolygonOffset(HContext context, float factor, float units);
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     void DeleteRenderTarget(HRenderTarget render_target);
     void EnableRenderTarget(HContext context, HRenderTarget render_target);
     void DisableRenderTarget(HContext context, HRenderTarget render_target);
@@ -473,7 +484,7 @@ namespace dmGraphics
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
-    HTexture NewTexture(HContext context, const TextureParams& params);
+    HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
     void SetTexture(HTexture texture, const TextureParams& params);
     uint16_t GetTextureWidth(HTexture texture);

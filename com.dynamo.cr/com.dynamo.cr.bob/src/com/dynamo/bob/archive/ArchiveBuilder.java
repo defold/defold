@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import net.jpountz.lz4.LZ4Factory;
@@ -46,6 +47,7 @@ public class ArchiveBuilder {
             } else {
                 this.compressedSize = 0xFFFFFFFF;
             }
+
             this.relName = fileName.substring(root.length());
             this.fileName = fileName;
         }
@@ -132,8 +134,8 @@ public class ArchiveBuilder {
         for (Entry e : entries) {
             // Store offset to string
             stringsOffset.add((int) (outFile.getFilePointer() - stringPoolOffset));
-            // Write filename string
-            outFile.write(e.relName.getBytes());
+            String normalisedPath = FilenameUtils.separatorsToUnix(e.relName);
+            outFile.write(normalisedPath.getBytes());
             outFile.writeByte((byte) 0);
         }
 

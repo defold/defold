@@ -252,7 +252,6 @@ Now back to our platformer example where the only thing we need to do is to send
 ...
 msg.post(currentsocket .. ":" .. "/player#script", "request_player")
 
-
 -- Now it's time to ditch the world we left behind.
 -- Normally you wouldn't do this on-screen but we're doing just that
 -- to make the whole process clearer and clearly visible.
