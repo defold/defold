@@ -50,7 +50,10 @@ public class SceneView extends AbstractSceneView {
         this.renderView.refresh();
         editor.setDirty(dirty);
         setIgnoreOutlineSelection(true);
-        outline.refresh();
+        if (0 < selection.size()) {
+            // DEF-638: if not this, then collapsing an outline root node when a child is selected will cause a crash.
+            outline.refresh();
+        }
         outline.setSelection(selection);
         setIgnoreOutlineSelection(false);
         propertySheetPage.setSelection(selection);
