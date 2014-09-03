@@ -39,7 +39,7 @@ def build(bld):
     extra_packages = 'com.facebook.android:com.google.android.gms'
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET LUA SCRIPT EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s X %s' % (sound_lib, additional_libs),
+        uselib = 'ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE DLIB DMGLFW GUI %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto .',
