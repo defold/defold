@@ -19,6 +19,7 @@ namespace dmGui
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
     extern const uint16_t INVALID_INDEX;
 
+    #define GUI_SCRIPT "GuiScript"
     #define GUI_SCRIPT_INSTANCE "GuiScriptInstance"
 
     enum ScriptFunction
@@ -155,10 +156,9 @@ namespace dmGui
 
     struct Script
     {
-        Script();
-
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         Context*    m_Context;
+        int         m_InstanceReference;
     };
 
     struct DynamicTexture
@@ -180,8 +180,6 @@ namespace dmGui
 
     struct Scene
     {
-        Scene();
-
         int                     m_InstanceReference;
         int                     m_DataReference;
         Context*                m_Context;

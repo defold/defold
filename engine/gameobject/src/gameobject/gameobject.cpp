@@ -2372,6 +2372,6 @@ namespace dmGameObject
 
     lua_State* GetLuaState()
     {
-        return g_LuaState;
+        return dmScript::GetLuaState(g_ScriptContext);
     }
 }

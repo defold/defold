@@ -1,0 +1,5 @@
+global_value = 0
+
+function init(self)
+    global_value = 1
+end

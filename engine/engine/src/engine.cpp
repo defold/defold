@@ -119,6 +119,7 @@ namespace dmEngine
     , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
+    , m_SharedScriptContext(0x0)
     , m_GOScriptContext(0x0)
     , m_RenderScriptContext(0x0)
     , m_GuiScriptContext(0x0)
@@ -164,12 +165,17 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
-        script_lib_context.m_LuaState = dmGameObject::GetLuaState();
-        dmGameSystem::FinalizeScriptLibs(script_lib_context);
-        if (engine->m_GuiContext.m_GuiContext != 0x0)
-        {
-            script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+        if (engine->m_SharedScriptContext) {
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
+        } else {
+            script_lib_context.m_LuaState = dmGameObject::GetLuaState();
+            dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            if (engine->m_GuiContext.m_GuiContext != 0x0)
+            {
+                script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+                dmGameSystem::FinalizeScriptLibs(script_lib_context);
+            }
         }
 
         dmGameObject::DeleteRegister(engine->m_Register);
@@ -196,12 +202,23 @@ namespace dmEngine
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
 
-        if (engine->m_GOScriptContext)
-            dmScript::DeleteContext(engine->m_GOScriptContext);
-        if (engine->m_RenderScriptContext)
-            dmScript::DeleteContext(engine->m_RenderScriptContext);
-        if (engine->m_GuiScriptContext)
-            dmScript::DeleteContext(engine->m_GuiScriptContext);
+        if (engine->m_SharedScriptContext) {
+            dmScript::Finalize(engine->m_SharedScriptContext);
+            dmScript::DeleteContext(engine->m_SharedScriptContext);
+        } else {
+            if (engine->m_GOScriptContext) {
+                dmScript::Finalize(engine->m_GOScriptContext);
+                dmScript::DeleteContext(engine->m_GOScriptContext);
+            }
+            if (engine->m_RenderScriptContext) {
+                dmScript::Finalize(engine->m_RenderScriptContext);
+                dmScript::DeleteContext(engine->m_RenderScriptContext);
+            }
+            if (engine->m_GuiScriptContext) {
+                dmScript::Finalize(engine->m_GuiScriptContext);
+                dmScript::DeleteContext(engine->m_GuiScriptContext);
+            }
+        }
 
         if (engine->m_GraphicsContext)
         {
@@ -450,9 +467,22 @@ namespace dmEngine
             return false;
         }
 
-        engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
-        engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
-        engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+        bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
+        if (shared) {
+            engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            dmScript::Initialize(engine->m_SharedScriptContext);
+            engine->m_GOScriptContext = engine->m_SharedScriptContext;
+            engine->m_RenderScriptContext = engine->m_SharedScriptContext;
+            engine->m_GuiScriptContext = engine->m_SharedScriptContext;
+        } else {
+            engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            dmScript::Initialize(engine->m_GOScriptContext);
+            engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            dmScript::Initialize(engine->m_RenderScriptContext);
+            engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            dmScript::Initialize(engine->m_GuiScriptContext);
+        }
+
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
         dmHID::Init(engine->m_HidContext);
 
@@ -618,12 +648,18 @@ namespace dmEngine
 
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
-        script_lib_context.m_LuaState = dmGameObject::GetLuaState();
-        if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
-            goto bail;
-        script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
-        if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
-            goto bail;
+        if (engine->m_SharedScriptContext) {
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
+            if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+                goto bail;
+        } else {
+            script_lib_context.m_LuaState = dmGameObject::GetLuaState();
+            if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+                goto bail;
+            script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);
+            if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
+                goto bail;
+        }
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)

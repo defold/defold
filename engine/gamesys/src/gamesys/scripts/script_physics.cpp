@@ -71,7 +71,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
         {
             dmPhysicsDDF::RequestRayCast request;
             request.m_From = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 1));

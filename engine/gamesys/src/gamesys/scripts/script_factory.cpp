@@ -64,7 +64,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
         {
             dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)user_data;
             dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);

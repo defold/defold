@@ -25,6 +25,7 @@ protected:
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::Initialize(m_ScriptContext);
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;
         font_map_params.m_Glyphs.SetCapacity(128);
@@ -65,6 +66,7 @@ protected:
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
 };
@@ -602,6 +604,25 @@ TEST_F(dmRenderScriptTest, TestInstanceCallback)
 }
 
 #undef REF_VALUE
+
+TEST_F(dmRenderScriptTest, TestURL)
+{
+    const char* script =
+    "local g_def_url = msg.url()\n"
+    "local g_url = msg.url(\"@render:\")\n"
+    "function init(self)\n"
+    "    assert(g_def_url == g_url)\n"
+    "    local url = msg.url(\"@render:\")\n"
+    "    assert(msg.url() == url)\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, script, strlen(script), "none");
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
 
 int main(int argc, char **argv)
 {

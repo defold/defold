@@ -61,3 +61,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/particlefx/test_particlefx.collection\"\n"
 }
+embedded_components {
+  id: "shared_state_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/shared_state/test_shared_state.collection\"\n"
+}

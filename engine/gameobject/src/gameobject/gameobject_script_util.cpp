@@ -17,7 +17,7 @@ namespace dmGameObject
         dmScript::HContext script_context = module_script->m_ScriptContext;
         if (module_script->m_NameHash == resource->m_NameHash && dmScript::ModuleLoaded(script_context, module_script->m_ModuleHash))
         {
-            dmScript::ReloadModule(script_context, module_script->m_LuaState,
+            dmScript::ReloadModule(script_context, dmScript::GetLuaState(module_script->m_ScriptContext),
                                    (const char*) module_script->m_LuaModule->m_Script.m_Data,
                                    module_script->m_LuaModule->m_Script.m_Count,
                                    module_script->m_ModuleHash);
@@ -67,7 +67,6 @@ namespace dmGameObject
                 module_script->m_NameHash = desc.m_NameHash;
                 module_script->m_ModuleHash = dmHashString64(module_name);
                 module_script->m_ScriptContext = script_context;
-                module_script->m_LuaState = L;
                 dmResource::RegisterResourceReloadedCallback(factory, ReloadedCallback, module_script);
             }
             else
