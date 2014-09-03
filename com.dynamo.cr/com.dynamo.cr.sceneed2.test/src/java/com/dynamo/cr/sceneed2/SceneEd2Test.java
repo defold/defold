@@ -9,7 +9,7 @@ import mikera.cljunit.ClojureTest;
 import org.junit.runner.RunWith;
 
 @RunWith(ClojureRunner.class)
-public class ClojureTests extends ClojureTest {
+public class SceneEd2Test extends ClojureTest {
     @Override
     public List<String> namespaces() {
         List<String> ns = new ArrayList<String>();
