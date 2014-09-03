@@ -21,25 +21,16 @@ protected:
 protected:
     virtual void SetUp()
     {
-        L = lua_open();
-
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        luaopen_debug(L);
-
         m_Context = dmScript::NewContext(0, 0);
-        dmScript::ScriptParams params;
-        params.m_Context = m_Context;
-        dmScript::Initialize(L, params);
+        dmScript::Initialize(m_Context);
+
+        L = dmScript::GetLuaState(m_Context);
     }
 
     virtual void TearDown()
     {
-        dmScript::Finalize(L, m_Context);
+        dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        lua_close(L);
     }
 
     dmScript::HContext m_Context;

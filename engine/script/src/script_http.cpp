@@ -58,8 +58,7 @@ namespace dmScript
         int top = lua_gettop(L);
 
         dmMessage::URL sender;
-        uintptr_t user_data;
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data) && user_data != 0) {
+        if (dmScript::GetURL(L, &sender)) {
 
             const char* url = luaL_checkstring(L, 1);
             uint32_t url_len = strlen(url);

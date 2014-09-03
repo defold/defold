@@ -84,7 +84,7 @@ namespace dmGameObject
 
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
-            lua_State* L = g_LuaState;
+            lua_State* L = GetLuaState();
             int top = lua_gettop(L);
             (void) top;
 
@@ -161,10 +161,10 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        int top = lua_gettop(g_LuaState);
+        int top = lua_gettop(GetLuaState());
         (void)top;
         ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, RunScriptParams());
-        assert(top == lua_gettop(g_LuaState));
+        assert(top == lua_gettop(GetLuaState()));
         if (ret == SCRIPT_RESULT_FAILED)
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
@@ -177,7 +177,7 @@ namespace dmGameObject
 
     UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params)
     {
-        int top = lua_gettop(g_LuaState);
+        int top = lua_gettop(GetLuaState());
         (void)top;
         UpdateResult result = UPDATE_RESULT_OK;
         RunScriptParams run_params;
@@ -193,7 +193,7 @@ namespace dmGameObject
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
-        assert(top == lua_gettop(g_LuaState));
+        assert(top == lua_gettop(GetLuaState()));
         return result;
     }
 
@@ -215,7 +215,7 @@ namespace dmGameObject
 
         if (function_ref != LUA_NOREF)
         {
-            lua_State* L = g_LuaState;
+            lua_State* L = GetLuaState();
             int top = lua_gettop(L);
             (void) top;
             int ret;
@@ -284,7 +284,7 @@ namespace dmGameObject
         int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONINPUT];
         if (function_ref != LUA_NOREF)
         {
-            lua_State* L = g_LuaState;
+            lua_State* L = GetLuaState();
             int top = lua_gettop(L);
             (void)top;
 
@@ -467,12 +467,12 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        int top = lua_gettop(g_LuaState);
+        lua_State* L = GetLuaState();
+
+        int top = lua_gettop(L);
         (void)top;
 
         // Clean stale properties and add new
-
-        lua_State* L = g_LuaState;
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
@@ -486,7 +486,7 @@ namespace dmGameObject
 
         RunScriptParams run_params;
         RunScript(script_instance->m_Script, SCRIPT_FUNCTION_ONRELOAD, script_instance, run_params);
-        assert(top == lua_gettop(g_LuaState));
+        assert(top == lua_gettop(L));
     }
 
     PropertyResult CompScriptSetProperties(const ComponentSetPropertiesParams& params)
@@ -494,10 +494,10 @@ namespace dmGameObject
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
 
-        int top = lua_gettop(g_LuaState);
-        (void)top;
+        lua_State* L = GetLuaState();
 
-        lua_State* L = g_LuaState;
+        int top = lua_gettop(L);
+        (void)top;
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
@@ -509,7 +509,7 @@ namespace dmGameObject
         lua_pushnil(L);
         dmScript::SetInstance(L);
 
-        assert(top == lua_gettop(g_LuaState));
+        assert(top == lua_gettop(L));
         return result;
     }
 
@@ -643,7 +643,7 @@ namespace dmGameObject
             out_value.m_ElementIds[3] = element_ids[3];
         }
 
-        lua_State* L = g_LuaState;
+        lua_State* L = GetLuaState();
 
         int top = lua_gettop(L);
         (void)top;
@@ -701,10 +701,10 @@ namespace dmGameObject
         if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
             return PROPERTY_RESULT_NOT_FOUND;
 
-        int top = lua_gettop(g_LuaState);
-        (void)top;
+        lua_State* L = GetLuaState();
 
-        lua_State* L = g_LuaState;
+        int top = lua_gettop(L);
+        (void)top;
 
         // Only push the script instance if it's not present already
         bool pushed_instance = false;

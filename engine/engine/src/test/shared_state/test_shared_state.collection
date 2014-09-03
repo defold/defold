@@ -1,0 +1,5 @@
+name: "test_shared_state"
+instances {
+  id: "main"
+  prototype: "/shared_state/main.go"
+}

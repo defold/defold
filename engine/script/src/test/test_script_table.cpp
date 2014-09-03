@@ -23,12 +23,10 @@ protected:
     {
         accept_panic = false;
         g_LuaTableTest = this;
-        L = lua_open();
-        lua_atpanic(L, &AtPanic);
         m_Context = dmScript::NewContext(0, 0);
-        dmScript::ScriptParams params;
-        params.m_Context = m_Context;
-        dmScript::Initialize(L, params);
+        dmScript::Initialize(m_Context);
+        L = dmScript::GetLuaState(m_Context);
+        lua_atpanic(L, &AtPanic);
         top = lua_gettop(L);
     }
 
@@ -44,8 +42,7 @@ protected:
     virtual void TearDown()
     {
         ASSERT_EQ(top, lua_gettop(L));
-        dmScript::Finalize(L, m_Context);
-        lua_close(L);
+        dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
         g_LuaTableTest = 0;
     }
