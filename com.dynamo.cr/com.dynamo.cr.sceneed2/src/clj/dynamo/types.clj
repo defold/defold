@@ -26,8 +26,8 @@
    height   :- Int32])
 
 (sm/defrecord AABB
-  [min :- Vector3d
-   max :- Vector3d])
+  [min :- Point3d
+   max :- Point3d])
 
 (sm/defn ^:always-validate rect :- Rect
   ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]

@@ -6,6 +6,7 @@
             [internal.node :as in]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
+            [service.log :as log]
             [dynamo.types :refer :all]))
 
 (declare get-value)
@@ -13,14 +14,25 @@
 (defn get-node [g id]
   (dg/node g id))
 
+(defn missing-input [n l]
+  {:error     :input-not-declared
+   :node      (:_id n)
+   :node-type (class n)
+   :label     l})
+
 (defn get-inputs [target-node g target-label seed]
-  (let [schema (get-in target-node [:inputs target-label])]
-    (if (vector? schema)
-      (map (fn [[source-node source-label]]
-             (get-value g (dg/node g source-node) source-label seed))
-           (lg/sources g (:_id target-node) target-label))
-      (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-        (get-value g (dg/node g first-source-node) first-source-label seed)))))
+  (if (contains? target-node target-label)
+    (get target-node target-label)
+    (let [schema (get-in target-node [:inputs target-label])]
+      (cond
+        (vector? schema)     (map (fn [[source-node source-label]]
+                                    (get-value g (dg/node g source-node) source-label seed))
+                                  (lg/sources g (:_id target-node) target-label))
+        (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
+                               (get-value g (dg/node g first-source-node) first-source-label seed))
+        :else                (let [missing (missing-input target-node target-label)]
+                               (service.log/warn :missing-input missing)
+                               missing)))))
 
 (defn collect-inputs [node g input-schema seed]
   (reduce-kv
@@ -42,6 +54,7 @@
     :else transform))
 
 (defn get-value [g node label seed]
+  (assert (get-in node [:transforms label]) (str "There is no transform " label " on node " (:_id node)))
   (perform (get-in node [:transforms label]) node g seed))
 
 (defn add-node [g node]

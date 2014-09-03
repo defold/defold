@@ -69,18 +69,3 @@
              (is (= :ok (:status tx-result)))
              (is (= 42 (:counter (dg/node (:graph tx-result) (:_id resource))))))))
 
-(comment
-  (def tr1 {:_id -1 :inputs #{} :transforms {:content (fn [n g] "transformed")}})
-  (def tr2 {:_id -2 :inputs #{:content-source} :transforms #{}})
-  (def tr2 {:_id -3 :inputs #{:content-source} :transforms #{}})
-
-	(deftest find-dependencies
-	  (testing "on a graph of three nodes"
-	    (let [[resource1 resource2] (tx-nodes two-simple-resources)
-	          tx-result    (transact [(connect resource1 :next resource2 :previous)])
-	          after        (:graph tx-result)]
-	      (is (= :ok (:status tx-result)))
-	      (is (= [(:_id resource1) :next] (first (lg/sources after (:_id resource2) :previous))))
-	      (is (= [(:_id resource2) :previous] (first (lg/targets after (:_id resource1) :next))))
-	      (is (= nil (n/get-value after (:_id resource1) :next))))))
-)

@@ -18,15 +18,14 @@
       (remove-ns (second ns-decl)))))
 
 (defnk load-project-file
-  [project this g]
-  (let [source      (:resource this)
-        ns-decl     (read-file-ns-decl source)
-        source-file (file/eclipse-file source)]
+  [project this g resource]
+  (let [ns-decl     (read-file-ns-decl resource)
+        source-file (file/eclipse-file resource)]
     (markers/remove-markers source-file)
     (try
       (do
         (binding [*current-project* project]
-          (Compiler/load (io/reader source) (file/local-path source) (.getName source-file))
+          (Compiler/load (io/reader resource) (file/local-path resource) (.getName source-file))
           (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (markers/compile-error source-file compile-error)

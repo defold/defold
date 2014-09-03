@@ -137,4 +137,17 @@
   :accept-paste
   :can-drop?
   :accept-drop
+
+
+  ;; another approach to weaving together some simples into compounds
+  ;; this would go into an API file
+  (defn project-path [pathname] (f/project-path (e/current-project) pathname))
+  (defn load-shader  [path]     (shader/make-shader *gl* path))
+
+  ;; this would go into a node file (or other visible file)
+  (defnk produce-shader :- s/Int
+    [this gl]
+    (load-shader (project-file "/builtins/tools/atlas/pos_uv")))
+
+
   )

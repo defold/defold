@@ -18,3 +18,20 @@
         (.put target buf))
       (ByteString/copyFrom target))))
 
+(defmacro put-rendered-vertex [buf x y z w u v]
+  `(do
+     (.putFloat ~buf ~x)
+     (.putFloat ~buf ~y)
+     (.putFloat ~buf ~z)
+     (.putFloat ~buf ~w)
+     (.putFloat ~buf ~u)
+     (.putFloat ~buf ~v)))
+
+(defmacro put-vertex [buf x y z u v]
+  `(do
+     (.putFloat ~buf ~x)
+     (.putFloat ~buf ~y)
+     (.putFloat ~buf ~z)
+     (.putShort ~buf ~u)
+     (.putShort ~buf ~v)))
+

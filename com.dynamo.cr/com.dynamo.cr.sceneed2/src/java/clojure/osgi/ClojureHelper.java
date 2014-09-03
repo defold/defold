@@ -12,35 +12,43 @@ import clojure.osgi.internal.ClojureOSGi;
 
 /**
  * Proxy to the Clojure Java API.
- * 
+ *
  * This class should be loaded dynamically inside a classloader that has the
  * bundle's .clj files available.
- * 
+ *
  * @author mtnygard
  */
 public class ClojureHelper {
-    public static final Object EMPTY_MAP = Clojure.read("{}");
+  public static final Object EMPTY_MAP = Clojure.read("{}");
 
-    private static final IFn REQUIRE = var("clojure.core", "require");
-    private static final IFn SEQ = var("clojure.core", "seq");
+  private static final IFn SEQ = var("clojure.core", "seq");
 
-    private static IFn var(String pkg, String var) {
-        return Clojure.var(pkg, var);
+  private static IFn var(String pkg, String var) {
+    return Clojure.var(pkg, var);
+  }
+
+  public static void require(String packageName) {
+    ClojureOSGi.require(ClojureOSGi.clojureBundle(), packageName);
+  }
+
+  public static Object invoke(final String namespace, final String function, final Object... args) {
+    try {
+      return ClojureOSGi.withBundle(ClojureOSGi.clojureBundle(), new Callable<Object>() {
+        @Override
+        public Object call() {
+          return Clojure.var(namespace, function).applyTo((ISeq) SEQ.invoke(args));
+        }
+      });
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
+  }
 
-    public static void require(String packageName) {
-        REQUIRE.invoke(Clojure.read(packageName));
-    }
+  public static <T> T inBundle(Bundle bundle, Callable<T> thunk) throws Exception {
+    return ClojureOSGi.withBundle(bundle, thunk);
+  }
 
-    public static Object invoke(String namespace, String function, Object... args) {
-        return Clojure.var(namespace, function).applyTo((ISeq) SEQ.invoke(args));
-    }
-
-    public static <T> T inBundle(Bundle bundle, Callable<T> thunk) throws Exception {
-        return ClojureOSGi.withBundle(bundle, thunk);
-    }
-
-    public static <T> T inBundle(Object caller, Callable<T> thunk) throws Exception {
-        return ClojureOSGi.withBundle(FrameworkUtil.getBundle(caller.getClass()), thunk);
-    }
+  public static <T> T inBundle(Object caller, Callable<T> thunk) throws Exception {
+    return ClojureOSGi.withBundle(FrameworkUtil.getBundle(caller.getClass()), thunk);
+  }
 }

@@ -70,14 +70,15 @@
     {:project (:project-state tx-report)
      :value v}))
 
-(defn- disposal-loop
-  [in]
-  (go-loop []
-           (when-let [v (<! in)]
-             (logging-exceptions "disposal-loop"
-               (e/with-project (:project v)
-                 (.dispose (:value v))))
-             (recur))))
+(def ^:private disposal-loop
+  (bound-fn
+    [in]
+    (go-loop []
+             (when-let [v (<! in)]
+               (logging-exceptions "disposal-loop"
+                 (e/with-project (:project v)
+                   (.dispose (:value v))))
+               (recur)))))
 
 (defn- disposal-subsystem
   [disposal-queue]
@@ -90,14 +91,15 @@
      :node    node
      :output  output}))
 
-(defn- refresh-loop
-  [in]
-  (go-loop []
-           (when-let [{:keys [project node output]} (<! in)]
-             (logging-exceptions "refresh-loop"
-               (e/with-project project
-                 (p/get-resource-value project node output)))
-             (recur))))
+(def ^:private refresh-loop
+  (bound-fn
+    [in]
+    (go-loop []
+             (when-let [{:keys [project node output]} (<! in)]
+               (logging-exceptions "refresh-loop"
+                 (e/with-project project
+                   (p/get-resource-value project node output)))
+               (recur)))))
 
 (defn- refresh-subsystem
   [refresh-queue]

@@ -1,5 +1,7 @@
 (ns user
-  (:require [dynamo.project :as p]
+  (:require [dynamo.camera :as c]
+            [dynamo.geom :as g]
+            [dynamo.project :as p]
             [dynamo.file :as f]
             [dynamo.image :refer :all]
             [clojure.java.io :refer [file]]
@@ -9,6 +11,7 @@
             [clojure.repl :refer :all]
             [schema.core :as s])
   (:import [java.awt Dimension]
+           [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
            [javax.swing JFrame JPanel]))
 
 
@@ -34,8 +37,8 @@
   (p/load-resource (current-project) (f/project-path (current-project) res)))
 
 (defn get-value-in-project
-  [id label]
-  (p/get-resource-value (current-project) (node-in-project id) label))
+  [id label & {:as opt-map}]
+  (p/get-resource-value (current-project) (merge (node-in-project id) opt-map) label))
 
 (defn update-node-in-project
   [id f & args]
@@ -44,6 +47,55 @@
 (defn images-from-dir
   [d]
   (map load-image (filter #(.endsWith (.getName %) ".png") (file-seq (file d)))))
+
+(defn camera-fov-from-aabb
+  [camera aabb]
+  (let [viewport    (:viewport camera)
+        min-proj    (c/camera-project camera viewport (.. aabb min))
+        max-proj    (c/camera-project camera viewport (.. aabb max))
+        proj-width  (Math/abs (- (.x max-proj) (.x min-proj)))
+        proj-height (Math/abs (- (.y max-proj) (.x min-proj)))
+        factor-x (/ proj-width  (- (.right viewport) (.left viewport)))
+        factor-y (/ proj-height (- (.top viewport) (.bottom viewport)))
+        factor-y (* factor-y (:aspect camera))
+        fov-x-prim (* factor-x (:fov camera))
+        fov-y-prim (* factor-y (:fov camera))]
+    (* 1.1 (Math/max (/ fov-y-prim (:aspect camera)) fov-x-prim))))
+
+(defn aabb-ortho-framing-fn
+  [camera aabb]
+  (assert (= :orthographic (:type camera)))
+  (let [fov (camera-fov-from-aabb camera aabb)]
+    (fn [old-cam]
+      (-> old-cam
+        (c/set-orthographic fov (:aspect camera) (:z-near camera) (:z-far camera))
+        (c/camera-set-center aabb)))))
+
+#_(defn ortho-frame-aabb
+   [camera-node-id aabb]
+   (let [cam          (get-value-in-project camera-node-id :camera)]
+     (assert (= :orthographic (:type cam)))
+     (let [viewport (:viewport cam)
+           fov      (camera-fov-from-aabb cam aabb)]
+       (update-node-in-project camera-node-id update-in [:camera]
+                               (fn [old-cam]
+                                 (-> old-cam
+                                   (c/set-orthographic fov (:aspect cam) (:z-near cam) (:z-far cam))
+                                   (c/camera-set-center aabb)
+                                 ))))))
+
+(defn rect->aabb
+  [bounds]
+  (-> (g/null-aabb)
+      (g/aabb-incorporate (Point3d. (.x bounds) (.y bounds) 0))
+      (g/aabb-incorporate (Point3d. (.width bounds) (.height bounds) 0))))
+
+(defn ortho-frame-texture
+  [atlas-node-id camera-node-id]
+  (let [txt    (get-value-in-project atlas-node-id :textureset)
+        camera (get-value-in-project camera-node-id :camera)]
+    (update-node-in-project camera-node-id update-in [:camera]
+                              (aabb-ortho-framing-fn camera (rect->aabb (:aabb txt))))))
 
 (defn test-resource-dir
   [& [who]]

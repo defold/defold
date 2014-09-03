@@ -10,7 +10,7 @@
             [internal.clojure :as clojure]
             [internal.cache :refer [make-cache]]
             [dynamo.types :as t]
-            [dynamo.node :as node :refer [defnode]]
+            [dynamo.node :as node]
             [dynamo.file :as file]
             [dynamo.resource :refer [disposable?]]
             [plumbing.core :refer [defnk]]
@@ -209,12 +209,6 @@
 (defn- determine-autoupdates
   [{:keys [graph affected-nodes] :as ctx}]
   (assoc ctx :expired-outputs (pairwise :on-update (map #(dg/node graph %) affected-nodes))))
-
-(defn- recompute-autoupdates
-  [{:keys [expired-outputs] :as ctx}]
-  (doseq [expired-output expired-outputs]
-    (apply get-resource-value expired-output))
-  ctx)
 
 (defn- finalize-update
   [{:keys [graph cache-keys] :as ctx}]

@@ -9,14 +9,14 @@
             [dynamo.ui :as ui]
             [schema.core :as s]
             [dynamo.gl :refer :all]
-            [internal.ui.editors :refer :all]
+            [service.log :as log]
             [internal.render.pass :as pass]
             [internal.ui.background :as back]
             [internal.ui.grid :as grid])
   (:import [javax.media.opengl GL2]
+           [java.nio IntBuffer]
            [java.awt Font]
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
-           [org.eclipse.swt.widgets Listener]
            [org.eclipse.swt SWT]
            [dynamo.types Camera Region]))
 
@@ -24,28 +24,27 @@
 (def INDEX_SHIFT       (+ PASS_SHIFT 4))
 (def MANIPULATOR_SHIFT 62)
 
-(defn z-distance [camera viewport obj]
+(defn z-distance [camera obj]
   (let [p (->> (Point3d.)
             (g/world-space obj)
-            (c/camera-project camera viewport))]
+            (c/camera-project camera (:viewport camera)))]
     (long (* Integer/MAX_VALUE (.z p)))))
 
-(defn render-key [camera viewport obj]
+(defn render-key [camera obj]
   (+ (z-distance camera obj)
      (bit-shift-left (or (:index obj) 0)        INDEX_SHIFT)
      (bit-shift-left (or (:manipulator? obj) 0) MANIPULATOR_SHIFT)))
 
 (defnk produce-render-data :- t/RenderData
-  [this g renderables :- [t/RenderData]]
-  (let [camera   (:camera this)
-        viewport (:viewport this)]
-    (apply merge-with (fn [a b] (sort-by #(render-key camera viewport %) (concat a b))) renderables)))
+  [this g renderables :- [t/RenderData] camera]
+  (assert camera (str "No camera is available as an input to Scene Renderer (node:" (:_id this) "."))
+  (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera %) (concat a b)))) renderables))
 
 (n/defnode SceneRenderer
-  {:properties {:camera      {:schema Camera}
-                :viewport    {:schema Region}}
-   :inputs     {:renderables [t/RenderData]}
+  {:inputs     {:renderables [t/RenderData]
+                :camera      Camera}
    :cached     #{:render-data}
+   :on-update  #{:render-data}
    :transforms {:render-data #'produce-render-data}})
 
 (defn setup-pass
@@ -59,8 +58,7 @@
   (.glLoadIdentity gl)
   (when (t/model-transform? pass)
     (gl-load-matrix-4d gl (c/camera-view-matrix camera)))
-  (pass/prepare-gl pass gl glu)
-  )
+  (pass/prepare-gl pass gl glu))
 
 (defn do-paint
   [{:keys [project-state context canvas camera-node-id render-node-id] :as state}]
@@ -79,19 +77,18 @@
                 (setup-pass context gl glu pass camera viewport)
                 (doseq [node (get render-data pass)]
                   (gl-push-matrix gl
-                    (when (t/model-transform? pass)
-                      (gl-mult-matrix-4d gl (:world-transform node)))
-                    (when (:render-fn node)
-                      ((:render-fn node) context gl glu)))))))
+                      (when (t/model-transform? pass)
+                        (gl-mult-matrix-4d gl (:world-transform node)))
+                      (try
+                        (when (:render-fn node)
+                          ((:render-fn node) context gl glu))
+                        (catch Exception e
+                          (log/error :exception e
+                                     :pass pass
+                                     :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))))))
           (finally
             (.swapBuffers canvas))))))
 
-(defn listen
-  [c t f & args]
-  (.addListener c t
-    (proxy [Listener] []
-      (handleEvent [evt]
-        (apply f evt args)))))
 
 (defn on-resize
   [evt editor state]
@@ -125,6 +122,7 @@
                                        (p/connect scene-node      :renderable render-node :renderables)
                                        (p/connect background-node :renderable render-node :renderables)
                                        (p/connect grid-node       :renderable render-node :renderables)
+                                       (p/connect camera-node     :camera     render-node :camera)
                                        (p/connect camera-node     :camera     grid-node   :camera)])]
       (swap! state assoc
              :camera-node-id (p/resolve-tempid tx-result -4)
@@ -136,10 +134,15 @@
           _             (.setCurrent canvas)
           context       (.createExternalGLContext factory)
           _             (.makeCurrent context)
-          gl            (.. context getGL getGL2)]
+          gl            (.. context getGL getGL2)
+          vertex-arr    (IntBuffer/allocate 1)
+          _             (.glGenVertexArrays gl 1 vertex-arr)
+          vertex-arr-id (.get vertex-arr 0)
+          _             (.glBindVertexArray gl vertex-arr-id)
+          ]
       (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
       (.release context)
-      (listen canvas SWT/Resize on-resize this state)
+      (e/listen canvas SWT/Resize on-resize this state)
       (swap! state assoc
              :context context
              :canvas  canvas
@@ -153,7 +156,7 @@
   ui/Repaintable
   (request-repaint [this]
     (when-not (:paint-pending @state)
-      (swt-timed-exec 15
-                      (swap! state dissoc :paint-pending)
-                      (do-paint @state)))))
+      (e/after 15
+             (swap! state dissoc :paint-pending)
+             (do-paint @state)))))
 

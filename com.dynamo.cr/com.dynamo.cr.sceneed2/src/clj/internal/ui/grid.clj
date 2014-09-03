@@ -8,7 +8,7 @@
             [dynamo.types :as t]
             [dynamo.gl :refer :all]
             [internal.render.pass :as pass])
-  (:import [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d]
+  (:import [javax.vecmath Vector3d Vector4d Matrix3d Matrix4d Point3d]
            [dynamo.types Camera]))
 
 
@@ -17,20 +17,6 @@
 (def x-axis-color (color 200   0   0))
 (def y-axis-color (color   0 200   0))
 (def z-axis-color (color   0   0 200))
-
-(defmulti as-array class)
-
-(defmethod as-array Vector3d
-  [v]
-  (let [vals (double-array 3)]
-    (.get v vals)
-    vals))
-
-(defmethod as-array Vector4d
-  [v]
-  (let [vals (double-array 4)]
-    (.get v vals)
-    vals))
 
 (defn render-grid-axis
   [gl vx uidx start stop size vidx min max]
@@ -44,15 +30,15 @@
 (defn render-grid
   [gl fixed-axis size aabb]
   ;; draw across
-  (let [min-values (as-array (.min aabb))
-       max-values (as-array (.max aabb))
-       u-axis     (mod (inc fixed-axis) 3)
-       u-min      (nth min-values u-axis)
-       u-max      (nth max-values u-axis)
-       v-axis     (mod (inc u-axis) 3)
-       v-min      (nth min-values v-axis)
-       v-max      (nth max-values v-axis)
-       vertex     (double-array 3)]
+  (let [min-values (g/as-array (.min aabb))
+       max-values  (g/as-array (.max aabb))
+       u-axis      (mod (inc fixed-axis) 3)
+       u-min       (nth min-values u-axis)
+       u-max       (nth max-values u-axis)
+       v-axis      (mod (inc u-axis) 3)
+       v-min       (nth min-values v-axis)
+       v-max       (nth max-values v-axis)
+       vertex      (double-array 3)]
     (aset vertex fixed-axis 0.0)
     (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
     (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
@@ -126,7 +112,7 @@
   (let [m (Matrix3d. 0.0         0.0         1.0
                      (.x plane1) (.y plane1) (.z plane1)
                      (.x plane2) (.y plane2) (.z plane2))
-        v (Vector3d. 0.0 (- (.w plane1)) (- (.w plane2)))]
+        v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))]
     (.invert m)
     (.transform m v)
     v))
@@ -151,12 +137,12 @@
 
 (defn snap-out-to-grid
   [aabb grid-size]
-  (t/->AABB (Vector3d. (grid-snap-down (.. aabb min x) grid-size)
-                       (grid-snap-down (.. aabb min y) grid-size)
-                       (grid-snap-down (.. aabb min z) grid-size))
-            (Vector3d. (grid-snap-up   (.. aabb max x) grid-size)
-                       (grid-snap-up   (.. aabb max y) grid-size)
-                       (grid-snap-up   (.. aabb max z) grid-size))))
+  (t/->AABB (Point3d. (grid-snap-down (.. aabb min x) grid-size)
+                      (grid-snap-down (.. aabb min y) grid-size)
+                      (grid-snap-down (.. aabb min z) grid-size))
+            (Point3d. (grid-snap-up   (.. aabb max x) grid-size)
+                      (grid-snap-up   (.. aabb max y) grid-size)
+                      (grid-snap-up   (.. aabb max z) grid-size))))
 
 (defnk update-grids :- s/Any
   [this g camera]
@@ -165,7 +151,7 @@
         normal           (as-unit-vector far-z-plane)
         perp-axis        (most-aligned-axis normal)
         aabb             (frustum-projection-aabb frustum-planes)
-        extent           (as-array (g/aabb-extent aabb))
+        extent           (g/as-array (g/aabb-extent aabb))
         _                (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent  (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent)

@@ -1,4 +1,5 @@
-(ns dynamo.editors)
+(ns dynamo.editors
+  (:require [internal.ui.editors :as e]))
 
 (defprotocol Editor
   (init [this site])
@@ -7,6 +8,18 @@
   (dirty? [this])
   (save-as-allowed? [this])
   (set-focus [this]))
+
+(defn listen
+  [c t f & args]
+  (e/listen c t (bound-fn [evt] (apply f evt args))))
+
+(defmacro on-display-thread
+  [& body]
+  `(e/swt-safe ~@body))
+
+(defmacro after
+  [wait-time & body]
+  `(e/swt-timed-exec ~wait-time ~@body))
 
 (doseq [[v doc]
         {*ns*

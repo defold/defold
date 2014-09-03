@@ -4,9 +4,12 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.test :refer :all])
+            [clojure.test :refer :all]
+            [schema.test])
   (:import [com.dynamo.bob.textureset TextureSetGenerator]
-           [javax.vecmath Vector3d]))
+           [javax.vecmath Point3d]))
+
+(use-fixtures :once schema.test/validate-schemas)
 
 (def gen-float (gen/fmap (fn [[dec frac]]
                            (float (+ (float dec) (/ (rem (float frac) 10000.0) 10000.0))))
@@ -16,13 +19,13 @@
   (prop/for-all [fuv gen-float]
                 (= (TextureSetGenerator/toShortUV fuv) (to-short-uv fuv))))
 
-(def gen-point (gen/fmap (fn [[x y z]] (Vector3d. x y z))
+(def gen-point (gen/fmap (fn [[x y z]] (Point3d. x y z))
                          (gen/tuple gen/int gen/int gen/int)))
 
 (def gen-aabb (gen/fmap (fn [vs]
                           (let [[[x0 x1] [y0 y1] [z0 z1]] (map sort (partition 2 vs))]
-                            (->AABB (Vector3d. x0 y0 z0)
-                                    (Vector3d. x1 y1 z1))))
+                            (->AABB (Point3d. x0 y0 z0)
+                                    (Point3d. x1 y1 z1))))
                         (gen/tuple gen/int gen/int gen/int
                                    gen/int gen/int gen/int)))
 
@@ -52,10 +55,10 @@
 (defspec aabb-incorporates-minimally
   (prop/for-all [pointlist (gen/such-that #(< 0 (count %)) (gen/vector gen-point))]
                 (let [aabb (reduce aabb-incorporate (null-aabb) pointlist)
-                      max-v (Vector3d. (reduce-field max .x pointlist)
+                      max-v (Point3d. (reduce-field max .x pointlist)
                                        (reduce-field max .y pointlist)
                                        (reduce-field max .z pointlist))
-                      min-v (Vector3d. (reduce-field min .x pointlist)
+                      min-v (Point3d. (reduce-field min .x pointlist)
                                        (reduce-field min .y pointlist)
                                        (reduce-field min .z pointlist))]
                   (and

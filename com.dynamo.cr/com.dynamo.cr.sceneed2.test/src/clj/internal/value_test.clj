@@ -119,26 +119,41 @@
 (n/defnode DisposableValueNode
   CachedDisposableValue)
 
+(defnk produce-input-from-node
+  [overridden]
+  overridden)
 
-#_(deftest disposable-values-are-disposed
-   (let [disposal-notices  (chan 1)
-         [disposable-node] (tx-nodes *test-project* (assoc (make-disposable-value-node) :channel disposal-notices))
-         val               (p/get-resource-value *test-project* disposable-node :disposable-value)]
-     (testing "node supplies initial value"
-              (is (not (nil? val)))
-              (is (= 1 (get-tally disposable-node 'compute-disposable-value))))
-     (testing "modifying the node causes the value to be discarded"
-              (p/transact *test-project* [(p/update-resource disposable-node assoc :any-attribute "any old value")]))
-     (let [[v ch] (alts!! [(timeout 50) disposal-notices])]
-       (is (not (nil? v)) "Timeout elapsed before .dispose was called.")
-       (is (= v :gone))
-       (is (= 1 (get-tally disposable-node 'dispose)))
-       (testing "the node can recreate the value on demand."
-                (is (not (nil? (p/get-resource-value *test-project* disposable-node :disposable-value))))))))
+(defnk derive-value-from-inputs
+  [an-input]
+  an-input)
 
+(def OverrideValue
+  {:inputs     {:overridden s/Str}
+   :transforms {:output #'produce-input-from-node
+                :foo    #'derive-value-from-inputs}})
 
-#_(deftest on-update-values-are-recomputed
-   (let [[name1 name2 combiner expensive] (build-sample-project)]
-     (is (= "this took a long time to produce" (p/get-resource-value *test-project* expensive :expensive-value)))
-     (expect-call-when expensive 'compute-expensive-value
-                       (p/transact *test-project* [(p/update-resource name1 assoc :scalar "John")]))))
+(n/defnode OverrideValueNode
+  OverrideValue)
+
+(defn build-override-project
+  []
+  (let [nodes (tx-nodes *test-project*
+                        (make-override-value-node)
+                        (make-cache-test-node :scalar "Jane"))
+        [override jane]  nodes]
+    (p/transact *test-project*
+                [(p/connect jane :uncached-value override :overridden)])
+    nodes))
+
+(deftest local-properties
+  (let [[override jane]  (build-override-project)]
+    (testing "local properties take precedence over wired inputs"
+      (is (= "Jane"        (p/get-resource-value *test-project* override :output)))
+      (is (= "local value" (p/get-resource-value *test-project* (assoc override :overridden "local value") :output))))
+    (testing "local properties are passed to fnks"
+      (is (= "value to fnk" (p/get-resource-value *test-project* (assoc override :an-input "value to fnk") :foo))))))
+
+(deftest invalid-resource-values
+  (let [[override jane]  (build-override-project)]
+    (testing "requesting a non-existent label throws"
+      (is (thrown? AssertionError (p/get-resource-value *test-project* override :aint-no-thang))))))

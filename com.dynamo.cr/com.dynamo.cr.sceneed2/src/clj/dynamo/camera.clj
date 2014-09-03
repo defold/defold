@@ -4,9 +4,10 @@
             [plumbing.core :refer [defnk]]
             [dynamo.types :as t]
             [dynamo.node :as n]
-            [internal.cache :refer [caching]])
+            [internal.cache :refer [caching]]
+            [dynamo.geom :as g])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d]
-           [dynamo.types Camera Region]))
+           [dynamo.types Camera Region AABB]))
 
 (defn camera-view-matrix
   [camera]
@@ -91,17 +92,16 @@
     (set! (. m m33) 1.0)
     m))
 
-(def camera-projection-matrix
-  (caching
-    (fn [camera]
-      (case (:type camera)
-        :perspective  (camera-perspective-projection-matrix camera)
-        :orthographic (camera-orthographic-projection-matrix camera)))))
+(defn camera-projection-matrix
+  [camera]
+  (case (:type camera)
+    :perspective  (camera-perspective-projection-matrix camera)
+    :orthographic (camera-orthographic-projection-matrix camera)))
 
 (sm/defn make-camera :- Camera
   ([] (make-camera :perspective))
   ([t :- (s/enum :perspective :orthographic)]
-    (let [distance 44.0
+    (let [distance 10000.0
           position (doto (Vector3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
       (t/->Camera t position rotation 1 2000 1 30))))
@@ -134,13 +134,22 @@
     (set! (. p z) z)
     camera))
 
+(sm/defn camera-set-center :- Camera
+  [camera :- Camera bounds :- AABB]
+  (let [center (g/aabb-center bounds)
+        view-matrix (camera-view-matrix camera)]
+    (.transform view-matrix center)
+    (set! (. center z) 0)
+    (.transform (g/invert view-matrix) center)
+    (camera-set-position camera (.x center) (.y center) (.z center))))
+
 
 (sm/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
-  [camera :- Camera viewport :- Region point :- Point3d]
-  (let [proj  (.projection-matrix camera)
-        model (.view-matrix camera)
+  [camera :- Camera region :- Region point :- Point3d]
+  (let [proj  (camera-projection-matrix camera)
+        model (camera-view-matrix camera)
         in    (Vector4d. (.x point) (.y point) (.z point) 1.0)
         out   (Vector4d.)]
     (.transform model in out)
@@ -152,17 +161,17 @@
           y (/ (.y in) w)
           z (/ (.z in) w)
 
-          rx (+ (.left viewport) (/ (* (+ 1 x) (.right  viewport)) 2))
-          ry (+ (.top  viewport) (/ (* (+ 1 y) (.bottom viewport)) 2))
-          rz (/ (+ 1 x) 2)
+          rx (+ (.left region) (/ (* (+ 1 x) (.right  region)) 2))
+          ry (+ (.top  region) (/ (* (+ 1 y) (.bottom region)) 2))
+          rz (/ (+ 1 z) 2)
 
-          device-y (- (.bottom viewport) (.top viewport) ry 1)]
+          device-y (- (.bottom region) (.top region) ry 1)]
       (Point3d. rx device-y rz))))
 
 (sm/defn viewproj-frustum-planes
   [camera :- Camera]
-  (let [view-proj   (doto (camera-view-matrix camera)
-                      (.mul (camera-projection-matrix camera)))
+  (let [view-proj   (doto (camera-projection-matrix camera)
+                      (.mul (camera-view-matrix camera)))
         persp-vec   (let [x (Vector4d.)] (.getRow view-proj 3 x) x)
         rows        (mapcat #(repeat 2 %) (range 3))
         scales      (take 6 (cycle [-1 1]))]
@@ -175,8 +184,8 @@
          rows scales)))
 
 (defnk produce-camera :- Camera
-  [this]
-  (:camera this))
+  [camera]
+  camera)
 
 (n/defnode CameraNode
   {:properties {:camera {:schema Camera :default (make-camera :perspective)}}

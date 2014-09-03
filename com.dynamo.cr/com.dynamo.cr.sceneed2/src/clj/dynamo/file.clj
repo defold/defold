@@ -1,6 +1,7 @@
 (ns dynamo.file
   (:refer-clojure :exclude [load])
   (:require [clojure.java.io :as io]
+            [clojure.osgi.core :refer [get-bundle]]
             [internal.java :as j]
             [service.log :as log])
   (:import [java.io PipedOutputStream PipedInputStream]
@@ -74,6 +75,31 @@
 
 (alter-meta! #'map->NativePath update-in [:doc] str "\n\n See [[->NativePath.]]")
 
+(defrecord BundlePath [bundle path]
+  io/IOFactory
+  (io/make-input-stream  [this opts]
+    (assert bundle (str "Bundle cannot be nil. <#BundlePath [" this "]>: "))
+    (let [ent (.getEntry bundle (.toString this))]
+      (when-not ent
+        (throw (java.io.FileNotFoundException. (str "Bundle entry <" (.toString this) "> not found."))))
+      (try
+        (io/make-input-stream ent opts)
+        (catch java.lang.NullPointerException npe
+          ;;WAT?
+          (log/error :exception npe :url ent :url-string (.toString ent) :opts opts)
+          (throw npe)))))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts]
+    (throw (IllegalArgumentException.
+             (str "Cannot open <" (pr-str this) "> as an OutputStream."))))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+
+  Object
+  (toString [this] path))
+
+(defmethod print-method BundlePath
+  [v ^java.io.Writer w]
+  (.write w (str "<BundlePath \"" (.getSymbolicName (.bundle v)) ":" (.path v) "\">")))
 
 (defn project-path
   ([project-state]
@@ -86,6 +112,11 @@
                   (instance? IFile resource) resource)
           pr (.removeFirstSegments (.getFullPath file) 1)]
       (ProjectPath. @project-state (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
+
+(defn bundle-path [bundle resource]
+  (if (string? bundle)
+    (BundlePath. (get-bundle bundle) resource)
+    (BundlePath. bundle resource)))
 
 (defn in-build-directory
   [^ProjectPath p]
