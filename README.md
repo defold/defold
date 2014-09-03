@@ -356,7 +356,7 @@ Prior to GLCanvas#setCurrent the GLDrawableFactory must be created on OSX. This 
 
         GLDrawableFactory factory = GLDrawableFactory.getFactory(GLProfile.getGL2ES1());
         this.canvas.setCurrent();
-		this.context = factory.createExternalGLContext();
+        this.context = factory.createExternalGLContext();
 
 Typically the getFactory and createExternalGLContext are in the same statement. The exception thrown is "Error: current Context (CGL) null, no Context (NS)" and might be related to loading of shared libraries that seems to triggered when the factory is
 created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
@@ -397,13 +397,16 @@ To install the emscripten tools, invoke 'build.py install_ems'.
 Emscripten creates a configuration file in your home directory (~/.emscripten).Should you wish to change branches to one
 in which a different version of these tools is used then call 'build.py activate_ems' after doing so. This will cause the .emscripten file to be updated.
 
+Emscripten also relies upon python2 being on your path. You may find that this is not the case (which python2), it should be sufficient to create a symbolic link to
+the python binary in order to solve this problem.
+
 waf_dynamo contains changes relating to emscripten. The simplest way to collect these changes is to run 'build_ext'
 
-    # scripts/build.py install_ext
+    > scripts/build.py install_ext
 
 Building for js-web requires installation of the emscripten tools. This is a slow process, so not included int install_ext, instead run install_ems:
 
-    # scritps/build.py install_ems
+    > scripts/build.py install_ems
 
 As of 1.22.0, the emscripten tools emit separate *.js.mem memory initialisation files by default, rather than embedding this data directly into files.
 This is more efficient than storing this data as text within the javascript files, however it does add to a new set of files to include in the build process.
