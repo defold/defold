@@ -2,7 +2,9 @@ package com.dynamo.cr.properties;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.eclipse.core.runtime.IStatus;
@@ -10,16 +12,19 @@ import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
 
 public class DynamicPropertyIntrospector<T, U extends IPropertyObjectWorld> {
+    static final String pluginId = "com.dynamo.cr.properties";
 
     private T object;
     private U world;
+    private PropertyIntrospector<T, U> staticProperties;
     private IPropertyAccessor<T, U> accessor;
     private IValidator<Object, Annotation, U> validator;
     private Method descMethod;
 
-    public DynamicPropertyIntrospector(T source, U world) {
+    public DynamicPropertyIntrospector(T source, U world, PropertyIntrospector<T, U> staticProperties) {
         this.object = source;
         this.world = world;
+        this.staticProperties = staticProperties;
         introspectDynamic();
     }
 
@@ -70,7 +75,40 @@ public class DynamicPropertyIntrospector<T, U extends IPropertyObjectWorld> {
             return (IPropertyDesc<T, U>[]) new IPropertyDesc[0];
         } else {
             try {
-                return (IPropertyDesc<T, U>[]) descMethod.invoke(object);
+                IPropertyDesc<T, U>[] descriptions =  (IPropertyDesc<T, U>[]) descMethod.invoke(object);
+                if (null != this.staticProperties) {
+                    List<IPropertyDesc<T, U>> filtered = new ArrayList<IPropertyDesc<T, U>>(descriptions.length);
+                    for (IPropertyDesc<T, U> desc : descriptions) {
+                         if (!this.staticProperties.hasProperty(desc.getId())) {
+                             filtered.add(desc);
+                         }
+                    }
+                    descriptions = filtered.toArray(new IPropertyDesc[filtered.size()]);
+                }
+                return descriptions;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private IPropertyDesc<T, U>[] getRejectedDescriptors() {
+        if (descMethod == null) {
+            return (IPropertyDesc<T, U>[]) new IPropertyDesc[0];
+        } else {
+            try {
+                IPropertyDesc<T, U>[] descriptions =  (IPropertyDesc<T, U>[]) descMethod.invoke(object);
+                if (null != this.staticProperties) {
+                    List<IPropertyDesc<T, U>> filtered = new ArrayList<IPropertyDesc<T, U>>(descriptions.length);
+                    for (IPropertyDesc<T, U> desc : descriptions) {
+                         if (this.staticProperties.hasProperty(desc.getId())) {
+                             filtered.add(desc);
+                         }
+                    }
+                    descriptions = filtered.toArray(new IPropertyDesc[filtered.size()]);
+                }
+                return descriptions;
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -89,20 +127,37 @@ public class DynamicPropertyIntrospector<T, U extends IPropertyObjectWorld> {
         return this.accessor;
     }
 
-    public IStatus getPropertyStatus(T object, U world, Object id) {
+    public IStatus getPropertyStatus(T object, U world, Object oid) {
+        MultiStatus status = new MultiStatus(pluginId, IStatus.OK, null, null);
+        String id = (String) oid;
         if (validator != null) {
-            Object value = getAccessor().getValue(object, (String) id, world);
-            return validator.validate(null, object, (String) id, value, world);
-        } else {
-            return Status.OK_STATUS;
+            Object value = getAccessor().getValue(object, id, world);
+            IStatus ps = validator.validate(null, object, id, value, world);
+            if (!ps.isOK()) {
+                status.merge(ps);
+            }
         }
+        for (IPropertyDesc<T, U> pd : getRejectedDescriptors()) {
+            if (pd.getId().equals(id)) {
+                Status reserved = new Status(IStatus.ERROR, pluginId, String.format(Messages.PropertyName_RESERVED, id));
+                status.merge(reserved);
+                break;
+            }
+        }
+        return status;
     }
 
     public IStatus getObjectStatus(T object, U world) {
-        MultiStatus status = new MultiStatus("com.dynamo.cr.properties", IStatus.OK, null, null);
+        MultiStatus status = new MultiStatus(pluginId, IStatus.OK, null, null);
         for (String property : getProperties()) {
             // Use merge to keep a flat structure
             IStatus ps = getPropertyStatus(object, world, property);
+            if (!ps.isOK()) {
+                status.merge(ps);
+            }
+        }
+        for (IPropertyDesc<T, U> pd : getRejectedDescriptors()) {
+            IStatus ps = getPropertyStatus(object, world, pd.getId());
             if (!ps.isOK()) {
                 status.merge(ps);
             }
