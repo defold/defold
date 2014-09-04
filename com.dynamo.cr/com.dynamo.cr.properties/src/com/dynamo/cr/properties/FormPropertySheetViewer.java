@@ -336,6 +336,8 @@ public class FormPropertySheetViewer extends Viewer {
                             return;
                         }
                     }
+
+                    modelList.add(m);
                 }
             }
         }
