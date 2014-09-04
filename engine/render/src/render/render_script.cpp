@@ -765,7 +765,7 @@ namespace dmRender
         if (texture != 0)
         {
             lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
-            assert(top == lua_gettop(L));
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
         else
@@ -806,7 +806,7 @@ namespace dmRender
         if (texture != 0)
         {
             lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
-            assert(top == lua_gettop(L));
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
         else
