@@ -673,6 +673,8 @@ namespace dmGraphics
             case STATE_DEPTH_TEST:
                 context->m_Ctx3d->setDepthTest(context->m_DepthMask, flash::display3D::Context3DCompareMode::LESS);
                 break;
+            case STATE_STENCIL_TEST:
+                break;
             case STATE_ALPHA_TEST:
                 break;
             case STATE_BLEND:
@@ -692,6 +694,8 @@ namespace dmGraphics
         switch (state) {
             case STATE_DEPTH_TEST:
                 context->m_Ctx3d->setDepthTest(context->m_DepthMask, flash::display3D::Context3DCompareMode::ALWAYS); // TODO: Is ALWAYS correct?
+                break;
+            case STATE_STENCIL_TEST:
                 break;
             case STATE_ALPHA_TEST:
                 break;
@@ -734,6 +738,24 @@ namespace dmGraphics
     {
         assert(context);
         context->m_StencilMask = mask;
+        // TODO:
+    }
+
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask)
+    {
+        assert(context);
+        context->m_StencilFunc = func;
+        context->m_StencilFuncRef = ref;
+        context->m_StencilFuncMask = mask;
+        // TODO:
+    }
+
+    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        assert(context);
+        context->m_StencilOpSFail = sfail;
+        context->m_StencilOpDPFail = dpfail;
+        context->m_StencilOpDPPass = dppass;
         // TODO:
     }
 

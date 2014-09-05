@@ -499,6 +499,24 @@ TEST_F(dmGraphicsTest, TestMasks)
     ASSERT_EQ(0u, m_Context->m_StencilMask);
     dmGraphics::SetStencilMask(m_Context, ~0u);
     ASSERT_EQ(~0u, m_Context->m_StencilMask);
+
+    dmGraphics::SetStencilFunc(m_Context, dmGraphics::STENCIL_FUNC_ALWAYS, 0xffffffff, 0x0);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_ALWAYS, m_Context->m_StencilFunc);
+    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncRef);
+    ASSERT_EQ(0x0, m_Context->m_StencilFuncMask);
+    dmGraphics::SetStencilFunc(m_Context, dmGraphics::STENCIL_FUNC_NEVER, 0x0, 0xffffffff);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_NEVER, m_Context->m_StencilFunc);
+    ASSERT_EQ(0x0, m_Context->m_StencilFuncRef);
+    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncMask);
+
+    dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE, dmGraphics::STENCIL_OP_INVERT);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpSFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpDPPass);
+    dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_INVERT, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpSFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpDPFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPPass);
 }
 
 TEST_F(dmGraphicsTest, TestCloseCallback)

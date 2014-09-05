@@ -77,11 +77,17 @@ namespace dmGraphics
         void*                       m_WindowCloseCallbackUserData;
         TextureFilter               m_DefaultTextureMinFilter;
         TextureFilter               m_DefaultTextureMagFilter;
+        StencilFunc                 m_StencilFunc;
+        StencilOp                   m_StencilOpSFail;
+        StencilOp                   m_StencilOpDPFail;
+        StencilOp                   m_StencilOpDPPass;
         uint32_t                    m_Width;
         uint32_t                    m_Height;
         uint32_t                    m_WindowWidth;
         uint32_t                    m_WindowHeight;
         uint32_t                    m_StencilMask;
+        uint32_t                    m_StencilFuncRef;
+        uint32_t                    m_StencilFuncMask;
         uint32_t                    m_TextureFormatSupport;
         uint32_t                    m_WindowOpened : 1;
         uint32_t                    m_RedMask : 1;

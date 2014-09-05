@@ -285,6 +285,11 @@ namespace dmRender
      */
 
     /*#
+     * @name render.STATE_STENCIL_TEST
+     * @variable
+     */
+
+    /*#
      * @name render.STATE_BLEND
      * @variable
      */
@@ -305,6 +310,7 @@ namespace dmRender
      * @param state state to enable (constant)
      * <ul>
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
+     *   <li><code>render.STATE_STENCIL_TEST</code></li>
      *   <li><code>render.STATE_BLEND</code></li>
      *   <li><code>render.STATE_ALPHA_TEST</code>No available on iOS/Android</li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
@@ -322,6 +328,7 @@ namespace dmRender
         switch (state)
         {
             case dmGraphics::STATE_DEPTH_TEST:
+            case dmGraphics::STATE_STENCIL_TEST:
 #ifndef GL_ES_VERSION_2_0
             case dmGraphics::STATE_ALPHA_TEST:
 #endif
@@ -346,6 +353,7 @@ namespace dmRender
      * @param state state to enable (constant)
      * <ul>
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
+     *   <li><code>render.STATE_STENCIL_TEST</code></li>
      *   <li><code>render.STATE_BLEND</code></li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
      *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
@@ -361,6 +369,7 @@ namespace dmRender
         switch (state)
         {
             case dmGraphics::STATE_DEPTH_TEST:
+            case dmGraphics::STATE_STENCIL_TEST:
 #ifndef GL_ES_VERSION_2_0
             case dmGraphics::STATE_ALPHA_TEST:
 #endif
@@ -1173,7 +1182,7 @@ namespace dmRender
     /*# sets the stencil mask
      *
      * @name render.set_stencil_mask
-     * @param stencil stencil mask (number)
+     * @param mask stencil mask (number)
      */
     int RenderScript_SetStencilMask(lua_State* L)
     {
@@ -1181,6 +1190,182 @@ namespace dmRender
 
         uint32_t mask = (uint32_t)luaL_checknumber(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_MASK, mask)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*#
+     * @name render.STENCIL_FUNC_NEVER
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_LESS
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_LEQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_GREATER
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_GEQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_EQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_NOTEQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_ALWAYS
+     * @variable
+     */
+
+    /*# sets the stencil test function
+    *
+    * @name render.set_stencil_func
+    * @param func stencil test function (constant)
+    * <ul>
+    *   <li><code>render.STENCIL_FUNC_NEVER</code></li>
+    *   <li><code>render.STENCIL_FUNC_LESS</code></li>
+    *   <li><code>render.STENCIL_FUNC_LEQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_GREATER</code></li>
+    *   <li><code>render.STENCIL_FUNC_GEQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_EQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_NOTEQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_ALWAYS</code></li>
+    * </ul>
+    * @param ref reference value for the stencil test (number)
+    * @param mask mask that is ANDed with both the reference value and the stored stencil value when the test is done (number)
+    */
+    int RenderScript_SetStencilFunc(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t func = luaL_checknumber(L, 1);
+        switch (func)
+        {
+            case dmGraphics::STENCIL_FUNC_NEVER:
+            case dmGraphics::STENCIL_FUNC_LESS:
+            case dmGraphics::STENCIL_FUNC_LEQUAL:
+            case dmGraphics::STENCIL_FUNC_GREATER:
+            case dmGraphics::STENCIL_FUNC_GEQUAL:
+            case dmGraphics::STENCIL_FUNC_EQUAL:
+            case dmGraphics::STENCIL_FUNC_NOTEQUAL:
+            case dmGraphics::STENCIL_FUNC_ALWAYS:
+                break;
+            default:
+                return luaL_error(L, "Invalid stencil func: %s.set_stencil_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
+        }
+        uint32_t ref = luaL_checknumber(L, 2);
+        uint32_t mask = luaL_checknumber(L, 3);
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_FUNC, func, ref, mask)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*#
+     * @name render.STENCIL_OP_KEEP
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_ZERO
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_REPLACE
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_INCR
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_INCR_WRAP
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_DECR
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_DECR_WRAP
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_INVERT
+     * @variable
+     */
+
+    /*# sets the stencil operator
+    *
+    * Available operators:
+    * <ul>
+    *   <li><code>render.STENCIL_OP_KEEP</code></li>
+    *   <li><code>render.STENCIL_OP_ZERO</code></li>
+    *   <li><code>render.STENCIL_OP_REPLACE</code></li>
+    *   <li><code>render.STENCIL_OP_INCR</code></li>
+    *   <li><code>render.STENCIL_OP_INCR_WRAP</code></li>
+    *   <li><code>render.STENCIL_OP_DECR</code></li>
+    *   <li><code>render.STENCIL_OP_DECR_WRAP</code></li>
+    *   <li><code>render.STENCIL_OP_INVERT</code></li>
+    * </ul>
+    *
+    * @name render.set_stencil_op
+    * @param sfail action to take when the stencil test fails (constant)
+    * @param dpfail the stencil action when the stencil test passes (constant)
+    * @param dppass the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled (constant)
+    */
+    int RenderScript_SetStencilOp(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t ops[3];
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            ops[i] = luaL_checknumber(L, 1+i);
+        }
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            switch (ops[i])
+            {
+                case dmGraphics::STENCIL_OP_KEEP:
+                case dmGraphics::STENCIL_OP_ZERO:
+                case dmGraphics::STENCIL_OP_REPLACE:
+                case dmGraphics::STENCIL_OP_INCR:
+                case dmGraphics::STENCIL_OP_INCR_WRAP:
+                case dmGraphics::STENCIL_OP_DECR:
+                case dmGraphics::STENCIL_OP_DECR_WRAP:
+                case dmGraphics::STENCIL_OP_INVERT:
+                    break;
+                default:
+                    return luaL_error(L, "Invalid stencil ops: %s.set_stencil_op(self, %d, %d, %d)", RENDER_SCRIPT_LIB_NAME, ops[0], ops[1], ops[2]);
+            }
+        }
+
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_OP, ops[0], ops[1], ops[2])))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1416,6 +1601,8 @@ namespace dmRender
         {"set_color_mask",                  RenderScript_SetColorMask},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
         {"set_stencil_mask",                RenderScript_SetStencilMask},
+        {"set_stencil_func",                RenderScript_SetStencilFunc},
+        {"set_stencil_op",                  RenderScript_SetStencilOp},
         {"set_cull_face",                   RenderScript_SetCullFace},
         {"set_polygon_offset",              RenderScript_SetPolygonOffset},
         {"draw",                            RenderScript_Draw},
@@ -1455,6 +1642,7 @@ namespace dmRender
         lua_setfield(L, -2, #name);
 
         REGISTER_STATE_CONSTANT(STATE_DEPTH_TEST);
+        REGISTER_STATE_CONSTANT(STATE_STENCIL_TEST);
 #ifndef GL_ES_VERSION_2_0
         REGISTER_STATE_CONSTANT(STATE_ALPHA_TEST);
 #endif
@@ -1520,6 +1708,36 @@ namespace dmRender
         REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
 
 #undef REGISTER_BLEND_CONSTANT
+
+#define REGISTER_STENCIL_FUNC_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_FUNC_##name); \
+        lua_setfield(L, -2, "STENCIL_FUNC_"#name);
+
+        REGISTER_STENCIL_FUNC_CONSTANT(NEVER);
+        REGISTER_STENCIL_FUNC_CONSTANT(LESS);
+        REGISTER_STENCIL_FUNC_CONSTANT(LEQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(GREATER);
+        REGISTER_STENCIL_FUNC_CONSTANT(GEQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(EQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(NOTEQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(ALWAYS);
+
+#undef REGISTER_STENCIL_FUNC_CONSTANT
+
+#define REGISTER_STENCIL_OP_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_OP_##name); \
+        lua_setfield(L, -2, "STENCIL_OP_"#name);
+
+        REGISTER_STENCIL_OP_CONSTANT(KEEP);
+        REGISTER_STENCIL_OP_CONSTANT(ZERO);
+        REGISTER_STENCIL_OP_CONSTANT(REPLACE);
+        REGISTER_STENCIL_OP_CONSTANT(INCR);
+        REGISTER_STENCIL_OP_CONSTANT(INCR_WRAP);
+        REGISTER_STENCIL_OP_CONSTANT(DECR);
+        REGISTER_STENCIL_OP_CONSTANT(DECR_WRAP);
+        REGISTER_STENCIL_OP_CONSTANT(INVERT);
+
+#undef REGISTER_STENCIL_OP_CONSTANT
 
 #define REGISTER_FACE_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::FACE_TYPE_##name); \

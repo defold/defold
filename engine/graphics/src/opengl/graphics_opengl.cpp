@@ -342,7 +342,7 @@ static void LogFrameBufferError(GLenum status)
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 0, mode))
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
@@ -1477,6 +1477,20 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
         glStencilMask(mask);
+        CHECK_GL_ERROR
+    }
+
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask)
+    {
+        assert(context);
+        glStencilFunc((GLenum) func, ref, mask);
+        CHECK_GL_ERROR
+    }
+
+    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        assert(context);
+        glStencilOp((GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
         CHECK_GL_ERROR
     }
 

@@ -864,6 +864,22 @@ namespace dmGraphics
         context->m_StencilMask = mask;
     }
 
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask)
+    {
+        assert(context);
+        context->m_StencilFunc = func;
+        context->m_StencilFuncRef = ref;
+        context->m_StencilFuncMask = mask;
+    }
+
+    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        assert(context);
+        context->m_StencilOpSFail = sfail;
+        context->m_StencilOpDPFail = dpfail;
+        context->m_StencilOpDPPass = dppass;
+    }
+
     void SetCullFace(HContext context, FaceType face_type)
     {
         assert(context);

@@ -73,6 +73,7 @@ namespace dmGraphics
     enum State
     {
         STATE_DEPTH_TEST            = DMGRAPHICS_STATE_DEPTH_TEST,
+        STATE_STENCIL_TEST          = DMGRAPHICS_STATE_STENCIL_TEST,
 #ifndef GL_ES_VERSION_2_0
         STATE_ALPHA_TEST            = DMGRAPHICS_STATE_ALPHA_TEST,
 #endif
@@ -150,6 +151,32 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
         BLEND_FACTOR_CONSTANT_ALPHA             = DMGRAPHICS_BLEND_FACTOR_CONSTANT_ALPHA,
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+    };
+
+    // Stencil func
+    enum StencilFunc
+    {
+        STENCIL_FUNC_NEVER      = DMGRAPHICS_STENCIL_FUNC_NEVER,
+        STENCIL_FUNC_LESS       = DMGRAPHICS_STENCIL_FUNC_LESS,
+        STENCIL_FUNC_LEQUAL     = DMGRAPHICS_STENCIL_FUNC_LEQUAL,
+        STENCIL_FUNC_GREATER    = DMGRAPHICS_STENCIL_FUNC_GREATER,
+        STENCIL_FUNC_GEQUAL     = DMGRAPHICS_STENCIL_FUNC_GEQUAL,
+        STENCIL_FUNC_EQUAL      = DMGRAPHICS_STENCIL_FUNC_EQUAL,
+        STENCIL_FUNC_NOTEQUAL   = DMGRAPHICS_STENCIL_FUNC_NOTEQUAL,
+        STENCIL_FUNC_ALWAYS     = DMGRAPHICS_STENCIL_FUNC_ALWAYS,
+    };
+
+    // Stencil operation
+    enum StencilOp
+    {
+        STENCIL_OP_KEEP         = DMGRAPHICS_STENCIL_OP_KEEP,
+        STENCIL_OP_ZERO         = DMGRAPHICS_STENCIL_OP_ZERO,
+        STENCIL_OP_REPLACE      = DMGRAPHICS_STENCIL_OP_REPLACE,
+        STENCIL_OP_INCR         = DMGRAPHICS_STENCIL_OP_INCR,
+        STENCIL_OP_INCR_WRAP    = DMGRAPHICS_STENCIL_OP_INCR_WRAP,
+        STENCIL_OP_DECR         = DMGRAPHICS_STENCIL_OP_DECR,
+        STENCIL_OP_DECR_WRAP    = DMGRAPHICS_STENCIL_OP_DECR_WRAP,
+        STENCIL_OP_INVERT       = DMGRAPHICS_STENCIL_OP_INVERT,
     };
 
     enum BufferUsage
@@ -472,6 +499,8 @@ namespace dmGraphics
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
     void SetStencilMask(HContext context, uint32_t mask);
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask);
+    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
     void SetCullFace(HContext context, FaceType face_type);
     void SetPolygonOffset(HContext context, float factor, float units);
 

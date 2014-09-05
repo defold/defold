@@ -252,6 +252,8 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     "    render.set_color_mask(true, true, true, true)\n"
     "    render.set_depth_mask(true)\n"
     "    render.set_stencil_mask(1)\n"
+    "    render.set_stencil_func(render.STENCIL_FUNC_ALWAYS, 1, 2)\n"
+    "    render.set_stencil_op(render.STENCIL_OP_REPLACE, render.STENCIL_OP_KEEP, render.STENCIL_OP_INVERT)\n"
     "    render.set_cull_face(render.FACE_BACK)\n"
     "    render.set_polygon_offset(1, 2)\n"
     "end\n";
@@ -261,7 +263,7 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(8u, commands.Size());
+    ASSERT_EQ(10u, commands.Size());
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_STATE, command->m_Type);
@@ -292,10 +294,22 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     ASSERT_EQ(1u, command->m_Operands[0]);
 
     command = &commands[6];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_STENCIL_FUNC, command->m_Type);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_ALWAYS, (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(1, (int32_t)command->m_Operands[1]);
+    ASSERT_EQ(2, (int32_t)command->m_Operands[2]);
+
+    command = &commands[7];
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_STENCIL_OP, command->m_Type);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, (int32_t)command->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, (int32_t)command->m_Operands[2]);
+
+    command = &commands[8];
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_CULL_FACE, command->m_Type);
     ASSERT_EQ(dmGraphics::FACE_TYPE_BACK, (int32_t)command->m_Operands[0]);
 
-    command = &commands[7];
+    command = &commands[9];
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_POLYGON_OFFSET, command->m_Type);
     ASSERT_EQ(1u, command->m_Operands[0]);
     ASSERT_EQ(2u, command->m_Operands[1]);
