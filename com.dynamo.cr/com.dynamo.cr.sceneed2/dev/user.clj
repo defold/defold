@@ -15,6 +15,20 @@
            [javax.swing JFrame JPanel]))
 
 
+;; want:
+
+(defn method->function [m]
+  (list (symbol (.getName m)) (into ['this] (.getParameterTypes m))))
+
+(defn all-types [cls ]
+  (cons cls (supers cls)))
+
+(defn skeletor [iface]
+  (->> iface
+    all-types
+    (mapcat #(.getDeclaredMethods %))
+    (map method->function)))
+
 (defmacro tap [x] `(do (prn ~(str "**** " &form " ") ~x) ~x))
 
 (defn current-project []

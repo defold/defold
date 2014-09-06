@@ -111,7 +111,6 @@
   (let [vs      (make-vertex-shader   gl (slurp (replace-extension sdef "vp")))
         fs      (make-fragment-shader gl (slurp (replace-extension sdef "fp")))
         program (make-program gl vs fs)]
-    (log/warn :where :make-shaders)
     (reify
       ShaderProgram
       (shader-program [this] program)

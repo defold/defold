@@ -1,37 +1,34 @@
 (ns dynamo.buffers
-  (:require [schema.macros :as sm])
+  (:require [schema.core :as s]
+            [schema.macros :as sm])
   (:import [java.nio ByteBuffer ByteOrder]
            [com.google.protobuf ByteString]))
+
+(defprotocol ByteStringCoding
+  (byte-pack [source] "Return a Protocol Buffer compatible byte string from the given source."))
 
 (defn new-buffer [s] (.order (ByteBuffer/allocateDirect s) ByteOrder/LITTLE_ENDIAN))
 
 (defn new-byte-buffer [& dims] (new-buffer (reduce * 1 dims)))
 
-(sm/defn byte-pack :- ByteString
-  "Return a byte string from the given byte-buffer."
-  ([buffer :- ByteBuffer]
-    (ByteString/copyFrom buffer))
-  ([buffer :- ByteBuffer & buffers :- [ByteBuffer]]
-    (let [cap (reduce + (.capacity buffer) (map #(.capacity %) buffers))
-          target (ByteBuffer/allocateDirect cap)]
-      (for [buf buffers]
-        (.put target buf))
-      (ByteString/copyFrom target))))
+(defn copy-buffer
+  [b]
+  (let [sz      (.capacity b)
+        clone   (if (.isDirect b) (ByteBuffer/allocateDirect sz) (ByteBuffer/allocate sz))
+        ro-copy (.asReadOnlyBuffer b)]
+    (.flip ro-copy)
+    (.put clone ro-copy)))
 
-(defmacro put-rendered-vertex [buf x y z w u v]
-  `(do
-     (.putFloat ~buf ~x)
-     (.putFloat ~buf ~y)
-     (.putFloat ~buf ~z)
-     (.putFloat ~buf ~w)
-     (.putFloat ~buf ~u)
-     (.putFloat ~buf ~v)))
+(defn slice [^ByteBuffer bb offsets]
+  (let [dup (.duplicate bb)]
+    (doall
+      (for [o offsets]
+       (do
+         (.position dup o)
+         (doto (.slice dup)
+           (.order (.order bb))))))))
 
-(defmacro put-vertex [buf x y z u v]
-  `(do
-     (.putFloat ~buf ~x)
-     (.putFloat ~buf ~y)
-     (.putFloat ~buf ~z)
-     (.putShort ~buf ~u)
-     (.putShort ~buf ~v)))
+(extend-type ByteBuffer
+  ByteStringCoding
+  (byte-pack [buffer] (ByteString/copyFrom buffer)))
 

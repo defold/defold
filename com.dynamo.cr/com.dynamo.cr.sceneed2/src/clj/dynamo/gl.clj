@@ -53,7 +53,7 @@
 (defn gl-delete-buffers [^GL2 gl & bufs]
   (let [names (IntBuffer/allocate (count bufs))]
     (.put names ^ints (into-array Integer/TYPE bufs))
-    (.glDeleteBuffers gl ^IntBuffer names)))
+    (.glDeleteBuffers gl (count bufs) ^IntBuffer names)))
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~gl ~face ~mode))
 (defmacro gl-viewport [gl x y w h]       `(.glViewport ~gl ~x ~y ~w ~h))

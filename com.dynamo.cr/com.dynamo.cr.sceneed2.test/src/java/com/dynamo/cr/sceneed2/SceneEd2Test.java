@@ -10,19 +10,20 @@ import org.junit.runner.RunWith;
 
 @RunWith(ClojureRunner.class)
 public class SceneEd2Test extends ClojureTest {
-    @Override
-    public List<String> namespaces() {
-        List<String> ns = new ArrayList<String>();
+  @Override
+  public List<String> namespaces() {
+    List<String> ns = new ArrayList<String>();
 
-        ns.add("dynamo.texture-test");
-        ns.add("dynamo.project-test");
-        ns.add("internal.node-test");
-        ns.add("internal.value-test");
-        ns.add("internal.graph.graph-test");
-        ns.add("dynamo.image-test");
-        ns.add("dynamo.geom-test");
+    ns.add("dynamo.texture-test");
+    ns.add("dynamo.project-test");
+    ns.add("internal.node-test");
+    ns.add("internal.value-test");
+    ns.add("internal.graph.graph-test");
+    ns.add("dynamo.image-test");
+    ns.add("dynamo.geom-test");
+    ns.add("dynamo.gl.vertex-test");
 
-        return ns;
-    }
+    return ns;
+  }
 }
 

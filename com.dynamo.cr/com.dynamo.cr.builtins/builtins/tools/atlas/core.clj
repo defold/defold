@@ -9,9 +9,9 @@
             [dynamo.geom :as g :refer [to-short-uv]]
             [dynamo.gl :as gl :refer [do-gl]]
             [dynamo.gl.shader :as shader]
-            [dynamo.gl.buffers :as buffers]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.protocols :as glp]
+            [dynamo.gl.vertex :as vtx]
             [dynamo.node :refer :all]
             [dynamo.scene-editor :refer [dynamic-scene-editor]]
             [dynamo.file :refer :all]
@@ -35,7 +35,18 @@
 
 (def integers (iterate (comp int inc) (int 0)))
 
-(declare tex-vertices tex-outline-vertices)
+(vtx/defvertex engine-format-texture
+  (vec3.float position)
+  (vec2.short texcoord0 true))
+
+(vtx/defvertex texture-vtx
+  (vec4 position)
+  (vec2 texcoord0))
+
+(vtx/defvertex uv-only
+  (vec2 uv))
+
+(declare tex-outline-vertices)
 
 ;; consider moving -> protocol-buffer-related place
 (defmacro set-if-present
@@ -122,37 +133,18 @@
 (defn vertex-starts [n-vertices] (take n-vertices (take-nth 6 integers)))
 (defn vertex-counts [n-vertices] (take n-vertices (repeat (int 6))))
 
-(sm/defn ^:private  placement->tex-coords :- [s/Num]
-  [xs :- s/Num ys :- s/Num p :- Rect]
-  [(* (.x p) xs)
-   (* (.y p) ys)
-   (* (+ (.x p) (.width p)) xs)
-   (* (+ (.y p) (.height p)) ys)])
-
-(def vertex-format
-  [["position"  4 GL/GL_FLOAT false]
-   ["texcoord0" 2 GL/GL_FLOAT false]])
-
-(defn get-vertex [bb idx]
-  (let [buf (buffers/direct-buffer bb)
-        fst (* idx 16)]
-    [(.getFloat buf fst)
-     (.getFloat buf (+ 4 fst))
-     (.getFloat buf (+ 8 fst))
-     (.getShort buf (+ 12 fst))
-     (.getShort buf (+ 14 fst))]))
-
 (defnk produce-renderable :- RenderData
   [this project]
   {pass/transparent
    [{:world-transform g/Identity4d
      :render-fn
      (fn [ctx gl glu]
-       (do-gl [this       (assoc this :gl gl)
-               textureset (p/get-resource-value project this :textureset)
-               shader     (p/get-resource-value project this :shader)
-               vbuf       (p/get-resource-value project this :vertex-buffer)
-               texture    (texture/image-texture gl (:packed-image textureset))]
+       (do-gl [this            (assoc this :gl gl)
+               textureset      (p/get-resource-value project this :textureset)
+               shader          (p/get-resource-value project this :shader)
+               vbuf            (p/get-resource-value project this :vertex-buffer)
+               texture         (texture/image-texture gl (:packed-image textureset))
+               vertex-binding  (vtx/use-with gl vbuf shader)]
               (shader/set-uniform shader "texture" (int 0))
               (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))}]})
 
@@ -160,55 +152,67 @@
   [this gl project]
   (shader/make-shaders gl (project-path project "/builtins/tools/atlas/pos_uv")))
 
-(defn renderable-vertices* [vertex-fn textureset]
-  (let [x-scale (/ 1.0 (.getWidth (.packed-image textureset)))
-        y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
-        coords     (:coords textureset)
-        bounds     (:aabb textureset)]
-    (vertex-fn x-scale y-scale bounds coords)))
-
-(defn put-renderable-vertex*
-  [bb r xs ys bs]
-  (let [w  (.width r) h (.height r)
-        x0 (.x r)     y0 (- (.height bs) (.y r))
-        x1 (+ x0 w)   y1 (- (.height bs) (+ y0 h))
-        u0 (* x0 xs)  v0 (* y0 ys)
-        u1 (* x1 xs)  v1 (* y1 ys)]
-    (doto bb
-      ;; top left
-      (put-rendered-vertex x0 y0 0 1 u0 (- 1 v0))
-      (put-rendered-vertex x0 y1 0 1 u0 (- 1 v1))
-      (put-rendered-vertex x1 y1 0 1 u1 (- 1 v1))
-
-      ;; bottom right
-      (put-rendered-vertex x1 y1 0 1 u1 (- 1 v1))
-      (put-rendered-vertex x1 y0 0 1 u1 (- 1 v0))
-      (put-rendered-vertex x0 y0 0 1 u0 (- 1 v0)))))
-
-(defnk produce-vertex-buffer
+(defnk produce-renderable-vertex-buffer
   [project this gl]
   (let [textureset (p/get-resource-value project this :textureset)
         shader     (p/get-resource-value project this :shader)
-        ;byte-buf   (renderable-vertices* tex-vertices textureset)
         bounds     (:aabb textureset)
         coords     (:coords textureset)
-        byte-buf   (new-byte-buffer 6 (buffers/vertex-size vertex-format) (count coords))
-        x-scale (/ 1.0 (.width bounds))
-        y-scale (/ 1.0 (.height bounds))]
+        vbuf       (->texture-vtx (* 6 (count coords)))
+        x-scale    (/ 1.0 (.width bounds))
+        y-scale    (/ 1.0 (.height bounds))]
+    (doseq [coord coords]
+      (let [w  (.width coord)
+            h  (.height coord)
+            x0 (.x coord)
+            y0 (- (.height bounds) (.y coord)) ;; invert for screen
+            x1 (+ x0 w)
+            y1 (- (.height bounds) (+ y0 h))
+            u0 (* x0 x-scale)
+            v0 (* y0 y-scale)
+            u1 (* x1 x-scale)
+            v1 (* y1 y-scale)]
+        (doto vbuf
+          (conj! [x0 y0 0 1 u0 (- 1 v0)])
+          (conj! [x0 y1 0 1 u0 (- 1 v1)])
+          (conj! [x1 y1 0 1 u1 (- 1 v1)])
 
-    (doseq [coord coords] (put-renderable-vertex* byte-buf coord x-scale y-scale bounds))
-    (.flip byte-buf)
-    (buffers/make-vertex-buffer gl (shader/shader-program shader) vertex-format (.limit byte-buf) byte-buf)))
+          (conj! [x1 y1 0 1 u1 (- 1 v1)])
+          (conj! [x1 y0 0 1 u1 (- 1 v0)])
+          (conj! [x0 y0 0 1 u0 (- 1 v0)]))))
+    (persistent! vbuf)))
 
 (defnk produce-outline-vertex-buffer
   [project this gl]
-  (let [textureset (p/get-resource-value project this :textureset)]
-    (buffers/make-vertex-buffer gl (renderable-vertices* tex-outline-vertices textureset))))
+  (let [textureset (p/get-resource-value project this :textureset)
+        shader     (p/get-resource-value project this :shader)
+        bounds     (:aabb textureset)
+        coords     (:coords textureset)
+        vbuf       (->texture-vtx (* 6 (count coords)))
+        x-scale    (/ 1.0 (.width bounds))
+        y-scale    (/ 1.0 (.height bounds))]
+    (doseq [coord coords]
+      (let [w  (.width coord)
+            h  (.height coord)
+            x0 (.x coord)
+            y0 (- (.height bounds) (.y coord)) ;; invert for screen
+            x1 (+ x0 w)
+            y1 (- (.height bounds) (+ y0 h))
+            u0 (* x0 x-scale)
+            v0 (* y0 y-scale)
+            u1 (* x1 x-scale)
+            v1 (* y1 y-scale)]
+        (doto vbuf
+          (conj! [x0 y0 0 1 u0 (- 1 v0)])
+          (conj! [x0 y1 0 1 u0 (- 1 v1)])
+          (conj! [x1 y1 0 1 u1 (- 1 v1)])
+          (conj! [x1 y0 0 1 u1 (- 1 v0)]))))
+    (persistent! vbuf)))
 
 (def AtlasRender
   {:transforms {:renderable            #'produce-renderable
                 :shader                #'produce-shader
-                :vertex-buffer         #'produce-vertex-buffer
+                :vertex-buffer         #'produce-renderable-vertex-buffer
                 :outline-vertex-buffer #'produce-outline-vertex-buffer}
    :cached     #{:shader :vertex-buffer :outline-vertex-buffer}})
 
@@ -237,92 +241,82 @@
  {:constructor #'atlas.core/make-image-node
   :basic-properties [:image]})
 
-(sm/defn ^:private put-floats! :- ByteBuffer
-  [buf :- ByteBuffer fs :- [s/Num]]
-  (doseq [f fs] (.putFloat buf f))
-  buf)
-
-(def ^:private triangle-vertices-per-placement 6)
 (def ^:private outline-vertices-per-placement 4)
 (def ^:private vertex-size (.getNumber TextureSetProto$Constants/VERTEX_SIZE))
 
-(def ^:private texcoords-per-placement 2)
-(def ^:private floats-per-texcoord 2)
-(def ^:private bytes-per-float 4)
+(sm/defn textureset->texcoords
+  [textureset]
+  (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
+        y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
+        coords     (:coords textureset)
+        bounds     (:aabb textureset)
+        vbuf       (->uv-only (* 2 (count coords)))]
+    (doseq [coord coords]
+      (let [x0 (.x coord)
+            y0 (.y coord)
+            x1 (+ (.x coord) (.width coord))
+            y1 (+ (.y coord) (.height coord))
+            u0 (* x0 x-scale)
+            u1 (* x1 x-scale)
+            v0 (* y0 y-scale)
+            v1 (* y1 y-scale)]
+        (doto vbuf
+          (conj! [u0 v0])
+          (conj! [u1 v1]))))
+    (persistent! vbuf)))
 
-(sm/defn ^:private tex-coords :- ByteBuffer
-  "Return a new byte-buffer with the texture coordinates packed into it."
-  [xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect]]
-  (->> placements
-    (mapcat (partial placement->tex-coords xs ys))
-    (put-floats! (new-byte-buffer (count placements) bytes-per-float floats-per-texcoord texcoords-per-placement))
-    (.rewind)))
+(sm/defn textureset->vertices
+  [textureset]
+  (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
+        y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
+        coords     (:coords textureset)
+        bounds     (:aabb textureset)
+        vbuf       (->engine-format-texture (* 6 (count coords)))]
+    (doseq [coord coords]
+      (let [x0 (.x coord)
+            y0 (.y coord)
+            x1 (+ (.x coord) (.width coord))
+            y1 (+ (.y coord) (.height coord))
+            w2 (* (.width coord) 0.5)
+            h2 (* (.height coord) 0.5)
+            u0 (to-short-uv (* x0 x-scale))
+            u1 (to-short-uv (* x1 x-scale))
+            v0 (to-short-uv (* y0 y-scale))
+            v1 (to-short-uv (* y1 y-scale))]
+        (doto vbuf
+          (conj! [(- w2) (- h2) 0 u0 v1])
+          (conj! [   w2  (- h2) 0 u1 v1])
+          (conj! [   w2     h2  0 u1 v0])
 
-(sm/defn ^:private ->placement :- {}
-  [r :- Rect]
-  {:x0 (.x r)
-   :y0 (.y r)
-   :x1 (+ (.x r) (.width r))
-   :y1 (+ (.y r) (.height r))
-   :w2 (* (.width r) 0.5)
-   :h2 (* (.height r) 0.5)})
+          (conj! [(- w2) (- h2) 0 u0 v1])
+          (conj! [   w2     h2  0 u1 v0])
+          (conj! [(- w2)    h2  0 v0 v0]))))
+    (persistent! vbuf)))
 
-(sm/defn put-vertices :- ByteBuffer
-  [buf :- ByteBuffer xs :- s/Num ys :- s/Num ps :- [Rect]]
-  (doseq [p ps]
-    (let [{:keys [x0 y0 x1 y1 w2 h2]} (->placement p)]
-      (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
-      (put-vertex buf    w2  (- h2) 0 (to-short-uv (* x1 xs)) (to-short-uv (* y1 ys)))
-      (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
-
-      (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
-      (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
-      (put-vertex buf (- w2)    h2  0 (to-short-uv (* x0 xs)) (to-short-uv (* y0 ys)))))
-  buf)
-
-(sm/defn ^:private tex-vertices :- ByteBuffer
-  "Return a new byte-buffer with the texture vertices packed into it.
-   Each vertex is packed as:
-     x :- Float
-     y :- Float
-     z :- Float
-     u :- Short
-     v :- Short"
-  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect]]
-    (let [buf (new-byte-buffer (count placements) triangle-vertices-per-placement vertex-size)]
-      (put-vertices buf xs ys placements)))
-  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect] x-placements :- [[Rect]]]
-    (let [pcount (reduce + (count placements ) (map count x-placements))
-          buf    (new-byte-buffer pcount triangle-vertices-per-placement vertex-size)
-          ps     (into placements (apply concat x-placements))]
-      (put-vertices buf xs ys ps))))
-
-(sm/defn ^:private put-outline-vertices :- ByteBuffer
-  [buf :- ByteBuffer xs :- s/Num ys :- s/Num ps :- [Rect]]
-  (doseq [p ps]
-    (let [{:keys [x0 y0 x1 y1 w2 h2]} (->placement p)]
-      (put-vertex buf (- w2) (- h2) 0 (to-short-uv (* x0 xs)) (to-short-uv (* y1 ys)))
-      (put-vertex buf    w2  (- h2) 0 (to-short-uv (* x1 xs)) (to-short-uv (* y1 ys)))
-      (put-vertex buf    w2     h2  0 (to-short-uv (* x1 xs)) (to-short-uv (* y0 ys)))
-      (put-vertex buf (- w2)    h2  0 (to-short-uv (* x0 xs)) (to-short-uv (* y0 ys)))))
-  buf)
-
-(sm/defn ^:private tex-outline-vertices :- ByteBuffer
-  "Return a new byte-buffer with the texture vertices packed into it.
-   Each vertex is packed as:
-     x :- Float
-     y :- Float
-     z :- Float
-     u :- Short
-     v :- Short"
-  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect]]
-    (let [buf (new-byte-buffer (count placements) outline-vertices-per-placement vertex-size)]
-      (put-outline-vertices buf xs ys placements)))
-  ([xs :- s/Num ys :- s/Num bounds :- Rect placements :- [Rect] x-placements :- [[Rect]]]
-    (let [pcount (reduce + (count placements) (map count x-placements))
-          buf   (new-byte-buffer pcount triangle-vertices-per-placement vertex-size)
-          ps     (into placements (apply concat x-placements))]
-      (put-outline-vertices buf xs ys ps))))
+(sm/defn textureset->outline-vertices
+  [textureset]
+  (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
+        y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
+        coords     (:coords textureset)
+        bounds     (:aabb textureset)
+        vbuf       (->engine-format-texture (* 6 (count coords)))]
+    (doseq [coord coords]
+      (let [x0 (.x coord)
+            y0 (.y coord)
+            x1 (+ (.x coord) (.width coord))
+            y1 (+ (.y coord) (.height coord))
+            w2 (* (.width coord) 0.5)
+            h2 (* (.height coord) 0.5)
+            u0 (to-short-uv (* x0 x-scale))
+            u1 (to-short-uv (* x1 x-scale))
+            v0 (to-short-uv (* y0 y-scale))
+            v1 (to-short-uv (* y1 y-scale))]
+        (doto vbuf
+          (conj! [(- w2) (- h2) 0 u0 v1])
+          (conj! [   w2  (- h2) 0 u1 v1])
+          (conj! [   w2     h2  0 u1 v0])
+          (conj! [(- w2)    h2  0 v0 v0]))))
+    (persistent! vbuf)))
 
 (defn build-animation
   [anim begin]
@@ -378,19 +372,18 @@
         acoords    (get-animation-image-coords coords anims)
         n-rects    (count coords)
         n-vertices (reduce + n-rects (map #(count (.images %)) anims))]
-
     (.build (doto (TextureSetProto$TextureSet/newBuilder)
             (.setTexture               texture-name)
-            (.setTexCoords             (byte-pack    (tex-coords x-scale y-scale bounds coords)))
+            (.setTexCoords             (byte-pack (textureset->texcoords textureset)))
             (.addAllAnimations         (build-animations (* 6 n-rects) anims))
 
             (.addAllVertexStart        (vertex-starts n-vertices))
             (.addAllVertexCount        (vertex-counts n-vertices))
-            (.setVertices              (byte-pack (tex-vertices x-scale y-scale bounds coords acoords)))
+            (.setVertices              (byte-pack (textureset->vertices textureset)))
 
             (.addAllOutlineVertexStart (take n-vertices (take-nth 4 integers)))
             (.addAllOutlineVertexCount (take n-vertices (repeat (int 4))))
-            (.setOutlineVertices       (byte-pack (tex-outline-vertices x-scale y-scale bounds coords acoords)))
+            (.setOutlineVertices       (byte-pack (textureset->outline-vertices textureset)))
 
             (.setTileCount             (int 0))))))
 

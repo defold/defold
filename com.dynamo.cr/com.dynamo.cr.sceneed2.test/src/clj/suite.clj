@@ -5,6 +5,7 @@
                       'internal.graph.graph-test
                       'internal.value-test
                       'internal.node-test
+                      'dynamo.gl.vertex-test
                       'atlas.core-test])
 
 (defn suite []
