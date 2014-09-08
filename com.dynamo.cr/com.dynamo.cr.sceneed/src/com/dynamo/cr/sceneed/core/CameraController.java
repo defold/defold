@@ -187,6 +187,9 @@ public class CameraController implements IRenderViewController {
         if (aabb.isIdentity())
             return;
 
+        if (aabb.min.equals(aabb.max))
+            return;
+
         Matrix4d view = new Matrix4d();
         camera.getViewMatrix(view);
 
