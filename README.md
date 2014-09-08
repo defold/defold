@@ -250,12 +250,10 @@ This is a known limitation on Android.
 ### Android SDK/NDK
 
 
-* Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
-  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1..
-  Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
-* Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
-  mentioned above
-* Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
+* Download SDK Tools 23.0 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
+  Drill down to *VIEW ALL DOWNLOADS AND SIZES* and *SDK Tools Only*. Change URL to ...23.0.. if necessary.
+* Launch android tool and install Android SDK Platform-tools 20 and Build-tools 19.1
+* Download NDK 9c: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
 * Put NDK/SDK in ~/android/android-ndk-r9c and ~/android/android-sdk respectively
 
 ### Android testing
