@@ -2,14 +2,14 @@
   :description "Extending the Scene Editor"
   :license {:name "All Rights Reserved" }
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/core.typed "0.2.42"]
                  [org.clojure/core.cache "0.6.3"]
                  [org.clojure/core.async "0.1.303.0-886421-alpha"]
+                 [org.clojure/tools.nrepl "0.2.3"]
+                 [org.clojure/test.check "0.5.8"]
+                 [org.clojure/core.match "0.2.1"]
                  [com.stuartsierra/component "0.2.1"]
                  [prismatic/schema "0.2.3"]
-                 [prismatic/plumbing "0.3.1"]
-                 [org.clojure/tools.nrepl "0.2.3"]
-                 [org.clojure/test.check "0.5.8"]]
+                 [prismatic/plumbing "0.3.1"]]
   :plugins [[codox "0.8.9"]
             [lein-ubersource "0.1.1"]
             [lein-simpleton "1.3.0"]]
@@ -34,4 +34,4 @@
 (def classpath-file ".eclipse-classpath")
 (def classpath-elements (clojure.string/split (slurp (clojure.java.io/resource classpath-file)) #":"))
 (def filters [#".*/src/clj$" #".*/src/java$" #".*/test/clj$" #".*/bin$" #".*/lib/com.dynamo.cr.sceneed2.*jar"])
-(def project (assoc project :resource-paths (remove (fn [path] (some #(re-matches % path) filters)) classpath-elements)))
+(def project (assoc-in project [:profiles :docs :resource-paths] (remove (fn [path] (some #(re-matches % path) filters)) classpath-elements)))

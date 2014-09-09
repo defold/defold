@@ -5,6 +5,7 @@
             [plumbing.core :refer [defnk]]
             [dynamo.types :refer :all]
             [dynamo.geom :refer :all]
+            [dynamo.node :refer [defnode]]
             [dynamo.file :refer [project-path local-path]]
             [internal.cache :refer [caching]])
   (:import [javax.imageio ImageIO]
@@ -35,10 +36,9 @@
   (load-image (project-path project (:image this))))
 
 ;; Behavior
-(def ImageSource
-  {:properties {:image (resource)}
-   :transforms {:image #'image-from-resource}
-   :cached     #{:image}})
+(defnode ImageSource
+  (property image (resource))
+  (output   image Image :cached image-from-resource))
 
 (sm/defn blank-image :- BufferedImage
   ([space :- Rect]
@@ -130,18 +130,7 @@
     onto))
 
 (doseq [[v doc]
-       {#'ImageSource
-        "*behavior* - Used by [[dynamo.node/defnode]] to define the behavior for an image resource. Cached labels: `:image`.
-
-Properties:
-
-* `:resource` - string path to resource ([[dynamo.types/resource]])
-
-Transforms:
-
-* `:image` - returns `{:path path :contents byte-array}`, see [[image-from-resource]]"
-
-        #'extrude-borders
+       {#'extrude-borders
         "Return a new pixel array, larger than the original by `extrusion`
 with the orig-pixels centered in it. The source pixels on the edges
 will bleed into the surrounding empty space. The pixels in the border

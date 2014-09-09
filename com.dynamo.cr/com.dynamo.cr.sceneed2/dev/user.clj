@@ -14,9 +14,6 @@
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
            [javax.swing JFrame JPanel]))
 
-
-;; want:
-
 (defn method->function [m]
   (list (symbol (.getName m)) (into ['this] (.getParameterTypes m))))
 

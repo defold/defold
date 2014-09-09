@@ -15,25 +15,23 @@
 (sm/defn produce-tree      [this] nil)
 (sm/defn produce-image     [this] nil)
 
-(def AtlasProperties
-  {:inputs     {:images   [ImageSource]}
-   :properties {:extrude-borders (non-negative-integer)
-                :margin          (non-negative-integer)}})
-
 (defnode AtlasNode
-  OutlineNode
-  AtlasProperties)
+  (inherits OutlineNode)
+
+  (input images [ImageSource])
+  (property extrude-borders (non-negative-integer))
+  (property margin          (non-negative-integer)))
 
 (defnode AtlasAnimationNode
-  OutlineNode
-  AnimationBehavior
-  {:transforms {:tree      #'produce-tree
-                :animation #'produce-animation}})
+  (inherits OutlineNode)
+
+  (output tree      [OutlineItem] produce-tree)
+  (output animation Animation     produce-animation))
 
 (defnode AtlasImageNode
-  OutlineNode
-  ImageSource
-  {:transforms {:tree #'produce-tree}})
+  (inherits OutlineNode)
+
+  (output tree [OutlineItem] produce-tree))
 
 (protocol-buffer-converters
   AtlasProto$Atlas
@@ -67,5 +65,3 @@
            (let [message  (atlas-with-one-animation "the-animation")
                  atlas-tx (f/message->node message (constantly []))]
              (is (= 1 (creations-of atlas-tx "the-animation"))))))
-
-(run-tests)

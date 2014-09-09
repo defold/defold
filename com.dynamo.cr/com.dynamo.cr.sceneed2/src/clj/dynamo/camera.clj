@@ -183,10 +183,6 @@
              temp))
          rows scales)))
 
-(defnk produce-camera :- Camera
-  [camera]
-  camera)
-
 (n/defnode CameraNode
-  {:properties {:camera {:schema Camera :default (make-camera :perspective)}}
-   :transforms {:camera #'produce-camera}})
+  (property camera {:schema Camera})
+  (output   camera Camera [this _] (:camera this)))

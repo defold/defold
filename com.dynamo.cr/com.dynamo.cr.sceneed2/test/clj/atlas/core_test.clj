@@ -70,7 +70,7 @@
       (is (not   (nil? prj-node)))
       (is (= atlas.core.AtlasNode (class prj-node))))
     (testing "contain packable images"
-      (let [imgs (node/get-value prj-graph prj-node :imagelist)]
+      (let [imgs (node/get-value prj-node prj-graph :imagelist)]
         (is (= 9 (count imgs))
             )
         (println imgs)))

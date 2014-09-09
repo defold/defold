@@ -161,14 +161,12 @@
      :sizes  [grid-size-small                         grid-size-large]
      :aabbs  [(snap-out-to-grid aabb grid-size-small) (snap-out-to-grid aabb grid-size-large)]}))
 
-(def GridProperties
-  {:inputs     {:camera          Camera}
-   :properties {:grid-color      (t/color)
-                :auto-grid       (t/bool)
-                :fixed-grid-size (t/non-negative-integer)}
-   :cached     #{:grids}
-   :transforms {:grids      #'update-grids
-                :renderable #'grid-renderable}})
-
 (n/defnode Grid
-  GridProperties)
+  (input camera Camera)
+  (property grid-color (t/color))
+  (property auto-grid  (t/bool))
+  (property fixed-grid-size (t/non-negative-integer))
+
+  (output grids      s/Any :cached update-grids)
+  (output renderable t/RenderData  grid-renderable))
+

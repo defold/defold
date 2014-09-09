@@ -28,4 +28,4 @@
                    (gl-vertex-2f x0 y0))))}]})
 
 (n/defnode Background
-  {:transforms {:renderable #'background-renderable}})
+  (output renderable t/RenderData background-renderable))

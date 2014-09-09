@@ -1,6 +1,7 @@
 (ns dynamo.texture
   (:require [dynamo.types :refer :all]
             [dynamo.image :refer :all]
+            [dynamo.node :refer [defnode]]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]
             [internal.texture.engine :refer [texture-engine-format-generate]]
             [schema.core :as s]
@@ -9,16 +10,17 @@
   (:import [java.awt.image BufferedImage]
            [dynamo.types Rect Image TextureSet EngineFormatTexture]))
 
-;; Value
 (defnk animation-frames [this g])
 
-(def AnimationBehavior
-  {:inputs     {:images (as-schema [ImageSource])}
-   :properties {:fps (non-negative-integer :default 30)
-                :flip-horizontal {:schema s/Bool}
-                :flip-vertical {:schema s/Bool}
-                :playback (as-schema AnimationPlayback)}
-   :transforms {:frames #'animation-frames}})
+(defnode AnimationBehavior
+  (input images [Image])
+
+  (property fps             (non-negative-integer :default 30))
+  (property flip-horizontal (bool))
+  (property flip-vertical   (bool))
+  (property playback        (as-schema AnimationPlayback))
+
+  (output frames s/Any animation-frames))
 
 (sm/defn pack-textures :- TextureSet
   [margin    :- (s/maybe s/Int)
@@ -38,21 +40,6 @@
 (doseq [[v doc]
        {*ns*
         "Schema, behavior, and type information related to textures."
-
-        #'AnimationBehavior
-        "*behavior* - Used by [[dynamo.node/defnode]] to define the behavior for an animation resource.
-
-Inputs:
-
-* `:images` - vector of [[Image]]
-
-Properties:
-
-* `:fps` - non-negative integer, default 30
-
-Transforms:
-
-* `:frames` - see [[animation-frames]]"
 
         #'animation-frames
         "Returns the frames of the animation."

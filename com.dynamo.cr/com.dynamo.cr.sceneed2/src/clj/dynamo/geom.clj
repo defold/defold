@@ -17,7 +17,7 @@
     (* (double (.width r)) (double (.height r)))
     0))
 
-(sm/defn intersect :- Rect
+(sm/defn intersect :- (s/maybe Rect)
   ([r :- Rect] r)
   ([r1 :- Rect r2 :- Rect]
     (when (and r1 r2)

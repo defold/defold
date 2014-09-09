@@ -8,6 +8,20 @@
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]))
 
 ; ----------------------------------------
+; Protocols here help avoid circular dependencies
+; ----------------------------------------
+
+(defprotocol NodeType
+  (descriptor [this] "Return a data structure describing the node type"))
+
+(defprotocol Node
+  (get-value  [this graph label seed] "given a graph, node, and transform label, `get-value` returns the result of the transform.")
+  (properties [this] "Produce a description of properties supported by this node."))
+
+(defprotocol MessageTarget
+  (start-event-loop! [this event-ch]))
+
+; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
 

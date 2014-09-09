@@ -41,11 +41,9 @@
   (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera %) (concat a b)))) renderables))
 
 (n/defnode SceneRenderer
-  {:inputs     {:renderables [t/RenderData]
-                :camera      Camera}
-   :cached     #{:render-data}
-   :on-update  #{:render-data}
-   :transforms {:render-data #'produce-render-data}})
+  (input camera Camera)
+  (input renderables [t/RenderData])
+  (output render-data t/RenderData produce-render-data))
 
 (defn setup-pass
   [context gl glu pass camera viewport]

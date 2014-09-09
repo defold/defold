@@ -58,18 +58,18 @@
          (. ~inst ~setter (~xform value#))))))
 
 (defnode ImageNode
- OutlineNode
- ImageSource)
+  (inherits OutlineNode)
+  (inherits ImageSource))
 
 (defnk produce-animation :- Animation
   [this images :- [Image] id fps flip-horizontal flip-vertical playback]
   (->Animation id images fps flip-horizontal flip-vertical playback))
 
 (defnode AnimationGroupNode
-  OutlineNode
-  AnimationBehavior
-  {:inputs     {:images     [ImageSource]}
-   :transforms {:animation  #'produce-animation}})
+  (inherits OutlineNode)
+  (inherits AnimationBehavior)
+
+  (output animation Animation produce-animation))
 
 (sm/defn ^:private consolidate :- [Image]
   [images :- [Image] containers :- [{:images [Image]}]]
@@ -82,17 +82,16 @@
   (-> (pack-textures margin extrude-borders (consolidate images animations))
     (assoc :animations animations)))
 
-(def AtlasProperties
-  {:inputs     {:assets     [OutlineItem]
-                :images     [ImageSource]
-                :animations [Animation]}
-   :properties {:margin (non-negative-integer)
-                :extrude-borders (non-negative-integer)
-                :filename (string)}
-   :transforms {:textureset #'produce-textureset}
-   :cached     #{:textureset}
-   :on-update  #{:textureset}})
+(defnode AtlasProperties
+  (input assets [OutlineItem])
+  (input images [Image])
+  (input animations [Animation])
 
+  (property margin          (non-negative-integer))
+  (property extrude-borders (non-negative-integer))
+  (property filename        (string))
+
+  (output textureset TextureSet :cached :on-update produce-textureset))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
@@ -126,9 +125,9 @@
     (write-native-text-file filename text)
     :ok))
 
-(def AtlasSave
-  {:transforms {:save        #'save-atlas-file
-                :text-format #'get-text-format}})
+(defnode AtlasSave
+  (output save s/Keyword save-atlas-file)
+  (output text-format s/Str get-text-format))
 
 (defn vertex-starts [n-vertices] (take n-vertices (take-nth 6 integers)))
 (defn vertex-counts [n-vertices] (take n-vertices (repeat (int 6))))
@@ -209,18 +208,17 @@
           (conj! [x1 y0 0 1 u1 (- 1 v0)]))))
     (persistent! vbuf)))
 
-(def AtlasRender
-  {:transforms {:renderable            #'produce-renderable
-                :shader                #'produce-shader
-                :vertex-buffer         #'produce-renderable-vertex-buffer
-                :outline-vertex-buffer #'produce-outline-vertex-buffer}
-   :cached     #{:shader :vertex-buffer :outline-vertex-buffer}})
+(defnode AtlasRender
+  (output shader s/Any          :cached produce-shader)
+  (output vertex-buffer s/Any   :cached produce-renderable-vertex-buffer)
+  (output outline-vertex-buffer :cached produce-outline-vertex-buffer)
+  (output renderable RenderData produce-renderable))
 
 (defnode AtlasNode
-  OutlineNode
-  AtlasProperties
-  AtlasRender
-  AtlasSave)
+  (inherits OutlineNode)
+  (inherits AtlasProperties)
+  (inherits AtlasRender)
+  (inherits AtlasSave))
 
 (protocol-buffer-converters
  AtlasProto$Atlas
@@ -413,22 +411,24 @@
                      (.toByteArray (texturec-protocol-buffer (->engine-format (:packed-image textureset)))))
   :ok)
 
-(def CompiledTextureSave
-  {:inputs     {:textureset       TextureSet}
-   :properties {:texture-filename {:schema s/Any :default ""}}
-   :transforms {:texturec         #'compile-texturec}
-   :on-update  #{:texturec}})
+(defnode CompiledTextureSave
+  (input textureset TextureSet)
 
-(def CompiledTextureSetSave
-  {:inputs     {:textureset          TextureSet}
-   :properties {:texture-name        (string)
-                :textureset-filename {:schema s/Any :default ""}}
-   :transforms {:texturesetc         #'compile-texturesetc}
-   :on-update  #{:texturesetc}})
+  (property texture-filename {:schema s/Any :default ""})
+
+  (output   texturec s/Any :on-update compile-texturec))
+
+(defnode CompiledTextureSetSave
+  (input textureset TextureSet)
+
+  (property texture-name (string))
+  (property textureset-filename {:schema s/Any :default ""})
+
+  (output   texturesetc s/Any :on-update compile-texturesetc))
 
 (defnode TextureSave
-  CompiledTextureSave
-  CompiledTextureSetSave)
+  (inherits CompiledTextureSave)
+  (inherits CompiledTextureSetSave))
 
 (defn on-load
   [project path ^AtlasProto$Atlas atlas-message]

@@ -10,7 +10,6 @@
             [internal.clojure :as clojure]
             [internal.cache :refer [make-cache]]
             [dynamo.types :as t]
-            [dynamo.node :as node]
             [dynamo.file :as file]
             [dynamo.resource :refer [disposable?]]
             [plumbing.core :refer [defnk]]
@@ -34,19 +33,26 @@
 
 (defn make-project
   [eclipse-project branch tx-report-chan]
-  {:handlers        {:loaders {"clj" on-load-code}}
-   :graph           (dg/empty-graph)
-   :cache-keys      {}
-   :cache           (make-cache)
-   :tx-report-chan  tx-report-chan
-   :eclipse-project eclipse-project
-   :branch          branch})
+  (let [msgbus (a/chan 100)
+        pubch  (a/pub msgbus :node-id #(a/dropping-buffer 100))]
+    {:handlers        {:loaders {"clj" on-load-code}}
+     :graph           (dg/empty-graph)
+     :cache-keys      {}
+     :cache           (make-cache)
+     :tx-report-chan  tx-report-chan
+     :eclipse-project eclipse-project
+     :branch          branch
+     :publish-to      msgbus
+     :subscribe-to    pubch}))
 
 (defn dispose-project
   [project-state]
   (let [report-ch (:tx-report-chan @project-state)
         cached-vals (vals (:cache @project-state))]
     (onto-chan report-ch (filter disposable? cached-vals) false)))
+
+(defn publish [project-state node-id msg]
+  (a/put! (:publish-to @project-state) {:node-id node-id :body msg}))
 
 (defn- handle
   [project-state key filetype handler]
@@ -82,7 +88,7 @@
   value)
 
 (defn- produce-value [project-state resource label]
-  (node/get-value (:graph @project-state) resource label {:project project-state}))
+  (t/get-value resource (:graph @project-state) label {:project project-state}))
 
 (defn get-resource-value [project-state resource label]
   (if-let [cache-key (get-in @project-state [:cache-keys (:_id resource) label])]
@@ -138,10 +144,11 @@
   [{:keys [graph tempids cache-keys modified-nodes] :as ctx} m]
   (let [next-id (dg/next-node graph)]
     (assoc ctx
-      :graph          (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id))
-      :tempids        (assoc tempids    (get-in m [:node :_id]) next-id)
-      :cache-keys     (assoc cache-keys next-id (resource->cache-keys (:node m)))
-      :modified-nodes (conj modified-nodes next-id))))
+      :graph           (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id))
+      :tempids         (assoc tempids    (get-in m [:node :_id]) next-id)
+      :cache-keys      (assoc cache-keys next-id (resource->cache-keys (:node m)))
+      :new-event-loops (if (satisfies? t/MessageTarget (:node m)) (conj (:new-event-loops ctx) (:node m)) (:new-event-loops ctx))
+      :modified-nodes  (conj modified-nodes next-id))))
 
 (defmethod perform :update-node
   [{:keys [graph modified-nodes] :as ctx} m]
@@ -182,6 +189,7 @@
    :graph           (:graph state)
    :cache-keys      (:cache-keys state)
    :tempids         {}
+   :new-event-loops []
    :modified-nodes #{}})
 
 (defn- pairwise [f coll]
@@ -210,6 +218,13 @@
   [{:keys [graph affected-nodes] :as ctx}]
   (assoc ctx :expired-outputs (pairwise :on-update (map #(dg/node graph %) affected-nodes))))
 
+(defn- start-event-loops
+  [{:keys [new-event-loops state] :as ctx}]
+  (doseq [n new-event-loops]
+    (let [ch (a/chan 100)]
+      (t/start-event-loop! n (a/sub (:subscribe-to state) (:_id n) ch))))
+  ctx)
+
 (defn- finalize-update
   [{:keys [graph cache-keys] :as ctx}]
   (-> ctx
@@ -233,6 +248,7 @@
     dispose-obsoletes
     evict-obsolete-caches
     determine-autoupdates
+    start-event-loops
     finalize-update))
 
 (defn transact

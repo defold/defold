@@ -31,13 +31,6 @@
         (markers/compile-error source-file compile-error)
         {:compile-error (.getMessage (.getCause compile-error))}))))
 
-(def
-  ^{:doc "Behavior included in `ClojureSourceNode`."}
-  ClojureSourceFile
-  {:properties {:resource {:schema IFile}}
-   :transforms {:namespace #'load-project-file}
-   :cached     #{:namespace}
-   :on-update  #{:namespace}})
-
 (defnode ClojureSourceNode
- ClojureSourceFile)
+  (property resource IFile)
+  (output   namespace UnloadableNamespace :cached :on-update load-project-file))

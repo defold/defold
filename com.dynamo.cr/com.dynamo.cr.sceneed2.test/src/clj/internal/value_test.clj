@@ -22,39 +22,46 @@
   (tally node 'produce-simple-value)
   (:scalar node))
 
-(def UncachedOutput
-  {:transforms {:uncached-value #'produce-simple-value}
-   :properties {:scalar (t/string :default "foo")}})
+(n/defnode UncachedOutput
+  (property scalar (t/string :default "foo"))
+
+  (output uncached-value String [node g]
+          (tally node 'produce-simple-value)
+          (:scalar node)))
 
 (defn compute-expensive-value
   [node g]
   (tally node 'compute-expensive-value)
   "this took a long time to produce")
 
-(def CachedOutputNoInputs
-  {:inputs {:operand s/Str}
-   :transforms {:expensive-value #'compute-expensive-value}
-   :cached #{:expensive-value}})
+(n/defnode CachedOutputNoInputs
+  (output expensive-value :cached [node g]
+          (tally node 'compute-expensive-value)
+          "this took a long time to produce")
+  (input  operand String))
 
-(def UpdatesExpensiveValue
-  {:on-update #{:expensive-value}})
+(n/defnode UpdatesExpensiveValue
+  (output expensive-value String :cached :on-update
+          [node g]
+          (tally node 'compute-expensive-value)
+          "this took a long time to produce"))
 
 (defnk compute-derived-value
   [this first-name last-name]
   (tally this 'compute-derived-value)
   (str first-name " " last-name))
 
-(def CachedOutputFromInputs
-  {:inputs {:first-name s/Str
-            :last-name s/Str}
-   :transforms {:derived-value #'compute-derived-value}
-   :cached #{:derived-value}})
+(n/defnode CachedOutputFromInputs
+  (input first-name String)
+  (input last-name  String)
+
+  (output derived-value String :cached compute-derived-value))
 
 (n/defnode CacheTestNode
-  UncachedOutput
-  CachedOutputNoInputs
-  CachedOutputFromInputs
-  UpdatesExpensiveValue)
+  (inherits UncachedOutput)
+  (inherits CachedOutputNoInputs)
+  (inherits CachedOutputFromInputs)
+  (inherits UpdatesExpensiveValue))
 
 (defn build-sample-project
   []
@@ -112,12 +119,8 @@
       (tally this 'dispose)
       (>!! (:channel (dg/node g this)) :gone))))
 
-(def CachedDisposableValue
-  {:transforms {:disposable-value #'compute-disposable-value}
-   :cached #{:disposable-value}})
-
 (n/defnode DisposableValueNode
-  CachedDisposableValue)
+  (output disposable-value :cached compute-disposable-value))
 
 (defnk produce-input-from-node
   [overridden]
@@ -127,13 +130,10 @@
   [an-input]
   an-input)
 
-(def OverrideValue
-  {:inputs     {:overridden s/Str}
-   :transforms {:output #'produce-input-from-node
-                :foo    #'derive-value-from-inputs}})
-
 (n/defnode OverrideValueNode
-  OverrideValue)
+  (input overridden s/Str)
+  (output output s/Str produce-input-from-node)
+  (output foo    s/Str derive-value-from-inputs))
 
 (defn build-override-project
   []

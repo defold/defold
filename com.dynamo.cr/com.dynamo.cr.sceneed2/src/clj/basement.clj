@@ -71,6 +71,8 @@
   ;; thread. it only requires some memory for the automatically
   ;; generated state machine.
   (defnode Atlas
+    (inherits OutlineNode)
+    
     (output 'textureset TextureSet
             [arglist]
             fn-tail)
@@ -98,8 +100,7 @@
     (on 'select ...)
 
     (on 'images-changed
-        (invalidate 'textureset)
-        (invalidate 'texturesetc)))
+        (invalidate self 'textureset)))
 
 
   ;; node events

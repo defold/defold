@@ -36,7 +36,10 @@
      ~@body
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
+(defn clean-project []
+  (ref (p/make-project (fake-project) "test" (->bitbucket))))
+
 (defn with-clean-project
   [f]
-  (binding [*test-project* (ref (p/make-project (fake-project)  "test" (->bitbucket)))]
+  (binding [*test-project* (clean-project)]
     (f)))

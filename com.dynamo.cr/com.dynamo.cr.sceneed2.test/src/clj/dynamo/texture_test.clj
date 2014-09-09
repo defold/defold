@@ -11,8 +11,6 @@
             [schema.test :refer [validate-schemas]])
   (:import [dynamo.types Rect]))
 
-(use-fixtures :once validate-schemas)
-
 (def rects (gen/fmap (fn [[x y w h]] (rect x y w h))
                      (gen/tuple gen/int gen/int gen/s-pos-int gen/s-pos-int)))
 
@@ -29,10 +27,9 @@
 
 (defn total-area
   [non-overlapping-rects]
-  (reduce + (map area non-overlapping-rects)))
+  (reduce + (map #(if % (area %) 0) non-overlapping-rects)))
 
 (defspec split-rect-area-is-preserved
-  1000
   (prop/for-all [[container content] intersecting-rects]
                 (= (total-area (conj (split-rect container content)
                                      (intersect container content)))
@@ -56,7 +53,7 @@
 (defn packed-textures-fall-within-the-bounds-of-the-texturemap [tex textures]
   (every? #(dimensions= (intersect (:aabb tex) %) %) (:coords tex)))
 
-(defn texturemap-inclues-all-textures [tex textures]
+(defn texturemap-includes-all-textures [tex textures]
   (= (count textures) (count (:coords tex))))
 
 (defn textures-have-non-negative-origins [tex textures]
@@ -67,13 +64,11 @@
   (< (total-area textures) (area (:aabb tex))))
 
 (defspec texture-packing-invariant
- 200
- (prop/for-all [textures (gen/such-that not-empty (gen/resize 20 (gen/vector (gen/resize 128 origin-rects))))]
-               (let [tex (max-rects-packing textures)]
-                 (or (= :packing-failed tex)
-                     (and (packed-textures-fall-within-the-bounds-of-the-texturemap tex textures)
-                          (texturemap-inclues-all-textures tex textures)
-                          (textures-have-non-negative-origins tex textures)
-                          (packed-textures-do-not-overlap tex textures)
-                          (total-texture-area-fits tex textures))))))
-
+  (prop/for-all [textures (gen/such-that not-empty (gen/resize 20 (gen/vector (gen/resize 128 origin-rects))))]
+                (let [tex (max-rects-packing textures)]
+                  (or (= :packing-failed tex)
+                      (and (packed-textures-fall-within-the-bounds-of-the-texturemap tex textures)
+                           (texturemap-includes-all-textures tex textures)
+                           (textures-have-non-negative-origins tex textures)
+                           (packed-textures-do-not-overlap tex textures)
+                           (total-texture-area-fits tex textures))))))
