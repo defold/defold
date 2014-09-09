@@ -36,9 +36,17 @@ static int UserType_gc(lua_State *L)
     return 0;
 }
 
+static int UserType_GetUserData(lua_State* L)
+{
+    UserType* ut = (UserType*)lua_touserdata(L, -1);
+    lua_pushlightuserdata(L, ut);
+    return 1;
+}
+
 static const luaL_reg UserType_meta[] =
 {
-    {"__gc",    UserType_gc},
+    {"__gc",                                UserType_gc},
+    {dmScript::META_TABLE_GET_USER_DATA,    UserType_GetUserData},
     {0, 0}
 };
 
@@ -96,17 +104,7 @@ protected:
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
 
-        luaL_register(L, USERTYPE, UserType_methods);   // create methods table, add it to the globals
-        int methods = lua_gettop(L);
-        luaL_newmetatable(L, USERTYPE);                         // create metatable for ScriptInstance, add it to the Lua registry
-        int metatable = lua_gettop(L);
-        luaL_register(L, 0, UserType_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, methods);                       // dup methods table
-        lua_settable(L, metatable);
-
-        lua_pop(L, 2);
+        dmScript::RegisterUserType(L, USERTYPE, UserType_methods, UserType_meta);
     }
 
     virtual void TearDown()
@@ -176,6 +174,26 @@ TEST_F(ScriptUserTypeTest, TestCheckUserType)
     PushUserType(L, object);
 
     ASSERT_EQ(object, dmScript::CheckUserType(L, -1, USERTYPE));
+
+    PopUserType(L);
+    DeleteUserType(L, object);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptUserTypeTest, TestGetUserData)
+{
+    int top = lua_gettop(L);
+
+    UserType* object = NewUserType(L);
+    PushUserType(L, object);
+
+    uintptr_t user_data;
+    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, USERTYPE));
+
+    ASSERT_EQ((uintptr_t)object, user_data);
+
+    ASSERT_FALSE(dmScript::GetUserData(L, &user_data, "incorrect_type"));
 
     PopUserType(L);
     DeleteUserType(L, object);

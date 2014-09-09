@@ -446,6 +446,7 @@ namespace dmScript
         (void)top;
         GetInstance(L);
         if (!dmScript::IsUserType(L, -1, user_type)) {
+            lua_pop(L, 1);
             return false;
         }
         if (GetMetaFunction(L, -1, META_TABLE_GET_USER_DATA)) {
