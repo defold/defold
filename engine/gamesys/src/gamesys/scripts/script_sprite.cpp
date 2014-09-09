@@ -21,20 +21,26 @@ extern "C"
 
 namespace dmGameSystem
 {
-    /*# sprite width
+    /*# sprite size
      *
-     * sprite width in pixels
+     * [READ ONLY] The current size of the sprite, allowing for any animation and scaling that may be in effect.
      *
-     * @name width
+     * @name size
      * @property
-     */
-
-    /*# sprite height
      *
-     * sprite height in pixels
-     *
-     * @name height
-     * @property
+     * @examples
+     * <p>
+     * How to query a sprite's size, either as a vector or selecting a specific dimension:
+     * </p>
+     * <pre>
+     * function init(self)
+     * 	local size = go.get("#sprite", "size")
+     * 	local sx = go.get("#sprite", "size.x")
+     * 	-- do something useful
+     * 	assert(size.x == sx)
+     * end
+     * </pre>
+     * <p>It is assumed that the sprite component has id "sprite".</p>
      */
 
     /*# make a sprite flip the animations horizontally or not

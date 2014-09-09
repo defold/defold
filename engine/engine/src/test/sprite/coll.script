@@ -14,6 +14,17 @@ function init(self)
     assert(go.get("#sprite", "scale.y") == 5)
     go.set("#sprite", "scale.z", 6)
     assert(go.get("#sprite", "scale.z") == 6)
+
+    local size = go.get("#sprite", "size")
+    local sx = go.get("#sprite", "size.x")
+    local sy = go.get("#sprite", "size.y")
+    local sz = go.get("#sprite", "size.z")
+    assert(size.x == sx)
+    assert(size.y == sy)
+    assert(size.z == sz)
+    assert(sx == 4)
+    assert(sy == 5)
+    assert(sz == 1)
 end
 
 function on_message(self, message_id, message, sender)

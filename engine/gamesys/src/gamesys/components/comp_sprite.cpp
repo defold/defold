@@ -43,6 +43,7 @@ namespace dmGameSystem
         Point3                      m_Position;
         Quat                        m_Rotation;
         Vector3                     m_Scale;
+        Vector3                     m_CachedSize;
         Matrix4                     m_World;
         SortKey                     m_SortKey;
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
@@ -89,13 +90,38 @@ namespace dmGameSystem
         float v;
     };
 
-#define PROP_VECTOR3(var_name, prop_name)\
-    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
-    const dmhash_t PROP_##var_name##_X = dmHashString64(#prop_name ".x");\
-    const dmhash_t PROP_##var_name##_Y = dmHashString64(#prop_name ".y");\
-    const dmhash_t PROP_##var_name##_Z = dmHashString64(#prop_name ".z");
 
-    PROP_VECTOR3(SCALE, scale);
+    struct PropVector3
+    {
+        dmhash_t m_Vector;
+        dmhash_t m_X;
+        dmhash_t m_Y;
+        dmhash_t m_Z;
+        bool m_ReadOnly;
+
+        PropVector3(dmhash_t v, dmhash_t x, dmhash_t y, dmhash_t z, bool readOnly)
+        {
+            m_Vector = v;
+            m_X = x;
+            m_Y = y;
+            m_Z = z;
+            m_ReadOnly = readOnly;
+        }
+    };
+
+    bool IsReferencingProperty(const PropVector3& property, dmhash_t query);
+    dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, Vector3& ref_value, const PropVector3& property);
+    dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vector3& set_value, const PropVector3& property);
+
+#define PROP_VECTOR3(var_name, prop_name, readOnly)\
+    const PropVector3 PROP_##var_name(dmHashString64(#prop_name),\
+            dmHashString64(#prop_name ".x"),\
+            dmHashString64(#prop_name ".y"),\
+            dmHashString64(#prop_name ".z"),\
+            readOnly);
+
+    PROP_VECTOR3(SCALE, scale, false);
+    PROP_VECTOR3(SIZE, size, true);
 
 #undef PROP_VECTOR3
 
@@ -299,6 +325,25 @@ namespace dmGameSystem
         return frame + anim_ddf->m_Start;
     }
 
+    void ComputeSize(SpriteComponent* sprite)
+    {
+        Vector3 result = Vector3(0.0f, 0.0f, 0.0f);
+
+        if (sprite->m_Enabled)
+        {
+            TextureSetResource* texture_set = sprite->m_Resource->m_TextureSet;
+            uint32_t* anim_id = texture_set->m_AnimationIds.Get(sprite->m_CurrentAnimation);
+            if (anim_id)
+            {
+                dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
+                dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[*anim_id];
+                result = Vector3(animation->m_Width * sprite->m_Scale.getX(), animation->m_Height * sprite->m_Scale.getY(), 1.0f);
+            }
+        }
+
+        sprite->m_CachedSize = result;
+    }
+
     void CreateVertexData(SpriteWorld* sprite_world, void* vertex_buffer, TextureSetResource* texture_set, uint32_t start_index, uint32_t end_index)
     {
         DM_PROFILE(Sprite, "CreateVertexData");
@@ -489,8 +534,7 @@ namespace dmGameSystem
             uint32_t* anim_id = texture_set->m_AnimationIds.Get(c->m_CurrentAnimation);
             if (anim_id)
             {
-                dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[*anim_id];
+                ComputeSize(c);
 
                 dmTransform::Transform world = dmGameObject::GetWorldTransform(c->m_Instance);
                 dmTransform::Transform local(Vector3(c->m_Position), c->m_Rotation, 1.0f);
@@ -503,7 +547,7 @@ namespace dmGameSystem
                     world = dmTransform::MulNoScaleZ(world, local);
                 }
                 Matrix4 w = dmTransform::ToMatrix4(world);
-                w = appendScale(w, Vector3(animation->m_Width * c->m_Scale.getX(), animation->m_Height * c->m_Scale.getY(), 1.0f));
+                w = appendScale(w, c->m_CachedSize);
                 Vector4 position = w.getCol3();
                 if (!sub_pixels)
                 {
@@ -858,72 +902,154 @@ namespace dmGameSystem
             PlayAnimation(component, component->m_CurrentAnimation);
     }
 
+    dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, Vector3& ref_value, const PropVector3& property)
+    {
+        dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
+
+        if (get_property == property.m_Vector)
+        {
+            out_value.m_ValuePtr = (float*)&ref_value;
+            out_value.m_ElementIds[0] = property.m_X;
+            out_value.m_ElementIds[1] = property.m_Y;
+            out_value.m_ElementIds[2] = property.m_Z;
+            out_value.m_Variant = dmGameObject::PropertyVar(ref_value);
+        }
+        else if (get_property == property.m_X)
+        {
+            out_value.m_ValuePtr = (float*)&ref_value;
+            out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getX());
+        }
+        else if (get_property == property.m_Y)
+        {
+            out_value.m_ValuePtr = (float*)&ref_value + 1;
+            out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getY());
+        }
+        else if (get_property == property.m_Z)
+        {
+            out_value.m_ValuePtr = (float*)&ref_value + 2;
+            out_value.m_Variant = dmGameObject::PropertyVar(ref_value.getZ());
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        return result;
+    }
+
+    dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, Vector3& set_value, const PropVector3& property)
+    {
+        dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
+
+        if (property.m_ReadOnly)
+        {
+            result = dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+        }
+
+        if (set_property == property.m_Vector)
+        {
+            if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR3)
+            {
+                set_value.setX(in_value.m_V4[0]);
+                set_value.setY(in_value.m_V4[1]);
+                set_value.setZ(in_value.m_V4[2]);
+            }
+            else
+            {
+                result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        else if (set_property == property.m_X)
+        {
+            if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
+                set_value.setX(in_value.m_Number);
+            }
+            else
+            {
+                result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        else if (set_property == property.m_Y)
+        {
+            if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
+                set_value.setY(in_value.m_Number);
+            }
+            else
+            {
+                result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        else if (set_property == property.m_Z)
+        {
+            if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
+                set_value.setZ(in_value.m_Number);
+            }
+            else
+            {
+                result = dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+        }
+        else
+        {
+            result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        return result;
+    }
+
+    bool IsReferencingProperty(const PropVector3& property, dmhash_t query)
+    {
+        return property.m_Vector == query
+                || property.m_X == query || property.m_Y == query || property.m_Z == query;
+    }
+
     dmGameObject::PropertyResult CompSpriteGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
+        dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
-        if (params.m_PropertyId == PROP_SCALE)
+        dmhash_t get_property = params.m_PropertyId;
+
+        if (IsReferencingProperty(PROP_SCALE, get_property))
         {
-            out_value.m_ValuePtr = (float*)&component->m_Scale;
-            out_value.m_ElementIds[0] = PROP_SCALE_X;
-            out_value.m_ElementIds[1] = PROP_SCALE_Y;
-            out_value.m_ElementIds[2] = PROP_SCALE_Z;
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale);
+            result = GetProperty(out_value, get_property, component->m_Scale, PROP_SCALE);
         }
-        else if (params.m_PropertyId == PROP_SCALE_X)
+        else if (IsReferencingProperty(PROP_SIZE, get_property))
         {
-            out_value.m_ValuePtr = (float*)&component->m_Scale;
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale.getX());
+            ComputeSize(component);
+            result = GetProperty(out_value, get_property, component->m_CachedSize, PROP_SIZE);
         }
-        else if (params.m_PropertyId == PROP_SCALE_Y)
+
+        if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            out_value.m_ValuePtr = (float*)&component->m_Scale + 1;
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale.getY());
+            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpriteGetConstantCallback, component);
         }
-        else if (params.m_PropertyId == PROP_SCALE_Z)
-        {
-            out_value.m_ValuePtr = (float*)&component->m_Scale + 2;
-            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Scale.getZ());
-        }
-        if (out_value.m_ValuePtr != 0x0)
-        {
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpriteGetConstantCallback, component);
+
+        return result;
     }
 
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
+        dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         SpriteComponent* component = (SpriteComponent*)*params.m_UserData;
-        if (params.m_PropertyId == PROP_SCALE)
+        dmhash_t set_property = params.m_PropertyId;
+
+        if (IsReferencingProperty(PROP_SCALE, set_property))
         {
-            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3)
-                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            component->m_Scale.setX(params.m_Value.m_V4[0]);
-            component->m_Scale.setY(params.m_Value.m_V4[1]);
-            component->m_Scale.setZ(params.m_Value.m_V4[2]);
-            return dmGameObject::PROPERTY_RESULT_OK;
+            result = SetProperty(set_property, params.m_Value, component->m_Scale, PROP_SCALE);
         }
-        else if (params.m_PropertyId == PROP_SCALE_X)
+        else if (IsReferencingProperty(PROP_SIZE, set_property))
         {
-            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
-                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            component->m_Scale.setX((float)params.m_Value.m_Number);
-            return dmGameObject::PROPERTY_RESULT_OK;
+            result = SetProperty(set_property, params.m_Value, component->m_CachedSize, PROP_SIZE);
         }
-        else if (params.m_PropertyId == PROP_SCALE_Y)
+
+        if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
-                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            component->m_Scale.setY((float)params.m_Value.m_Number);
-            return dmGameObject::PROPERTY_RESULT_OK;
+            result = SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpriteSetConstantCallback, component);
         }
-        else if (params.m_PropertyId == PROP_SCALE_Z)
-        {
-            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
-                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-            component->m_Scale.setZ((float)params.m_Value.m_Number);
-            return dmGameObject::PROPERTY_RESULT_OK;
-        }
-        return SetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, params.m_Value, CompSpriteSetConstantCallback, component);
+
+        return result;
     }
 }
