@@ -71,6 +71,8 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
         uintptr_t user_data;
+        // NOTE! dmGameObject::SCRIPT_INSTANCE_TYPE_NAME is a requirement for this function, see DispatchMessages in comp_collision_object.cpp
+        // This has been added as a part of DEF-700
         if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
         {
             dmPhysicsDDF::RequestRayCast request;
