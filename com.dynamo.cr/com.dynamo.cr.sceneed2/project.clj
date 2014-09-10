@@ -24,7 +24,8 @@
   :test-paths []
   :clean-targets [:target-path "doc"]
   :profiles {:deps {:source-paths []}
-             :docs {:source-paths ["src/clj"]}
+             :docs {:source-paths ["src/clj"]
+                    :jvm-opts ["-Djava.library.path=../javax.media.opengl/lib/osx"]}
              :dev  {:source-paths ["src/clj"]
                     :java-source-path "src/java"
                     :test-paths ["test/clj"]}
@@ -34,5 +35,5 @@
 
 (def classpath-file ".eclipse-classpath")
 (def classpath-elements (clojure.string/split (slurp (clojure.java.io/resource classpath-file)) #":"))
-(def filters [#".*/src/clj$" #".*/src/java$" #".*/test/clj$" #".*/bin$" #".*/lib/com.dynamo.cr.sceneed2.*jar"])
+(def filters [#".*/src/clj$" #".*/src/java$" #".*/test/clj$" #".*/lib/com.dynamo.cr.sceneed2.*jar"])
 (def project (assoc-in project [:profiles :docs :resource-paths] (remove (fn [path] (some #(re-matches % path) filters)) classpath-elements)))
