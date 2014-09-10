@@ -35,6 +35,7 @@ namespace dmGraphics
 
     struct Texture
     {
+        TextureType m_Type;
         GLuint      m_Texture;
         uint16_t    m_Width;
         uint16_t    m_Height;

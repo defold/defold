@@ -95,6 +95,7 @@ namespace dmGraphics
         TYPE_FLOAT_VEC4     = DMGRAPHICS_TYPE_FLOAT_VEC4,
         TYPE_FLOAT_MAT4     = DMGRAPHICS_TYPE_FLOAT_MAT4,
         TYPE_SAMPLER_2D     = DMGRAPHICS_TYPE_SAMPLER_2D,
+        TYPE_SAMPLER_CUBE   = DMGRAPHICS_TYPE_SAMPLER_CUBE,
     };
 
     // Texture format
@@ -113,6 +114,13 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
         TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
         TEXTURE_FORMAT_RGB_ETC1             = 12,
+    };
+
+    // Texture type
+    enum TextureType
+    {
+        TEXTURE_TYPE_2D = DMGRAPHICS_TEXTURE_TYPE_2D,
+        TEXTURE_TYPE_CUBE_MAP = DMGRAPHICS_TEXTURE_TYPE_CUBE_MAP,
     };
 
     // Texture format
@@ -254,12 +262,14 @@ namespace dmGraphics
     struct TextureCreationParams {
 
     	TextureCreationParams() :
+    	    m_Type(TEXTURE_TYPE_2D),
     		m_Width(0),
     		m_Height(0),
     		m_OriginalWidth(0),
     		m_OriginalHeight(0)
     	{}
 
+        TextureType   m_Type;
 		uint16_t m_Width;
 		uint16_t m_Height;
 		uint16_t m_OriginalWidth;
@@ -515,13 +525,21 @@ namespace dmGraphics
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
+
+    /**
+     * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
+     * 6 mip-maps are present contiguously in memory with stride m_DataSize
+     *
+     * @param texture
+     * @param params
+     */
     void SetTexture(HTexture texture, const TextureParams& params);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);
     uint16_t GetOriginalTextureHeight(HTexture texture);
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
-    void DisableTexture(HContext context, uint32_t unit);
+    void DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     /**
      * Read frame buffer pixels in BGRA format

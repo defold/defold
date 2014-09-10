@@ -32,7 +32,7 @@ public class ModelNode extends ComponentTypeNode {
     @NotEmpty
     private String material = "";
 
-    @Property(editorType=EditorType.RESOURCE, extensions={"png", "tga", "jpg", "jpeg", "gif", "bmp"})
+    @Property(editorType=EditorType.RESOURCE, extensions={"png", "tga", "jpg", "jpeg", "gif", "bmp", "cubemap"})
     @Resource
     private String texture = "";
 

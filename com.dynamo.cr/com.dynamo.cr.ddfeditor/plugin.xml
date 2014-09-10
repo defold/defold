@@ -111,6 +111,15 @@
             id="com.dynamo.cr.ddfeditor.collectionProxyEditor"
             name="Scene Editor">
       </editor>
+      <editor
+            class="com.dynamo.cr.ddfeditor.CubemapEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="cubemap"
+            icon="icons/ice_cube.png"
+            id="com.dynamo.cr.ddfeditor.cubemapeditor"
+            name="Cubemap Editor">
+      </editor>
    </extension>
    <extension
          point="org.eclipse.ui.newWizards">
@@ -183,6 +192,13 @@
             icon="icons/keyboard.png"
             id="com.dynamo.cr.ddfeditor.wizards.InputBindingNewWizard"
             name="Input Binding File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.CubemapNewWizard"
+            icon="icons/ice_cube.png"
+            id="com.dynamo.cr.ddfeditor.wizards.CubemapNewWizard"
+            name="Cubemap File">
       </wizard>
    </extension>
    <extension
@@ -449,6 +465,20 @@
             name="Mesh"
             type-class="mesh">
       </resource-type>
+      <resource-type
+            file-extension="cubemap"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.Cubemap"
+            name="Cubemap"
+            proto-message-class="com.dynamo.graphics.proto.Graphics$Cubemap"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.CubemapRefactorParticipant"
+            template-data="right: &quot;&quot; left: &quot;&quot; top: &quot;&quot; bottom: &quot;&quot; front: &quot;&quot; back: &quot;&quot;"
+            type-class="cubemap">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+         </references>
+      </resource-type>
     </extension>
    <extension
          point="org.eclipse.ui.perspectiveExtensions">
@@ -486,6 +516,9 @@
          </newWizardShortcut>
          <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.GuiNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.CubemapNewWizard">
          </newWizardShortcut>
       </perspectiveExtension>
    </extension>
