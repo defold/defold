@@ -2,11 +2,13 @@ package com.dynamo.cr.target.core;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 import javax.inject.Singleton;
 
 import org.eclipse.core.runtime.FileLocator;
+import org.eclipse.core.runtime.URIUtil;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.osgi.framework.BundleContext;
 import org.slf4j.Logger;
@@ -105,12 +107,19 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
 
     private String getUtilPath(String path) {
         URL bundleUrl = getBundle().getEntry(path);
+
         try {
+            // Workaround badly handled UNC paths:
+            //    wiki.eclipse.org/Eclipse/UNC_Paths
             URL fileUrl = FileLocator.toFileURL(bundleUrl);
-            File file = new File(fileUrl.toString().substring("file:".length()));
+            File file = URIUtil.toFile(URIUtil.toURI(fileUrl));
             return file.getAbsolutePath();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        }
+        catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+        catch (URISyntaxException urie) {
+            throw new RuntimeException(urie);
         }
     }
 
