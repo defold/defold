@@ -1030,7 +1030,7 @@ namespace dmScript
      * This is useful to construct a projection matrix for a camera or rendering in general.
      *
      * @name vmath.matrix4_perspective
-     * @param fov field of view in radians (number)
+     * @param fov angle of the full field of view in radians (number)
      * @param aspect aspect ratio (number)
      * @param near coordinate for near clipping plane (number)
      * @param far coordinate for far clipping plane (number)
