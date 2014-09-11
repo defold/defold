@@ -14,6 +14,10 @@ message MaterialDesc
         CONSTANT_TYPE_VIEWPROJ = 1;
         CONSTANT_TYPE_WORLD = 2;
         CONSTANT_TYPE_TEXTURE = 3;
+        CONSTANT_TYPE_VIEW = 4;
+        CONSTANT_TYPE_PROJECTION = 5;
+        CONSTANT_TYPE_NORMAL = 6;
+        CONSTANT_TYPE_WORLDVIEW = 7;
     }
 
     message Constant
