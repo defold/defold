@@ -261,7 +261,7 @@ This will result in the production of apkc under “go/bin”. This should be co
 
 Copy classes.dex from $DYNAMO_HOME/share/java to com.dynamo.cr/com.dynamo.cr.target/lib.
 
-Copy all content from $DYNAMO_HOME/ext/share/java/res to com.dynamo.cr/com.dynamo.cr.target/res. You should expect to be copying material fro
+Copy all content from $DYNAMO_HOME/ext/share/java/res to com.dynamo.cr/com.dynamo.cr.target/res. You should expect to be copying material for
 Facebook and Google Play into this location.
 
 ### Android SDK/NDK
@@ -269,9 +269,9 @@ Facebook and Google Play into this location.
 
 * Download SDK Tools 23.0 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
   Drill down to *VIEW ALL DOWNLOADS AND SIZES* and *SDK Tools Only*. Change URL to ...23.0.. if necessary.
-* Launch android tool and install Android SDK Platform-tools 20 and Build-tools 19.1
-* Download NDK 9c: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
-* Put NDK/SDK in ~/android/android-ndk-r9c and ~/android/android-sdk respectively
+* Launch android tool and install Android SDK Platform-tools 20 and Build-tools 20.0
+* Download NDK 10b: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
+* Put NDK/SDK in ~/android/android-ndk-r10b and ~/android/android-sdk respectively
 
 ### Android testing
 
@@ -279,7 +279,7 @@ Copy executable (or directory) with
 
     # adb push <DIR_OR_DIR> /data/local/tmp
 
-When copying directories append directory name to destination path. It's oterhwise skipped
+When copying directories append directory name to destination path. It's otherwise skipped
 
 Run exec with:
 
