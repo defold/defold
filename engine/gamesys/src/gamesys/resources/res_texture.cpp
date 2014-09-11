@@ -68,6 +68,13 @@ namespace dmGameSystem
             params.m_Width = image->m_Width;
             params.m_Height = image->m_Height;
 
+            if (texture_image->m_Type == dmGraphics::TextureImage::TYPE_2D) {
+                creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+            } else if (texture_image->m_Type == dmGraphics::TextureImage::TYPE_CUBEMAP) {
+                creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            } else {
+                assert(0);
+            }
             creation_params.m_Width = image->m_Width;
             creation_params.m_Height = image->m_Height;
             creation_params.m_OriginalWidth = image->m_OriginalWidth;

@@ -1,5 +1,6 @@
 package com.dynamo.cr.target.core;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 
@@ -104,10 +105,10 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
 
     private String getUtilPath(String path) {
         URL bundleUrl = getBundle().getEntry(path);
-        URL fileUrl;
         try {
-            fileUrl = FileLocator.toFileURL(bundleUrl);
-            return fileUrl.getPath();
+            URL fileUrl = FileLocator.toFileURL(bundleUrl);
+            File file = new File(fileUrl.toString().substring("file:".length()));
+            return file.getAbsolutePath();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

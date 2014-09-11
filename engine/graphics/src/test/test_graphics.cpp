@@ -409,7 +409,7 @@ TEST_F(dmGraphicsTest, TestTexture)
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
     dmGraphics::EnableTexture(m_Context, 0, texture);
-    dmGraphics::DisableTexture(m_Context, 0);
+    dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }
 
@@ -435,7 +435,7 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
     dmGraphics::EnableTexture(m_Context, 0, texture);
-    dmGraphics::DisableTexture(m_Context, 0);
+    dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }
 
