@@ -813,7 +813,7 @@ namespace dmGraphics
         context->m_Textures[unit] = texture;
     }
 
-    void DisableTexture(HContext context, uint32_t unit)
+    void DisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);

@@ -73,6 +73,7 @@
 #define DMGRAPHICS_TYPE_FLOAT_VEC4                          (GL_FLOAT_VEC4)
 #define DMGRAPHICS_TYPE_FLOAT_MAT4                          (GL_FLOAT_MAT4)
 #define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
+#define DMGRAPHICS_TYPE_SAMPLER_CUBE                        (GL_SAMPLER_CUBE)
 
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
@@ -131,6 +132,10 @@
 #define DMGRAPHICS_TEXTURE_FILTER_NEAREST                   (GL_NEAREST)
 #define DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST    (GL_NEAREST_MIPMAP_NEAREST)
 #define DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST     (GL_LINEAR_MIPMAP_NEAREST)
+
+// Texture type
+#define DMGRAPHICS_TEXTURE_TYPE_2D                          (GL_TEXTURE_2D)
+#define DMGRAPHICS_TEXTURE_TYPE_CUBE_MAP                    (GL_TEXTURE_CUBE_MAP)
 
 // Texture wrap
 #define DMGRAPHICS_TEXTURE_WRAP_REPEAT                      (GL_REPEAT)

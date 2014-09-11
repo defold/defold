@@ -50,13 +50,13 @@ namespace dmRender
             {
                 constants_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
                 samplers_count++;
             }
             else
             {
-                dmLogWarning("Type of uniform %s is not supported (%d)", buffer, type);
+                dmLogWarning("Type for uniform %s is not supported (%d)", buffer, type);
             }
         }
 
@@ -101,7 +101,7 @@ namespace dmRender
                 }
                 m->m_Constants.Push(constant);
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
                 m->m_Samplers.Push(Sampler(name_hash, location));
             }

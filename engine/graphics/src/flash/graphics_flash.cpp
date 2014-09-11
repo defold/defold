@@ -621,7 +621,7 @@ namespace dmGraphics
         context->m_Ctx3d->setTextureAt(unit, t->m_Texture);
     }
 
-    void DisableTexture(HContext context, uint32_t unit)
+    void DisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
