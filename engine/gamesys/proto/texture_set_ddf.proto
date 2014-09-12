@@ -41,7 +41,7 @@ message TextureSetAnimation
 
 message TextureSet
 {
-    required string texture                 = 1;
+    required string texture                 = 1 [(resource)=true];
     repeated TextureSetAnimation animations = 2;
     repeated ConvexHull convex_hulls        = 3;
 
