@@ -327,7 +327,7 @@ namespace dmGameSystem
     static Vector3 GetSize(const SpriteComponent* sprite)
     {
         Vector3 result = Vector3(0.0f, 0.0f, 0.0f);
-        if (NULL != sprite->m_Resource && NULL != sprite->m_Resource->m_TextureSet)
+        if (0x0 != sprite->m_Resource && 0x0 != sprite->m_Resource->m_TextureSet)
         {
             TextureSetResource* texture_set = sprite->m_Resource->m_TextureSet;
             uint32_t* anim_id = texture_set->m_AnimationIds.Get(sprite->m_CurrentAnimation);
@@ -909,6 +909,8 @@ namespace dmGameSystem
     {
         dmGameObject::PropertyResult result = dmGameObject::PROPERTY_RESULT_OK;
 
+        // We deliberately do not provide a value pointer in the case of read only variables,
+        // in order to ensure that it is not used in any write optimisation (see animation system).
         if (get_property == property.m_Vector)
         {
             if (!property.m_ReadOnly)
