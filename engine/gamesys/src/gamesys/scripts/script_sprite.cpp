@@ -23,7 +23,7 @@ namespace dmGameSystem
 {
     /*# sprite size
      *
-     * [READ ONLY] The current size of the sprite, allowing for any animation and scaling that may be in effect.
+     * [READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.
      *
      * @name size
      * @property
