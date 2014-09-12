@@ -20,6 +20,6 @@ message LuaModule
     required Type type                                  = 2; // For future use when we switch to precompiled files and luajit
     // NOTE: The following arrays must be equal in size
     repeated string modules                             = 3; // required modules
-    repeated string resources                           = 4; // required resources. same as modules but on the form /x/y/z.luac instead of x.y.z
+    repeated string resources                           = 4 [(resource)=true]; // required resources. same as modules but on the form /x/y/z.luac instead of x.y.z
     optional dmPropertiesDDF.PropertyDeclarations properties = 5;
 }

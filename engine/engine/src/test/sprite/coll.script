@@ -1,3 +1,10 @@
+
+local function compare_fp(lhs, rhs)
+    local epsilon = 1e-10
+    local diff = math.abs(lhs - rhs)
+    return epsilon > diff
+end
+
 function init(self)
     self.sprite = msg.url("#sprite")
     msg.post(self.sprite, "play_animation", {id = hash("anim")})
@@ -22,9 +29,9 @@ function init(self)
     assert(size.x == sx)
     assert(size.y == sy)
     assert(size.z == sz)
-    assert(sx == 4)
-    assert(sy == 5)
-    assert(sz == 1)
+    assert(compare_fp(sx, 1))
+    assert(compare_fp(sy, 1))
+    assert(compare_fp(sz, 1))
 end
 
 function on_message(self, message_id, message, sender)
