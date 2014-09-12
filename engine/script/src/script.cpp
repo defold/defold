@@ -16,6 +16,7 @@
 #include "script_json.h"
 #include "script_http.h"
 #include "script_zlib.h"
+#include "script_luasocket.h"
 
 extern "C"
 {
@@ -124,6 +125,7 @@ namespace dmScript
         InitializeJson(L);
         InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
+        InitializeLuasocket(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
