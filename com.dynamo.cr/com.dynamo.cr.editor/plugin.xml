@@ -138,7 +138,7 @@
             <command
             	commandId="com.dynamo.crepo.commands.launchHtml"
             	icon="icons/play.png"
-            	label="Build HTML and launch"
+            	label="Build HTML and Launch"
             	style="push">
             	<parameter
             		name="com.dynamo.crepo.command.launchHtml.type"

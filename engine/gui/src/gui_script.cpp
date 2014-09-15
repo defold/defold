@@ -22,12 +22,50 @@ namespace dmGui
     #define LIB_NAME "gui"
     #define NODE_PROXY_TYPE_NAME "NodeProxy"
 
+    static int GuiScriptGetURL(lua_State* L)
+    {
+        dmMessage::URL url;
+        dmMessage::ResetURL(url);
+        dmScript::PushURL(L, url);
+        return 1;
+    }
+
+    static int GuiScriptResolvePath(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 2);
+        dmScript::PushHash(L, dmHashString64(path));
+        return 1;
+    }
+
+    static int GuiScriptIsValid(lua_State* L)
+    {
+        Script* script = (Script*)lua_touserdata(L, 1);
+        lua_pushboolean(L, script != 0x0 && script->m_Context != 0x0);
+        return 1;
+    }
+
+    static const luaL_reg GuiScript_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg GuiScript_meta[] =
+    {
+        {dmScript::META_TABLE_GET_URL,      GuiScriptGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptResolvePath},
+        {dmScript::META_TABLE_IS_VALID,     GuiScriptIsValid},
+        {0, 0}
+    };
+
     static Scene* GetScene(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
         dmScript::GetInstance(L);
-        Scene* scene = (Scene*) lua_touserdata(L, -1);
+        Scene* scene = 0x0;
+        if (dmScript::IsUserType(L, -1, GUI_SCRIPT_INSTANCE)) {
+            scene = (Scene*)lua_touserdata(L, -1);
+        }
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return scene;
@@ -35,11 +73,15 @@ namespace dmGui
 
     static Scene* GuiScriptInstance_Check(lua_State *L, int index)
     {
-        Scene* i;
-        luaL_checktype(L, index, LUA_TUSERDATA);
-        i = (Scene*)luaL_checkudata(L, index, GUI_SCRIPT_INSTANCE);
-        if (i == NULL) luaL_typerror(L, index, GUI_SCRIPT_INSTANCE);
-        return i;
+        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE);
+    }
+
+    static Scene* GuiScriptInstance_Check(lua_State *L)
+    {
+        dmScript::GetInstance(L);
+        Scene* scene = GuiScriptInstance_Check(L, -1);
+        lua_pop(L, 1);
+        return scene;
     }
 
     static int GuiScriptInstance_gc (lua_State *L)
@@ -87,6 +129,30 @@ namespace dmGui
         return 0;
     }
 
+    static int GuiScriptInstanceGetURL(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        dmMessage::URL url;
+        scene->m_Context->m_GetURLCallback(scene, &url);
+        dmScript::PushURL(L, url);
+        return 1;
+    }
+
+    static int GuiScriptInstanceResolvePath(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        const char* path = luaL_checkstring(L, 2);
+        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, strlen(path)));
+        return 1;
+    }
+
+    static int GuiScriptInstanceIsValid(lua_State* L)
+    {
+        Scene* scene = (Scene*)lua_touserdata(L, 1);
+        lua_pushboolean(L, scene != 0x0 && scene->m_Context != 0x0);
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -98,38 +164,20 @@ namespace dmGui
         {"__tostring",  GuiScriptInstance_tostring},
         {"__index",     GuiScriptInstance_index},
         {"__newindex",  GuiScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,      GuiScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,     GuiScriptInstanceIsValid},
         {0, 0}
     };
 
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
-        NodeProxy* n;
-        luaL_checktype(L, index, LUA_TUSERDATA);
-        n = (NodeProxy*)luaL_checkudata(L, index, NODE_PROXY_TYPE_NAME);
-        if (n == NULL) luaL_typerror(L, index, NODE_PROXY_TYPE_NAME);
-        return n;
+        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME);
     }
 
-    static bool LuaIsNode(lua_State *L, int ud)
+    static bool LuaIsNode(lua_State *L, int index)
     {
-        int top = lua_gettop(L);
-        (void) top;
-        void *p = lua_touserdata(L, ud);
-        if (p != NULL)
-        {
-            if (lua_getmetatable(L, ud))
-            {
-                lua_getfield(L, LUA_REGISTRYINDEX, NODE_PROXY_TYPE_NAME);
-                if (lua_rawequal(L, -1, -2))
-                {
-                    lua_pop(L, 2);
-                    assert(top == lua_gettop(L));
-                    return true;
-                }
-            }
-        }
-        assert(top == lua_gettop(L));
-        return false;
+        return dmScript::IsUserType(L, index, NODE_PROXY_TYPE_NAME);
     }
 
     static bool IsValidNode(HScene scene, HNode node)
@@ -164,7 +212,7 @@ namespace dmGui
             luaL_error(L, "Deleted node");
         }
 
-        return 0; // Never reaached
+        return 0; // Never reached
     }
 
     static int NodeProxy_gc (lua_State *L)
@@ -263,7 +311,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode node = 0;
         if (lua_isstring(L, 1))
@@ -332,6 +380,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
+        Scene* scene = GuiScriptInstance_Check(L);
         HNode hnode;
         LuaCheckNode(L, 1, &hnode);
 
@@ -344,7 +393,6 @@ namespace dmGui
         {
             id = dmScript::CheckHash(L, 2);
         }
-        Scene* scene = GetScene(L);
         dmGui::SetNodeId(scene, hnode, id);
 
         assert(top == lua_gettop(L));
@@ -364,10 +412,10 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
+        Scene* scene = GuiScriptInstance_Check(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
-
-        Scene* scene = GetScene(L);
 
         uint32_t index = 0;
         uint16_t i = scene->m_RenderHead;
@@ -748,7 +796,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* node = LuaCheckNode(L, 1, &hnode);
@@ -840,7 +888,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* node = LuaCheckNode(L, 1, &hnode);
@@ -872,12 +920,10 @@ namespace dmGui
         lua_setmetatable(L, -2);
     }
 
-    static int LuaDoNewNode(lua_State* L, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
+    static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
     {
         int top = lua_gettop(L);
         (void) top;
-
-        Scene* scene = GetScene(L);
 
         HNode node = NewNode(scene, pos, size, node_type);
         if (!node)
@@ -914,7 +960,8 @@ namespace dmGui
             pos = *dmScript::CheckVector3(L, 1);
         }
         Vector3 size = *dmScript::CheckVector3(L, 2);
-        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
+        Scene* scene = GuiScriptInstance_Check(L);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
     }
 
     /*# creates a new text node
@@ -937,7 +984,7 @@ namespace dmGui
             pos = *dmScript::CheckVector3(L, 1);
         }
         const char* text = luaL_checkstring(L, 2);
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
         if (font == 0x0)
             font = scene->m_Context->m_DefaultFont;
@@ -950,7 +997,7 @@ namespace dmGui
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
 
-        return LuaDoNewNode(L, Point3(pos), size, NODE_TYPE_TEXT, text, font);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font);
     }
 
     /*# gets the node text
@@ -1066,7 +1113,7 @@ namespace dmGui
      */
     static int LuaGetTexture(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1088,7 +1135,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1149,7 +1196,7 @@ namespace dmGui
         size_t buffer_size;
         luaL_checktype(L, 5, LUA_TSTRING);
         const char* buffer = lua_tolstring(L, 5, &buffer_size);
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         dmImage::Type type = ToImageType(L, type_str);
         Result r = NewDynamicTexture(scene, name, width, height, type, buffer, buffer_size);
@@ -1170,7 +1217,7 @@ namespace dmGui
 
         const char* name = luaL_checkstring(L, 1);
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         Result r = DeleteDynamicTexture(scene, name);
         if (r != RESULT_OK) {
@@ -1193,7 +1240,7 @@ namespace dmGui
         size_t buffer_size;
         luaL_checktype(L, 5, LUA_TSTRING);
         const char* buffer = lua_tolstring(L, 5, &buffer_size);
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         dmImage::Type type = ToImageType(L, type_str);
         Result r = SetDynamicTextureData(scene, name, width, height, type, buffer, buffer_size);
@@ -1217,13 +1264,17 @@ namespace dmGui
      */
     static int LuaGetFont(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void)n;
 
         dmScript::PushHash(L, dmGui::GetNodeFontId(scene, hnode));
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -1239,7 +1290,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1281,13 +1332,17 @@ namespace dmGui
      */
     static int LuaGetLayer(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void)n;
 
         dmScript::PushHash(L, dmGui::GetNodeLayerId(scene, hnode));
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -1303,7 +1358,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1374,7 +1429,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1405,7 +1460,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         dmhash_t font_id_hash = 0;
         if (lua_isstring(L, 1)) {
@@ -1442,7 +1497,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         lua_pushnumber(L, GetNodeXAnchor(scene, hnode));
 
@@ -1476,7 +1531,7 @@ namespace dmGui
             luaL_error(L, "Invalid x-anchor: %d", anchor);
         }
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         SetNodeXAnchor(scene, hnode, (XAnchor) anchor);
 
@@ -1498,14 +1553,18 @@ namespace dmGui
      */
     static int LuaGetYAnchor(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         lua_pushnumber(L, GetNodeYAnchor(scene, hnode));
 
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -1523,6 +1582,9 @@ namespace dmGui
      */
     static int LuaSetYAnchor(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
@@ -1533,10 +1595,11 @@ namespace dmGui
             luaL_error(L, "Invalid y-anchor: %d", anchor);
         }
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         SetNodeYAnchor(scene, hnode, (YAnchor) anchor);
 
+        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -1560,7 +1623,10 @@ namespace dmGui
      */
     static int LuaGetPivot(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1568,6 +1634,7 @@ namespace dmGui
 
         lua_pushnumber(L, dmGui::GetNodePivot(scene, hnode));
 
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -1591,6 +1658,9 @@ namespace dmGui
      */
     static int LuaSetPivot(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
@@ -1601,10 +1671,11 @@ namespace dmGui
             luaL_error(L, "Invalid pivot: %d", pivot);
         }
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         SetNodePivot(scene, hnode, (Pivot) pivot);
 
+        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -1615,7 +1686,7 @@ namespace dmGui
      */
     static int LuaGetWidth(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         lua_pushnumber(L, scene->m_Context->m_Width);
         return 1;
@@ -1628,7 +1699,7 @@ namespace dmGui
      */
     static int LuaGetHeight(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         lua_pushnumber(L, scene->m_Context->m_Height);
         return 1;
@@ -1651,7 +1722,7 @@ namespace dmGui
         lua_Number x = luaL_checknumber(L, 2);
         lua_Number y = luaL_checknumber(L, 3);
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         lua_pushboolean(L, PickNode(scene, hnode, (float) x, (float) y));
         return 1;
@@ -1671,7 +1742,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         (void) n;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         lua_pushboolean(L, dmGui::IsNodeEnabled(scene, hnode));
 
@@ -1694,7 +1765,7 @@ namespace dmGui
 
         int enabled = lua_toboolean(L, 2);
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         dmGui::SetNodeEnabled(scene, hnode, enabled != 0);
 
@@ -1757,7 +1828,7 @@ namespace dmGui
         {
             r = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
         }
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         MoveNodeAbove(scene, GetNodeHandle(n), r);
         return 0;
     }
@@ -1778,7 +1849,7 @@ namespace dmGui
         {
             r = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
         }
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         MoveNodeBelow(scene, GetNodeHandle(n), r);
         return 0;
     }
@@ -1796,7 +1867,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
 
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1835,7 +1906,7 @@ namespace dmGui
         {
             parent = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
         }
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent);
         switch (result)
         {
@@ -1858,10 +1929,13 @@ namespace dmGui
      */
     static int LuaClone(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         HNode hnode;
         LuaCheckNode(L, 1, &hnode);
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         HNode out_node;
         dmGui::Result result = dmGui::CloneNode(scene, hnode, &out_node);
         switch (result)
@@ -1871,6 +1945,7 @@ namespace dmGui
         case dmGui::RESULT_OK:
             MoveNodeAbove(scene, out_node, hnode);
             LuaPushNode(L, scene, out_node);
+            assert(top + 1 == lua_gettop(L));
             return 1;
         default:
             return luaL_error(L, "An unexpected error occurred");
@@ -1937,6 +2012,9 @@ namespace dmGui
      */
     static int LuaCloneTree(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void)top;
+
         lua_newtable(L);
 
         // Set meta table to convert string indices to hashes
@@ -1945,7 +2023,7 @@ namespace dmGui
         lua_setfield(L, -2, "__index");
         lua_setmetatable(L, -2);
 
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         dmGui::Result result;
         if (!lua_isnil(L, 1))
         {
@@ -1974,6 +2052,7 @@ namespace dmGui
             lua_pop(L, 1);
             return luaL_error(L, "Not enough resources to clone the node tree");
         case dmGui::RESULT_OK:
+            assert(top + 1 == lua_gettop(L));
             return 1;
         default:
             lua_pop(L, 1);
@@ -1988,7 +2067,7 @@ namespace dmGui
      */
     static int LuaResetNodes(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         ResetNodes(scene);
         return 0;
     }
@@ -1996,7 +2075,7 @@ namespace dmGui
     // Currently a private function
     static int LuaSetRenderOrder(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         int order = luaL_checkinteger(L, 1);
         // NOTE: The range reflects the current bits allocated in RenderKey for order
         if (order < 0 || order > 7) {
@@ -2033,7 +2112,7 @@ namespace dmGui
      */
     static int LuaShowKeyboard(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         int type = luaL_checkinteger(L, 1);
         luaL_checktype(L, 2, LUA_TBOOLEAN);
         bool autoclose = (bool) lua_toboolean(L, 2);
@@ -2047,7 +2126,7 @@ namespace dmGui
      */
     static int LuaHideKeyboard(lua_State* L)
     {
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         dmHID::HideKeyboard(scene->m_Context->m_HidContext);
         return 0;
     }
@@ -2216,7 +2295,7 @@ namespace dmGui
     int LuaGetScreenPosition(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);
-        Scene* scene = GetScene(L);
+        Scene* scene = GuiScriptInstance_Check(L);
         Vector4 scale = CalculateReferenceScale(scene->m_Context);
         Matrix4 node_transform;
         Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
@@ -2293,37 +2372,6 @@ namespace dmGui
     };
 
 #undef REGGETSET
-
-    dmhash_t ScriptResolvePathCallback(uintptr_t resolve_user_data, const char* path, uint32_t path_size)
-    {
-        lua_State* L = (lua_State*)resolve_user_data;
-        Scene* scene = GetScene(L);
-
-        return scene->m_Context->m_ResolvePathCallback(scene, path, path_size);
-    }
-
-    void ScriptGetURLCallback(lua_State* L, dmMessage::URL* url)
-    {
-        Scene* scene = GetScene(L);
-        if (scene == 0x0)
-        {
-            luaL_error(L, "You can only create URLs inside inside the callback functions (init, update, etc).");
-        }
-
-        scene->m_Context->m_GetURLCallback(scene, url);
-    }
-
-    uintptr_t ScriptGetUserDataCallback(lua_State* L)
-    {
-        Scene* scene = GetScene(L);
-        return scene->m_Context->m_GetUserDataCallback(scene);
-    }
-
-    bool ScriptValidateInstanceCallback(lua_State* L)
-    {
-        Scene* scene = GetScene(L);
-        return scene != 0x0 && scene->m_Context != 0x0;
-    }
 
     /*# position property
      *
@@ -2484,44 +2532,16 @@ namespace dmGui
 
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
-        lua_State* L = lua_open();
+        lua_State* L = dmScript::GetLuaState(script_context);
 
         int top = lua_gettop(L);
         (void)top;
-        luaL_openlibs(L);
 
-        // Pop all stack values generated from luaopen_*
-        lua_pop(L, lua_gettop(L));
+        dmScript::RegisterUserType(L, GUI_SCRIPT, GuiScript_methods, GuiScript_meta);
 
-        dmScript::ScriptParams params;
-        params.m_Context = script_context;
-        params.m_GetURLCallback = ScriptGetURLCallback;
-        params.m_GetUserDataCallback = ScriptGetUserDataCallback;
-        params.m_ResolvePathCallback = ScriptResolvePathCallback;
-        params.m_ValidateInstanceCallback = ScriptValidateInstanceCallback;
-        dmScript::Initialize(L, params);
+        dmScript::RegisterUserType(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods, GuiScriptInstance_meta);
 
-        luaL_register(L, GUI_SCRIPT_INSTANCE, GuiScriptInstance_methods);   // create methods table, add it to the globals
-        lua_pop(L, 1);
-
-        luaL_newmetatable(L, GUI_SCRIPT_INSTANCE);                         // create metatable for Image, add it to the Lua registry
-        luaL_register(L, 0, GuiScriptInstance_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, -3);                       // dup methods table
-        lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
-        lua_pop(L, 1);                              // drop metatable
-
-        luaL_register(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods);   // create methods table, add it to the globals
-        lua_pop(L, 1);
-
-        luaL_newmetatable(L, NODE_PROXY_TYPE_NAME);                         // create metatable for Image, add it to the Lua registry
-        luaL_register(L, 0, NodeProxy_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, -3);                       // dup methods table
-        lua_rawset(L, -3);                          // hide metatable: metatable.__metatable = methods
-        lua_pop(L, 1);                              // drop metatable
+        dmScript::RegisterUserType(L, NODE_PROXY_TYPE_NAME, NodeProxy_methods, NodeProxy_meta);
 
         luaL_register(L, LIB_NAME, Gui_methods);
 
@@ -2684,8 +2704,6 @@ namespace dmGui
 
     void FinalizeScript(lua_State* L, dmScript::HContext script_context)
     {
-        dmScript::Finalize(L, script_context);
-        lua_close(L);
     }
 
     // Documentation for the scripts

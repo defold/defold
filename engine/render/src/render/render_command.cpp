@@ -130,6 +130,16 @@ namespace dmRender
                     dmGraphics::SetStencilMask(context, c->m_Operands[0]);
                     break;
                 }
+                case COMMAND_TYPE_SET_STENCIL_FUNC:
+                {
+                    dmGraphics::SetStencilFunc(context, (dmGraphics::StencilFunc)c->m_Operands[0], c->m_Operands[1], c->m_Operands[2]);
+                    break;
+                }
+                case COMMAND_TYPE_SET_STENCIL_OP:
+                {
+                    dmGraphics::SetStencilOp(context, (dmGraphics::StencilOp)c->m_Operands[0], (dmGraphics::StencilOp)c->m_Operands[1], (dmGraphics::StencilOp)c->m_Operands[2]);
+                    break;
+                }
                 case COMMAND_TYPE_SET_CULL_FACE:
                 {
                     dmGraphics::SetCullFace(context, (dmGraphics::FaceType)c->m_Operands[0]);

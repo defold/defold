@@ -9,3 +9,5 @@ width = 1280
 height = 720
 [physics]
 scale = 0.02
+[script]
+shared_state = 1

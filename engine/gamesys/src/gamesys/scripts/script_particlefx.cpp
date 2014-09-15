@@ -53,7 +53,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
         {
             if (top != 1)
             {
@@ -98,7 +98,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
         {
             if (top != 1)
             {
@@ -169,7 +169,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
         {
             dmhash_t emitter_id;
             if (!GetHash(L, 2, &emitter_id))
@@ -234,7 +234,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data) && user_data != 0)
+        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
         {
             dmhash_t emitter_id;
             if (!GetHash(L, 3, &emitter_id))

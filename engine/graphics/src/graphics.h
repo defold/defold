@@ -73,6 +73,7 @@ namespace dmGraphics
     enum State
     {
         STATE_DEPTH_TEST            = DMGRAPHICS_STATE_DEPTH_TEST,
+        STATE_STENCIL_TEST          = DMGRAPHICS_STATE_STENCIL_TEST,
 #ifndef GL_ES_VERSION_2_0
         STATE_ALPHA_TEST            = DMGRAPHICS_STATE_ALPHA_TEST,
 #endif
@@ -94,6 +95,7 @@ namespace dmGraphics
         TYPE_FLOAT_VEC4     = DMGRAPHICS_TYPE_FLOAT_VEC4,
         TYPE_FLOAT_MAT4     = DMGRAPHICS_TYPE_FLOAT_MAT4,
         TYPE_SAMPLER_2D     = DMGRAPHICS_TYPE_SAMPLER_2D,
+        TYPE_SAMPLER_CUBE   = DMGRAPHICS_TYPE_SAMPLER_CUBE,
     };
 
     // Texture format
@@ -112,6 +114,13 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
         TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
         TEXTURE_FORMAT_RGB_ETC1             = 12,
+    };
+
+    // Texture type
+    enum TextureType
+    {
+        TEXTURE_TYPE_2D = DMGRAPHICS_TEXTURE_TYPE_2D,
+        TEXTURE_TYPE_CUBE_MAP = DMGRAPHICS_TEXTURE_TYPE_CUBE_MAP,
     };
 
     // Texture format
@@ -150,6 +159,32 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
         BLEND_FACTOR_CONSTANT_ALPHA             = DMGRAPHICS_BLEND_FACTOR_CONSTANT_ALPHA,
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+    };
+
+    // Stencil func
+    enum StencilFunc
+    {
+        STENCIL_FUNC_NEVER      = DMGRAPHICS_STENCIL_FUNC_NEVER,
+        STENCIL_FUNC_LESS       = DMGRAPHICS_STENCIL_FUNC_LESS,
+        STENCIL_FUNC_LEQUAL     = DMGRAPHICS_STENCIL_FUNC_LEQUAL,
+        STENCIL_FUNC_GREATER    = DMGRAPHICS_STENCIL_FUNC_GREATER,
+        STENCIL_FUNC_GEQUAL     = DMGRAPHICS_STENCIL_FUNC_GEQUAL,
+        STENCIL_FUNC_EQUAL      = DMGRAPHICS_STENCIL_FUNC_EQUAL,
+        STENCIL_FUNC_NOTEQUAL   = DMGRAPHICS_STENCIL_FUNC_NOTEQUAL,
+        STENCIL_FUNC_ALWAYS     = DMGRAPHICS_STENCIL_FUNC_ALWAYS,
+    };
+
+    // Stencil operation
+    enum StencilOp
+    {
+        STENCIL_OP_KEEP         = DMGRAPHICS_STENCIL_OP_KEEP,
+        STENCIL_OP_ZERO         = DMGRAPHICS_STENCIL_OP_ZERO,
+        STENCIL_OP_REPLACE      = DMGRAPHICS_STENCIL_OP_REPLACE,
+        STENCIL_OP_INCR         = DMGRAPHICS_STENCIL_OP_INCR,
+        STENCIL_OP_INCR_WRAP    = DMGRAPHICS_STENCIL_OP_INCR_WRAP,
+        STENCIL_OP_DECR         = DMGRAPHICS_STENCIL_OP_DECR,
+        STENCIL_OP_DECR_WRAP    = DMGRAPHICS_STENCIL_OP_DECR_WRAP,
+        STENCIL_OP_INVERT       = DMGRAPHICS_STENCIL_OP_INVERT,
     };
 
     enum BufferUsage
@@ -224,6 +259,23 @@ namespace dmGraphics
         bool            m_Normalize;
     };
 
+    struct TextureCreationParams {
+
+    	TextureCreationParams() :
+    	    m_Type(TEXTURE_TYPE_2D),
+    		m_Width(0),
+    		m_Height(0),
+    		m_OriginalWidth(0),
+    		m_OriginalHeight(0)
+    	{}
+
+        TextureType   m_Type;
+		uint16_t m_Width;
+		uint16_t m_Height;
+		uint16_t m_OriginalWidth;
+		uint16_t m_OriginalHeight;
+    };
+
     struct TextureParams
     {
         TextureParams()
@@ -237,8 +289,6 @@ namespace dmGraphics
         , m_MipMap(0)
         , m_Width(0)
         , m_Height(0)
-        , m_OriginalWidth(0)
-        , m_OriginalHeight(0)
         {}
 
         TextureFormat m_Format;
@@ -251,8 +301,6 @@ namespace dmGraphics
         uint16_t m_MipMap;
         uint16_t m_Width;
         uint16_t m_Height;
-        uint16_t m_OriginalWidth;
-        uint16_t m_OriginalHeight;
     };
 
     // Parameters structure for OpenWindow
@@ -461,10 +509,12 @@ namespace dmGraphics
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
     void SetStencilMask(HContext context, uint32_t mask);
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask);
+    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
     void SetCullFace(HContext context, FaceType face_type);
     void SetPolygonOffset(HContext context, float factor, float units);
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     void DeleteRenderTarget(HRenderTarget render_target);
     void EnableRenderTarget(HContext context, HRenderTarget render_target);
     void DisableRenderTarget(HContext context, HRenderTarget render_target);
@@ -473,15 +523,23 @@ namespace dmGraphics
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
-    HTexture NewTexture(HContext context, const TextureParams& params);
+    HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
+
+    /**
+     * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
+     * 6 mip-maps are present contiguously in memory with stride m_DataSize
+     *
+     * @param texture
+     * @param params
+     */
     void SetTexture(HTexture texture, const TextureParams& params);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);
     uint16_t GetOriginalTextureHeight(HTexture texture);
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
-    void DisableTexture(HContext context, uint32_t unit);
+    void DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     /**
      * Read frame buffer pixels in BGRA format

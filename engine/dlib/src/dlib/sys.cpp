@@ -294,6 +294,12 @@ namespace dmSys
         else
             return r;
     }
+
+    Result OpenURL(const char* url)
+    {
+        return RESULT_UNKNOWN;
+    }
+
 #elif defined(__linux__)
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -458,7 +464,7 @@ namespace dmSys
 #endif
     }
 
-#if (defined(__MACH__) && !defined(__arm__)) || (defined(__linux__) && !defined(__ANDROID__)) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__AVM2__) || defined(__EMSCRIPTEN__)
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));

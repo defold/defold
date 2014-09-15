@@ -18,11 +18,7 @@ extern "C"
 
 namespace dmGameObject
 {
-#define SCRIPT_NAME "__script__"
-
     extern const char* ID_SEPARATOR;
-
-    extern lua_State* g_LuaState;
 
     // TODO: Configurable?
     const uint32_t MAX_MESSAGE_DATA_SIZE = 256;

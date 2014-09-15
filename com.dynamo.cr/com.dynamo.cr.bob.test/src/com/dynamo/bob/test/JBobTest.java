@@ -46,6 +46,9 @@ public class JBobTest {
     @BuilderParams(name = "InCopyBuilder", inExts = ".in", outExt = ".out")
     public static class InCopyBuilder extends CopyBuilder {}
 
+    @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
+    public static class InCopyBuilderMulti extends InCopyBuilder {}
+
     @BuilderParams(name = "ArcBuilder", inExts = ".proj", outExt = ".arc", createOrder = 1000)
     public static class ArcBuilder extends Builder<Void> {
 
@@ -232,6 +235,14 @@ public class JBobTest {
         IResource testOut = fileSystem.get("test.out").output();
         assertNotNull(testOut);
         assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    @Test(expected=CompileExceptionError.class)
+    public void testTaskOutputMultipleInput() throws Exception {
+        fileSystem.addFile("test.in", "test data".getBytes());
+        fileSystem.addFile("test.in2", "test data 2".getBytes());
+        project.setInputs(Arrays.asList("test.in", "test.in2"));
+        build();
     }
 
     @Test

@@ -13,12 +13,25 @@
 
 namespace dmRender
 {
+    enum RenderScriptFunction
+    {
+        RENDER_SCRIPT_FUNCTION_INIT,
+        RENDER_SCRIPT_FUNCTION_UPDATE,
+        RENDER_SCRIPT_FUNCTION_ONMESSAGE,
+        RENDER_SCRIPT_FUNCTION_ONRELOAD,
+        MAX_RENDER_SCRIPT_FUNCTION_COUNT
+    };
+
+    struct RenderScript
+    {
+        int             m_FunctionReferences[MAX_RENDER_SCRIPT_FUNCTION_COUNT];
+        RenderContext*  m_RenderContext;
+        int             m_InstanceReference;
+    };
+
     static const uint32_t MAX_PREDICATE_COUNT = 64;
     struct RenderScriptInstance
     {
-        RenderScriptInstance();
-        ~RenderScriptInstance();
-
         dmArray<Command>            m_CommandBuffer;
         dmHashTable64<HMaterial>    m_Materials;
         Predicate*                  m_Predicates[MAX_PREDICATE_COUNT];

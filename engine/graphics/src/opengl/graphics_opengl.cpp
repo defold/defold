@@ -342,7 +342,7 @@ static void LogFrameBufferError(GLenum status)
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 0, mode))
+        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
@@ -1100,7 +1100,7 @@ static void LogFrameBufferError(GLenum status)
         glUniform1i(location, unit);
     }
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureParams params[MAX_BUFFER_TYPE_COUNT])
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
         RenderTarget* rt = new RenderTarget;
         memset(rt, 0, sizeof(RenderTarget));
@@ -1123,7 +1123,8 @@ static void LogFrameBufferError(GLenum status)
         {
             if (buffer_type_flags & BUFFER_TYPES[i])
             {
-                rt->m_BufferTextures[i] = NewTexture(context, params[i]);
+                rt->m_BufferTextures[i] = NewTexture(context, creation_params[i]);
+                SetTexture(rt->m_BufferTextures[i], params[i]);
                 // attach the texture to FBO color attachment point
                 glFramebufferTexture2D(GL_FRAMEBUFFER, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
                 CHECK_GL_ERROR
@@ -1200,16 +1201,26 @@ static void LogFrameBufferError(GLenum status)
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
-    HTexture NewTexture(HContext context, const TextureParams& params)
+    HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
         GLuint t;
         glGenTextures( 1, &t );
         CHECK_GL_ERROR
 
         Texture* tex = new Texture;
+        tex->m_Type = params.m_Type;
         tex->m_Texture = t;
 
-        SetTexture(tex, params);
+        tex->m_Width = params.m_Width;
+        tex->m_Height = params.m_Height;
+
+        if (params.m_OriginalWidth == 0){
+        	tex->m_OriginalWidth = params.m_Width;
+        	tex->m_OriginalHeight = params.m_Height;
+        } else {
+        	tex->m_OriginalWidth = params.m_OriginalWidth;
+        	tex->m_OriginalHeight = params.m_OriginalHeight;
+        }
 
         return (HTexture) tex;
     }
@@ -1226,26 +1237,6 @@ static void LogFrameBufferError(GLenum status)
 
     void SetTexture(HTexture texture, const TextureParams& params)
     {
-        if (params.m_MipMap == 0)
-        {
-            texture->m_Width = params.m_Width;
-            texture->m_Height = params.m_Height;
-
-            if (params.m_OriginalWidth == 0) {
-                texture->m_OriginalWidth = params.m_Width;
-                texture->m_OriginalHeight = params.m_Height;
-            } else {
-                texture->m_OriginalWidth = params.m_OriginalWidth;
-                texture->m_OriginalHeight = params.m_OriginalHeight;
-            }
-        }
-
-        if (NULL == params.m_Data) {
-            //DEF-530: calling SetTexture in NewTexture, prior to image data being made available,
-            // was causing RGBA textures to vanish in IE11.
-            return;
-        }
-
         int unpackAlignment = 4;
         /*
          * For RGA-textures the row-alignment may not be a multiple of 4.
@@ -1268,19 +1259,20 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR
         }
 
-        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+        GLenum type = (GLenum) texture->m_Type;
+        glBindTexture(type, texture->m_Texture);
         CHECK_GL_ERROR
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, params.m_MinFilter);
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, params.m_MinFilter);
         CHECK_GL_ERROR
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, params.m_MagFilter);
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, params.m_MagFilter);
         CHECK_GL_ERROR
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, params.m_UWrap);
+        glTexParameteri(type, GL_TEXTURE_WRAP_S, params.m_UWrap);
         CHECK_GL_ERROR
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, params.m_VWrap);
+        glTexParameteri(type, GL_TEXTURE_WRAP_T, params.m_VWrap);
         CHECK_GL_ERROR
 
         GLenum gl_format;
@@ -1354,8 +1346,26 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
         case TEXTURE_FORMAT_DEPTH:
-            glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
-            CHECK_GL_ERROR
+            if (texture->m_Type == TEXTURE_TYPE_2D) {
+                glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
+            } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                const char* p = (const char*) params.m_Data;
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
+                CHECK_GL_ERROR
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
+                CHECK_GL_ERROR
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
+                CHECK_GL_ERROR
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
+                CHECK_GL_ERROR
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
+                CHECK_GL_ERROR
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
+                CHECK_GL_ERROR
+
+            } else {
+                assert(0);
+            }
             break;
 
         case TEXTURE_FORMAT_RGB_DXT1:
@@ -1367,16 +1377,36 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
         case TEXTURE_FORMAT_RGB_ETC1:
-            if (params.m_DataSize > 0)
-                glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
-            CHECK_GL_ERROR
+            if (params.m_DataSize > 0) {
+                if (texture->m_Type == TEXTURE_TYPE_2D) {
+                    glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
+                    CHECK_GL_ERROR
+                } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                    const char* p = (const char*) params.m_Data;
+                    glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
+                    CHECK_GL_ERROR
+                    glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
+                    CHECK_GL_ERROR
+                    glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
+                    CHECK_GL_ERROR
+                    glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
+                    CHECK_GL_ERROR
+                    glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
+                    CHECK_GL_ERROR
+                    glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
+                    CHECK_GL_ERROR
+                } else {
+                    assert(0);
+                }
+            }
+
             break;
         default:
             assert(0);
             break;
         }
 
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(type, 0);
         CHECK_GL_ERROR
 
         if (unpackAlignment != 4) {
@@ -1418,11 +1448,11 @@ static void LogFrameBufferError(GLenum status)
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR
-        glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+        glBindTexture((GLenum) texture->m_Type, texture->m_Texture);
         CHECK_GL_ERROR
     }
 
-    void DisableTexture(HContext context, uint32_t unit)
+    void DisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
 
@@ -1433,7 +1463,7 @@ static void LogFrameBufferError(GLenum status)
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR
-        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture((GLenum) texture->m_Type, 0);
         CHECK_GL_ERROR
     }
 
@@ -1487,6 +1517,20 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
         glStencilMask(mask);
+        CHECK_GL_ERROR
+    }
+
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask)
+    {
+        assert(context);
+        glStencilFunc((GLenum) func, ref, mask);
+        CHECK_GL_ERROR
+    }
+
+    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        assert(context);
+        glStencilOp((GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
         CHECK_GL_ERROR
     }
 

@@ -20,19 +20,14 @@ protected:
     virtual void SetUp()
     {
         m_Context = dmScript::NewContext(0, 0);
-
-        L = lua_open();
-        luaL_openlibs(L);
-        dmScript::ScriptParams params;
-        params.m_Context = m_Context;
-        dmScript::Initialize(L, params);
+        dmScript::Initialize(m_Context);
+        L = dmScript::GetLuaState(m_Context);
     }
 
     virtual void TearDown()
     {
-        dmScript::Finalize(L, m_Context);
+        dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        lua_close(L);
     }
 
     dmScript::HContext m_Context;
@@ -86,6 +81,22 @@ TEST_F(ScriptModuleTest, TestReload)
     int reloaded = luaL_checkinteger(L, -1);
     ASSERT_EQ(1010, reloaded);
     lua_pop(L, 3);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptModuleTest, TestReloadReturn)
+{
+    int top = lua_gettop(L);
+    const char* script = "local M = {}\nreturn M\n";
+    const char* script_file_name = "x.test_mod";
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, script_file_name));
+    dmScript::Result ret = dmScript::AddModule(m_Context, script, strlen(script), script_file_name, 0);
+    ASSERT_EQ(dmScript::RESULT_OK, ret);
+    ASSERT_TRUE(dmScript::ModuleLoaded(m_Context, script_file_name));
+
+    ret = dmScript::ReloadModule(m_Context, L, script, strlen(script), dmHashString64(script_file_name));
+    ASSERT_EQ(dmScript::RESULT_OK, ret);
 
     ASSERT_EQ(top, lua_gettop(L));
 }

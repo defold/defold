@@ -19,25 +19,31 @@ extern "C"
 
 #define PATH_FORMAT "build/default/src/test/%s"
 
-dmhash_t ResolvePathCallback(uintptr_t user_data, const char* path, uint32_t path_size)
+#define DEFAULT_URL "__default_url"
+
+int ResolvePathCallback(lua_State* L)
 {
-    return dmHashBuffer64(path, path_size);
+    uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
+    assert(*user_data == 1);
+    const char* path = luaL_checkstring(L, 2);
+    dmScript::PushHash(L, dmHashString64(path));
+    return 1;
 }
 
-void GetURLCallback(lua_State* L, dmMessage::URL* url)
+int GetURLCallback(lua_State* L)
 {
-    lua_getglobal(L, "__default_url");
-    *url = *dmScript::CheckURL(L, -1);
-    lua_pop(L, 1);
+    uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
+    assert(*user_data == 1);
+    lua_getglobal(L, DEFAULT_URL);
+    return 1;
 }
 
-uintptr_t GetUserDataCallback(lua_State* L)
+static const luaL_reg META_TABLE[] =
 {
-    lua_getglobal(L, "__default_url");
-    uintptr_t default_url = (uintptr_t)dmScript::CheckURL(L, -1);
-    lua_pop(L, 1);
-    return default_url;
-}
+    {dmScript::META_TABLE_RESOLVE_PATH, ResolvePathCallback},
+    {dmScript::META_TABLE_GET_URL,      GetURLCallback},
+    {0, 0}
+};
 
 class ScriptHttpTest : public ::testing::Test
 {
@@ -57,31 +63,41 @@ protected:
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
 
         m_HttpResponseCount = 0;
-        L = lua_open();
-        luaL_openlibs(L);
+
         m_ScriptContext = dmScript::NewContext(m_ConfigFile, 0);
-        dmScript::ScriptParams params;
-        params.m_Context = m_ScriptContext;
-        params.m_ResolvePathCallback = ResolvePathCallback;
-        params.m_GetURLCallback = GetURLCallback;
-        params.m_GetUserDataCallback = GetUserDataCallback;
-        dmScript::Initialize(L, params);
+        dmScript::Initialize(m_ScriptContext);
+        L = dmScript::GetLuaState(m_ScriptContext);
 
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("default_socket", &m_DefaultURL.m_Socket));
         m_DefaultURL.m_Path = dmHashString64("default_path");
         m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
         dmScript::PushURL(L, m_DefaultURL);
-        lua_setglobal(L, "__default_url");
+
+        lua_setglobal(L, DEFAULT_URL);
+
+        int top = lua_gettop(L);
+        (void)top;
+        uint32_t* user_data = (uint32_t*)lua_newuserdata(L, 4);
+        *user_data = 1;
+        luaL_newmetatable(L, "ScriptMsgTest");
+        luaL_register(L, 0, META_TABLE);
+        lua_setmetatable(L, -2);
+        dmScript::SetInstance(L);
+        assert(top == lua_gettop(L));
+
         m_WebServerPort = 9001;
+
     }
 
     virtual void TearDown()
     {
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
         if (m_DefaultURL.m_Socket) {
             dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
         }
-        dmScript::Finalize(L, m_ScriptContext);
-        lua_close(L);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmConfigFile::Delete(m_ConfigFile);
     }

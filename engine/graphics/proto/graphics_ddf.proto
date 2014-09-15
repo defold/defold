@@ -1,10 +1,29 @@
 package dmGraphics;
 
+import "ddf/ddf_extensions.proto";
+
 option java_package = "com.dynamo.graphics.proto";
 option java_outer_classname = "Graphics";
 
+message Cubemap
+{
+    required string right       = 1 [(resource)=true];
+    required string left        = 2 [(resource)=true];
+    required string top         = 3 [(resource)=true];
+    required string bottom      = 4 [(resource)=true];
+    required string front       = 5 [(resource)=true];
+    required string back        = 6 [(resource)=true];
+}
+
 message TextureImage
 {
+    enum Type
+    {
+        // Corresponds to GL_TEXTURE_2D
+        TYPE_2D      = 1;
+        // Corresponds to GL_TEXTURE_CUBE_MAP
+        TYPE_CUBEMAP = 2;
+    }
     enum TextureFormat
     {
         TEXTURE_FORMAT_LUMINANCE         = 0;
@@ -34,4 +53,8 @@ message TextureImage
     }
 
     repeated Image alternatives = 1;
+    required Type type          = 2;
+    // When count > 1 count mipmaps are laid out contiguously in memory and
+    // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
+    required uint32 count       = 3;
 }

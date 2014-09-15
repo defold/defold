@@ -85,13 +85,6 @@ namespace dmGui
         return 0;
     }
 
-    Script::Script()
-    : m_Context(0x0)
-    {
-        for (int i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
-            m_FunctionReferences[i] = LUA_NOREF;
-    }
-
     TextMetrics::TextMetrics()
     {
         memset(this, 0, sizeof(TextMetrics));
@@ -169,9 +162,10 @@ namespace dmGui
         params->m_MaxLayers = 8;
     }
 
-    Scene::Scene()
-    {
-        memset(this, 0, sizeof(Scene));
+    static void ResetScene(HScene scene) {
+        memset(scene, 0, sizeof(Scene));
+        scene->m_InstanceReference = LUA_NOREF;
+        scene->m_DataReference = LUA_NOREF;
     }
 
     HScene NewScene(HContext context, const NewSceneParams* params)
@@ -180,7 +174,8 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        Scene* scene = new (lua_newuserdata(L, sizeof(Scene))) Scene();
+        Scene* scene = (Scene*)lua_newuserdata(L, sizeof(Scene));
+        ResetScene(scene);
 
         dmArray<HScene>& scenes = context->m_Scenes;
         if (scenes.Full())
@@ -258,7 +253,7 @@ namespace dmGui
 
         scene->~Scene();
 
-        memset(scene, 0, sizeof(Scene));
+        ResetScene(scene);
     }
 
     void SetSceneUserData(HScene scene, void* user_data)
@@ -1658,10 +1653,10 @@ namespace dmGui
         return SetNodeLayer(scene, node, dmHashString64(layer_id));
     }
 
-    void SetNodeInheritColor(HScene scene, HNode node, bool inherit_color)
+    void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha)
     {
         InternalNode* n = GetNode(scene, node);
-        n->m_Node.m_InheritColor = inherit_color;
+        n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics)
@@ -2102,7 +2097,7 @@ namespace dmGui
         }
     }
 
-    inline void CalculateParentNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, Vector4& out_color, SceneTraversalCache& traversal_cache)
+    inline void CalculateParentNodeTransformAndAlphaCached(HScene scene, InternalNode* n, const Vector4& reference_scale, Matrix4& out_transform, float& out_alpha, SceneTraversalCache& traversal_cache)
     {
         const Node& node = n->m_Node;
         uint16_t cache_index;
@@ -2128,7 +2123,7 @@ namespace dmGui
         else if(cached)
         {
             out_transform = cache_data.m_Transform;
-            out_color = cache_data.m_Color;
+            out_alpha = cache_data.m_Alpha;
             return;
         }
         out_transform = node.m_LocalTransform;
@@ -2136,23 +2131,23 @@ namespace dmGui
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
-            Vector4 parent_color;
+            float parent_alpha;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, traversal_cache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, reference_scale, parent_trans, parent_alpha, traversal_cache);
             out_transform = parent_trans * out_transform;
-            if (node.m_InheritColor) {
-                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
-            } else {
-                out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
+            out_alpha = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
+            if (node.m_InheritAlpha)
+            {
+                out_alpha *=  parent_alpha;
             }
         }
         else
         {
-            out_color = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR];
+            out_alpha = n->m_Node.m_Properties[dmGui::PROPERTY_COLOR].getW();
         }
 
         cache_data.m_Transform = out_transform;
-        cache_data.m_Color = out_color;
+        cache_data.m_Alpha = out_alpha;
     }
 
     inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color)
@@ -2168,13 +2163,17 @@ namespace dmGui
         if (n->m_ParentIndex != INVALID_INDEX)
         {
             Matrix4 parent_trans;
-            Vector4 parent_color;
+            float parent_alpha;
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
-            CalculateParentNodeTransformAndColorCached(scene, parent, reference_scale, parent_trans, parent_color, scene->m_Context->m_SceneTraversalCache);
+            CalculateParentNodeTransformAndAlphaCached(scene, parent, reference_scale, parent_trans, parent_alpha, scene->m_Context->m_SceneTraversalCache);
             out_transform = parent_trans * out_transform;
-            if (node.m_InheritColor) {
-                out_color = mulPerElem(node.m_Properties[dmGui::PROPERTY_COLOR], parent_color);
-            } else {
+            if (node.m_InheritAlpha)
+            {
+                Vector4 c(node.m_Properties[dmGui::PROPERTY_COLOR]);
+                out_color = Vector4(c.getX(), c.getY(), c.getZ(), c.getW()*parent_alpha);
+            }
+            else
+            {
                 out_color = node.m_Properties[dmGui::PROPERTY_COLOR];
             }
         }
@@ -2221,18 +2220,40 @@ namespace dmGui
         }
     }
 
+    static void ResetScript(HScript script) {
+        memset(script, 0, sizeof(Script));
+        for (int i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i) {
+            script->m_FunctionReferences[i] = LUA_NOREF;
+        }
+        script->m_InstanceReference = LUA_NOREF;
+    }
+
     HScript NewScript(HContext context)
     {
-        Script* script = new Script();
-        for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
-            script->m_FunctionReferences[i] = LUA_NOREF;
+        lua_State* L = context->m_LuaState;
+        Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
+        ResetScript(script);
         script->m_Context = context;
+
+        luaL_getmetatable(L, GUI_SCRIPT);
+        lua_setmetatable(L, -2);
+
+        script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+
         return script;
     }
 
     void DeleteScript(HScript script)
     {
-        delete script;
+        lua_State* L = script->m_Context->m_LuaState;
+        for (int i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i) {
+            if (script->m_FunctionReferences[i] != LUA_NOREF) {
+                luaL_unref(L, LUA_REGISTRYINDEX, script->m_FunctionReferences[i]);
+            }
+        }
+        luaL_unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        script->~Script();
+        ResetScript(script);
     }
 
     Result SetScript(HScript script, const char* source, uint32_t source_length, const char* filename)
@@ -2253,7 +2274,14 @@ namespace dmGui
             goto bail;
         }
 
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        dmScript::SetInstance(L);
+
         ret = lua_pcall(L, 0, LUA_MULTRET, 0);
+
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
         if (ret != 0)
         {
             dmLogError("Error running script: %s", lua_tostring(L,-1));

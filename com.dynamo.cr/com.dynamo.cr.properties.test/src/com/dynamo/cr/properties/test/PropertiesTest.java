@@ -32,6 +32,11 @@ public class PropertiesTest {
     private PropertyIntrospectorModel<TinyDummyClass, DummyWorld> tinySource;
     private static PropertyIntrospector<TinyDummyClass, DummyWorld> tinyIntrospector = new PropertyIntrospector<TinyDummyClass, DummyWorld>(TinyDummyClass.class);
 
+
+    private TinyDummyClass2 tinyDummy2;
+    private PropertyIntrospectorModel<TinyDummyClass2, DummyWorld> tinySource2;
+    private static PropertyIntrospector<TinyDummyClass2, DummyWorld> tinyIntrospector2 = new PropertyIntrospector<TinyDummyClass2, DummyWorld>(TinyDummyClass2.class);
+
     @Before
     public void setUp() {
         world = new DummyWorld();
@@ -39,6 +44,8 @@ public class PropertiesTest {
         tinyDummy = new TinyDummyClass();
         source = new PropertyIntrospectorModel<DummyClass, DummyWorld>(dummy, world, introspector);
         tinySource = new PropertyIntrospectorModel<TinyDummyClass, DummyWorld>(tinyDummy, world, tinyIntrospector);
+        tinyDummy2 = new TinyDummyClass2();
+        tinySource2 = new PropertyIntrospectorModel<TinyDummyClass2, DummyWorld>(tinyDummy2, world, tinyIntrospector2);
     }
 
     @Test
@@ -70,6 +77,62 @@ public class PropertiesTest {
         dummySource.setPropertyValue(property, newValue);
         assertEquals(new Integer(1), world.commandsCreated.get(property));
         assertEquals(newValue, dummySource.getPropertyValue(property));
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    boolean doMultiSetTest(IPropertyModel[] propertyModels, String property, Object newValue) {
+        IPropertyModel first = propertyModels[0];
+        for (int j=1; j<propertyModels.length; ++j) {
+            IPropertyModel current = propertyModels[j];
+            if (null != current) {
+                // Duplicates filtering in FormPropertySheetViewer
+                IPropertyDesc[] lhs = first.getPropertyDescs();
+                IPropertyDesc[] rhs = current.getPropertyDescs();
+
+                if (lhs.length != rhs.length) {
+                    return false;
+                }
+
+                for (int i = 0; i < lhs.length; ++i) {
+                    IPropertyDesc lhsDesc = lhs[i];
+                    IPropertyDesc rhsDesc = rhs[i];
+                    if (!lhsDesc.getClass().equals(rhs[i].getClass()) || !lhsDesc.getId().equals(rhsDesc.getId())) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        for (int j=0; j<propertyModels.length; ++j) {
+            IPropertyModel m = propertyModels[j];
+            if (null != m) {
+                m.setPropertyValue(property, newValue);
+                assertEquals(new Integer(j + 1), world.commandsCreated.get(property));
+                assertEquals(newValue, m.getPropertyValue(property));
+            }
+        }
+
+        return true;
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes"})
+    public void testMultiSet() throws Exception {
+        boolean result;
+        IPropertyModel[] models = new IPropertyModel[2];
+
+        models[0] = tinySource;
+        models[1] = tinySource2;
+
+        result = doMultiSetTest(models, "integerValueA", 41);
+        assertEquals(result, false);
+
+        TinyDummyClass2 tinyDummy2a = new TinyDummyClass2();
+        PropertyIntrospectorModel<TinyDummyClass2, DummyWorld> tinySource2a = new PropertyIntrospectorModel<TinyDummyClass2, DummyWorld>(tinyDummy2a, world, tinyIntrospector2);
+        models[0] = tinySource2a;
+
+        result = doMultiSetTest(models, "integerValueA", 42);
+        assertEquals(result, true);
     }
 
     @Test

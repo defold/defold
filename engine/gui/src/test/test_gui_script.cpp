@@ -26,6 +26,7 @@ public:
     virtual void SetUp()
     {
         m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::Initialize(m_ScriptContext);
 
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
@@ -36,6 +37,7 @@ public:
     virtual void TearDown()
     {
         dmGui::DeleteContext(m_Context, m_ScriptContext);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
 };
@@ -51,10 +53,23 @@ TEST_F(dmGuiScriptTest, URLOutsideFunctions)
 {
     dmGui::HScript script = NewScript(m_Context);
 
-    const char* src = "local url = msg.url(\"test\")\n";
+    const char* src = "local url = msg.url(\"test\")\n"
+                      "function init(self)\n"
+                      "    assert(hash(\"test\") == url.path)\n"
+                      "end\n";
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
     dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
-    ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, result);
-    DeleteScript(script);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
 }
 
 TEST_F(dmGuiScriptTest, GetScreenPos)

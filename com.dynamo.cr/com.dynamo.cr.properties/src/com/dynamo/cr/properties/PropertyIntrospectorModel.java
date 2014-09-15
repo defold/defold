@@ -18,7 +18,7 @@ public class PropertyIntrospectorModel<T, U extends IPropertyObjectWorld> implem
         this.object = source;
         this.world = world;
         this.staticIntrospector = staticIntrospector;
-        this.dynamicIntrospector = new DynamicPropertyIntrospector<T, U>(source, world);
+        this.dynamicIntrospector = new DynamicPropertyIntrospector<T, U>(source, world, this.staticIntrospector);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

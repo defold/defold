@@ -50,13 +50,13 @@ namespace dmRender
             {
                 constants_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
                 samplers_count++;
             }
             else
             {
-                dmLogWarning("Type of uniform %s is not supported (%d)", buffer, type);
+                dmLogWarning("Type for uniform %s is not supported (%d)", buffer, type);
             }
         }
 
@@ -101,7 +101,7 @@ namespace dmRender
                 }
                 m->m_Constants.Push(constant);
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
                 m->m_Samplers.Push(Sampler(name_hash, location));
             }
@@ -147,6 +147,37 @@ namespace dmRender
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
                 {
                     dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_TextureTransform, location);
+                    break;
+                }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW:
+                {
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_View, location);
+                    break;
+                }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
+                {
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location);
+                    break;
+                }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
+                {
+                    {
+                        // normalT = transp(inv(view * world))
+                        Matrix4 normalT = render_context->m_View * ro->m_WorldTransform;
+                        // The world transform might include non-uniform scaling, which breaks the orthogonality of the combined model-view transform
+                        // It is always affine however
+                        normalT = affineInverse(normalT);
+                        normalT = transpose(normalT);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&normalT, location);
+                    }
+                    break;
+                }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW:
+                {
+                    {
+                        Matrix4 world_view = render_context->m_View * ro->m_WorldTransform;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                    }
                     break;
                 }
             }

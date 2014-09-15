@@ -21,6 +21,10 @@ namespace dmGameObject
 {
     using namespace Vectormath::Aos;
 
+    // Type name of the script instances
+    // TODO Fix this better, weird to have this here in the public API. Used by components to fish for lua user data (e.g. GO instance)
+    extern const char* SCRIPT_INSTANCE_TYPE_NAME;
+
     /// Instance handle
     typedef struct Instance* HInstance;
 
@@ -96,6 +100,7 @@ namespace dmGameObject
         PROPERTY_RESULT_INVALID_INSTANCE = -6,
         PROPERTY_RESULT_BUFFER_OVERFLOW = -7,
         PROPERTY_RESULT_UNSUPPORTED_VALUE = -8,
+        PROPERTY_RESULT_UNSUPPORTED_OPERATION = -9
     };
 
     /**
@@ -222,6 +227,8 @@ namespace dmGameObject
         PropertyVar m_Variant;
         /// Pointer to the value, only set for mutable values. The actual data type is described by the variant.
         float* m_ValuePtr;
+        /// Determines whether we are permitted to write to this property.
+        bool m_ReadOnly;
     };
 
     /**

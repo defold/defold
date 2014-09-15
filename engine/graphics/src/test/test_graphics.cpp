@@ -387,55 +387,72 @@ TEST_F(dmGraphicsTest, TestViewport)
 
 TEST_F(dmGraphicsTest, TestTexture)
 {
+	dmGraphics::TextureCreationParams creation_params;
     dmGraphics::TextureParams params;
+
+    creation_params.m_Width = WIDTH;
+    creation_params.m_Height = HEIGHT;
+    creation_params.m_OriginalWidth = WIDTH;
+    creation_params.m_OriginalHeight = HEIGHT;
+
     params.m_DataSize = WIDTH * HEIGHT;
     params.m_Data = new char[params.m_DataSize];
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
-    params.m_OriginalWidth = WIDTH;
-    params.m_OriginalHeight = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    dmGraphics::SetTexture(texture, params);
+
     delete [] (char*)params.m_Data;
     ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
     dmGraphics::EnableTexture(m_Context, 0, texture);
-    dmGraphics::DisableTexture(m_Context, 0);
+    dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }
 
-TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimenaion)
+TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
 {
+	dmGraphics::TextureCreationParams creation_params;
     dmGraphics::TextureParams params;
+
+    creation_params.m_Width = WIDTH;
+    creation_params.m_Height = HEIGHT;
+
     params.m_DataSize = WIDTH * HEIGHT;
     params.m_Data = new char[params.m_DataSize];
     params.m_Width = WIDTH;
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    dmGraphics::SetTexture(texture, params);
+
     delete [] (char*)params.m_Data;
     ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
     dmGraphics::EnableTexture(m_Context, 0, texture);
-    dmGraphics::DisableTexture(m_Context, 0);
+    dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }
 
 TEST_F(dmGraphicsTest, TestRenderTarget)
 {
+	dmGraphics::TextureCreationParams creation_params[4];
     dmGraphics::TextureParams params[4];
     for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
     {
+    	creation_params[i].m_Width = WIDTH;
+    	creation_params[i].m_Height = HEIGHT;
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
         params[i].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     }
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
     dmGraphics::EnableRenderTarget(m_Context, target);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
@@ -482,6 +499,24 @@ TEST_F(dmGraphicsTest, TestMasks)
     ASSERT_EQ(0u, m_Context->m_StencilMask);
     dmGraphics::SetStencilMask(m_Context, ~0u);
     ASSERT_EQ(~0u, m_Context->m_StencilMask);
+
+    dmGraphics::SetStencilFunc(m_Context, dmGraphics::STENCIL_FUNC_ALWAYS, 0xffffffff, 0x0);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_ALWAYS, m_Context->m_StencilFunc);
+    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncRef);
+    ASSERT_EQ(0x0, m_Context->m_StencilFuncMask);
+    dmGraphics::SetStencilFunc(m_Context, dmGraphics::STENCIL_FUNC_NEVER, 0x0, 0xffffffff);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_NEVER, m_Context->m_StencilFunc);
+    ASSERT_EQ(0x0, m_Context->m_StencilFuncRef);
+    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncMask);
+
+    dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE, dmGraphics::STENCIL_OP_INVERT);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpSFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpDPPass);
+    dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_INVERT, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpSFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpDPFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPPass);
 }
 
 TEST_F(dmGraphicsTest, TestCloseCallback)

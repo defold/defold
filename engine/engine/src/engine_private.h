@@ -103,6 +103,8 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::ParticleFXContext             m_ParticleFXContext;
+        /// If the shared context is set, the three environment specific contexts below will point to the same context
+        dmScript::HContext                          m_SharedScriptContext;
         dmScript::HContext                          m_GOScriptContext;
         dmScript::HContext                          m_RenderScriptContext;
         dmScript::HContext                          m_GuiScriptContext;

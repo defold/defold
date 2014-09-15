@@ -45,6 +45,8 @@ def compile_uncompressed(source_name, source_image, texture_image):
 
     image.format = format_table[source_image.mode]
     image.data = mip_maps
+    texture_image.type = graphics_ddf_pb2.TextureImage.TYPE_2D
+    texture_image.count = 1
 
 def compile_dds(source_name, source_image, texture_image):
     dds_file_no, dds_file = tempfile.mkstemp('.dds')

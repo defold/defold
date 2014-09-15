@@ -16,6 +16,7 @@
 namespace dmRender
 {
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
+    #define RENDER_SCRIPT "RenderScript"
 
     #define RENDER_SCRIPT_CONSTANTBUFFER "RenderScriptConstantBuffer"
 
@@ -28,13 +29,17 @@ namespace dmRender
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
 
+    const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
+    {
+        "init",
+        "update",
+        "on_message",
+        "on_reload"
+    };
+
     static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
     {
-        HNamedConstantBuffer* cb;
-        luaL_checktype(L, index, LUA_TUSERDATA);
-        cb = (HNamedConstantBuffer*)luaL_checkudata(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
-        if (cb == NULL) luaL_typerror(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
-        return cb;
+        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
     }
 
     static int RenderScriptConstantBuffer_gc (lua_State *L)
@@ -119,52 +124,57 @@ namespace dmRender
         return 1;
     }
 
-    enum RenderScriptFunction
+    static int RenderScriptGetURL(lua_State* L)
     {
-        RENDER_SCRIPT_FUNCTION_INIT,
-        RENDER_SCRIPT_FUNCTION_UPDATE,
-        RENDER_SCRIPT_FUNCTION_ONMESSAGE,
-        RENDER_SCRIPT_FUNCTION_ONRELOAD,
-        MAX_RENDER_SCRIPT_FUNCTION_COUNT
-    };
-
-    struct RenderScript
-    {
-        int m_FunctionReferences[MAX_RENDER_SCRIPT_FUNCTION_COUNT];
-    };
-
-    const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
-    {
-        "init",
-        "update",
-        "on_message",
-        "on_reload"
-    };
-
-    RenderScriptInstance::RenderScriptInstance()
-    : m_CommandBuffer()
-    , m_Materials()
-    , m_RenderContext(0)
-    , m_RenderScript(0)
-    , m_PredicateCount(0)
-    , m_InstanceReference(0)
-    , m_RenderScriptDataReference(0)
-    {
-        memset(m_Predicates, 0, sizeof(Predicate*) * MAX_PREDICATE_COUNT);
+        RenderScript* script = (RenderScript*)lua_touserdata(L, 1);
+        dmMessage::URL url;
+        dmMessage::ResetURL(url);
+        url.m_Socket = script->m_RenderContext->m_Socket;
+        dmScript::PushURL(L, url);
+        return 1;
     }
 
-    RenderScriptInstance::~RenderScriptInstance()
+    static int RenderScriptResolvePath(lua_State* L)
     {
-        for (uint32_t i = 0; i < m_PredicateCount; ++i)
-            delete m_Predicates[i];
+        dmScript::PushHash(L, dmHashString64(luaL_checkstring(L, 2)));
+        return 1;
     }
+
+    static int RenderScriptIsValid(lua_State* L)
+    {
+        RenderScript* script = (RenderScript*)lua_touserdata(L, 1);
+        lua_pushboolean(L, script != 0x0);
+        return 1;
+    }
+
+    static const luaL_reg RenderScript_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg RenderScript_meta[] =
+    {
+        {dmScript::META_TABLE_GET_URL, RenderScriptGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, RenderScriptResolvePath},
+        {dmScript::META_TABLE_IS_VALID, RenderScriptIsValid},
+        {0, 0}
+    };
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L, int index)
     {
-        RenderScriptInstance* i;
-        luaL_checktype(L, index, LUA_TUSERDATA);
-        i = (RenderScriptInstance*)luaL_checkudata(L, index, RENDER_SCRIPT_INSTANCE);
-        if (i == NULL) luaL_typerror(L, index, RENDER_SCRIPT_INSTANCE);
+        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE);
+    }
+
+    static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        dmScript::GetInstance(L);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L, -1);
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
         return i;
     }
 
@@ -185,6 +195,9 @@ namespace dmRender
 
     static int RenderScriptInstance_index(lua_State *L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         assert(i);
 
@@ -192,12 +205,16 @@ namespace dmRender
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_RenderScriptDataReference);
         lua_pushvalue(L, 2);
         lua_gettable(L, -2);
+        lua_remove(L, 3);
+
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
     static int RenderScriptInstance_newindex(lua_State *L)
     {
         int top = lua_gettop(L);
+        (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L, 1);
         assert(i);
@@ -213,6 +230,29 @@ namespace dmRender
         return 0;
     }
 
+    static int RenderScriptInstanceGetURL(lua_State* L)
+    {
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, 1);
+        dmMessage::URL url;
+        dmMessage::ResetURL(url);
+        url.m_Socket = i->m_RenderContext->m_Socket;
+        dmScript::PushURL(L, url);
+        return 1;
+    }
+
+    static int RenderScriptInstanceResolvePath(lua_State* L)
+    {
+        dmScript::PushHash(L, dmHashString64(luaL_checkstring(L, 2)));
+        return 1;
+    }
+
+    static int RenderScriptInstanceIsValid(lua_State* L)
+    {
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, 1);
+        lua_pushboolean(L, i != 0x0 && i->m_RenderContext != 0x0);
+        return 1;
+    }
+
     static const luaL_reg RenderScriptInstance_methods[] =
     {
         {0,0}
@@ -224,6 +264,9 @@ namespace dmRender
         {"__tostring",  RenderScriptInstance_tostring},
         {"__index",     RenderScriptInstance_index},
         {"__newindex",  RenderScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL, RenderScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, RenderScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID, RenderScriptInstanceIsValid},
         {0, 0}
     };
 
@@ -236,17 +279,13 @@ namespace dmRender
         return true;
     }
 
-    static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
-    {
-        dmScript::GetInstance(L);
-        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        if (i == NULL) luaL_error(L, "Lua state did not contain a render script instance.");
-        return i;
-    }
-
     /*#
      * @name render.STATE_DEPTH_TEST
+     * @variable
+     */
+
+    /*#
+     * @name render.STATE_STENCIL_TEST
      * @variable
      */
 
@@ -271,6 +310,7 @@ namespace dmRender
      * @param state state to enable (constant)
      * <ul>
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
+     *   <li><code>render.STATE_STENCIL_TEST</code></li>
      *   <li><code>render.STATE_BLEND</code></li>
      *   <li><code>render.STATE_ALPHA_TEST</code>No available on iOS/Android</li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
@@ -279,12 +319,16 @@ namespace dmRender
      */
     int RenderScript_EnableState(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t state = luaL_checknumber(L, 1);
 
         switch (state)
         {
             case dmGraphics::STATE_DEPTH_TEST:
+            case dmGraphics::STATE_STENCIL_TEST:
 #ifndef GL_ES_VERSION_2_0
             case dmGraphics::STATE_ALPHA_TEST:
 #endif
@@ -295,10 +339,12 @@ namespace dmRender
             default:
                 return luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STATE, state)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STATE, state))) {
+            assert(top == lua_gettop(L));
             return 0;
-        else
+        } else {
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
     }
 
     /*# disables a render state
@@ -307,6 +353,7 @@ namespace dmRender
      * @param state state to enable (constant)
      * <ul>
      *   <li><code>render.STATE_DEPTH_TEST</code></li>
+     *   <li><code>render.STATE_STENCIL_TEST</code></li>
      *   <li><code>render.STATE_BLEND</code></li>
      *   <li><code>render.STATE_CULL_FACE</code></li>
      *   <li><code>render.STATE_POLYGON_OFFSET_FILL</code></li>
@@ -314,11 +361,15 @@ namespace dmRender
      */
     int RenderScript_DisableState(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         uint32_t state = luaL_checknumber(L, 1);
         switch (state)
         {
             case dmGraphics::STATE_DEPTH_TEST:
+            case dmGraphics::STATE_STENCIL_TEST:
 #ifndef GL_ES_VERSION_2_0
             case dmGraphics::STATE_ALPHA_TEST:
 #endif
@@ -329,10 +380,12 @@ namespace dmRender
             default:
                 return luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state))) {
+            assert(top == lua_gettop(L));
             return 0;
-        else
+        } else {
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
     }
 
     /*# sets the render viewport
@@ -472,6 +525,7 @@ namespace dmRender
     int RenderScript_RenderTarget(lua_State* L)
     {
         int top = lua_gettop(L);
+        (void)top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
@@ -479,6 +533,7 @@ namespace dmRender
 
         uint32_t buffer_type_flags = 0;
         luaL_checktype(L, 2, LUA_TTABLE);
+        dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         lua_pushnil(L);
         while (lua_next(L, 2))
@@ -487,6 +542,7 @@ namespace dmRender
             buffer_type_flags |= buffer_type;
             uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
             dmGraphics::TextureParams* p = &params[index];
+            dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
             while (lua_next(L, -2))
@@ -499,10 +555,12 @@ namespace dmRender
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
                     p->m_Width = luaL_checknumber(L, -1);
+                    cp->m_Width = p->m_Width;
                 }
                 else if (strncmp(key, RENDER_SCRIPT_HEIGHT_NAME, strlen(RENDER_SCRIPT_HEIGHT_NAME)) == 0)
                 {
                     p->m_Height = luaL_checknumber(L, -1);
+                    cp->m_Height = p->m_Height;
                 }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
@@ -539,11 +597,12 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
+        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
         RegisterRenderTarget(i->m_RenderContext, render_target, dmHashString64(name));
 
         lua_pushlightuserdata(L, (void*)render_target);
 
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -691,6 +750,9 @@ namespace dmRender
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
@@ -712,6 +774,7 @@ namespace dmRender
         if (texture != 0)
         {
             lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
         else
@@ -728,6 +791,9 @@ namespace dmRender
      */
     int RenderScript_GetRenderTargetHeight(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
@@ -749,6 +815,7 @@ namespace dmRender
         if (texture != 0)
         {
             lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
         else
@@ -787,6 +854,7 @@ namespace dmRender
         luaL_checktype(L, 1, LUA_TTABLE);
 
         int top = lua_gettop(L);
+        (void)top;
 
         uint32_t flags = 0;
 
@@ -1114,7 +1182,7 @@ namespace dmRender
     /*# sets the stencil mask
      *
      * @name render.set_stencil_mask
-     * @param stencil stencil mask (number)
+     * @param mask stencil mask (number)
      */
     int RenderScript_SetStencilMask(lua_State* L)
     {
@@ -1122,6 +1190,182 @@ namespace dmRender
 
         uint32_t mask = (uint32_t)luaL_checknumber(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_MASK, mask)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*#
+     * @name render.STENCIL_FUNC_NEVER
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_LESS
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_LEQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_GREATER
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_GEQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_EQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_NOTEQUAL
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_FUNC_ALWAYS
+     * @variable
+     */
+
+    /*# sets the stencil test function
+    *
+    * @name render.set_stencil_func
+    * @param func stencil test function (constant)
+    * <ul>
+    *   <li><code>render.STENCIL_FUNC_NEVER</code></li>
+    *   <li><code>render.STENCIL_FUNC_LESS</code></li>
+    *   <li><code>render.STENCIL_FUNC_LEQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_GREATER</code></li>
+    *   <li><code>render.STENCIL_FUNC_GEQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_EQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_NOTEQUAL</code></li>
+    *   <li><code>render.STENCIL_FUNC_ALWAYS</code></li>
+    * </ul>
+    * @param ref reference value for the stencil test (number)
+    * @param mask mask that is ANDed with both the reference value and the stored stencil value when the test is done (number)
+    */
+    int RenderScript_SetStencilFunc(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t func = luaL_checknumber(L, 1);
+        switch (func)
+        {
+            case dmGraphics::STENCIL_FUNC_NEVER:
+            case dmGraphics::STENCIL_FUNC_LESS:
+            case dmGraphics::STENCIL_FUNC_LEQUAL:
+            case dmGraphics::STENCIL_FUNC_GREATER:
+            case dmGraphics::STENCIL_FUNC_GEQUAL:
+            case dmGraphics::STENCIL_FUNC_EQUAL:
+            case dmGraphics::STENCIL_FUNC_NOTEQUAL:
+            case dmGraphics::STENCIL_FUNC_ALWAYS:
+                break;
+            default:
+                return luaL_error(L, "Invalid stencil func: %s.set_stencil_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
+        }
+        uint32_t ref = luaL_checknumber(L, 2);
+        uint32_t mask = luaL_checknumber(L, 3);
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_FUNC, func, ref, mask)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*#
+     * @name render.STENCIL_OP_KEEP
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_ZERO
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_REPLACE
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_INCR
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_INCR_WRAP
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_DECR
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_DECR_WRAP
+     * @variable
+     */
+
+    /*#
+     * @name render.STENCIL_OP_INVERT
+     * @variable
+     */
+
+    /*# sets the stencil operator
+    *
+    * Available operators:
+    * <ul>
+    *   <li><code>render.STENCIL_OP_KEEP</code></li>
+    *   <li><code>render.STENCIL_OP_ZERO</code></li>
+    *   <li><code>render.STENCIL_OP_REPLACE</code></li>
+    *   <li><code>render.STENCIL_OP_INCR</code></li>
+    *   <li><code>render.STENCIL_OP_INCR_WRAP</code></li>
+    *   <li><code>render.STENCIL_OP_DECR</code></li>
+    *   <li><code>render.STENCIL_OP_DECR_WRAP</code></li>
+    *   <li><code>render.STENCIL_OP_INVERT</code></li>
+    * </ul>
+    *
+    * @name render.set_stencil_op
+    * @param sfail action to take when the stencil test fails (constant)
+    * @param dpfail the stencil action when the stencil test passes (constant)
+    * @param dppass the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled (constant)
+    */
+    int RenderScript_SetStencilOp(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t ops[3];
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            ops[i] = luaL_checknumber(L, 1+i);
+        }
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            switch (ops[i])
+            {
+                case dmGraphics::STENCIL_OP_KEEP:
+                case dmGraphics::STENCIL_OP_ZERO:
+                case dmGraphics::STENCIL_OP_REPLACE:
+                case dmGraphics::STENCIL_OP_INCR:
+                case dmGraphics::STENCIL_OP_INCR_WRAP:
+                case dmGraphics::STENCIL_OP_DECR:
+                case dmGraphics::STENCIL_OP_DECR_WRAP:
+                case dmGraphics::STENCIL_OP_INVERT:
+                    break;
+                default:
+                    return luaL_error(L, "Invalid stencil ops: %s.set_stencil_op(self, %d, %d, %d)", RENDER_SCRIPT_LIB_NAME, ops[0], ops[1], ops[2]);
+            }
+        }
+
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_OP, ops[0], ops[1], ops[2])))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1252,6 +1496,9 @@ namespace dmRender
      */
     int RenderScript_Predicate(lua_State* L)
     {
+        int top = lua_gettop(L);
+        (void) top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         luaL_checktype(L, 1, LUA_TTABLE);
         if (i->m_PredicateCount < MAX_PREDICATE_COUNT)
@@ -1268,6 +1515,7 @@ namespace dmRender
                     break;
             }
             lua_pushlightuserdata(L, (void*)predicate);
+            assert(top + 1 == lua_gettop(L));
             return 1;
         }
         else
@@ -1285,6 +1533,8 @@ namespace dmRender
     int RenderScript_EnableMaterial(lua_State* L)
     {
         int top = lua_gettop(L);
+        (void)top;
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (!lua_isnil(L, 1))
         {
@@ -1330,7 +1580,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    static const luaL_reg RenderScript_methods[] =
+    static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
         {"disable_state",                   RenderScript_DisableState},
@@ -1351,6 +1601,8 @@ namespace dmRender
         {"set_color_mask",                  RenderScript_SetColorMask},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
         {"set_stencil_mask",                RenderScript_SetStencilMask},
+        {"set_stencil_func",                RenderScript_SetStencilFunc},
+        {"set_stencil_op",                  RenderScript_SetStencilOp},
         {"set_cull_face",                   RenderScript_SetCullFace},
         {"set_polygon_offset",              RenderScript_SetPolygonOffset},
         {"draw",                            RenderScript_Draw},
@@ -1367,78 +1619,30 @@ namespace dmRender
         {0, 0}
     };
 
-    void GetURLCallback(lua_State* L, dmMessage::URL* url)
-    {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        url->m_Socket = i->m_RenderContext->m_Socket;
-    }
-
-    dmhash_t ResolvePathCallback(uintptr_t resolve_user_data, const char* path, uint32_t path_size)
-    {
-        return dmHashBuffer64(path, path_size);
-    }
-
-    uintptr_t GetUserDataCallback(lua_State* L)
-    {
-        return 0;
-    }
-
-    bool ValidateInstanceCallback(lua_State* L)
-    {
-        dmScript::GetInstance(L);
-        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        return i != 0x0 && i->m_RenderContext != 0x0;
-    }
-
     void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size)
     {
         context.m_CommandBufferSize = command_buffer_size;
 
-        lua_State *L = lua_open();
+        lua_State *L = dmScript::GetLuaState(script_context);
         context.m_LuaState = L;
 
         int top = lua_gettop(L);
+        (void)top;
 
-        luaopen_base(L);
-        luaopen_table(L);
-        luaopen_string(L);
-        luaopen_math(L);
-        luaopen_debug(L);
+        dmScript::RegisterUserType(L, RENDER_SCRIPT, RenderScript_methods, RenderScript_meta);
 
-        // Pop all stack values generated from luaopen_*
-        lua_pop(L, lua_gettop(L));
+        dmScript::RegisterUserType(L, RENDER_SCRIPT_INSTANCE, RenderScriptInstance_methods, RenderScriptInstance_meta);
 
-        luaL_register(L, RENDER_SCRIPT_INSTANCE, RenderScriptInstance_methods);   // create methods table, add it to the globals
-        int methods = lua_gettop(L);
-        luaL_newmetatable(L, RENDER_SCRIPT_INSTANCE);
-        int metatable = lua_gettop(L);
-        luaL_register(L, 0, RenderScriptInstance_meta);                   // fill metatable
+        dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER, RenderScriptConstantBuffer_methods, RenderScriptConstantBuffer_meta);
 
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, methods);                       // dup methods table
-        lua_settable(L, metatable);
-        lua_pop(L, 2);
-
-        luaL_register(L, RENDER_SCRIPT_CONSTANTBUFFER, RenderScriptConstantBuffer_methods);   // create methods table, add it to the globals
-        methods = lua_gettop(L);
-        luaL_newmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER);
-        metatable = lua_gettop(L);
-        luaL_register(L, 0, RenderScriptConstantBuffer_meta);                   // fill metatable
-
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, methods);                       // dup methods table
-        lua_settable(L, metatable);
-        lua_pop(L, 2);
-
-
-        luaL_register(L, RENDER_SCRIPT_LIB_NAME, RenderScript_methods);
+        luaL_register(L, RENDER_SCRIPT_LIB_NAME, Render_methods);
 
 #define REGISTER_STATE_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::name); \
         lua_setfield(L, -2, #name);
 
         REGISTER_STATE_CONSTANT(STATE_DEPTH_TEST);
+        REGISTER_STATE_CONSTANT(STATE_STENCIL_TEST);
 #ifndef GL_ES_VERSION_2_0
         REGISTER_STATE_CONSTANT(STATE_ALPHA_TEST);
 #endif
@@ -1505,6 +1709,36 @@ namespace dmRender
 
 #undef REGISTER_BLEND_CONSTANT
 
+#define REGISTER_STENCIL_FUNC_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_FUNC_##name); \
+        lua_setfield(L, -2, "STENCIL_FUNC_"#name);
+
+        REGISTER_STENCIL_FUNC_CONSTANT(NEVER);
+        REGISTER_STENCIL_FUNC_CONSTANT(LESS);
+        REGISTER_STENCIL_FUNC_CONSTANT(LEQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(GREATER);
+        REGISTER_STENCIL_FUNC_CONSTANT(GEQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(EQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(NOTEQUAL);
+        REGISTER_STENCIL_FUNC_CONSTANT(ALWAYS);
+
+#undef REGISTER_STENCIL_FUNC_CONSTANT
+
+#define REGISTER_STENCIL_OP_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_OP_##name); \
+        lua_setfield(L, -2, "STENCIL_OP_"#name);
+
+        REGISTER_STENCIL_OP_CONSTANT(KEEP);
+        REGISTER_STENCIL_OP_CONSTANT(ZERO);
+        REGISTER_STENCIL_OP_CONSTANT(REPLACE);
+        REGISTER_STENCIL_OP_CONSTANT(INCR);
+        REGISTER_STENCIL_OP_CONSTANT(INCR_WRAP);
+        REGISTER_STENCIL_OP_CONSTANT(DECR);
+        REGISTER_STENCIL_OP_CONSTANT(DECR_WRAP);
+        REGISTER_STENCIL_OP_CONSTANT(INVERT);
+
+#undef REGISTER_STENCIL_OP_CONSTANT
+
 #define REGISTER_FACE_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::FACE_TYPE_##name); \
         lua_setfield(L, -2, "FACE_"#name);
@@ -1527,24 +1761,11 @@ namespace dmRender
 
         lua_pop(L, 1);
 
-        dmScript::ScriptParams params;
-        params.m_Context = script_context;
-        params.m_GetURLCallback = GetURLCallback;
-        params.m_ResolvePathCallback = ResolvePathCallback;
-        params.m_GetUserDataCallback = GetUserDataCallback;
-        params.m_ValidateInstanceCallback = ValidateInstanceCallback;
-        dmScript::Initialize(L, params);
-
         assert(top == lua_gettop(L));
-
-
     }
 
     void FinalizeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context)
     {
-        dmScript::Finalize(context.m_LuaState, script_context);
-        if (context.m_LuaState)
-            lua_close(context.m_LuaState);
         context.m_LuaState = 0;
     }
 
@@ -1584,6 +1805,9 @@ namespace dmRender
         int ret = lua_load(L, &ReadScript, &data, filename);
         if (ret == 0)
         {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+            dmScript::SetInstance(L);
+
             ret = lua_pcall(L, 0, LUA_MULTRET, 0);
             if (ret == 0)
             {
@@ -1616,6 +1840,8 @@ namespace dmRender
                 dmLogError("Error running script: %s", lua_tostring(L,-1));
                 lua_pop(L, 1);
             }
+            lua_pushnil(L);
+            dmScript::SetInstance(L);
         }
         else
         {
@@ -1632,19 +1858,36 @@ bail:
         return result;
     }
 
+    static void ResetRenderScript(HRenderScript render_script) {
+        memset(render_script, 0, sizeof(RenderScript));
+        render_script->m_InstanceReference = LUA_NOREF;
+        for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i) {
+            render_script->m_FunctionReferences[i] = LUA_NOREF;
+        }
+    }
+
     HRenderScript NewRenderScript(HRenderContext render_context, const void* buffer, uint32_t buffer_size, const char* filename)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
+        int top = lua_gettop(L);
+        (void)top;
 
-        RenderScript temp_render_script;
-        if (LoadRenderScript(L, buffer, buffer_size, filename, &temp_render_script))
+        HRenderScript render_script = (HRenderScript)lua_newuserdata(L, sizeof(RenderScript));
+        ResetRenderScript(render_script);
+
+        render_script->m_RenderContext = render_context;
+        luaL_getmetatable(L, RENDER_SCRIPT);
+        lua_setmetatable(L, -2);
+        render_script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        if (LoadRenderScript(L, buffer, buffer_size, filename, render_script))
         {
-            HRenderScript render_script = new RenderScript();
-            *render_script = temp_render_script;
+            assert(top == lua_gettop(L));
             return render_script;
         }
         else
         {
+            DeleteRenderScript(render_context, render_script);
+            assert(top == lua_gettop(L));
             return 0;
         }
     }
@@ -1656,13 +1899,21 @@ bail:
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
     {
-        lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (render_script->m_FunctionReferences[i])
                 luaL_unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
         }
-        delete render_script;
+        luaL_unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        render_script->~RenderScript();
+        ResetRenderScript(render_script);
+    }
+
+    static void ResetRenderScriptInstance(HRenderScriptInstance render_script_instance) {
+        memset(render_script_instance, 0, sizeof(RenderScriptInstance));
+        render_script_instance->m_InstanceReference = LUA_NOREF;
+        render_script_instance->m_RenderScriptDataReference = LUA_NOREF;
     }
 
     HRenderScriptInstance NewRenderScriptInstance(dmRender::HRenderContext render_context, HRenderScript render_script)
@@ -1672,7 +1923,8 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
-        RenderScriptInstance* i = new (lua_newuserdata(L, sizeof(RenderScriptInstance))) RenderScriptInstance();
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_newuserdata(L, sizeof(RenderScriptInstance));
+        ResetRenderScriptInstance(i);
         i->m_PredicateCount = 0;
         i->m_RenderScript = render_script;
         i->m_RenderContext = render_context;
@@ -1707,8 +1959,11 @@ bail:
 
         assert(top == lua_gettop(L));
 
+        for (uint32_t i = 0; i < render_script_instance->m_PredicateCount; ++i) {
+            delete render_script_instance->m_Predicates[i];
+        }
         render_script_instance->~RenderScriptInstance();
-        memset(render_script_instance, 0, sizeof(RenderScriptInstance));
+        ResetRenderScriptInstance(render_script_instance);
     }
 
     void SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script)

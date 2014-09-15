@@ -53,6 +53,7 @@ protected:
         m_Path = "build/default/src/gameobject/test/props";
         m_Factory = dmResource::NewFactory(&params, m_Path);
         m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
@@ -86,6 +87,7 @@ protected:
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::Finalize(m_ScriptContext, m_Factory);
         dmGameObject::DeleteRegister(m_Register);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
 

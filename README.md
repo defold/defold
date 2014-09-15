@@ -247,16 +247,31 @@ This is a known limitation on Android.
 
 **NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
 
+### Android Bundling with Local Builds
+
+With the above in mind, since it may be desirable to create Android bundles using locally build versions of the editor, we will describe how
+to manually set up content under com.dynamo.cr. Note that this information has been derived from build.py and related scripts, since running
+those has the undesirable side effect of uploading content.
+
+Create apkc, by invoking the following from the root defold directory:
+
+    # go install defold/...
+
+This will result in the production of apkc under “go/bin”. This should be copied to “com.dynamo.cr/com.dynamo.cr.target/lib/<host platform>”.
+
+Copy classes.dex from $DYNAMO_HOME/share/java to com.dynamo.cr/com.dynamo.cr.target/lib.
+
+Copy all content from $DYNAMO_HOME/ext/share/java/res to com.dynamo.cr/com.dynamo.cr.target/res. You should expect to be copying material for
+Facebook and Google Play into this location.
+
 ### Android SDK/NDK
 
 
-* Download SDK Tools 21.1 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
-  Drill down to *DOWNLOAD FOR OTHER PLATFORMS* and *SDK Tools Only*. Change URL to ...21.1..
-  Do not upgrade SDK tools as we rely on the deprecated tool apkbuilder removed in 21.1+
-* Launch android tool and install Android 4.2.2 (API 17). Do **not** upgrade SDK tools as
-  mentioned above
-* Download NDK 8e: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
-* Put NDK/SDK in ~/android/android-ndk-r9c and ~/android/android-sdk respectively
+* Download SDK Tools 23.0 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
+  Drill down to *VIEW ALL DOWNLOADS AND SIZES* and *SDK Tools Only*. Change URL to ...23.0.. if necessary.
+* Launch android tool and install Android SDK Platform-tools 20 and Build-tools 20.0
+* Download NDK 10b: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
+* Put NDK/SDK in ~/android/android-ndk-r10b and ~/android/android-sdk respectively
 
 ### Android testing
 
@@ -264,7 +279,7 @@ Copy executable (or directory) with
 
     # adb push <DIR_OR_DIR> /data/local/tmp
 
-When copying directories append directory name to destination path. It's oterhwise skipped
+When copying directories append directory name to destination path. It's otherwise skipped
 
 Run exec with:
 
@@ -356,7 +371,7 @@ Prior to GLCanvas#setCurrent the GLDrawableFactory must be created on OSX. This 
 
         GLDrawableFactory factory = GLDrawableFactory.getFactory(GLProfile.getGL2ES1());
         this.canvas.setCurrent();
-		this.context = factory.createExternalGLContext();
+        this.context = factory.createExternalGLContext();
 
 Typically the getFactory and createExternalGLContext are in the same statement. The exception thrown is "Error: current Context (CGL) null, no Context (NS)" and might be related to loading of shared libraries that seems to triggered when the factory is
 created. Key is probably that GLCanvas.setCurrnet fails to set current context before the factory is created. The details
@@ -397,13 +412,16 @@ To install the emscripten tools, invoke 'build.py install_ems'.
 Emscripten creates a configuration file in your home directory (~/.emscripten).Should you wish to change branches to one
 in which a different version of these tools is used then call 'build.py activate_ems' after doing so. This will cause the .emscripten file to be updated.
 
+Emscripten also relies upon python2 being on your path. You may find that this is not the case (which python2), it should be sufficient to create a symbolic link to
+the python binary in order to solve this problem.
+
 waf_dynamo contains changes relating to emscripten. The simplest way to collect these changes is to run 'build_ext'
 
-    # scripts/build.py install_ext
+    > scripts/build.py install_ext
 
 Building for js-web requires installation of the emscripten tools. This is a slow process, so not included int install_ext, instead run install_ems:
 
-    # scritps/build.py install_ems
+    > scripts/build.py install_ems
 
 As of 1.22.0, the emscripten tools emit separate *.js.mem memory initialisation files by default, rather than embedding this data directly into files.
 This is more efficient than storing this data as text within the javascript files, however it does add to a new set of files to include in the build process.

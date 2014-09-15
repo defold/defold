@@ -71,6 +71,11 @@ namespace dmGraphics
             *out_type = TYPE_SAMPLER_2D;
             return true;
         }
+        else if (STRNCMP("samplerCube", string, count))
+        {
+            *out_type = TYPE_SAMPLER_CUBE;
+            return true;
+        }
         return false;
     }
 

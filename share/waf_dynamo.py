@@ -7,7 +7,8 @@ import cc, cxx
 from Constants import RUN_ME
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
-ANDROID_NDK_VERSION='9c'
+ANDROID_BUILD_TOOLS_VERSION = '20.0.0'
+ANDROID_NDK_VERSION='10b'
 ANDROID_NDK_API_VERSION='14'
 ANDROID_API_VERSION='17'
 ANDROID_GCC_VERSION='4.8'
@@ -602,8 +603,8 @@ def android_package(task):
     manifest_file.write(ANDROID_MANIFEST % { 'package' : package, 'app_name' : task.exe_name, 'lib_name' : task.exe_name, 'extra_activities' : activities })
     manifest_file.close()
 
-    aapt = '%s/android-sdk/platform-tools/aapt' % (ANDROID_ROOT)
-    dx = '%s/android-sdk/platform-tools/dx' % (ANDROID_ROOT)
+    aapt = '%s/android-sdk/build-tools/%s/aapt' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+    dx = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
     res_dirs = glob.glob('%s/ext/share/java/res/*' % (dynamo_home))
@@ -688,18 +689,31 @@ def android_package(task):
         f.write(task.classes_dex.abspath(task.env), 'classes.dex')
         f.close()
 
-    apkbuilder = '%s/android-sdk/tools/apkbuilder' % (ANDROID_ROOT)
+    sdklibPath = '%s/android-sdk/tools/lib/sdklib.jar' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
+    apkBuilderArgs = [ 'java',
+                       '-Xmx128M',
+                       '-classpath',
+                       '\"' + sdklibPath + '\"',
+                       'com.android.sdklib.build.ApkBuilderMain',
+                       apk_unaligned,
+                       '-v',
+                       '-z',
+                       ap_,
+                       '-nf',
+                       libs_dir,
+                       '-d'
+                      ]
 
-    ret = bld.exec_command('%s %s -v -z %s -nf %s -d' % (apkbuilder, apk_unaligned, ap_, libs_dir))
+    ret = bld.exec_command(' '.join(apkBuilderArgs))
 
     if ret != 0:
         error('Error running apkbuilder')
         return 1
 
     apk = task.apk.abspath(task.env)
-    zipalign = '%s/android-sdk/tools/zipalign' % (ANDROID_ROOT)
+    zipalign = '%s/android-sdk/build-tools/%s/zipalign' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, apk))
     if ret != 0:
         error('Error running zipalign')
@@ -1074,7 +1088,7 @@ def detect(conf):
         conf.env['RANLIB'] = '%s/arm-linux-androideabi-ranlib' % (bin)
         conf.env['LD'] = '%s/arm-linux-androideabi-ld' % (bin)
 
-        conf.env['DX'] =  '%s/android-sdk/platform-tools/dx' % (ANDROID_ROOT)
+        conf.env['DX'] =  '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')

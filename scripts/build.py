@@ -611,8 +611,12 @@ instructions.configure=\
         print 'Review changes and commit'
 
     def shell(self):
-        print 'Setting up shell with DYNAMOH_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIRARY_PATH (where applicable) set'
-        self.exec_env_command([SHELL, '-l'], preexec_fn=self.check_ems)
+        print 'Setting up shell with DYNAMO_HOME, PATH and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
+        if "win32" == self.host:
+            preexec_fn = None
+        else:
+            preexec_fn = self.check_ems
+        self.exec_env_command([SHELL, '-l'], preexec_fn=preexec_fn)
 
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
@@ -627,7 +631,7 @@ instructions.configure=\
                 if x.name[-1] != '/':
                     # Skip directory "keys". When creating empty directories
                     # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|bob.jar)$', x.name):
                         name = os.path.relpath(x.name, base_prefix)
                         files.append({'name': name, 'path': '/' + x.name})
             return files

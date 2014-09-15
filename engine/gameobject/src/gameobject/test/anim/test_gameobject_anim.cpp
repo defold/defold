@@ -23,6 +23,7 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/anim");
         m_ScriptContext = dmScript::NewContext(0, 0);
+        dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
@@ -37,6 +38,7 @@ protected:
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
         dmGameObject::Finalize(m_ScriptContext, m_Factory);
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);

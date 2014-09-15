@@ -16,6 +16,8 @@ public class Messages extends NLS {
     public static String GreaterEqualThanZero_OUTSIDE_RANGE = null;
     public static String NotZero_OUTSIDE_RANGE;
 
+    public static String PropertyName_RESERVED;
+
     static {
         // initialize resource bundle
         NLS.initializeMessages(BUNDLE_NAME, Messages.class);

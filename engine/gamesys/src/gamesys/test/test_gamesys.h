@@ -88,6 +88,7 @@ void GamesysTest<T>::SetUp()
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
     m_ScriptContext = dmScript::NewContext(0, 0);
+    dmScript::Initialize(m_ScriptContext);
     dmGameObject::Initialize(m_ScriptContext, m_Factory);
     m_Register = dmGameObject::NewRegister();
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
@@ -166,5 +167,6 @@ void GamesysTest<T>::TearDown()
     dmHID::Final(m_HidContext);
     dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
+    dmScript::Finalize(m_ScriptContext);
     dmScript::DeleteContext(m_ScriptContext);
 }

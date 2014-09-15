@@ -54,6 +54,7 @@
 
 // Render states
 #define DMGRAPHICS_STATE_DEPTH_TEST                         (GL_DEPTH_TEST)
+#define DMGRAPHICS_STATE_STENCIL_TEST                       (GL_STENCIL_TEST)
 #define DMGRAPHICS_STATE_ALPHA_TEST                         (GL_ALPHA_TEST)
 #define DMGRAPHICS_STATE_BLEND                              (GL_BLEND)
 #define DMGRAPHICS_STATE_CULL_FACE                          (GL_CULL_FACE)
@@ -72,6 +73,7 @@
 #define DMGRAPHICS_TYPE_FLOAT_VEC4                          (GL_FLOAT_VEC4)
 #define DMGRAPHICS_TYPE_FLOAT_MAT4                          (GL_FLOAT_MAT4)
 #define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
+#define DMGRAPHICS_TYPE_SAMPLER_CUBE                        (GL_SAMPLER_CUBE)
 
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
@@ -131,6 +133,10 @@
 #define DMGRAPHICS_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST    (GL_NEAREST_MIPMAP_NEAREST)
 #define DMGRAPHICS_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST     (GL_LINEAR_MIPMAP_NEAREST)
 
+// Texture type
+#define DMGRAPHICS_TEXTURE_TYPE_2D                          (GL_TEXTURE_2D)
+#define DMGRAPHICS_TEXTURE_TYPE_CUBE_MAP                    (GL_TEXTURE_CUBE_MAP)
+
 // Texture wrap
 #define DMGRAPHICS_TEXTURE_WRAP_REPEAT                      (GL_REPEAT)
 #ifndef GL_ARB_multitexture
@@ -155,6 +161,26 @@
 #define DMGRAPHICS_BLEND_FACTOR_DST_ALPHA                   (GL_DST_ALPHA)
 #define DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_DST_ALPHA         (GL_ONE_MINUS_DST_ALPHA)
 #define DMGRAPHICS_BLEND_FACTOR_SRC_ALPHA_SATURATE          (GL_SRC_ALPHA_SATURATE)
+
+// Stencil func
+#define DMGRAPHICS_STENCIL_FUNC_NEVER                       (GL_NEVER)
+#define DMGRAPHICS_STENCIL_FUNC_LESS                        (GL_LESS)
+#define DMGRAPHICS_STENCIL_FUNC_LEQUAL                      (GL_LEQUAL)
+#define DMGRAPHICS_STENCIL_FUNC_GREATER                     (GL_GREATER)
+#define DMGRAPHICS_STENCIL_FUNC_GEQUAL                      (GL_GEQUAL)
+#define DMGRAPHICS_STENCIL_FUNC_EQUAL                       (GL_EQUAL)
+#define DMGRAPHICS_STENCIL_FUNC_NOTEQUAL                    (GL_NOTEQUAL)
+#define DMGRAPHICS_STENCIL_FUNC_ALWAYS                      (GL_ALWAYS)
+
+// Stencil operation
+#define DMGRAPHICS_STENCIL_OP_KEEP                          (GL_KEEP)
+#define DMGRAPHICS_STENCIL_OP_ZERO                          (GL_ZERO)
+#define DMGRAPHICS_STENCIL_OP_REPLACE                       (GL_REPLACE)
+#define DMGRAPHICS_STENCIL_OP_INCR                          (GL_INCR)
+#define DMGRAPHICS_STENCIL_OP_INCR_WRAP                     (GL_INCR_WRAP)
+#define DMGRAPHICS_STENCIL_OP_DECR                          (GL_DECR)
+#define DMGRAPHICS_STENCIL_OP_DECR_WRAP                     (GL_DECR_WRAP)
+#define DMGRAPHICS_STENCIL_OP_INVERT                        (GL_INVERT)
 
 #if !defined (GL_ARB_imaging)
 #define DMGRAPHICS_BLEND_FACTOR_CONSTANT_COLOR              (0x8001)

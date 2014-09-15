@@ -1,9 +1,17 @@
 package com.dynamo.bob.pipeline;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -16,6 +24,35 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.camera.proto.Camera.CameraDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
+import com.dynamo.graphics.proto.Graphics.Cubemap;
+import com.dynamo.gui.proto.Gui;
+import com.dynamo.input.proto.Input.GamepadMaps;
+import com.dynamo.input.proto.Input.InputBinding;
+import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
+import com.dynamo.proto.DdfExtensions;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.dynamo.sound.proto.Sound.SoundDesc;
+import com.dynamo.spine.proto.Spine.SpineModelDesc;
+import com.dynamo.spine.proto.Spine.SpineScene;
+import com.dynamo.sprite.proto.Sprite.SpriteDesc;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
+import com.dynamo.tile.proto.Tile.TileGrid;
+import com.google.protobuf.DescriptorProtos.FieldOptions;
+import com.google.protobuf.Descriptors.FieldDescriptor;
+import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.Message;
 
 /**
  * Game project and disk archive builder.
@@ -24,6 +61,46 @@ import com.dynamo.bob.fs.IResource;
  */
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
+
+    private static Map<String, Class<? extends GeneratedMessage>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessage>>();
+    private static Set<String> leafResourceTypes = new HashSet<String>();
+
+    static {
+        extToMessageClass.put(".collectionc", CollectionDesc.class);
+        extToMessageClass.put(".collectionproxyc", CollectionProxyDesc.class);
+        extToMessageClass.put(".goc", PrototypeDesc.class);
+        extToMessageClass.put(".texturesetc", TextureSet.class);
+        extToMessageClass.put(".guic", Gui.SceneDesc.class);
+        extToMessageClass.put(".scriptc", LuaModule.class);
+        extToMessageClass.put(".gui_scriptc", LuaModule.class);
+        extToMessageClass.put(".luac", LuaModule.class);
+        extToMessageClass.put(".tilegridc", TileGrid.class);
+        extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
+        extToMessageClass.put(".spritec", SpriteDesc.class);
+        extToMessageClass.put(".factoryc", FactoryDesc.class);
+        extToMessageClass.put(".materialc", MaterialDesc.class);
+        extToMessageClass.put(".fontc", FontMap.class);
+        extToMessageClass.put(".soundc", SoundDesc.class);
+        extToMessageClass.put(".modelc", ModelDesc.class);
+        extToMessageClass.put(".input_bindingc", InputBinding.class);
+        extToMessageClass.put(".gamepadsc", GamepadMaps.class);
+        extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
+        extToMessageClass.put(".particlefxc", ParticleFX.class);
+        extToMessageClass.put(".spinemodelc", SpineModelDesc.class);
+        extToMessageClass.put(".spinescenec", SpineScene.class);
+        extToMessageClass.put(".cubemapc", Cubemap.class);
+        extToMessageClass.put(".camerac", CameraDesc.class);
+        extToMessageClass.put(".lightc", LightDesc.class);
+        extToMessageClass.put(".gamepadsc", GamepadMaps.class);
+
+        leafResourceTypes.add(".texturec");
+        leafResourceTypes.add(".vpc");
+        leafResourceTypes.add(".fpc");
+        leafResourceTypes.add(".wavc");
+        leafResourceTypes.add(".oggc");
+        leafResourceTypes.add(".render_scriptc");
+        leafResourceTypes.add(".meshc");
+    }
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -46,7 +123,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private File createArchive(Task<Void> task) throws IOException {
+    private File createArchive(Collection<String> resources) throws IOException {
         RandomAccessFile outFile = null;
         File tempArchiveFile = File.createTempFile("tmp", "darc");
         tempArchiveFile.deleteOnExit();
@@ -56,18 +133,13 @@ public class GameProjectBuilder extends Builder<Void> {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder ab = new ArchiveBuilder(root);
         boolean doCompress = project.option("compress_disk_archive_entries", "false").equals("true");
-        int i = 0;
-        for (IResource input : task.getInputs()) {
-            if (i > 0) {
-                // First input is game.project
-                //
-                // 2:d argument is true to use compression.
-                // We then try to compress all entries.
-                // If the compressed/uncompressed ratio > 0.95 we do not compress
-                // to save on load time...
-                ab.add(input.getAbsPath(), doCompress);
-            }
-            ++i;
+
+        for (String s : resources) {
+            // 2:d argument is true to use compression.
+            // We then try to compress all entries.
+            // If the compressed/uncompressed ratio > 0.95 we do not compress
+            // to save on load time...
+            ab.add(s, doCompress);
         }
 
         ab.write(outFile);
@@ -75,12 +147,104 @@ public class GameProjectBuilder extends Builder<Void> {
         return tempArchiveFile;
     }
 
+    private void findResources(Message node, Collection<String> resources) throws CompileExceptionError {
+        List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
+
+        for (FieldDescriptor fieldDescriptor : fields) {
+            FieldOptions options = fieldDescriptor.getOptions();
+            FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
+            boolean isResource = (Boolean) options.getField(resourceDesc);
+            Object value = node.getField(fieldDescriptor);
+            if (value instanceof Message) {
+                findResources((Message) value, resources);
+
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                for (Object v : list) {
+                    if (v instanceof Message) {
+                        findResources((Message) v, resources);
+                    } else if (isResource && v instanceof String) {
+                        findResources(project.getResource((String) v), resources);
+                    }
+                }
+
+            } else if (isResource && value instanceof String) {
+                findResources(project.getResource((String) value), resources);
+            }
+        }
+    }
+
+    private void findResources(IResource resource, Collection<String> resources) throws CompileExceptionError {
+        if (resource.getPath().equals("") || resource.getPath().startsWith("/builtins")) {
+            return;
+        }
+
+        resources.add(resource.output().getAbsPath());
+
+        int i = resource.getPath().lastIndexOf(".");
+        if (i == -1) {
+            return;
+        }
+        String ext = resource.getPath().substring(i);
+
+        if (leafResourceTypes.contains(ext)) {
+            return;
+        }
+
+        Class<? extends GeneratedMessage> klass = extToMessageClass.get(ext);
+        if (klass != null) {
+            GeneratedMessage.Builder<?> builder;
+            try {
+                Method newBuilder = klass.getDeclaredMethod("newBuilder");
+                builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
+                builder.mergeFrom(resource.output().getContent());
+                Object message = builder.build();
+                findResources((Message) message, resources);
+
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
+        }
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream is = null;
+
+        BobProjectProperties properties = new BobProjectProperties();
+        IResource input = task.input(0);
+        try {
+            properties.load(new ByteArrayInputStream(input.getContent()));
+        } catch (Exception e) {
+            throw new CompileExceptionError(input, -1, "Failed to parse game.project", e);
+        }
+
         try {
             if (project.option("build_disk_archive", "false").equals("true")) {
-                File archiveFile = createArchive(task);
+                HashSet<String> resources = new HashSet<String>();
+
+                // Root nodes to follow
+                for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}}) {
+                    String path = properties.getStringValue(pair[0], pair[1]);
+                    if (path != null) {
+                        findResources(project.getResource(path), resources);
+                    }
+                }
+
+                // Custom resources
+                String[] custom_resources = properties.getStringValue("project", "custom_resources", "").split(",");
+                for (String s : custom_resources) {
+                    s = s.trim();
+                    if (s.length() > 0) {
+                        IResource r = this.project.getResource(s);
+                        resources.add(r.output().getAbsPath());
+                    }
+                }
+
+                File archiveFile = createArchive(resources);
                 is = new FileInputStream(archiveFile);
                 IResource arcOut = task.getOutputs().get(1);
                 arcOut.setContent(is);

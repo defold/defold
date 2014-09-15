@@ -19,6 +19,7 @@ namespace dmGui
     const uint32_t MAX_MESSAGE_DATA_SIZE = 512;
     extern const uint16_t INVALID_INDEX;
 
+    #define GUI_SCRIPT "GuiScript"
     #define GUI_SCRIPT_INSTANCE "GuiScriptInstance"
 
     enum ScriptFunction
@@ -45,7 +46,7 @@ namespace dmGui
         struct Data
         {
             Matrix4     m_Transform;
-            Vector4     m_Color;
+            float       m_Alpha;
         };
         dmArray<Data>   m_Data;
         uint16_t        m_NodeIndex;
@@ -92,7 +93,7 @@ namespace dmGui
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
                 uint32_t    m_DirtyLocal : 1;
-                uint32_t    m_InheritColor : 1;
+                uint32_t    m_InheritAlpha : 1;
                 uint32_t    m_Reserved : 10;
             };
 
@@ -155,10 +156,9 @@ namespace dmGui
 
     struct Script
     {
-        Script();
-
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         Context*    m_Context;
+        int         m_InstanceReference;
     };
 
     struct DynamicTexture
@@ -180,8 +180,6 @@ namespace dmGui
 
     struct Scene
     {
-        Scene();
-
         int                     m_InstanceReference;
         int                     m_DataReference;
         Context*                m_Context;

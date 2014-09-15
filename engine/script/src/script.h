@@ -12,6 +12,7 @@
 extern "C"
 {
 #include <lua/lua.h>
+#include <lua/lauxlib.h>
 }
 
 namespace dmScript
@@ -25,6 +26,11 @@ namespace dmScript
         RESULT_ARGVAL = -2,
         RESULT_MODULE_NOT_LOADED = -3,
     };
+
+    extern const char* META_TABLE_RESOLVE_PATH;
+    extern const char* META_TABLE_GET_URL;
+    extern const char* META_TABLE_GET_USER_DATA;
+    extern const char* META_TABLE_IS_VALID;
 
     /**
      * Create and return a new context.
@@ -85,30 +91,16 @@ namespace dmScript
     typedef Result (*MessageDecoder)(lua_State* L, const dmDDF::Descriptor* desc, const char* data);
 
     /**
-     * Parameters to initialize the script context
+     * Register the script libraries into the supplied script context.
+     * @param context script context
      */
-    struct ScriptParams
-    {
-        ScriptParams();
-
-        HContext m_Context;
-        ResolvePathCallback m_ResolvePathCallback;
-        GetURLCallback m_GetURLCallback;
-        GetUserDataCallback m_GetUserDataCallback;
-        ValidateInstanceCallback m_ValidateInstanceCallback;
-    };
-
-    /**
-     * Register the script libraries into the supplied lua state.
-     * @param L Lua state
-     */
-    void Initialize(lua_State* L, const ScriptParams& params);
+    void Initialize(HContext m_Context);
 
     /**
      * Finalize script libraries
-     * @param L Lua state
+     * @param context script context
      */
-    void Finalize(lua_State* L, HContext context);
+    void Finalize(HContext context);
 
     /**
      * Retrieve a ddf structure from a lua state.
@@ -292,12 +284,20 @@ namespace dmScript
     /**
      * Returns the URL of a script currently operating on the given lua state.
      * @param L Lua state
-     * @param Pointer to a URL to be written to
+     * @param out_url Pointer to a URL to be written to
      * @return true if a URL could be found
      */
     bool GetURL(lua_State* L, dmMessage::URL* out_url);
 
-    dmMessage::Result ResolveURL(ResolvePathCallback resolve_path_callback, uintptr_t resolve_user_data, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
+    /**
+     * Returns the user data of a script currently operating on the given lua state.
+     * @param L Lua state
+     * @param out_user_data Pointer to a uintptr_t to be written to
+     * @return true if the user data could be found
+     */
+    bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
+
+    dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
     /**
      * Attempts to convert the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
@@ -308,12 +308,11 @@ namespace dmScript
     int ResolveURL(lua_State* L, int index, dmMessage::URL* out_url, dmMessage::URL* out_default_url);
 
     /**
-     * Returns the user data associated with the script currently operating on the given lua state.
-     * @param L Lua state
-     * @param Pointer to the pointer to be written to
-     * @return true if user data could be found
+     * Retrieve lua state from the context
+     * @param context script context
+     * @return lua state
      */
-    bool GetUserData(lua_State* L, uintptr_t* out_user_data);
+    lua_State* GetLuaState(HContext context);
 
     /**
      * Add (load) module
@@ -374,7 +373,7 @@ namespace dmScript
      */
     void GetInstance(lua_State* L);
     /**
-     * Set the value on the top of the stack as the instance into the global table.
+     * Set the value on the top of the stack as the instance into the global table and pops it from the stack.
      * @param lua state
      */
     void SetInstance(lua_State* L);
@@ -391,6 +390,34 @@ namespace dmScript
      * @return the main thread lua state
      */
     lua_State* GetMainThread(lua_State* L);
+
+    /**
+     * Check if the object at the given index is of the specified user type.
+     * @param L lua state
+     * @param idx object index
+     * @param type user type
+     * @return true if the object has the specified type
+     */
+    bool IsUserType(lua_State* L, int idx, const char* type);
+
+    /**
+     * Check if the object at the given index is of the specified user type.
+     * This might result in lua errors so it should only be called from within a lua context.
+     * @param L lua state
+     * @param idx object index
+     * @param type user type
+     * @return the object if it has the specified type, 0 otherwise
+     */
+    void* CheckUserType(lua_State* L, int idx, const char* type);
+
+    /**
+     * Register a user type along with methods and meta methods.
+     * @param L lua state
+     * @param name user type name
+     * @param methods array of methods
+     * @param meta array of meta methods
+     */
+    void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
 }
 
 #endif // DM_SCRIPT_H
