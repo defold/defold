@@ -70,19 +70,21 @@
                     (nth (:sizes grids) grid-index)
                     (nth (:aabbs grids) grid-index))))))
 
+(defn render-scaled-grids
+  [context gl project this camera]
+  (let [grids       (p/get-resource-value project this :grids)
+        view-matrix (c/camera-view-matrix camera)
+        dir         (double-array 4)
+        _           (.getRow view-matrix 2 dir)]
+    (gl-lines gl
+      (render-grid-sizes dir grids)
+      (render-primary-axes (apply g/aabb-union (:aabbs grids))))))
+
 (defnk grid-renderable :- t/RenderData
-  [this g project camera]
+  [this project camera]
   {pass/transparent
    [{:world-transform g/Identity4d
-     :render-fn
-     (fn [context gl glu]
-       (let [grids       (p/get-resource-value project this :grids)
-             view-matrix (c/camera-view-matrix camera)
-             dir         (double-array 4)
-             _           (.getRow view-matrix 2 dir)]
-         (gl-lines gl
-           (render-grid-sizes dir grids)
-           (render-primary-axes (apply g/aabb-union (:aabbs grids))))))}]})
+     :render-fn       (fn [ctx gl glu text-renderer] (render-scaled-grids ctx gl project this camera))}]})
 
 (def axis-vectors
   [(Vector4d. 1.0 0.0 0.0 0.0)

@@ -28,10 +28,14 @@
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
+            [com.jogamp.opengl.util.awt TextRenderer]
             [java.nio ByteBuffer]
             [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]
-            [javax.media.opengl GL]
+            [java.awt.image BufferedImage]
+            [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d]))
+
+(set! *warn-on-reflection* true)
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -132,20 +136,29 @@
 (defn vertex-starts [n-vertices] (take n-vertices (take-nth 6 integers)))
 (defn vertex-counts [n-vertices] (take n-vertices (repeat (int 6))))
 
+(defn render-overlay
+  [ctx ^GL2 gl ^TextRenderer text-renderer this project]
+  (let [textureset ^TextureSet (p/get-resource-value project this :textureset)
+        image      ^BufferedImage (.packed-image textureset)]
+    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
+
+(defn render-textureset
+  [ctx gl this project]
+  (do-gl [this            (assoc this :gl gl)
+          textureset      (p/get-resource-value project this :textureset)
+          shader          (p/get-resource-value project this :shader)
+          vbuf            (p/get-resource-value project this :vertex-buffer)
+          texture         (texture/image-texture gl (:packed-image textureset))
+          vertex-binding  (vtx/use-with gl vbuf shader)]
+         (shader/set-uniform shader "texture" (int 0))
+         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
+
 (defnk produce-renderable :- RenderData
   [this project]
-  {pass/transparent
-   [{:world-transform g/Identity4d
-     :render-fn
-     (fn [ctx gl glu]
-       (do-gl [this            (assoc this :gl gl)
-               textureset      (p/get-resource-value project this :textureset)
-               shader          (p/get-resource-value project this :shader)
-               vbuf            (p/get-resource-value project this :vertex-buffer)
-               texture         (texture/image-texture gl (:packed-image textureset))
-               vertex-binding  (vtx/use-with gl vbuf shader)]
-              (shader/set-uniform shader "texture" (int 0))
-              (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))}]})
+  {pass/overlay
+   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this project))}]
+   pass/transparent
+   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this project))}]})
 
 (defnk produce-shader :- s/Int
   [this gl project]

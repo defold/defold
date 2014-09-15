@@ -169,3 +169,12 @@
              (when (satisfies? ~`p/GlDisable b#)
                (.disable b#)))
            rval#))))
+
+(defn overlay
+  [ctx ^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float scalex ^Float scaley]
+  (gl-push-matrix gl
+    (.glScaled gl 1 -1 1)
+    (.setColor text-renderer 1 1 1 1)
+    (.begin3DRendering text-renderer)
+    (.draw3D text-renderer chars xloc yloc scalex scaley)
+    (.end3DRendering text-renderer)))

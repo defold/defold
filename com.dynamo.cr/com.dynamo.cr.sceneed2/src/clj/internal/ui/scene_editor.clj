@@ -59,7 +59,7 @@
   (pass/prepare-gl pass gl glu))
 
 (defn do-paint
-  [{:keys [project-state context canvas camera-node-id render-node-id] :as state}]
+  [{:keys [project-state context canvas camera-node-id render-node-id small-text-renderer] :as state}]
   (when (not (.isDisposed canvas))
       (.setCurrent canvas)
       (with-context context [gl glu]
@@ -79,7 +79,7 @@
                         (gl-mult-matrix-4d gl (:world-transform node)))
                       (try
                         (when (:render-fn node)
-                          ((:render-fn node) context gl glu))
+                          ((:render-fn node) context gl glu small-text-renderer))
                         (catch Exception e
                           (log/error :exception e
                                      :pass pass
@@ -136,8 +136,7 @@
           vertex-arr    (IntBuffer/allocate 1)
           _             (.glGenVertexArrays gl 1 vertex-arr)
           vertex-arr-id (.get vertex-arr 0)
-          _             (.glBindVertexArray gl vertex-arr-id)
-          ]
+          _             (.glBindVertexArray gl vertex-arr-id)]
       (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
       (.release context)
       (e/listen canvas SWT/Resize on-resize this state)
