@@ -13,6 +13,7 @@
 #import <AdSupport/AdSupport.h>
 #else
 #import <AppKit/NSWorkspace.h>
+#import <Foundation/NSLocale.h>
 #endif
 
 namespace dmSys
@@ -111,6 +112,34 @@ namespace dmSys
     }
 
 #else
+    
+    void GetSystemInfo(SystemInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+        struct utsname uts;
+        uname(&uts);
+        
+        dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
+        dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
+        info->m_DeviceModel[0] = '\0';
+        
+        const char* default_lang = "en_US";
+        const char* lang = default_lang;
+        
+        NSLocale* locale = [NSLocale currentLocale];
+        
+        if (0x0 != locale) {
+            NSString* preferredLang = [locale localeIdentifier];
+            lang = [preferredLang UTF8String];
+        }
+        
+        if (!lang) {
+            dmLogWarning("localeIdentifier not available.");
+        }
+        
+        FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
+    }
 
     Result OpenURL(const char* url)
     {
