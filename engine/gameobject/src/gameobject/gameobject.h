@@ -227,6 +227,8 @@ namespace dmGameObject
         PropertyVar m_Variant;
         /// Pointer to the value, only set for mutable values. The actual data type is described by the variant.
         float* m_ValuePtr;
+        /// Determines whether we are permitted to write to this property.
+        bool m_ReadOnly;
     };
 
     /**

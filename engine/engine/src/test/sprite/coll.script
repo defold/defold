@@ -32,10 +32,28 @@ function init(self)
     assert(compare_fp(sx, 1))
     assert(compare_fp(sy, 1))
     assert(compare_fp(sz, 1))
+
+    msg.post(".", "try_set_size")
+    msg.post(".", "try_animate_size")
+end
+
+local function fail_set_size(self)
+    print "Attempting improper set operation"
+    go.set("#sprite", "size.x", 1)
+    go.set("#sprite", "size", vmath.vector3(8,8,8))
+end
+
+local function fail_animate_size(self)
+    print "Attempting improper animation operation"
+    go.animate("#sprite", "size.x", go.PLAYBACK_ONCE_FORWARD, 20, go.EASING_LINEAR, 1)
 end
 
 function on_message(self, message_id, message, sender)
     if message_id == hash("animation_done") and sender == self.sprite then
         msg.post("main:/main#script", "done")
+    elseif message_id == hash("try_set_size") then
+        fail_set_size(self)
+    elseif message_id == hash("try_animate_size") then
+        fail_animate_size(self)
     end
 end

@@ -533,6 +533,8 @@ namespace dmGameObject
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
             return luaL_error(L, "go.set failed because the value is unsupported");
+        case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
+            return luaL_error(L, "could not perform unsupported operation on '%s'", (const char*)dmHashReverse64(property_id, 0x0));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.set failed with error code %d", result);
@@ -967,6 +969,15 @@ namespace dmGameObject
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+        case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
+            {
+                lua_pushliteral(L, "");
+                dmScript::PushURL(L, target);
+                lua_concat(L, 2);
+                const char* name = lua_tostring(L, -1);
+                lua_pop(L, 1);
+                return luaL_error(L, "Animation of the property '%s' of '%s' is unsupported", (const char*)dmHashReverse64(property_id, 0x0), name);
+            }
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.animate failed with error code %d", result);

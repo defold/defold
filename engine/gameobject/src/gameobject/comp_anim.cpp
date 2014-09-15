@@ -471,6 +471,10 @@ namespace dmGameObject
         {
             return prop_result;
         }
+        if (prop_desc.m_ReadOnly)
+        {
+            return PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+        }
         if (to.m_Type != prop_desc.m_Variant.m_Type)
         {
             return PROPERTY_RESULT_TYPE_MISMATCH;

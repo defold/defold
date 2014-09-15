@@ -911,6 +911,7 @@ namespace dmGameSystem
 
         // We deliberately do not provide a value pointer in the case of read only variables,
         // in order to ensure that it is not used in any write optimisation (see animation system).
+        out_value.m_ReadOnly = property.m_ReadOnly;
         if (get_property == property.m_Vector)
         {
             if (!property.m_ReadOnly)
