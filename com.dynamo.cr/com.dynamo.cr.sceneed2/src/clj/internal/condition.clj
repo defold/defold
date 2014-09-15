@@ -68,39 +68,3 @@
     (if-let [f (get-in handlers [condition :restarts which])]
       (apply f args)
       (throw (ex-info (str "No such restart: " which) {})))))
-
-
-(comment
-
-  ;; inside an image node
-  (def load-image
-    (caching
-     (fn [src]
-       (if-let [img (ImageIO/read (io/input-stream src))]
-         (make-image src img)
-         (signal :missing-image :path src)))))
-
-  (defnk image-from-resource :- Image
-    [this project]
-    (load-image (project-path project (:image this))))
-
-
-  ;; inside a node, when accessing its own values
-  (restart-case
-   (:missing-image
-    (:use-value [v] v)
-    (:retry     [f] (image-from-file f)))
-   (p/get-resource-value project-state this :textureset))
-
-  ;; upper level code, when asking for the textureset to render to screen
-  (defn use-placeholder-image
-    [condition]
-    (invoke-restart :use-value placeholder))
-
-  (defn produce-renderable
-    (handler-bind
-     (:missing-image  #'use-placeholder-image)
-     (:corrupted-file (fn [condition] (service.log/warn :corrupted-file (:filename condition))))
-     (p/get-resource-value project-state :renderable)))
-
-  )
