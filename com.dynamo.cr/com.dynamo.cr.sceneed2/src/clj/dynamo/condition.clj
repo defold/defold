@@ -1,4 +1,4 @@
-(ns internal.condition)
+(ns dynamo.condition)
 
 (def ^:dynamic *handlers* {})
 

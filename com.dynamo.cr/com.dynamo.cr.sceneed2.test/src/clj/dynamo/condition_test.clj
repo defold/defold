@@ -1,5 +1,5 @@
-(ns internal.condition-test
-  (:require [internal.condition :refer :all]
+(ns dynamo.condition-test
+  (:require [dynamo.condition :refer :all]
             [clojure.test :refer :all]))
 
 (defn simulate-file-read [f] f)

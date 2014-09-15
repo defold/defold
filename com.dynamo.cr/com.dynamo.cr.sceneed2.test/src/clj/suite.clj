@@ -6,6 +6,7 @@
                       'internal.value-test
                       'internal.node-test
                       'dynamo.gl.vertex-test
+                      'dynamo.condition-test
                       'atlas.core-test])
 
 (defn suite []
