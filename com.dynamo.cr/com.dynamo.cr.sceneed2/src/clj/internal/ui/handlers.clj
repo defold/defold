@@ -1,6 +1,6 @@
 (ns internal.ui.handlers
   "Implementation support for handlers and commands."
-  (:require [eclipse.reflect :as r]
+  (:require [internal.java :as java]
             [service.log :as log]
             [service.registry :refer [registered]])
   (:import [org.eclipse.core.expressions IEvaluationContext]
@@ -22,9 +22,9 @@
 (defn context-variable-fields
   [cls]
   (filter #(.endsWith (:name (first %)) "_NAME")
-          (r/constants (resolve cls))))
+          (java/constants (resolve cls))))
 
-(defmacro context-accessors 
+(defmacro context-accessors
   [cls]
   (let [accessors (clojure.core/map context-accessor-sexp (context-variable-fields cls))]
     (apply list 'do `(def ^:private context-accessor-fns '~(mapv second accessors)) accessors)))
@@ -53,12 +53,12 @@
   [command-id handler]
   (.activateHandler (global-handler-service) command-id handler))
 
-(defn- handler-proxy 
+(defn- handler-proxy
   [fn-var args]
   (proxy [AbstractHandler] []
     (execute [^ExecutionEvent execution-event]
       (apply (var-get fn-var) execution-event args))
-    
+
     (setEnabled [evaluation-context]
       (println evaluation-context))))
 
@@ -67,7 +67,7 @@
 (def make-handler
   (registered
     (fn [^Command command fn-var & args]
-      (Handler. (:id command) fn-var args 
+      (Handler. (:id command) fn-var args
                 (activate-handler (:id command) (handler-proxy fn-var args))))
     (fn [^Command command fn-var & args]
       [(:id command) (str fn-var)])
