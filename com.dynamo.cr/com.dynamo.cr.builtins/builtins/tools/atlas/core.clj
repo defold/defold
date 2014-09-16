@@ -35,8 +35,6 @@
             [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d]))
 
-(set! *warn-on-reflection* true)
-
 (def integers (iterate (comp int inc) (int 0)))
 
 (vtx/defvertex engine-format-texture
