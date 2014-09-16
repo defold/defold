@@ -17,7 +17,6 @@
            [java.nio IntBuffer]
            [java.awt Font]
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
-           [org.eclipse.swt SWT]
            [dynamo.types Camera Region]))
 
 (def PASS_SHIFT        32)
@@ -139,7 +138,7 @@
           _             (.glBindVertexArray gl vertex-arr-id)]
       (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
       (.release context)
-      (e/listen canvas SWT/Resize on-resize this state)
+      (e/listen canvas :resize on-resize this state)
       (swap! state assoc
              :context context
              :canvas  canvas

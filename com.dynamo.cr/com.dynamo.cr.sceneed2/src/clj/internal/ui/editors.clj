@@ -2,8 +2,10 @@
   (:require [dynamo.project :as p]
             [dynamo.file :as f]
             [internal.system :as sys]
+            [camel-snake-kebab :refer :all]
             [service.log :as log])
-  (:import  [org.eclipse.swt.widgets Display Listener]))
+  (:import  [org.eclipse.swt.widgets Display Listener]
+            [org.eclipse.swt SWT]))
 
 (defn display
   []
@@ -33,12 +35,21 @@
   [after & body]
   `(swt-timed-exec* ~after (bound-fn [] ~@body)))
 
+(defmacro swt-events [& evts]
+  (let [keywords (map (comp keyword ->kebab-case str) evts)
+        constants (map symbol (map #(str "SWT/" %) evts))]
+    (zipmap keywords constants)))
+
+(def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
+                           MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect
+                           FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse))
+
 (defn listen
-  [c t f]
-  (.addListener c t
+  [component type callback-fn]
+  (.addListener component (event-map type)
     (proxy [Listener] []
       (handleEvent [evt]
-        (f evt)))))
+        (callback-fn evt)))))
 
 (defn implementation-for
   "Factory for values that implement the Editor protocol.
