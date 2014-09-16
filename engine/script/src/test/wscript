@@ -57,11 +57,13 @@ def build(bld):
 
     test_script_vmath.install_path = None
 
-    test_script_table = bld.new_task_gen(features = flist,
+    script_table_features = flist + ' embed';
+    test_script_table = bld.new_task_gen(features = script_table_features,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
                                      proto_gen_py = True,
+                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v0.1.dat data/table_sin_v0.1.dat',
                                      target = 'test_script_table',
                                      source = 'test_script_table.cpp')
 
