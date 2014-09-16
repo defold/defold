@@ -4,6 +4,7 @@
             [plumbing.core :refer [defnk]]
             [dynamo.types :as t]
             [dynamo.node :as n]
+            [dynamo.project :as p]
             [internal.cache :refer [caching]]
             [dynamo.geom :as g])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d]
@@ -186,3 +187,15 @@
 (n/defnode CameraNode
   (property camera {:schema Camera})
   (output   camera Camera [this _] (:camera this)))
+
+(defn dolly [camera delta]
+  (update-in camera [:camera :fov] #(if % (+ % delta) 0)))
+
+(n/defnode CameraController
+  (input camera [CameraNode])
+  (output self CameraController [this _] this)
+
+  (on :mouse-wheel
+      (let [camera-node (p/resource-feeding-into project-state self :camera)
+            delta       (.count event)]
+        (update-property camera-node :camera dolly (* -0.02 delta)))))

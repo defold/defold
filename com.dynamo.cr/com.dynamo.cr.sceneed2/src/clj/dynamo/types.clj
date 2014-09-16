@@ -19,7 +19,7 @@
   (properties [this] "Produce a description of properties supported by this node."))
 
 (defprotocol MessageTarget
-  (start-event-loop! [this event-ch]))
+  (start-event-loop! [this project-state event-ch]))
 
 ; ----------------------------------------
 ; Functions to create basic value types

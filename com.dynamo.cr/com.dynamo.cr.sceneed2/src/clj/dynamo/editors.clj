@@ -1,5 +1,6 @@
 (ns dynamo.editors
-  (:require [internal.ui.editors :as e]))
+  (:require [clojure.core.async :refer [chan dropping-buffer]]
+            [internal.ui.editors :as e]))
 
 (defprotocol Editor
   (init [this site])
@@ -12,6 +13,14 @@
 (defn listen
   [c t f & args]
   (e/listen c t (bound-fn [evt] (apply f evt args))))
+
+(defn make-event-channel
+  []
+  (chan (dropping-buffer 100)))
+
+(defn pipe-events-to-channel
+  [control type ch]
+  (e/pipe-events-to-channel control type ch))
 
 (defmacro on-display-thread
   [& body]

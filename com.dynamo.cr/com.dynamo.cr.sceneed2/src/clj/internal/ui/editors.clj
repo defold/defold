@@ -1,5 +1,6 @@
 (ns internal.ui.editors
-  (:require [dynamo.project :as p]
+  (:require [clojure.core.async :refer [put!]]
+            [dynamo.project :as p]
             [dynamo.file :as f]
             [internal.system :as sys]
             [camel-snake-kebab :refer :all]
@@ -40,9 +41,18 @@
         constants (map symbol (map #(str "SWT/" %) evts))]
     (zipmap keywords constants)))
 
+(deftype EventForwarder [ch]
+  Listener
+  (handleEvent [this evt] (put! ch evt)))
+
 (def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
                            MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect
                            FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse))
+
+(def event-type-map (clojure.set/map-invert event-map))
+
+(defn event-type [^org.eclipse.swt.widgets.Event evt]
+  (event-type-map (.type evt)))
 
 (defn listen
   [component type callback-fn]
@@ -50,6 +60,11 @@
     (proxy [Listener] []
       (handleEvent [evt]
         (callback-fn evt)))))
+
+(defn pipe-events-to-channel
+  [control type ch]
+  (.addListener control (event-map type)
+    (EventForwarder. ch)))
 
 (defn implementation-for
   "Factory for values that implement the Editor protocol.

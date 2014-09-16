@@ -2,7 +2,6 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.core.async :as a]
             [clojure.set :refer [rename-keys union]]
-            [clojure.walk :as walk]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [schema.core :as s]
@@ -143,7 +142,7 @@
        ~(str "Constructor for " nm ", using default values for any property not in property-values.\nThe properties on " nm " are:\n"
              #_(describe-properties behavior))
        [& {:as ~'property-values}]
-       (~record-ctor (merge {:_id (tempid)} ~(defaults behavior) ~'property-values)))))
+       (~record-ctor (merge {:_id (tempid)} ~(defaults (dissoc behavior :event-handlers)) ~'property-values)))))
 
 ; --------------------------------------------------------------------
 
@@ -198,16 +197,22 @@
   [form]
   (match [form]
          [(['attach & rest] :seq)]
-         `(conj! ~'transaction (p/connect ~@rest))
+         `(conj! ~'transaction (dynamo.project/connect ~@rest))
 
          [(['dettach & rest] :seq)]
-         `(conj! ~'transaction (p/disconnect ~@rest))
+         `(conj! ~'transaction (dynamo.project/disconnect ~@rest))
 
          [(['send target-node type & body] :seq)]
          `(conj! ~'message-drop [~target-node ~type ~body])
 
          [(['invalidate target-node output] :seq)]
-         `(conj! ~'transaction (p/update-resource ~target-node ~output))
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~output))
+
+         [(['set-property target-node property value] :seq)]
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node assoc ~property ~value))
+
+         [(['update-property target-node property f & args] :seq)]
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~f ~@args))
 
          [(['new node-type & rest] :seq)]
          (let [ctor (symbol (str 'make- (->kebab-case (str node-type))))]
@@ -246,18 +251,23 @@
   [name beh]
   (let [fn-name     (symbol (str (:name beh) ":event-loop"))
         event-cases (mapcat identity (:event-handlers beh))]
-    `(start-event-loop!
+    `(dynamo.types/start-event-loop!
         [~'self ~'project-state ~'in]
         (a/go-loop []
-          (when-let [~'event (a/<! ~'in)]
-            (let [~'transaction (transient [])
-                  ~'message-drop (transient [])]
-              (case (:type ~'event) ~@event-cases)
-              (when (and (< 0 (count ~'transaction))
-                         (= :ok (:status (dynamo.project/transact ~'project-state ~'transaction))))
-                (doseq [m# ~'message-drop]
-                  (apply dynamo.project/publish ~'project-state m#)))
-              (post-event ~'project-state ~'transaction ~'message-drop))
+          (when-let [~'msg (a/<! ~'in)]
+            (try
+              (let [~'event        (:body ~'msg)
+                    ~'transaction (transient [])
+                    ~'message-drop (transient [])]
+                (case (internal.ui.editors/event-type ~'event)
+                  ~@event-cases
+                  nil)
+                (when (and (< 0 (count ~'transaction))
+                           (= :ok (:status (dynamo.project/transact ~'project-state (persistent! ~'transaction)))))
+                  (doseq [m# (persistent! ~'message-drop)]
+                    (apply dynamo.project/publish ~'project-state m#))))
+              (catch Exception ~'ex
+                (.printStackTrace ~'ex)))
             (recur))))))
 
 (defn compile-specification
@@ -282,13 +292,15 @@
                                (str "There is no transform " ~'label " on node " (:_id ~t)))
                        (perform (get-in ~t [:transforms ~'label]) ~t ~g ~'seed))
            (when (< 0 (count (:event-handlers behavior)))
-             ['MessageTarget
+             ['dynamo.types/MessageTarget
               (generate-event-loop name behavior)]))))
 
-(defn- quote-symbols
-  [form]
-  (walk/postwalk (fn [x] (if (symbol? x) (list 'quote x) x)) form))
+
+
+(defn quote-event-handlers
+  [beh]
+  (update-in beh [:event-handlers] map-vals #(list `quote %)))
 
 (defn generate-descriptor [name behavior]
   (let [descriptor-name (symbol (str name ":descriptor"))]
-    `(def ~descriptor-name ~behavior)))
+    `(def ~descriptor-name ~(quote-event-handlers behavior))))

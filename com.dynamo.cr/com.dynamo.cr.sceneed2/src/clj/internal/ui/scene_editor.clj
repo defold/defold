@@ -1,5 +1,6 @@
 (ns internal.ui.scene-editor
-  (:require [plumbing.core :refer [defnk]]
+  (:require [clojure.core.async :refer [<! >! go-loop]]
+            [plumbing.core :refer [defnk]]
             [dynamo.editors :as e]
             [dynamo.types :as t]
             [dynamo.geom :as g]
@@ -40,9 +41,28 @@
   (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera %) (concat a b)))) renderables))
 
 (n/defnode SceneRenderer
-  (input camera Camera)
+  (input camera      Camera)
   (input renderables [t/RenderData])
+  (input controller  t/Node)
+
   (output render-data t/RenderData produce-render-data))
+
+(defn on-resize
+  [evt editor state]
+  (let [{:keys [canvas camera-node-id project-state]} @state
+        camera-node (p/resource-by-id project-state camera-node-id)
+        client      (.getClientArea canvas)
+        viewport    (t/->Region 0 (.width client) 0 (.height client))
+        aspect      (/ (double (.width client)) (.height client))
+        camera      (:camera camera-node)
+        new-camera  (-> camera
+                      (c/set-orthographic (:fov camera)
+                                        aspect
+                                        -100000
+                                        100000)
+                      (assoc :viewport viewport))]
+    (p/transact project-state [(p/update-resource camera-node assoc :camera new-camera)])
+    (ui/request-repaint editor)))
 
 (defn setup-pass
   [context gl glu pass camera viewport]
@@ -86,41 +106,40 @@
           (finally
             (.swapBuffers canvas))))))
 
-
-(defn on-resize
-  [evt editor state]
-  (let [{:keys [canvas camera-node-id project-state]} @state
-        camera-node (p/resource-by-id project-state camera-node-id)
-        client      (.getClientArea canvas)
-        viewport    (t/->Region 0 (.width client) 0 (.height client))
-        aspect      (/ (double (.width client)) (.height client))
-        camera      (:camera camera-node)
-        new-camera  (-> camera
-                      (c/set-orthographic (:fov camera)
-                                        aspect
-                                        -100000
-                                        100000)
-                      (assoc :viewport viewport))]
-    (p/transact project-state [(p/update-resource camera-node assoc :camera new-camera)])
-    (ui/request-repaint editor)))
+(defn- start-event-pump
+  [canvas {:keys [render-node-id project-state]}]
+  (let [event-chan (e/make-event-channel)]
+    (doseq [evt [:resize :mouse-down :mouse-up :mouse-double-click :mouse-enter :mouse-exit :mouse-hover :mouse-move :mouse-wheel :key-down :key-up]]
+      (e/pipe-events-to-channel canvas evt event-chan))
+    (go-loop []
+       (when-let [e (<! event-chan)]
+         (try
+           (p/publish project-state (p/resource-feeding-into project-state {:_id render-node-id} :controller) e)
+           (catch Exception ex (.printStackTrace ex)))
+         (recur)))
+    event-chan))
 
 (deftype SceneEditor [state scene-node]
   e/Editor
   (init [this site]
-    (let [render-node     (make-scene-renderer :_id -1)
+    (let [render-node     (make-scene-renderer :_id -1 :editor this)
           background-node (back/make-background :_id -2)
           grid-node       (grid/make-grid :_id -3)
           camera-node     (c/make-camera-node :camera (c/make-camera :orthographic) :_id -4)
+          camera-controller (c/make-camera-controller)
           tx-result       (p/transact (:project-state @state)
                                       [(p/new-resource render-node)
                                        (p/new-resource background-node)
                                        (p/new-resource grid-node)
                                        (p/new-resource camera-node)
-                                       (p/connect scene-node      :renderable render-node :renderables)
-                                       (p/connect background-node :renderable render-node :renderables)
-                                       (p/connect grid-node       :renderable render-node :renderables)
-                                       (p/connect camera-node     :camera     render-node :camera)
-                                       (p/connect camera-node     :camera     grid-node   :camera)])]
+                                       (p/new-resource camera-controller)
+                                       (p/connect scene-node        :renderable render-node :renderables)
+                                       (p/connect background-node   :renderable render-node :renderables)
+                                       (p/connect grid-node         :renderable render-node :renderables)
+                                       (p/connect camera-node       :camera     render-node :camera)
+                                       (p/connect camera-node       :camera     grid-node   :camera)
+                                       (p/connect camera-node       :camera     camera-controller :camera)
+                                       (p/connect camera-controller :self       render-node :controller)])]
       (swap! state assoc
              :camera-node-id (p/resolve-tempid tx-result -4)
              :render-node-id (p/resolve-tempid tx-result -1))))
@@ -142,6 +161,7 @@
       (swap! state assoc
              :context context
              :canvas  canvas
+             :event-channel (start-event-pump canvas @state)
              :small-text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12))))
 
   (save [this file monitor])

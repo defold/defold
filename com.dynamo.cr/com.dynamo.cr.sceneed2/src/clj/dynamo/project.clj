@@ -34,7 +34,7 @@
 (defn make-project
   [eclipse-project branch tx-report-chan]
   (let [msgbus (a/chan 100)
-        pubch  (a/pub msgbus :node-id #(a/dropping-buffer 100))]
+        pubch  (a/pub msgbus :node-id (fn [_] (a/dropping-buffer 100)))]
     {:handlers        {:loaders {"clj" on-load-code}}
      :graph           (dg/empty-graph)
      :cache-keys      {}
@@ -51,8 +51,9 @@
         cached-vals (vals (:cache @project-state))]
     (onto-chan report-ch (filter disposable? cached-vals) false)))
 
-(defn publish [project-state node-id msg]
-  (a/put! (:publish-to @project-state) {:node-id node-id :body msg}))
+(defn publish [project-state node msg]
+  (when node
+    (a/put! (:publish-to @project-state) {:node-id (:_id node) :body msg})))
 
 (defn- handle
   [project-state key filetype handler]
@@ -97,6 +98,10 @@
           (hit-cache  project-state cache-key (get cache cache-key))
           (miss-cache project-state cache-key (produce-value project-state resource label))))
     (produce-value project-state resource label)))
+
+(defn resource-feeding-into [project-state resource label]
+  (resource-by-id project-state
+                  (ffirst (lg/sources (:graph @project-state) (:_id resource) label))))
 
 (defn new-resource
   ([resource]
@@ -219,10 +224,10 @@
   (assoc ctx :expired-outputs (pairwise :on-update (map #(dg/node graph %) affected-nodes))))
 
 (defn- start-event-loops
-  [{:keys [new-event-loops state] :as ctx}]
-  (doseq [n new-event-loops]
+  [{:keys [new-event-loops graph] :as ctx} project-state]
+  (doseq [n (map #(dg/node graph (resolve-tempid ctx (:_id %))) new-event-loops)]
     (let [ch (a/chan 100)]
-      (t/start-event-loop! n (a/sub (:subscribe-to state) (:_id n) ch))))
+      (t/start-event-loop! n project-state (a/sub (:subscribe-to @project-state) (:_id n) ch))))
   ctx)
 
 (defn- finalize-update
@@ -248,7 +253,6 @@
     dispose-obsoletes
     evict-obsolete-caches
     determine-autoupdates
-    start-event-loops
     finalize-update))
 
 (defn transact
@@ -256,6 +260,7 @@
   (send-to-tx-queue project-state
     (dosync
       (let [tx-result (transact* @project-state txs)]
+        (start-event-loops tx-result project-state)
         (ref-set project-state (:state tx-result))
         tx-result))))
 
