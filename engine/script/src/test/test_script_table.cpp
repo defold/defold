@@ -7,6 +7,8 @@
 #include "../script.h"
 #include "test/test_ddf.h"
 
+#include <math.h>
+
 #include "data/table_cos_v0.dat.embed.h"
 #include "data/table_sin_v0.dat.embed.h"
 #include "data/table_cos_v0.1.dat.embed.h"
