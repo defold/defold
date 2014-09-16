@@ -1,3 +1,8 @@
+#ifdef WIN32
+#define _USE_MATH_DEFINES
+#endif
+#include <math.h>
+
 #include <setjmp.h>
 #include <stdlib.h>
 #include <dlib/dstrings.h>
@@ -6,8 +11,6 @@
 #include <gtest/gtest.h>
 #include "../script.h"
 #include "test/test_ddf.h"
-
-#include <math.h>
 
 #include "data/table_cos_v0.dat.embed.h"
 #include "data/table_sin_v0.dat.embed.h"
