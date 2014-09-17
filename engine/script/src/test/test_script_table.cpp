@@ -1,21 +1,17 @@
-#ifdef WIN32
-#define _USE_MATH_DEFINES
-#endif
-#include <math.h>
-
 #include <setjmp.h>
 #include <stdlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/align.h>
+#include <dlib/math.h>
 #include <gtest/gtest.h>
 #include "../script.h"
 #include "test/test_ddf.h"
 
 #include "data/table_cos_v0.dat.embed.h"
 #include "data/table_sin_v0.dat.embed.h"
-#include "data/table_cos_v0.1.dat.embed.h"
-#include "data/table_sin_v0.1.dat.embed.h"
+#include "data/table_cos_v1.dat.embed.h"
+#include "data/table_sin_v1.dat.embed.h"
 
 extern "C"
 {
@@ -103,7 +99,7 @@ int ProduceOverflow(lua_State *L)
 }
 
 /**
- * A helper function used when validating serialized data in original or v0.1 format.
+ * A helper function used when validating serialized data in original or v1 format.
  */
 typedef double (*TableGenFunc)(double);
 int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, TableGenFunc fn, int key_stride)
@@ -121,7 +117,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
         EXPECT_EQ(LUA_TNUMBER, lua_type(L, -1));
         if  (LUA_TNUMBER != lua_type(L, -1))
         {
-                printf("Invalid key on row %d\n", i);
+            printf("Invalid key on row %d\n", i);
         }
         double value_read = lua_tonumber(L, -1);
         double value_expected = fn(2.0 * M_PI * (double)i / (double)0xffff);
@@ -165,16 +161,16 @@ TEST_F(LuaTableTest, VerifySinTableOriginal)
 }
 
 
-// The v0.1 tables were generated with sparse keys: every other integer over the defined range.
+// The v1 tables were generated with sparse keys: every other integer over the defined range.
 int ReadCosTableDataVersion01(lua_State* L)
 {
-    return ReadSerializedTable(L, TABLE_COS_V0_1_DAT, TABLE_COS_V0_1_DAT_SIZE, cos, 2);
+    return ReadSerializedTable(L, TABLE_COS_V1_DAT, TABLE_COS_V1_DAT_SIZE, cos, 2);
 }
 
 
 int ReadSinTableDataVersion01(lua_State* L)
 {
-    return ReadSerializedTable(L, TABLE_SIN_V0_1_DAT, TABLE_SIN_V0_1_DAT_SIZE, sin, 2);
+    return ReadSerializedTable(L, TABLE_SIN_V1_DAT, TABLE_SIN_V1_DAT_SIZE, sin, 2);
 }
 
 TEST_F(LuaTableTest, VerifyCosTable01)

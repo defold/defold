@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <dlib/log.h>
 #include "script.h"
 
 extern "C"
@@ -24,8 +25,7 @@ typedef uint16_t uint16_t_1_align;
 namespace dmScript
 {
     const int TABLE_MAGIC = 0x42544448;
-    const char TABLE_VERSION_MAJOR = 0;
-    const char TABLE_VERSION_MINOR = 1;
+    const uint32_t TABLE_VERSION_CURRENT = 1;
 
     /*
      * Original table serialization format:
@@ -44,7 +44,7 @@ namespace dmScript
      * ...
      * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash ie LUA_TUSERDATA, the first byte in value is the SubType
      *
-     *	Version 0.1 table serialization format:
+     *	Version 1 table serialization format:
      *
      *	Adds a header block to the table at the head of the input, containing a magic identifier
      *	and version information. Keys of type LUA_TNUMBER use a variable length encoding, with continuation
@@ -68,17 +68,19 @@ namespace dmScript
      *	and so we cannot guarantee that this encoding method will yield smaller data in such cases.
      */
 
-    struct TableHeader {
-        uint32_t magic;
-        uint16_t version_major;
-        uint16_t version_minor;
+    struct TableHeader
+    {
+        uint32_t m_Magic;
+        uint32_t m_Version;
 
-        TableHeader() : magic(0), version_major(0), version_minor(0) {
+        TableHeader() : m_Magic(0), m_Version(0)
+        {
         }
     };
 
-    static char* EncodeMSB(uint32_t value, char* buffer, const char* buffer_end, bool& encoded)
+    static bool EncodeMSB(uint32_t value, char*& buffer, const char* buffer_end)
     {
+        bool ok = true;
         while (0x7f < value)
         {
             if (buffer > buffer_end)
@@ -91,28 +93,38 @@ namespace dmScript
         if (buffer <= buffer_end)
         {
             *buffer++ = ((uint8_t)value) & 0x7f;
-            encoded = true;
-        } else {
-            encoded = false;
         }
-        return buffer;
+        else
+        {
+            ok = false;
+        }
+        return ok;
     }
 
-    static const char* DecodeMSB(uint32_t& value, const char* buffer)
+    static bool DecodeMSB(uint32_t& value, const char*& buffer)
     {
+        bool ok = true;
+        const uint32_t MAX_CONSUMED = 5;
+        uint32_t consumed = 0;
         uint32_t decoded = 0;
         uint8_t count = 0;
         while (true)
         {
             uint8_t current = (uint8_t)*buffer++;
+            ++consumed;
             decoded |= (current & 0x7f) << (7 * count++);
             if (0 == (current & 0x80))
             {
                 break;
             }
+            else if (consumed > MAX_CONSUMED)
+            {
+                ok = false;
+                break;
+            }
         }
         value = decoded;
-        return buffer;
+        return ok;
     }
 
     enum SubType
@@ -125,9 +137,24 @@ namespace dmScript
         SUB_TYPE_URL        = 5,
     };
 
+    static bool IsSupportedVersion(const TableHeader& header)
+    {
+        bool supported = false;
+        switch(header.m_Version)
+        {
+        case 0:
+        case 1:
+            supported = true;
+            break;
+        default:
+            break;
+        }
+        return supported;
+    }
+
     static char* WriteEncodedNumber(lua_State* L, const TableHeader& header, char* buffer, const char* buffer_end)
     {
-        if (0 == header.version_major && 0 == header.version_minor)
+        if (0 == header.m_Version)
         {
             if (buffer_end - buffer < 2)
                 luaL_error(L, "table too large");
@@ -145,8 +172,7 @@ namespace dmScript
                 luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
             }
             uint32_t key = (uint32_t)index;
-            bool encoded = false;
-            buffer = EncodeMSB(key, buffer, buffer_end, encoded);
+            bool encoded = EncodeMSB(key, buffer, buffer_end);
             if (!encoded)
             {
                 luaL_error(L, "table too large");
@@ -407,9 +433,8 @@ namespace dmScript
             char* original_buffer = buffer;
 
             TableHeader* header = (TableHeader*)buffer;
-            header->magic = TABLE_MAGIC;
-            header->version_major = TABLE_VERSION_MAJOR;
-            header->version_minor = TABLE_VERSION_MINOR;
+            header->m_Magic = TABLE_MAGIC;
+            header->m_Version = TABLE_VERSION_CURRENT;
             buffer += sizeof(TableHeader);
             buffer_size -= (buffer - original_buffer);
 
@@ -423,9 +448,7 @@ namespace dmScript
     static const char* ReadHeader(const char* buffer, TableHeader& header)
     {
         TableHeader* buffered_header = (TableHeader*)buffer;
-        if (TABLE_MAGIC == buffered_header->magic) {
-            assert(TABLE_VERSION_MAJOR == buffered_header->version_major);
-            assert(TABLE_VERSION_MINOR == buffered_header->version_minor);
+        if (TABLE_MAGIC == buffered_header->m_Magic) {
             buffer += sizeof(TableHeader);
             header = *buffered_header;
         }
@@ -434,7 +457,7 @@ namespace dmScript
 
     static const char* ReadEncodedNumber(lua_State* L, const TableHeader& header, const char* buffer)
     {
-        if (0 == header.version_major && 0 == header.version_minor)
+        if (0 == header.m_Version)
         {
             lua_pushnumber(L, *((uint16_t_1_align *)buffer));
             buffer += 2;
@@ -442,8 +465,14 @@ namespace dmScript
         else
         {
             uint32_t value;
-            buffer = DecodeMSB(value, buffer);
-            lua_pushnumber(L, value);
+            if(DecodeMSB(value, buffer))
+            {
+                lua_pushnumber(L, value);
+            }
+            else
+            {
+                luaL_error(L, "Invalid number encoding");
+            }
         }
         return buffer;
     }
@@ -590,7 +619,14 @@ namespace dmScript
         TableHeader header;
         const char* original_buffer = buffer;
         buffer = ReadHeader(buffer, header);
-        DoPushTable(L, header, original_buffer, buffer);
+        if (IsSupportedVersion(header))
+        {
+            DoPushTable(L, header, original_buffer, buffer);
+        }
+        else
+        {
+            dmLogError("Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
+        }
     }
 
 }
