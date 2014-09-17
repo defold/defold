@@ -77,7 +77,7 @@ const uint32_t OVERFLOW_BUFFER_SIZE = 8 + 2 + 2 + 0xffff * (sizeof(char) + sizeo
 
 int ProduceOverflow(lua_State *L)
 {
-    char buf[OVERFLOW_BUFFER_SIZE];
+    char* const buf = new char[OVERFLOW_BUFFER_SIZE];
     char* aligned_buf = (char*)(((intptr_t)buf + sizeof(float)-1) & ~(sizeof(float)-1));
     int size = OVERFLOW_BUFFER_SIZE - (aligned_buf - buf);
 
@@ -95,6 +95,8 @@ int ProduceOverflow(lua_State *L)
     uint32_t buffer_used = dmScript::CheckTable(L, aligned_buf, size, -1);
     // expect it to fail, avoid warning
     (void)buffer_used;
+
+    delete[] buf;
     return 1;
 }
 
