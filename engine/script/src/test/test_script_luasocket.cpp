@@ -57,7 +57,8 @@ TEST_F(ScriptLuasocketTest, TestLuasocket)
 
     const char *funcs[] = {
         "test_bind", "test_getaddr",
-        "test_udp", 0
+        "test_udp", "test_tcp_clientserver",
+        "test_udp_clientserver", 0
     };
 
     for (int i=0;funcs[i];i++)
