@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <dlib/log.h>
 #include "script.h"
 
 extern "C"
@@ -23,8 +24,12 @@ typedef uint16_t uint16_t_1_align;
 
 namespace dmScript
 {
+    const int TABLE_MAGIC = 0x42544448;
+    const uint32_t TABLE_VERSION_CURRENT = 1;
+
     /*
-     * Table serialization format:
+     * Original table serialization format:
+     *
      * uint16_t   count
      *
      * char   key_type (LUA_TSTRING or LUA_TNUMBER)
@@ -38,7 +43,89 @@ namespace dmScript
      * T      value
      * ...
      * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash ie LUA_TUSERDATA, the first byte in value is the SubType
+     *
+     *	Version 1 table serialization format:
+     *
+     *	Adds a header block to the table at the head of the input, containing a magic identifier
+     *	and version information. Keys of type LUA_TNUMBER use a variable length encoding, with continuation
+     *	between bytes signaled by the MSB.
+     *
+     *	The values of the magic word is chosen so that it will not match values that could be created using
+     *	the previous serialization format: this is exploited in implementing backward compatibility when reading
+     *	serialized tables.
+     *
+     *	For the sake of brevity, the header block is not repeated for tables that are nested within this serialized data:
+     *	i.e. we assume that the version is uniform throughout any one data set.
+     *
+     *	LUA_TNUMBER keys are restricted to 32 bits in length, an increase of 16 bits from the original version.
+     *
+     *	In all other respects, data is serialized in the same way. In particular, note that although users may
+     *	create sparse arrays using 32 bit numbers as keys, we remain limited to 65536 (0xffff) rows per table.
+     *
+     *	Outside of their uses as keys, numerical values are not encoded in the fashion described above.
+     *	For the imagined use cases, we consider it likely that taking this approach with keys will lead to smaller files,
+     *	since a typical key will fit within a single byte of data. Numerical values when used elsewhere are essentially random
+     *	and so we cannot guarantee that this encoding method will yield smaller data in such cases.
      */
+
+    struct TableHeader
+    {
+        uint32_t m_Magic;
+        uint32_t m_Version;
+
+        TableHeader() : m_Magic(0), m_Version(0)
+        {
+        }
+    };
+
+    static bool EncodeMSB(uint32_t value, char*& buffer, const char* buffer_end)
+    {
+        bool ok = true;
+        while (0x7f < value)
+        {
+            if (buffer > buffer_end)
+            {
+                break;
+            }
+            *buffer++ = ((uint8_t)(value & 0x7f)) | 0x80;
+            value >>= 7;
+        }
+        if (buffer <= buffer_end)
+        {
+            *buffer++ = ((uint8_t)value) & 0x7f;
+        }
+        else
+        {
+            ok = false;
+        }
+        return ok;
+    }
+
+    static bool DecodeMSB(uint32_t& value, const char*& buffer)
+    {
+        bool ok = true;
+        const uint32_t MAX_CONSUMED = 5;
+        uint32_t consumed = 0;
+        uint32_t decoded = 0;
+        uint8_t count = 0;
+        while (true)
+        {
+            uint8_t current = (uint8_t)*buffer++;
+            ++consumed;
+            decoded |= (current & 0x7f) << (7 * count++);
+            if (0 == (current & 0x80))
+            {
+                break;
+            }
+            else if (consumed > MAX_CONSUMED)
+            {
+                ok = false;
+                break;
+            }
+        }
+        value = decoded;
+        return ok;
+    }
 
     enum SubType
     {
@@ -50,7 +137,51 @@ namespace dmScript
         SUB_TYPE_URL        = 5,
     };
 
-    uint32_t DoCheckTable(lua_State* L, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
+    static bool IsSupportedVersion(const TableHeader& header)
+    {
+        bool supported = false;
+        switch(header.m_Version)
+        {
+        case 0:
+        case 1:
+            supported = true;
+            break;
+        default:
+            break;
+        }
+        return supported;
+    }
+
+    static char* WriteEncodedNumber(lua_State* L, const TableHeader& header, char* buffer, const char* buffer_end)
+    {
+        if (0 == header.m_Version)
+        {
+            if (buffer_end - buffer < 2)
+                luaL_error(L, "table too large");
+            lua_Number index = lua_tonumber(L, -2);
+            if (index > 0xffff)
+                luaL_error(L, "index out of bounds, max is %d", 0xffff);
+            uint16_t key = (uint16_t)index;
+            *((uint16_t_1_align *)buffer) = key;
+            buffer += 2;
+        }
+        else
+        {
+            lua_Number index = lua_tonumber(L, -2);
+            if (index > 0xfffffff) {
+                luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
+            }
+            uint32_t key = (uint32_t)index;
+            bool encoded = EncodeMSB(key, buffer, buffer_end);
+            if (!encoded)
+            {
+                luaL_error(L, "table too large");
+            }
+        }
+        return buffer;
+    }
+
+    uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -105,14 +236,7 @@ namespace dmScript
             }
             else if (key_type == LUA_TNUMBER)
             {
-                if (buffer_end - buffer < 2)
-                    luaL_error(L, "table too large");
-                lua_Number index = lua_tonumber(L, -2);
-                if (index > 0xffff)
-                    luaL_error(L, "index out of bounds, max is %d", 0xffff);
-                uint16_t key = (uint16_t)index;
-                *((uint16_t_1_align *)buffer) = key;
-                buffer += 2;
+                buffer = WriteEncodedNumber(L, header, buffer, buffer_end);
             }
 
             switch (value_type)
@@ -141,7 +265,9 @@ namespace dmScript
                     buffer += align_size;
 
                     if (buffer_end - buffer < int32_t(sizeof(lua_Number)) || buffer_end - buffer < align_size)
+                    {
                         luaL_error(L, "table too large");
+                    }
 
                     union
                     {
@@ -280,7 +406,7 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    uint32_t n_used = DoCheckTable(L, original_buffer, buffer, buffer_end - buffer, -1);
+                    uint32_t n_used = DoCheckTable(L, header, original_buffer, buffer, buffer_end - buffer, -1);
                     buffer += n_used;
                 }
                 break;
@@ -303,16 +429,62 @@ namespace dmScript
 
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
     {
-        return DoCheckTable(L, buffer, buffer, buffer_size, index);
+        if (buffer_size > sizeof(TableHeader)) {
+            char* original_buffer = buffer;
+
+            TableHeader* header = (TableHeader*)buffer;
+            header->m_Magic = TABLE_MAGIC;
+            header->m_Version = TABLE_VERSION_CURRENT;
+            buffer += sizeof(TableHeader);
+            buffer_size -= (buffer - original_buffer);
+
+            return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index);
+        } else {
+            luaL_error(L, "buffer too small for header");
+            return 0;
+        }
     }
 
-    int DoPushTable(lua_State*L, const char* original_buffer, const char* buffer)
+    static const char* ReadHeader(const char* buffer, TableHeader& header)
+    {
+        TableHeader* buffered_header = (TableHeader*)buffer;
+        if (TABLE_MAGIC == buffered_header->m_Magic) {
+            buffer += sizeof(TableHeader);
+            header = *buffered_header;
+        }
+        return buffer;
+    }
+
+    static const char* ReadEncodedNumber(lua_State* L, const TableHeader& header, const char* buffer)
+    {
+        if (0 == header.m_Version)
+        {
+            lua_pushnumber(L, *((uint16_t_1_align *)buffer));
+            buffer += 2;
+        }
+        else
+        {
+            uint32_t value;
+            if(DecodeMSB(value, buffer))
+            {
+                lua_pushnumber(L, value);
+            }
+            else
+            {
+                luaL_error(L, "Invalid number encoding");
+            }
+        }
+        return buffer;
+    }
+
+    int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
     {
         int top = lua_gettop(L);
         (void)top;
         const char* buffer_start = buffer;
         uint32_t count = *(uint16_t_1_align *)buffer;
         buffer += 2;
+
         lua_newtable(L);
 
         for (uint32_t i = 0; i < count; ++i)
@@ -327,8 +499,7 @@ namespace dmScript
             }
             else if (key_type == LUA_TNUMBER)
             {
-                lua_pushnumber(L, *((uint16_t_1_align *)buffer));
-                buffer += 2;
+                buffer = ReadEncodedNumber(L, header, buffer);
             }
 
             switch (value_type)
@@ -426,7 +597,7 @@ namespace dmScript
                 break;
                 case LUA_TTABLE:
                 {
-                    int n_consumed = DoPushTable(L, original_buffer, buffer);
+                    int n_consumed = DoPushTable(L, header, original_buffer, buffer);
                     buffer += n_consumed;
                 }
                 break;
@@ -445,7 +616,17 @@ namespace dmScript
 
     void PushTable(lua_State*L, const char* buffer)
     {
-        DoPushTable(L, buffer, buffer);
+        TableHeader header;
+        const char* original_buffer = buffer;
+        buffer = ReadHeader(buffer, header);
+        if (IsSupportedVersion(header))
+        {
+            DoPushTable(L, header, original_buffer, buffer);
+        }
+        else
+        {
+            dmLogError("Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
+        }
     }
 
 }

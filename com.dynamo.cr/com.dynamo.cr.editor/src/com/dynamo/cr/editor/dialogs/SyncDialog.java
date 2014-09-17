@@ -7,17 +7,21 @@ import org.eclipse.core.commands.Command;
 import org.eclipse.core.commands.IParameter;
 import org.eclipse.core.commands.Parameterization;
 import org.eclipse.core.commands.ParameterizedCommand;
+import org.eclipse.core.resources.IFolder;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.DialogPage;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.ProgressIndicator;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.resource.ImageRegistry;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
@@ -65,11 +69,14 @@ import org.eclipse.ui.progress.IProgressService;
 import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.RepositoryException;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.compare.BranchStatusTableViewer;
 import com.dynamo.cr.editor.compare.ConflictedResourceStatus;
 import com.dynamo.cr.editor.compare.ConflictedResourceStatus.IResolveListener;
 import com.dynamo.cr.editor.compare.ConflictedResourceStatus.Resolve;
 import com.dynamo.cr.editor.compare.ResourceStatus;
+import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.editor.services.IBranchService;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus;
 import com.dynamo.cr.protocol.proto.Protocol.BranchStatus.Status;
@@ -78,16 +85,17 @@ import com.dynamo.cr.protocol.proto.Protocol.Log;
 
 public class SyncDialog extends TitleAreaDialog {
 
-    private enum State { UPDATE, COMMIT, PULL, RESOLVE, PUSH }
-    private static final int STATE_COUNT = 5;
-    private static final String[] STATE_TITLES = { "Update", "Commit", "Pull", "Resolve", "Push" };
-    private static final String[] OK_TITLES = { "OK", "&Commit", "OK", "&Resolve", "OK" };
+    private enum State { UPDATE, COMMIT, PULL, RESOLVE, PUSH, RESOLVE_LIBRARIES }
+    private static final int STATE_COUNT = 6;
+    private static final String[] STATE_TITLES = { "Update", "Commit", "Pull", "Resolve", "Push", "Resolve Libraries" };
+    private static final String[] OK_TITLES = { "OK", "&Commit", "OK", "&Resolve", "OK", "OK" };
     private static final String[] STATE_IMAGE_IDS = {
         Activator.UPDATE_LARGE_IMAGE_ID,
         Activator.COMMIT_LARGE_IMAGE_ID,
         Activator.UPDATE_LARGE_IMAGE_ID,
         Activator.RESOLVE_LARGE_IMAGE_ID,
         Activator.UPDATE_LARGE_IMAGE_ID,
+        Activator.RESOLVE_LARGE_IMAGE_ID
         };
     private static final String[] STATE_MESSAGES = {
         "Please wait while information from the server is being retrieved.",
@@ -95,6 +103,7 @@ public class SyncDialog extends TitleAreaDialog {
         "Please wait while other commits are pulled from the master branch.",
         "There have been commits made that conflicted with your local changes. Please specify which version to keep for each file to resolve the conflicts. Double click the files to review the conflicts.",
         "Please wait while your changes are pushed to the master branch.",
+        "Please wait while library dependencies are updated."
         };
     private static final boolean[] STATE_AUTO_PROGRESS = {
         true,
@@ -103,6 +112,7 @@ public class SyncDialog extends TitleAreaDialog {
         false,
         true,
         true,
+        false,
         false
     };
 
@@ -123,6 +133,7 @@ public class SyncDialog extends TitleAreaDialog {
         this.pages[2] = new PullDialogPage(State.values()[2], this);
         this.pages[3] = new ResolveDialogPage(State.values()[3], this);
         this.pages[4] = new PushDialogPage(State.values()[4], this);
+        this.pages[5] = new ResolveLibrariesPage(State.values()[5], this);
     }
 
     public void setState(State state) {
@@ -328,6 +339,10 @@ public class SyncDialog extends TitleAreaDialog {
                 getShell().setDefaultButton(okButton);
             }
         }
+
+        protected void resolveLibraries() {
+            this.syncDialog.setState(State.RESOLVE_LIBRARIES);
+        }
     }
 
     private class ProgressDialogPage extends SyncDialogPage {
@@ -385,11 +400,9 @@ public class SyncDialog extends TitleAreaDialog {
                                         } else if (branchStatus.getCommitsAhead() > 0){
                                             syncDialog.setState(State.PUSH);
                                         } else {
-                                            syncDialog.setMessage("No changes to synchronize.");
+                                            syncDialog.setMessage("No project changes to synchronize.");
                                             syncDialog.getButton(IDialogConstants.CANCEL_ID).setEnabled(false);
-                                            syncDialog.setTitleImage(Activator.getDefault().getImageRegistry().get(Activator.DONE_LARGE_IMAGE_ID));
-                                            indicator.setVisible(false);
-                                            setPageComplete(true);
+                                            resolveLibraries();
                                         }
                                         break;
                                     }
@@ -473,11 +486,9 @@ public class SyncDialog extends TitleAreaDialog {
                                 public void run() {
                                     syncDialog.setMessage("Your branch is synchronized.");
                                     syncDialog.getButton(IDialogConstants.CANCEL_ID).setEnabled(false);
-                                    indicator.setVisible(false);
                                     syncDialog.setHardBaseRevision(null);
                                     syncDialog.setSoftBaseRevision(null);
-                                    syncDialog.setTitleImage(Activator.getDefault().getImageRegistry().get(Activator.DONE_LARGE_IMAGE_ID));
-                                    setPageComplete(true);
+                                    resolveLibraries();
 
                                     // Refresh workspace.
                                     // NOTE: This will popup a new dialog. We should use this.indicator
@@ -527,6 +538,66 @@ public class SyncDialog extends TitleAreaDialog {
 
     }
 
+    private class ResolveLibrariesPage extends ProgressDialogPage {
+
+        public ResolveLibrariesPage(State state, final SyncDialog syncDialog) {
+            super(state, syncDialog);
+        }
+
+        @Override
+        public void onShow() {
+            final ProgressIndicator indicator = this.indicator;
+            indicator.beginAnimatedTask();
+            syncDialog.getButton(IDialogConstants.CANCEL_ID).setEnabled(false);
+
+            IProject project = EditorUtil.getProject();
+            IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+            final String email = store.getString(PreferenceConstants.P_EMAIL);
+            final String authCookie = store.getString(PreferenceConstants.P_AUTH_COOKIE);
+            final IFolder contentRoot = EditorUtil.getContentRoot(project);
+
+            Job job = new Job("Resolve Libraries") {
+                protected IStatus run(IProgressMonitor monitor) {
+                    IStatus ret = org.eclipse.core.runtime.Status.OK_STATUS;
+                    try {
+                        BobUtil.resolveLibs(contentRoot, email, authCookie, monitor);
+                    } catch (OperationCanceledException e) {
+                        // Normal, pass through
+                    } catch (Throwable e) {
+                        final String errorMessage = e.getMessage();
+                        Display.getDefault().asyncExec(new Runnable() {
+                            @Override
+                            public void run() {
+                                syncDialog.setErrorMessage(errorMessage);
+                            }
+                        });
+                        ret = new org.eclipse.core.runtime.Status(IStatus.ERROR, "com.dynamo.cr", errorMessage);
+                    } finally {
+                        final boolean ok = org.eclipse.core.runtime.Status.OK_STATUS == ret;
+                        Display.getDefault().asyncExec(new Runnable() {
+                            @Override
+                            public void run() {
+                                indicator.setVisible(false);
+                                String imageId = Activator.DONE_LARGE_IMAGE_ID;
+                                String msg = "Library dependencies updated.";
+                                if (!ok) {
+                                    imageId = Activator.ERROR_LARGE_IMAGE_ID;
+                                    msg = "Error resolving libraries";
+                                }
+                                syncDialog.setTitleImage(Activator.getDefault().getImageRegistry().get(imageId));
+                                syncDialog.setMessage(msg);
+                                setPageComplete(true);
+                            }
+                        });
+                    }
+                    return ret;
+                }
+            };
+            job.setSystem(true);
+            job.schedule();
+        }
+    }
+
     private class PushDialogPage extends ProgressDialogPage {
 
         public PushDialogPage(State state, final SyncDialog syncDialog) {
@@ -551,11 +622,9 @@ public class SyncDialog extends TitleAreaDialog {
                             @Override
                             public void run() {
                                 syncDialog.setMessage("Your branch is synchronized.");
-                                indicator.setVisible(false);
                                 syncDialog.setHardBaseRevision(null);
                                 syncDialog.setSoftBaseRevision(null);
-                                syncDialog.setTitleImage(Activator.getDefault().getImageRegistry().get(Activator.DONE_LARGE_IMAGE_ID));
-                                setPageComplete(true);
+                                resolveLibraries();
                             }
                         });
                         return org.eclipse.core.runtime.Status.OK_STATUS;
@@ -989,6 +1058,8 @@ public class SyncDialog extends TitleAreaDialog {
                     case THEIRS:
                         theirsButton.setSelection(true);
                         yoursButton.setSelection(false);
+                    default:
+                        break;
                     }
                 }
             } else {
