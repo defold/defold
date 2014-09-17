@@ -51,6 +51,7 @@ protected:
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
         g_LuaTableTest = 0;
+
     }
 
     char DM_ALIGNED(16) m_Buf[256];
@@ -60,6 +61,7 @@ protected:
     int top;
     dmScript::HContext m_Context;
     lua_State* L;
+
 };
 
 TEST_F(LuaTableTest, EmptyTable)
@@ -70,38 +72,6 @@ TEST_F(LuaTableTest, EmptyTable)
     // 2 bytes for count
     ASSERT_EQ(10U, buffer_used);
     lua_pop(L, 1);
-}
-
-// header + count (+ align) + n * element-size (overestimate)
-const uint32_t OVERFLOW_BUFFER_SIZE = 8 + 2 + 2 + 0xffff * (sizeof(char) + sizeof(char) + sizeof(char) * 6 + sizeof(lua_Number));
-
-int ProduceOverflow(lua_State *L)
-{
-    char* const buf = new char[OVERFLOW_BUFFER_SIZE];
-    char* aligned_buf = (char*)(((intptr_t)buf + sizeof(float)-1) & ~(sizeof(float)-1));
-    int size = OVERFLOW_BUFFER_SIZE - (aligned_buf - buf);
-
-    jmp_buf env;
-    if (0 == setjmp(env))
-    {
-        lua_newtable(L);
-        // too many iterations
-        for (uint32_t i = 0; i <= 0xffff; ++i)
-        {
-            // key
-            lua_pushnumber(L, i);
-            // value
-            lua_pushnumber(L, i);
-            // store pair
-            lua_settable(L, -3);
-        }
-        uint32_t buffer_used = dmScript::CheckTable(L, aligned_buf, size, -1);
-        // expect it to fail, avoid warning
-        (void)buffer_used;
-    }
-
-    delete[] buf;
-    return 1;
 }
 
 /**
@@ -191,8 +161,38 @@ TEST_F(LuaTableTest, VerifySinTable01)
     ASSERT_EQ(0, result);
 }
 
+// header + count (+ align) + n * element-size (overestimate)
+const uint32_t OVERFLOW_BUFFER_SIZE = 8 + 2 + 2 + 0xffff * (sizeof(char) + sizeof(char) + sizeof(char) * 6 + sizeof(lua_Number));
+char* g_DynamicBuffer = 0x0;
+
+int ProduceOverflow(lua_State *L)
+{
+    char* const buf = g_DynamicBuffer;
+    char* aligned_buf = (char*)(((intptr_t)buf + sizeof(float)-1) & ~(sizeof(float)-1));
+    int size = OVERFLOW_BUFFER_SIZE - (aligned_buf - buf);
+
+    lua_newtable(L);
+    // too many iterations
+    for (uint32_t i = 0; i <= 0xffff; ++i)
+    {
+        // key
+        lua_pushnumber(L, i);
+        // value
+        lua_pushnumber(L, i);
+        // store pair
+        lua_settable(L, -3);
+    }
+    uint32_t buffer_used = dmScript::CheckTable(L, aligned_buf, size, -1);
+    // expect it to fail, avoid warning
+    (void)buffer_used;
+
+    return 1;
+}
+
 TEST_F(LuaTableTest, Overflow)
 {
+    g_DynamicBuffer = new char[OVERFLOW_BUFFER_SIZE];
+
     int result = lua_cpcall(L, ProduceOverflow, 0x0);
     // 2 bytes for count
     ASSERT_NE(0, result);
@@ -201,6 +201,9 @@ TEST_F(LuaTableTest, Overflow)
     ASSERT_STREQ(expected_error, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
+
+    delete[] g_DynamicBuffer;
+    g_DynamicBuffer = 0x0;
 }
 
 const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 * sizeof(char) + sizeof(lua_Number));
