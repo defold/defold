@@ -321,7 +321,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    HInstance GetInstanceFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url)
+    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
@@ -331,7 +331,7 @@ namespace dmGameObject
             if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
-                return 0; // Actually never reached
+                return; // Actually never reached
             }
 
             dmMessage::URL receiver;
@@ -340,7 +340,7 @@ namespace dmGameObject
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, index));
-                return 0; // Actually never reached
+                return; // Actually never reached
             }
 
             uint32_t component_type_index;
@@ -348,7 +348,7 @@ namespace dmGameObject
             if ((component_ext != 0x0 || user_data != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 luaL_error(L, "The component could not be found");
-                return 0; // Actually never reached
+                return; // Actually never reached
             }
 
             if (component_ext != 0x0)
@@ -358,13 +358,13 @@ namespace dmGameObject
                 if (resource_res != dmResource::RESULT_OK)
                 {
                     luaL_error(L, "Component type '%s' not found", component_ext);
-                    return 0; // Actually never reached
+                    return; // Actually never reached
                 }
                 ComponentType* type = &instance->m_Collection->m_Register->m_ComponentTypes[component_type_index];
                 if (type->m_ResourceType != resource_type)
                 {
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
-                    return 0; // Actually never reached
+                    return; // Actually never reached
                 }
             }
             if (url)
@@ -376,11 +376,17 @@ namespace dmGameObject
         else
         {
             luaL_error(L, "function called is not available from this script-type.");
-            return 0; // Actually never reached
+            return; // Actually never reached
         }
+    }
 
-
-        return instance;
+    HInstance GetInstanceFromLua(lua_State* L) {
+        uintptr_t user_data;
+        if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE)) {
+            return (HInstance)user_data;
+        } else {
+            return 0;
+        }
     }
 
     /*# gets a named property of the specified game object or component

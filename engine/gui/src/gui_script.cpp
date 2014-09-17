@@ -2870,4 +2870,13 @@ namespace dmGui
      * end
      * </pre>
      */
+
+    HScene GetSceneFromLua(lua_State* L) {
+        uintptr_t user_data = 0;
+        if (dmScript::GetUserData(L, &user_data, GUI_SCRIPT_INSTANCE)) {
+            return (Scene*)user_data;
+        } else {
+            return 0x0;
+        }
+    }
 }

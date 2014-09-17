@@ -12,6 +12,21 @@ namespace dmGameSystem
 #define SPINE_MODEL_EXT "spinemodelc"
 #define TILE_MAP_EXT "tilegridc"
 
+    enum ScriptTypeBit {
+        SCRIPT_TYPE_BIT_LOGIC = 1,
+        SCRIPT_TYPE_BIT_GUI = 2,
+        SCRIPT_TYPE_BIT_RENDER = 4
+    };
+
+    /**
+     * Return current game object instance, if any.
+     * Must be called from within a lua pcall, since it long jumps if no instance can be found.
+     * @param L lua state
+     * @param script_type_mask bit set of ANDed ScriptTypeBit values
+     * @return instance
+     */
+    dmGameObject::HInstance CheckGoInstance(lua_State* L, uint32_t script_type_mask);
+
     /**
      * Log message error. The function will send a formatted printf-style string to dmLogError
      * and append message sender/receiver information on the following format:
@@ -35,6 +50,8 @@ namespace dmGameSystem
      * Helper function to set material constants of components that use them: sprite, tile maps and models
      */
     dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data);
+
+
 }
 
 #endif // DM_GAMESYS_PRIVER_H

@@ -724,6 +724,13 @@ namespace dmGui
      * @return lua state
      */
     lua_State* GetLuaState(HContext context);
+
+    /** Gets the gui scene currently connected to the lua state.
+     * A scene is connected while any of the callbacks in the associated gui script is being run.
+     * @param L lua state
+     * @return current scene, or 0
+     */
+    HScene GetSceneFromLua(lua_State* L);
 }
 
 #endif

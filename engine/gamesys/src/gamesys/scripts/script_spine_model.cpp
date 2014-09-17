@@ -59,59 +59,52 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+
+        dmhash_t anim_id;
+        if (lua_isstring(L, 2))
         {
-            dmhash_t anim_id;
-            if (lua_isstring(L, 2))
-            {
-                anim_id = dmHashString64(lua_tostring(L, 2));
-            }
-            else if (dmScript::IsHash(L, 2))
-            {
-                anim_id = dmScript::CheckHash(L, 2);
-            }
-            else
-            {
-                return luaL_error(L, "animation_id must be either a hash or a string");
-            }
-            lua_Integer playback = luaL_checkinteger(L, 3);
-
-            lua_Number blend_duration = luaL_checknumber(L, 4);
-
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-            if (top > 4)
-            {
-                if (lua_isfunction(L, 5))
-                {
-                    lua_pushvalue(L, 5);
-                    // see message.h for why 2 is added
-                    sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
-                }
-            }
-
-            const uint32_t buffer_size = 256;
-            uint8_t buffer[buffer_size];
-            dmGameSystemDDF::SpinePlayAnimation* play = (dmGameSystemDDF::SpinePlayAnimation*)buffer;
-
-            uint32_t msg_size = sizeof(dmGameSystemDDF::SpinePlayAnimation);
-
-            play->m_AnimationId = anim_id;
-            play->m_Playback = playback;
-            play->m_BlendDuration = blend_duration;
-
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, buffer, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
+            anim_id = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            anim_id = dmScript::CheckHash(L, 2);
         }
         else
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "spine.play is not available from this script-type.");
+            return luaL_error(L, "animation_id must be either a hash or a string");
         }
+        lua_Integer playback = luaL_checkinteger(L, 3);
+
+        lua_Number blend_duration = luaL_checknumber(L, 4);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        if (top > 4)
+        {
+            if (lua_isfunction(L, 5))
+            {
+                lua_pushvalue(L, 5);
+                // see message.h for why 2 is added
+                sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+            }
+        }
+
+        const uint32_t buffer_size = 256;
+        uint8_t buffer[buffer_size];
+        dmGameSystemDDF::SpinePlayAnimation* play = (dmGameSystemDDF::SpinePlayAnimation*)buffer;
+
+        uint32_t msg_size = sizeof(dmGameSystemDDF::SpinePlayAnimation);
+
+        play->m_AnimationId = anim_id;
+        play->m_Playback = playback;
+        play->m_BlendDuration = blend_duration;
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpinePlayAnimation::m_DDFDescriptor, buffer, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     /*# cancel all animation on a spine model
@@ -135,26 +128,19 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
-        {
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
 
-            dmGameSystemDDF::SpineCancelAnimation cancel;
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-            uint32_t msg_size = sizeof(dmGameSystemDDF::SpineCancelAnimation);
+        dmGameSystemDDF::SpineCancelAnimation cancel;
 
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor, &cancel, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
-        }
-        else
-        {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "spine.play is not available from this script-type.");
-        }
+        uint32_t msg_size = sizeof(dmGameSystemDDF::SpineCancelAnimation);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SpineCancelAnimation::m_DDFDescriptor, &cancel, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     /*# retrieve the game object corresponding to a spine model skeleton bone
@@ -184,8 +170,7 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmMessage::URL receiver;
-        // TODO make lookup type safe, described in DEF-407
-        dmGameObject::GetInstanceFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver);
         SpineModelComponent* component = (SpineModelComponent*) user_data;
 
         dmhash_t bone_id;

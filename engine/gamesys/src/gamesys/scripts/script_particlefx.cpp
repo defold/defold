@@ -52,29 +52,22 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
-        {
-            if (top != 1)
-            {
-                return luaL_error(L, "particlefx.play only takes a URL as parameter");
-            }
-            dmGameSystemDDF::PlayParticleFX msg;
-            uint32_t msg_size = sizeof(dmGameSystemDDF::PlayParticleFX);
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
 
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
-        }
-        else
+        if (top != 1)
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "particlefx.play is not available from this script-type.");
+            return luaL_error(L, "particlefx.play only takes a URL as parameter");
         }
+        dmGameSystemDDF::PlayParticleFX msg;
+        uint32_t msg_size = sizeof(dmGameSystemDDF::PlayParticleFX);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     /*# stop playing a particle fx
@@ -97,29 +90,22 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
-        {
-            if (top != 1)
-            {
-                return luaL_error(L, "particlefx.stop only takes a URL as parameter");
-            }
-            dmGameSystemDDF::StopParticleFX msg;
-            uint32_t msg_size = sizeof(dmGameSystemDDF::StopParticleFX);
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
 
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
-        }
-        else
+        if (top != 1)
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "particlefx.stop is not available from this script-type.");
+            return luaL_error(L, "particlefx.stop only takes a URL as parameter");
         }
+        dmGameSystemDDF::StopParticleFX msg;
+        uint32_t msg_size = sizeof(dmGameSystemDDF::StopParticleFX);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     static bool GetHash(lua_State* L, int index, dmhash_t* v)
@@ -168,42 +154,35 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
-        {
-            dmhash_t emitter_id;
-            if (!GetHash(L, 2, &emitter_id))
-                return luaL_error(L, "emitter_id must be either a hash or a string");
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
 
-            dmhash_t name_hash;
-            if (!GetHash(L, 3, &name_hash))
-                return luaL_error(L, "name must be either a hash or a string");
+        dmhash_t emitter_id;
+        if (!GetHash(L, 2, &emitter_id))
+            return luaL_error(L, "emitter_id must be either a hash or a string");
 
-            Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 4);
+        dmhash_t name_hash;
+        if (!GetHash(L, 3, &name_hash))
+            return luaL_error(L, "name must be either a hash or a string");
 
-            const uint32_t buffer_size = 256;
-            uint8_t buffer[buffer_size];
-            dmGameSystemDDF::SetConstantParticleFX* request = (dmGameSystemDDF::SetConstantParticleFX*)buffer;
+        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 4);
 
-            uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstantParticleFX);
+        const uint32_t buffer_size = 256;
+        uint8_t buffer[buffer_size];
+        dmGameSystemDDF::SetConstantParticleFX* request = (dmGameSystemDDF::SetConstantParticleFX*)buffer;
 
-            request->m_EmitterId = emitter_id;
-            request->m_NameHash = name_hash;
-            request->m_Value = *value;
+        uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstantParticleFX);
 
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
+        request->m_EmitterId = emitter_id;
+        request->m_NameHash = name_hash;
+        request->m_Value = *value;
 
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
-        }
-        else
-        {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "particlefx.set_constant is not available from this script-type.");
-        }
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     /*# reset a shader constant for a particle FX emitter
@@ -233,39 +212,32 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
-        {
-            dmhash_t emitter_id;
-            if (!GetHash(L, 3, &emitter_id))
-                return luaL_error(L, "emitter_id must be either a hash or a string");
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
 
-            dmhash_t name_hash;
-            if (!GetHash(L, 3, &name_hash))
-                return luaL_error(L, "name must be either a hash or a string");
+        dmhash_t emitter_id;
+        if (!GetHash(L, 3, &emitter_id))
+            return luaL_error(L, "emitter_id must be either a hash or a string");
 
-            const uint32_t buffer_size = 256;
-            uint8_t buffer[buffer_size];
-            dmGameSystemDDF::ResetConstantParticleFX* request = (dmGameSystemDDF::ResetConstantParticleFX*)buffer;
+        dmhash_t name_hash;
+        if (!GetHash(L, 3, &name_hash))
+            return luaL_error(L, "name must be either a hash or a string");
 
-            uint32_t msg_size = sizeof(dmGameSystemDDF::ResetConstantParticleFX);
+        const uint32_t buffer_size = 256;
+        uint8_t buffer[buffer_size];
+        dmGameSystemDDF::ResetConstantParticleFX* request = (dmGameSystemDDF::ResetConstantParticleFX*)buffer;
 
-            request->m_EmitterId = emitter_id;
-            request->m_NameHash = name_hash;
+        uint32_t msg_size = sizeof(dmGameSystemDDF::ResetConstantParticleFX);
 
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
+        request->m_EmitterId = emitter_id;
+        request->m_NameHash = name_hash;
 
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
-        }
-        else
-        {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "particlefx.reset_constant is not available from this script-type.");
-        }
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, buffer, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     static const luaL_reg PARTICLEFX_FUNCTIONS[] =

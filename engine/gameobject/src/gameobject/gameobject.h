@@ -21,10 +21,6 @@ namespace dmGameObject
 {
     using namespace Vectormath::Aos;
 
-    // Type name of the script instances
-    // TODO Fix this better, weird to have this here in the public API. Used by components to fish for lua user data (e.g. GO instance)
-    extern const char* SCRIPT_INSTANCE_TYPE_NAME;
-
     /// Instance handle
     typedef struct Instance* HInstance;
 
@@ -749,11 +745,18 @@ namespace dmGameObject
      * @param L lua-state
      * @param index index to argument
      * @param component_ext when specified, the call will fail if the found component does not have the specified extension
-     * @param user_data component user-date output if available
-     * @param url instance url. ignored if null
-     * @return instance
+     * @param user_data will be overwritten component user-data output if available
+     * @param url will be overwritten with a URL to the component when specified
      */
-    HInstance GetInstanceFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url);
+    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url);
+
+    /**
+     * Get current game object instance from the lua state, if any.
+     * The lua state has an instance while the script callbacks are being run on the state.
+     * @param L lua-state
+     * @return current game object instance
+     */
+    HInstance GetInstanceFromLua(lua_State* L);
 
     /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.

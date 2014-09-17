@@ -43,46 +43,39 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+
+        dmhash_t name_hash;
+        if (lua_isstring(L, 2))
         {
-            dmhash_t name_hash;
-            if (lua_isstring(L, 2))
-            {
-                name_hash = dmHashString64(lua_tostring(L, 2));
-            }
-            else if (dmScript::IsHash(L, 2))
-            {
-                name_hash = dmScript::CheckHash(L, 2);
-            }
-            else
-            {
-                return luaL_error(L, "name must be either a hash or a string");
-            }
-            Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
-
-            const uint32_t buffer_size = 256;
-            uint8_t buffer[buffer_size];
-            dmGameSystemDDF::SetConstantTileMap* request = (dmGameSystemDDF::SetConstantTileMap*)buffer;
-
-            uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstantTileMap);
-
-            request->m_NameHash = name_hash;
-            request->m_Value = *value;
-
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, buffer, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
+            name_hash = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            name_hash = dmScript::CheckHash(L, 2);
         }
         else
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "tilemap.set_constant is not available from this script-type.");
+            return luaL_error(L, "name must be either a hash or a string");
         }
+        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 3);
+
+        const uint32_t buffer_size = 256;
+        uint8_t buffer[buffer_size];
+        dmGameSystemDDF::SetConstantTileMap* request = (dmGameSystemDDF::SetConstantTileMap*)buffer;
+
+        uint32_t msg_size = sizeof(dmGameSystemDDF::SetConstantTileMap);
+
+        request->m_NameHash = name_hash;
+        request->m_Value = *value;
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, buffer, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     /*# reset a shader constant for a tile map
@@ -111,47 +104,40 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        uintptr_t user_data;
-        if (dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
+        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+
+        dmhash_t name_hash;
+        if (lua_isstring(L, 2))
         {
-            dmhash_t name_hash;
-            if (lua_isstring(L, 2))
-            {
-                name_hash = dmHashString64(lua_tostring(L, 2));
-            }
-            else if (dmScript::IsHash(L, 2))
-            {
-                name_hash = dmScript::CheckHash(L, 2);
-            }
-            else
-            {
-                return luaL_error(L, "name must be either a hash or a string");
-            }
-
-            // TODO: Why is a separate buffer used here and not a stack-allocated dmGameSystemDDF::ResetConstantTileMap?
-            // dmGameSystemDDF::ResetConstantTileMap contains no members that require "dynamic" memory, i.e. strings
-            // See also TileMap_SetConstant
-            const uint32_t buffer_size = 256;
-            uint8_t buffer[buffer_size];
-            dmGameSystemDDF::ResetConstantTileMap* request = (dmGameSystemDDF::ResetConstantTileMap*)buffer;
-
-            uint32_t msg_size = sizeof(dmGameSystemDDF::ResetConstantTileMap);
-
-            request->m_NameHash = name_hash;
-
-            dmMessage::URL receiver;
-            dmMessage::URL sender;
-            dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, buffer, msg_size);
-            assert(top == lua_gettop(L));
-            return 0;
+            name_hash = dmHashString64(lua_tostring(L, 2));
+        }
+        else if (dmScript::IsHash(L, 2))
+        {
+            name_hash = dmScript::CheckHash(L, 2);
         }
         else
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "tilemap.reset_constant is not available from this script-type.");
+            return luaL_error(L, "name must be either a hash or a string");
         }
+
+        // TODO: Why is a separate buffer used here and not a stack-allocated dmGameSystemDDF::ResetConstantTileMap?
+        // dmGameSystemDDF::ResetConstantTileMap contains no members that require "dynamic" memory, i.e. strings
+        // See also TileMap_SetConstant
+        const uint32_t buffer_size = 256;
+        uint8_t buffer[buffer_size];
+        dmGameSystemDDF::ResetConstantTileMap* request = (dmGameSystemDDF::ResetConstantTileMap*)buffer;
+
+        uint32_t msg_size = sizeof(dmGameSystemDDF::ResetConstantTileMap);
+
+        request->m_NameHash = name_hash;
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, buffer, msg_size);
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     int TileMap_SetTile(lua_State* L)
@@ -160,7 +146,7 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmMessage::URL receiver;
-        dmGameObject::GetInstanceFromLua(L, 1, TILE_MAP_EXT, &user_data, &receiver);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, &receiver);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -229,7 +215,6 @@ namespace dmGameSystem
             return luaL_error(L, "tilemap.set_tile is not available from this script-type.");
         }
 
-
         lua_pushboolean(L, 1);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -240,7 +225,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        dmGameObject::GetInstanceFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -277,7 +262,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        dmGameObject::GetInstanceFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
