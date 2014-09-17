@@ -12,20 +12,13 @@ namespace dmGameSystem
 #define SPINE_MODEL_EXT "spinemodelc"
 #define TILE_MAP_EXT "tilegridc"
 
-    enum ScriptTypeBit {
-        SCRIPT_TYPE_BIT_LOGIC = 1,
-        SCRIPT_TYPE_BIT_GUI = 2,
-        SCRIPT_TYPE_BIT_RENDER = 4
-    };
-
     /**
      * Return current game object instance, if any.
      * Must be called from within a lua pcall, since it long jumps if no instance can be found.
      * @param L lua state
-     * @param script_type_mask bit set of ANDed ScriptTypeBit values
      * @return instance
      */
-    dmGameObject::HInstance CheckGoInstance(lua_State* L, uint32_t script_type_mask);
+    dmGameObject::HInstance CheckGoInstance(lua_State* L);
 
     /**
      * Log message error. The function will send a formatted printf-style string to dmLogError

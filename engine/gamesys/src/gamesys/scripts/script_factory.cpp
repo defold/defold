@@ -63,7 +63,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         const uint32_t buffer_size = 256;

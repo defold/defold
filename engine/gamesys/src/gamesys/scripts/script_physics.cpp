@@ -71,9 +71,7 @@ namespace dmGameSystem
 
         dmMessage::URL sender;
 
-        // NOTE! .script instance is a requirement for this function, see DispatchMessages in comp_collision_object.cpp
-        // This has been added as a part of DEF-700
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
 
         if (!dmScript::GetURL(L, &sender)) {
             return luaL_error(L, "could not find a requesting instance for physics.ray_cast");

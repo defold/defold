@@ -66,7 +66,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         const uint32_t buffer_size = 256;
         uint8_t buffer[buffer_size];
@@ -108,7 +108,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         const uint32_t buffer_size = 256;
         uint8_t buffer[buffer_size];
@@ -155,7 +155,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t name_hash;
         if (lua_isstring(L, 2))
@@ -216,7 +216,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t name_hash;
         if (lua_isstring(L, 2))
@@ -254,7 +254,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         Vectormath::Aos::Vector3* scale = dmScript::CheckVector3(L, 2);
 

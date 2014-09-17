@@ -52,7 +52,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         if (top != 1)
         {
@@ -90,7 +90,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         if (top != 1)
         {
@@ -154,7 +154,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t emitter_id;
         if (!GetHash(L, 2, &emitter_id))
@@ -212,7 +212,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t emitter_id;
         if (!GetHash(L, 3, &emitter_id))

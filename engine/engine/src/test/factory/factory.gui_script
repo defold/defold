@@ -1,12 +1,9 @@
 function init(self)
     self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
-    self.id_b = factory.create("#factory_b", nil, nil, {factory = msg.url("#script")})
+    self.id_b = factory.create("#factory_b", nil, nil, {factory = msg.url("#")})
 end
 
 function update(self, dt)
-    local url_a = msg.url(nil, self.id_a, nil)
-    local s = go.get(url_a, "scale")
-    assert(s == 1.0)
     msg.post(self.id_a, "hello", {id_b = self.id_b})
     assert(not self.updated)
     self.updated = true

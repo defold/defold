@@ -43,7 +43,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t name_hash;
         if (lua_isstring(L, 2))
@@ -104,7 +104,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t name_hash;
         if (lua_isstring(L, 2))

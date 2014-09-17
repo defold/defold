@@ -59,7 +59,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t anim_id;
         if (lua_isstring(L, 2))
@@ -128,7 +128,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L, SCRIPT_TYPE_BIT_LOGIC);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -146,6 +146,7 @@ namespace dmGameSystem
     /*# retrieve the game object corresponding to a spine model skeleton bone
      * The returned game object can be used for parenting and transform queries.
      * This function has complexity O(n), where n is the number of bones in the spine model skeleton.
+     * Only available from .script files.
      *
      * @name spine.get_go
      * @param url the spine model to query (url)
