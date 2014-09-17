@@ -2870,4 +2870,8 @@ namespace dmGui
      * end
      * </pre>
      */
+
+    HScene GetSceneFromLua(lua_State* L) {
+        return GetScene(L);
+    }
 }

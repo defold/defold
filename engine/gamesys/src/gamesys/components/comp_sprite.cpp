@@ -187,6 +187,15 @@ namespace dmGameSystem
             component->m_AnimTimer = 0.0f;
             component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
         }
+        else
+        {
+            const char* anim_name = (const char*) dmHashReverse64(animation_id, 0);
+            if (anim_name != 0x0) {
+                dmLogError("Unable to play animation '%s' since it could not be found.", anim_name);
+            } else {
+                dmLogError("Unable to play animation '%llu' since it could not be found.", animation_id);
+            }
+        }
         return anim_id != 0;
     }
 

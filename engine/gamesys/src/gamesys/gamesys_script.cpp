@@ -5,6 +5,7 @@
 
 #include "gamesys_ddf.h"
 #include "gamesys.h"
+#include "gamesys_private.h"
 
 #include "scripts/script_particlefx.h"
 #include "scripts/script_tilemap.h"
@@ -54,6 +55,18 @@ namespace dmGameSystem
         ScriptPhysicsFinalize(context);
     }
 
-#undef PHYSICS_CONTEXT_NAME
-#undef COLLISION_OBJECT_EXT
+    dmGameObject::HInstance CheckGoInstance(lua_State* L) {
+        dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
+        if (instance == 0) {
+            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
+            if (scene != 0) {
+                instance = (dmGameObject::HInstance)GuiGetUserDataCallback(scene);
+            }
+        }
+        // No instance for render scripts, ignored
+        if (instance == 0) {
+            luaL_error(L, "no instance could be found in the current script environment");
+        }
+        return instance;
+    }
 }

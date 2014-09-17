@@ -13,6 +13,14 @@ namespace dmGameSystem
 #define TILE_MAP_EXT "tilegridc"
 
     /**
+     * Return current game object instance, if any.
+     * Must be called from within a lua pcall, since it long jumps if no instance can be found.
+     * @param L lua state
+     * @return instance
+     */
+    dmGameObject::HInstance CheckGoInstance(lua_State* L);
+
+    /**
      * Log message error. The function will send a formatted printf-style string to dmLogError
      * and append message sender/receiver information on the following format:
      * Message <MESSAGE-ID> sent from <SENDER> to <RECEIVER>. For format-string should be a complete sentence including
@@ -35,6 +43,8 @@ namespace dmGameSystem
      * Helper function to set material constants of components that use them: sprite, tile maps and models
      */
     dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data);
+
+
 }
 
 #endif // DM_GAMESYS_PRIVER_H

@@ -1,6 +1,6 @@
 components {
-  id: "script"
-  component: "/factory/factory.script"
+  id: "gui"
+  component: "/factory/factory.gui"
 }
 embedded_components {
   id: "factory_a"
