@@ -81,20 +81,24 @@ int ProduceOverflow(lua_State *L)
     char* aligned_buf = (char*)(((intptr_t)buf + sizeof(float)-1) & ~(sizeof(float)-1));
     int size = OVERFLOW_BUFFER_SIZE - (aligned_buf - buf);
 
-    lua_newtable(L);
-    // too many iterations
-    for (uint32_t i = 0; i <= 0xffff; ++i)
+    jmp_buf env;
+    if (0 == setjmp(env))
     {
-        // key
-        lua_pushnumber(L, i);
-        // value
-        lua_pushnumber(L, i);
-        // store pair
-        lua_settable(L, -3);
+        lua_newtable(L);
+        // too many iterations
+        for (uint32_t i = 0; i <= 0xffff; ++i)
+        {
+            // key
+            lua_pushnumber(L, i);
+            // value
+            lua_pushnumber(L, i);
+            // store pair
+            lua_settable(L, -3);
+        }
+        uint32_t buffer_used = dmScript::CheckTable(L, aligned_buf, size, -1);
+        // expect it to fail, avoid warning
+        (void)buffer_used;
     }
-    uint32_t buffer_used = dmScript::CheckTable(L, aligned_buf, size, -1);
-    // expect it to fail, avoid warning
-    (void)buffer_used;
 
     delete[] buf;
     return 1;
