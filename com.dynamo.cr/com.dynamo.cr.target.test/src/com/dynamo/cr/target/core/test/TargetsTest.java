@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -83,7 +83,7 @@ public class TargetsTest implements ITargetListener {
                                         boolean autoRunDebugger, String socksProxy, int socksProxyPort,
                                         int httpServerPort) {
             ITarget[] targets = getTargets();
-            obtainSocketAddress(targets[targets.length - 1]);
+            logClient.resetLogSocket(targets[targets.length - 1]);
         }
     }
 
@@ -249,7 +249,9 @@ public class TargetsTest implements ITargetListener {
         public GameLogger(int log_port) {
             done = false;
             try {
-                logServer = new ServerSocket(log_port);
+                logServer = new ServerSocket();
+                logServer.setReuseAddress(true);
+                logServer.bind(new InetSocketAddress(log_port));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

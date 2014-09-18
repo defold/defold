@@ -56,7 +56,7 @@ public class TargetService implements ITargetService, Runnable {
     private int searchInterval = 60;
     private long lastSearch = 0;
     private ITarget[] targets;
-    private LogClient logClient;
+    protected LogClient logClient;
 
     private static Logger logger = LoggerFactory.getLogger(TargetService.class);
 
