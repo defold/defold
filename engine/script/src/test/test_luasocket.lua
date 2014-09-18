@@ -63,7 +63,7 @@ function continue(corout, val)
     return nil, true
 end
 
-function test_client_server(server, client)
+function run_client_server(server, client)
     -- These coroutines take turn during a limited amount of iterations,
     -- what is yield():ed from one is passed to the next one.
     --
@@ -139,22 +139,24 @@ end
 
 function test_tcp_clientserver()
     local test_message = "I couldn't say where she's coming from, but I just met a lady called dynamo_home!"
-    test_client_server(
-    coroutine.create(function()
+
+    local server = coroutine.create(function()
         tcp_server_cr(test_message)
-    end),
-    coroutine.create(function(port)
+    end)
+
+    local client = coroutine.create(function(port)
         tcp_client_cr(test_message, port)
     end)
-    )
+
+    run_client_server(server, client)
 end
 
 function udp_server_cr(message)
     local socket = require "socket"
     local u = socket.udp()
-
     assert(u:setsockname("127.0.0.1", 0))
     local addr, port = u:getsockname()
+
     coroutine.yield(port)
 
     -- read message from client and send back to
@@ -189,14 +191,16 @@ end
 
 function test_udp_clientserver()
     local test_message = "UDP Transport message!"
-    test_client_server(
-    coroutine.create(function()
+
+    local server = coroutine.create(function()
         udp_server_cr(test_message)
-    end),
-    coroutine.create(function(port)
+    end)
+
+    local client = coroutine.create(function(port)
         udp_client_cr(test_message, port)
     end)
-    )
+
+    run_client_server(server, client)
 end
 
 function test_bind_error()
