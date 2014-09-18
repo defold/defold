@@ -48,45 +48,50 @@ function test_udp()
     s:close()
 end
 
-
-function continue(corout, name)
+function continue(corout, val)
     if corout ~= nil then
-        local ok, val = coroutine.resume(corout)
+        local ok, val = coroutine.resume(corout, val)
         if ok ~= true then
             print("Coroutine error: " .. val)
             assert(false)
         end
         if ok == true and val == "success" then
-            return nil, true
+            return nil, true, nil
         end
+        return corout, true, val
     end
-    return corout, true
+    return nil, true
 end
 
 function test_client_server(server, client)
-    -- these coroutines take turn during a limited amount of iterations
+    -- These coroutines take turn during a limited amount of iterations,
+    -- what is yield():ed from one is passed to the next one.
+    --
+    -- Server runs first and thus can pass the port it listens to to the
+    -- client, by yielding the port once first thing it does.
     local max_iterations = 20
     while client ~= nil or server ~= nil do
         max_iterations = max_iterations - 1
         assert(max_iterations > 0)
-        local ok
-        server, ok = continue(server, "server")
+        local ok, val
+        server, ok, val = continue(server, val)
         assert(ok)
-        client, ok = continue(client, "client")
+        client, ok, val = continue(client, val)
         assert(ok)
     end
 end
 
-function tcp_server_cr(port, message)
+function tcp_server_cr(message)
     -- coroutine that listens for incoming connection on a socket
     -- for a limited time, and expects to get on connection attempt.
     local socket = require "socket";
     local listener = socket.tcp()
-    assert(listener:bind("*", port));
+    assert(listener:bind("localhost", 0));
     assert(listener:listen())
     listener:settimeout(0)
 
-    coroutine.yield()
+    local addr, port = listener:getsockname()
+    coroutine.yield(port)
 
     local wait_iterations = 20 -- iterations before considering this fail
     local client = nil
@@ -118,7 +123,7 @@ function tcp_server_cr(port, message)
     coroutine.yield("success")
 end
 
-function tcp_client_cr(port, message)
+function tcp_client_cr(message, port)
     local socket = require "socket"
     local conn = assert(socket.connect("localhost", port))
     coroutine.yield()
@@ -133,72 +138,87 @@ function tcp_client_cr(port, message)
 end
 
 function test_tcp_clientserver()
-    -- Randomize port some so can run the test in quick succession with lower chance of
-    -- running into port already in use, since that will make the test fail.
-    local port = 5000 + math.floor(socket.gettime() * 10) % 1000
     local test_message = "I couldn't say where she's coming from, but I just met a lady called dynamo_home!"
     test_client_server(
     coroutine.create(function()
-        tcp_server_cr(port, test_message)
+        tcp_server_cr(test_message)
     end),
-    coroutine.create(function()
-        tcp_client_cr(port, test_message)
+    coroutine.create(function(port)
+        tcp_client_cr(test_message, port)
     end)
     )
 end
 
-function udp_server_cr(port, message)
+function udp_server_cr(message)
     local socket = require "socket"
     local u = socket.udp()
 
-    assert(u:setsockname("127.0.0.1", port))
-    coroutine.yield()
+    assert(u:setsockname("127.0.0.1", 0))
+    local addr, port = u:getsockname()
+    coroutine.yield(port)
 
-    -- send
-    u:sendto(message, "127.0.0.1", port + 1)
-    coroutine.yield()
-
-    -- read back
-    local data = u:receive(4096)
+    -- read message from client and send back to
+    -- where it came from
+    local data, addr, port = u:receivefrom(4096)
     assert(data == message)
+
+    u:sendto(message, "127.0.0.1", port)
+    coroutine.yield()
 
     -- done
     u:close()
     coroutine.yield("success")
 end
 
-function udp_client_cr(port, message)
+function udp_client_cr(message, port)
     -- setup & send
     local socket = require "socket"
     local u = socket.udp()
-    assert(u:setsockname("127.0.0.1", port + 1))
+    assert(u:setsockname("127.0.0.1", 0))
+
+    -- send first mesasge to server
+    u:sendto(message, "127.0.0.1", port)
     coroutine.yield()
 
-    -- wait for server msg
+    -- response must be equal
     local data = u:receive(4096)
     assert(data == message)
-
-    -- send one back
-    u:sendto(message, "127.0.0.1", port)
     u:close()
     coroutine.yield("success")
 end
 
 function test_udp_clientserver()
-    -- Port randomization here too. This opens udp socket and sends messages back and forth.
-    local port = 5000 + math.floor(socket.gettime() * 10) % 1000
     local test_message = "UDP Transport message!"
     test_client_server(
     coroutine.create(function()
-        udp_server_cr(port, test_message)
+        udp_server_cr(test_message)
     end),
-    coroutine.create(function()
-        udp_client_cr(port, test_message)
+    coroutine.create(function(port)
+        udp_client_cr(test_message, port)
     end)
     )
+end
+
+function test_bind_error()
+     local socket = require "socket"
+
+     -- bind to available port...
+     local listen1 = socket.tcp()
+     assert(listen1:bind("localhost", 0))
+     local addr, port = listen1:getsockname()
+
+     -- ..and try binding to it with a second socket
+     local listen2 = socket.tcp()
+     local ret, err = listen2:bind("localhost", port)
+
+     -- must fail!
+     assert(ret == nil)
+
+     listen1:close()
+     listen2:close()
 end
 
 
 functions = { test_getaddr = test_getaddr, test_bind = test_bind,
     test_udp = test_udp, test_tcp_clientserver = test_tcp_clientserver,
-    test_udp_clientserver = test_udp_clientserver }
+    test_udp_clientserver = test_udp_clientserver, test_bind_error = test_bind_error }
