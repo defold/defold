@@ -2201,7 +2201,7 @@ namespace dmGui
         }
     }
 
-    inline void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform)
+    void CalculateNodeTransform(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform)
     {
         const Node& node = n->m_Node;
         if (node.m_DirtyLocal || scene->m_ResChanged)

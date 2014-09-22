@@ -24,9 +24,9 @@ def build(bld):
     builtins = bld.new_task_gen(features='archive',
                                 use_compression=True,
                                 archive_target='builtins.arc')
-    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics')
+    builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts')
 
-    for d in ['fonts', 'input', 'render', 'materials', 'graphics']:
+    for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
 
     bld.new_task_gen(name = 'bob-engine',

@@ -3,11 +3,17 @@ package com.dynamo.upnp;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -24,7 +30,7 @@ public class SSDP implements ISSDP {
 
     private final InetAddress SSDP_MCAST_ADDR;
     private MulticastSocket mcastSocket;
-    private DatagramSocket socket;
+    private DatagramSocket[] sockets;
     private byte[] buffer;
     private Map<String, DeviceInfo> discoveredDevices = new HashMap<String, DeviceInfo>();
     private int changeCount = 0;
@@ -36,12 +42,36 @@ public class SSDP implements ISSDP {
             + "MX: 3\r\n"
             + "ST: upnp:rootdevice\r\n\r\n";
 
+    static List<InetAddress> getLocalAddresses() throws SocketException {
+        List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+        List<InetAddress> r = new ArrayList<InetAddress>();
+
+        for (NetworkInterface i : interfaces) {
+            if (i.isUp() && !i.isLoopback() && !i.isPointToPoint() && !i.isVirtual()) {
+                for (InetAddress a : Collections.list(i.getInetAddresses())) {
+                    if (a instanceof Inet4Address) {
+                        r.add(a);
+                    }
+                }
+            }
+        }
+
+        return r;
+    }
+
     public SSDP() throws IOException {
         buffer = new byte[1500];
         SSDP_MCAST_ADDR = InetAddress.getByName(SSDP_MCAST_ADDR_IP);
 
-        socket = new DatagramSocket();
-        socket.setSoTimeout(1);
+        List<InetAddress> localAddresses = getLocalAddresses();
+        sockets = new DatagramSocket[localAddresses.size()];
+        int i = 0;
+        for (InetAddress inetAddress : localAddresses) {
+            DatagramSocket socket = new DatagramSocket();
+            socket = new DatagramSocket(0, inetAddress);
+            socket.setSoTimeout(1);
+            sockets[i++] = socket;
+        }
 
         mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
         mcastSocket.joinGroup(SSDP_MCAST_ADDR);
@@ -53,7 +83,9 @@ public class SSDP implements ISSDP {
         byte[] buf = M_SEARCH_PAYLOAD.getBytes();
         DatagramPacket p = new DatagramPacket(buf, buf.length, SSDP_MCAST_ADDR,
                 SSDP_MCAST_PORT);
-        socket.send(p);
+        for (DatagramSocket s : sockets) {
+            s.send(p);
+        }
     }
 
     private void expireDiscovered() {
@@ -91,15 +123,21 @@ public class SSDP implements ISSDP {
                 // Ignore
                 cont = false;
             }
+        } while (cont);
 
-            try {
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
-                String data = new String(buffer, 0, packet.getLength());
-                handleResponse(data, packet.getAddress().getHostAddress());
-            } catch (SocketTimeoutException e) {
-                // Ignore
-                cont = false;
+        cont = true;
+        do {
+            for (DatagramSocket socket : sockets) {
+                try {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet);
+                    String data = new String(buffer, 0, packet.getLength());
+                    handleResponse(data, packet.getAddress().getHostAddress());
+
+                } catch (SocketTimeoutException e) {
+                    // Ignore
+                    cont = false;
+                }
             }
         } while (cont);
 
@@ -188,7 +226,9 @@ public class SSDP implements ISSDP {
 
     @Override
     public void dispose() {
-        this.socket.close();
+        for (DatagramSocket socket : sockets) {
+            socket.close();
+        }
         this.mcastSocket.close();
     }
 

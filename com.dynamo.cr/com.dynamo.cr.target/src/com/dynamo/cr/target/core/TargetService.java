@@ -1,13 +1,9 @@
 package com.dynamo.cr.target.core;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
-import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -21,7 +17,6 @@ import java.util.Set;
 import javax.inject.Inject;
 import javax.ws.rs.core.UriBuilder;
 
-import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.Command;
 import org.eclipse.core.commands.State;
 import org.eclipse.ui.PlatformUI;
@@ -36,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dynamo.cr.common.util.NetworkUtil;
-import com.dynamo.cr.editor.core.IConsole;
 import com.dynamo.cr.editor.core.IConsoleFactory;
 import com.dynamo.upnp.DeviceInfo;
 import com.dynamo.upnp.ISSDP;
@@ -59,20 +53,14 @@ public class TargetService implements ITargetService, Runnable {
     private volatile boolean stopped = false;
     private ISSDP ssdp;
     private IURLFetcher urlFetcher;
-    private IConsoleFactory consoleFactory;
     private int searchInterval = 60;
     private long lastSearch = 0;
     private ITarget[] targets;
-    private Socket logSocket;
-    private InetSocketAddress logSocketAddress;
-    // Number of times the socket connection has been attempted without success
-    private int logSocketConnectionAttempts = 0;
-
-    // Attempt to connect for 2 seconds in case of failure
-    private static final int MAX_LOG_CONNECTION_ATTEMPTS = 20;
+    protected LogClient logClient;
 
     private static Logger logger = LoggerFactory.getLogger(TargetService.class);
 
+    @SuppressWarnings("serial")
     private static class IncompleteXMLException extends Exception {
         public IncompleteXMLException(String msg) {
             super(msg);
@@ -110,7 +98,10 @@ public class TargetService implements ITargetService, Runnable {
         lastSearch = System.currentTimeMillis() - searchInterval * 1000;
         this.ssdp = ssdp;
         this.urlFetcher = urlFetcher;
-        this.consoleFactory = consoleFactory;
+
+        this.logClient = new LogClient(consoleFactory.getConsole("console"));
+        this.logClient.start();
+
         thread = new Thread(this, "Targets Service");
         thread.start();
     }
@@ -134,8 +125,10 @@ public class TargetService implements ITargetService, Runnable {
     public void stop() {
         stopped = true;
         thread.interrupt();
+        logClient.stopLog();
         try {
             thread.join();
+            logClient.join();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -173,7 +166,6 @@ public class TargetService implements ITargetService, Runnable {
                         updateTargets();
                         postEvent(new TargetChangedEvent(this));
                     }
-                    updateLog();
                 } catch (IOException e) {
                     // Do not log IOException. Network is down, etc
                 }
@@ -315,100 +307,6 @@ public class TargetService implements ITargetService, Runnable {
         }
     }
 
-    // Obtain a socket connection to the specified address
-    private static Socket newLogConnection(InetSocketAddress address) {
-        Socket socket = new Socket();
-
-        InputStream is = null;
-        try {
-            socket.setSoTimeout(2000);
-            socket.connect(address);
-
-            StringBuilder sb = new StringBuilder();
-            is = socket.getInputStream();
-            int c = is.read();
-            while (c != '\n' && c != -1) {
-                if (c != '\r') {
-                    sb.append((char) c);
-                }
-                c = is.read();
-            }
-            if (!sb.toString().equals("0 OK")) {
-                throw new IOException(String.format("Unable to connect to log-service (%s)", sb.toString()));
-            }
-            socket.setSoTimeout(0);
-            return socket;
-        } catch (IOException e) {
-            IOUtils.closeQuietly(is);
-            IOUtils.closeQuietly(socket);
-            logger.debug("Could not create log connection: {}", e.getMessage());
-        }
-        return null;
-    }
-
-    // Resets existing log socket, if any.
-    private void resetLogSocket() {
-        if (this.logSocket != null) {
-            try {
-                this.logSocket.close();
-            } catch (IOException e) {
-                logger.warn("Log socket could not be closed: {}", e.getMessage());
-            }
-        }
-        this.logSocket = null;
-        this.logSocketConnectionAttempts = 0;
-    }
-
-    // Make one attempt to connect to the log socket.
-    // If the maximum number of retries is reached, the stored address is reset to avoid further connections.
-    private void connectLogSocket() {
-        if (this.logSocketAddress != null && this.logSocket == null) {
-            this.logSocket = newLogConnection(this.logSocketAddress);
-            if (this.logSocket == null) {
-                ++this.logSocketConnectionAttempts;
-                if (this.logSocketConnectionAttempts >= MAX_LOG_CONNECTION_ATTEMPTS) {
-                    logger.error("Terminally giving up log connection after max tries.");
-                    this.logSocketAddress = null;
-                }
-            }
-        }
-    }
-
-    private synchronized void updateLog() {
-        // Close stale socket connections
-        if (this.logSocket != null && !this.logSocket.isConnected()) {
-            resetLogSocket();
-        }
-        // Check to see if we should make a new connection
-        connectLogSocket();
-        // Read from the socket when available
-        if (this.logSocket != null && this.logSocket.isConnected()) {
-            try {
-                byte[] data = null;
-                OutputStream out = null;
-                InputStream in = this.logSocket.getInputStream();
-                int available = in.available();
-                while (available > 0) {
-                    if (out == null) {
-                        IConsole console = this.consoleFactory.getConsole("console");
-                        out = console.createOutputStream();
-                        data = new byte[128];
-                    }
-                    int count = Math.min(available, data.length);
-                    in.read(data, 0, count);
-                    out.write(data, 0, count);
-                    available = in.available();
-                }
-                if (out != null) {
-                    out.close();
-                }
-            } catch (IOException e) {
-                logger.error(e.getMessage(), e);
-                resetLogSocket();
-            }
-        }
-    }
-
     @Override
     public ITarget getSelectedTarget() {
         ICommandService commandService = (ICommandService) PlatformUI.getWorkbench().getService(ICommandService.class);
@@ -460,42 +358,7 @@ public class TargetService implements ITargetService, Runnable {
                 autoRunDebugger, socksProxy, socksProxyPort, getHttpServerURL(targetToLaunch.getInetAddress(),
                         httpServerPort));
         launchThread.start();
-        resetLogSocket();
-        this.logSocketAddress = findLogSocketAddress(targetToLaunch);
-    }
-
-    protected void obtainSocketAddress(ITarget target) {
-        this.logSocketAddress = findLogSocketAddress(target);
-    }
-
-    private boolean isTargetLocal(ITarget target) {
-        if (target.getUrl() == null) {
-            return true;
-        } else {
-            // Check if the target address is a local network interface
-            try {
-                if (NetworkUtil.getValidHostAddresses().contains(target.getInetAddress()))
-                    return true;
-            } catch (Exception e) {
-                logger.warn("Could not retrieve host addresses: {}", e.getMessage());
-            }
-        }
-        return false;
-    }
-
-    private InetSocketAddress findLogSocketAddress(ITarget target) {
-        // Ignore the address if it's local
-        // Local targets are already logged from the process streams instead of a socket
-        if (!isTargetLocal(target)) {
-            try {
-                URL url = new URL(target.getUrl());
-                String host = url.getHost();
-                return new InetSocketAddress(host, target.getLogPort());
-            } catch (MalformedURLException e) {
-                logger.warn("Could not open log socket: {}", e.getMessage());
-            }
-        }
-        return null;
+        logClient.resetLogSocket(targetToLaunch);
     }
 
 }

@@ -70,52 +70,46 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmMessage::URL sender;
-        uintptr_t user_data;
-        // NOTE! dmGameObject::SCRIPT_INSTANCE_TYPE_NAME is a requirement for this function, see DispatchMessages in comp_collision_object.cpp
-        // This has been added as a part of DEF-700
-        if (dmScript::GetURL(L, &sender) && dmScript::GetUserData(L, &user_data, dmGameObject::SCRIPT_INSTANCE_TYPE_NAME) && user_data != 0)
-        {
-            dmPhysicsDDF::RequestRayCast request;
-            request.m_From = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 1));
-            request.m_To = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
-            request.m_Mask = 0;
-            luaL_checktype(L, 3, LUA_TTABLE);
 
-            lua_getglobal(L, PHYSICS_CONTEXT_NAME);
-            PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+
+        if (!dmScript::GetURL(L, &sender)) {
+            return luaL_error(L, "could not find a requesting instance for physics.ray_cast");
+        }
+        dmPhysicsDDF::RequestRayCast request;
+        request.m_From = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 1));
+        request.m_To = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
+        request.m_Mask = 0;
+        luaL_checktype(L, 3, LUA_TTABLE);
+
+        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+
+        lua_pushnil(L);
+        while (lua_next(L, 3) != 0)
+        {
+            request.m_Mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
             lua_pop(L, 1);
-
-            dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)user_data;
-            dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-            void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
-
-            lua_pushnil(L);
-            while (lua_next(L, 3) != 0)
-            {
-                request.m_Mask |= CompCollisionGetGroupBitIndex(world, dmScript::CheckHash(L, -1));
-                lua_pop(L, 1);
-            }
-            request.m_RequestId = 0;
-            if (top > 3)
-            {
-                request.m_RequestId = luaL_checkinteger(L, 4);
-                if (request.m_RequestId > 255)
-                {
-                    return luaL_error(L, "request_id must be between 0-255");
-                }
-            }
-            dmMessage::URL receiver;
-            dmMessage::ResetURL(receiver);
-            receiver.m_Socket = context->m_Socket;
-            dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, user_data, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast));
-            assert(top == lua_gettop(L));
-            return 0;
         }
-        else
+        request.m_RequestId = 0;
+        if (top > 3)
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "physics.ray_cast is not available from this script-type.");
+            request.m_RequestId = luaL_checkinteger(L, 4);
+            if (request.m_RequestId > 255)
+            {
+                return luaL_error(L, "request_id must be between 0-255");
+            }
         }
+        dmMessage::URL receiver;
+        dmMessage::ResetURL(receiver);
+        receiver.m_Socket = context->m_Socket;
+        dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast));
+        assert(top == lua_gettop(L));
+        return 0;
     }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
@@ -190,3 +184,6 @@ namespace dmGameSystem
     }
 
 }
+
+#undef PHYSICS_CONTEXT_NAME
+#undef COLLISION_OBJECT_EXT

@@ -57,11 +57,13 @@ def build(bld):
 
     test_script_vmath.install_path = None
 
-    test_script_table = bld.new_task_gen(features = flist,
+    script_table_features = flist + ' embed';
+    test_script_table = bld.new_task_gen(features = script_table_features,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
                                      proto_gen_py = True,
+                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat',
                                      target = 'test_script_table',
                                      source = 'test_script_table.cpp')
 
@@ -146,4 +148,14 @@ def build(bld):
                                        source = 'test_script_user_type.cpp')
 
     test_script_user_type.install_path = None
+
+    test_script_luasocket = bld.new_task_gen(features = flist,
+                                       includes = '..',
+                                       uselib = libs,
+                                       uselib_local = 'script',
+                                       proto_gen_py = True,
+                                       target = 'test_script_luasocket',
+                                       source = 'test_script_luasocket.cpp test_luasocket.lua')
+
+    test_script_luasocket.install_path = None
 
