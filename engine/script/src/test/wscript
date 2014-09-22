@@ -63,7 +63,7 @@ def build(bld):
                                      uselib = libs,
                                      uselib_local = 'script',
                                      proto_gen_py = True,
-                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat',
+                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat',
                                      target = 'test_script_table',
                                      source = 'test_script_table.cpp')
 

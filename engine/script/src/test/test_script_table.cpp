@@ -12,6 +12,7 @@
 #include "data/table_sin_v0.dat.embed.h"
 #include "data/table_cos_v1.dat.embed.h"
 #include "data/table_sin_v1.dat.embed.h"
+#include "data/table_v818192.dat.embed.h"
 
 extern "C"
 {
@@ -113,6 +114,13 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
     return error;
 }
 
+int ReadUnsupportedVersion(lua_State* L)
+{
+    dmScript::PushTable(L, (const char*)TABLE_V818192_DAT);
+    return 1;
+}
+
+
 // The v0.0 tables were generated with dense keys.
 int ReadCosTableDataOriginal(lua_State* L)
 {
@@ -122,6 +130,17 @@ int ReadCosTableDataOriginal(lua_State* L)
 int ReadSinTableDataOriginal(lua_State* L)
 {
     return ReadSerializedTable(L, TABLE_SIN_V0_DAT, TABLE_SIN_V0_DAT_SIZE, sin, 1);
+}
+
+TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
+{
+    int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
+    ASSERT_NE(0, result);
+    char str[256];
+    DM_SNPRINTF(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 1);
+    ASSERT_STREQ(str, lua_tostring(L, -1));
+    // pop error message
+    lua_pop(L, 1);
 }
 
 TEST_F(LuaTableTest, VerifyCosTableOriginal)
