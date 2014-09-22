@@ -13,6 +13,11 @@
 
 (set! *warn-on-reflection* true)
 
+
+;; ======================================================================
+;; shader translation comes from https://github.com/overtone/shadertone.
+;; See licenses/shadertone.txt
+
 ;; ======================================================================
 ;; translation functions for a dialect of clojure-like s-expressions
 (declare shader-walk)
