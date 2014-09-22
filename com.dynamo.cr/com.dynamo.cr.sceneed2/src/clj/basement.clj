@@ -1,6 +1,17 @@
 (ns basement)
 
 (comment
+  (defn lookup [event]
+    (println "default variable" (.getDefaultVariable (.getApplicationContext event)))
+    (println (active-editor (.getApplicationContext event)))
+    println)
+
+  (defn say-hello [^ExecutionEvent event] (println "Output here."))
+
+  (defcommand a-command "com.dynamo.cr.clojure-eclipse" "com.dynamo.cr.clojure-eclipse.commands.hello" "Speak!")
+  (defhandler hello a-command #'say-hello)
+
+
   ;; This file explores alternate syntax for the "above the waterline" code.
 
   (on :resize

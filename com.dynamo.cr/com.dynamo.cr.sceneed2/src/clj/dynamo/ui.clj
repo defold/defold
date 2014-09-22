@@ -1,5 +1,78 @@
 (ns dynamo.ui
-  (:require [internal.ui.handlers :as h]))
+  (:require [clojure.core.async :refer [chan dropping-buffer put!]]
+            [internal.ui.handlers :as h]
+            [camel-snake-kebab :refer :all])
+  (:import  [org.eclipse.swt.widgets Display Listener]
+            [org.eclipse.swt SWT]))
+
+(defn display
+  []
+  (or (Display/getCurrent) (Display/getDefault)))
+
+(defn swt-thread-safe*
+  [f]
+  (.asyncExec (display) f))
+
+(defmacro swt-safe
+  [& body]
+  `(swt-thread-safe* (bound-fn [] ~@body)))
+
+(defmacro swt-await
+  [& body]
+  `(let [res# (promise)]
+     (.syncExec (display)
+       (bound-fn [] (deliver res# (do ~@body))))
+     (deref res#)))
+
+(defn swt-timed-exec*
+  [after f]
+  (when-let [cur (display)]
+    (if (= (Thread/currentThread) (.getThread cur))
+      (.timerExec cur after f)
+      (swt-thread-safe* #(.timerExec cur after f)))))
+
+(defmacro swt-timed-exec
+  [after & body]
+  `(swt-timed-exec* ~after (bound-fn [] ~@body)))
+
+(defmacro after
+  [wait-time & body]
+  `(swt-timed-exec ~wait-time ~@body))
+
+(defmacro swt-events [& evts]
+  (let [keywords (map (comp keyword ->kebab-case str) evts)
+        constants (map symbol (map #(str "SWT/" %) evts))]
+    (zipmap keywords constants)))
+
+(deftype EventForwarder [ch]
+  Listener
+  (handleEvent [this evt] (put! ch evt)))
+
+(def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
+                           MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect
+                           FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse))
+
+(def event-type-map (clojure.set/map-invert event-map))
+
+(defn event-type [^org.eclipse.swt.widgets.Event evt]
+  (event-type-map (.type evt)))
+
+(defn listen
+  [component type callback-fn & args]
+  (let [f (bound-fn [evt] (apply callback-fn evt args))]
+    (.addListener component (event-map type)
+      (proxy [Listener] []
+        (handleEvent [evt]
+          (f evt))))))
+
+(defn make-event-channel
+  []
+  (chan (dropping-buffer 100)))
+
+(defn pipe-events-to-channel
+  [control type ch]
+  (.addListener control (event-map type)
+    (EventForwarder. ch)))
 
 (defmacro defcommand
   [name category-id command-id label]
@@ -14,27 +87,21 @@
       (assert (var? (resolve fn-var)) "fn-var must be a var.")
       `(def ~name (h/make-handler ~command ~fn-var ~@body))))
 
+(def ^:dynamic *view* nil)
+
 (defprotocol Repaintable
   (request-repaint [this]))
 
-(comment
-
-  (defn lookup [event]
-    (println "default variable" (.getDefaultVariable (.getApplicationContext event)))
-    (println (active-editor (.getApplicationContext event)))
-    println)
-
-  (defn say-hello [^ExecutionEvent event] (println "Output here."))
-
-  (defcommand a-command "com.dynamo.cr.clojure-eclipse" "com.dynamo.cr.clojure-eclipse.commands.hello" "Speak!")
-  (defhandler hello a-command #'say-hello))
-
+(defn repaint-current-view []
+  (when *view*
+    (request-repaint *view*)))
 
 (doseq [[v doc]
         {*ns*
          "Interaction with the development environment itself.
 
-This namespace has the functions and macros you use to write tools in the editor."
+This namespace has the functions and macros you use to write
+tools in the editor."
 
          #'defcommand
          "Create a command with the given category and id. Binds

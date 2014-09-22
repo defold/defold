@@ -1,6 +1,6 @@
 (ns dynamo.editors
   (:require [clojure.core.async :refer [chan dropping-buffer]]
-            [internal.ui.editors :as e]))
+            [dynamo.ui :as ui]))
 
 (defprotocol Editor
   (init [this site])
@@ -9,26 +9,6 @@
   (dirty? [this])
   (save-as-allowed? [this])
   (set-focus [this]))
-
-(defn listen
-  [c t f & args]
-  (e/listen c t (bound-fn [evt] (apply f evt args))))
-
-(defn make-event-channel
-  []
-  (chan (dropping-buffer 100)))
-
-(defn pipe-events-to-channel
-  [control type ch]
-  (e/pipe-events-to-channel control type ch))
-
-(defmacro on-display-thread
-  [& body]
-  `(e/swt-safe ~@body))
-
-(defmacro after
-  [wait-time & body]
-  `(e/swt-timed-exec ~wait-time ~@body))
 
 (doseq [[v doc]
         {*ns*

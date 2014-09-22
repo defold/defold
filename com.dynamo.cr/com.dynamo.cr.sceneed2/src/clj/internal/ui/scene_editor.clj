@@ -80,37 +80,45 @@
 (defn do-paint
   [{:keys [project-state context canvas camera-node-id render-node-id small-text-renderer] :as state}]
   (when (not (.isDisposed canvas))
-      (.setCurrent canvas)
-      (with-context context [gl glu]
-        (try
-          (gl-clear gl 0.0 0.0 0.0 1)
+    (.setCurrent canvas)
+    (with-context context [gl glu]
+      (try
+        (gl-clear gl 0.0 0.0 0.0 1)
 
-          (let [camera      (p/get-resource-value project-state (p/resource-by-id project-state camera-node-id) :camera)
-                render-data (p/get-resource-value project-state (p/resource-by-id project-state render-node-id) :render-data)
-                viewport    (:viewport camera)]
-            (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))
-            (when render-data
-              (doseq [pass pass/passes]
-                (setup-pass context gl glu pass camera viewport)
-                (doseq [node (get render-data pass)]
-                  (gl-push-matrix gl
-                      (when (t/model-transform? pass)
-                        (gl-mult-matrix-4d gl (:world-transform node)))
-                      (try
-                        (when (:render-fn node)
-                          ((:render-fn node) context gl glu small-text-renderer))
-                        (catch Exception e
-                          (log/error :exception e
-                                     :pass pass
-                                     :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))))))
-          (finally
-            (.swapBuffers canvas))))))
+        (let [camera      (p/get-resource-value project-state (p/resource-by-id project-state camera-node-id) :camera)
+              render-data (p/get-resource-value project-state (p/resource-by-id project-state render-node-id) :render-data)
+              viewport    (:viewport camera)]
+          (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))
+          (when render-data
+            (doseq [pass pass/passes]
+              (setup-pass context gl glu pass camera viewport)
+              (doseq [node (get render-data pass)]
+                (gl-push-matrix gl
+                    (when (t/model-transform? pass)
+                      (gl-mult-matrix-4d gl (:world-transform node)))
+                    (try
+                      (when (:render-fn node)
+                        ((:render-fn node) context gl glu small-text-renderer))
+                      (catch Exception e
+                        (log/error :exception e
+                                   :pass pass
+                                   :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))))))
+        (finally
+          (.swapBuffers canvas))))))
+
+(defn batch-repaint
+  [state]
+  (when-not (:paint-pending @state)
+    (swap! state assoc :paint-pending true)
+    (ui/after 5
+             (swap! state dissoc :paint-pending)
+             (do-paint @state))))
 
 (defn- start-event-pump
-  [canvas {:keys [render-node-id project-state]}]
-  (let [event-chan (e/make-event-channel)]
+  [editor canvas {:keys [render-node-id project-state]}]
+  (let [event-chan (ui/make-event-channel)]
     (doseq [evt [:resize :mouse-down :mouse-up :mouse-double-click :mouse-enter :mouse-exit :mouse-hover :mouse-move :mouse-wheel :key-down :key-up]]
-      (e/pipe-events-to-channel canvas evt event-chan))
+      (ui/pipe-events-to-channel canvas evt event-chan))
     (go-loop []
        (when-let [e (<! event-chan)]
          (try
@@ -122,27 +130,28 @@
 (deftype SceneEditor [state scene-node]
   e/Editor
   (init [this site]
-    (let [render-node     (make-scene-renderer :_id -1 :editor this)
-          background-node (back/make-background :_id -2)
-          grid-node       (grid/make-grid :_id -3)
-          camera-node     (c/make-camera-node :camera (c/make-camera :orthographic) :_id -4)
-          camera-controller (c/make-camera-controller)
-          tx-result       (p/transact (:project-state @state)
-                                      [(p/new-resource render-node)
-                                       (p/new-resource background-node)
-                                       (p/new-resource grid-node)
-                                       (p/new-resource camera-node)
-                                       (p/new-resource camera-controller)
-                                       (p/connect scene-node        :renderable render-node :renderables)
-                                       (p/connect background-node   :renderable render-node :renderables)
-                                       (p/connect grid-node         :renderable render-node :renderables)
-                                       (p/connect camera-node       :camera     render-node :camera)
-                                       (p/connect camera-node       :camera     grid-node   :camera)
-                                       (p/connect camera-node       :camera     camera-controller :camera)
-                                       (p/connect camera-controller :self       render-node :controller)])]
-      (swap! state assoc
-             :camera-node-id (p/resolve-tempid tx-result -4)
-             :render-node-id (p/resolve-tempid tx-result -1))))
+    (binding [ui/*view* this]
+      (let [render-node      (make-scene-renderer :_id -1 :editor this)
+           background-node   (back/make-background :_id -2)
+           grid-node         (grid/make-grid :_id -3)
+           camera-node       (c/make-camera-node :camera (c/make-camera :orthographic) :_id -4)
+           camera-controller (c/make-camera-controller)
+           tx-result         (p/transact (:project-state @state)
+                                         [(p/new-resource render-node)
+                                          (p/new-resource background-node)
+                                          (p/new-resource grid-node)
+                                          (p/new-resource camera-node)
+                                          (p/new-resource camera-controller)
+                                          (p/connect scene-node        :renderable render-node :renderables)
+                                          (p/connect background-node   :renderable render-node :renderables)
+                                          (p/connect grid-node         :renderable render-node :renderables)
+                                          (p/connect camera-node       :camera     render-node :camera)
+                                          (p/connect camera-node       :camera     grid-node   :camera)
+                                          (p/connect camera-node       :camera     camera-controller :camera)
+                                          (p/connect camera-controller :self       render-node :controller)])]
+       (swap! state assoc
+              :camera-node-id (p/resolve-tempid tx-result -4)
+              :render-node-id (p/resolve-tempid tx-result -1)))))
 
   (create-controls [this parent]
     (let [canvas        (glcanvas parent)
@@ -157,11 +166,11 @@
           _             (.glBindVertexArray gl vertex-arr-id)]
       (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
       (.release context)
-      (e/listen canvas :resize on-resize this state)
+      (ui/listen canvas :resize on-resize this state)
       (swap! state assoc
              :context context
              :canvas  canvas
-             :event-channel (start-event-pump canvas @state)
+             :event-channel (start-event-pump this canvas @state)
              :small-text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12))))
 
   (save [this file monitor])
@@ -170,9 +179,4 @@
   (set-focus [this])
 
   ui/Repaintable
-  (request-repaint [this]
-    (when-not (:paint-pending @state)
-      (e/after 15
-             (swap! state dissoc :paint-pending)
-             (do-paint @state)))))
-
+  (request-repaint [this] (batch-repaint state)))

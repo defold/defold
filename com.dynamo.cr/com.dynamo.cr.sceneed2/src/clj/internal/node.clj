@@ -196,10 +196,13 @@
 (defn- replace-magic-imperatives
   [form]
   (match [form]
+         [(['repaint] :seq)]
+         `(dynamo.ui/repaint-current-view)
+
          [(['attach & rest] :seq)]
          `(conj! ~'transaction (dynamo.project/connect ~@rest))
 
-         [(['dettach & rest] :seq)]
+         [(['detach & rest] :seq)]
          `(conj! ~'transaction (dynamo.project/disconnect ~@rest))
 
          [(['send target-node type & body] :seq)]
@@ -257,9 +260,9 @@
           (when-let [~'msg (a/<! ~'in)]
             (try
               (let [~'event        (:body ~'msg)
-                    ~'transaction (transient [])
+                    ~'transaction  (transient [])
                     ~'message-drop (transient [])]
-                (case (internal.ui.editors/event-type ~'event)
+                (case (dynamo.ui/event-type ~'event)
                   ~@event-cases
                   nil)
                 (when (and (< 0 (count ~'transaction))
