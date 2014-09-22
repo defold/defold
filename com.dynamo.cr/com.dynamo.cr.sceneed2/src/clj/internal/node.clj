@@ -161,7 +161,7 @@
      {:inputs     {(keyword nm) (if (coll? schema) (into [] schema) schema)}}
 
      [(['on evt & fn-body] :seq)]
-     {:event-handlers {(keyword evt) (first fn-body)}}
+     {:event-handlers {(keyword evt) (list* `do fn-body)}}
 
      [(['output nm output-type & remainder] :seq)]
      (let [oname       (keyword nm)
@@ -211,8 +211,8 @@
          [(['invalidate target-node output] :seq)]
          `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~output))
 
-         [(['set-property target-node property value] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node assoc ~property ~value))
+         [(['set-property target-node & pvs] :seq)]
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node assoc ~@pvs))
 
          [(['update-property target-node property f & args] :seq)]
          `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~f ~@args))
@@ -229,7 +229,7 @@
 (defn- event-loop-specials
   [form]
   (cond
-    (list? form)   (map event-loop-specials (replace-magic-imperatives form))
+    (seq? form)    (map event-loop-specials (replace-magic-imperatives form))
     (vector? form) (mapv event-loop-specials (replace-magic-imperatives form))
     :else          form))
 
@@ -255,11 +255,12 @@
   (let [fn-name     (symbol (str (:name beh) ":event-loop"))
         event-cases (mapcat identity (:event-handlers beh))]
     `(dynamo.types/start-event-loop!
-        [~'self ~'project-state ~'in]
-        (a/go-loop []
+        [~'this ~'project-state ~'in]
+        (a/go-loop [id# (:_id ~'this)]
           (when-let [~'msg (a/<! ~'in)]
             (try
-              (let [~'event        (:body ~'msg)
+              (let [~'self         (dynamo.project/resource-by-id ~'project-state id#)         
+                    ~'event        (:body ~'msg)
                     ~'transaction  (transient [])
                     ~'message-drop (transient [])]
                 (case (dynamo.ui/event-type ~'event)
@@ -270,8 +271,8 @@
                   (doseq [m# (persistent! ~'message-drop)]
                     (apply dynamo.project/publish ~'project-state m#))))
               (catch Exception ~'ex
-                (.printStackTrace ~'ex)))
-            (recur))))))
+                (service.log/error :message "Error in node event loop" :exception ~'ex)))
+            (recur id#))))))
 
 (defn compile-specification
   [name forms]

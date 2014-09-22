@@ -216,9 +216,15 @@
   (output self CameraController [this _] this)
 
   (on :mouse-down
-      (set-property self :last-x (.x event))
-      (set-property self :last-y (.y event))
-      (set-property self :movement (camera-movement event)))
+      (set-property self
+                    :last-x (.x event)
+                    :last-y (.y event)
+                    :movement (camera-movement event))
+      (prn "Mousedown at " (.x event) ", " (.y event) ". Using as " (camera-movement event)))
+
+  (on :mouse-move
+      (when (and (:last-x self) (:last-y self))
+        (prn "dx: " (- (.x event) (:last-x self)) ", dy: " (- (.y event) (:last-y self)))))
 
   (on :mouse-wheel
       (let [camera-node (p/resource-feeding-into project-state self :camera)]
