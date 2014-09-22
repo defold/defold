@@ -24,6 +24,7 @@ public class SceneEd2Test extends ClojureTest {
     ns.add("dynamo.gl.vertex-test");
     ns.add("dynamo.condition-test");
     ns.add("dynamo.gl.translate-test");
+    ns.add("dynamo.camera-test");
 
     return ns;
   }

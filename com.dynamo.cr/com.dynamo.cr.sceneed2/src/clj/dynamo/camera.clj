@@ -9,6 +9,7 @@
             [internal.cache :refer [caching]]
             [dynamo.geom :as g])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d]
+           [org.eclipse.swt SWT]
            [dynamo.types Camera Region AABB]))
 
 (defn camera-view-matrix
@@ -194,9 +195,30 @@
              (fn [fov]
                (max 0.01 (+ (or fov 0) (* (or fov 1) delta))))))
 
+(def ^:private button-interpretation
+  {[:one-button 1 SWT/ALT]                   :rotate
+   [:one-button 1 (bit-or SWT/ALT SWT/CTRL)] :track
+   [:one-button 1 SWT/CTRL]                  :dolly
+   [:three-button 1 SWT/ALT]                 :rotate
+   [:three-button 2 SWT/ALT]                 :track
+   [:three-button 3 SWT/ALT]                 :dolly})
+
+(defn camera-movement
+  ([event]
+    (camera-movement :one-button (.button event) (.stateMask event)))
+  ([mouse-type button mods]
+    (button-interpretation
+      [mouse-type button mods]
+      :idle)))
+
 (n/defnode CameraController
   (input camera [CameraNode])
   (output self CameraController [this _] this)
+
+  (on :mouse-down
+      (set-property self :last-x (.x event))
+      (set-property self :last-y (.y event))
+      (set-property self :movement (camera-movement event)))
 
   (on :mouse-wheel
       (let [camera-node (p/resource-feeding-into project-state self :camera)]
