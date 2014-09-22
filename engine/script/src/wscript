@@ -21,6 +21,8 @@ def build(bld):
     # luasocket
     script.find_sources_in_dirs('luasocket')
     script.source.remove(os.path.join('luasocket', 'mime.c'))
+    script.source.remove(os.path.join('luasocket', 'serial.c'))
+    script.source.remove(os.path.join('luasocket', 'unix.c'))
     script.cflags = ['-DLUASOCKET_API=']
     if bld.env.PLATFORM == 'win32':
         script.source.remove(os.path.join('luasocket', 'usocket.c'))
