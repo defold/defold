@@ -158,9 +158,23 @@
    pass/transparent
    [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this project))}]})
 
+(shader/defshader pos-uv-vert
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader pos-uv-frag
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (defn void main []
+    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
+
 (defnk produce-shader :- s/Int
-  [this gl project]
-  (shader/make-shaders gl (project-path project "/builtins/tools/atlas/pos_uv")))
+  [this gl]
+  (shader/make-shader gl pos-uv-vert pos-uv-frag))
 
 (defnk produce-renderable-vertex-buffer
   [project this gl]

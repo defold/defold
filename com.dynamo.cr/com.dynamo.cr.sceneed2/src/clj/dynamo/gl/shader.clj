@@ -1,10 +1,11 @@
 (ns dynamo.gl.shader
-  (:require [clojure.osgi.core :refer [get-bundle]]
+  (:require [clojure.walk :as walk]
+            [clojure.string :as string]
+            [dynamo.buffers :refer [bbuf->string]]
             [dynamo.geom :as g]
             [dynamo.file :refer [replace-extension]]
             [dynamo.resource :refer [IDisposable dispose]]
-            [dynamo.gl.protocols :refer :all]
-            [service.log :as log])
+            [dynamo.gl.protocols :refer :all])
   (:import [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2]
            [javax.vecmath Matrix4d Vector4f]
@@ -12,22 +13,172 @@
 
 (set! *warn-on-reflection* true)
 
-(defn slurp-bytes
-  [^ByteBuffer buff]
-  (let [buff (.duplicate buff)
-        n (.remaining buff)
-        bytes (byte-array n)]
-    (.get buff bytes)
-    bytes))
+;; ======================================================================
+;; translation functions for a dialect of clojure-like s-expressions
+(declare shader-walk)
 
-(defn alias-buf-bytes
-  "Avoids copy if possible."
-  [^ByteBuffer buff]
-  (if (and (.hasArray buff) (= (.remaining buff) (alength (.array buff))))
-    (.array buff)
-    (slurp-bytes buff)))
+(defn- shader-typed-assign-str [z]
+  (let [[type name value] z
+        _ (assert (= 3 (count z)))
+        asn-str (format "%s %s = %s;\n"
+                          type name
+                          (shader-walk (list value)))]
+    asn-str))
 
-(defn bbuf->string [^ByteBuffer bb] (String. ^bytes (alias-buf-bytes bb) "UTF-8"))
+(defn- shader-assign-str [z]
+  (let [[name value] z
+        _ (assert (= 2 (count z)))
+        asn-str (format "%s = %s;\n"
+                        name
+                        (shader-walk (list value)))]
+    asn-str))
+
+(defn- shader-walk-assign [x]
+  (case (count (rest x))
+    2 (shader-assign-str (rest x))
+    3 (shader-typed-assign-str (rest x))
+    :else (assert false "incorrect number of args for setq statement")))
+
+(defn- shader-walk-defn-args [x]
+  (assert (vector? x))
+  (if (empty? x)
+    "void"
+    (string/join \, (map #(apply (partial format "%s %s") %) (partition 2 x)))))
+
+(defn- shader-walk-defn [x]
+  (let [fn-str (format "%s %s(%s) {\n%s}\n"
+                       (nth x 1)
+                       (nth x 2)
+                       (shader-walk-defn-args (nth x 3))
+                       (string/join (shader-walk (drop 4 x))))]  ;; FIXME add indentation level?
+   fn-str))
+
+(defn- shader-walk-fn [x]
+  (let [pre-fn (if (= (first (str (first x))) \.) "" (str (first x)))
+        post-fn (if (= (first (str (first x))) \.) (str (first x)) "")
+        fn-str (format "%s(%s)%s"
+                       pre-fn
+                       (string/join
+                        \,
+                        (map #(shader-walk (list %)) (rest x)))
+                       post-fn)]
+    fn-str))
+
+(defn- shader-walk-infix [x]
+  (let [fn-str (format "(%s)"
+                       (string/join
+                        (format " %s " (str (first x)))
+                        (map #(shader-walk (list %)) (rest x))))]
+    fn-str))
+
+(defn- infix-operator? [x]
+  (not (nil? (get #{ "+" "-" "*" "/" "=" "<" ">" "<=" ">=" "==" "!=" ">>" "<<"} x))))
+
+(defn- shader-stmt [x]
+  (format "%s;\n" (string/join \space x)))
+
+;; (forloop [ init-stmt test-stmt step-stmt ] body )
+(defn- shader-walk-forloop [x]
+  (let [[init-stmt test-stmt step-stmt] (nth x 1)
+        fl-str (format "for( %s %s; %s ) {\n%s}\n"
+                       (shader-walk (list init-stmt))
+                       (shader-walk (list test-stmt))
+                       (shader-walk (list step-stmt))
+                       (string/join (shader-walk (drop 2 x))))]
+    fl-str))
+
+;; (whileloop test-stmt body )
+(defn- shader-walk-while [x]
+  (let [w-str (format "while%s {\n%s}\n"
+                      (shader-walk (list (nth x 1)))
+                      (string/join (shader-walk (drop 2 x))))]
+    w-str))
+
+(defn- shader-walk-do [x]
+  (let [w-str (format "{\n%s}\n" (string/join (shader-walk (drop 1 x))))]
+    w-str))
+
+(defn- shader-walk-if [x]
+  (case (count (rest x))
+    2  (let [w-str (format "if%s\n%s" ;; if() {}
+                           (shader-walk (list (nth x 1)))
+                           (shader-walk (list (nth x 2))))]
+         w-str)
+    3  (let [w-str (format "if%s\n%selse\n%s" ;; if() {} else {}
+                           (shader-walk (list (nth x 1)))
+                           (shader-walk (list (nth x 2)))
+                           (shader-walk (list (nth x 3))))]
+         w-str)
+    :else (assert false "incorrect number of args for if statement")))
+
+(defn- shader-walk-case [x]
+  (let [[v s] x
+        _ (assert (= 2 (count x)))
+        c-str (if (number? v)
+                (format "case %d:" v)
+                (if (= v :default)
+                  "default:"
+                  (assert false (format "expected integer or default:, got: %s" v))))
+        w-str (format "%s\n%s"
+                      c-str
+                      (shader-walk (list s)))]
+    w-str))
+
+(defn- shader-walk-switch [x]
+  (let [v     (nth x 1)
+        v-str (if (list? v)
+                (shader-walk (list v))
+                (format "(%s)" (shader-walk (list v))))
+        w-str (format "switch%s {\n%s}\n"
+                      v-str
+                      (string/join (map shader-walk-case (partition 2 (drop 2 x)))))]
+    w-str))
+
+(defn- shader-walk-return [x]
+  (format "%s;\n" (shader-walk-fn x)))
+
+(defn- inner-walk
+  [x]
+  (cond
+   (list? x)    (let [sfx (str (first x))]
+                  (cond
+                   (= "defn" sfx)        (shader-walk-defn x)
+                   (= "setq" sfx)        (shader-walk-assign x)
+                   (= "forloop" sfx)     (shader-walk-forloop x)
+                   (= "while" sfx)       (shader-walk-while x)
+                   (= "if" sfx)          (shader-walk-if x)
+                   (= "do" sfx)          (shader-walk-do x)
+                   (= "switch" sfx)      (shader-walk-switch x)
+                   (= "break" sfx)       (shader-stmt x)
+                   (= "continue" sfx)    (shader-stmt x)
+                   (= "uniform" sfx)     (shader-stmt x)
+                   (= "varying" sfx)     (shader-stmt x)
+                   (= "attribute" sfx)   (shader-stmt x)
+                   (= "return" sfx)      (shader-walk-return x)
+                   (infix-operator? sfx) (shader-walk-infix x)
+                   :else                 (shader-walk-fn x)))
+   (symbol? x)  (identity x)
+   (float? x)   (identity x)
+   (integer? x) (identity x)
+   :else        (shader-walk x)))
+
+(defn- outer-walk [x]
+  (cond
+   (list? x)     (string/join x)
+   :else         (identity x)))
+
+(defn- shader-walk [form]
+  (walk/walk inner-walk outer-walk form))
+
+;; ======================================================================
+;; Public API
+(defn create-shader
+  [params]
+  (apply str (shader-walk params)))
+
+(defmacro defshader
+  [name & body]
+  `(def ~name ~(create-shader body)))
 
 (defprotocol ShaderProgram
   (shader-program [this]))
@@ -90,7 +241,12 @@
 (defn make-shader*
   [type ^GL2 gl source]
   (let [shader-name (.glCreateShader gl type)]
-    (.glShaderSource gl shader-name 1 (into-array String [source]) nil)
+    (.glShaderSource gl shader-name 1
+      (into-array String
+                  (if (coll? source)
+                    source
+                    [source]))
+      nil)
     (.glCompileShader gl shader-name)
     (let [status (IntBuffer/allocate 1)]
       (.glGetShaderiv gl shader-name GL2/GL_COMPILE_STATUS status)
@@ -104,12 +260,10 @@
 (def make-fragment-shader (partial make-shader* GL2/GL_FRAGMENT_SHADER))
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
-(defn make-shaders
-  "return a shader with the program defined in sdef.{vp,fp} within the given bundle"
-  [^GL2 gl ^PathManipulation sdef]
-
-  (let [vs      (make-vertex-shader   gl (slurp (replace-extension sdef "vp")))
-        fs      (make-fragment-shader gl (slurp (replace-extension sdef "fp")))
+(defn make-shader
+  [^GL2 gl verts frags]
+  (let [vs (make-vertex-shader gl verts)
+        fs (make-fragment-shader gl frags)
         program (make-program gl vs fs)]
     (reify
       ShaderProgram
@@ -136,3 +290,119 @@
       (set-uniform [this name val]
         (let [loc (.glGetUniformLocation ^GL2 gl program name)]
           (set-uniform-at-index gl program loc val))))))
+
+(defn load-shaders
+  [^GL2 gl ^PathManipulation sdef]
+  (make-shader gl
+                (slurp (replace-extension sdef "vp"))
+                (slurp (replace-extension sdef "fp"))))
+
+(doseq [[v doc]
+        {*ns*
+"
+# Building Shaders
+
+To construct a shader object from .vp and .fp files on disk, use `load-shaders`.
+
+Example:
+
+(load-shaders gl (project-path project \"/builtins/tools/atlas/pos_uv\"))
+
+This will look for pos_uv.vp (a vertex shader) and pos_uv.fp (a fragment shader). It will
+load both shaders and link them into a program.
+
+To make a shader object from GLSL strings (either just as literal strings, or created
+via defshader), use `make-shader`
+
+Example
+(defshader frag ,,,)
+(defshader vert ,,,)
+(make-shader [vert] [frag])
+
+This will use all the strings in the first collection as sources for the vertex shader
+and all the strings in the second collection as sources for the fragment shader. If you
+only have one string, you can pass that instead of a collection.
+
+# GLSL Translator
+
+The GLSL translator is derived from Roger Allen's Shadertone project (https://github.com/overtone/shadertone).
+See licenses/shadertone.txt
+
+This is only a single-pass \"lisp\" to GLSL translator.  Very basic.
+If this is useful, then we can work to improve it.
+
+# Basic Forms
+
+Here are the essential forms.
+  * define functions
+    (defn <return-type> <function-name> <function-args-vector> <body-stmt1> ... )
+  * function calls
+    (<name> <arg1> <arg2> ... )
+  * return value
+    (return <statement>)
+  * variable creation/assignment
+    (uniform <type> <name>)
+    (setq <type> <name> <statement>)
+    (setq <name> <statement>)
+  * looping
+    (forloop [ <init-stmt> <test-stmt> <step-stmt> ] <body-stmt1> ... )
+    (while <test-stmt> <body-stmt1> ... )
+    (break)
+    (continue)
+  * conditionals
+    (if <test> <stmt>)
+    (if <test> (do <body-stmt1> ...))
+    (if <test> <stmt> <else-stmt>)
+    (if <test> (do <body-stmt1> ...) (do <else-stmt1> ...))
+  * switch
+    (switch <test> <case-int-1> <case-stmt-1> ...)
+    cases can only be integers or the keyword :default
+
+# Types
+
+Variable types are exactly the GLSL types.
+
+# Examples
+
+The very simplest case, a constant fragment color.
+
+(defshader test-shader
+   (defn void main []
+      (setq gl_FragColor (vec4 1.0 0.5 0.5 1.0))))
+
+Note that the \"defn\" inside of defshader resembles clojure.core/defn, but
+here it specifically means to create a shader function. Note also the return
+type in the declaration.
+
+Here is an example that uses a uniform variable to be set by the application.
+
+(defshader test-shader
+  (uniform vec3 iResolution)
+  (defn void main []
+    (setq vec2 uv (/ gl_FragCoord.xy iResolution.xy))
+    (setq gl_FragColor (vec4 uv.x uv.y 0.0 1.0))))
+
+There are some examples in the testcases in dynamo.shader.translate-test."
+
+#'load-shaders
+"Load a shader from files. Takes a PathManipulation that can be used to
+locate the .vp and .fp files. Returns an object that satisifies GlEnable,
+GlDisable, and IDisposable."
+
+#'make-shader
+"Ready a shader program for use by compiling and linking it. Takes a collection
+of GLSL strings and returns an object that satisfies GlEnable, GlDisable, and
+IDisposable."
+
+#'defshader
+"Macro to define the fragment shader program. Defines a new var whose contents will
+be the return value of `create-shader`.
+
+This must be submitted to the driver for compilation before you can use it. See
+`make-shader`"
+
+#'create-shader
+"Returns a string in GLSL suitable for compilation. Takes a list of forms.
+These forms should be quoted, as if they came from a macro."
+         }]
+  (alter-meta! v assoc :doc doc))
