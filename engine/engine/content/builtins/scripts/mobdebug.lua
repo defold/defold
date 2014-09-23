@@ -6,10 +6,10 @@
 
 -- use loaded modules or load explicitly on those systems that require that
 local require = require
---local io = io or require "io"
---local table = table or require "table"
---local string = string or require "string"
---local coroutine = coroutine or require "coroutine"
+local io = io or require "io"
+local table = table or require "table"
+local string = string or require "string"
+local coroutine = coroutine or require "coroutine"
 -- protect require "os" as it may fail on embedded systems without os module
 local os = os or (function(module)
   local ok, res = pcall(require, module)
@@ -94,8 +94,8 @@ local iscasepreserving = win or (mac and io.open('/library') ~= nil)
 -- reliable hook calls at any later point in time."
 if jit and jit.off then jit.off() end
 
--- local socket = require "socket"
--- local debug = require "debug"
+local socket = require "socket"
+local debug = require "debug"
 local coro_debugger
 local coro_debugee
 local coroutines = {}; setmetatable(coroutines, {__mode = "k"}) -- "weak" keys
@@ -124,8 +124,6 @@ local debugee = function ()
   error(deferror)
 end
 local function q(s) return s:gsub('([%(%)%.%%%+%-%*%?%[%^%$%]])','%%%1') end
-
-
 
 local serpent = (function() ---- include Serpent module for serialization
 local n, v = "serpent", 0.272 -- (C) 2012-13 Paul Kulchenko; MIT License
@@ -590,14 +588,6 @@ local function debug_hook(event, line)
         end
       end
 
-      -- DEFOLD: Change 'scriptc' into 'script' because of how files are built.
-      --         If that does not update the string, it should be a .lua file
-      --         where we can get paths with . instead of /
-      local old = file
-      file = string.lower(file:gsub("scriptc$", "script"))
-      if old == file then
-            file = file:gsub("%.", "/") .. ".lua"
-      end
       -- set to true if we got here; this only needs to be done once per
       -- session, so do it here to at least avoid setting it for every line.
       seen_hook = true
@@ -991,7 +981,6 @@ local function start(controller_host, controller_port)
 
   local err
   server, err = (socket.connect4 or socket.connect)(controller_host, controller_port)
-   
   if server then
     -- correct stack depth which already has some calls on it
     -- so it doesn't go into negative when those calls return
@@ -1510,7 +1499,7 @@ local function listen(host, port)
   host = host or "*"
   port = port or mobdebug.port
 
-  local socket = require 'builtins.scripts.socket'
+  local socket = require "socket"
 
   print("Lua Remote Debugger")
   print("Run the program you wish to debug")

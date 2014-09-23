@@ -7,14 +7,27 @@
 -- Declare module and import dependencies
 -----------------------------------------------------------------------------
 local base = _G
+local string = require("string")
+local math = require("math")
+local socket = require("socket.core")
 
--- $dan: these are 
--- local string = require("string")
--- local math = require("math")
-
-local socket = require('socket.core'')
 local _M = socket
 
+-- this is needed in case this library is used when "socket.core" is loaded,
+-- but has an older version of luasocket that does not include `connect`.
+if not socket.connect then
+  socket.connect = function (address, port, laddress, lport)
+    local sock, err = socket.tcp()
+    if not sock then return nil, err end
+    if laddress then
+        local res, err = sock:bind(laddress, lport, -1)
+        if not res then return nil, err end
+    end
+    local res, err = sock:connect(address, port)
+    if not res then return nil, err end
+    return sock
+  end
+end
 
 -----------------------------------------------------------------------------
 -- Exported auxiliar functions
@@ -26,7 +39,6 @@ end
 function _M.connect6(address, port, laddress, lport)
     return socket.connect(address, port, laddress, lport, "inet6")
 end
-
 
 function _M.bind(host, port, backlog)
     if host == "*" then host = "0.0.0.0" end
@@ -70,7 +82,6 @@ function _M.choose(table)
     end
 end
 
-
 -----------------------------------------------------------------------------
 -- Socket sources and sinks, conforming to LTN12
 -----------------------------------------------------------------------------
@@ -108,7 +119,6 @@ sinkt["keep-open"] = function(sock)
 end
 
 sinkt["default"] = sinkt["keep-open"]
-
 
 _M.sink = _M.choose(sinkt)
 
