@@ -244,7 +244,7 @@
 
 (defn camera-movement
   ([event]
-    (camera-movement :one-button (.button event) (.stateMask event)))
+    (camera-movement (ui/mouse-type) (.button event) (.stateMask event)))
   ([mouse-type button mods]
     (button-interpretation [mouse-type button mods] :idle)))
 

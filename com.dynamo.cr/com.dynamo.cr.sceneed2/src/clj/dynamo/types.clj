@@ -32,6 +32,8 @@
 (def Icon    s/Str)
 (def NodeRef s/Int)
 
+(def MouseType (s/enum :one-button :three-button))
+
 (sm/defrecord Rect
   [path     :- s/Any
    x        :- Int32

@@ -2,8 +2,15 @@
   (:require [clojure.core.async :refer [chan dropping-buffer put!]]
             [internal.ui.handlers :as h]
             [camel-snake-kebab :refer :all])
-  (:import  [org.eclipse.swt.widgets Display Listener]
+  (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
+            [org.eclipse.swt.widgets Display Listener]
             [org.eclipse.swt SWT]))
+
+(defn mouse-type
+  []
+  (if (= SceneUtil$MouseType/ONE_BUTTON (SceneUtil/getMouseType))
+    :one-button
+    :three-button))
 
 (defn display
   []
