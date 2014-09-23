@@ -153,7 +153,7 @@
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 
 (defmacro glu-ortho [glu region]
-  `(.gluOrtho2D ~glu (double (:left ~region)) (double (:right ~region)) (double (:bottom ~region)) (double (:top ~region))))
+  `(.gluOrtho2D ~glu (double (.left ~region)) (double (.right ~region)) (double (.bottom ~region)) (double (.top ~region))))
 
 
 (defmacro do-gl

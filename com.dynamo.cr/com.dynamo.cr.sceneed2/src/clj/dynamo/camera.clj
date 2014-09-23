@@ -107,7 +107,7 @@
     (let [distance 10000.0
           position (doto (Vector3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-      (t/->Camera t position rotation 1 2000 1 30))))
+      (t/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0) (t/->Region 0 0 0 0)))))
 
 (sm/defn set-orthographic :- Camera
   [camera :- Camera fov :- s/Num aspect :- s/Num z-near :- s/Num z-far :- s/Num]
@@ -146,7 +146,6 @@
     (.transform (g/invert view-matrix) center)
     (camera-set-position camera (.x center) (.y center) (.z center))))
 
-
 (sm/defn camera-project :- Point3d
   "Returns a point in device space (i.e., corresponding to pixels on screen)
    that the given point projects onto. The input point should be in world space."
@@ -171,6 +170,35 @@
           device-y (- (.bottom region) (.top region) ry 1)]
       (Point3d. rx device-y rz))))
 
+(defmacro scale-to-doubleunit [x x-min x-max]
+  `(- (/ (* (- ~x ~x-min) 2) ~x-max) 1.0))
+
+(defmacro normalize-vector [v]
+  `(do
+     (if (= (.w ~v) 0.0) (throw (ArithmeticException.)))
+     (Vector4d. (/ (.x ~v) (.w ~v))
+                (/ (.y ~v) (.w ~v))
+                (/ (.z ~v) (.w ~v))
+                1.0)))
+
+(sm/defn camera-unproject
+  [camera :- Camera win-x :- s/Num win-y :- s/Num win-z :- s/Num]
+  (let [viewport (:viewport camera)
+        win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
+        in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
+                            (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
+                            (- (* 2 win-z) 1.0)
+                            1.0)
+        proj     (camera-projection-matrix camera)
+        model    (camera-view-matrix camera)
+        a        (Matrix4d.)
+        out      (Vector4d.)]
+    (.mul a proj model)
+    (.invert a)
+    (.transform a in out)
+
+    (normalize-vector out)))
+
 (sm/defn viewproj-frustum-planes
   [camera :- Camera]
   (let [view-proj   (doto (camera-projection-matrix camera)
@@ -187,13 +215,24 @@
          rows scales)))
 
 (n/defnode CameraNode
-  (property camera {:schema Camera})
+  (property camera      {:schema Camera})
   (output   camera Camera [this _] (:camera this)))
 
-(defn dolly [camera delta]
-  (update-in camera [:camera :fov]
+(defn dolly
+  [camera delta]
+  (update-in camera [:fov]
              (fn [fov]
                (max 0.01 (+ (or fov 0) (* (or fov 1) delta))))))
+
+(defn track
+  [camera last-x last-y evt-x evt-y]
+  (let [focus (:focus-point camera)
+        point (camera-project camera (:viewport camera) (Point3d. (.x focus) (.y focus) (.z focus)))
+        world (camera-unproject camera evt-x evt-y (.z point))
+        delta (camera-unproject camera last-x last-y (.z point))]
+    (.sub delta world)
+    (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
+           :focus-point (doto focus (.add delta)))))
 
 (def ^:private button-interpretation
   {[:one-button 1 SWT/ALT]                   :rotate
@@ -207,24 +246,37 @@
   ([event]
     (camera-movement :one-button (.button event) (.stateMask event)))
   ([mouse-type button mods]
-    (button-interpretation
-      [mouse-type button mods]
-      :idle)))
+    (button-interpretation [mouse-type button mods] :idle)))
 
 (n/defnode CameraController
   (input camera [CameraNode])
+
+  (property movement {:schema s/Any :default :idle})
+
   (output self CameraController [this _] this)
 
   (on :mouse-down
       (set-property self
                     :last-x (.x event)
                     :last-y (.y event)
-                    :movement (camera-movement event))
-      (prn "Mousedown at " (.x event) ", " (.y event) ". Using as " (camera-movement event)))
+                    :movement (camera-movement event)))
 
   (on :mouse-move
-      (when (and (:last-x self) (:last-y self))
-        (prn "dx: " (- (.x event) (:last-x self)) ", dy: " (- (.y event) (:last-y self)))))
+      (when (not (= :idle (:movement self)))
+        (let [camera-node (p/resource-feeding-into project-state self :camera)]
+          (case (:movement self)
+            :dolly  (do (update-property camera-node :camera dolly (* -0.002 (- (.y event) (:last-y self)))) (repaint))
+            :track  (do (update-property camera-node :camera track (:last-x self) (:last-y self) (.x event) (.y event)) (repaint))
+            nil)
+          (set-property self
+                        :last-x (.x event)
+                        :last-y (.y event)))))
+
+  (on :mouse-up
+      (set-property self
+                    :last-x nil
+                    :last-y nil
+                    :movement :idle))
 
   (on :mouse-wheel
       (let [camera-node (p/resource-feeding-into project-state self :camera)]

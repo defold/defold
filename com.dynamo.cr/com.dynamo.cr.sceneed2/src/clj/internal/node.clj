@@ -215,7 +215,7 @@
          `(conj! ~'transaction (dynamo.project/update-resource ~target-node assoc ~@pvs))
 
          [(['update-property target-node property f & args] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~f ~@args))
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node update-in [~property] ~f ~@args))
 
          [(['new node-type & rest] :seq)]
          (let [ctor (symbol (str 'make- (->kebab-case (str node-type))))]
@@ -259,7 +259,7 @@
         (a/go-loop [id# (:_id ~'this)]
           (when-let [~'msg (a/<! ~'in)]
             (try
-              (let [~'self         (dynamo.project/resource-by-id ~'project-state id#)         
+              (let [~'self         (dynamo.project/resource-by-id ~'project-state id#)
                     ~'event        (:body ~'msg)
                     ~'transaction  (transient [])
                     ~'message-drop (transient [])]

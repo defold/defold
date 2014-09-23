@@ -95,6 +95,12 @@
 
 (def RenderData {(s/required-key Pass) s/Any})
 
+(sm/defrecord Region
+  [left   :- s/Num
+   right  :- s/Num
+   top    :- s/Num
+   bottom :- s/Num])
+
 (sm/defrecord Camera
   [type           :- (s/enum :perspective :orthographic)
    position       :- Vector3d
@@ -102,13 +108,9 @@
    z-near         :- s/Num
    z-far          :- s/Num
    aspect         :- s/Num
-   fov            :- s/Num])
-
-(sm/defrecord Region
-  [left   :- s/Num
-   right  :- s/Num
-   top    :- s/Num
-   bottom :- s/Num])
+   fov            :- s/Num
+   focus-point    :- Vector4d
+   viewport       :- Region])
 
 (defn bool                 [& {:as opts}] (merge {:schema s/Bool} opts))
 (defn number               [& {:as opts}] (merge {:schema s/Num} opts))
