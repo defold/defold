@@ -26,7 +26,7 @@
             [camel-snake-kebab :refer :all]
             [clojure.osgi.core :refer [*bundle*]])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
-            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
+            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
             [com.jogamp.opengl.util.awt TextRenderer]
             [java.nio ByteBuffer]
@@ -428,7 +428,9 @@
                 (.setFormat          (.format engine-format))
                 (.setData            (byte-pack (.data engine-format)))
                 (.addAllMipMapOffset (.mipmap-offsets engine-format))
-                (.addAllMipMapSize   (.mipmap-sizes engine-format)))))))
+                (.addAllMipMapSize   (.mipmap-sizes engine-format))))
+            (.setType            (Graphics$TextureImage$Type/TYPE_2D))
+            (.setCount           1))))
 
 (defnk compile-texturec :- s/Bool
   [this g project textureset :- TextureSet]
