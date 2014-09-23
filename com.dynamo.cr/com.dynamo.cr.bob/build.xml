@@ -95,11 +95,6 @@
         <copy todir="${classes.dir}">
             <fileset dir="src" includes="**/*.properties" />
         </copy>
-        <copy todir="lib">
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="**/*texc_shared*"/>
-            </fileset>
-        </copy>
     </target>
 
     <target name="dist" depends="compile">
@@ -119,9 +114,6 @@
 
         <jar destfile="dist/bob-light.jar">
             <fileset dir="${classes.dir}"/>
-            <fileset dir="lib">
-                <include name="**/*texc_shared*"/>
-            </fileset>
             <zipfileset src="tmp/external-libs.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
@@ -150,9 +142,6 @@
 
         <jar destfile="dist/bob.jar">
             <fileset dir="${classes.dir}"/>
-            <fileset dir="lib">
-                <include name="**/*texc_shared*"/>
-            </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>

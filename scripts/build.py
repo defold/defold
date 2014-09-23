@@ -2,6 +2,7 @@
 
 import os, sys, shutil, zipfile, re, itertools, json
 import optparse, subprocess, urllib, urlparse, tempfile
+import imp
 from datetime import datetime
 from tarfile import TarFile
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
@@ -106,6 +107,12 @@ class Configuration(object):
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.target_platform = target_platform
+
+        # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
+        # N.B. If we upgrade to move recent versions of python, then the method of module loading should also change.
+        build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'scripts', 'BuildUtility', 'BuildUtility.py'))
+        self.build_utility = build_utility_module.BuildUtility(self.host, self.target_platform, self.dynamo_home)
+
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
         self.disable_ccache = disable_ccache
@@ -248,8 +255,10 @@ class Configuration(object):
         for n in 'js-web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
-        for n in 'waf_dynamo.py waf_content.py'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
+        python_modules = ['waf_dynamo.py', 'waf_content.py']
+        python_dir = join(self.dynamo_home, 'lib/python')
+        for n in python_modules:
+            self._copy(join(self.defold_root, 'share', n), python_dir)
 
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
@@ -302,18 +311,8 @@ class Configuration(object):
         if err:
             print 'Consider running install_ems'
 
-    def _git_sha1(self, dir = '.', ref = None):
-        args = 'git log --pretty=%H -n1'.split()
-        if ref:
-            args.append(ref)
-        process = subprocess.Popen(args, stdout = subprocess.PIPE)
-        out, err = process.communicate()
-        if process.returncode != 0:
-            sys.exit(process.returncode)
-
-        line = out.split('\n')[0].strip()
-        sha1 = line.split()[0]
-        return sha1
+    def _git_sha1(self, ref = None):
+        return self.build_utility.git_sha1(ref)
 
     def _ziptree(self, path, outfile = None, directory = None):
         # Directory is similar to -C in tar
@@ -363,23 +362,16 @@ class Configuration(object):
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
-        if self.is_cross_platform():
-            # When cross compiling or when compiling for 64-bit the engine is located
-            # under PREFIX/bin/platform/...
-
-            bin_dir = self.target_platform
-            lib_dir = self.target_platform
-        else:
-            bin_dir = ''
-            lib_dir = ''
+        bin_dir = self.get_binary_path()
+        lib_dir = self.get_library_path()
 
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
-                engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext)
+                engine = join(bin_dir, exe_prefix + n + exe_ext)
                 self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
                 if self.target_platform == 'js-web':
-                    engine_mem = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext + '.mem')
+                    engine_mem = join(bin_dir, exe_prefix + n + exe_ext + '.mem')
                     if os.path.exists(engine_mem):
                         self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
 
@@ -476,9 +468,6 @@ class Configuration(object):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        self.exec_env_command("./scripts/copy_libtexc.sh",
-                          cwd = cwd,
-                          shell = True)
         self.exec_env_command("./scripts/copy_builtins_archive.sh",
                           cwd = cwd,
                           shell = True)
@@ -790,7 +779,7 @@ instructions.configure=\
         if self.channel == 'stable':
             release_sha1 = model['releases'][0]['sha1']
         elif self.channel == 'beta':
-            release_sha1 = self._git_sha1('origin/dev')
+            release_sha1 = self._git_sha1()
         else:
             raise Exception('Unknown channel %s' % self.channel)
 
@@ -956,6 +945,7 @@ instructions.configure=\
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
         env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
+                                                  '%s/scripts/BuildUtility' % self.defold,
                                                   '%s/ext/lib/python' % self.dynamo_home])
 
         env['DYNAMO_HOME'] = self.dynamo_home
