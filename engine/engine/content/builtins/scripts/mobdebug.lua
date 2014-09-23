@@ -590,8 +590,14 @@ local function debug_hook(event, line)
         end
       end
 
-		file = string.lower(file:gsub("c$", ""))
-	
+      -- DEFOLD: Change 'scriptc' into 'script' because of how files are built.
+      --         If that does not update the string, it should be a .lua file
+      --         where we can get paths with . instead of /
+      local old = file
+      file = string.lower(file:gsub("scriptc$", "script"))
+      if old == file then
+            file = file:gsub("%.", "/") .. ".lua"
+      end
       -- set to true if we got here; this only needs to be done once per
       -- session, so do it here to at least avoid setting it for every line.
       seen_hook = true
@@ -985,7 +991,7 @@ local function start(controller_host, controller_port)
 
   local err
   server, err = (socket.connect4 or socket.connect)(controller_host, controller_port)
-   
+
   if server then
     -- correct stack depth which already has some calls on it
     -- so it doesn't go into negative when those calls return
