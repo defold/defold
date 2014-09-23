@@ -585,8 +585,9 @@ IBranchListener {
                         ClojureHelper.require("internal.system");
                         monitor.worked(1);
                         ClojureHelper.invoke("internal.system", "start");
-                        monitor.worked(2);
+                        monitor.worked(1);
                         ClojureHelper.invoke("internal.system", "attach-project", p, branch);
+                        monitor.worked(1);
                         monitor.done();
                     } catch(Exception e) {
                         showError("Unable to start editor tools", e);

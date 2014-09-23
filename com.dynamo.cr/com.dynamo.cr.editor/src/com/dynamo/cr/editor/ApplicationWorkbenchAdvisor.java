@@ -30,10 +30,12 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
 
     private static final String PERSPECTIVE_ID = "com.dynamo.cr.editor.perspective"; //$NON-NLS-1$
 
+    @Override
     public WorkbenchWindowAdvisor createWorkbenchWindowAdvisor(IWorkbenchWindowConfigurer configurer) {
         return new ApplicationWorkbenchWindowAdvisor(configurer);
     }
 
+    @Override
     public String getInitialWindowPerspectiveId() {
         return PERSPECTIVE_ID;
     }
@@ -98,6 +100,8 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
     @Override
     public void postStartup() {
         super.postStartup();
+
+        new ClojureBootstrap().schedule();
 
         // Enable/disable automatic refresh based on when editor is active/not active
         // Primary reason is to disable auto-staging of files but probably good in general
