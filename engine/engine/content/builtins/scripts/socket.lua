@@ -8,11 +8,7 @@
 -----------------------------------------------------------------------------
 local base = _G
 
--- $dan: these are 
--- local string = require("string")
--- local math = require("math")
-
-local socket = require('socket.core'')
+local socket = require('socket.core')
 local _M = socket
 
 
@@ -26,7 +22,6 @@ end
 function _M.connect6(address, port, laddress, lport)
     return socket.connect(address, port, laddress, lport, "inet6")
 end
-
 
 function _M.bind(host, port, backlog)
     if host == "*" then host = "0.0.0.0" end
@@ -70,7 +65,6 @@ function _M.choose(table)
     end
 end
 
-
 -----------------------------------------------------------------------------
 -- Socket sources and sinks, conforming to LTN12
 -----------------------------------------------------------------------------
@@ -108,7 +102,6 @@ sinkt["keep-open"] = function(sock)
 end
 
 sinkt["default"] = sinkt["keep-open"]
-
 
 _M.sink = _M.choose(sinkt)
 
