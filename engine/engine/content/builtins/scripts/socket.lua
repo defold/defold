@@ -7,27 +7,10 @@
 -- Declare module and import dependencies
 -----------------------------------------------------------------------------
 local base = _G
-local string = require("string")
-local math = require("math")
-local socket = require("socket.core")
 
+local socket = require('socket.core')
 local _M = socket
 
--- this is needed in case this library is used when "socket.core" is loaded,
--- but has an older version of luasocket that does not include `connect`.
-if not socket.connect then
-  socket.connect = function (address, port, laddress, lport)
-    local sock, err = socket.tcp()
-    if not sock then return nil, err end
-    if laddress then
-        local res, err = sock:bind(laddress, lport, -1)
-        if not res then return nil, err end
-    end
-    local res, err = sock:connect(address, port)
-    if not res then return nil, err end
-    return sock
-  end
-end
 
 -----------------------------------------------------------------------------
 -- Exported auxiliar functions
