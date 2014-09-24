@@ -103,8 +103,8 @@ class BuildUtility:
             raise BuildUtilityException("DYNAMO_HOME not set")
         self._dynamo_home = dynamo_home
         self._dynamo_ext = os.path.join(self._dynamo_home, 'ext')
-        self._library_path = os.path.join(self._dynamo_home, "lib", self._platform['platform'])
-        self._binary_path = os.path.join(self._dynamo_home, 'bin', self._platform['platform'])
+        self._library_path = os.path.join(self._dynamo_home, "lib", self._build_platform['platform'])
+        self._binary_path = os.path.join(self._dynamo_home, 'bin', self._build_platform['platform'])
     # _initialise_paths
 
 # class BuildUtility
