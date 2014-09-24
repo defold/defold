@@ -8,6 +8,7 @@ blddir = 'build'
 
 import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
+from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 if sys.platform == "win32":
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto"
@@ -21,20 +22,16 @@ def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
 
-def git_sha1(dir = '.'):
-    process = subprocess.Popen('git log --pretty=%H -n1'.split(), stdout = subprocess.PIPE)
-    out, err = process.communicate()
-    if process.returncode != 0:
-        sys.exit(process.returncode)
-
-    line = out.split('\n')[0].strip()
-    sha1 = line.split()[0]
-    return sha1
-
 def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.check_tool('java')
     conf.check_tool('waf_resource')
+
+    build_util = None
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
 
     engine_version = """
 namespace dmEngineVersion
@@ -51,7 +48,7 @@ namespace dmEngineVersion
     full = os.path.normpath(full)
     with open('../../VERSION', 'r') as f:
         version = f.readline().strip()
-    sha1 = git_sha1()
+    sha1 = build_util.git_sha1()
     with open(full, 'w') as f:
         f.write(engine_version % {"version": version, "sha1": sha1})
 
@@ -65,31 +62,26 @@ namespace dmEngineVersion
 
     conf.sub_config('src')
 
-    dynamo_home = os.getenv('DYNAMO_HOME')
-    if not dynamo_home:
-        conf.fatal("DYNAMO_HOME not set")
-
-    dynamo_ext = os.path.join(dynamo_home, "ext")
-
-    platform = conf.env.PLATFORM
+    operating_sys = build_util.get_target_os()
+    architecture = build_util.get_target_architecture()
 
     sound_lib = 'sound'
-    if platform == "darwin":
+    if operating_sys == 'osx':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-    elif re.match('arm.*?darwin', platform):
+    elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
         # For Facebook SDK...
         conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
-    elif re.match('arm.*?android', platform):
+    elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
         sound_lib = 'sound2'
-    elif platform == "linux":
+    elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif platform == "win32":
+    elif operating_sys == "win" and architecture == 'x86':
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])
-    elif platform == 'js-web':
+    elif operating_sys == 'web' and architecture == 'js':
         sound_lib = 'sound2'
 
     conf.env['LIB_GTEST'] = 'gtest'
@@ -123,20 +115,20 @@ namespace dmEngineVersion
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
 
-    if conf.env.PLATFORM.find('arm') == -1 and conf.env.PLATFORM.find('web') == -1:
+    if operating_sys != 'ios' and operating_sys != 'android' and operating_sys != 'web':
         conf.env['STATICLIB_RECORD'] = 'record'
         conf.env['LIB_VPX'] = 'vpx'
     else:
         conf.env['STATICLIB_RECORD'] = 'record_null'
         conf.env['LIB_VPX'] = ''
 
-    if platform == "linux":
+    if operating_sys == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
-    elif platform == "darwin":
+    elif operating_sys == "osx":
         pass
-    elif platform == "win32":
+    elif operating_sys == "win" and architecture == "x86":
         conf.env['LIB_OPENAL'] = 'OpenAL32'
-        conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include", "AL"))
+        conf.env.append_value('CPPPATH', build_util.get_dynamo_ext("include", "AL"))
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
@@ -148,7 +140,13 @@ def build(bld):
 
     bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0755)
 
-    if 'js-web' in bld.env['PLATFORM']:
+    build_util = None
+    try:
+        build_util = create_build_utility(bld.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
+
+    if build_util.get_target_os() == 'web' and build_util.get_target_architecture() == 'js':
         srcPath = os.path.join('build', 'default', 'src')
         builds = ['','_release', '_headless']
         for build in builds:

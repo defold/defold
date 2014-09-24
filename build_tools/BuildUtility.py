@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import os, exceptions;
+import os, subprocess, exceptions;
 
 class BuildUtilityException(Exception):
     def __init__(self, msg):

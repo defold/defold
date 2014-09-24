@@ -110,7 +110,7 @@ class Configuration(object):
 
         # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
         # N.B. If we upgrade to move recent versions of python, then the method of module loading should also change.
-        build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'scripts', 'BuildUtility', 'BuildUtility.py'))
+        build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'build_tools', 'BuildUtility.py'))
         self.build_utility = build_utility_module.BuildUtility(self.host, self.target_platform, self.dynamo_home)
 
         self.skip_tests = skip_tests
@@ -139,7 +139,7 @@ class Configuration(object):
             os._exit(5)
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'lib/python', 'share', 'lib/js-web/js']:
+        for p in ['ext/lib/python', 'share', 'lib/js-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -255,11 +255,6 @@ class Configuration(object):
         for n in 'js-web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
-        python_modules = ['waf_dynamo.py', 'waf_content.py']
-        python_dir = join(self.dynamo_home, 'lib/python')
-        for n in python_modules:
-            self._copy(join(self.defold_root, 'share', n), python_dir)
-
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
@@ -362,8 +357,8 @@ class Configuration(object):
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
-        bin_dir = self.get_binary_path()
-        lib_dir = self.get_library_path()
+        bin_dir = self.target_platform
+        lib_dir = self.target_platform
 
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
@@ -941,16 +936,17 @@ instructions.configure=\
         env = dict(os.environ)
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
-        env[ld_library_path] = os.path.pathsep.join(['%s/lib' % self.dynamo_home,
+        env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
         env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
-                                                  '%s/scripts/BuildUtility' % self.defold,
+                                                  '%s/build_tools' % self.defold,
                                                   '%s/ext/lib/python' % self.dynamo_home])
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
-        paths = os.path.pathsep.join(['%s/bin' % self.dynamo_home,
+        paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
+                                      '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, self.host),
                                       '%s/ext/go/bin' % self.dynamo_home])

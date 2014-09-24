@@ -1,5 +1,4 @@
 #! /usr/bin/env python
-from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 VERSION = '0.1'
 APPNAME = 'dlib'
@@ -9,6 +8,7 @@ blddir = 'build'
 
 import Options
 import os, sys, waf_dynamo
+from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 def init():
     pass

@@ -59,15 +59,10 @@ def default_flags(self):
     build_util = create_build_utility(self.env)
 
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
-        # OSX and iOS
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
-
-        if 'armv7' == build_util.get_target_architecture():
-            # iOS
-            # NOTE: AdSupport here but used in dlib and hence every other library implicitly
+        if 'ios' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport'])
         else:
-            # OSX
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
@@ -146,6 +141,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
 
     libpath = build_util.get_library_path()
+
     # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
     if not os.path.exists(libpath):
         os.makedirs(libpath)
@@ -1121,8 +1117,6 @@ def detect(conf):
         else:
             Logs.info('ccache disabled')
 
-    # Libaries installed into $PREFIX/<platform>
-    # Binaries installed into $PREFIX/<platform>
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
