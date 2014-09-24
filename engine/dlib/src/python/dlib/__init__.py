@@ -2,13 +2,13 @@ import ctypes, os, sys
 
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
-    libdir = "lib"
+    libdir = "lib/darwin"
 elif sys.platform == "linux2":
     libname = "libdlib_shared.so"
-    libdir = "lib"
+    libdir = "lib/linux"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
-    libdir = "lib"
+    libdir = "lib/win32"
 
 dlib = None
 try:

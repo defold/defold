@@ -4,7 +4,6 @@ Bundle-Name: Google Guice
 Bundle-SymbolicName: com.google.inject
 Bundle-Version: 3.0.0.qualifier
 Bundle-ClassPath: guice-3.0.jar,
- javax.inject.jar,
  aopalliance.jar
 Export-Package: com.google.inject,
  com.google.inject.binder,
@@ -18,7 +17,7 @@ Export-Package: com.google.inject,
  com.google.inject.name,
  com.google.inject.spi,
  com.google.inject.util,
- javax.inject,
  org.aopalliance.aop,
  org.aopalliance.intercept
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Require-Bundle: javax.inject;bundle-version="1.0.0"

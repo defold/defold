@@ -66,7 +66,7 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        const uint32_t buffer_size = 256;
+        const uint32_t buffer_size = 512;
         uint8_t buffer[buffer_size];
         dmGameSystemDDF::Create* request = (dmGameSystemDDF::Create*)buffer;
 

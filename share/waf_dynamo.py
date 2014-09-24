@@ -152,12 +152,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
 
-    if platform == build_platform:
-        # Host libraries are installed to $PREFIX/lib
-        libpath = os.path.join(dynamo_home, "lib")
-    else:
-        # Cross libraries are installed to $PREFIX/lib/PLATFORM
-        libpath = os.path.join(dynamo_home, "lib", platform)
+    libpath = os.path.join(dynamo_home, "lib", platform)
 
     # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
     if not os.path.exists(libpath):
@@ -1134,13 +1129,8 @@ def detect(conf):
         else:
             Logs.info('ccache disabled')
 
-    if platform == build_platform:
-        # Host libraries are installed to $PREFIX/lib
-        conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin', conf.env)
-    else:
-        # Cross libraries are installed to $PREFIX/lib/PLATFORM
-        conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % platform, conf.env)
-        conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % platform, conf.env)
+    conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % platform, conf.env)
+    conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % platform, conf.env)
 
     if platform == "linux":
         conf.env['LIB_PLATFORM_SOCKET'] = ''

@@ -16,7 +16,6 @@ import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.StructuredSelection;
-import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
@@ -70,7 +69,6 @@ public class SceneTest {
             bind(IUndoContext.class).to(UndoContext.class).in(Singleton.class);
             bind(IContainer.class).toInstance(contentRoot);
             bind(ManipulatorController.class).in(Singleton.class);
-            bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
             bind(IRenderView.class).toInstance(mock(IRenderView.class));
             bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
             bind(IClipboard.class).to(DummyClipboard.class).in(Singleton.class);
