@@ -363,15 +363,8 @@ class Configuration(object):
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
-        if self.is_cross_platform():
-            # When cross compiling or when compiling for 64-bit the engine is located
-            # under PREFIX/bin/platform/...
-
-            bin_dir = self.target_platform
-            lib_dir = self.target_platform
-        else:
-            bin_dir = ''
-            lib_dir = ''
+        bin_dir = self.target_platform
+        lib_dir = self.target_platform
 
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
@@ -952,7 +945,7 @@ instructions.configure=\
         env = dict(os.environ)
 
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
-        env[ld_library_path] = os.path.pathsep.join(['%s/lib' % self.dynamo_home,
+        env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
         env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
@@ -960,7 +953,8 @@ instructions.configure=\
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
-        paths = os.path.pathsep.join(['%s/bin' % self.dynamo_home,
+        paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
+                                      '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, self.host),
                                       '%s/ext/go/bin' % self.dynamo_home])

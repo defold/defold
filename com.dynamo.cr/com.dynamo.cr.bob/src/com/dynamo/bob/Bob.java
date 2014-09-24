@@ -192,25 +192,17 @@ public class Bob {
         String ext = "";
         String platform = getPlatform();
         if (platform.equals("win32")) {
+            prefix = "lib/win32/";
             ext = ".dll";
         } else if (platform.equals("darwin")) {
-            prefix = "x86_64-darwin/lib";
+            prefix = "lib/x86_64-darwin/lib";
             ext = ".dylib";
         } else if (platform.equals("linux")) {
-            prefix = "lib";
+            prefix = "lib/linux/lib";
             ext = ".so";
         }
         String path = prefix + "texc_shared" + ext;
         File file = FileUtils.toFile(getFile(uri, path).toURL());
-        if (!file.exists()) {
-            String libPath = uri.getPath() + "lib/";
-            // No platform-qualified path in dev mode (waf install)
-            if (!isDev() && !platform.equals("darwin")) {
-                libPath = libPath.concat(platform);
-            }
-            uri = new File(libPath).toURI();
-            file = FileUtils.toFile(getFile(uri, path).toURL());
-        }
         texcLibDir = file.getParentFile().getAbsolutePath();
     }
 
