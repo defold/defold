@@ -30,8 +30,8 @@ protected:
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         assert(dmMessage::NewSocket("@system", &m_Socket) == dmMessage::RESULT_OK);
 
         m_MessageTargetCounter = 0;
@@ -98,6 +98,7 @@ public:
     std::map<uint32_t, uint32_t> m_MessageMap;
 
     uint32_t m_MessageTargetCounter;
+    dmGameObject::ModuleContext m_ModuleContext;
 };
 
 const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");

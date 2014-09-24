@@ -1065,23 +1065,29 @@ namespace dmGameObject
      */
     void CancelAnimations(HCollection collection, HInstance instance);
 
+    struct ModuleContext
+    {
+        dmArray<dmScript::HContext> m_ScriptContexts;
+    };
+
     /**
      * Register all resource types in resource factory
      * @param factory Resource factory
      * @param regist Register
+     * @param script_context Script context
+     * @param module_context Module context, must be persistent throughout the application
      * @return dmResource::Result
      */
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist);
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context);
 
     /**
      * Register all component types in collection
      * @param factory Resource factory
      * @param regist Register
+     * @param script_context Script context
      * @return Result
      */
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist);
-
-    lua_State* GetLuaState();
+    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context);
 
 }
 

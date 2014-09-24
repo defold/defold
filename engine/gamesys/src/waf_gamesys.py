@@ -394,7 +394,6 @@ def script_file(self, node):
     out = node.change_ext(obj_ext)
     task.set_outputs(out)
 
-new_copy_task('render_script', '.render_script', '.render_scriptc')
 new_copy_task('wav', '.wav', '.wavc')
 new_copy_task('ogg', '.ogg', '.oggc')
 
@@ -415,6 +414,14 @@ def dae_file(self, node):
 @extension('.gui_script')
 def script_file(self, node):
     obj_ext = '.gui_scriptc'
+    task = self.create_task('luascript')
+    task.set_inputs(node)
+    out = node.change_ext(obj_ext)
+    task.set_outputs(out)
+
+@extension('.render_script')
+def render_script_file(self, node):
+    obj_ext = '.render_scriptc'
     task = self.create_task('luascript')
     task.set_inputs(node)
     out = node.change_ext(obj_ext)

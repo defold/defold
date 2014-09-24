@@ -41,6 +41,7 @@ protected:
     dmGameSystem::CollectionProxyContext m_CollectionProxyContext;
     dmGameSystem::FactoryContext m_FactoryContext;
     dmGameSystem::SpineModelContext m_SpineModelContext;
+    dmGameObject::ModuleContext m_ModuleContext;
 };
 
 class ResourceTest : public GamesysTest<const char*>
@@ -91,8 +92,8 @@ void GamesysTest<T>::SetUp()
     dmScript::Initialize(m_ScriptContext);
     dmGameObject::Initialize(m_ScriptContext, m_Factory);
     m_Register = dmGameObject::NewRegister();
-    dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-    dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+    dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+    dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
 
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams render_params;

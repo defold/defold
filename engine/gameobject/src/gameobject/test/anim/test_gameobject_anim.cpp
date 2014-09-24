@@ -26,8 +26,8 @@ protected:
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
         m_FinishCount = 0;
         m_CancelCount = 0;
@@ -50,6 +50,7 @@ public:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
+    dmGameObject::ModuleContext m_ModuleContext;
     uint32_t m_FinishCount;
     uint32_t m_CancelCount;
 };

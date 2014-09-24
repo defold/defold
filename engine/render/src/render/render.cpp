@@ -80,6 +80,7 @@ namespace dmRender
         context->m_Projection = Matrix4::identity();
         context->m_ViewProj = context->m_Projection * context->m_View;
 
+        context->m_ScriptContext = params.m_ScriptContext;
         InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_ScriptContext, params.m_CommandBufferSize);
 
         InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
@@ -107,6 +108,10 @@ namespace dmRender
         delete render_context;
 
         return RESULT_OK;
+    }
+
+    dmScript::HContext GetScriptContext(HRenderContext render_context) {
+        return render_context->m_ScriptContext;
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)

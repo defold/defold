@@ -40,6 +40,12 @@ namespace dmGameObject
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
+        ModuleContext* module_context = (ModuleContext*)context;
+        uint32_t context_count = module_context->m_ScriptContexts.Size();
+        for (uint32_t i = 0; i < context_count; ++i) {
+            dmScript::HContext script_context = module_context->m_ScriptContexts[i];
+            dmScript::ReloadModule(script_context, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, resource->m_NameHash);
+        }
         LuaScript* lua_script = (LuaScript*) resource->m_Resource;
         dmDDF::FreeMessage(lua_script->m_LuaModule);
         lua_script->m_LuaModule = lua_module;

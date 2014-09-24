@@ -361,18 +361,18 @@ namespace dmGameObject
         std::sort(regist->m_ComponentTypesOrder, regist->m_ComponentTypesOrder + regist->m_ComponentTypeCount, ComponentTypeSortPred(regist));
     }
 
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist)
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
         ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypeCreate, &ResPrototypeDestroy, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", 0, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
+        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "luac", 0, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
+        ret = dmResource::RegisterType(factory, "luac", module_context, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -641,12 +641,13 @@ namespace dmGameObject
                         component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
                     }
                     // TODO use the component type identification system once it has been implemented (related to set_tile for tile maps)
+                    // TODO this is a bit of a hack, the function should be added as a component callback instead so that the context can be properly handled
                     if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
                     {
                         ComponentSetPropertiesParams params;
                         params.m_Instance = instance;
                         params.m_UserData = component_instance_data;
-                        PropertyResult result = CreatePropertySetUserDataLua(GetLuaState(), property_buffer, property_buffer_size, &params.m_PropertySet.m_UserData);
+                        PropertyResult result = CreatePropertySetUserDataLua(component_type->m_Context, property_buffer, property_buffer_size, &params.m_PropertySet.m_UserData);
                         if (result == PROPERTY_RESULT_OK)
                         {
                             params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserDataLua;
@@ -2370,8 +2371,4 @@ namespace dmGameObject
         }
     }
 
-    lua_State* GetLuaState()
-    {
-        return dmScript::GetLuaState(g_ScriptContext);
-    }
 }

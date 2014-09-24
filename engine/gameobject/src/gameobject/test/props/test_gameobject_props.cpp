@@ -56,8 +56,8 @@ protected:
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext, m_Factory);
         m_Register = dmGameObject::NewRegister();
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
@@ -98,6 +98,7 @@ public:
     dmResource::HFactory m_Factory;
     dmScript::HContext m_ScriptContext;
     const char* m_Path;
+    dmGameObject::ModuleContext m_ModuleContext;
 };
 
 static void SetProperties(dmGameObject::HInstance instance)
@@ -180,7 +181,7 @@ TEST_F(PropsTest, PropsMultiScript)
 
 TEST_F(PropsTest, PropsSpawn)
 {
-    lua_State* L = dmGameObject::GetLuaState();
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     int top = lua_gettop(L);
     lua_newtable(L);
     lua_pushliteral(L, "number");

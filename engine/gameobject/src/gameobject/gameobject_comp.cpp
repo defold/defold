@@ -4,12 +4,12 @@
 
 namespace dmGameObject
 {
-    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist)
+    Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context)
     {
         ComponentType script_component;
         dmResource::GetTypeFromExtension(factory, "scriptc", &script_component.m_ResourceType);
         script_component.m_Name = "scriptc";
-        script_component.m_Context = 0x0;
+        script_component.m_Context = script_context;
         script_component.m_NewWorldFunction = &CompScriptNewWorld;
         script_component.m_DeleteWorldFunction = &CompScriptDeleteWorld;
         script_component.m_CreateFunction = &CompScriptCreate;

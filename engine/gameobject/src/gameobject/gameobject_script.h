@@ -43,6 +43,7 @@ namespace dmGameObject
 
     struct Script
     {
+        lua_State*              m_LuaState;
         int                     m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         PropertySet             m_PropertySet;
         dmLuaDDF::LuaModule*    m_LuaModule;
@@ -71,14 +72,12 @@ namespace dmGameObject
     void    InitializeScript(dmScript::HContext context, dmResource::HFactory factory);
     void    FinalizeScript(dmScript::HContext context, dmResource::HFactory factory);
 
-    HScript NewScript(dmLuaDDF::LuaModule* lua_module, const char* filename);
+    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module, const char* filename);
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename);
     void    DeleteScript(HScript script);
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
-
-    extern dmScript::HContext g_ScriptContext;
 
     PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
 }

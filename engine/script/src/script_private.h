@@ -22,6 +22,7 @@ namespace dmScript
         dmConfigFile::HConfig   m_ConfigFile;
         dmResource::HFactory    m_ResourceFactory;
         dmHashTable64<Module>   m_Modules;
+        dmHashTable64<Module*>  m_PathToModule;
         dmHashTable64<int>      m_HashInstances;
         lua_State*              m_LuaState;
         uint32_t                m_InitializedExtensions[DM_SCRIPT_MAX_EXTENSIONS / (8 * sizeof(uint32_t))];
