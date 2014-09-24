@@ -41,7 +41,7 @@ class BuildUtility:
     # get_dynamo_ext
 
     def get_target_platform(self):
-        return self._build_platform['platform']
+        return self._platform['platform']
     # get_target_platform
 
     def get_library_path(self, *subdir):
@@ -53,11 +53,11 @@ class BuildUtility:
     # get_binary_path
 
     def get_target_os(self):
-        return self._build_platform['os']
+        return self._platform['os']
     # get_target_os
 
     def get_target_architecture(self):
-        return self._build_platform['arch']
+        return self._platform['arch']
     # get_target_architecture
 
     def git_sha1(self, ref = None):
@@ -103,8 +103,8 @@ class BuildUtility:
             raise BuildUtilityException("DYNAMO_HOME not set")
         self._dynamo_home = dynamo_home
         self._dynamo_ext = os.path.join(self._dynamo_home, 'ext')
-        self._library_path = os.path.join(self._dynamo_home, "lib", self._build_platform['platform'])
-        self._binary_path = os.path.join(self._dynamo_home, 'bin', self._build_platform['platform'])
+        self._library_path = os.path.join(self._dynamo_home, "lib", self._platform['platform'])
+        self._binary_path = os.path.join(self._dynamo_home, 'bin', self._platform['platform'])
     # _initialise_paths
 
 # class BuildUtility
