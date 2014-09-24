@@ -144,6 +144,7 @@ Licenses
 * **facebook** [https://github.com/facebook/facebook-ios-sdk](https://github.com/facebook/facebook-ios-sdk) **Apache**
 * **glfw** [http://www.glfw.org](http://www.glfw.org) **zlib/libpng**
 * **lua** [http://www.lua.org](http://www.lua.org) **MIT**
+* **luasocket** [http://w3.impa.br/~diego/software/luasocket/](http://w3.impa.br/~diego/software/luasocket/) **MIT**
 * **box2d** [http://box2d.org](http://box2d.org) **zlib**
 * **bullet** [http://bulletphysics.org](http://bulletphysics.org) **zlib**
 * **vp8** [http://www.webmproject.org](http://www.webmproject.org) **BSD**

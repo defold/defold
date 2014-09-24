@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 #include "script.h"
 
 extern "C"
@@ -44,28 +45,28 @@ namespace dmScript
      * ...
      * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash ie LUA_TUSERDATA, the first byte in value is the SubType
      *
-     *	Version 1 table serialization format:
+     *    Version 1 table serialization format:
      *
-     *	Adds a header block to the table at the head of the input, containing a magic identifier
-     *	and version information. Keys of type LUA_TNUMBER use a variable length encoding, with continuation
-     *	between bytes signaled by the MSB.
+     *    Adds a header block to the table at the head of the input, containing a magic identifier
+     *    and version information. Keys of type LUA_TNUMBER use a variable length encoding, with continuation
+     *    between bytes signaled by the MSB.
      *
-     *	The values of the magic word is chosen so that it will not match values that could be created using
-     *	the previous serialization format: this is exploited in implementing backward compatibility when reading
-     *	serialized tables.
+     *    The values of the magic word is chosen so that it will not match values that could be created using
+     *    the previous serialization format: this is exploited in implementing backward compatibility when reading
+     *    serialized tables.
      *
-     *	For the sake of brevity, the header block is not repeated for tables that are nested within this serialized data:
-     *	i.e. we assume that the version is uniform throughout any one data set.
+     *    For the sake of brevity, the header block is not repeated for tables that are nested within this serialized data:
+     *    i.e. we assume that the version is uniform throughout any one data set.
      *
-     *	LUA_TNUMBER keys are restricted to 32 bits in length, an increase of 16 bits from the original version.
+     *    LUA_TNUMBER keys are restricted to 32 bits in length, an increase of 16 bits from the original version.
      *
-     *	In all other respects, data is serialized in the same way. In particular, note that although users may
-     *	create sparse arrays using 32 bit numbers as keys, we remain limited to 65536 (0xffff) rows per table.
+     *    In all other respects, data is serialized in the same way. In particular, note that although users may
+     *    create sparse arrays using 32 bit numbers as keys, we remain limited to 65536 (0xffff) rows per table.
      *
-     *	Outside of their uses as keys, numerical values are not encoded in the fashion described above.
-     *	For the imagined use cases, we consider it likely that taking this approach with keys will lead to smaller files,
-     *	since a typical key will fit within a single byte of data. Numerical values when used elsewhere are essentially random
-     *	and so we cannot guarantee that this encoding method will yield smaller data in such cases.
+     *    Outside of their uses as keys, numerical values are not encoded in the fashion described above.
+     *    For the imagined use cases, we consider it likely that taking this approach with keys will lead to smaller files,
+     *    since a typical key will fit within a single byte of data. Numerical values when used elsewhere are essentially random
+     *    and so we cannot guarantee that this encoding method will yield smaller data in such cases.
      */
 
     struct TableHeader
@@ -625,7 +626,9 @@ namespace dmScript
         }
         else
         {
-            dmLogError("Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
+            char str[256];
+            DM_SNPRINTF(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
+            luaL_error(L, str);
         }
     }
 
