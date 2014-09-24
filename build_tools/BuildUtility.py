@@ -41,7 +41,7 @@ class BuildUtility:
     # get_dynamo_ext
 
     def get_target_platform(self):
-        return self._platform['platform']
+        return self._build_platform['platform']
     # get_target_platform
 
     def get_library_path(self, *subdir):
@@ -53,11 +53,11 @@ class BuildUtility:
     # get_binary_path
 
     def get_target_os(self):
-        return self._platform['os']
+        return self._build_platform['os']
     # get_target_os
 
     def get_target_architecture(self):
-        return self._platform['arch']
+        return self._build_platform['arch']
     # get_target_architecture
 
     def git_sha1(self, ref = None):
