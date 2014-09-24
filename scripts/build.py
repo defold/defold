@@ -111,7 +111,7 @@ class Configuration(object):
         # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
         # N.B. If we upgrade to move recent versions of python, then the method of module loading should also change.
         build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'build_tools', 'BuildUtility.py'))
-        self.build_utility = build_utility_module.BuildUtility(self.host, self.target_platform, self.dynamo_home)
+        self.build_utility = build_utility_module.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
