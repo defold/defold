@@ -62,6 +62,7 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="com.dynamo.cr.tileeditor"/>
       <plugin id="com.google.common"/>
       <plugin id="com.google.inject"/>
+      <plugin id="javax.inject"/>
       <plugin id="com.ibm.icu"/>
       <plugin id="com.sun.jna"/>
       <plugin id="javax.activation"/>

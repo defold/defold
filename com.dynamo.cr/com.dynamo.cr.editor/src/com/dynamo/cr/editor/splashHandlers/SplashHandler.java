@@ -87,6 +87,12 @@ public class SplashHandler extends AbstractSplashHandler implements PaintListene
             this.worked += work;
 
             Shell splashShell = getSplash();
+            if (splashShell == null) {
+            	// In Eclipse 4 this one is invoke whenever a bundle change
+            	// and after the splash is disposed.
+            	// See org.eclipse.ui.internal.Workbench$StartupProgressBundleListener.bundleChanged
+            	return;
+            }
             Display display = splashShell.getDisplay();
 
             if (Thread.currentThread() == display.getThread()) {
