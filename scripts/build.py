@@ -357,7 +357,7 @@ class Configuration(object):
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
-        bin_dir = self.target_platform
+        bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
 
         if self.target_platform != 'x86_64-darwin':
