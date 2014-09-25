@@ -101,8 +101,6 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
     public void postStartup() {
         super.postStartup();
 
-        new ClojureBootstrap().schedule();
-
         // Enable/disable automatic refresh based on when editor is active/not active
         // Primary reason is to disable auto-staging of files but probably good in general
         // for performance reasons

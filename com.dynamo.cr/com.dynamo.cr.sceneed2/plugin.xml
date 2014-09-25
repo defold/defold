@@ -105,4 +105,10 @@
             name="Atlas Editor (mark II)">
       </editor>
    </extension>
+   <extension
+         point="org.eclipse.ui.startup">
+      <startup
+            class="clojure.osgi.internal.ClojureOSGiActivator">
+      </startup>
+   </extension>
 </plugin>

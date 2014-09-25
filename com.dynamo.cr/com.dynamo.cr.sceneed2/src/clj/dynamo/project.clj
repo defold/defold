@@ -23,13 +23,16 @@
 
 (defn new-cache-key [] (.getAndIncrement nextkey))
 
-(declare transact new-resource)
+(declare transact new-resource resolve-tempid resource-by-id get-resource-value)
 
 (defn on-load-code
   [project-state resource input]
-  (transact project-state
-            (new-resource
-              (clojure/make-clojure-source-node :resource resource))))
+  (let [tx-result (transact project-state
+                            (new-resource
+                              (clojure/make-clojure-source-node :_id -1 :resource resource)))
+        real-id   (resolve-tempid tx-result -1)
+        real-node (resource-by-id project-state real-id)]
+    (get-resource-value project-state real-node :namespace)))
 
 (defn make-project
   [eclipse-project branch tx-report-chan]

@@ -33,4 +33,4 @@
 
 (defnode ClojureSourceNode
   (property resource IFile)
-  (output   namespace UnloadableNamespace :cached :on-update load-project-file))
+  (output   namespace UnloadableNamespace :cached load-project-file))

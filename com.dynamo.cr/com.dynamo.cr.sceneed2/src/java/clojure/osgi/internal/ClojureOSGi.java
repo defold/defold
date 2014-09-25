@@ -28,7 +28,8 @@ public class ClojureOSGi {
           boolean pushed = false;
 
           try {
-            REQUIRE.invoke(Symbol.intern("clojure.main"));
+        	    System.out.println("Loading clojure.core");
+            REQUIRE.invoke(Symbol.intern("clojure.core"));
 
             Var.pushThreadBindings(RT.map(BUNDLE, aContext.getBundle()));
             pushed = true;

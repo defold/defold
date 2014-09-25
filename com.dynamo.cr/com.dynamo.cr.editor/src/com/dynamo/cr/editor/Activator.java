@@ -580,12 +580,8 @@ IBranchListener {
                 @Override
                 public void run(IProgressMonitor monitor) throws InvocationTargetException,
                 InterruptedException {
-                    monitor.beginTask("Loading editor tools", 3);
+                    monitor.beginTask("Loading editor tools", 1);
                     try {
-                        ClojureHelper.require("internal.system");
-                        monitor.worked(1);
-                        ClojureHelper.invoke("internal.system", "start");
-                        monitor.worked(1);
                         ClojureHelper.invoke("internal.system", "attach-project", p, branch);
                         monitor.worked(1);
                         monitor.done();
