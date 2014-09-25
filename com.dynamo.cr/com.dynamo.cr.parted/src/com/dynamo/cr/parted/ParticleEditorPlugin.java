@@ -46,10 +46,6 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
             // loaded from platform directory
 		    platform = "x86_64-darwin";
 		}
-		if (EditorUtil.isDev() && !EditorUtil.isMac()) {
-		    // No platform-qualified path in dev mode (waf install)
-		    platform = "";
-		}
         bundleUrl = getBundle().getEntry("/lib/" + platform);
 
         URL fileUrl = FileLocator.toFileURL(bundleUrl);

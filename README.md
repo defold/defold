@@ -555,3 +555,12 @@ Energy Consumption
 **Android**
 
       adb shell dumpsys cpuinfo
+
+Eclipse 4.4 issues
+------------------
+
+* ApplicationWorkbenchWindowAdvisor#createWindowContents isn't invoked
+* Shortcuts doens't work in pfx-editor
+* No editor tips
+* Splash-monitor invoked after startup. See SplashHandler.java.
+  Currently protected by if (splashShell == null) ...

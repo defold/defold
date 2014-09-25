@@ -30,7 +30,6 @@ import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
-import org.eclipse.ui.ISelectionService;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.actions.ActionFactory;
@@ -127,8 +126,6 @@ public class TileSetEditor2 extends AbstractDefoldEditor implements ISceneEditor
 
             bind(ManipulatorController.class).in(Singleton.class);
             bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
-
-            bind(ISelectionService.class).toInstance(getSite().getWorkbenchWindow().getSelectionService());
 
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);

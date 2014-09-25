@@ -137,8 +137,6 @@ public class SceneEditor extends AbstractDefoldEditor implements ISceneEditor, I
             bind(ManipulatorController.class).in(Singleton.class);
             bind(IManipulatorRegistry.class).toInstance(manipulatorRegistry);
 
-            bind(ISelectionService.class).toInstance(getSite().getWorkbenchWindow().getSelectionService());
-
             bind(IOperationHistory.class).toInstance(history);
             bind(IUndoContext.class).toInstance(undoContext);
             bind(UndoActionHandler.class).toInstance(undoHandler);
