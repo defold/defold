@@ -11,7 +11,7 @@
 			<arguments>
 				<dictionary>
 					<key>LaunchConfigHandle</key>
-					<value>&lt;project&gt;/.externalToolBuilders/AOT compile.launch</value>
+					<value>&lt;project&gt;/.externalToolBuilders/expose-classpath.launch</value>
 				</dictionary>
 			</arguments>
 		</buildCommand>
