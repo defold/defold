@@ -324,7 +324,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     // NOTE: We poll events above and the application might be iconfied
     // At least when running in frame-rates < 60
-    if (!_glfwWin.iconified)
+    if (!_glfwWin.iconified && g_StartupPhase == COMPLETE)
     {
         const GLenum discards[]  = {GL_DEPTH_ATTACHMENT};
         glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
