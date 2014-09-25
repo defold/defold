@@ -194,13 +194,6 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        if (engine->m_GOScriptContext) {
-            dmGameObject::Finalize(engine->m_GOScriptContext, engine->m_Factory);
-        }
-
-        if (engine->m_Factory)
-            dmResource::DeleteFactory(engine->m_Factory);
-
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
 
@@ -220,6 +213,10 @@ namespace dmEngine
                 dmScript::Finalize(engine->m_GuiScriptContext);
                 dmScript::DeleteContext(engine->m_GuiScriptContext);
             }
+        }
+
+        if (engine->m_Factory) {
+            dmResource::DeleteFactory(engine->m_Factory);
         }
 
         if (engine->m_GraphicsContext)
@@ -530,7 +527,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
-        dmGameObject::Initialize(engine->m_GOScriptContext, engine->m_Factory);
+        dmGameObject::Initialize(engine->m_GOScriptContext);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;

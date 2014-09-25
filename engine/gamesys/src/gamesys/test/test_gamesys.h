@@ -88,9 +88,9 @@ void GamesysTest<T>::SetUp()
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
-    m_ScriptContext = dmScript::NewContext(0, 0);
+    m_ScriptContext = dmScript::NewContext(0, m_Factory);
     dmScript::Initialize(m_ScriptContext);
-    dmGameObject::Initialize(m_ScriptContext, m_Factory);
+    dmGameObject::Initialize(m_ScriptContext);
     m_Register = dmGameObject::NewRegister();
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
@@ -160,7 +160,8 @@ void GamesysTest<T>::TearDown()
     dmGui::DeleteContext(m_GuiContext.m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
-    dmGameObject::Finalize(m_ScriptContext, m_Factory);
+    dmScript::Finalize(m_ScriptContext);
+    dmScript::DeleteContext(m_ScriptContext);
     dmResource::DeleteFactory(m_Factory);
     dmGameObject::DeleteRegister(m_Register);
     dmSound::Finalize();
@@ -168,6 +169,4 @@ void GamesysTest<T>::TearDown()
     dmHID::Final(m_HidContext);
     dmHID::DeleteContext(m_HidContext);
     dmPhysics::DeleteContext2D(m_PhysicsContext.m_Context2D);
-    dmScript::Finalize(m_ScriptContext);
-    dmScript::DeleteContext(m_ScriptContext);
 }

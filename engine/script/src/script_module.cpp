@@ -91,7 +91,7 @@ namespace dmScript
         return 1;
     }
 
-    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* user_data, dmhash_t path_hash)
+    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* resource, dmhash_t path_hash)
     {
         dmhash_t module_hash = dmHashString64(script_name);
 
@@ -100,7 +100,7 @@ namespace dmScript
         module.m_Script = (char*) malloc(script_size);
         memcpy(module.m_Script, script, script_size);
         module.m_ScriptSize = script_size;
-        module.m_UserData = user_data;
+        module.m_Resource = resource;
 
         if (context->m_Modules.Full())
         {
@@ -113,11 +113,6 @@ namespace dmScript
         context->m_PathToModule.Put(path_hash, module_handle);
 
         return RESULT_OK;
-    }
-
-    void* GetModuleUserData(HContext context, dmhash_t module_hash)
-    {
-        return context->m_Modules.Get(module_hash)->m_UserData;
     }
 
     Result ReloadModule(HContext context, const char* script, uint32_t script_size, dmhash_t path_hash)
@@ -162,37 +157,18 @@ namespace dmScript
         return RESULT_OK;
     }
 
-    struct IterateData
-    {
-        void* m_UserContext;
-        void (*m_Callback)(void* user_context, void* user_data);
-        IterateData(void* user_context, void (*call_back)(void* user_context, void* user_data))
-        {
-            m_UserContext = user_context;
-            m_Callback = call_back;
-        }
-    };
-
-    static void DoIterate(IterateData* id, const uint64_t* key, Module* value)
-    {
-        id->m_Callback(id->m_UserContext, value->m_UserData);
-    }
-
-    void IterateModules(HContext context, void* user_context, void (*call_back)(void* user_context, void* user_data))
-    {
-        IterateData id(user_context, call_back);
-        context->m_Modules.Iterate(DoIterate, &id);
-    }
-
     static void FreeModuleCallback(void* context, const uint64_t* key, Module* value)
     {
+        if (value->m_Resource != 0) {
+            dmResource::Release((dmResource::HFactory)context, value->m_Resource);
+        }
         free(value->m_Name);
         free(value->m_Script);
     }
 
     void ClearModules(HContext context)
     {
-        context->m_Modules.Iterate(&FreeModuleCallback, (void*) 0);
+        context->m_Modules.Iterate(&FreeModuleCallback, (void*) context->m_ResourceFactory);
         context->m_Modules.Clear();
     }
 

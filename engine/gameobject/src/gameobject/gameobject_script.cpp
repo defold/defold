@@ -1222,7 +1222,7 @@ namespace dmGameObject
         {0, 0}
     };
 
-    void InitializeScript(dmScript::HContext context, dmResource::HFactory factory)
+    void InitializeScript(dmScript::HContext context)
     {
         lua_State* L = dmScript::GetLuaState(context);
 
@@ -1300,11 +1300,6 @@ namespace dmGameObject
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
-    }
-
-    void FinalizeScript(dmScript::HContext context, dmResource::HFactory factory)
-    {
-        dmGameObject::FreeModules(factory, context);
     }
 
     struct LuaData

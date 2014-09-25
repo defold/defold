@@ -54,7 +54,7 @@ protected:
         m_Factory = dmResource::NewFactory(&params, m_Path);
         m_ScriptContext = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext, m_Factory);
+        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
@@ -85,10 +85,9 @@ protected:
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::Finalize(m_ScriptContext, m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmGameObject::DeleteRegister(m_Register);
     }
 
 public:

@@ -572,19 +572,8 @@ namespace dmGameObject
     /**
      * Initialize system
      * @param context Script context
-     * @param factory Factory
-     * @note By convention the same factory passed here should be used when loading
-     * collections and other resource using dmResource::Get. The GameObject-system
-     * relies on this fact. Lua modules and perhaps other resources.
      */
-    void Initialize(dmScript::HContext context, dmResource::HFactory factory);
-
-    /**
-     * Finalize system
-     * @param context Script context
-     * @param factory Factory
-     */
-    void Finalize(dmScript::HContext context, dmResource::HFactory factory);
+    void Initialize(dmScript::HContext context);
 
     /**
      * Create a new component type register

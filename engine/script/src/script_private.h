@@ -13,7 +13,7 @@ namespace dmScript
         char*       m_Script;
         uint32_t    m_ScriptSize;
         char*       m_Name;
-        void*       m_UserData;
+        void*       m_Resource;
     };
 
     #define DM_SCRIPT_MAX_EXTENSIONS (sizeof(uint32_t) * 8 * 16)
@@ -35,6 +35,12 @@ namespace dmScript
     bool GetUserData(lua_State* L, uintptr_t& out_user_data, const char* user_type);
 
     bool IsValidInstance(lua_State* L);
+
+    /**
+     * Remove all modules.
+     * @param context script context
+     */
+    void ClearModules(HContext context);
 }
 
 #endif // SCRIPT_PRIVATE_H

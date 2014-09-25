@@ -54,19 +54,6 @@ namespace dmGameObject
         return true;
     }
 
-    static void FreeModule(void* user_context, void* user_data)
-    {
-        dmResource::HFactory factory = (dmResource::HFactory) user_context;
-        LuaScript* lua_script = (LuaScript*) user_data;
-        dmResource::Release(factory, lua_script);
-    }
-
-    void FreeModules(dmResource::HFactory factory, dmScript::HContext script_context)
-    {
-        dmScript::IterateModules(script_context, factory, FreeModule);
-        dmScript::ClearModules(script_context);
-    }
-
 }
 
 

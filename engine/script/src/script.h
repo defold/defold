@@ -320,11 +320,11 @@ namespace dmScript
      * @param script lua script to load
      * @param script_size lua script size
      * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
-     * @param user_data user data
+     * @param resource the resource will be released throught the resource system at finalization
      * @param path_hash hashed path of the originating resource
      * @return RESULT_OK on success
      */
-    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* user_data, dmhash_t path_hash);
+    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* resource, dmhash_t path_hash);
 
     /**
      * Reload loaded module
@@ -335,21 +335,6 @@ namespace dmScript
      * @return RESULT_OK on success
      */
     Result ReloadModule(HContext context, const char* script, uint32_t script_size, dmhash_t path_hash);
-
-    /**
-     * Iterate over all modules
-     * @param profile Profile snapshot to iterate over
-     * @param context User context
-     * @param call_back Call-back function pointer
-     */
-    void IterateModules(HContext context, void* user_context, void (*call_back)(void* user_context, void* user_data));
-
-    /**
-     * Remove all modules.
-     * @note In order to free related resource use IterateModules before calling this function
-     * @param context script context
-     */
-    void ClearModules(HContext context);
 
     /**
      * Check if a module is loaded
