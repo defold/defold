@@ -8,13 +8,18 @@
 
    <launcherArgs>
       <programArgsLin>-vm
-./jre/bin</programArgsLin>
+./jre/bin
+      </programArgsLin>
       <programArgsMac>-vm
-../../../jre/Contents/Home/bin/java</programArgsMac>
+../../../jre/Contents/Home/bin/java
+      </programArgsMac>
       <programArgsWin>-vm
-jre\bin\javaw.exe</programArgsWin>
-      <vmArgs>-Declipse.p2.unsignedPolicy=allow -Dsun.net.client.defaultReadTimeout=30000 -XX:MaxPermSize=128M -Xmx1200M -Djogl.texture.notexrect=true</vmArgs>
-      <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
+jre\bin\javaw.exe
+      </programArgsWin>
+      <vmArgs>-Declipse.p2.unsignedPolicy=allow -Dsun.net.client.defaultReadTimeout=30000 -XX:MaxPermSize=128M -Xmx1200M -Djogl.texture.notexrect=true
+      </vmArgs>
+      <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts
+      </vmArgsMac>
    </launcherArgs>
 
    <windowImages/>
@@ -36,42 +41,66 @@ jre\bin\javaw.exe</programArgsWin>
 
    <plugins>
       <plugin id="com.dynamo.cr.bob"/>
+      <plugin id="com.dynamo.cr.bob.test" fragment="true"/>
       <plugin id="com.dynamo.cr.branchrepo"/>
       <plugin id="com.dynamo.cr.builtins"/>
       <plugin id="com.dynamo.cr.cgeditor"/>
       <plugin id="com.dynamo.cr.client"/>
+      <plugin id="com.dynamo.cr.client.test" fragment="true"/>
       <plugin id="com.dynamo.cr.common"/>
+      <plugin id="com.dynamo.cr.common.test" fragment="true"/>
       <plugin id="com.dynamo.cr.ddfeditor"/>
+      <plugin id="com.dynamo.cr.ddfeditor.test" fragment="true"/>
       <plugin id="com.dynamo.cr.dgit"/>
+      <plugin id="com.dynamo.cr.dgit.test" fragment="true"/>
       <plugin id="com.dynamo.cr.editor"/>
       <plugin id="com.dynamo.cr.editor.core"/>
+      <plugin id="com.dynamo.cr.editor.core.test" fragment="true"/>
       <plugin id="com.dynamo.cr.editor.fs"/>
+      <plugin id="com.dynamo.cr.editor.fs.test" fragment="true"/>
       <plugin id="com.dynamo.cr.editor.ui"/>
       <plugin id="com.dynamo.cr.engine"/>
       <plugin id="com.dynamo.cr.go"/>
+      <plugin id="com.dynamo.cr.go.test" fragment="true"/>
       <plugin id="com.dynamo.cr.guied"/>
       <plugin id="com.dynamo.cr.luaeditor"/>
+      <plugin id="com.dynamo.cr.luaeditor.test" fragment="true"/>
       <plugin id="com.dynamo.cr.parted"/>
+      <plugin id="com.dynamo.cr.parted.test" fragment="true"/>
       <plugin id="com.dynamo.cr.projed"/>
+      <plugin id="com.dynamo.cr.projed.test" fragment="true"/>
       <plugin id="com.dynamo.cr.properties"/>
+      <plugin id="com.dynamo.cr.properties.test" fragment="true"/>
       <plugin id="com.dynamo.cr.protobind"/>
+      <plugin id="com.dynamo.cr.protobind.test" fragment="true"/>
       <plugin id="com.dynamo.cr.rlog"/>
+      <plugin id="com.dynamo.cr.rlog.test" fragment="true"/>
       <plugin id="com.dynamo.cr.sceneed"/>
+      <plugin id="com.dynamo.cr.sceneed.test"/>
       <plugin id="com.dynamo.cr.sceneed2"/>
+      <plugin id="com.dynamo.cr.sceneed2.test" fragment="true"/>
       <plugin id="com.dynamo.cr.spine"/>
+      <plugin id="com.dynamo.cr.spine.test" fragment="true"/>
       <plugin id="com.dynamo.cr.target"/>
+      <plugin id="com.dynamo.cr.target.test" fragment="true"/>
       <plugin id="com.dynamo.cr.tileeditor"/>
+      <plugin id="com.dynamo.cr.tileeditor.test" fragment="true"/>
       <plugin id="com.google.common"/>
       <plugin id="com.google.inject"/>
-      <plugin id="javax.inject"/>
       <plugin id="com.ibm.icu"/>
       <plugin id="com.sun.jna"/>
       <plugin id="javax.activation"/>
+      <plugin id="javax.annotation"/>
+      <plugin id="javax.inject"/>
       <plugin id="javax.mail"/>
       <plugin id="javax.media.opengl"/>
       <plugin id="javax.persistence"/>
       <plugin id="javax.servlet"/>
+      <plugin id="javax.xml"/>
       <plugin id="joda.time"/>
+      <plugin id="org.apache.batik.css"/>
+      <plugin id="org.apache.batik.util"/>
+      <plugin id="org.apache.batik.util.gui"/>
       <plugin id="org.eclipse.compare"/>
       <plugin id="org.eclipse.compare.core"/>
       <plugin id="org.eclipse.core.commands"/>
@@ -82,19 +111,45 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="org.eclipse.core.expressions"/>
       <plugin id="org.eclipse.core.filebuffers"/>
       <plugin id="org.eclipse.core.filesystem"/>
+      <plugin id="org.eclipse.core.filesystem.java7" fragment="true"/>
+      <plugin id="org.eclipse.core.filesystem.macosx" fragment="true"/>
       <plugin id="org.eclipse.core.jobs"/>
       <plugin id="org.eclipse.core.net"/>
       <plugin id="org.eclipse.core.resources"/>
       <plugin id="org.eclipse.core.runtime"/>
       <plugin id="org.eclipse.core.runtime.compatibility.registry" fragment="true"/>
       <plugin id="org.eclipse.core.variables"/>
+      <plugin id="org.eclipse.e4.core.commands"/>
+      <plugin id="org.eclipse.e4.core.contexts"/>
+      <plugin id="org.eclipse.e4.core.di"/>
+      <plugin id="org.eclipse.e4.core.di.extensions"/>
+      <plugin id="org.eclipse.e4.core.services"/>
+      <plugin id="org.eclipse.e4.ui.bindings"/>
+      <plugin id="org.eclipse.e4.ui.css.core"/>
+      <plugin id="org.eclipse.e4.ui.css.swt"/>
+      <plugin id="org.eclipse.e4.ui.css.swt.theme"/>
+      <plugin id="org.eclipse.e4.ui.di"/>
+      <plugin id="org.eclipse.e4.ui.model.workbench"/>
+      <plugin id="org.eclipse.e4.ui.services"/>
+      <plugin id="org.eclipse.e4.ui.widgets"/>
+      <plugin id="org.eclipse.e4.ui.workbench"/>
+      <plugin id="org.eclipse.e4.ui.workbench.addons.swt"/>
+      <plugin id="org.eclipse.e4.ui.workbench.renderers.swt"/>
+      <plugin id="org.eclipse.e4.ui.workbench.renderers.swt.cocoa" fragment="true"/>
+      <plugin id="org.eclipse.e4.ui.workbench.swt"/>
+      <plugin id="org.eclipse.e4.ui.workbench3"/>
       <plugin id="org.eclipse.ecf"/>
       <plugin id="org.eclipse.ecf.filetransfer"/>
       <plugin id="org.eclipse.ecf.identity"/>
       <plugin id="org.eclipse.ecf.provider.filetransfer"/>
       <plugin id="org.eclipse.ecf.provider.filetransfer.ssl" fragment="true"/>
       <plugin id="org.eclipse.ecf.ssl" fragment="true"/>
+      <plugin id="org.eclipse.emf.common"/>
+      <plugin id="org.eclipse.emf.ecore"/>
+      <plugin id="org.eclipse.emf.ecore.change"/>
+      <plugin id="org.eclipse.emf.ecore.xmi"/>
       <plugin id="org.eclipse.equinox.app"/>
+      <plugin id="org.eclipse.equinox.bidi"/>
       <plugin id="org.eclipse.equinox.common"/>
       <plugin id="org.eclipse.equinox.ds"/>
       <plugin id="org.eclipse.equinox.frameworkadmin"/>
@@ -117,28 +172,35 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="org.eclipse.equinox.preferences"/>
       <plugin id="org.eclipse.equinox.registry"/>
       <plugin id="org.eclipse.equinox.security"/>
+      <plugin id="org.eclipse.equinox.security.macosx" fragment="true"/>
       <plugin id="org.eclipse.equinox.security.ui"/>
       <plugin id="org.eclipse.equinox.simpleconfigurator"/>
       <plugin id="org.eclipse.equinox.simpleconfigurator.manipulator"/>
       <plugin id="org.eclipse.equinox.util"/>
       <plugin id="org.eclipse.help"/>
+      <plugin id="org.eclipse.jetty.continuation"/>
+      <plugin id="org.eclipse.jetty.http"/>
+      <plugin id="org.eclipse.jetty.io"/>
+      <plugin id="org.eclipse.jetty.server"/>
+      <plugin id="org.eclipse.jetty.util"/>
       <plugin id="org.eclipse.jface"/>
       <plugin id="org.eclipse.jface.databinding"/>
       <plugin id="org.eclipse.jface.text"/>
       <plugin id="org.eclipse.ltk.core.refactoring"/>
       <plugin id="org.eclipse.ltk.ui.refactoring"/>
       <plugin id="org.eclipse.osgi"/>
+      <plugin id="org.eclipse.osgi.compatibility.state" fragment="true"/>
       <plugin id="org.eclipse.osgi.services"/>
       <plugin id="org.eclipse.search"/>
       <plugin id="org.eclipse.swt"/>
-      <plugin id="org.eclipse.swt.cocoa.macosx.x86_64" fragment="true" os="macosx" ws="cocoa" arch="x86_64"/>
-      <plugin id="org.eclipse.swt.gtk.linux.x86" fragment="true" os="linux" ws="gtk" arch="x86"/>
-      <plugin id="org.eclipse.swt.win32.win32.x86" fragment="true" os="win32" ws="win32" arch="x86"/>
+      <plugin id="org.eclipse.swt.cocoa.macosx.x86_64" fragment="true"/>
+      <plugin id="org.eclipse.swt.gtk.linux.x86" fragment="true"/>
+      <plugin id="org.eclipse.swt.win32.win32.x86" fragment="true"/>
       <plugin id="org.eclipse.team.core"/>
       <plugin id="org.eclipse.team.ui"/>
       <plugin id="org.eclipse.text"/>
       <plugin id="org.eclipse.ui"/>
-      <plugin id="org.eclipse.ui.cocoa" fragment="true" os="macosx" ws="cocoa" arch="x86_64"/>
+      <plugin id="org.eclipse.ui.cocoa" fragment="true"/>
       <plugin id="org.eclipse.ui.console"/>
       <plugin id="org.eclipse.ui.editors"/>
       <plugin id="org.eclipse.ui.forms"/>
@@ -152,8 +214,15 @@ jre\bin\javaw.exe</programArgsWin>
       <plugin id="org.eclipse.ui.workbench"/>
       <plugin id="org.eclipse.ui.workbench.texteditor"/>
       <plugin id="org.glassfish.grizzly"/>
+      <plugin id="org.hamcrest.core"/>
+      <plugin id="org.junit"/>
+      <plugin id="org.mockito"/>
       <plugin id="org.sat4j.core"/>
       <plugin id="org.sat4j.pb"/>
+      <plugin id="org.w3c.css.sac"/>
+      <plugin id="org.w3c.dom.events"/>
+      <plugin id="org.w3c.dom.smil"/>
+      <plugin id="org.w3c.dom.svg"/>
       <plugin id="slf4j"/>
    </plugins>
 
