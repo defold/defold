@@ -97,6 +97,7 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
         }
 
         String p = getUtilPath(String.format("/lib/%s/%s%s", platform, name, ext));
+
         try {
             Exec.exec("chmod", "+x", p);
         } catch (IOException e) {
@@ -109,6 +110,9 @@ public class TargetPlugin extends AbstractUIPlugin implements ITargetListener {
         URL bundleUrl = getBundle().getEntry(path);
 
         try {
+            if (null == bundleUrl) {
+                throw new IOException(String.format("Utility does not exist: '%s'", path));
+            }
             // Workaround badly handled UNC paths:
             //    wiki.eclipse.org/Eclipse/UNC_Paths
             URL fileUrl = FileLocator.toFileURL(bundleUrl);
