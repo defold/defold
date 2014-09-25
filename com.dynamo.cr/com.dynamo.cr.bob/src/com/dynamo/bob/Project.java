@@ -607,7 +607,7 @@ run:
 
         @Override
         public void handleFile(String path, Collection<String> results) {
-            String p = FilenameUtils.normalize(path, true);
+            path = FilenameUtils.normalize(path, true);
             boolean include = true;
             if (skipDirs != null) {
                 for (String sd : skipDirs) {
@@ -617,10 +617,10 @@ run:
                 }
             }
             if (include) {
-                String ext = "." + FilenameUtils.getExtension(p);
+                String ext = "." + FilenameUtils.getExtension(path);
                 Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
                 if (builderClass != null)
-                    results.add(p);
+                    results.add(path);
             }
         }
 
