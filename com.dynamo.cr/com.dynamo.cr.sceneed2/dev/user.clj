@@ -1,5 +1,6 @@
 (ns user
-  (:require [dynamo.camera :as c]
+  (:require [clojure.osgi.core :refer [*bundle*]]
+            [dynamo.camera :as c]
             [dynamo.geom :as g]
             [dynamo.project :as p]
             [dynamo.file :as f]
@@ -12,7 +13,8 @@
             [schema.core :as s])
   (:import [java.awt Dimension]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
-           [javax.swing JFrame JPanel]))
+           [javax.swing JFrame JPanel]
+           [org.eclipse.e4.ui.workbench IWorkbench]))
 
 (defn method->function [m]
   (list (symbol (.getName m)) (into ['this] (.getParameterTypes m))))
@@ -131,30 +133,6 @@
   (let [panel (image-panel img)]
     (doto (JFrame.) (.add panel) .pack .show)))
 
-(comment
-  (import '[com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage])
-  (p/register-loader (current-project) "atlas" (f/protocol-buffer-loader AtlasProto$Atlas atlas.core/on-load))
-)
-
-(import org.eclipse.ui.PlatformUI)
-(import org.eclipse.ui.handlers.IHandlerService)
-(import org.eclipse.ui.commands.ICommandService)
-(PlatformUI/getWorkbench)
-
-(.getService (PlatformUI/getWorkbench) IHandlerService)
-(.getService (PlatformUI/getWorkbench) ICommandService)
-
-(require '[dynamo.ui :refer :all])
-(defn say-hello [event] (println "Output here."))
-(defcommand a-command "com.dynamo.cr.clojure-eclipse" "com.dynamo.cr.clojure-eclipse.commands.hello" "Speak!")
-(defhandler hello a-command say-hello)
-
-(require '[clojure.osgi.core :refer [*bundle*]])
-(import org.eclipse.e4.ui.workbench.IWorkbench)
-
-(.getServiceReferences (.getBundleContext *bundle*) IWorkbench nil)
-(.getServiceObjects (.getBundleContext *bundle*) (first (.getServiceReferences (.getBundleContext *bundle*) IWorkbench nil)))
-
 (defn application-model
   []
   (let [bc   (.getBundleContext *bundle*)
@@ -162,4 +140,8 @@
         so   (.getServiceObjects bc (first refs))]
     (.getApplication (.getService so))))
 
-(application-model)
+(comment
+  (import '[com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage])
+  (p/register-loader (current-project) "atlas" (f/protocol-buffer-loader AtlasProto$Atlas atlas.core/on-load))
+)
+
