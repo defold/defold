@@ -26,8 +26,19 @@ public class Texc {
         R8G8B8A8
     }
 
+    private static int handleLinuxPngTypeFailing(BufferedImage image) {
+        // On linux, PNG type detection fails.
+        // http://stackoverflow.com/questions/5836128/how-do-i-make-javas-imagebuffer-to-read-a-png-file-correctly
+        // We work around this bug with a hack.
+        int type = image.getType();
+        if (0 == type) {
+            type = 5;
+        }
+        return type;
+    }
+
     public static BufferedImage resize(BufferedImage image, int width, int height) {
-        BufferedImage result = new BufferedImage(width, height, image.getType());
+        BufferedImage result = new BufferedImage(width, height, handleLinuxPngTypeFailing(image));
 
         AffineTransform transform = new AffineTransform();
         transform.scale((double)width / (double)image.getWidth(), (double)height / (double)image.getHeight());
@@ -53,7 +64,7 @@ public class Texc {
             rgb[i] = red | (green << 8) | (blue << 16) | (alpha << 24);
         }
 
-        BufferedImage result = new BufferedImage(image.getWidth(), image.getHeight(), image.getType());
+        BufferedImage result = new BufferedImage(image.getWidth(), image.getHeight(), handleLinuxPngTypeFailing(image));
         result.setRGB(0, 0, image.getWidth(), image.getHeight(), rgb, 0, image.getWidth());
         return result;
     }
