@@ -1,5 +1,6 @@
 package com.dynamo.bob.pipeline;
 
+import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
@@ -26,19 +27,19 @@ public class Texc {
         R8G8B8A8
     }
 
-    private static int handleLinuxPngTypeFailing(BufferedImage image) {
-        // On linux, PNG type detection fails.
-        // http://stackoverflow.com/questions/5836128/how-do-i-make-javas-imagebuffer-to-read-a-png-file-correctly
-        // We work around this bug with a hack.
-        int type = image.getType();
-        if (0 == type) {
-            type = 5;
-        }
-        return type;
+    private static BufferedImage convertImage(BufferedImage origImage, int type) {
+        BufferedImage image = new BufferedImage(origImage.getWidth(), origImage.getHeight(), type);
+        Graphics2D g2d = image.createGraphics();
+        g2d.drawImage(origImage, 0, 0, null);
+        g2d.dispose();
+        return image;
     }
 
     public static BufferedImage resize(BufferedImage image, int width, int height) {
-        BufferedImage result = new BufferedImage(width, height, handleLinuxPngTypeFailing(image));
+        if (BufferedImage.TYPE_CUSTOM == image.getType()) {
+            image = convertImage(image, BufferedImage.TYPE_4BYTE_ABGR);
+        }
+        BufferedImage result = new BufferedImage(width, height, image.getType());
 
         AffineTransform transform = new AffineTransform();
         transform.scale((double)width / (double)image.getWidth(), (double)height / (double)image.getHeight());
@@ -48,6 +49,10 @@ public class Texc {
     }
 
     public static BufferedImage premultiplyAlpha(BufferedImage image) {
+        if (BufferedImage.TYPE_CUSTOM == image.getType()) {
+            image = convertImage(image, BufferedImage.TYPE_4BYTE_ABGR);
+        }
+
         int numPixels = image.getWidth() * image.getHeight();
         int[] rgb = new int[numPixels];
         rgb = image.getRGB(0, 0, image.getWidth(), image.getHeight(), rgb, 0, image.getWidth());
@@ -64,7 +69,7 @@ public class Texc {
             rgb[i] = red | (green << 8) | (blue << 16) | (alpha << 24);
         }
 
-        BufferedImage result = new BufferedImage(image.getWidth(), image.getHeight(), handleLinuxPngTypeFailing(image));
+        BufferedImage result = new BufferedImage(image.getWidth(), image.getHeight(), image.getType());
         result.setRGB(0, 0, image.getWidth(), image.getHeight(), rgb, 0, image.getWidth());
         return result;
     }
@@ -73,6 +78,9 @@ public class Texc {
         if (top.getWidth() != TextureUtil.closestPOT(top.getWidth()) ||
                 top.getHeight() != TextureUtil.closestPOT(top.getHeight())) {
             throw new TextureGeneratorException(String.format("Cannot generate mipmaps: illegal dimensions %dx%d", top.getWidth(), top.getHeight()));
+        }
+        if (BufferedImage.TYPE_CUSTOM == top.getType()) {
+            top = convertImage(top, BufferedImage.TYPE_4BYTE_ABGR);
         }
 
         ArrayList<BufferedImage> mips = new ArrayList<BufferedImage>();
