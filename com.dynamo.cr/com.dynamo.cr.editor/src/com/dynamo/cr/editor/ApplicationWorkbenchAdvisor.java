@@ -23,6 +23,8 @@ import org.eclipse.ui.internal.ide.IDEInternalPreferences;
 import org.eclipse.ui.internal.ide.IDEWorkbenchPlugin;
 import org.eclipse.ui.navigator.resources.ProjectExplorer;
 
+import clojure.osgi.ClojureHelper;
+
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 
@@ -44,6 +46,13 @@ public class ApplicationWorkbenchAdvisor extends WorkbenchAdvisor {
     public void initialize(IWorkbenchConfigurer configurer) {
         super.initialize(configurer);
         org.eclipse.ui.ide.IDE.registerAdapters();
+    }
+
+    @Override
+    public void preStartup() {
+        super.preStartup();
+        ClojureHelper.require("internal.system");
+        ClojureHelper.invoke("internal.system", "start");
     }
 
     protected void dumpPreferencesNodes(IPreferenceNode[] nodes, int indent) {
