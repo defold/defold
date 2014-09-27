@@ -35,6 +35,9 @@
             [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d]))
 
+(defonce counters (atom {}))
+(defn- tick [n] (swap! counters update-in [n] #(inc (or % 0))))
+
 (def integers (iterate (comp int inc) (int 0)))
 
 (vtx/defvertex engine-format-texture
@@ -81,6 +84,7 @@
 
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
+  (tick :textureset)
   (-> (pack-textures margin extrude-borders (consolidate images animations))
     (assoc :animations animations)))
 
@@ -93,7 +97,7 @@
   (property extrude-borders (non-negative-integer))
   (property filename        (string))
 
-  (output textureset TextureSet :cached :on-update produce-textureset))
+  (output textureset TextureSet :cached produce-textureset))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
@@ -138,17 +142,23 @@
   [ctx ^GL2 gl ^TextRenderer text-renderer this project]
   (let [textureset ^TextureSet (p/get-resource-value project this :textureset)
         image      ^BufferedImage (.packed-image textureset)]
-    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
+    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)
+    (gl/overlay ctx gl text-renderer (pr-str @counters) 12.0 -44.0 1.0 1.0)))
+
+(defnk produce-gpu-texture
+  [project this gl]
+  (tick :gpu-texture)
+  (texture/image-texture gl (:packed-image (p/get-resource-value project this :textureset))))
 
 (defn render-textureset
   [ctx gl this project]
   (do-gl [this            (assoc this :gl gl)
           textureset      (p/get-resource-value project this :textureset)
+          texture         (p/get-resource-value project this :gpu-texture)
           shader          (p/get-resource-value project this :shader)
           vbuf            (p/get-resource-value project this :vertex-buffer)
-          texture         (texture/image-texture gl (:packed-image textureset))
           vertex-binding  (vtx/use-with gl vbuf shader)]
-         (shader/set-uniform shader "texture" (int 0))
+         (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
 (defnk produce-renderable :- RenderData
@@ -174,10 +184,12 @@
 
 (defnk produce-shader :- s/Int
   [this gl]
+  (tick :shader)
   (shader/make-shader gl pos-uv-vert pos-uv-frag))
 
 (defnk produce-renderable-vertex-buffer
   [project this gl]
+  (tick :vertex-buffer)
   (let [textureset (p/get-resource-value project this :textureset)
         shader     (p/get-resource-value project this :shader)
         bounds     (:aabb textureset)
@@ -208,6 +220,7 @@
 
 (defnk produce-outline-vertex-buffer
   [project this gl]
+  (tick :outline-vertex-buffer)
   (let [textureset (p/get-resource-value project this :textureset)
         shader     (p/get-resource-value project this :shader)
         bounds     (:aabb textureset)
@@ -234,10 +247,11 @@
     (persistent! vbuf)))
 
 (defnode AtlasRender
-  (output shader s/Any          :cached produce-shader)
-  (output vertex-buffer s/Any   :cached produce-renderable-vertex-buffer)
-  (output outline-vertex-buffer :cached produce-outline-vertex-buffer)
-  (output renderable RenderData produce-renderable))
+  (output shader s/Any                :cached produce-shader)
+  (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
+  (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
+  (output gpu-texture s/Any           :cached produce-gpu-texture)
+  (output renderable RenderData  produce-renderable))
 
 (defnode AtlasNode
   (inherits OutlineNode)

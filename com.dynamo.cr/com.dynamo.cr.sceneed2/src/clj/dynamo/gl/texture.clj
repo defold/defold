@@ -15,6 +15,11 @@
   (texture-width [this])
   (texture-height [this]))
 
+(defprotocol TextureUnit
+  (texture-unit-index [this] "Index from zero.")
+  (texture-unit-id    [this] "Equivalent to (+ GL_TEXTURE0 texture-unit-index)"))
+
+;; TODO - don't assume GL_TEXTURE0 every time!
 (defn image-texture
   [^GL2 gl ^BufferedImage img]
   (let [texture (AWTTextureIO/newTexture (GLProfile/getGL2GL3) img true)]
@@ -36,6 +41,10 @@
       IDisposable
       (dispose [this]
         (.destroy texture gl))
+
+      TextureUnit
+      (texture-unit-index [this] (int 0))
+      (texture-unit-id    [this] (+ GL/GL_TEXTURE0 (texture-unit-index this)))
 
       TextureBounds
       (texture-width [this] (.getWidth texture))
