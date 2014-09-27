@@ -158,18 +158,28 @@
                    (log/error :exception t :message (str "Cannot write output to " x)))))
              pipe))))
 
+(defn- ensure-parents
+  [path]
+  (-> path
+    local-path
+    java.io.File.
+    (.getParentFile)
+    (.mkdirs)))
+
 (defmulti write-native-file (fn [path _] (class path)))
 
 (defmethod write-native-file NativePath
   [path contents]
+  (ensure-parents path)
   (with-open [out (io/output-stream (local-path path))]
     (.write out contents)))
 
 (defmethod write-native-file ProjectPath
   [path contents]
+  (ensure-parents (local-path (in-build-directory path)))
   (with-open [out (io/output-stream (local-path (in-build-directory path)))]
-    (.write out contents)
-    (.flush out)))
+   (.write out contents)
+   (.flush out)))
 
 (defn write-native-text-file
   [path text]
