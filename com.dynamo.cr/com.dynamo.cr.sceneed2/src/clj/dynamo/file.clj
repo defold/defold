@@ -4,24 +4,28 @@
             [clojure.osgi.core :refer [get-bundle]]
             [internal.java :as j]
             [service.log :as log])
-  (:import [java.io PipedOutputStream PipedInputStream]
-           [com.google.protobuf TextFormat]
+  (:import [java.io PipedOutputStream PipedInputStream Reader]
+           [com.google.protobuf TextFormat GeneratedMessage$Builder]
+           [org.osgi.framework Bundle]
            [org.eclipse.core.internal.resources File]
-           [org.eclipse.core.resources IResource IFile]))
+           [org.eclipse.core.resources IProject IResource IFile]))
+
+(set! *warn-on-reflection* true)
+
+(defn- eproj ^IProject [p] (:eclipse-project p))
 
 (defprotocol ProjectRelative
   (eclipse-path [this])
   (eclipse-file [this]))
 
-
 (defprotocol PathManipulation
-  (extension         [this])
-  (replace-extension [this new-ext])
-  (local-path        [this])
-  (alter-path        [this f]
-                     [this f args]))
+  (^String           extension         [this])
+  (^PathManipulation replace-extension [this new-ext])
+  (^String           local-path        [this])
+  (^PathManipulation alter-path        [this f]
+                                       [this f args]))
 
-(defrecord ProjectPath [project path ext]
+(defrecord ProjectPath [project ^String path ^String ext]
   PathManipulation
   (extension         [this]         ext)
   (replace-extension [this new-ext] (ProjectPath. project path new-ext))
@@ -30,8 +34,8 @@
   (alter-path        [this f args]  (ProjectPath. project (apply f path args) ext))
 
   ProjectRelative
-  (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile (:eclipse-project project) path)) ext))
-  (eclipse-file      [this] (.getFile (:eclipse-project project) (local-path this)))
+  (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile (eproj project) path)) ext))
+  (eclipse-file      [this] (.getFile (eproj project) (local-path this)))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (eclipse-file this) opts))
@@ -43,14 +47,14 @@
   (toString [this] (local-path this)))
 
 (defmethod print-method ProjectPath
-  [v ^java.io.Writer w]
+  [^ProjectPath v ^java.io.Writer w]
   (.write w (str "<ProjectPath \"" (.path v) "." (.ext v) "\">")))
 
 (alter-meta! #'->ProjectPath update-in [:doc] str "\n\n Takes a project, a string path, and a file extension.")
 
 (alter-meta! #'map->ProjectPath update-in [:doc] str "\n\n See [[->ProjectPath.]]")
 
-(defrecord NativePath [path ext]
+(defrecord NativePath [^String path ^String ext]
   PathManipulation
   (extension         [this]         ext)
   (replace-extension [this new-ext] (NativePath. path new-ext))
@@ -68,72 +72,41 @@
   (toString [this] (local-path this)))
 
 (defmethod print-method NativePath
-  [v ^java.io.Writer w]
+  [^NativePath v ^java.io.Writer w]
   (.write w (str "<NativePath \"" (.path v) "." (.ext v) "\">")))
 
 (alter-meta! #'->NativePath update-in [:doc] str "\n\n Takes a path and extension. See also [[in-build-directory]].")
 
 (alter-meta! #'map->NativePath update-in [:doc] str "\n\n See [[->NativePath.]]")
 
-(defrecord BundlePath [bundle path]
-  io/IOFactory
-  (io/make-input-stream  [this opts]
-    (assert bundle (str "Bundle cannot be nil. <#BundlePath [" this "]>: "))
-    (let [ent (.getEntry bundle (.toString this))]
-      (when-not ent
-        (throw (java.io.FileNotFoundException. (str "Bundle entry <" (.toString this) "> not found."))))
-      (try
-        (io/make-input-stream ent opts)
-        (catch java.lang.NullPointerException npe
-          ;;WAT?
-          (log/error :exception npe :url ent :url-string (.toString ent) :opts opts)
-          (throw npe)))))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts]
-    (throw (IllegalArgumentException.
-             (str "Cannot open <" (pr-str this) "> as an OutputStream."))))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
-
-  Object
-  (toString [this] path))
-
-(defmethod print-method BundlePath
-  [v ^java.io.Writer w]
-  (.write w (str "<BundlePath \"" (.getSymbolicName (.bundle v)) ":" (.path v) "\">")))
-
 (defn project-path
   ([project-state]
-    (let [eproj (:eclipse-project @project-state)]
-      (ProjectPath. @project-state (.toString (.removeFirstSegments (.getFullPath eproj) 1)) nil)))
+    (let [ep (eproj @project-state)]
+      (ProjectPath. @project-state (.toString (.removeFirstSegments (.getFullPath ep) 1)) nil)))
   ([project-state resource]
-    (let [eproj (:eclipse-project @project-state)
-          file  (cond
-                  (string? resource)         (.getFile eproj (str "content/" resource))
-                  (instance? IFile resource) resource)
-          pr (.removeFirstSegments (.getFullPath file) 1)]
+    (let [ep    (eproj @project-state)
+          file  (if (instance? IFile resource)
+                  resource
+                  (.getFile ep (str "content/" resource)))
+          pr    (.removeFirstSegments (.getFullPath ^IFile file) 1)]
       (ProjectPath. @project-state (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
-
-(defn bundle-path [bundle resource]
-  (if (string? bundle)
-    (BundlePath. (get-bundle bundle) resource)
-    (BundlePath. bundle resource)))
 
 (defn in-build-directory
   [^ProjectPath p]
   (let [project               (.project p)
-        eclipse-project       (:eclipse-project project)
+        eclipse-project       (eproj project)
         branch                (:branch project)
         relative-to-build-dir (clojure.string/replace (.path p) "content" (str branch "/build/default"))
         build-dir-native      (.removeLastSegments (.getLocation (.getFile eclipse-project "content")) 1)]
     (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (.ext p))))
 
-(defn- new-builder
+(defn- new-builder ^GeneratedMessage$Builder
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
 (defn protocol-buffer-loader
   [^java.lang.Class class f]
-  (fn [project-state nm input-reader]
+  (fn [project-state nm ^Reader input-reader]
     (let [builder (new-builder class)]
       (TextFormat/merge input-reader builder)
       (f project-state nm (.build builder)))))
@@ -145,10 +118,10 @@
   io/IOFactory
   (assoc io/default-streams-impl
          :make-input-stream
-         (fn [x opts]
+         (fn [^File x opts]
            (.getContents x))
          :make-output-stream
-         (fn [x opts]
+         (fn [^File x opts]
            (let [pipe (PipedOutputStream.)
                  sink (PipedInputStream. pipe)]
              (future
@@ -169,26 +142,21 @@
 (defmulti write-native-file (fn [path _] (class path)))
 
 (defmethod write-native-file NativePath
-  [path contents]
+  [path ^bytes contents]
   (ensure-parents path)
   (with-open [out (io/output-stream (local-path path))]
     (.write out contents)))
 
 (defmethod write-native-file ProjectPath
-  [path contents]
+  [path ^bytes contents]
   (ensure-parents (local-path (in-build-directory path)))
   (with-open [out (io/output-stream (local-path (in-build-directory path)))]
    (.write out contents)
    (.flush out)))
 
 (defn write-native-text-file
-  [path text]
+  [path ^String text]
   (write-native-file path (.getBytes text)))
-
-(defn write-project-file
-  [^ProjectPath path contents]
-  (with-open [out (io/output-stream (eclipse-file path))]
-    (.write out contents)))
 
 (doseq [[v doc]
        {*ns*
@@ -218,9 +186,6 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
         #'project-path
         "Given a project-state, returns a ProjectPath containing the path to the project's files.
          The resource can be a string or an IFile."
-
-        #'write-project-file
-        "Write the given contents into the file at path."
 
         #'in-build-directory
         "given a ProjectPath, translates that path into a NativePath containing the
