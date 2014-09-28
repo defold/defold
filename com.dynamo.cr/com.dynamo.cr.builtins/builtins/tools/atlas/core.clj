@@ -35,9 +35,6 @@
             [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d]))
 
-(defonce counters (atom {}))
-(defn- tick [n] (swap! counters update-in [n] #(inc (or % 0))))
-
 (def integers (iterate (comp int inc) (int 0)))
 
 (vtx/defvertex engine-format-texture
@@ -84,7 +81,6 @@
 
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
-  (tick :textureset)
   (-> (pack-textures margin extrude-borders (consolidate images animations))
     (assoc :animations animations)))
 
@@ -142,12 +138,10 @@
   [ctx ^GL2 gl ^TextRenderer text-renderer this project]
   (let [textureset ^TextureSet (p/get-resource-value project this :textureset)
         image      ^BufferedImage (.packed-image textureset)]
-    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)
-    (gl/overlay ctx gl text-renderer (pr-str @counters) 12.0 -44.0 1.0 1.0)))
+    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
 (defnk produce-gpu-texture
   [project this gl]
-  (tick :gpu-texture)
   (texture/image-texture gl (:packed-image (p/get-resource-value project this :textureset))))
 
 (defn render-textureset
@@ -184,12 +178,10 @@
 
 (defnk produce-shader :- s/Int
   [this gl]
-  (tick :shader)
   (shader/make-shader gl pos-uv-vert pos-uv-frag))
 
 (defnk produce-renderable-vertex-buffer
   [project this gl]
-  (tick :vertex-buffer)
   (let [textureset (p/get-resource-value project this :textureset)
         shader     (p/get-resource-value project this :shader)
         bounds     (:aabb textureset)
@@ -220,7 +212,6 @@
 
 (defnk produce-outline-vertex-buffer
   [project this gl]
-  (tick :outline-vertex-buffer)
   (let [textureset (p/get-resource-value project this :textureset)
         shader     (p/get-resource-value project this :shader)
         bounds     (:aabb textureset)
