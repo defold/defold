@@ -217,8 +217,7 @@ public class Bob {
         if (file.exists()) {
             texcLibDir = file.getParentFile().getAbsolutePath();
         } else {
-            System.out.println(String.format("uri: %s", uri.getPath()));
-            throw new IOException(String.format("Could not locate '%s'", file.getAbsolutePath()));// libSubPath));
+            throw new IOException(String.format("Could not locate '%s'", libSubPath));
         }
     }
 
