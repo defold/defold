@@ -21,6 +21,21 @@
 (defprotocol MessageTarget
   (start-event-loop! [this project-state event-ch]))
 
+(defprotocol R3Min
+  (min-p ^Point3d  [this]))
+
+(defprotocol R3Max
+  (max-p ^Point3d  [this]))
+
+(defprotocol Rotation
+  (rotation ^Quat4d [this]))
+
+(defprotocol Translation
+  (translation ^Vector4d [this]))
+
+(defprotocol Position
+  (position ^Point3d [this]))
+
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
@@ -41,9 +56,11 @@
    width    :- Int32
    height   :- Int32])
 
-(sm/defrecord AABB
-  [min :- Point3d
-   max :- Point3d])
+(deftype AABB [min max]
+  R3Min
+  (min-p [this] (.min this))
+  R3Max
+  (max-p [this] (.max this)))
 
 (sm/defn ^:always-validate rect :- Rect
   ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]

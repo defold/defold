@@ -12,8 +12,8 @@
            [org.eclipse.swt SWT]
            [dynamo.types Camera Region AABB]))
 
-(defn camera-view-matrix
-  [camera]
+(sm/defn camera-view-matrix :- Matrix4d
+  [camera :- Camera]
   (let [pos (Vector3d. (.position camera))
         m   (Matrix4d.)]
     (.setIdentity m)
@@ -199,7 +199,7 @@
 
     (normalize-vector out)))
 
-(sm/defn viewproj-frustum-planes
+(sm/defn viewproj-frustum-planes :- [Vector4d]
   [camera :- Camera]
   (let [view-proj   (doto (camera-projection-matrix camera)
                       (.mul (camera-view-matrix camera)))
