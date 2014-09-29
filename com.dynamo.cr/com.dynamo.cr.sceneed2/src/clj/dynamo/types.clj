@@ -120,6 +120,9 @@
    top    :- s/Num
    bottom :- s/Num])
 
+(defprotocol Viewport
+  (viewport ^Region [this]))
+
 (sm/defrecord Camera
   [type           :- (s/enum :perspective :orthographic)
    position       :- Vector3d
@@ -129,7 +132,13 @@
    aspect         :- s/Num
    fov            :- s/Num
    focus-point    :- Vector4d
-   viewport       :- Region])
+   viewport       :- Region]
+  Position
+  (position [this] (.position this))
+  Rotation
+  (rotation [this] (.rotation this))
+  Viewport
+  (viewport [this] (.viewport this)))
 
 (defn bool                 [& {:as opts}] (merge {:schema s/Bool} opts))
 (defn number               [& {:as opts}] (merge {:schema s/Num} opts))

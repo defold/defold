@@ -10,14 +10,17 @@
             [dynamo.geom :as g])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d]
            [org.eclipse.swt SWT]
+           [org.eclipse.swt.widgets Event]
            [dynamo.types Camera Region AABB]))
+
+(set! *warn-on-reflection* true)
 
 (sm/defn camera-view-matrix :- Matrix4d
   [camera :- Camera]
-  (let [pos (Vector3d. (.position camera))
+  (let [pos (Vector3d. (t/position camera))
         m   (Matrix4d.)]
     (.setIdentity m)
-    (.set m (.rotation camera))
+    (.set m (t/rotation camera))
     (.transpose m)
     (.transform m pos)
     (.negate pos)
@@ -95,8 +98,8 @@
     (set! (. m m33) 1.0)
     m))
 
-(defn camera-projection-matrix
-  [camera]
+(sm/defn camera-projection-matrix :- Matrix4d
+  [camera :- Camera]
   (case (:type camera)
     :perspective  (camera-perspective-projection-matrix camera)
     :orthographic (camera-orthographic-projection-matrix camera)))
@@ -119,11 +122,11 @@
 
 (sm/defn camera-rotate :- Camera
   [camera :- Camera q :- Quat4d]
-  (assoc camera :rotation (.mul (.rotation camera) (.normalize (Quat4d. q)))))
+  (assoc camera :rotation (.mul (t/rotation camera) (.normalize (Quat4d. q)))))
 
 (sm/defn camera-move :- Camera
   [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
-  (let [p (.position camera)]
+  (let [p (t/position camera)]
     (set! (. p x) (+ x (. p x)))
     (set! (. p y) (+ y (. p y)))
     (set! (. p z) (+ z (. p z)))
@@ -131,7 +134,7 @@
 
 (sm/defn camera-set-position :- Camera
   [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
-  (let [p (.position camera)]
+  (let [p (t/position camera)]
     (set! (. p x) x)
     (set! (. p y) y)
     (set! (. p z) z)
@@ -143,7 +146,7 @@
         view-matrix (camera-view-matrix camera)]
     (.transform view-matrix center)
     (set! (. center z) 0)
-    (.transform (g/invert view-matrix) center)
+    (.transform ^Matrix4d (g/invert view-matrix) center)
     (camera-set-position camera (.x center) (.y center) (.z center))))
 
 (sm/defn camera-project :- Point3d
@@ -181,9 +184,9 @@
                 (/ (.z ~v) (.w ~v))
                 1.0)))
 
-(sm/defn camera-unproject
+(sm/defn camera-unproject :- Vector4d
   [camera :- Camera win-x :- s/Num win-y :- s/Num win-z :- s/Num]
-  (let [viewport (:viewport camera)
+  (let [viewport (t/viewport camera)
         win-y    (- (.bottom viewport) (.top viewport) win-y 1.0)
         in       (Vector4d. (scale-to-doubleunit win-x (.left viewport) (.right viewport))
                             (scale-to-doubleunit win-y (.top viewport)  (.bottom viewport))
@@ -207,8 +210,8 @@
         rows        (mapcat #(repeat 2 %) (range 3))
         scales      (take 6 (cycle [-1 1]))]
     (map (fn [row scale]
-           (let [temp (Vector4d.)]
-             (.getRow view-proj row temp)
+           (let [temp ^Vector4d (Vector4d.)]
+             (.getRow view-proj ^int row temp)
              (.scale  temp scale)
              (.add    temp persp-vec)
              temp))
@@ -226,7 +229,7 @@
 
 (defn track
   [camera last-x last-y evt-x evt-y]
-  (let [focus (:focus-point camera)
+  (let [focus ^Vector4d (:focus-point camera)
         point (camera-project camera (:viewport camera) (Point3d. (.x focus) (.y focus) (.z focus)))
         world (camera-unproject camera evt-x evt-y (.z point))
         delta (camera-unproject camera last-x last-y (.z point))]
@@ -243,7 +246,7 @@
    [:three-button 3 SWT/ALT]                 :dolly})
 
 (defn camera-movement
-  ([event]
+  ([^Event event]
     (camera-movement (ui/mouse-type) (.button event) (.stateMask event)))
   ([mouse-type button mods]
     (button-interpretation [mouse-type button mods] :idle)))
@@ -257,20 +260,22 @@
 
   (on :mouse-down
       (set-property self
-                    :last-x (.x event)
-                    :last-y (.y event)
+                    :last-x (.x ^Event event)
+                    :last-y (.y ^Event event)
                     :movement (camera-movement event)))
 
   (on :mouse-move
       (when (not (= :idle (:movement self)))
-        (let [camera-node (p/resource-feeding-into project-state self :camera)]
+        (let [camera-node (p/resource-feeding-into project-state self :camera)
+              x (.x ^Event event)
+              y (.y ^Event event)]
           (case (:movement self)
-            :dolly  (do (update-property camera-node :camera dolly (* -0.002 (- (.y event) (:last-y self)))) (repaint))
-            :track  (do (update-property camera-node :camera track (:last-x self) (:last-y self) (.x event) (.y event)) (repaint))
+            :dolly  (do (update-property camera-node :camera dolly (* -0.002 (- y (:last-y self)))) (repaint))
+            :track  (do (update-property camera-node :camera track (:last-x self) (:last-y self) x y) (repaint))
             nil)
           (set-property self
-                        :last-x (.x event)
-                        :last-y (.y event)))))
+                        :last-x x
+                        :last-y y))))
 
   (on :mouse-up
       (set-property self
@@ -280,5 +285,5 @@
 
   (on :mouse-wheel
       (let [camera-node (p/resource-feeding-into project-state self :camera)]
-        (update-property camera-node :camera dolly (* -0.02 (.count event)))
+        (update-property camera-node :camera dolly (* -0.02 (.count ^Event event)))
         (repaint))))

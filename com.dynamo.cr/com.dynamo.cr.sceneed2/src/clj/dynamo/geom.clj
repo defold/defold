@@ -104,38 +104,45 @@
 ; -------------------------------------
 ; Matrix sloshing
 ; -------------------------------------
-(defmulti as-array class)
-(defmulti invert class)
+(defprotocol AsArray
+  (^doubles as-array [this]))
 
-(defmethod as-array Matrix4d
-  [^Matrix4d x]
-  (float-array [(.m00 x) (.m10 x) (.m20 x) (.m30 x)
-                (.m01 x) (.m11 x) (.m21 x) (.m31 x)
-                (.m02 x) (.m12 x) (.m22 x) (.m32 x)
-                (.m03 x) (.m13 x) (.m23 x) (.m33 x)]))
+(defprotocol Invertible
+  (invert [this]))
 
-(defmethod as-array Vector3d
-  [^Vector3d v]
-  (let [vals (double-array 3)]
-    (.get v vals)
-    vals))
+(extend-type Matrix4d
+  AsArray
+  (as-array [this]
+    (double-array [(.m00 this) (.m10 this) (.m20 this) (.m30 this)
+                   (.m01 this) (.m11 this) (.m21 this) (.m31 this)
+                   (.m02 this) (.m12 this) (.m22 this) (.m32 this)
+                   (.m03 this) (.m13 this) (.m23 this) (.m33 this)]))
 
-(defmethod as-array Point3d
-  [^Point3d v]
-  (let [vals (double-array 3)]
-    (.get v vals)
-    vals))
+  Invertible
+  (invert [this]
+    (doto (Matrix4d. this)
+      .invert)))
 
-(defmethod as-array Vector4d
-  [^Vector4d v]
-  (let [vals (double-array 4)]
-    (.get v vals)
-    vals))
+(extend-type Vector3d
+  AsArray
+  (as-array [v]
+    (let [vals (double-array 3)]
+      (.get v vals)
+      vals)))
 
-(defmethod invert Matrix4d
-  [^doubles m]
-  (doto (Matrix4d. m)
-    .invert))
+(extend-type Point3d
+  AsArray
+  (as-array [v]
+    (let [vals (double-array 3)]
+      (.get v vals)
+      vals)))
+
+(extend-type Vector4d
+  AsArray
+  (as-array [v]
+    (let [vals (double-array 4)]
+      (.get v vals)
+      vals)))
 
 (sm/defn ident :- Matrix4d
   []
