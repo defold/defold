@@ -4,10 +4,12 @@
             [dynamo.types :refer :all]
             [internal.texture.math :refer :all])
   (:import [java.awt.image BufferedImage ColorModel]
+           [java.nio ByteBuffer]
            [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.bob TexcLibrary TexcLibrary$ColorSpace TexcLibrary$PixelFormat]
            [com.sun.jna Pointer]))
 
+(set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
 ; Set up some compile-time aliases for those long Java constant names
@@ -34,7 +36,7 @@
 (defn- image->byte-buffer
   "This is specialized for use in texture writing. It assumes the image
    has already been converted to a 4-byte packed (not planar) format."
-  [img]
+  [^BufferedImage img]
   (let [width     (.getWidth img)
         height    (.getHeight img)
         data-size (* 4 width height)
@@ -50,7 +52,7 @@
   (list* 'do
          (for [[action msg] pairs]
            `(when-not ~action
-              (throw (Exception. ~msg))))))
+              (throw (Exception. (str ~msg)))))))
 
 (defn- resize [texture width height width-pot height-pot]
   (or (and (= width width-pot) (= height height-pot))

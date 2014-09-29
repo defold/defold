@@ -4,13 +4,16 @@
             [dynamo.node :as n]
             [dynamo.types :as t]
             [dynamo.gl :refer :all]
-            [internal.render.pass :as p]))
+            [internal.render.pass :as p])
+  (:import [javax.media.opengl GL2]))
+
+(set! *warn-on-reflection* true)
 
 (def bg-top-color (color 123 143 167))
 (def bg-bottom-color (color 28 29 31))
 
 (defn render-background
-  [context gl glu text-renderer]
+  [context ^GL2 gl glu text-renderer]
   (let [x0           (float -1.0)
         x1           (float 1.0)
         y0           (float -1.0)

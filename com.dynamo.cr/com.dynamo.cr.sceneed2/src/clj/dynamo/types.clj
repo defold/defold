@@ -41,6 +41,10 @@
 (defprotocol ImageHolder
   (contents ^BufferedImage [this]))
 
+(defprotocol N2Extent
+  (width ^Integer [this])
+  (height ^Integer [this]))
+
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
@@ -59,7 +63,10 @@
    x        :- Int32
    y        :- Int32
    width    :- Int32
-   height   :- Int32])
+   height   :- Int32]
+  N2Extent
+  (width [this] width)
+  (height [this] height))
 
 (deftype AABB [min max]
   R3Min

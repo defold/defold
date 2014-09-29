@@ -31,11 +31,13 @@
     (set! (. d depthSize) 24)
     d))
 
-(defn glcanvas [parent]
+(defn glcanvas ^GLCanvas
+  [parent]
   (doto (GLCanvas. parent (bit-or SWT/NO_REDRAW_RESIZE SWT/NO_BACKGROUND) (gldata))
     (.setLayoutData (griddata))))
 
-(defn glfactory []
+(defn glfactory ^GLDrawableFactory
+  []
   (GLDrawableFactory/getFactory (GLProfile/getGL2ES2)))
 
 (defn gl-init-vba [^GL2 gl]
@@ -101,11 +103,12 @@
        (finally
          (.swapBuffers ~canvas)))))
 
-(defmacro with-context [ctx bindings & body]
+(defmacro with-context
+  [ctx bindings & body]
   (assert (= 2 (count bindings)) "Bindings vector must provide names to bind to the GL2 and GLU objects")
   `(try
      (.makeCurrent ~ctx)
-     (let [~(first bindings)  (.. ~ctx getGL getGL2ES2)
+     (let [~(first bindings)  (.. ~ctx getGL getGL2)
            ~(second bindings) (GLU.)]
        ~@body)
      (finally

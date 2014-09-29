@@ -15,11 +15,15 @@
             [internal.ui.background :as back]
             [internal.fps :refer [new-fps-tracker]]
             [internal.ui.grid :as grid])
-  (:import [javax.media.opengl GL2]
+  (:import [javax.media.opengl GL2 GLContext GLDrawableFactory]
+           [javax.media.opengl.glu GLU]
            [java.nio IntBuffer]
            [java.awt Font]
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
+           [org.eclipse.swt.opengl GLData GLCanvas]
            [dynamo.types Camera Region]))
+
+(set! *warn-on-reflection* true)
 
 (def PASS_SHIFT        32)
 (def INDEX_SHIFT       (+ PASS_SHIFT 4))
@@ -50,7 +54,7 @@
 
 (defn on-resize
   [evt editor state]
-  (let [{:keys [canvas camera-node-id project-state]} @state
+  (let [{:keys [^GLCanvas canvas camera-node-id project-state]} @state
         camera-node (p/resource-by-id project-state camera-node-id)
         client      (.getClientArea canvas)
         viewport    (t/->Region 0 (.width client) 0 (.height client))
@@ -66,7 +70,7 @@
     (ui/request-repaint editor)))
 
 (defn setup-pass
-  [context gl glu pass camera viewport]
+  [context ^GL2 gl ^GLU glu pass camera ^Region viewport]
   (.glMatrixMode gl GL2/GL_PROJECTION)
   (.glLoadIdentity gl)
   (if (t/model-transform? pass)
@@ -79,7 +83,7 @@
   (pass/prepare-gl pass gl glu))
 
 (defn do-paint
-  [{:keys [project-state context canvas camera-node-id render-node-id small-text-renderer] :as state}]
+  [{:keys [project-state ^GLContext context ^GLCanvas canvas camera-node-id render-node-id small-text-renderer] :as state}]
   (when (not (.isDisposed canvas))
     (.setCurrent canvas)
     (with-context context [gl glu]

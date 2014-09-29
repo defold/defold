@@ -7,21 +7,23 @@
            [org.eclipse.core.commands AbstractHandler ExecutionEvent]
            [org.eclipse.ui.commands ICommandService]
            [org.eclipse.ui.handlers IHandlerService IHandlerActivation]
-           [org.eclipse.ui ISources PlatformUI]))
+           [org.eclipse.ui ISources PlatformUI]
+           [internal.java Field]))
 
+(set! *warn-on-reflection* true)
 
-(defn snake-case [s] (.replaceAll (.toLowerCase s) "_" "-"))
+(defn snake-case [^String s] (.replaceAll (.toLowerCase s) "_" "-"))
 
 (defn context-accessor-sexp
   [fld]
-  (let [fld-name (:name (first fld))
+  (let [fld-name (name (first fld))
         fn-name (symbol (snake-case (subs fld-name 0 (- (count fld-name) 5))))]
     `(defn ~fn-name [^IEvaluationContext ctx#]
        (.getVariable ctx# ~(second fld)))))
 
 (defn context-variable-fields
   [cls]
-  (filter #(.endsWith (:name (first %)) "_NAME")
+  (filter (fn [^Field f] (.endsWith (name (first f)) "_NAME"))
           (java/constants (resolve cls))))
 
 (defmacro context-accessors
@@ -31,11 +33,11 @@
 
 (context-accessors org.eclipse.ui.ISources)
 
-(defn global-handler-service [] (.getAdapter (PlatformUI/getWorkbench) IHandlerService))
-(defn global-command-service [] (.getAdapter (PlatformUI/getWorkbench) ICommandService))
+(defn global-handler-service ^IHandlerService [] (.getAdapter (PlatformUI/getWorkbench) IHandlerService))
+(defn global-command-service ^ICommandService [] (.getAdapter (PlatformUI/getWorkbench) ICommandService))
 
-(defn- command  [command-id]  (.getCommand  (global-command-service) command-id))
-(defn- category [category-id] (.getCategory (global-command-service) category-id))
+(defn- command  ^org.eclipse.core.commands.Command  [command-id]  (.getCommand  (global-command-service) command-id))
+(defn- category ^org.eclipse.core.commands.Category [category-id] (.getCategory (global-command-service) category-id))
 
 (defrecord Command [nm category id real-command])
 

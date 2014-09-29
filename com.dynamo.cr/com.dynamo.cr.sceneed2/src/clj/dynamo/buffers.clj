@@ -28,7 +28,7 @@
 
 (defn new-buffer [s] (.order (ByteBuffer/allocateDirect s) ByteOrder/LITTLE_ENDIAN))
 
-(defn new-byte-buffer [& dims] (new-buffer (reduce * 1 dims)))
+(defn new-byte-buffer ^ByteBuffer [& dims] (new-buffer (reduce * 1 dims)))
 
 (defn copy-buffer
   [^ByteBuffer b]

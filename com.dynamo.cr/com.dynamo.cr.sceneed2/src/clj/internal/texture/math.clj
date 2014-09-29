@@ -2,6 +2,8 @@
   (:require [schema.core :as s]
             [schema.macros :as sm]))
 
+(set! *warn-on-reflection* true)
+
 (sm/defn doubling :- s/Num
   "Return a lazy infinite sequence of doublings of i"
   ([i :- s/Num]

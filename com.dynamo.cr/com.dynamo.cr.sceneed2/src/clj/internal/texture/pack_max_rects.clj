@@ -3,14 +3,16 @@
             [schema.macros :as sm]
             [dynamo.geom :refer :all]
             [dynamo.image :refer :all]
-            [dynamo.types :refer [rect]]
+            [dynamo.types :refer [rect width height]]
             [internal.texture.math :refer :all])
   (:import [dynamo.types Rect Image TextureSet]))
 
-(sm/defn ^:private short-side-fit :- s/Int
-  [r1 :- Rect r2 :- Rect]
-  (min (Math/abs (- (.width r1)  (.width r2)))
-       (Math/abs (- (.height r1) (.height r2)))))
+(set! *warn-on-reflection* true)
+
+(defn- short-side-fit
+  [^Rect r1 ^Rect r2]
+  (min (Math/abs ^int (- (width r1)  (width r2)))
+       (Math/abs ^int (- (height r1) (height r2)))))
 
 (sm/defn ^:private area-fit :- s/Int
   [r1 :- Rect r2 :- Rect]
