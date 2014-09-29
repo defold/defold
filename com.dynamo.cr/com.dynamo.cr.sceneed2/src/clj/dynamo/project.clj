@@ -18,6 +18,8 @@
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
 

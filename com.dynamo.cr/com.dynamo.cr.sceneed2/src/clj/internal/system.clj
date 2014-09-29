@@ -4,10 +4,13 @@
             [dynamo.project :as p]
             [dynamo.file :as file]
             [dynamo.env :as e]
+            [dynamo.resource :as r]
             [internal.graph.dgraph :as dg]
             [service.log :as log :refer [logging-exceptions]]
             [eclipse.resources :refer :all])
   (:import [org.eclipse.core.resources IProject IResource IFile]))
+
+(set! *warn-on-reflection* true)
 
 (defprotocol ProjectLifecycle
   (open-project [this project branch]  "Attach to the project and set up any internal state required.")
@@ -19,7 +22,7 @@
        (.endsWith (.getName resource) ".clj")))
 
 (defn project-relative-path
-  [proj rel]
+  [^IProject proj ^String rel]
   (.getFullPath (.getFile proj rel)))
 
 (defrecord ProjectSubsystem [project-state tx-report-queue]
@@ -77,7 +80,9 @@
              (when-let [v (<! in)]
                (logging-exceptions "disposal-loop"
                  (e/with-project (:project v)
-                   (.dispose (:value v))))
+                   (let [d (:value v)]
+                     (when (r/disposable? d)
+                       (r/dispose d)))))
                (recur)))))
 
 (defn- disposal-subsystem

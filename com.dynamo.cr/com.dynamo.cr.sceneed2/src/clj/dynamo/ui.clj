@@ -3,8 +3,10 @@
             [internal.ui.handlers :as h]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
-            [org.eclipse.swt.widgets Display Listener]
+            [org.eclipse.swt.widgets Display Listener Widget]
             [org.eclipse.swt SWT]))
+
+(set! *warn-on-reflection* true)
 
 (defn mouse-type
   []
@@ -12,7 +14,7 @@
     :one-button
     :three-button))
 
-(defn display
+(defn display ^Display
   []
   (or (Display/getCurrent) (Display/getDefault)))
 
@@ -65,7 +67,7 @@
   (event-type-map (.type evt)))
 
 (defn listen
-  [component type callback-fn & args]
+  [^Widget component type callback-fn & args]
   (let [f (bound-fn [evt] (apply callback-fn evt args))]
     (.addListener component (event-map type)
       (proxy [Listener] []
@@ -77,7 +79,7 @@
   (chan (dropping-buffer 100)))
 
 (defn pipe-events-to-channel
-  [control type ch]
+  [^Widget control type ch]
   (.addListener control (event-map type)
     (EventForwarder. ch)))
 

@@ -5,6 +5,8 @@
             [dynamo.file :as f]
             [internal.ui.scene-editor :refer [->SceneEditor]]))
 
+(set! *warn-on-reflection* true)
+
 (defn find-or-load-node
   [project-state file]
   (let [f (f/project-path project-state file)]

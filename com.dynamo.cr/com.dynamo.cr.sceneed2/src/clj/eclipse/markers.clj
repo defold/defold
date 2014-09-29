@@ -1,6 +1,8 @@
 (ns eclipse.markers
   (:import [org.eclipse.core.resources IMarker IResource]))
 
+(set! *warn-on-reflection* true)
+
 (defn remove-markers
   [^IResource resource]
   (.deleteMarkers resource IMarker/PROBLEM true IResource/DEPTH_INFINITE))

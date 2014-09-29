@@ -10,6 +10,8 @@
   (:import [java.awt.image BufferedImage]
            [dynamo.types Rect Image TextureSet EngineFormatTexture]))
 
+(set! *warn-on-reflection* true)
+
 (defnk animation-frames [this g])
 
 (defnode AnimationBehavior

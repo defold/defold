@@ -4,10 +4,12 @@
             [dynamo.file :as f]
             [dynamo.project :as p]
             [camel-snake-kebab :refer :all])
-  (:import [com.google.protobuf TextFormat]))
+  (:import [com.google.protobuf Message TextFormat]))
+
+(set! *warn-on-reflection* true)
 
 (defn mapper-name [cls]
-  (symbol (str (.getName cls) "->map")))
+  (symbol (str (name cls) "->map")))
 
 (defn getter-name [fld]
   (->camelCase (str "get-" (name fld))))
@@ -68,5 +70,5 @@
     (list* 'do converters)))
 
 (defn pb->str
-  [pb]
+  [^Message pb]
   (TextFormat/printToString pb))

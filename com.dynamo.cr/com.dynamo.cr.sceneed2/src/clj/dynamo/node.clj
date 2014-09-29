@@ -9,6 +9,8 @@
             [service.log :as log]
             [dynamo.types :refer :all]))
 
+(set! *warn-on-reflection* true)
+
 (defn get-node [g id]
   (dg/node g id))
 

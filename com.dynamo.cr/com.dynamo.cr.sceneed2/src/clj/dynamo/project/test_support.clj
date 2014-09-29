@@ -5,6 +5,8 @@
   (:import [org.eclipse.core.runtime Path IPath]
            [org.eclipse.core.resources IFile IFolder]))
 
+(set! *warn-on-reflection* true)
+
 ;; create a fake project type (IFile has the methods we need)
 ;; needs to be able to getFullPath, returning an IPath impl
 

@@ -4,6 +4,8 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]))
 
+(set! *warn-on-reflection* true)
+
 ;; Value
 (def OutlineItem
   {:label    s/Str
