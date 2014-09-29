@@ -12,6 +12,8 @@
            [java.awt.image BufferedImage]
            [dynamo.types Rect Image]))
 
+(set! *warn-on-reflection* true)
+
 (defmacro with-graphics
   [binding & body]
   (let [rsym (gensym)]
@@ -48,11 +50,11 @@
   ([width :- s/Int height :- s/Int t :- s/Int]
     (BufferedImage. width height t)))
 
-(sm/defn image-color-components :- s/Int
+(sm/defn image-color-components :- long
   [src :- BufferedImage]
   (.. src (getColorModel) (getNumComponents)))
 
-(sm/defn image-infer-type :- s/Int
+(sm/defn image-infer-type :- long
   [src :- BufferedImage]
   (if (not= 0 (.getType src))
     (.getType src)
@@ -87,7 +89,7 @@
     pixels))
 
 (sm/defn image-from-pixels :- BufferedImage
-  [width :- s/Int height :- s/Int t :- s/Int pixels :- ints]
+  [^long width :- s/Int ^long height :- s/Int t :- s/Int pixels :- ints]
   (doto (blank-image width height t)
     (.. (getRaster) (setPixels 0 0 width height pixels))))
 
@@ -98,7 +100,7 @@
   [extrusion :- s/Int src :- Image]
   (if-not (< 0 extrusion)
     src
-    (let [src-img        (.contents src)
+    (let [src-img        (contents src)
           orig-width     (.width src)
           orig-height    (.height src)
           new-width      (+ orig-width (* 2 extrusion))
@@ -125,7 +127,7 @@
   [onto :- BufferedImage placements :- [Rect] sources :- [Image]]
   (let [src-by-path (map-by :path sources)]
     (with-graphics [graphics (.getGraphics onto)]
-      (doseq [rect placements]
+      (doseq [^Rect rect placements]
         (.drawImage graphics (:contents (get src-by-path (.path rect))) (int (.x rect)) (int (.y rect)) nil)))
     onto))
 

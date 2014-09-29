@@ -1,5 +1,7 @@
 (ns dynamo.condition)
 
+(set! *warn-on-reflection* true)
+
 (def ^:dynamic *handlers* {})
 
 (defn- throw-unhandled

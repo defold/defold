@@ -2,6 +2,8 @@
   (:require [clojure.core.async :refer [chan dropping-buffer]]
             [dynamo.ui :as ui]))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol Editor
   (init [this site])
   (create-controls [this parent])

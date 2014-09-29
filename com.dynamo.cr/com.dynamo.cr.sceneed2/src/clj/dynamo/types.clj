@@ -36,6 +36,9 @@
 (defprotocol Position
   (position ^Point3d [this]))
 
+(defprotocol ImageHolder
+  (contents ^BufferedImage [this]))
+
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
@@ -72,7 +75,9 @@
   [path     :- s/Any
    contents :- BufferedImage
    width    :- Int32
-   height   :- Int32])
+   height   :- Int32]
+  ImageHolder
+  (contents [this] contents))
 
 (def AnimationPlayback (s/enum :PLAYBACK_NONE :PLAYBACK_ONCE_FORWARD :PLAYBACK_ONCE_BACKWARD
                                :PLAYBACK_ONCE_PINGPONG :PLAYBACK_LOOP_FORWARD :PLAYBACK_LOOP_BACKWARD

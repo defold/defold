@@ -4,6 +4,8 @@
   (:import [java.nio ByteBuffer ByteOrder]
            [com.google.protobuf ByteString]))
 
+(set! *warn-on-reflection* true)
+
 (defn slurp-bytes
   [^ByteBuffer buff]
   (let [buff (.duplicate buff)
@@ -29,7 +31,7 @@
 (defn new-byte-buffer [& dims] (new-buffer (reduce * 1 dims)))
 
 (defn copy-buffer
-  [b]
+  [^ByteBuffer b]
   (let [sz      (.capacity b)
         clone   (if (.isDirect b) (ByteBuffer/allocateDirect sz) (ByteBuffer/allocate sz))
         ro-copy (.asReadOnlyBuffer b)]
