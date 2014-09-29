@@ -111,9 +111,12 @@
   [state]
   (when-not (:paint-pending @state)
     (swap! state assoc :paint-pending true)
-    (ui/after 5
+    (ui/after 1
              (swap! state dissoc :paint-pending)
-             (do-paint @state))))
+             (do-paint @state)
+             ;; uncomment the following for an FPS test
+             ;; (batch-repaint state)
+             )))
 
 (defn- start-event-pump
   [editor canvas {:keys [render-node-id project-state]}]

@@ -46,4 +46,4 @@
   (output renderable t/RenderData render-overlay))
 
 (defn new-fps-tracker []
-  (make-fps-tracker-node :tracker (make-fps-tracker 120)))
+  (make-fps-tracker-node :tracker (make-fps-tracker 300)))
