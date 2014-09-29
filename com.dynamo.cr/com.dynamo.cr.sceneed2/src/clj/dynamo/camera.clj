@@ -108,7 +108,7 @@
   ([] (make-camera :perspective))
   ([t :- (s/enum :perspective :orthographic)]
     (let [distance 10000.0
-          position (doto (Vector3d.) (.set 0.0 0.0 1.0) (.scale distance))
+          position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
           rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
       (t/->Camera t position rotation 1 2000 1 30 (Vector4d. 0 0 0 1.0) (t/->Region 0 0 0 0)))))
 

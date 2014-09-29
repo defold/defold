@@ -13,6 +13,7 @@
             [service.log :as log]
             [internal.render.pass :as pass]
             [internal.ui.background :as back]
+            [internal.fps :refer [new-fps-tracker]]
             [internal.ui.grid :as grid])
   (:import [javax.media.opengl GL2]
            [java.nio IntBuffer]
@@ -131,24 +132,27 @@
   e/Editor
   (init [this site]
     (binding [ui/*view* this]
-      (let [render-node      (make-scene-renderer :_id -1 :editor this)
-           background-node   (back/make-background :_id -2)
-           grid-node         (grid/make-grid :_id -3)
-           camera-node       (c/make-camera-node :camera (c/make-camera :orthographic) :_id -4)
-           camera-controller (c/make-camera-controller)
-           tx-result         (p/transact (:project-state @state)
-                                         [(p/new-resource render-node)
-                                          (p/new-resource background-node)
-                                          (p/new-resource grid-node)
-                                          (p/new-resource camera-node)
-                                          (p/new-resource camera-controller)
-                                          (p/connect scene-node        :renderable render-node :renderables)
-                                          (p/connect background-node   :renderable render-node :renderables)
-                                          (p/connect grid-node         :renderable render-node :renderables)
-                                          (p/connect camera-node       :camera     render-node :camera)
-                                          (p/connect camera-node       :camera     grid-node   :camera)
-                                          (p/connect camera-node       :camera     camera-controller :camera)
-                                          (p/connect camera-controller :self       render-node :controller)])]
+      (let [render-node       (make-scene-renderer :_id -1 :editor this)
+            background-node   (back/make-background :_id -2)
+            grid-node         (grid/make-grid :_id -3)
+            fps-node          (new-fps-tracker)
+            camera-node       (c/make-camera-node :camera (c/make-camera :orthographic) :_id -4)
+            camera-controller (c/make-camera-controller)
+            tx-result         (p/transact (:project-state @state)
+                                          [(p/new-resource render-node)
+                                           (p/new-resource background-node)
+                                           (p/new-resource grid-node)
+                                           (p/new-resource camera-node)
+                                           (p/new-resource camera-controller)
+                                           (p/new-resource fps-node)
+                                           (p/connect fps-node          :renderable render-node :renderables)
+                                           (p/connect scene-node        :renderable render-node :renderables)
+                                           (p/connect background-node   :renderable render-node :renderables)
+                                           (p/connect grid-node         :renderable render-node :renderables)
+                                           (p/connect camera-node       :camera     render-node :camera)
+                                           (p/connect camera-node       :camera     grid-node   :camera)
+                                           (p/connect camera-node       :camera     camera-controller :camera)
+                                           (p/connect camera-controller :self       render-node :controller)])]
        (swap! state assoc
               :camera-node-id (p/resolve-tempid tx-result -4)
               :render-node-id (p/resolve-tempid tx-result -1)))))

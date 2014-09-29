@@ -125,7 +125,7 @@
 
 (sm/defrecord Camera
   [type           :- (s/enum :perspective :orthographic)
-   position       :- Vector3d
+   position       :- Point3d
    rotation       :- Quat4d
    z-near         :- s/Num
    z-far          :- s/Num
@@ -134,11 +134,11 @@
    focus-point    :- Vector4d
    viewport       :- Region]
   Position
-  (position [this] (.position this))
+  (position [this] position)
   Rotation
-  (rotation [this] (.rotation this))
+  (rotation [this] rotation)
   Viewport
-  (viewport [this] (.viewport this)))
+  (viewport [this] viewport))
 
 (defn bool                 [& {:as opts}] (merge {:schema s/Bool} opts))
 (defn number               [& {:as opts}] (merge {:schema s/Num} opts))
