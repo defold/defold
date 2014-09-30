@@ -37,6 +37,12 @@
 
 (def integers (iterate (comp int inc) (int 0)))
 
+(def include-debug true)
+
+(defmacro debugging [& forms]
+  (when include-debug
+    `(do ~@forms)))
+
 (vtx/defvertex engine-format-texture
   (vec3.float position)
   (vec2.short texcoord0 true))
@@ -144,23 +150,6 @@
   [project this gl]
   (texture/image-texture gl (:packed-image (p/get-resource-value project this :textureset))))
 
-(defn render-textureset
-  [ctx gl this project]
-  (do-gl [this            (assoc this :gl gl)
-          textureset      (p/get-resource-value project this :textureset)
-          texture         (p/get-resource-value project this :gpu-texture)
-          shader          (p/get-resource-value project this :shader)
-          vbuf            (p/get-resource-value project this :vertex-buffer)
-          vertex-binding  (vtx/use-with gl vbuf shader)]
-         (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
-         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
-
-(defnk produce-renderable :- RenderData
-  [this project]
-  {pass/overlay
-   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this project))}]
-   pass/transparent
-   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this project))}]})
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -179,6 +168,44 @@
 (defnk produce-shader :- s/Int
   [this gl]
   (shader/make-shader gl pos-uv-vert pos-uv-frag))
+
+(debugging
+  (shader/defshader pos-red
+    (varying vec2 var_texcoord0)
+    (defn void main []
+      (setq gl_FragColor (vec4 1.0 0.0 0.0 1.0))))
+
+  (defn all-red [gl]
+    (shader/make-shader gl pos-uv-vert pos-red)))
+
+(defn wireframe
+  [gl vbuf]
+  (do-gl [wireframer (all-red gl)
+          wf-bind    (vtx/use-with gl vbuf wireframer)]
+         (gl/gl-polygon-mode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE)
+         (gl/gl-draw-arrays  gl GL/GL_TRIANGLES 0 (count vbuf))
+         (gl/gl-polygon-mode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)))
+
+(defn render-textureset
+  [ctx gl this project]
+  (do-gl [this            (assoc this :gl gl)
+          textureset      (p/get-resource-value project this :textureset)
+          texture         (p/get-resource-value project this :gpu-texture)
+          shader          (p/get-resource-value project this :shader)
+          vbuf            (p/get-resource-value project this :vertex-buffer)
+          vertex-binding  (vtx/use-with gl vbuf shader)]
+         (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))
+
+         (debugging
+           (wireframe gl vbuf))))
+
+(defnk produce-renderable :- RenderData
+  [this project]
+  {pass/overlay
+   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this project))}]
+   pass/transparent
+   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this project))}]})
 
 (defnk produce-renderable-vertex-buffer
   [project this gl]
