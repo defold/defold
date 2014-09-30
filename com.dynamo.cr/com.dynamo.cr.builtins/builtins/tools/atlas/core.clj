@@ -222,7 +222,7 @@
             x0 (.x coord)
             y0 (- (.height bounds) (.y coord)) ;; invert for screen
             x1 (+ x0 w)
-            y1 (- (.height bounds) (+ y0 h))
+            y1 (- (.height bounds) (+ (.y coord) h))
             u0 (* x0 x-scale)
             v0 (* y0 y-scale)
             u1 (* x1 x-scale)
