@@ -37,7 +37,7 @@
 
 (def integers (iterate (comp int inc) (int 0)))
 
-(def include-debug true)
+(def include-debug false)
 
 (defmacro debugging [& forms]
   (when include-debug
