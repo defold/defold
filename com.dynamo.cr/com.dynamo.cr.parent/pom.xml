@@ -7,11 +7,18 @@
     <packaging>pom</packaging>
     <name>com.dynamo.cr.parent</name>
 
+    <properties>
+        <tycho-version>0.20.0</tycho-version>
+        <tycho-groupid>org.eclipse.tycho</tycho-groupid>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <eclipse-version>3.8</eclipse-version>
+    </properties>
+
     <repositories>
         <repository>
             <id>juno</id>
             <layout>p2</layout>
-            <url>http://download.eclipse.org/eclipse/updates/3.8</url>
+            <url>http://download.eclipse.org/eclipse/updates/${eclipse-version}</url>
         </repository>
 
         <repository>
@@ -21,12 +28,6 @@
         </repository>
 
     </repositories>
-
-    <properties>
-        <tycho-version>0.20.0</tycho-version>
-        <tycho-groupid>org.eclipse.tycho</tycho-groupid>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
 
     <build>
         <plugins>
@@ -127,7 +128,6 @@
         <module>../com.dynamo.cr.bob</module>
         <module>../com.dynamo.cr.bob.test</module>
         <module>../com.dynamo.cr.templates</module>
-        <module>../com.dynamo.cr.server-product</module>
         <module>../javax.media.opengl</module>
         <module>../com.sun.jna</module>
         <module>../joda.time</module>
@@ -135,6 +135,13 @@
     </modules>
 
     <profiles>
+        <profile>
+            <id>server</id>
+            <modules>
+		        <module>../com.dynamo.cr.server-product</module>
+            </modules>
+        </profile>
+
         <profile>
             <id>editor</id>
             <modules>
