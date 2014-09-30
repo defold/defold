@@ -8,6 +8,7 @@ blddir = 'build'
 
 import Options
 import os, sys, waf_dynamo
+from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 def init():
     pass
@@ -22,18 +23,17 @@ def configure(conf):
 
     conf.check_tool('java')
 
-    platform = conf.env['PLATFORM']
+    build_util = None
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
 
-    if platform == "win32":
+    if 'win' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
         conf.env.append_value('CPPPATH', "../include/win32")
 
-    dynamo_home = os.getenv('DYNAMO_HOME')
-    if not dynamo_home:
-        conf.fatal("DYNAMO_HOME not set")
-    dynamo_ext = os.path.join(dynamo_home, "ext")
-
-    conf.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
-    conf.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
+    conf.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
+    conf.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     conf.env['LIB_GTEST'] = 'gtest'
 

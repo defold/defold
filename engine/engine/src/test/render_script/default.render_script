@@ -1,0 +1,9 @@
+local render_mod = require("render_script.render_mod")
+
+function init(self)
+    assert(render_mod.my_value == 1, "could not read render_mod module")
+end
+
+function update(self)
+    msg.post("@system:", "exit", { code = 0 })
+end

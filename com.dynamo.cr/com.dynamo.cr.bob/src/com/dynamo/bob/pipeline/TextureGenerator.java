@@ -19,6 +19,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.google.protobuf.ByteString;
 import com.sun.jna.Pointer;
 
+
 public class TextureGenerator {
 
     static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
@@ -130,6 +131,4 @@ public class TextureGenerator {
         }
 
     }
-
-
 }

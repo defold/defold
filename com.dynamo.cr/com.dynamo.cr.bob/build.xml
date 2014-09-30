@@ -119,8 +119,8 @@
 
         <jar destfile="dist/bob-light.jar">
             <fileset dir="${classes.dir}"/>
-            <fileset dir=".">
-                <include name="lib/**/*texc_shared*"/>
+            <fileset dir="lib">
+                <include name="**/*texc_shared*"/>
             </fileset>
             <zipfileset src="tmp/external-libs.jar">
               <exclude name="**/META-INF/**"/>
@@ -150,8 +150,8 @@
 
         <jar destfile="dist/bob.jar">
             <fileset dir="${classes.dir}"/>
-            <fileset dir=".">
-                <include name="lib/**/*texc_shared*"/>
+            <fileset dir="lib">
+                <include name="**/*texc_shared*"/>
             </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">

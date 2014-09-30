@@ -52,6 +52,7 @@ public class MockBranchClient implements IBranchClient {
             IPath path = new Path(url.getPath()).removeFirstSegments(1);
 
             File f = new File(tempPath.append(path).toPortableString());
+            f.getParentFile().mkdir();
             f.deleteOnExit();
             if (url.getFile().endsWith("/")) {
                 f.mkdir();

@@ -169,7 +169,7 @@ namespace dmEngine
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
         } else {
-            script_lib_context.m_LuaState = dmGameObject::GetLuaState();
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             if (engine->m_GuiContext.m_GuiContext != 0x0)
             {
@@ -194,11 +194,6 @@ namespace dmEngine
             dmHID::DeleteContext(engine->m_HidContext);
         }
 
-        dmGameObject::Finalize(engine->m_GOScriptContext, engine->m_Factory);
-
-        if (engine->m_Factory)
-            dmResource::DeleteFactory(engine->m_Factory);
-
         if (engine->m_GuiContext.m_GuiContext)
             dmGui::DeleteContext(engine->m_GuiContext.m_GuiContext, engine->m_GuiScriptContext);
 
@@ -218,6 +213,10 @@ namespace dmEngine
                 dmScript::Finalize(engine->m_GuiScriptContext);
                 dmScript::DeleteContext(engine->m_GuiScriptContext);
             }
+        }
+
+        if (engine->m_Factory) {
+            dmResource::DeleteFactory(engine->m_Factory);
         }
 
         if (engine->m_GraphicsContext)
@@ -467,6 +466,8 @@ namespace dmEngine
             return false;
         }
 
+        dmArray<dmScript::HContext>& module_script_contexts = engine->m_ModuleContext.m_ScriptContexts;
+
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
         if (shared) {
             engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
@@ -474,6 +475,8 @@ namespace dmEngine
             engine->m_GOScriptContext = engine->m_SharedScriptContext;
             engine->m_RenderScriptContext = engine->m_SharedScriptContext;
             engine->m_GuiScriptContext = engine->m_SharedScriptContext;
+            module_script_contexts.SetCapacity(1);
+            module_script_contexts.Push(engine->m_SharedScriptContext);
         } else {
             engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
             dmScript::Initialize(engine->m_GOScriptContext);
@@ -481,6 +484,10 @@ namespace dmEngine
             dmScript::Initialize(engine->m_RenderScriptContext);
             engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
             dmScript::Initialize(engine->m_GuiScriptContext);
+            module_script_contexts.SetCapacity(3);
+            module_script_contexts.Push(engine->m_GOScriptContext);
+            module_script_contexts.Push(engine->m_RenderScriptContext);
+            module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
         engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
@@ -520,7 +527,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
-        dmGameObject::Initialize(engine->m_GOScriptContext, engine->m_Factory);
+        dmGameObject::Initialize(engine->m_GOScriptContext);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
@@ -621,14 +628,14 @@ namespace dmEngine
         dmGameObject::Result res;
         dmGameSystem::ScriptLibContext script_lib_context;
 
-        fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register);
+        fact_result = dmGameObject::RegisterResourceTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext, &engine->m_ModuleContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
         fact_result = dmGameSystem::RegisterResourceTypes(engine->m_Factory, engine->m_RenderContext, &engine->m_GuiContext, engine->m_InputContext, &engine->m_PhysicsContext);
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register) != dmGameObject::RESULT_OK)
+        if (dmGameObject::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_GOScriptContext) != dmGameObject::RESULT_OK)
             goto bail;
 
         res = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext, &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_SpineModelContext);
@@ -643,8 +650,13 @@ namespace dmEngine
 
         dmGui::SetDefaultFont(engine->m_GuiContext.m_GuiContext, engine->m_SystemFontMap);
 
-        if (engine->m_RenderScriptPrototype)
-            InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+        if (engine->m_RenderScriptPrototype) {
+            dmRender::RenderScriptResult script_result = InitRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+            if (script_result != dmRender::RENDER_SCRIPT_RESULT_OK) {
+                dmLogFatal("Render script could not be initialized.");
+                goto bail;
+            }
+        }
 
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
@@ -653,7 +665,7 @@ namespace dmEngine
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         } else {
-            script_lib_context.m_LuaState = dmGameObject::GetLuaState();
+            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
             script_lib_context.m_LuaState = dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext);

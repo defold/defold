@@ -2,6 +2,7 @@
 
 import os, sys, shutil, zipfile, re, itertools, json
 import optparse, subprocess, urllib, urlparse, tempfile
+import imp
 from datetime import datetime
 from tarfile import TarFile
 from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
@@ -92,6 +93,7 @@ class Configuration(object):
                  eclipse = False,
                  branch = None,
                  channel = None,
+                 eclipse_version = None,
                  waf_options = []):
 
         if sys.platform == 'win32':
@@ -106,6 +108,12 @@ class Configuration(object):
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.target_platform = target_platform
+
+        # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
+        # N.B. If we upgrade to move recent versions of python, then the method of module loading should also change.
+        build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'build_tools', 'BuildUtility.py'))
+        self.build_utility = build_utility_module.BuildUtility(self.target_platform, self.host, self.dynamo_home)
+
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
         self.disable_ccache = disable_ccache
@@ -115,6 +123,7 @@ class Configuration(object):
         self.eclipse = eclipse
         self.branch = branch
         self.channel = channel
+        self.eclipse_version = eclipse_version
         self.waf_options = waf_options
 
         self.thread_pool = None
@@ -132,7 +141,7 @@ class Configuration(object):
             os._exit(5)
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'lib/python', 'share', 'lib/js-web/js']:
+        for p in ['ext/lib/python', 'share', 'lib/js-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -248,9 +257,6 @@ class Configuration(object):
         for n in 'js-web-pre-engine.js'.split():
             self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'share'))
 
-        for n in 'waf_dynamo.py waf_content.py'.split():
-            self._copy(join(self.defold_root, 'share', n), join(self.dynamo_home, 'lib/python'))
-
         for n in itertools.chain(*[ glob('share/*%s' % ext) for ext in ['.mobileprovision', '.xcent', '.supp']]):
             self._copy(join(self.defold_root, n), join(self.dynamo_home, 'share'))
 
@@ -302,18 +308,8 @@ class Configuration(object):
         if err:
             print 'Consider running install_ems'
 
-    def _git_sha1(self, dir = '.', ref = None):
-        args = 'git log --pretty=%H -n1'.split()
-        if ref:
-            args.append(ref)
-        process = subprocess.Popen(args, stdout = subprocess.PIPE)
-        out, err = process.communicate()
-        if process.returncode != 0:
-            sys.exit(process.returncode)
-
-        line = out.split('\n')[0].strip()
-        sha1 = line.split()[0]
-        return sha1
+    def _git_sha1(self, ref = None):
+        return self.build_utility.git_sha1(ref)
 
     def _ziptree(self, path, outfile = None, directory = None):
         # Directory is similar to -C in tar
@@ -363,28 +359,26 @@ class Configuration(object):
         share_archive_path = join(self.archive_path, sha1, 'engine', 'share').replace('\\', '/')
         dynamo_home = self.dynamo_home
 
-        bin_dir = self.target_platform
+        bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
 
         if self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
-                engine = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext)
+                engine = join(bin_dir, exe_prefix + n + exe_ext)
                 self.upload_file(engine, '%s/%s%s%s' % (full_archive_path, exe_prefix, n, exe_ext))
                 if self.target_platform == 'js-web':
-                    engine_mem = join(dynamo_home, 'bin', bin_dir, exe_prefix + n + exe_ext + '.mem')
+                    engine_mem = join(bin_dir, exe_prefix + n + exe_ext + '.mem')
                     if os.path.exists(engine_mem):
                         self.upload_file(engine_mem, '%s/%s%s%s.mem' % (full_archive_path, exe_prefix, n, exe_ext))
 
         if self.target_platform == 'linux':
-            # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
+            # NOTE: It's arbitrary for which platform we archive builtins and doc. Currently set to linux
             builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
             self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
 
-        if self.target_platform == 'linux':
-            # NOTE: It's arbitrary for which platform we archive builtins. Currently set to linux
-            builtins = self._ziptree(join(dynamo_home, 'content', 'builtins'), directory = join(dynamo_home, 'content'))
-            self.upload_file(builtins, '%s/builtins.zip' % (share_archive_path))
+            doc = self._ziptree(join(dynamo_home, 'share', 'doc'), directory = join(dynamo_home, 'share'))
+            self.upload_file(doc, '%s/ref-doc.zip' % (share_archive_path))
 
         if 'android' in self.target_platform:
             files = [
@@ -474,9 +468,6 @@ class Configuration(object):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        self.exec_env_command("./scripts/copy_libtexc.sh",
-                          cwd = cwd,
-                          shell = True)
         self.exec_env_command("./scripts/copy_builtins_archive.sh",
                           cwd = cwd,
                           shell = True)
@@ -496,7 +487,7 @@ class Configuration(object):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify'],
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-Declipse-version=%s' % self.eclipse_version],
                               cwd = cwd)
 
     def _get_cr_builddir(self, product):
@@ -582,7 +573,7 @@ instructions.configure=\
     def _build_cr(self, product):
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product], cwd = cwd)
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -788,7 +779,7 @@ instructions.configure=\
         if self.channel == 'stable':
             release_sha1 = model['releases'][0]['sha1']
         elif self.channel == 'beta':
-            release_sha1 = self._git_sha1('origin/dev')
+            release_sha1 = self._git_sha1()
         else:
             raise Exception('Unknown channel %s' % self.channel)
 
@@ -954,6 +945,7 @@ instructions.configure=\
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
         env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
+                                                  '%s/build_tools' % self.defold,
                                                   '%s/ext/lib/python' % self.dynamo_home])
 
         env['DYNAMO_HOME'] = self.dynamo_home
@@ -1082,6 +1074,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
 
+    parser.add_option('--eclipse-version', dest='eclipse_version',
+                      default = '3.8',
+                      help = 'Eclipse version')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -1107,6 +1103,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                           eclipse = options.eclipse,
                           branch = options.branch,
                           channel = options.channel,
+                          eclipse_version = options.eclipse_version,
                           waf_options = waf_options)
 
         for cmd in args:
@@ -1129,6 +1126,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       eclipse = options.eclipse,
                       branch = options.branch,
                       channel = options.channel,
+                      eclipse_version = options.eclipse_version,
                       waf_options = waf_options)
 
     for cmd in args:

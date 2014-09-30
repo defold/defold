@@ -160,6 +160,8 @@ namespace dmRender
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
+    dmScript::HContext GetScriptContext(HRenderContext render_context);
+
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map);
 
     Result RegisterRenderTarget(HRenderContext render_context, dmGraphics::HRenderTarget rendertarget, dmhash_t hash);

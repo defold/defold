@@ -115,6 +115,7 @@ namespace dmEngine
         dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
         dmGameSystem::FactoryContext                m_FactoryContext;
         dmGameSystem::SpineModelContext             m_SpineModelContext;
+        dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
         dmHID::HContext                             m_HidContext;

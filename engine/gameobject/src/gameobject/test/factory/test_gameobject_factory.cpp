@@ -23,10 +23,10 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/factory");
         m_ScriptContext = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext, m_Factory);
+        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
     }
 
@@ -34,7 +34,6 @@ protected:
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
-        dmGameObject::Finalize(m_ScriptContext, m_Factory);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
@@ -47,6 +46,7 @@ public:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
+    dmGameObject::ModuleContext m_ModuleContext;
 };
 
 TEST_F(FactoryTest, Factory)
@@ -83,7 +83,7 @@ TEST_F(FactoryTest, FactoryScaleAlongZ)
 
 TEST_F(FactoryTest, FactoryProperties)
 {
-    lua_State* L = dmGameObject::GetLuaState();
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_newtable(L);
     lua_pushliteral(L, "number");
     lua_pushnumber(L, 3);
@@ -120,7 +120,7 @@ TEST_F(FactoryTest, FactoryProperties)
 
 TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
 {
-    lua_State* L = dmGameObject::GetLuaState();
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_newtable(L);
     lua_pushliteral(L, "number");
     lua_pushliteral(L, "fail");
@@ -135,7 +135,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
 
 TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
 {
-    lua_State* L = dmGameObject::GetLuaState();
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_newtable(L);
     lua_pushliteral(L, "number");
     dmScript::PushHash(L, (dmhash_t)0);

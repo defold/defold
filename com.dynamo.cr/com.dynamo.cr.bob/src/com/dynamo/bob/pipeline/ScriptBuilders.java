@@ -12,4 +12,7 @@ public class ScriptBuilders {
     @BuilderParams(name = "GuiScript", inExts = ".gui_script", outExt = ".gui_scriptc")
     public static class GuiScriptBuilder extends LuaBuilder {}
 
+    @BuilderParams(name = "RenderScript", inExts = ".render_script", outExt = ".render_scriptc")
+    public static class RenderScriptBuilder extends LuaBuilder {}
+
 }

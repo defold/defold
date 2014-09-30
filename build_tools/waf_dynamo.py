@@ -5,6 +5,7 @@ from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
 import cc, cxx
 from Constants import RUN_ME
+from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
 ANDROID_BUILD_TOOLS_VERSION = '20.0.0'
@@ -55,30 +56,21 @@ MIN_OSX_SDK_VERSION="10.7"
 # I don't know if this is entirely correct
 @before('apply_core')
 def default_flags(self):
+    build_util = create_build_utility(self.env)
 
-    platform = self.env['PLATFORM']
-    build_platform = self.env['BUILD_PLATFORM']
-    dynamo_home = self.env['DYNAMO_HOME']
-    dynamo_ext = os.path.join(dynamo_home, "ext")
-
-    if 'darwin' in platform:
-        # OSX and iOS
+    if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
-
-        if 'arm' in platform:
-            # iOS
-            # NOTE: AdSupport here but used in dlib and hence every other library implicitly
+        if 'ios' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport'])
         else:
-            # OSX
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
-    if platform == "linux" or platform == "darwin" or platform == "x86_64-darwin":
+    if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions',])
-            if platform == "darwin":
+            if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
-            if platform == "darwin" or platform == "x86_64-darwin":
+            if "osx" == build_util.get_target_os():
                 # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
                 # see corresponding flag in build_gtest.sh
                 self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
@@ -87,15 +79,11 @@ def default_flags(self):
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
-        if platform == "darwin":
+        if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
-        if platform == "darwin" or platform == "x86_64-darwin":
-            # OSX only
+        if 'osx' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon'])
-        elif platform == "linux":
-            # Linux only
-            pass
-    elif platform == "armv7-darwin":
+    elif 'ios' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
@@ -103,7 +91,7 @@ def default_flags(self):
             # Force libstdc++ for now
             self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', 'armv7', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', 'armv7', '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
-    elif platform == 'armv7-android':
+    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
         stl="%s/android-ndk-r%s/sources/cxx-stl/gnu-libstdc++/%s/include" % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_GCC_VERSION)
@@ -133,13 +121,13 @@ def default_flags(self):
                 '--sysroot=%s' % sysroot,
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid',
                 '-L%s' % stl_lib])
-    elif platform == "js-web":
+    elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
 
         self.env.append_value('LINKFLAGS', ['-O3', '--llvm-lto', '1', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0'])
 
-    elif platform == "as3-web":
+    elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
         # For fully optimized builds add -O4 and -emit-llvm to C*FLAGS and -O4 to LINKFLAGS
         # NOTE: We can't disable exceptions as exceptions are used in the flash SDK...
@@ -152,24 +140,23 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB'])
 
-    libpath = os.path.join(dynamo_home, "lib", platform)
+    libpath = build_util.get_library_path()
 
     # Create directory in order to avoid warning 'ld: warning: directory not found for option' before first install
     if not os.path.exists(libpath):
-        os.mkdir(libpath)
+        os.makedirs(libpath)
     self.env.append_value('LIBPATH', libpath)
 
-    self.env.append_value('CPPPATH', os.path.join(dynamo_ext, "include"))
-    self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include"))
-    self.env.append_value('CPPPATH', os.path.join(dynamo_home, "include", platform))
-    self.env.append_value('LIBPATH', os.path.join(dynamo_ext, "lib", platform))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
+    self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
 def android_link_flags(self):
-    platform = self.env['PLATFORM']
-    build_platform = self.env['BUILD_PLATFORM']
-    if re.match('arm.*?android', platform):
+    build_util = create_build_utility(self.env)
+    if 'android' == build_util.get_target_os():
         self.link_task.env.append_value('LINKFLAGS', ['-lgnustl_static', '-lm', '-llog', '-lc'])
         self.link_task.env.append_value('LINKFLAGS', '-Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now'.split())
 
@@ -192,9 +179,8 @@ def apply_unit_test(self):
 @feature('apk')
 @before('apply_core')
 def apply_apk_test(self):
-    platform = self.env['PLATFORM']
-    build_platform = self.env['BUILD_PLATFORM']
-    if re.match('arm.*?android', platform):
+    build_util = create_build_utility(self.env)
+    if 'android' == build_util.get_target_os():
         self.features.remove('cprogram')
         self.features.append('cshlib')
 
@@ -1017,12 +1003,6 @@ def detect(conf):
     if not conf.env['NODEJS']:
         conf.find_program('node', var='NODEJS', mandatory = False)
 
-    dynamo_home = os.getenv('DYNAMO_HOME')
-    if not dynamo_home:
-        conf.fatal("DYNAMO_HOME not set")
-
-    conf.env['DYNAMO_HOME'] = dynamo_home
-
     platform = None
     if getattr(Options.options, 'platform', None):
         platform=getattr(Options.options, 'platform')
@@ -1039,16 +1019,24 @@ def detect(conf):
     if not platform:
         platform = build_platform
 
-    if platform == 'darwin' or platform == 'x86_64-darwin':
+    conf.env['PLATFORM'] = platform
+    conf.env['BUILD_PLATFORM'] = build_platform
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
+
+    dynamo_home = build_util.get_dynamo_home()
+    conf.env['DYNAMO_HOME'] = dynamo_home
+
+    if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
 
-    conf.env['PLATFORM'] = platform
-    conf.env['BUILD_PLATFORM'] = build_platform
 
-    if platform == "armv7-darwin":
+    if 'ios' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         # Wrap clang in a bash-script due to a bug in clang related to cwd
         # waf change directory from ROOT to ROOT/build when building.
         # clang "thinks" however that cwd is ROOT instead of ROOT/build
@@ -1067,7 +1055,7 @@ def detect(conf):
         conf.env['AR'] = '%s/usr/bin/ar' % (IOS_TOOLCHAIN_ROOT)
         conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (IOS_TOOLCHAIN_ROOT)
         conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
-    elif platform == "armv7-android":
+    elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         if build_platform == 'linux':
             arch = 'x86'
@@ -1089,7 +1077,7 @@ def detect(conf):
     conf.check_tool('compiler_cxx')
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if platform == "js-web":
+    if 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')
@@ -1103,7 +1091,7 @@ def detect(conf):
         conf.env['LD'] = '%s/emcc' % (bin)
         conf.env['program_PATTERN']='%s.js'
 
-    if platform == "as3-web":
+    if 'web' == build_util.get_target_os() and 'as3' == build_util.get_target_architecture():
         bin = os.path.join(FLASCC_ROOT, 'usr', 'bin')
         conf.env['CC'] = '%s/gcc' % (bin)
         conf.env['CXX'] = '%s/g++' % (bin)
@@ -1117,7 +1105,7 @@ def detect(conf):
         conf.env['shlib_CCFLAGS'] = []
         conf.env['shlib_CXXFLAGS'] = []
 
-    if conf.env['CCACHE'] and not 'win32' == platform:
+    if conf.env['CCACHE'] and not 'win' == build_util.get_target_os():
         if not Options.options.disable_ccache:
             # Prepend gcc/g++ with CCACHE
             for t in ['CC', 'CXX']:
@@ -1129,8 +1117,8 @@ def detect(conf):
         else:
             Logs.info('ccache disabled')
 
-    conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % platform, conf.env)
-    conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % platform, conf.env)
+    conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
+    conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
     if platform == "linux":
         conf.env['LIB_PLATFORM_SOCKET'] = ''

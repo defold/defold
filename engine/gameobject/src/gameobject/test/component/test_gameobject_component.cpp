@@ -24,10 +24,10 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/component");
         m_ScriptContext = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext, m_Factory);
+        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
@@ -98,7 +98,6 @@ protected:
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
-        dmGameObject::Finalize(m_ScriptContext, m_Factory);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
@@ -146,6 +145,7 @@ public:
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
+    dmGameObject::ModuleContext m_ModuleContext;
 };
 
 template <typename T>
@@ -399,7 +399,7 @@ static int LuaTestCompType(lua_State* L)
 
 TEST_F(ComponentTest, TestComponentType)
 {
-    lua_State* L = dmGameObject::GetLuaState();
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_pushcfunction(L, LuaTestCompType);
     lua_setglobal(L, "test_comp_type");
 
