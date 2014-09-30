@@ -76,7 +76,8 @@
   (let [initial-power-of-two 64
         total-area           (reduce + (map area sources))
         sq                   (Math/sqrt total-area)
-        short-side           (first (drop-while #(> sq %) (doubling initial-power-of-two)))
+        split                (partition-by #(> sq %) (doubling initial-power-of-two))
+        short-side           (last (first split))
         short-side           (max short-side initial-power-of-two)]
     (stepwise-doubling-sizes short-side)))
 
