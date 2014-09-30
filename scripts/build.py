@@ -93,6 +93,7 @@ class Configuration(object):
                  eclipse = False,
                  branch = None,
                  channel = None,
+                 eclipse_version = None,
                  waf_options = []):
 
         if sys.platform == 'win32':
@@ -122,6 +123,7 @@ class Configuration(object):
         self.eclipse = eclipse
         self.branch = branch
         self.channel = channel
+        self.eclipse_version = eclipse_version
         self.waf_options = waf_options
 
         self.thread_pool = None
@@ -568,7 +570,7 @@ instructions.configure=\
     def _build_cr(self, product):
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product], cwd = cwd)
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'package', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1069,6 +1071,10 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = 'stable',
                       help = 'Editor release channel (stable, beta, ...)')
 
+    parser.add_option('--eclipse-version', dest='eclipse_version',
+                      default = '3.8',
+                      help = 'Eclipse version')
+
     options, all_args = parser.parse_args()
 
     args = filter(lambda x: x[:2] != '--', all_args)
@@ -1094,6 +1100,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                           eclipse = options.eclipse,
                           branch = options.branch,
                           channel = options.channel,
+                          eclipse_version = options.eclipse_version,
                           waf_options = waf_options)
 
         for cmd in args:
@@ -1116,6 +1123,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       eclipse = options.eclipse,
                       branch = options.branch,
                       channel = options.channel,
+                      eclipse_version = options.eclipse_version,
                       waf_options = waf_options)
 
     for cmd in args:
