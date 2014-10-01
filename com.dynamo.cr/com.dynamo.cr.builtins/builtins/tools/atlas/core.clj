@@ -176,15 +176,15 @@
       (setq gl_FragColor (vec4 1.0 0.0 0.0 1.0))))
 
   (defn all-red [gl]
-    (shader/make-shader gl pos-uv-vert pos-red)))
+    (shader/make-shader gl pos-uv-vert pos-red))
 
-(defn wireframe
-  [gl vbuf]
-  (do-gl [wireframer (all-red gl)
-          wf-bind    (vtx/use-with gl vbuf wireframer)]
-         (gl/gl-polygon-mode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE)
-         (gl/gl-draw-arrays  gl GL/GL_TRIANGLES 0 (count vbuf))
-         (gl/gl-polygon-mode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)))
+  (defn wireframe
+    [gl vbuf]
+    (do-gl [wireframer (all-red gl)
+            wf-bind    (vtx/use-with gl vbuf wireframer)]
+           (gl/gl-polygon-mode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE)
+           (gl/gl-draw-arrays  gl GL/GL_TRIANGLES 0 (count vbuf))
+           (gl/gl-polygon-mode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL))))
 
 (defn render-textureset
   [ctx gl this project]
