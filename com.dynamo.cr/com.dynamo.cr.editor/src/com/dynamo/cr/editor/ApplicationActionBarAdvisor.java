@@ -20,6 +20,8 @@ import org.eclipse.ui.internal.ide.IDEWorkbenchMessages;
 import org.eclipse.ui.menus.CommandContributionItem;
 import org.eclipse.ui.menus.CommandContributionItemParameter;
 
+import com.dynamo.cr.menu.FlexibleMenuContribution;
+
 public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
 
     /*
@@ -250,6 +252,7 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
         menu.add(new Separator());
 
         menu.add(getFindItem());
+        menu.add(new FlexibleMenuContribution(window, IWorkbenchActionConstants.FIND_EXT));
         menu.add(new GroupMarker(IWorkbenchActionConstants.FIND_EXT));
         menu.add(new Separator());
 

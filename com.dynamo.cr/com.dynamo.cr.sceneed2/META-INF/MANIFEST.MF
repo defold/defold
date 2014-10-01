@@ -16,7 +16,8 @@ Require-Bundle: org.eclipse.core.runtime;visibility:=reexport,
  javax.media.opengl;bundle-version="1.1.1",
  org.eclipse.ui.ide;bundle-version="3.8.2",
  com.dynamo.cr.sceneed;bundle-version="1.0.0",
- org.eclipse.e4.ui.workbench;bundle-version="1.1.0"
+ org.eclipse.e4.ui.workbench;bundle-version="1.1.0",
+ org.eclipse.e4.ui.model.workbench;bundle-version="1.1.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Export-Package: clojure,
@@ -34,6 +35,7 @@ Export-Package: clojure,
  clojure.pprint,
  clojure.reflect,
  clojure.test,
+ com.dynamo.cr.menu,
  com.stuartsierra,
  dynamo,
  dynamo.file

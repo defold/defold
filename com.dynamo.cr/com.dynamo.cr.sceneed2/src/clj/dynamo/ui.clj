@@ -89,12 +89,11 @@
 
 (defmacro defhandler
   [name command & body]
-    (let [enablement (if (= :enabled-when (first body)) (second body) nil)
-          body       (if (= :enabled-when (first body)) (drop 2 body) body)
-          fn-var     (first body)
-          body       (rest body)]
-      (assert (var? (resolve fn-var)) "fn-var must be a var.")
-      `(def ~name (h/make-handler ~command ~fn-var ~@body))))
+  (let [enablement (if (= :enabled-when (first body)) (second body) nil)
+        body       (if (= :enabled-when (first body)) (drop 2 body) body)
+        fn-var     (first body)
+        body       (rest body)]
+    `(def ~name (h/make-handler ~command ~fn-var ~@body))))
 
 (def ^:dynamic *view* nil)
 

@@ -39,10 +39,10 @@
 (defn- command  ^org.eclipse.core.commands.Command  [command-id]  (.getCommand  (global-command-service) command-id))
 (defn- category ^org.eclipse.core.commands.Category [category-id] (.getCategory (global-command-service) category-id))
 
-(defrecord Command [nm category id real-command])
+(defrecord Command  [nm category id real-command])
 
 (defn make-command
-  [category-id command-id nm]
+  [nm category-id command-id]
   (Command. nm category-id command-id
             (doto (command command-id)
               (.define nm nil (category category-id)))))
@@ -59,10 +59,10 @@
   [fn-var args]
   (proxy [AbstractHandler] []
     (execute [^ExecutionEvent execution-event]
-      (apply (var-get fn-var) execution-event args))
+      (apply fn-var execution-event args))
 
     (setEnabled [evaluation-context]
-      (println evaluation-context))))
+      #_(println evaluation-context))))
 
 (defrecord Handler [command-id fn-var args activation])
 
@@ -77,4 +77,13 @@
       [(:command-id h) (str (:fn-var h))])
     (fn [^Handler h]
       (deactivate-handler (:activation h)))))
+
+(defn- defined-commands [] (.getDefinedCommands (global-command-service)))
+
+(defn- category-id [^org.eclipse.core.commands.Command cmd] (.getId (.getCategory cmd)))
+
+(defn commands-in-category
+  "return a sequence of commands whose category matches the category-id"
+  [cat-id]
+  (filter #(= cat-id (category-id %)) (defined-commands)))
 

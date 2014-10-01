@@ -21,6 +21,7 @@
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
             [dynamo.outline :refer :all]
+            [dynamo.ui :refer [defcommand defhandler]]
             [internal.render.pass :as pass]
             [service.log :as log :refer [logging-exceptions]]
             [camel-snake-kebab :refer :all]
@@ -33,7 +34,8 @@
             [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2]
-            [javax.vecmath Matrix4d]))
+            [javax.vecmath Matrix4d]
+            [org.eclipse.core.commands ExecutionEvent]))
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -503,3 +505,9 @@
 (logging-exceptions "Atlas tooling"
   (register-editor (e/current-project) "atlas" #'dynamic-scene-editor)
   (register-loader (e/current-project) "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))
+
+;; MENUS
+
+(defn atlas-menu-handler [^ExecutionEvent ev & args] (prn "Menu command: handled - " args))
+(defcommand atlas-menu-command "com.dynamo.cr.menu-items.EDIT" "com.dynamo.cr.clojure-eclipse.commands.atlas.menu-command" "Wild Menu Item!")
+(defhandler handle-wild-menu-item atlas-menu-command atlas-menu-handler "in atlas.core")
