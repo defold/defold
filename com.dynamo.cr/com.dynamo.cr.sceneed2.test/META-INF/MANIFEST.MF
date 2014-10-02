@@ -7,3 +7,8 @@ Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Fragment-Host: com.dynamo.cr.sceneed2
 Require-Bundle: org.junit;bundle-version="4.8.2"
+Bundle-ClassPath: jars/clojure-1.6.0.jar,
+ jars/test.check-0.5.8.jar,
+ sceneed2-test.jar
+Export-Package: com.dynamo.cr.sceneed2,
+ mikera.cljunit

@@ -117,5 +117,3 @@
     (is (= 2 (count vertex-buffer)))
     (is (= vertex-1 (get vertex-buffer 0)))
     (is (= vertex-2 (get vertex-buffer 1)))))
-
-(run-tests)

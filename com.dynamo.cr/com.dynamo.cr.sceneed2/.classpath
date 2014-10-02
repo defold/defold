@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="jars/core.match-0.2.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="target/classes/"/>
+	<classpathentry exported="true" kind="lib" path="jars/asm-all-4.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/clojure-1.6.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/component-0.2.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/core.async-0.1.346.0-17112a-alpha.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/core.cache-0.6.3.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/core.memoize-0.5.6.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/data.priority-map-0.0.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/dependency-0.1.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/lazymap-3.1.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/plumbing-0.3.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/potemkin-0.3.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/schema-0.2.3.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/tools.analyzer-0.1.0-beta12.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/tools.analyzer.jvm-0.1.0-beta12.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/tools.namespace-0.2.6.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/tools.nrepl-0.2.3.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
-	<classpathentry kind="src" path="src/clj"/>
-	<classpathentry kind="src" path="src/java"/>
-	<classpathentry exported="true" kind="lib" path="bin" sourcepath="bin"/>
-	<classpathentry exported="true" kind="lib" path="lib/com.dynamo.cr.sceneed2-0.1.0-standalone.jar"/>
-	<classpathentry kind="output" path="bin"/>
+	<classpathentry kind="src" path="src/java/"/>
+	<classpathentry kind="src" path="src/clj/"/>
+	<classpathentry kind="output" path="target/classes"/>
 </classpath>
