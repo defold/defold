@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry exported="true" kind="lib" path="jars/core.match-0.2.1.jar"/>
-	<classpathentry exported="true" kind="lib" path="target/classes/"/>
+	<classpathentry kind="src" path="src/clj"/>
+	<classpathentry kind="src" path="src/java"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry exported="true" kind="lib" path="jars/asm-all-4.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/clojure-1.6.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/component-0.2.1.jar"/>
@@ -18,9 +20,7 @@
 	<classpathentry exported="true" kind="lib" path="jars/tools.analyzer.jvm-0.1.0-beta12.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/tools.namespace-0.2.6.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/tools.nrepl-0.2.3.jar"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
-	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
-	<classpathentry kind="src" path="src/java/"/>
-	<classpathentry kind="src" path="src/clj/"/>
+	<classpathentry exported="true" kind="lib" path="target/classes" sourcepath="target/classes"/>
+	<classpathentry exported="true" kind="lib" path="jars/core.match-0.2.1.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>
