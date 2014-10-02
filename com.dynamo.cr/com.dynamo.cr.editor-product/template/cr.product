@@ -37,6 +37,7 @@ jre\bin\javaw.exe
    </launcher>
 
    <vm>
+      <macos include="false">org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7</macos>
    </vm>
 
    <plugins>
@@ -87,6 +88,7 @@ jre\bin\javaw.exe
       <plugin id="com.dynamo.cr.tileeditor.test" fragment="true"/>
       <plugin id="com.google.common"/>
       <plugin id="com.google.inject"/>
+      <plugin id="com.google.inject.multibindings" fragment="true"/>
       <plugin id="com.ibm.icu"/>
       <plugin id="com.sun.jna"/>
       <plugin id="javax.activation"/>
