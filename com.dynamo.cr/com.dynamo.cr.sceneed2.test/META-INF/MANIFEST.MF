@@ -5,7 +5,7 @@ Bundle-SymbolicName: com.dynamo.cr.sceneed2.test
 Bundle-Version: 1.0.0.qualifier
 Bundle-Vendor: DYNAMO
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
-Fragment-Host: com.dynamo.cr.sceneed2
+Fragment-Host: com.dynamo.cr.sceneed2;bundle-version="1.0.0"
 Require-Bundle: org.junit;bundle-version="4.8.2"
 Bundle-ClassPath: jars/clojure-1.6.0.jar,
  jars/test.check-0.5.8.jar,
