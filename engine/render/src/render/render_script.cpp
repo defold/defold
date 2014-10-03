@@ -1790,10 +1790,21 @@ namespace dmRender
         }
     }
 
-    static bool LoadRenderScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename, RenderScript* script)
+    static bool LoadRenderScript(lua_State* L, const void* script_data, uint32_t script_size, const void *bytecode_data, uint32_t bytecode_size, const char* filename, RenderScript* script)
     {
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
+
+        const void *buffer = script_data;
+        uint32_t buffer_size = script_size;
+
+        #if defined(LUA_BYTECODE_ENABLE)
+        if (bytecode_size > 0)
+        {
+            buffer = bytecode_data;
+            buffer_size = bytecode_size;
+        }
+        #endif
 
         bool result = false;
         int top = lua_gettop(L);
@@ -1861,7 +1872,7 @@ bail:
         }
     }
 
-    HRenderScript NewRenderScript(HRenderContext render_context, const void* buffer, uint32_t buffer_size, const char* filename)
+    HRenderScript NewRenderScript(HRenderContext render_context, const void* script_data, uint32_t script_size, const void* bytecode_data, uint32_t bytecode_size, const char* filename)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
@@ -1874,7 +1885,7 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT);
         lua_setmetatable(L, -2);
         render_script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
-        if (LoadRenderScript(L, buffer, buffer_size, filename, render_script))
+        if (LoadRenderScript(L, script_data, script_size, bytecode_data, bytecode_size, filename, render_script))
         {
             assert(top == lua_gettop(L));
             return render_script;
@@ -1887,9 +1898,10 @@ bail:
         }
     }
 
-    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename)
+    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* script_data, uint32_t script_size, 
+                            const void *bytecode_data, uint32_t bytecode_size, const char* filename)
     {
-        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, buffer, buffer_size, filename, render_script);
+        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, script_data, script_size, bytecode_data, bytecode_size, filename, render_script);
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)

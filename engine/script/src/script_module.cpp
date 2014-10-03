@@ -91,15 +91,27 @@ namespace dmScript
         return 1;
     }
 
-    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* resource, dmhash_t path_hash)
+    Result AddModule(HContext context, const char* script, uint32_t script_size, const char *bytecode, uint32_t bytecode_size, const char* script_name, void* resource, dmhash_t path_hash)
     {
         dmhash_t module_hash = dmHashString64(script_name);
 
         Module module;
         module.m_Name = strdup(script_name);
-        module.m_Script = (char*) malloc(script_size);
-        memcpy(module.m_Script, script, script_size);
-        module.m_ScriptSize = script_size;
+
+        const char *source = script;
+        uint32_t source_size = script_size;
+
+#if defined(LUA_BYTECODE_ENABLE)
+        if (bytecode_size > 0)
+        {
+            source = bytecode;
+            source_size = bytecode_size;
+        }
+#endif
+
+        module.m_Script = (char*) malloc(source_size);
+        memcpy(module.m_Script, source, source_size);
+        module.m_ScriptSize = source_size;
         module.m_Resource = resource;
 
         if (context->m_Modules.Full())
@@ -115,7 +127,7 @@ namespace dmScript
         return RESULT_OK;
     }
 
-    Result ReloadModule(HContext context, const char* script, uint32_t script_size, dmhash_t path_hash)
+    Result ReloadModule(HContext context, const char* script, uint32_t script_size, const char *bytecode, uint32_t bytecode_size, dmhash_t path_hash)
     {
         lua_State* L = GetLuaState(context);
         int top = lua_gettop(L);
@@ -130,11 +142,22 @@ namespace dmScript
 
         free(module->m_Script);
 
-        module->m_Script = (char*) malloc(script_size);
-        memcpy(module->m_Script, script, script_size);
-        module->m_ScriptSize = script_size;
+        const char *source = script;
+        uint32_t source_size = script_size;
 
-        if (LoadScript(L, script, script_size, module->m_Name))
+#if defined(LUA_BYTECODE_ENABLE)
+        if (bytecode_size > 0)
+        {
+            source = bytecode;
+            source_size = bytecode_size;
+        }
+#endif
+
+        module->m_Script = (char*) malloc(source_size);
+        memcpy(module->m_Script, source, source_size);
+        module->m_ScriptSize = source_size;
+
+        if (LoadScript(L, source, source_size, module->m_Name))
         {
             lua_pushstring(L, module->m_Name);
             int ret = dmScript::PCall(L, 1, LUA_MULTRET);

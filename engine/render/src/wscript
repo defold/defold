@@ -19,6 +19,8 @@ def build(bld):
     obj.find_sources_in_dirs('. ../proto/render render', exts = ['.cpp', '.proto'])
     #obj.source.append('../proto/render_ddf.proto')
 
+    if bld.env.LUA_BYTECODE_ENABLE == 'yes':
+        obj.cxxflags = ['-DLUA_BYTECODE_ENABLE']
 
     bld.add_subdirs('test')
 

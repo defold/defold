@@ -29,7 +29,8 @@ namespace dmGameSystem
         }
 
         dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
-        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
+        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, 
+                                                (const char*)lua_module->m_Bytecode.m_Data, lua_module->m_Bytecode.m_Count, filename);
         if (result == dmGui::RESULT_OK)
         {
             resource->m_Resource = script;
@@ -73,7 +74,8 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
+        dmGui::Result result = dmGui::SetScript(script, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, 
+                                                (const char*)lua_module->m_Bytecode.m_Data, lua_module->m_Bytecode.m_Count, filename);
         if (result == dmGui::RESULT_OK)
         {
             GuiContext* gui_context = (GuiContext*)context;

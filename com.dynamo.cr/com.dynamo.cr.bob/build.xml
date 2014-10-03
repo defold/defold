@@ -67,6 +67,17 @@
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
 
+        <copy todir="libexec">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin">
+                <include name="**/*luajit*"/>
+            </fileset>
+        </copy>
+         <copy todir="share">
+            <fileset dir="${env.DYNAMO_HOME}/ext/share">
+                <include name="luajit/jit/*.lua"/>
+            </fileset>
+        </copy>
+
         <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
              specifically vecmath.jar on OSX -->
         <javac srcdir="generated"
@@ -122,6 +133,10 @@
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
             </fileset>
+            <fileset dir=".">
+                <include name="libexec/*/*luajit*"/>
+                <include name="share/luajit/**"/>
+            </fileset>
             <zipfileset src="tmp/external-libs.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
@@ -129,7 +144,6 @@
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
             </manifest>
-
         </jar>
     </target>
 
@@ -152,6 +166,10 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
+            </fileset>
+            <fileset dir=".">
+                <include name="libexec/*/*luajit*"/>
+                <include name="share/luajit/**.*"/>
             </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">

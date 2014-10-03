@@ -320,21 +320,25 @@ namespace dmScript
      * @param script lua script to load
      * @param script_size lua script size
      * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
+     * @param bytecode_size lua bytecode size
+     * @param bytecode_name bytecode-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
      * @param resource the resource will be released throught the resource system at finalization
      * @param path_hash hashed path of the originating resource
      * @return RESULT_OK on success
      */
-    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* resource, dmhash_t path_hash);
+    Result AddModule(HContext context, const char* script, uint32_t script_size, const char *bytecode, uint32_t bytecode_size, const char* script_name, void* resource, dmhash_t path_hash);
 
     /**
      * Reload loaded module
      * @param context script context
      * @param script lua script to load
      * @param script_size lua script size
+     * @param bytecode lua bytecode to load
+     * @param bytecode_size lua bytecode size
      * @param path_hash hashed path, see AddModule
      * @return RESULT_OK on success
      */
-    Result ReloadModule(HContext context, const char* script, uint32_t script_size, dmhash_t path_hash);
+    Result ReloadModule(HContext context, const char* script, uint32_t script_size, const char* bytecode, uint32_t bytecode_size, dmhash_t path_hash);
 
     /**
      * Check if a module is loaded

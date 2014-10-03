@@ -223,8 +223,12 @@ namespace dmRender
      */
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color);
 
-    HRenderScript   NewRenderScript(HRenderContext render_context, const void* buffer, uint32_t buffer_size, const char* filename);
-    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename);
+    HRenderScript   NewRenderScript(HRenderContext render_context, const void* script_data, uint32_t script_size, 
+                                    const void* bytecode_data, uint32_t bytecode_size, const char* filename);
+                                    
+    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* script_data, uint32_t script_size,
+                                       const void* bytecode_data, uint32_t bytecode_size, const char* filename);
+
     void            DeleteRenderScript(HRenderContext render_context, HRenderScript render_script);
 
     HRenderScriptInstance   NewRenderScriptInstance(HRenderContext render_context, HRenderScript render_script);

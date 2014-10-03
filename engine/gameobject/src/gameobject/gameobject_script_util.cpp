@@ -36,10 +36,12 @@ namespace dmGameObject
                     return false;
                 }
 
-                dmScript::Result sr = dmScript::AddModule(script_context,
-                                                          (const char*) module_script->m_LuaModule->m_Script.m_Data,
+                dmScript::Result sr = dmScript::AddModule(script_context, (const char*)module_script->m_LuaModule->m_Script.m_Data,
                                                           module_script->m_LuaModule->m_Script.m_Count,
+                                                          (const char *)module_script->m_LuaModule->m_Bytecode.m_Data,
+                                                          module_script->m_LuaModule->m_Bytecode.m_Count,
                                                           module_name, module_script, desc.m_NameHash);
+
                 if (sr != dmScript::RESULT_OK)
                 {
                     dmResource::Release(factory, module_script);

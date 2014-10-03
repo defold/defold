@@ -44,7 +44,8 @@ namespace dmGameObject
         uint32_t context_count = module_context->m_ScriptContexts.Size();
         for (uint32_t i = 0; i < context_count; ++i) {
             dmScript::HContext script_context = module_context->m_ScriptContexts[i];
-            dmScript::ReloadModule(script_context, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, resource->m_NameHash);
+            dmScript::ReloadModule(script_context, (const char*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, 
+                                   (const char*) lua_module->m_Bytecode.m_Data, lua_module->m_Bytecode.m_Count, resource->m_NameHash);
         }
         LuaScript* lua_script = (LuaScript*) resource->m_Resource;
         dmDDF::FreeMessage(lua_script->m_LuaModule);

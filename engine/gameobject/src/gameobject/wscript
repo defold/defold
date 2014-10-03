@@ -12,6 +12,9 @@ def build(bld):
                                   # NOTE: default/... is hardcoded. How to solve?
                                   target = 'gameobject')
 
+    if bld.env.LUA_BYTECODE_ENABLE == 'yes':
+        gameobject.cxxflags = ['-DLUA_BYTECODE_ENABLE']
+
     gameobject.find_sources_in_dirs(['.', '../../proto'])
     bld.add_group()
 

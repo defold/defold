@@ -29,6 +29,10 @@ def build(bld):
     else:
         script.source.remove(os.path.join('luasocket', 'wsocket.c'))
 
+    # must not enable bytecode when building with --use-vanilla-lua
+    if bld.env.LUA_BYTECODE_ENABLE == 'yes':
+        script.cxxflags = ['-DLUA_BYTECODE_ENABLE']
+
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib
     bld.install_files('${PREFIX}/lib/python', '../proto/script_doc_ddf_pb2.py')

@@ -11,13 +11,17 @@ function luajit_configure() {
 	export PREFIX=`pwd`/build
 	export INSTALL_LIB=$PREFIX/lib/$CONF_TARGET
 	export INSTALL_BIN=$PREFIX/bin/$CONF_TARGET
+	
+	# These are where the .lua files go. Do not want them in default
+	# folder as that includes the version, which complicates things
+	# in bob, where LUAJIT_PATH must be matched to the location of
+	# these files.
+	export INSTALL_LJLIBD=$PREFIX/share/luajit
 
 	case $CONF_TARGET in
 		armv7-darwin)
 			;;
 		armv7-android)
-			;;
-		linux)
 			;;
 		*)
 			return
@@ -70,6 +74,9 @@ case $1 in
 		;;
 	armv7-android)
 		export TARGET_SYS=Other
+		;;
+	linux)
+		export TARGET_SYS=Linux
 		;;
 	win32)
 		function cmi_make() {

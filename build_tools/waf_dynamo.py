@@ -924,7 +924,7 @@ def run_gtests(valgrind = False):
 def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'linux':
-        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
+        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
 @feature('swf')
 @after('apply_link')
@@ -1135,8 +1135,10 @@ def detect(conf):
 
     if getattr(Options.options, 'use_vanilla_lua', False) == False:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
     else:
         conf.env['STATICLIB_LUA'] = 'lua'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'no'
 
 def configure(conf):
     detect(conf)

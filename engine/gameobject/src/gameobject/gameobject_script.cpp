@@ -1318,10 +1318,21 @@ namespace dmGameObject
         }
     }
 
-    static bool LoadScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename, Script* script)
+    static bool LoadScript(lua_State* L, const void* script_data, uint32_t script_size, const void *bytecode_data, uint32_t bytecode_size, const char* filename, Script* script)
     {
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
+
+        const void *buffer = script_data;
+        uint32_t buffer_size = script_size;
+
+        #if defined(LUA_BYTECODE_ENABLE)
+        if (bytecode_size > 0)
+        {
+            buffer = bytecode_data;
+            buffer_size = bytecode_size;
+        }
+        #endif
 
         bool result = false;
         int top = lua_gettop(L);
@@ -1403,7 +1414,9 @@ bail:
         script->m_LuaModule = lua_module;
         luaL_getmetatable(L, SCRIPT);
         lua_setmetatable(L, -2);
-        if (!LoadScript(L, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
+
+        if (!LoadScript(L, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count,
+                           (const void*)lua_module->m_Bytecode.m_Data, lua_module->m_Bytecode.m_Count, filename, script))
         {
             DeleteScript(script);
             return 0;
@@ -1414,11 +1427,10 @@ bail:
 
     bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename)
     {
-        bool result = true;
         script->m_LuaModule = lua_module;
-        if (!LoadScript(script->m_LuaState, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
-            result = false;
-        return result;
+		return LoadScript(script->m_LuaState,
+                          (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, 
+                          (const void*)lua_module->m_Bytecode.m_Data, lua_module->m_Bytecode.m_Count, filename, script);
     }
 
     void DeleteScript(HScript script)
