@@ -173,7 +173,7 @@
            remainder   (rest remainder)]
        (assert (or (and (vector? args-or-ref) (not (nil? remainder)))
                    (symbol? args-or-ref)
-                   (var? args-or-ref)) (pr-str "Expecting a variable, symbol, or fn-tail. Got " args-or-ref " " remainder))
+                   (var? args-or-ref)) (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
        (let [tform (cond
                      (vector? args-or-ref)  `(defn ~(symbol (str prefix ":" nm)) ~args-or-ref ~@remainder)
                      (symbol? args-or-ref)  (resolve args-or-ref)
