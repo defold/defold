@@ -144,7 +144,7 @@
        ~(str "Constructor for " nm ", using default values for any property not in property-values.\nThe properties on " nm " are:\n"
              #_(describe-properties behavior))
        [& {:as ~'property-values}]
-       (~record-ctor (merge {:_id (tempid)} ~(defaults (dissoc behavior :event-handlers)) ~'property-values)))))
+       (~record-ctor (merge {:_id (tempid)} (defaults ~(dissoc behavior :event-handlers)) ~'property-values)))))
 
 ; --------------------------------------------------------------------
 

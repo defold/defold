@@ -1,6 +1,7 @@
 (ns internal.node-test
   (:require [clojure.test :refer :all]
-            [dynamo.types :refer [as-schema]]
+            [dynamo.types :as t :refer [as-schema]]
+            [dynamo.node :as n :refer [defnode]]
             [internal.node :refer [deep-merge]]))
 
 (def a-schema (as-schema {:names [java.lang.String]}))
@@ -24,3 +25,13 @@
 (deftest merging-maps-with-schemas
   (is (= schema-merge (deep-merge s1 s2)))
   (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
+
+(defnode SimpleTestNode
+  (property foo (t/string :default "FOO!")))
+
+(deftest simple-node-definition
+  (testing "properties"
+    (is (= [:foo] (-> (make-simple-test-node) :properties keys)))
+    (is (contains? (make-simple-test-node) :foo)))
+  (testing "property defaults"
+    (is (= "FOO!" (-> (make-simple-test-node) :foo)))))
