@@ -62,7 +62,15 @@ Example (from [[atlas.core]]):
       (inherit TextureSetCompiler))
 
 This will produce a record `AtlasCompiler`, with a constructor function `make-atlas-compiler`, for adding
-an AtlasCompiler to the project. `defnode` merges the behaviors appropriately."
+an AtlasCompiler to the project. `defnode` merges the behaviors appropriately.
+
+A node may also implement protocols or interfaces, using a syntax identical
+to `deftype` or `defrecord`. A node may implement any number of such protocols.
+
+Every node always implements dynamo.types/Node.
+
+If there are any event handlers defined for the node type, then it will also
+implement dynamo.types/MessageTarget."
   [name & specs]
   (let [beh (in/compile-specification name specs)]
     `(do

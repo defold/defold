@@ -3,7 +3,7 @@
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
-            [internal.node :refer [deep-merge]]))
+            [internal.node :as in :refer [deep-merge]]))
 
 (def a-schema (as-schema {:names [java.lang.String]}))
 
@@ -37,6 +37,16 @@
   (output inline-output String [this graph] "inlined function")
   (output symbol-param-production String funky-production))
 
+(defnode NodeWithProtocols
+  (property foo (t/string :default "the user"))
+
+  clojure.lang.IDeref
+  (deref [this] (:foo this))
+
+  t/N2Extent
+  (width [this] 800)
+  (height [this] 600))
+
 (deftest node-definition
   (testing "properties"
     (is (= [:foo] (-> (make-simple-test-node) :properties keys)))
@@ -46,4 +56,9 @@
   (testing "production functions"
     (is (= "a produced value" (-> (make-simple-test-node) (t/get-value nil :an-output {}))))
     (is (= "inlined function" (-> (make-simple-test-node) (t/get-value nil :inline-output {}))))
-    (is (= "a funky value"    (-> (make-simple-test-node) (t/get-value nil :symbol-param-production {}))))))
+    (is (= "a funky value"    (-> (make-simple-test-node) (t/get-value nil :symbol-param-production {})))))
+  (testing "extending nodes with protocols"
+    (is (instance? clojure.lang.IDeref (make-node-with-protocols)))
+    (is (= "the user" @(make-node-with-protocols)))
+    (is (satisfies? t/N2Extent (make-node-with-protocols)))
+    (is (= 800 (t/width (make-node-with-protocols))))))

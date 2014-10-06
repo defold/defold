@@ -76,6 +76,7 @@
     (is-schema? vals)         (last vals)
     (every? map? vals)        (apply merge-with deep-merge vals)
     (every? set? vals)        (apply union vals)
+    (every? vector? vals)     (into [] (apply concat vals))
     (every? sequential? vals) (apply concat vals)
     :else                     (last vals)))
 
@@ -94,12 +95,13 @@
 (defn state-vector [behavior]
   (into [] (list* 'inputs 'transforms '_id (property-symbols behavior))))
 
-(defn- event-loop-name [behavior]
-  (symbol (str (:name behavior) ":event-loop")))
-
-(defn defaults [behavior]
-  (reduce-kv (fn [m k v] (if (:default v) (assoc m k (:default v)) m))
-             behavior (:properties behavior)))
+(defn defaults
+  [beh]
+  (let [out (dissoc beh :event-handlers :impl :impl-methods)]
+    (reduce-kv (fn [m k v]
+                 (let [v (if (seq? v) (eval v) v)]
+                   (if (:default v) (assoc m k (:default v)) m)))
+               out (:properties out))))
 
 (defn- print-md-table
   "Prints a collection of maps in a textual table suitable for converting
@@ -144,9 +146,48 @@
        ~(str "Constructor for " nm ", using default values for any property not in property-values.\nThe properties on " nm " are:\n"
              #_(describe-properties behavior))
        [& {:as ~'property-values}]
-       (~record-ctor (merge {:_id (tempid)} (defaults ~(dissoc behavior :event-handlers)) ~'property-values)))))
+       (~record-ctor (merge {:_id (tempid)} ~(defaults behavior) ~'property-values)))))
 
 ; --------------------------------------------------------------------
+(defn- replace-magic-imperatives
+  [form]
+  (match [form]
+         [(['repaint] :seq)]
+         `(dynamo.ui/repaint-current-view)
+
+         [(['attach & rest] :seq)]
+         `(conj! ~'transaction (dynamo.project/connect ~@rest))
+
+         [(['detach & rest] :seq)]
+         `(conj! ~'transaction (dynamo.project/disconnect ~@rest))
+
+         [(['send target-node type & body] :seq)]
+         `(conj! ~'message-drop [~target-node ~type ~body])
+
+         [(['invalidate target-node output] :seq)]
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~output))
+
+         [(['set-property target-node & pvs] :seq)]
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node assoc ~@pvs))
+
+         [(['update-property target-node property f & args] :seq)]
+         `(conj! ~'transaction (dynamo.project/update-resource ~target-node update-in [~property] ~f ~@args))
+
+         [(['new node-type & rest] :seq)]
+         (let [ctor (symbol (str 'make- (->kebab-case (str node-type))))]
+           `(let [~'new-node ~(list* ctor rest)]
+              (conj! ~'transaction (dynamo.project/new-resource ~'new-node))
+              ~'new-node))
+
+         :else
+         form))
+
+(defn- transactional-specials
+  [form]
+  (cond
+    (seq? form)    (map transactional-specials (replace-magic-imperatives form))
+    (vector? form) (mapv transactional-specials (replace-magic-imperatives form))
+    :else          form))
 
 (def ^:private property-flags #{:cached :on-update})
 
@@ -181,7 +222,13 @@
          (reduce
            (fn [m f] (assoc m f #{oname}))
            {:transforms {(keyword nm) tform}}
-           flags)))))
+           flags)))
+
+     [([nm [& args] & remainder] :seq)]
+     {:impl-methods [`(~nm ~args ~@remainder)]}
+
+     [impl :guard symbol?]
+     {:impl [(if (var? (resolve impl)) (:on (deref (resolve impl))) impl)]}))
 
 (defn- resolve-or-else [sym]
   (assert (symbol? sym) (pr-str "Cannot resolve " sym))
@@ -195,52 +242,12 @@
         behaviors (apply deep-merge (map (comp deref resolve-or-else) inherits))]
     (deep-merge behaviors (dissoc m :inherits))))
 
-(defn- replace-magic-imperatives
-  [form]
-  (match [form]
-         [(['repaint] :seq)]
-         `(dynamo.ui/repaint-current-view)
-
-         [(['attach & rest] :seq)]
-         `(conj! ~'transaction (dynamo.project/connect ~@rest))
-
-         [(['detach & rest] :seq)]
-         `(conj! ~'transaction (dynamo.project/disconnect ~@rest))
-
-         [(['send target-node type & body] :seq)]
-         `(conj! ~'message-drop [~target-node ~type ~body])
-
-         [(['invalidate target-node output] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~output))
-
-         [(['set-property target-node & pvs] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node assoc ~@pvs))
-
-         [(['update-property target-node property f & args] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node update-in [~property] ~f ~@args))
-
-         [(['new node-type & rest] :seq)]
-         (let [ctor (symbol (str 'make- (->kebab-case (str node-type))))]
-           `(let [~'new-node ~(list* ctor rest)]
-              (conj! ~'transaction (dynamo.project/new-resource ~'new-node))
-              ~'new-node))
-
-         :else
-         form))
-
-(defn- event-loop-specials
-  [form]
-  (cond
-    (seq? form)    (map event-loop-specials (replace-magic-imperatives form))
-    (vector? form) (mapv event-loop-specials (replace-magic-imperatives form))
-    :else          form))
-
 (defn map-vals [m f]
   (reduce-kv (fn [i k v] (assoc i k (f v))) {} m))
 
 (defn- fix-event-handlers
   [m]
-  (update-in m [:event-handlers] map-vals event-loop-specials))
+  (update-in m [:event-handlers] map-vals transactional-specials))
 
 (defn- eval-default-exprs
   [prop]
@@ -297,16 +304,20 @@
                        (assert (get-in ~t [:transforms ~'label])
                                (str "There is no transform " ~'label " on node " (:_id ~t)))
                        (perform (get-in ~t [:transforms ~'label]) ~t ~g ~'seed))
-           (when (< 0 (count (:event-handlers behavior)))
-             ['dynamo.types/MessageTarget
-              (generate-event-loop name behavior)]))))
+           (concat
+             (:impl behavior)
+             (:impl-methods behavior)
+             (when (< 0 (count (:event-handlers behavior)))
+               ['dynamo.types/MessageTarget
+                (generate-event-loop name behavior)])))))
 
-
-
-(defn quote-event-handlers
+(defn quote-functions
   [beh]
-  (update-in beh [:event-handlers] map-vals #(list `quote %)))
+  (-> beh
+    (update-in [:event-handlers] map-vals #(list `quote %))
+    (update-in [:impl-methods]   (fn [ms] (mapv #(list* `quote %) ms)))))
 
 (defn generate-descriptor [name behavior]
-  (let [descriptor-name (symbol (str name ":descriptor"))]
-    `(def ~descriptor-name ~(quote-event-handlers behavior))))
+  (let [descriptor-name (symbol (str name ":descriptor"))
+        behavior        (quote-functions behavior)]
+    `(def ~descriptor-name ~behavior)))
