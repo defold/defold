@@ -1,5 +1,6 @@
 (ns internal.node-test
   (:require [clojure.test :refer :all]
+            [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
             [internal.node :refer [deep-merge]]))
@@ -26,12 +27,23 @@
   (is (= schema-merge (deep-merge s1 s2)))
   (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
 
-(defnode SimpleTestNode
-  (property foo (t/string :default "FOO!")))
+(defn simple-production-fn [this graph] "a produced value")
+(defnk funky-production [this] "a funky value")
 
-(deftest simple-node-definition
+(defnode SimpleTestNode
+  (property foo (t/string :default "FOO!"))
+
+  (output an-output String simple-production-fn)
+  (output inline-output String [this graph] "inlined function")
+  (output symbol-param-production String funky-production))
+
+(deftest node-definition
   (testing "properties"
     (is (= [:foo] (-> (make-simple-test-node) :properties keys)))
     (is (contains? (make-simple-test-node) :foo)))
   (testing "property defaults"
-    (is (= "FOO!" (-> (make-simple-test-node) :foo)))))
+    (is (= "FOO!" (-> (make-simple-test-node) :foo))))
+  (testing "production functions"
+    (is (= "a produced value" (-> (make-simple-test-node) (t/get-value nil :an-output {}))))
+    (is (= "inlined function" (-> (make-simple-test-node) (t/get-value nil :inline-output {}))))
+    (is (= "a funky value"    (-> (make-simple-test-node) (t/get-value nil :symbol-param-production {}))))))
