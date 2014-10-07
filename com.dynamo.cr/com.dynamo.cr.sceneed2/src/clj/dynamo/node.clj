@@ -1,12 +1,6 @@
 (ns dynamo.node
-  (:require [schema.core :as s]
-            [schema.macros :as sm]
-            [plumbing.core :refer [fnk defnk]]
-            [plumbing.fnk.pfnk :as pf]
-            [internal.node :as in]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
-            [service.log :as log]
+  "Define new node types"
+  (:require [internal.node :as in]
             [dynamo.types :refer :all]))
 
 (set! *warn-on-reflection* true)
@@ -122,17 +116,11 @@ implement dynamo.types/MessageTarget."
        ~(in/generate-print-method name)
        ~(in/generate-descriptor name beh))))
 
-(doseq [[v doc]
-       {*ns*
-        "API methods for interacting with nodes---elements within the project graph.
+(defn dispatch-message
+  "This is an advanced usage. If you have a reference to a node, you can directly send
+it a message.
 
-         A node is expected to be a map as follows:
-
-        { :properties { } ; map of properties
-          :transforms { } ; map of transform label (key)
-                          ; to function symbol (value)
-          :inputs     #{} ; set of input labels (keywords)
-          :outputs    #{} ; set of output labels (keywords)
-        }"
-          }]
-  (alter-meta! v assoc :doc doc))
+This function should mainly be used to create 'plumbing'. In most cases you will want
+to use dynamo.project/publish to send a message to a node."
+  [node type & {:as body}]
+  (process-one-event node (assoc body :type type)))

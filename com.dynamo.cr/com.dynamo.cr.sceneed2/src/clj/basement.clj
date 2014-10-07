@@ -79,4 +79,27 @@
     (load-shader (project-file "/builtins/tools/atlas/pos_uv")))
 
 
+
+(require '[dynamo.ui :refer :all])
+(require 'internal.ui.views)
+(require 'dynamo.project)
+(require '[dynamo.node :refer [defnode]])
+(import org.eclipse.swt.widgets.Text)
+
+(defnode Labeled
+  (on :focus
+      (println "FOCUS"))
+  (on :destroy
+      (println "DESTROY"))
+  (on :create
+      (let [l (doto (Text. (:parent event) 0) (.setText "Hello there"))]
+        (set-property self :label l))))
+
+(defn add-labeled-part [prj]
+  (let [tx-r (dynamo.project/transact prj (dynamo.project/new-resource (make-labeled :_id -1)))
+        labeled (dynamo.project/resource-by-id prj (dynamo.project/resolve-tempid tx-r -1))]
+    (swt-safe (internal.ui.views/open-part labeled))))
+
+
+
   )
