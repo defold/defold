@@ -3,6 +3,7 @@
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
+            [dynamo.project :as p]
             [dynamo.project.test-support :refer [clean-project]]
             [internal.node :as in :refer [deep-merge]]))
 
@@ -68,4 +69,8 @@
     (is (satisfies? t/N2Extent (make-node-with-protocols)))
     (is (= 800 (t/width (make-node-with-protocols)))))
   (testing "sending events to nodes"
-    (is (= :ok (-> (make-node-with-events) (t/process-one-event (clean-project) {:type :mousedown}))))))
+    (let [proj       (clean-project)
+          evented    (make-node-with-events :_id -1)
+          tx-result  (p/transact proj [(p/new-resource evented)])
+          event-real (p/resource-by-id proj (p/resolve-tempid tx-result -1))]
+      (is (= :ok (t/process-one-event event-real {:type :mousedown}))))))

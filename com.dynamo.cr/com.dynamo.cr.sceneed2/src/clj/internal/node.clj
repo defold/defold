@@ -190,14 +190,14 @@
     :else          (replace-magic-imperatives form)))
 
 (defmacro transactional
-  [pstate & forms]
+  [& forms]
   `(let [~'transaction  (transient [])
          ~'message-drop (transient [])]
      ~@(transactional-specials forms)
      (when (and (< 0 (count ~'transaction))
-                (= :ok (:status (dynamo.project/transact ~pstate (persistent! ~'transaction)))))
+                (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
        (doseq [m# (persistent! ~'message-drop)]
-         (apply dynamo.project/publish ~pstate m#)))))
+         (apply dynamo.project/publish (:project-ref ~'self) m#)))))
 
 (def ^:private property-flags #{:cached :on-update})
 
@@ -272,33 +272,33 @@
 (defn generate-event-loop
   [beh]
   `(dynamo.types/start-event-loop!
-      [~'this ~'project-state ~'in]
+      [~'this ~'in]
       (a/go-loop [id# (:_id ~'this)]
         (when-let [~'msg (a/<! ~'in)]
           (try
-            (dynamo.types/process-one-event (dynamo.project/resource-by-id ~'project-state id#) ~'project-state (:body ~'msg))
+            (dynamo.types/process-one-event (dynamo.project/resource-by-id (:project-ref ~'this) id#) (:body ~'msg))
             (catch Exception ~'ex
               (service.log/error :message "Error in node event loop" :exception ~'ex)))
           (recur id#)))))
 
 (defn- wrap-in-transaction
-  [ps fs]
-  (list* `transactional ps fs))
+  [fs]
+  (list* `transactional fs))
 
 (defn generate-message-processor
   [beh]
-  (let [event-cases (-> beh :event-handlers (map-vals #(wrap-in-transaction 'project-state %)) (->> (mapcat identity)))]
+  (let [event-cases (-> beh :event-handlers (map-vals #(wrap-in-transaction %)) (->> (mapcat identity)))]
     `(dynamo.types/process-one-event
-       [~'self ~'project-state ~'event]
+       [~'self ~'event]
        (let [~'transaction  (transient [])
              ~'message-drop (transient [])]
          (case (:type ~'event)
            ~@event-cases
            nil)
          (when (and (< 0 (count ~'transaction))
-                    (= :ok (:status (dynamo.project/transact ~'project-state (persistent! ~'transaction)))))
+                    (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
            (doseq [m# (persistent! ~'message-drop)]
-             (apply dynamo.project/publish ~'project-state m#)))
+             (apply dynamo.project/publish (:project-ref ~'self) m#)))
          :ok))))
 
 (defn compile-specification
@@ -339,3 +339,12 @@
   (let [descriptor-name (symbol (str name ":descriptor"))
         behavior        (quote-functions behavior)]
     `(def ~descriptor-name ~behavior)))
+
+(defn generate-print-method [name]
+  (let [tagged-arg (vary-meta (gensym "v") assoc :tag (resolve name))]
+    `(defmethod print-method ~name
+       [~tagged-arg w#]
+       (.write ^java.io.Writer w# (str "<" ~(str name)
+                                       (merge (select-keys ~tagged-arg [:_id :inputs :outputs])
+                                              (select-keys ~tagged-arg (select-keys ~tagged-arg (:properties ~tagged-arg))))
+                                       ">")))))

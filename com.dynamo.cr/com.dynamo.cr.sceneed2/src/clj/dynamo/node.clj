@@ -11,9 +11,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn get-node [g id]
-  (dg/node g id))
-
 (defmacro transactional
   "Executes the body within a project transaction. All actions
 described in the body will happen atomically at the end of the transactional
@@ -55,8 +52,8 @@ the current value of the property and any additional arguments you supply.
 (send _node_ _msg-type_ & _body_)
 Send a message to a node. If the node does not have a processor for that message
 type, it will complain in the system log, but otherwise ignore the message."
-  [pstate & forms]
-  `(in/transactional pstate ~@forms))
+  [& forms]
+  `(in/transactional ~@forms))
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node
@@ -122,6 +119,7 @@ implement dynamo.types/MessageTarget."
     `(do
        ~(in/generate-type name beh)
        ~(in/generate-constructor name beh)
+       ~(in/generate-print-method name)
        ~(in/generate-descriptor name beh))))
 
 (doseq [[v doc]
@@ -130,11 +128,11 @@ implement dynamo.types/MessageTarget."
 
          A node is expected to be a map as follows:
 
-		    { :properties { } ; map of properties
-		      :transforms { } ; map of transform label (key)
-		                      ; to function symbol (value)
-		      :inputs     #{} ; set of input labels (keywords)
-		      :outputs    #{} ; set of output labels (keywords)
-		    }"
+        { :properties { } ; map of properties
+          :transforms { } ; map of transform label (key)
+                          ; to function symbol (value)
+          :inputs     #{} ; set of input labels (keywords)
+          :outputs    #{} ; set of output labels (keywords)
+        }"
           }]
   (alter-meta! v assoc :doc doc))

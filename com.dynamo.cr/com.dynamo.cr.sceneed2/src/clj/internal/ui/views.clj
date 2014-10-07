@@ -1,9 +1,12 @@
 (ns internal.ui.views
-  (:require dynamo.parts)
+  (:require [dynamo.views :refer :all]
+            [dynamo.types :refer [MessageTarget]])
   (:import [org.eclipse.ui PlatformUI]
            [org.eclipse.e4.core.contexts IEclipseContext]
-           [org.eclipse.e4.ui.model.application.ui.basic MBasicFactory]
+           [org.eclipse.e4.ui.model.application.ui.basic MBasicFactory MPart]
            [org.eclipse.e4.ui.workbench.modeling EPartService EPartService$PartState]))
+
+(set! *warn-on-reflection* true)
 
 (defn- dynamic-part
   [id label clsname]
@@ -15,8 +18,8 @@
 
 (defn open-part
   [behavior]
-  (assert (satisfies? Part behavior) "Behavior must support protocol dynamo.parts/Part")
-  (let [ctx (.getService (PlatformUI/getWorkbench) IEclipseContext)]
+  (assert (satisfies? MessageTarget behavior) "Behavior must support protocol dynamo.types/MessageTarget")
+  (let [ctx ^IEclipseContext (.getService (PlatformUI/getWorkbench) IEclipseContext)]
     (.set ctx "behavior" behavior)
     (let [p (dynamic-part "test.view" "Testing from Clj" "internal.ui.InjectablePart")]
-      (.showPart (.get ctx EPartService) p EPartService$PartState/ACTIVATE))))
+      (.showPart ^EPartService (.get ctx EPartService) ^MPart p EPartService$PartState/ACTIVATE))))

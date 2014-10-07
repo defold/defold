@@ -104,9 +104,10 @@
           (miss-cache project-state cache-key (produce-value project-state resource label))))
     (produce-value project-state resource label)))
 
-(defn resource-feeding-into [project-state resource label]
-  (resource-by-id project-state
-                  (ffirst (lg/sources (:graph @project-state) (:_id resource) label))))
+(defn resource-feeding-into [node label]
+  (let [project-state (:project-ref node)]
+    (resource-by-id project-state
+                    (ffirst (lg/sources (:graph @project-state) (:_id node) label)))))
 
 (defn new-resource
   ([resource]
@@ -151,10 +152,10 @@
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys modified-nodes] :as ctx} m]
+  [{:keys [graph tempids cache-keys modified-nodes state state-ref] :as ctx} m]
   (let [next-id (dg/next-node graph)]
     (assoc ctx
-      :graph           (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id))
+      :graph           (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id :project-ref state-ref))
       :tempids         (assoc tempids    (get-in m [:node :_id]) next-id)
       :cache-keys      (assoc cache-keys next-id (resource->cache-keys (:node m)))
       :new-event-loops (if (satisfies? t/MessageTarget (:node m)) (conj (:new-event-loops ctx) (:node m)) (:new-event-loops ctx))
@@ -194,13 +195,15 @@
     actions))
 
 (defn- new-transaction-context
-  [state]
-  {:state           state
-   :graph           (:graph state)
-   :cache-keys      (:cache-keys state)
-   :tempids         {}
-   :new-event-loops []
-   :modified-nodes #{}})
+  [state-ref]
+  (let [curr-state @state-ref]
+    {:state-ref       state-ref
+     :state           curr-state
+     :graph           (:graph curr-state)
+     :cache-keys      (:cache-keys curr-state)
+     :tempids         {}
+     :new-event-loops []
+     :modified-nodes #{}}))
 
 (defn- pairwise [f coll]
   (for [n coll
@@ -229,10 +232,10 @@
   (assoc ctx :expired-outputs (pairwise :on-update (map #(dg/node graph %) affected-nodes))))
 
 (defn- start-event-loops
-  [{:keys [new-event-loops graph] :as ctx} project-state]
+  [{:keys [new-event-loops graph state] :as ctx}]
   (doseq [n (map #(dg/node graph (resolve-tempid ctx (:_id %))) new-event-loops)]
     (let [ch (a/chan 100)]
-      (t/start-event-loop! n project-state (a/sub (:subscribe-to @project-state) (:_id n) ch))))
+      (t/start-event-loop! n (a/sub (:subscribe-to state) (:_id n) ch))))
   ctx)
 
 (defn- finalize-update
@@ -258,14 +261,15 @@
     dispose-obsoletes
     evict-obsolete-caches
     determine-autoupdates
-    finalize-update))
+    finalize-update
+    start-event-loops))
 
 (defn transact
   [project-state txs]
   (send-to-tx-queue project-state
     (dosync
-      (let [tx-result (transact* @project-state txs)]
-        (start-event-loops tx-result project-state)
+      (let [tx-result (transact* project-state txs)]
+
         (ref-set project-state (:state tx-result))
         tx-result))))
 

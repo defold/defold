@@ -130,7 +130,7 @@
     (go-loop []
        (when-let [e (<! event-chan)]
          (try
-           (p/publish project-state (p/resource-feeding-into project-state {:_id render-node-id} :controller) e)
+           (p/publish project-state (p/resource-feeding-into (p/resource-by-id project-state render-node-id) :controller) e)
            (catch Exception ex (.printStackTrace ex)))
          (recur)))
     event-chan))

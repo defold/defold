@@ -52,6 +52,6 @@
         flds (fields (resolve cls))]
     `(fn [~tagged-arg]
        (hash-map ~@(mapcat identity
-                  (for [f flds]
-                    [(field-as-keyword f)
-                     (field-getter tagged-arg f)]))))))
+                           (for [f flds]
+                             [(field-as-keyword f)
+                              (field-getter tagged-arg f)]))))))
