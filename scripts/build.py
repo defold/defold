@@ -198,6 +198,8 @@ class Configuration(object):
         with open(tmp, 'wb') as f:
             self._log('Downloading %s %d%%' % (name, 0))
             x = urllib.urlopen(url)
+            if x.code != 200:
+                return None
             file_len = int(x.headers.get('Content-Length', 0))
             buf = x.read(1024 * 1024)
             n = 0
@@ -219,10 +221,89 @@ class Configuration(object):
         path = self._download(url)
         self._extract(path, self.ext)
 
+    def _load_xml_strip_ns(self, path):
+        # NOTE: Consider this a hack but ElementTree (xpath) is very limited in terms of namespaces
+        # We remove all namespaces for that reason. See http://bugs.python.org/issue18304
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(path)
+        def f(n):
+            n.tag = t = n.tag.split('}')[-1]
+            for c in n.getchildren():
+                f(c)
+        f(tree.getroot())
+        return tree
+
+    def _parse_pom(self, path):
+        deps = []
+        tree =  self._load_xml_strip_ns(path)
+
+        def get_text(elem, name):
+            t = elem.find(name)
+            if t != None:
+                return t.text
+            else:
+                return None
+
+        for x in tree.getroot().findall('dependencies/dependency'):
+            group = x.find('groupId').text
+            artifact = x.find('artifactId').text
+            version = get_text(x, 'version')
+            scope = get_text(x, 'scope')
+            if version and scope not in ['test', 'provided', 'compile']:
+                deps.append([group, artifact, version])
+        return deps
+
+    def _resolve_maven_deps(self, root_artifacts, dest):
+        repos = ["http://central.maven.org/maven2", "https://clojars.org/repo"]
+        downloaded = set()
+        queue = [ x for x in root_artifacts ]
+
+        def down(group, artifact, version):
+            downloaded.add((group, artifact, version))
+            path = None
+            for repo in repos:
+                url = "%s/%s/%s/%s/%s-%s.pom" % (repo, group.replace('.', '/'), artifact, version, artifact, version)
+                pom_path = self._download(url)
+                url = "%s/%s/%s/%s/%s-%s.jar" % (repo, group.replace('.', '/'), artifact, version, artifact, version)
+                jar_path = self._download(url)
+                if pom_path and jar_path:
+                    path = jar_path
+                    deps = self._parse_pom(pom_path)
+                    for g, a, v in deps:
+                        if not (g, a, v) in downloaded:
+                            queue.append((g, a, v))
+            return path
+
+        self._mkdirs(dest)
+        while len(queue) > 0:
+            group, artifact, version = queue.pop()
+            path = down(group, artifact, version)
+            if path:
+                shutil.copy(path, dest)
+            else:
+                print 'failed to download %s.%s-%s' % (group, artifact, version)
+                sys.exit(5)
+
+    def _install_jars(self):
+        ed2_artifacts = [["org.clojure", "clojure", "1.6.0"],
+                         ["org.clojure", "core.cache", "0.6.3"],
+                         ["org.clojure", "tools.nrepl", "0.2.3"],
+                         ["org.clojure", "core.async", "0.1.346.0-17112a-alpha"],
+                         ["org.clojure", "core.match", "0.2.1"],
+                         ["org.clojure", "tools.namespace", "0.2.6"],
+                         ["com.stuartsierra", "component", "0.2.2"],
+                         ["prismatic", "schema", "0.2.3"],
+                         ["prismatic", "plumbing", "0.3.1"]]
+        ed2_test_artifacts = [["org.clojure", "test.check", "0.5.8"]]
+
+        self._resolve_maven_deps(ed2_artifacts, 'com.dynamo.cr/com.dynamo.cr.sceneed2/jars')
+        self._resolve_maven_deps(ed2_test_artifacts, 'com.dynamo.cr/com.dynamo.cr.sceneed2.test/jars')
+
     def install_ext(self):
         def make_path(platform):
             return join(self.defold_root, 'packages', p) + '-%s.tar.gz' % platform
 
+        self._install_jars()
         self._install_go()
 
         for p in PACKAGES_ALL:
