@@ -473,12 +473,7 @@ namespace dmGui
         lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
         assert(lua_type(L, -3) == LUA_TFUNCTION);
 
-        int ret = lua_pcall(L, 2, 0, 0);
-        if (ret != 0)
-        {
-            dmLogError("Error running animation callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-        }
+        dmScript::PCall(L, 2, 0);
 
         lua_unref(L, ref);
         lua_unref(L, node_ref);

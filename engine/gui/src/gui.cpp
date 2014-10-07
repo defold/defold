@@ -926,13 +926,11 @@ namespace dmGui
                 break;
             }
 
-            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
+            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
 
             Result result = RESULT_OK;
             if (ret != 0)
             {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
                 assert(top == lua_gettop(L));
                 result = RESULT_SCRIPT_ERROR;
             }
@@ -2277,15 +2275,13 @@ namespace dmGui
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        ret = lua_pcall(L, 0, LUA_MULTRET, 0);
+        ret = dmScript::PCall(L, 0, LUA_MULTRET);
 
         lua_pushnil(L);
         dmScript::SetInstance(L);
 
         if (ret != 0)
         {
-            dmLogError("Error running script: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
             res = RESULT_SCRIPT_ERROR;
             goto bail;
         }

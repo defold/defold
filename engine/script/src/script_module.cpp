@@ -137,11 +137,9 @@ namespace dmScript
         if (LoadScript(L, script, script_size, module->m_Name))
         {
             lua_pushstring(L, module->m_Name);
-            int ret = lua_pcall(L, 1, LUA_MULTRET, 0);
+            int ret = dmScript::PCall(L, 1, LUA_MULTRET);
             if (ret != 0)
             {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
                 assert(top == lua_gettop(L));
                 return RESULT_LUA_ERROR;
             }

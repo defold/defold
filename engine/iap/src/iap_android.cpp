@@ -364,11 +364,7 @@ void HandleProductResult(const Command* cmd)
         PushError(L, "failed to fetch product");
     }
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
-    if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
-    }
+    dmScript::PCall(L, 3, LUA_MULTRET);
 
     luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
     luaL_unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
@@ -423,11 +419,7 @@ void HandlePurchaseResult(const Command* cmd)
         PushError(L, "failed to buy product");
     }
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
-    if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
-    }
+    dmScript::PCall(L, 3, LUA_MULTRET);
 
     assert(top == lua_gettop(L));
 }

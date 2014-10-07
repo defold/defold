@@ -107,11 +107,9 @@ namespace dmGameObject
                 ++arg_count;
             }
 
-            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
+            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             if (ret != 0)
             {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
                 result = SCRIPT_RESULT_FAILED;
             }
 
@@ -268,11 +266,9 @@ namespace dmGameObject
 
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
-            ret = lua_pcall(L, 4, LUA_MULTRET, 0);
+            ret = dmScript::PCall(L, 4, LUA_MULTRET);
             if (ret != 0)
             {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
 
@@ -441,12 +437,10 @@ namespace dmGameObject
 
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;
-            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
+            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
             if (ret != 0)
             {
-                dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
-                lua_pop(L, 1);
                 result = INPUT_RESULT_UNKNOWN_ERROR;
             }
             else if (input_ret == lua_gettop(L))

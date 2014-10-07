@@ -836,12 +836,7 @@ namespace dmGameObject
             dmScript::PushURL(L, url);
             dmScript::PushHash(L, property_id);
 
-            int ret = lua_pcall(L, 3, 0, 0);
-            if (ret != 0)
-            {
-                dmLogError("Error running animation callback: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
-            }
+            int ret = dmScript::PCall(L, 3, 0);
 
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -1341,7 +1336,7 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            ret = lua_pcall(L, 0, LUA_MULTRET, 0);
+            ret = dmScript::PCall(L, 0, LUA_MULTRET);
             if (ret == 0)
             {
                 for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
@@ -1368,16 +1363,9 @@ namespace dmGameObject
                 }
                 result = true;
             }
-            else
-            {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
-            }
             lua_pushnil(L);
             dmScript::SetInstance(L);
-        }
-        else
-        {
+        } else {
             dmLogError("Error running script: %s", lua_tostring(L,-1));
             lua_pop(L, 1);
         }

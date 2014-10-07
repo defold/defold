@@ -162,11 +162,7 @@ static void RunLoadCallback(lua_State* L, int callback, int self, const char* er
 
         PushError(L, error);
 
-        int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
-        if (ret != 0) {
-            dmLogError("Error running adtruth callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-        }
+        int ret = dmScript::PCall(L, 2, LUA_MULTRET);
         assert(top == lua_gettop(L));
     } else {
         dmLogError("No callback set");

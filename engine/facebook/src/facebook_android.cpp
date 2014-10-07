@@ -123,11 +123,7 @@ static void RunStateCallback(Command* cmd)
         lua_pushnumber(L, (lua_Number) state);
         PushError(L, error);
 
-        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
-        if (ret != 0) {
-            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-        }
+        int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -161,11 +157,7 @@ static void RunCallback(Command* cmd)
 
         PushError(L, error);
 
-        int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
-        if (ret != 0) {
-            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-        }
+        int ret = dmScript::PCall(L, 2, LUA_MULTRET);
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
@@ -208,11 +200,7 @@ static void RunDialogResultCallback(Command* cmd)
 
         PushError(L, error);
 
-        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
-        if (ret != 0) {
-            dmLogError("Error running facebook callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
-        }
+        int ret = dmScript::PCall(L, 3, LUA_MULTRET);
         assert(top == lua_gettop(L));
         luaL_unref(L, LUA_REGISTRYINDEX, callback);
     } else {
