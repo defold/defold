@@ -10,7 +10,6 @@
             [dynamo.geom :as g])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d]
            [org.eclipse.swt SWT]
-           [org.eclipse.swt.widgets Event]
            [dynamo.types Camera Region AABB]))
 
 (set! *warn-on-reflection* true)
@@ -246,8 +245,8 @@
    [:three-button 3 SWT/ALT]                 :dolly})
 
 (defn camera-movement
-  ([^Event event]
-    (camera-movement (ui/mouse-type) (.button event) (.stateMask event)))
+  ([event]
+    (camera-movement (ui/mouse-type) (:button event) (:state-mask event)))
   ([mouse-type button mods]
     (button-interpretation [mouse-type button mods] :idle)))
 
@@ -260,15 +259,15 @@
 
   (on :mouse-down
       (set-property self
-                    :last-x (.x ^Event event)
-                    :last-y (.y ^Event event)
+                    :last-x (:x event)
+                    :last-y (:y event)
                     :movement (camera-movement event)))
 
   (on :mouse-move
       (when (not (= :idle (:movement self)))
-        (let [camera-node (p/resource-feeding-into project-state self :camera)
-              x (.x ^Event event)
-              y (.y ^Event event)]
+        (let [camera-node (p/resource-feeding-into self :camera)
+              x (:x event)
+              y (:y event)]
           (case (:movement self)
             :dolly  (do (update-property camera-node :camera dolly (* -0.002 (- y (:last-y self)))) (repaint))
             :track  (do (update-property camera-node :camera track (:last-x self) (:last-y self) x y) (repaint))
@@ -284,6 +283,6 @@
                     :movement :idle))
 
   (on :mouse-wheel
-      (let [camera-node (p/resource-feeding-into project-state self :camera)]
-        (update-property camera-node :camera dolly (* -0.02 (.count ^Event event)))
+      (let [camera-node (p/resource-feeding-into self :camera)]
+        (update-property camera-node :camera dolly (* -0.02 (:count event)))
         (repaint))))

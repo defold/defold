@@ -21,7 +21,8 @@
   (properties [this] "Produce a description of properties supported by this node."))
 
 (defprotocol MessageTarget
-  (start-event-loop! [this project-state event-ch]))
+  (start-event-loop! [this event-ch])
+  (process-one-event [this event]))
 
 (defprotocol R3Min
   (min-p ^Point3d  [this]))

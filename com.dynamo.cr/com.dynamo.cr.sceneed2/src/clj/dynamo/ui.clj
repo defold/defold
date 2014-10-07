@@ -1,6 +1,7 @@
 (ns dynamo.ui
   (:require [clojure.core.async :refer [chan dropping-buffer put!]]
             [internal.ui.handlers :as h]
+            [internal.java :refer [bean-mapper]]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
             [org.eclipse.swt.widgets Display Listener Widget]
@@ -53,10 +54,6 @@
         constants (map symbol (map #(str "SWT/" %) evts))]
     (zipmap keywords constants)))
 
-(deftype EventForwarder [ch]
-  Listener
-  (handleEvent [this evt] (put! ch evt)))
-
 (def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
                            MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect
                            FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse))
@@ -65,6 +62,13 @@
 
 (defn event-type [^org.eclipse.swt.widgets.Event evt]
   (event-type-map (.type evt)))
+
+(def event->map (bean-mapper org.eclipse.swt.widgets.Event))
+
+(deftype EventForwarder [ch]
+  Listener
+  (handleEvent [this evt]
+    (put! ch (update-in (event->map evt) [:type] event-type-map))))
 
 (defn listen
   [^Widget component type callback-fn & args]
