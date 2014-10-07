@@ -272,7 +272,7 @@ namespace dmGameSystem
         gui_component->m_Enabled = 1;
 
         dmGui::NewSceneParams scene_params;
-        scene_params.m_MaxNodes = 256;
+        scene_params.m_MaxNodes = 512;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;

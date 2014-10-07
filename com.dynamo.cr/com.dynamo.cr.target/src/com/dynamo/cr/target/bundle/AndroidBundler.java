@@ -224,7 +224,9 @@ public class AndroidBundler {
             }
 
             // Copy executable
-            zipOut.putNextEntry(new ZipEntry(FilenameUtils.concat("lib/armeabi-v7a", FilenameUtils.getName(exe))));
+            String filename = FilenameUtils.concat("lib/armeabi-v7a", FilenameUtils.getName(exe));
+            filename = FilenameUtils.normalize(filename, true);
+            zipOut.putNextEntry(new ZipEntry(filename));
             FileUtils.copyFile(new File(exe), zipOut);
 
         } finally {
