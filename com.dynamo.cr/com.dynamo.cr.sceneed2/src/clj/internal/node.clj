@@ -182,12 +182,22 @@
          :else
          form))
 
-(defn- transactional-specials
+(defn transactional-specials
   [form]
   (cond
     (seq? form)    (map transactional-specials (replace-magic-imperatives form))
     (vector? form) (mapv transactional-specials (replace-magic-imperatives form))
-    :else          form))
+    :else          (replace-magic-imperatives form)))
+
+(defmacro transactional
+  [pstate & forms]
+  `(let [~'transaction  (transient [])
+         ~'message-drop (transient [])]
+     ~@(transactional-specials forms)
+     (when (and (< 0 (count ~'transaction))
+                (= :ok (:status (dynamo.project/transact ~pstate (persistent! ~'transaction)))))
+       (doseq [m# (persistent! ~'message-drop)]
+         (apply dynamo.project/publish ~pstate m#)))))
 
 (def ^:private property-flags #{:cached :on-update})
 
@@ -247,7 +257,7 @@
 
 (defn- fix-event-handlers
   [m]
-  (update-in m [:event-handlers] map-vals transactional-specials))
+  (update-in m [:event-handlers] map-vals #(list `transactional %)))
 
 (defn- eval-default-exprs
   [prop]
@@ -260,28 +270,36 @@
   (update-in m [:properties] map-vals eval-default-exprs))
 
 (defn generate-event-loop
-  [name beh]
-  (let [fn-name     (symbol (str (:name beh) ":event-loop"))
-        event-cases (mapcat identity (:event-handlers beh))]
-    `(dynamo.types/start-event-loop!
-        [~'this ~'project-state ~'in]
-        (a/go-loop [id# (:_id ~'this)]
-          (when-let [~'msg (a/<! ~'in)]
-            (try
-              (let [~'self         (dynamo.project/resource-by-id ~'project-state id#)
-                    ~'event        (:body ~'msg)
-                    ~'transaction  (transient [])
-                    ~'message-drop (transient [])]
-                (case (dynamo.ui/event-type ~'event)
-                  ~@event-cases
-                  nil)
-                (when (and (< 0 (count ~'transaction))
-                           (= :ok (:status (dynamo.project/transact ~'project-state (persistent! ~'transaction)))))
-                  (doseq [m# (persistent! ~'message-drop)]
-                    (apply dynamo.project/publish ~'project-state m#))))
-              (catch Exception ~'ex
-                (service.log/error :message "Error in node event loop" :exception ~'ex)))
-            (recur id#))))))
+  [beh]
+  `(dynamo.types/start-event-loop!
+      [~'this ~'project-state ~'in]
+      (a/go-loop [id# (:_id ~'this)]
+        (when-let [~'msg (a/<! ~'in)]
+          (try
+            (dynamo.types/process-one-event (dynamo.project/resource-by-id ~'project-state id#) ~'project-state (:body ~'msg))
+            (catch Exception ~'ex
+              (service.log/error :message "Error in node event loop" :exception ~'ex)))
+          (recur id#)))))
+
+(defn- wrap-in-transaction
+  [ps fs]
+  (list* `transactional ps fs))
+
+(defn generate-message-processor
+  [beh]
+  (let [event-cases (-> beh :event-handlers (map-vals #(wrap-in-transaction 'project-state %)) (->> (mapcat identity)))]
+    `(dynamo.types/process-one-event
+       [~'self ~'project-state ~'event]
+       (let [~'transaction  (transient [])
+             ~'message-drop (transient [])]
+         (case (:type ~'event)
+           ~@event-cases
+           nil)
+         (when (and (< 0 (count ~'transaction))
+                    (= :ok (:status (dynamo.project/transact ~'project-state (persistent! ~'transaction)))))
+           (doseq [m# (persistent! ~'message-drop)]
+             (apply dynamo.project/publish ~'project-state m#)))
+         :ok))))
 
 (defn compile-specification
   [name forms]
@@ -289,7 +307,6 @@
     (map (partial compile-defnode-form name))
     (reduce deep-merge {:name name})
     (ancestor-behaviors)
-    (fix-event-handlers)
     (resolve-defaults)))
 
 (defn generate-type [name behavior]
@@ -309,7 +326,8 @@
              (:impl-methods behavior)
              (when (< 0 (count (:event-handlers behavior)))
                ['dynamo.types/MessageTarget
-                (generate-event-loop name behavior)])))))
+                (generate-event-loop behavior)
+                (generate-message-processor behavior)])))))
 
 (defn quote-functions
   [beh]

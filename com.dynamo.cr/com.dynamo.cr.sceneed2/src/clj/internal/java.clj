@@ -1,4 +1,5 @@
 (ns internal.java
+  (:require [camel-snake-kebab :refer :all])
   (:import [java.lang.reflect Method Modifier]))
 
 (set! *warn-on-reflection* true)
@@ -42,3 +43,15 @@
 (defn constants [^java.lang.Class cls]
   (let [flds (filter psf (fields cls))]
     (zipmap flds (map #(constant-value cls %) flds))))
+
+(defn- field-as-keyword [^Field f]   (keyword (->kebab-case (.name f))))
+(defn- field-getter     [s ^Field f] (list (symbol (str ".-" (.name f) )) s))
+
+(defmacro bean-mapper [cls]
+  (let [tagged-arg (vary-meta (gensym "o") assoc :tag cls)
+        flds (fields (resolve cls))]
+    `(fn [~tagged-arg]
+       (hash-map ~@(mapcat identity
+                  (for [f flds]
+                    [(field-as-keyword f)
+                     (field-getter tagged-arg f)]))))))

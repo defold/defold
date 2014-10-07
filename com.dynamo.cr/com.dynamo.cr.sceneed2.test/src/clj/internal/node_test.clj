@@ -3,6 +3,7 @@
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
+            [dynamo.project.test-support :refer [clean-project]]
             [internal.node :as in :refer [deep-merge]]))
 
 (def a-schema (as-schema {:names [java.lang.String]}))
@@ -18,7 +19,6 @@
 (def s1           (assoc m1 :declared-type a-schema))
 (def s2           (assoc m2 :declared-type a-schema))
 (def schema-merge (assoc expected-merge :declared-type a-schema))
-
 
 (deftest merging-nested-maps
   (is (= expected-merge (deep-merge m1 m2))))
@@ -47,6 +47,11 @@
   (width [this] 800)
   (height [this] 600))
 
+(defnode NodeWithEvents
+  (on :mousedown
+      (let [nn (new NodeWithProtocols :_id -1)]
+        (set-property {:_id -1} :foo "newly created"))))
+
 (deftest node-definition
   (testing "properties"
     (is (= [:foo] (-> (make-simple-test-node) :properties keys)))
@@ -61,4 +66,6 @@
     (is (instance? clojure.lang.IDeref (make-node-with-protocols)))
     (is (= "the user" @(make-node-with-protocols)))
     (is (satisfies? t/N2Extent (make-node-with-protocols)))
-    (is (= 800 (t/width (make-node-with-protocols))))))
+    (is (= 800 (t/width (make-node-with-protocols)))))
+  (testing "sending events to nodes"
+    (is (= :ok (-> (make-node-with-events) (t/process-one-event (clean-project) {:type :mousedown}))))))
