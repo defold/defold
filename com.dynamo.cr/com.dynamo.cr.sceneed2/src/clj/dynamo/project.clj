@@ -56,9 +56,9 @@
         cached-vals (vals (:cache @project-state))]
     (onto-chan report-ch (filter disposable? cached-vals) false)))
 
-(defn publish [project-state node msg]
+(defn publish [node msg]
   (when node
-    (a/put! (:publish-to @project-state) {:node-id (:_id node) :body msg})))
+    (a/put! (-> node :project-ref deref :publish-to) {:node-id (:_id node) :body msg})))
 
 (defn- handle
   [project-state key filetype handler]

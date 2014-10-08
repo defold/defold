@@ -197,7 +197,7 @@
      (when (and (< 0 (count ~'transaction))
                 (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
        (doseq [m# (persistent! ~'message-drop)]
-         (apply dynamo.project/publish (:project-ref ~'self) m#)))))
+         (apply dynamo.project/publish m#)))))
 
 (def ^:private property-flags #{:cached :on-update})
 
@@ -298,7 +298,7 @@
          (when (and (< 0 (count ~'transaction))
                     (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
            (doseq [m# (persistent! ~'message-drop)]
-             (apply dynamo.project/publish (:project-ref ~'self) m#)))
+             (apply dynamo.project/publish m#)))
          :ok))))
 
 (defn compile-specification
