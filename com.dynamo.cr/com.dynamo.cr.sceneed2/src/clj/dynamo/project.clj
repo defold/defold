@@ -25,7 +25,7 @@
 
 (defn new-cache-key [] (.getAndIncrement nextkey))
 
-(declare transact new-resource resolve-tempid resource-by-id get-resource-value)
+(declare transact new-resource resolve-tempid node-by-id get-node-value)
 
 (defn on-load-code
   [project-state resource input]
@@ -33,8 +33,8 @@
                             (new-resource
                               (clojure/make-clojure-source-node :_id -1 :resource resource)))
         real-id   (resolve-tempid tx-result -1)
-        real-node (resource-by-id project-state real-id)]
-    (get-resource-value project-state real-node :namespace)))
+        real-node (node-by-id project-state real-id)]
+    (get-node-value real-node :namespace)))
 
 (defn make-project
   [eclipse-project branch tx-report-chan]
@@ -81,7 +81,7 @@
   [project-state path]
   ((loader-for project-state (file/extension path)) project-state path (io/reader path)))
 
-(defn resource-by-id
+(defn node-by-id
   [project-state id]
   (dg/node (:graph @project-state) id))
 
@@ -93,52 +93,53 @@
   (dosync (alter project-state update-in [:cache] cache/miss cache-key value))
   value)
 
-(defn- produce-value [project-state resource label]
-  (t/get-value resource (:graph @project-state) label {:project project-state}))
+(defn- produce-value [node label]
+  (t/get-value node (-> node :project-ref deref :graph) label))
 
-(defn get-resource-value [project-state resource label]
-  (if-let [cache-key (get-in @project-state [:cache-keys (:_id resource) label])]
-    (let [cache (:cache @project-state)]
-      (if (cache/has? cache cache-key)
-          (hit-cache  project-state cache-key (get cache cache-key))
-          (miss-cache project-state cache-key (produce-value project-state resource label))))
-    (produce-value project-state resource label)))
-
-(defn resource-feeding-into [node label]
+(defn get-node-value [node label]
   (let [project-state (:project-ref node)]
-    (resource-by-id project-state
-                    (ffirst (lg/sources (:graph @project-state) (:_id node) label)))))
+    (if-let [cache-key (get-in @project-state [:cache-keys (:_id node) label])]
+      (let [cache (:cache @project-state)]
+        (if (cache/has? cache cache-key)
+            (hit-cache  project-state cache-key (get cache cache-key))
+            (miss-cache project-state cache-key (produce-value node label))))
+      (produce-value node label))))
+
+(defn node-feeding-into [node label]
+  (let [project-state (:project-ref node)]
+    (node-by-id project-state
+                (ffirst (lg/sources (:graph @project-state) (:_id node) label)))))
 
 (defn new-resource
-  ([resource]
-    (new-resource resource (set (keys (:inputs resource))) (set (keys (:transforms resource)))))
-  ([resource inputs outputs]
-    [{:type :create-node
-      :node resource
-      :inputs inputs
+  ([node]
+    (new-resource node (set (keys (:inputs node))) (set (keys (:transforms node)))))
+  ([node inputs outputs]
+    [{:type    :create-node
+      :node    node
+      :inputs  inputs
       :outputs outputs}]))
 
 (defn update-resource
-  [resource f & args]
-  [{:type :update-node
-    :node-id (:_id resource)
-    :fn f
-    :args args}])
+  [node f & args]
+  [{:type    :update-node
+    :node-id (:_id node)
+    :fn      f
+    :args    args}])
 
 (defn connect
-  [from-resource from-label to-resource to-label]
+  [from-node from-label to-node to-label]
   [{:type :connect
-     :source-id    (:_id from-resource)
+     :source-id    (:_id from-node)
      :source-label from-label
-     :target-id    (:_id to-resource)
+     :target-id    (:_id to-node)
      :target-label to-label}])
 
 (defn disconnect
-  [from-resource from-label to-resource to-label]
+  [from-node from-label to-node to-label]
   [{:type :disconnect
-     :source-id    (:_id from-resource)
+     :source-id    (:_id from-node)
      :source-label from-label
-     :target-id    (:_id to-resource)
+     :target-id    (:_id to-node)
      :target-label to-label}])
 
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))

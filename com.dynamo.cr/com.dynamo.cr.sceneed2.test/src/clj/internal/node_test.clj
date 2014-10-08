@@ -60,9 +60,9 @@
   (testing "property defaults"
     (is (= "FOO!" (-> (make-simple-test-node) :foo))))
   (testing "production functions"
-    (is (= "a produced value" (-> (make-simple-test-node) (t/get-value nil :an-output {}))))
-    (is (= "inlined function" (-> (make-simple-test-node) (t/get-value nil :inline-output {}))))
-    (is (= "a funky value"    (-> (make-simple-test-node) (t/get-value nil :symbol-param-production {})))))
+    (is (= "a produced value" (-> (make-simple-test-node) (t/get-value nil :an-output))))
+    (is (= "inlined function" (-> (make-simple-test-node) (t/get-value nil :inline-output))))
+    (is (= "a funky value"    (-> (make-simple-test-node) (t/get-value nil :symbol-param-production)))))
   (testing "extending nodes with protocols"
     (is (instance? clojure.lang.IDeref (make-node-with-protocols)))
     (is (= "the user" @(make-node-with-protocols)))
@@ -72,5 +72,5 @@
     (let [proj       (clean-project)
           evented    (make-node-with-events :_id -1)
           tx-result  (p/transact proj [(p/new-resource evented)])
-          event-real (p/resource-by-id proj (p/resolve-tempid tx-result -1))]
+          event-real (p/node-by-id proj (p/resolve-tempid tx-result -1))]
       (is (= :ok (t/process-one-event event-real {:type :mousedown}))))))

@@ -93,22 +93,22 @@
 (deftest project-cache
   (let [[name1 name2 combiner expensive] (build-sample-project)]
     (testing "uncached values are unaffected"
-             (is (= "Jane" (p/get-resource-value *test-project* name1 :uncached-value))))))
+             (is (= "Jane" (p/get-node-value name1 :uncached-value))))))
 
 (deftest caching-avoids-computation
   (testing "cached values are only computed once"
            (let [[name1 name2 combiner expensive] (build-sample-project)]
-             (is (= "Jane Doe" (p/get-resource-value *test-project* combiner :derived-value)))
+             (is (= "Jane Doe" (p/get-node-value combiner :derived-value)))
              (expect-no-call-when combiner 'compute-derived-value
                                   (doseq [x (range 100)]
-                                    (p/get-resource-value *test-project* combiner :derived-value)))))
+                                    (p/get-node-value combiner :derived-value)))))
 
   (testing "modifying inputs invalidates the cached value"
            (let [[name1 name2 combiner expensive] (build-sample-project)]
-             (is (= "Jane Doe" (p/get-resource-value *test-project* combiner :derived-value)))
+             (is (= "Jane Doe" (p/get-node-value combiner :derived-value)))
              (expect-call-when combiner 'compute-derived-value
                                (p/transact *test-project* [(p/update-resource name1 assoc :scalar "John")])
-                               (is (= "John Doe" (p/get-resource-value *test-project* combiner :derived-value)))))))
+                               (is (= "John Doe" (p/get-node-value combiner :derived-value)))))))
 
 
 (defnk compute-disposable-value
@@ -148,12 +148,12 @@
 (deftest local-properties
   (let [[override jane]  (build-override-project)]
     (testing "local properties take precedence over wired inputs"
-      (is (= "Jane"        (p/get-resource-value *test-project* override :output)))
-      (is (= "local value" (p/get-resource-value *test-project* (assoc override :overridden "local value") :output))))
+      (is (= "Jane"        (p/get-node-value override :output)))
+      (is (= "local value" (p/get-node-value (assoc override :overridden "local value") :output))))
     (testing "local properties are passed to fnks"
-      (is (= "value to fnk" (p/get-resource-value *test-project* (assoc override :an-input "value to fnk") :foo))))))
+      (is (= "value to fnk" (p/get-node-value (assoc override :an-input "value to fnk") :foo))))))
 
 (deftest invalid-resource-values
   (let [[override jane]  (build-override-project)]
     (testing "requesting a non-existent label throws"
-      (is (thrown? AssertionError (p/get-resource-value *test-project* override :aint-no-thang))))))
+      (is (thrown? AssertionError (p/get-node-value override :aint-no-thang))))))

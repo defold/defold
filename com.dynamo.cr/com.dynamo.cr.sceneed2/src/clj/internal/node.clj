@@ -23,36 +23,36 @@
    :node-type (class n)
    :label     l})
 
-(defn get-inputs [target-node g target-label seed]
+(defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
     (let [schema (get-in target-node [:inputs target-label])]
       (cond
         (vector? schema)     (map (fn [[source-node source-label]]
-                                    (t/get-value (dg/node g source-node) g source-label seed))
+                                    (t/get-value (dg/node g source-node) g source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-                               (t/get-value (dg/node g first-source-node) g first-source-label seed))
+                               (t/get-value (dg/node g first-source-node) g first-source-label))
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))
 
-(defn collect-inputs [node g input-schema seed]
+(defn collect-inputs [node g input-schema]
   (reduce-kv
     (fn [m k v]
       (condp = k
         :g         (assoc m k g)
         :this      (assoc m k node)
-        :project   m
+        :project   (assoc m k (:project-ref node))
         s/Keyword  m
-        (assoc m k (get-inputs node g k seed))))
-    seed input-schema))
+        (assoc m k (get-inputs node g k))))
+    {} input-schema))
 
-(defn perform [transform node g seed]
+(defn perform [transform node g]
   (cond
-    (symbol?       transform)  (perform (resolve transform) node g seed)
-    (var?          transform)  (perform (var-get transform) node g seed)
-    (t/has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform) seed))
+    (symbol?       transform)  (perform (resolve transform) node g)
+    (var?          transform)  (perform (var-get transform) node g)
+    (t/has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform)))
     (fn?           transform)  (transform node g)
     :else transform))
 
@@ -193,11 +193,12 @@
   [& forms]
   `(let [~'transaction  (transient [])
          ~'message-drop (transient [])]
-     ~@(transactional-specials forms)
-     (when (and (< 0 (count ~'transaction))
-                (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
-       (doseq [m# (persistent! ~'message-drop)]
-         (apply dynamo.project/publish m#)))))
+     (let [result# (do ~@(transactional-specials forms))]
+       (when (and (< 0 (count ~'transaction))
+                  (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
+         (doseq [m# (persistent! ~'message-drop)]
+           (apply dynamo.project/publish m#)))
+       result#)))
 
 (def ^:private property-flags #{:cached :on-update})
 
@@ -276,7 +277,7 @@
       (a/go-loop [id# (:_id ~'this)]
         (when-let [~'msg (a/<! ~'in)]
           (try
-            (dynamo.types/process-one-event (dynamo.project/resource-by-id (:project-ref ~'this) id#) (:body ~'msg))
+            (dynamo.types/process-one-event (dynamo.project/node-by-id (:project-ref ~'this) id#) (:body ~'msg))
             (catch Exception ~'ex
               (service.log/error :message "Error in node event loop" :exception ~'ex)))
           (recur id#)))))
@@ -287,18 +288,13 @@
 
 (defn generate-message-processor
   [beh]
-  (let [event-cases (-> beh :event-handlers (map-vals #(wrap-in-transaction %)) (->> (mapcat identity)))]
+  (let [event-cases (mapcat identity (:event-handlers beh))]
     `(dynamo.types/process-one-event
        [~'self ~'event]
-       (let [~'transaction  (transient [])
-             ~'message-drop (transient [])]
+       (transactional
          (case (:type ~'event)
            ~@event-cases
            nil)
-         (when (and (< 0 (count ~'transaction))
-                    (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
-           (doseq [m# (persistent! ~'message-drop)]
-             (apply dynamo.project/publish m#)))
          :ok))))
 
 (defn compile-specification
@@ -317,10 +313,10 @@
     (list* 'defrecord name (state-vector behavior)
            'dynamo.types/Node
            `(properties [~t] ~(:properties behavior))
-           `(get-value [~t ~g ~'label ~'seed]
+           `(get-value [~t ~g ~'label]
                        (assert (get-in ~t [:transforms ~'label])
                                (str "There is no transform " ~'label " on node " (:_id ~t)))
-                       (perform (get-in ~t [:transforms ~'label]) ~t ~g ~'seed))
+                       (perform (get-in ~t [:transforms ~'label]) ~t ~g))
            (concat
              (:impl behavior)
              (:impl-methods behavior)

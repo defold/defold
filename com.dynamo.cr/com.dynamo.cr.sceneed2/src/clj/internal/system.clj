@@ -103,7 +103,7 @@
              (when-let [{:keys [project node output]} (<! in)]
                (logging-exceptions "refresh-loop"
                  (e/with-project project
-                   (p/get-resource-value project node output)))
+                   (p/get-node-value node output)))
                (recur)))))
 
 (defn- refresh-subsystem

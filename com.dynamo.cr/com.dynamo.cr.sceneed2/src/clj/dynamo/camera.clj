@@ -265,7 +265,7 @@
 
   (on :mouse-move
       (when (not (= :idle (:movement self)))
-        (let [camera-node (p/resource-feeding-into self :camera)
+        (let [camera-node (p/node-feeding-into self :camera)
               x (:x event)
               y (:y event)]
           (case (:movement self)
@@ -283,6 +283,6 @@
                     :movement :idle))
 
   (on :mouse-wheel
-      (let [camera-node (p/resource-feeding-into self :camera)]
+      (let [camera-node (p/node-feeding-into self :camera)]
         (update-property camera-node :camera dolly (* -0.02 (:count event)))
         (repaint))))

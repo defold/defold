@@ -17,8 +17,8 @@
   (descriptor [this] "Return a data structure describing the node type"))
 
 (defprotocol Node
-  (get-value  [this graph label seed] "given a graph, node, and transform label, `get-value` returns the result of the transform.")
-  (properties [this] "Produce a description of properties supported by this node."))
+  (get-value  [this graph label] "given a graph, node, and transform label, `get-value` returns the result of the transform.")
+  (properties [this]             "Produce a description of properties supported by this node."))
 
 (defprotocol MessageTarget
   (start-event-loop! [this event-ch])
