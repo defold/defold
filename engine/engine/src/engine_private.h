@@ -126,6 +126,8 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
+        bool										m_UseVariableDt;
+        uint64_t									m_PreviousFrameTime;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
