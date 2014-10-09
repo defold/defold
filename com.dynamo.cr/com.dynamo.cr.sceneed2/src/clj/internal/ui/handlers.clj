@@ -5,6 +5,7 @@
             [service.registry :refer [registered]])
   (:import [org.eclipse.core.expressions IEvaluationContext]
            [org.eclipse.core.commands AbstractHandler ExecutionEvent]
+           [org.eclipse.ui.contexts IContextService]
            [org.eclipse.ui.commands ICommandService]
            [org.eclipse.ui.handlers IHandlerService IHandlerActivation]
            [org.eclipse.ui ISources PlatformUI]
@@ -35,6 +36,8 @@
 
 (defn global-handler-service ^IHandlerService [] (.getAdapter (PlatformUI/getWorkbench) IHandlerService))
 (defn global-command-service ^ICommandService [] (.getAdapter (PlatformUI/getWorkbench) ICommandService))
+(defn global-context-service ^IContextService [] (.getAdapter (PlatformUI/getWorkbench) IContextService))
+
 
 (defn- command  ^org.eclipse.core.commands.Command  [command-id]  (.getCommand  (global-command-service) command-id))
 (defn- category ^org.eclipse.core.commands.Category [category-id] (.getCategory (global-command-service) category-id))

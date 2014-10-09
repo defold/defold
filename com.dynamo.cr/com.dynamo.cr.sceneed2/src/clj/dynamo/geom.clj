@@ -201,3 +201,14 @@
   (Point3d. (/ (+ (-> aabb min-p .x) (-> aabb max-p .x)) 2.0)
             (/ (+ (-> aabb min-p .y) (-> aabb max-p .y)) 2.0)
             (/ (+ (-> aabb min-p .z) (-> aabb max-p .z)) 2.0)))
+
+(sm/defn rect->aabb :- AABB
+  [^Rect bounds :- Rect ]
+  (assert bounds "rect->aabb require boundaries")
+  (let [x1 (.x bounds)
+        y1 (.y bounds)
+        x2 (+ x1 (.width bounds))
+        y2 (+ y1 (.height bounds))]
+    (-> (null-aabb)
+        (aabb-incorporate (Point3d. x1 y1 0))
+        (aabb-incorporate (Point3d. x2 y2 0)))))

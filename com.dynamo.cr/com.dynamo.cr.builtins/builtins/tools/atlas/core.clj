@@ -5,6 +5,7 @@
             [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.buffers :refer :all]
+            [dynamo.editors :as ed]
             [dynamo.env :as e]
             [dynamo.geom :as g :refer [to-short-uv]]
             [dynamo.gl :as gl :refer [do-gl]]
@@ -21,8 +22,11 @@
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
             [dynamo.outline :refer :all]
-            [dynamo.ui :refer [defcommand defhandler]]
+            [dynamo.ui :refer [defcommand defhandler Repaintable request-repaint]]
+            [internal.ui.menus :as menus]
             [internal.render.pass :as pass]
+            [internal.ui.handlers :as handlers]
+            [internal.ui.scene-editor :refer [reframe]]
             [service.log :as log :refer [logging-exceptions]]
             [camel-snake-kebab :refer :all]
             [clojure.osgi.core :refer [*bundle*]])
@@ -31,7 +35,7 @@
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
             [com.jogamp.opengl.util.awt TextRenderer]
             [java.nio ByteBuffer]
-            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]
+            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d]
@@ -92,6 +96,11 @@
   (-> (pack-textures margin extrude-borders (consolidate images animations))
     (assoc :animations animations)))
 
+(defnk produce-aabb :- AABB
+  [this project]
+  (let [textureset (p/get-resource-value project this :textureset)]
+    (g/rect->aabb (:aabb textureset))))
+
 (defnode AtlasProperties
   (input assets [OutlineItem])
   (input images [Image])
@@ -101,7 +110,8 @@
   (property extrude-borders (non-negative-integer))
   (property filename        (string))
 
-  (output textureset TextureSet :cached produce-textureset))
+  (output textureset TextureSet :cached produce-textureset)
+  (output aabb       AABB               produce-aabb))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
@@ -265,6 +275,8 @@
           (conj! [x1 y1 0 1 u1 (- 1 v1)])
           (conj! [x1 y0 0 1 u1 (- 1 v0)]))))
     (persistent! vbuf)))
+
+
 
 (defnode AtlasRender
   (output shader s/Any                :cached produce-shader)
@@ -502,12 +514,29 @@
        (new-resource compiler)
        (connect {:_id -1} :textureset compiler :textureset)])))
 
+(defn frame-objects
+  [^ExecutionEvent evt]
+  (when-let [editor        (ed/event->active-editor evt)]
+    (let [editor-state (.state editor)]
+      (reframe editor editor-state)
+      (request-repaint editor))))
+
 (logging-exceptions "Atlas tooling"
   (register-editor (e/current-project) "atlas" #'dynamic-scene-editor)
   (register-loader (e/current-project) "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))
 
 ;; MENUS
+;; undefine command if defined
+(defcommand frame-objects-cmd
+      "com.dynamo.cr.menu-items.scene"
+      "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects"
+      "Frame Objects")
+(defhandler frame-objects-handler frame-objects-cmd frame-objects)
+(defbinding "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects" kb/F)
 
-(defn atlas-menu-handler [^ExecutionEvent ev & args] (prn "Menu command: handled - " args))
-(defcommand atlas-menu-command "com.dynamo.cr.menu-items.EDIT" "com.dynamo.cr.clojure-eclipse.commands.atlas.menu-command" "Wild Menu Item!")
-(defhandler handle-wild-menu-item atlas-menu-command atlas-menu-handler "in atlas.core")
+#_(defn make-menu-item
+   [category command-id item-name handler-fn]
+   (let [cmd-name (gensym)
+         handler-name (gensym)]
+     (defcommand cmd-name category command-id item-name)
+     (defhandler handler-name cmd-name handler-fn)))

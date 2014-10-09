@@ -24,16 +24,22 @@
 
   (output frames s/Any animation-frames))
 
+(sm/defn make-empty-textureset :- TextureSet
+  []
+  (TextureSet. (rect 0 0 16 16) (blank-image 16 16) [] [] []))
+
 (sm/defn pack-textures :- TextureSet
   [margin    :- (s/maybe s/Int)
    extrusion :- (s/maybe s/Int)
    sources   :- [Image]]
-  (let [extrusion     (max 0 (or extrusion 0))
-        margin        (max 0 (or margin 0))
-        sources       (map (partial extrude-borders extrusion) sources)
-        textureset    (max-rects-packing margin (map image-bounds sources))
-        texture-image (composite (blank-image (:aabb textureset)) (:coords textureset) sources)]
-    (assoc textureset :packed-image texture-image)))
+  (if (empty? sources)
+    (make-empty-textureset)
+    (let [extrusion     (max 0 (or extrusion 0))
+          margin        (max 0 (or margin 0))
+          sources       (map (partial extrude-borders extrusion) sources)
+          textureset    (max-rects-packing margin (map image-bounds sources))
+          texture-image (composite (blank-image (:aabb textureset)) (:coords textureset) sources)]
+      (assoc textureset :packed-image texture-image))))
 
 (sm/defn ->engine-format :- EngineFormatTexture
   [original :- BufferedImage]

@@ -1,11 +1,12 @@
 package com.dynamo.cr.menu;
 
+import java.util.Vector;
+
 import org.eclipse.jface.action.IContributionItem;
-import org.eclipse.ui.ISharedImages;
+import org.eclipse.jface.action.MenuManager;
+import org.eclipse.ui.IWorkbenchActionConstants;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.actions.CompoundContributionItem;
-import org.eclipse.ui.menus.CommandContributionItem;
-import org.eclipse.ui.menus.CommandContributionItemParameter;
 
 import clojure.lang.RT;
 import clojure.osgi.ClojureHelper;
@@ -15,10 +16,34 @@ public class FlexibleMenuContribution extends CompoundContributionItem {
 
     private final String extensionPoint;
     private final IWorkbenchWindow window;
+    private final String[] menuIds;
+
+    protected String getExtensionPoint() {
+        return this.extensionPoint;
+    }
 
     public FlexibleMenuContribution(IWorkbenchWindow window, String extensionPoint) {
         this.window = window;
         this.extensionPoint = extensionPoint;
+        this.menuIds = new String[0];
+    }
+
+    public FlexibleMenuContribution(IWorkbenchWindow window, String extensionPoint, String[] menuIds) {
+        this.window = window;
+        this.extensionPoint = extensionPoint;
+        this.menuIds = menuIds;
+    }
+
+    public static CompoundContributionItem addAllMenus(IWorkbenchWindow window, String extensionPoint) {
+        return new FlexibleMenuContribution(window, extensionPoint, getAvailableMenuIds());
+    }
+
+    public static CompoundContributionItem addMenu(IWorkbenchWindow window, String extensionPoint, String menuId) {
+        return new FlexibleMenuContribution(window, extensionPoint, new String[] { menuId });
+    }
+
+    public static CompoundContributionItem addMenus(IWorkbenchWindow window, String extensionPoint, String[] menuIds) {
+        return new FlexibleMenuContribution(window, extensionPoint, menuIds);
     }
 
     @Override
@@ -26,42 +51,52 @@ public class FlexibleMenuContribution extends CompoundContributionItem {
         return true;
     }
 
-    @Override
-    protected IContributionItem[] getContributionItems() {
+    protected IContributionItem getContributedMenu(String menuId) {
         ensureNamespace("internal.ui.menus");
-        Object items = ClojureHelper.invoke("internal.ui.menus", "collect-items");
-        IContributionItem[] result = new IContributionItem[RT.count(items)];
-
-        for (int i = 0; i < RT.count(items); i++) {
-            result[i] = asContributionItem(RT.nth(items, i));
+        try {
+            Object clojureData = ClojureHelper.invoke("internal.ui.menus", "get-menu-config", menuId);
+            // '(label category-id)
+            String label = (String) RT.first(clojureData);
+            String categoryId = (String) RT.second(clojureData);
+            MenuManager menu = new MenuManager(label, IWorkbenchActionConstants.MB_ADDITIONS);
+            menu.add(new FlexibleMenuItemContribution(this.window, this.extensionPoint, categoryId));
+            return menu;
+        } catch (IllegalStateException e) {
+            return new MenuManager("BUSTED", IWorkbenchActionConstants.MB_ADDITIONS);
         }
 
-        return result;
     }
 
+    protected IContributionItem[] getContributedMenus(String[] menuIds) {
+        Vector<IContributionItem> menus = new Vector<IContributionItem>();
+        for (String menuId : menuIds) {
+            menus.add(getContributedMenu(menuId));
+        }
+        return menus.toArray(new IContributionItem[menus.size()]);
+    }
+
+    @Override
+    protected IContributionItem[] getContributionItems() {
+        return getContributedMenus(this.menuIds);
+    }
+
+    private static String[] getAvailableMenuIds() {
+        ClojureHelper.require("internal.ui.menus");
+        Object clojureData = ClojureHelper.invoke("internal.ui.menus", "get-menu-ids");
+
+        int count = RT.count(clojureData);
+        String[] results = new String[count];
+        for (int i = 0; i < count; i++) {
+            results[i] = (String) RT.nth(clojureData, i);
+        }
+        return results;
+    }
+
+    // clojure helper
     private synchronized void ensureNamespace(String ns) {
         if (!requiredNamespace) {
             ClojureHelper.require(ns);
             requiredNamespace = true;
         }
-    }
-
-    private IContributionItem asContributionItem(Object clojureData) {
-        // clojure data: '(label command-id & [mnemonic image-id
-        // disabled-image-id])
-        String label = (String) RT.first(clojureData);
-        String commandId = (String) RT.second(clojureData);
-        String mnemonic = (String) (RT.count(clojureData) > 2 ? RT.nth(clojureData, 2) : null);
-        String imageId = (String) (RT.count(clojureData) > 3 ? RT.nth(clojureData, 3) : null);
-        String disabledImageId = (String) (RT.count(clojureData) > 4 ? RT.nth(clojureData, 4) : null);
-        return makeContributionItem(label, commandId, mnemonic, imageId, disabledImageId);
-    }
-
-    private IContributionItem makeContributionItem(String label, String commandId, String mnemonic, String image, String disabledImage) {
-        ISharedImages sharedImages = window.getWorkbench().getSharedImages();
-
-        CommandContributionItemParameter commandParm = new CommandContributionItemParameter(window, commandId, commandId, null, sharedImages.getImageDescriptor(image), sharedImages.getImageDescriptor(disabledImage), null, label, mnemonic, null,
-                CommandContributionItem.STYLE_PUSH, null, false);
-        return new CommandContributionItem(commandParm);
     }
 }

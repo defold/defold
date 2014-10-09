@@ -7,6 +7,7 @@
             [dynamo.camera :as c]
             [dynamo.node :as n]
             [dynamo.project :as p]
+            [dynamo.resource :refer [IDisposable dispose]]
             [dynamo.ui :as ui]
             [schema.core :as s]
             [dynamo.gl :refer :all]
@@ -24,6 +25,8 @@
            [dynamo.types Camera Region]))
 
 (set! *warn-on-reflection* true)
+
+(def CONTEXT_ID "com.dynamo.cr.clojure.contexts.scene-editor")
 
 (def PASS_SHIFT        32)
 (def INDEX_SHIFT       (+ PASS_SHIFT 4))
@@ -52,8 +55,25 @@
 
   (output render-data t/RenderData produce-render-data))
 
-(defn on-resize
-  [evt editor state]
+(defn reframe
+  [editor state]
+  (let [{:keys [^GLCanvas canvas camera-node-id project-state scene-node-id]} @state
+        camera-node  (p/resource-by-id project-state camera-node-id)
+        target-node  (p/resource-by-id project-state scene-node-id)
+        aabb         (p/get-resource-value project-state target-node :aabb)
+        client       (.getClientArea canvas)
+        viewport     (t/->Region 0 (.width client) 0 (.height client))
+        camera       (p/get-resource-value project-state camera-node :camera)
+        camera       (assoc camera :viewport viewport)
+        framing-fn   (c/camera-ortho-frame-aabb-fn camera aabb)
+        new-camera   (framing-fn camera)]
+    (when aabb ;; there exists an aabb to center on
+      (p/transact project-state
+                  [(p/update-resource camera-node assoc :camera new-camera)])
+      (ui/request-repaint editor))))
+
+(defn resize
+  [editor state]
   (let [{:keys [^GLCanvas canvas camera-node-id project-state]} @state
         camera-node (p/resource-by-id project-state camera-node-id)
         client      (.getClientArea canvas)
@@ -68,6 +88,14 @@
                       (assoc :viewport viewport))]
     (p/transact project-state [(p/update-resource camera-node assoc :camera new-camera)])
     (ui/request-repaint editor)))
+
+(defn on-reframe
+  [evt editor state]
+  (reframe editor state))
+
+(defn on-resize
+  [evt editor state]
+  (resize editor state))
 
 (defn setup-pass
   [context ^GL2 gl ^GLU glu pass camera ^Region viewport]
@@ -143,7 +171,8 @@
             background-node   (back/make-background :_id -2)
             grid-node         (grid/make-grid :_id -3)
             fps-node          (new-fps-tracker)
-            camera-node       (c/make-camera-node :camera (c/make-camera :orthographic) :_id -4)
+            camera            (c/make-camera :orthographic)
+            camera-node       (c/make-camera-node :camera camera :_id -4)
             camera-controller (c/make-camera-controller)
             tx-result         (p/transact (:project-state @state)
                                           [(p/new-resource render-node)
@@ -160,9 +189,10 @@
                                            (p/connect camera-node       :camera     grid-node   :camera)
                                            (p/connect camera-node       :camera     camera-controller :camera)
                                            (p/connect camera-controller :self       render-node :controller)])]
-       (swap! state assoc
-              :camera-node-id (p/resolve-tempid tx-result -4)
-              :render-node-id (p/resolve-tempid tx-result -1)))))
+        (swap! state assoc
+               :camera-node-id            (p/resolve-tempid tx-result -4)
+               :render-node-id            (p/resolve-tempid tx-result -1)
+               :scene-node-id             (:_id scene-node)))))
 
   (create-controls [this parent]
     (let [canvas        (glcanvas parent)
@@ -182,12 +212,14 @@
              :context context
              :canvas  canvas
              :event-channel (start-event-pump this canvas @state)
-             :small-text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12))))
+             :small-text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12))
+      #_(reframe this state)))
 
   (save [this file monitor])
   (dirty? [this] false)
   (save-as-allowed? [this] false)
   (set-focus [this])
+  (get-state [this] @(.state this))
 
   ui/Repaintable
   (request-repaint [this] (batch-repaint state)))

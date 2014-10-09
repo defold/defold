@@ -104,6 +104,8 @@
     :perspective  (camera-perspective-projection-matrix camera)
     :orthographic (camera-orthographic-projection-matrix camera)))
 
+
+
 (sm/defn make-camera :- Camera
   ([] (make-camera :perspective))
   ([t :- (s/enum :perspective :orthographic)]
@@ -250,6 +252,33 @@
     (camera-movement (ui/mouse-type) (.button event) (.stateMask event)))
   ([mouse-type button mods]
     (button-interpretation [mouse-type button mods] :idle)))
+
+
+(sm/defn camera-fov-from-aabb
+  [camera :- Camera ^AABB aabb :- AABB]
+  (assert camera "no camera?")
+  (assert aabb   "no aabb?")
+  (let [^Region viewport (:viewport camera)
+        min-proj    (camera-project camera viewport (.. aabb min))
+        max-proj    (camera-project camera viewport (.. aabb max))
+        proj-width  (Math/abs (- (.x max-proj) (.x min-proj)))
+        proj-height (Math/abs (- (.y max-proj) (.y min-proj)))
+        factor-x    (Math/abs (/ proj-width  (- (.right viewport) (.left viewport))))
+        factor-y    (Math/abs (/ proj-height (- (.top viewport) (.bottom viewport))))
+        factor-y    (* factor-y (:aspect camera))
+        fov-x-prim  (* factor-x (:fov camera))
+        fov-y-prim  (* factor-y (:fov camera))
+        y-aspect    (/ fov-y-prim (:aspect camera))]
+    (* 1.1 (Math/max y-aspect fov-x-prim))))
+
+(sm/defn camera-ortho-frame-aabb-fn :- Camera
+  [camera :- Camera ^AABB aabb :- AABB]
+  (assert (= :orthographic (:type camera)))
+  (let [fov (camera-fov-from-aabb camera aabb)]
+    (fn [old-cam]
+      (-> old-cam
+        (set-orthographic fov (:aspect camera) (:z-near camera) (:z-far camera))
+        (camera-set-center aabb)))))
 
 (n/defnode CameraController
   (input camera [CameraNode])

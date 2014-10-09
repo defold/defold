@@ -25,7 +25,8 @@ import com.dynamo.cr.menu.FlexibleMenuContribution;
 public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
 
     /*
-     * NOTE: Actions and menus is loosely built on code from WorkbenchActionBuilder
+     * NOTE: Actions and menus is loosely built on code from
+     * WorkbenchActionBuilder
      */
     private IAction undoAction;
     private IAction redoAction;
@@ -53,6 +54,7 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
         return window;
     }
 
+    @Override
     protected void makeActions(IWorkbenchWindow window) {
 
         preferencsAction = ActionFactory.PREFERENCES.create(window);
@@ -93,23 +95,25 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
         newWizardAction = ActionFactory.NEW.create(window);
         register(newWizardAction);
 
-        newWizardDropDownAction = IDEActionFactory.NEW_WIZARD_DROP_DOWN
-                .create(window);
+        newWizardDropDownAction = IDEActionFactory.NEW_WIZARD_DROP_DOWN.create(window);
         register(newWizardDropDownAction);
     }
 
+    @Override
     protected void fillMenuBar(IMenuManager menuBar) {
         menuBar.add(createFileMenu());
         menuBar.add(createEditMenu());
         menuBar.add(createNavigateMenu());
         menuBar.add(new GroupMarker(IWorkbenchActionConstants.MB_ADDITIONS));
+        menuBar.add(FlexibleMenuContribution.addMenu(window, IWorkbenchActionConstants.MB_ADDITIONS, "com.dynamo.cr.menus.scene"));
         menuBar.add(createHelpMenu());
     }
 
     private MenuManager createFileMenu() {
         MenuManager menu = new MenuManager("File", IWorkbenchActionConstants.M_FILE);
         {
-            // create the New submenu, using the same id for it as the New action
+            // create the New submenu, using the same id for it as the New
+            // action
             String newText = IDEWorkbenchMessages.Workbench_new;
             String newId = ActionFactory.NEW.getId();
             MenuManager newMenu = new MenuManager(newText, newId);
@@ -157,79 +161,42 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
         // looking for it when Cmd-Q is invoked (or Quit is chosen from the
         // application menu.
         ActionContributionItem quitItem = new ActionContributionItem(quitAction);
-        //quitItem.setVisible(!Util.isMac());
+        // quitItem.setVisible(!Util.isMac());
         menu.add(quitItem);
         menu.add(new GroupMarker(IWorkbenchActionConstants.FILE_END));
         return menu;
     }
 
-    private IContributionItem getItem(String actionId, String commandId,
-            String image, String disabledImage, String label, String tooltip, String helpContextId) {
-        ISharedImages sharedImages = window.getWorkbench()
-                .getSharedImages();
+    private IContributionItem getItem(String actionId, String commandId, String image, String disabledImage, String label, String tooltip, String helpContextId) {
+        ISharedImages sharedImages = window.getWorkbench().getSharedImages();
 
-        CommandContributionItemParameter commandParm = new CommandContributionItemParameter(
-                window, actionId, commandId, null, sharedImages
-                        .getImageDescriptor(image), sharedImages
-                        .getImageDescriptor(disabledImage), null, label, null,
-                tooltip, CommandContributionItem.STYLE_PUSH, null, false);
+        CommandContributionItemParameter commandParm = new CommandContributionItemParameter(window, actionId, commandId, null, sharedImages.getImageDescriptor(image), sharedImages.getImageDescriptor(disabledImage), null, label, null, tooltip,
+                CommandContributionItem.STYLE_PUSH, null, false);
         return new CommandContributionItem(commandParm);
     }
 
     private IContributionItem getFindItem() {
-        return getItem(
-                ActionFactory.FIND.getId(),
-                ActionFactory.FIND.getCommandId(),
-                null, null, "&Find/Replace...",
-                "Find/Replace...", null);
+        return getItem(ActionFactory.FIND.getId(), ActionFactory.FIND.getCommandId(), null, null, "&Find/Replace...", "Find/Replace...", null);
     }
 
     private IContributionItem getCutItem() {
-        return getItem(
-                ActionFactory.CUT.getId(),
-                ActionFactory.CUT.getCommandId(),
-                ISharedImages.IMG_TOOL_CUT,
-                ISharedImages.IMG_TOOL_CUT_DISABLED,
-                "Cu&t",
-                "Cut", null);
+        return getItem(ActionFactory.CUT.getId(), ActionFactory.CUT.getCommandId(), ISharedImages.IMG_TOOL_CUT, ISharedImages.IMG_TOOL_CUT_DISABLED, "Cu&t", "Cut", null);
     }
 
     private IContributionItem getCopyItem() {
-        return getItem(
-                ActionFactory.COPY.getId(),
-                ActionFactory.COPY.getCommandId(),
-                ISharedImages.IMG_TOOL_COPY,
-                ISharedImages.IMG_TOOL_COPY_DISABLED,
-                "&Copy",
-                "", null);
+        return getItem(ActionFactory.COPY.getId(), ActionFactory.COPY.getCommandId(), ISharedImages.IMG_TOOL_COPY, ISharedImages.IMG_TOOL_COPY_DISABLED, "&Copy", "", null);
     }
 
     private IContributionItem getPasteItem() {
-        return getItem(
-                ActionFactory.PASTE.getId(),
-                ActionFactory.PASTE.getCommandId(),
-                ISharedImages.IMG_TOOL_PASTE,
-                ISharedImages.IMG_TOOL_PASTE_DISABLED,
-                "&Paste",
-                "", null);
+        return getItem(ActionFactory.PASTE.getId(), ActionFactory.PASTE.getCommandId(), ISharedImages.IMG_TOOL_PASTE, ISharedImages.IMG_TOOL_PASTE_DISABLED, "&Paste", "", null);
     }
 
     private IContributionItem getDeleteItem() {
-        return getItem(ActionFactory.DELETE.getId(),
-                ActionFactory.DELETE.getCommandId(),
-                ISharedImages.IMG_TOOL_DELETE,
-                ISharedImages.IMG_TOOL_DELETE_DISABLED,
-                "&Delete",
-                "",
-                null);
+        return getItem(ActionFactory.DELETE.getId(), ActionFactory.DELETE.getCommandId(), ISharedImages.IMG_TOOL_DELETE, ISharedImages.IMG_TOOL_DELETE_DISABLED, "&Delete", "", null);
     }
 
     private IContributionItem getSelectAllItem() {
-        return getItem(
-                ActionFactory.SELECT_ALL.getId(),
-                ActionFactory.SELECT_ALL.getCommandId(),
-                null, null, "Select &All",
-                "", null);
+        return getItem(ActionFactory.SELECT_ALL.getId(), ActionFactory.SELECT_ALL.getCommandId(), null, null, "Select &All", "", null);
     }
 
     private MenuManager createEditMenu() {
@@ -252,7 +219,6 @@ public class ApplicationActionBarAdvisor extends ActionBarAdvisor {
         menu.add(new Separator());
 
         menu.add(getFindItem());
-        menu.add(new FlexibleMenuContribution(window, IWorkbenchActionConstants.FIND_EXT));
         menu.add(new GroupMarker(IWorkbenchActionConstants.FIND_EXT));
         menu.add(new Separator());
 

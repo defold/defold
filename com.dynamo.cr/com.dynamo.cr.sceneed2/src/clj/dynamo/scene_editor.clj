@@ -1,9 +1,9 @@
 (ns dynamo.scene-editor
-  (:require [internal.ui.scene-editor]
-            [dynamo.ui :as ui]
+  (:require [dynamo.ui :as ui]
             [dynamo.project :as p]
             [dynamo.file :as f]
-            [internal.ui.scene-editor :refer [->SceneEditor]]))
+            [internal.ui.handlers :as h]
+            [internal.ui.scene-editor :as se :refer [->SceneEditor]]))
 
 (set! *warn-on-reflection* true)
 
@@ -24,3 +24,4 @@
   (let [scene-node   (find-or-load-node project-state file)
         editor-state (atom {:project-state project-state})]
     (->SceneEditor editor-state scene-node)))
+

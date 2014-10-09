@@ -158,4 +158,3 @@
   (defcommand speak-command "com.dynamo.cr.menu-items.EDIT" "com.dynamo.cr.clojure-eclipse.commands.speak" "Speak!")
   (defhandler handle-speak-command speak-command (fn [^ExecutionEvent ev & args] (prn "Arf Arf! - " args)) "w/args")
 )
-

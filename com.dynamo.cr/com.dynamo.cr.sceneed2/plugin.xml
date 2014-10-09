@@ -97,4 +97,7 @@
             name="Atlas Editor (mark II)">
       </editor>
    </extension>
+   <extension
+         point="org.eclipse.ui.bindings">
+   </extension>
 </plugin>
