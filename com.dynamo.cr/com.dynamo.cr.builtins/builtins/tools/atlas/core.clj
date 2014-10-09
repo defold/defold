@@ -92,7 +92,7 @@
 
 (defnk produce-aabb :- AABB
   [this project]
-  (let [textureset (p/get-resource-value project this :textureset)]
+  (let [textureset (p/get-node-value this :textureset)]
     (g/rect->aabb (:aabb textureset))))
 
 (defnode AtlasProperties
@@ -506,7 +506,8 @@
       "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects"
       "Frame Objects")
 (defhandler frame-objects-handler frame-objects-cmd frame-objects)
-(defbinding "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects" kb/F)
+
+#_(defbinding "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects" kb/F)
 
 #_(defn make-menu-item
    [category command-id item-name handler-fn]

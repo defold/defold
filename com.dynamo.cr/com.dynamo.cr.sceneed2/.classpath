@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry kind="src" path="src/clj"/>
 	<classpathentry kind="src" path="src/java"/>
-	<classpathentry exported="true" kind="lib" path="jars/component-0.2.2.jar"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
-	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry exported="true" kind="lib" path="jars/asm-all-4.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/clojure-1.6.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/component-0.2.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/core.async-0.1.346.0-17112a-alpha.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/core.cache-0.6.3.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/core.memoize-0.5.6.jar"/>

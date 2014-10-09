@@ -58,12 +58,12 @@
 (defn reframe
   [editor state]
   (let [{:keys [^GLCanvas canvas camera-node-id project-state scene-node-id]} @state
-        camera-node  (p/resource-by-id project-state camera-node-id)
-        target-node  (p/resource-by-id project-state scene-node-id)
-        aabb         (p/get-resource-value project-state target-node :aabb)
+        camera-node  (p/node-by-id project-state camera-node-id)
+        target-node  (p/node-by-id project-state scene-node-id)
+        aabb         (p/get-node-value target-node :aabb)
         client       (.getClientArea canvas)
         viewport     (t/->Region 0 (.width client) 0 (.height client))
-        camera       (p/get-resource-value project-state camera-node :camera)
+        camera       (p/get-node-value camera-node :camera)
         camera       (assoc camera :viewport viewport)
         framing-fn   (c/camera-ortho-frame-aabb-fn camera aabb)
         new-camera   (framing-fn camera)]
