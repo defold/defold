@@ -17,7 +17,7 @@
   (on :resize
         (let [editor      (:editor self)
               canvas      (:canvas @(:state editor))
-              camera-node (p/resource-feeding-into project-state self :camera)
+              camera-node (p/node-feeding-into self :camera)
               client      (.getClientArea canvas)
               viewport    (t/->Region 0 (.width client) 0 (.height client))
               aspect      (/ (double (.width client)) (.height client))
@@ -77,6 +77,29 @@
   (defnk produce-shader :- s/Int
     [this gl]
     (load-shader (project-file "/builtins/tools/atlas/pos_uv")))
+
+
+
+(require '[dynamo.ui :refer :all])
+(require 'internal.ui.views)
+(require 'dynamo.project)
+(require '[dynamo.node :refer [defnode]])
+(import org.eclipse.swt.widgets.Text)
+
+(defnode Labeled
+  (on :focus
+      (println "FOCUS"))
+  (on :destroy
+      (println "DESTROY"))
+  (on :create
+      (let [l (doto (Text. (:parent event) 0) (.setText "Hello there"))]
+        (set-property self :label l))))
+
+(defn add-labeled-part [prj]
+  (let [tx-r (dynamo.project/transact prj (dynamo.project/new-resource (make-labeled :_id -1)))
+        labeled (dynamo.project/node-by-id prj (dynamo.project/resolve-tempid tx-r -1))]
+    (swt-safe (internal.ui.views/open-part labeled))))
+
 
 
   )

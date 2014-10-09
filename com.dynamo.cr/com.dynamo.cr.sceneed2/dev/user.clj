@@ -51,7 +51,7 @@
 
 (defn get-value-in-project
   [id label & {:as opt-map}]
-  (p/get-resource-value (current-project) (merge (node-in-project id) opt-map) label))
+  (p/get-node-value (merge (node-in-project id) opt-map) label))
 
 (defn update-node-in-project
   [id f & args]

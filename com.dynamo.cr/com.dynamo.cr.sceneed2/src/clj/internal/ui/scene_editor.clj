@@ -75,7 +75,7 @@
 (defn resize
   [editor state]
   (let [{:keys [^GLCanvas canvas camera-node-id project-state]} @state
-        camera-node (p/resource-by-id project-state camera-node-id)
+        camera-node (p/node-by-id project-state camera-node-id)
         client      (.getClientArea canvas)
         viewport    (t/->Region 0 (.width client) 0 (.height client))
         aspect      (/ (double (.width client)) (.height client))
@@ -118,8 +118,8 @@
       (try
         (gl-clear gl 0.0 0.0 0.0 1)
 
-        (let [camera      (p/get-resource-value project-state (p/resource-by-id project-state camera-node-id) :camera)
-              render-data (p/get-resource-value project-state (p/resource-by-id project-state render-node-id) :render-data)
+        (let [camera      (p/get-node-value (p/node-by-id project-state camera-node-id) :camera)
+              render-data (p/get-node-value (p/node-by-id project-state render-node-id) :render-data)
               viewport    (:viewport camera)]
           (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))
           (when render-data
@@ -158,7 +158,7 @@
     (go-loop []
        (when-let [e (<! event-chan)]
          (try
-           (p/publish project-state (p/resource-feeding-into project-state {:_id render-node-id} :controller) e)
+           (p/publish (p/node-feeding-into (p/node-by-id project-state render-node-id) :controller) e)
            (catch Exception ex (.printStackTrace ex)))
          (recur)))
     event-chan))
