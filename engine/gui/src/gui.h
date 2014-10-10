@@ -604,31 +604,13 @@ namespace dmGui
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
 
     /**
-     * Animate node vector property. Internally multiple tracks are created.
-     * This function is obsolete in favor for AnimateNodeHash
+     * Convenience method, converting a dmGui::Property value into a hash value suitable for use
+     * in animation.
      *
-     * @param scene
-     * @param node
-     * @param property
-     * @param to
-     * @param easing
-     * @param playback
-     * @param duration
-     * @param delay
-     * @param animation_complete
-     * @param userdata1
-     * @param userdata2
+     * @param property - the property value to be translated must be within the range PROPERTY_POSITION, PROPERTY_SHADOW
+     * @return a hash value for valid properties or zero otherwise.
      */
-    void AnimateNode(HScene scene, HNode node,
-                     Property property,
-                     const Vector4& to,
-                     dmEasing::Type easing,
-                     Playback playback,
-                     float duration,
-                     float delay,
-                     AnimationComplete animation_complete,
-                     void* userdata1,
-                     void* userdata2);
+    dmhash_t GetPropertyHash(Property property);
 
     /**
      * Animate property. The property parameter is the hash value of the property to animate.
@@ -659,7 +641,6 @@ namespace dmGui
                          void* userdata1,
                          void* userdata2);
 
-    void CancelAnimation(HScene scene, HNode node, Property property);
     void CancelAnimationHash(HScene scene, HNode node, dmhash_t property_hash);
 
     /** determines if a node can be picked

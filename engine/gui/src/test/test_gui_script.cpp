@@ -407,6 +407,139 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestCancelAnimation)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        // Set position
+        const char* src =
+                "local n1\n"
+                "local elapsed = 0\n"
+                "local animating = true\n"
+                "function init(self)\n"
+                "    n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+                "    gui.set_pivot(n1, gui.PIVOT_SW)\n"
+                "    gui.set_position(n1, vmath.vector3(0, 0, 0))\n"
+                "    gui.animate(n1, gui.PROP_SCALE, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1, 0, nil, gui.PLAYBACK_LOOP_FORWARD)\n"
+                "end\n"
+                "function update(self, dt)\n"
+                "    local scale = gui.get_scale(n1)\n"
+                "    elapsed = elapsed + dt\n"
+                "    if 0.5 <= elapsed and animating then\n"
+                "        gui.cancel_animation(n1, gui.PROP_SCALE)\n"
+                "        animating = false\n"
+                "    end\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        int ticks = 0;
+        Vectormath::Aos::Matrix4 t1;
+        while (ticks < 4) {
+            dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
+            dmGui::UpdateScene(scene, 0.125f);
+            ++ticks;
+        }
+        Vectormath::Aos::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+
+        Vectormath::Aos::Matrix4 t2;
+        const float tinyDifference = 10e-10f;
+        while (ticks < 8) {
+            dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
+            dmGui::UpdateScene(scene, 0.125f);
+            Vectormath::Aos::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+            if (tinyDifference < Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal)) {
+                char animatedScale[64];
+                char currentScale[64];
+                ::snprintf(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
+                ::snprintf(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
+                EXPECT_STREQ(animatedScale, currentScale);
+            }
+            ++ticks;
+        }
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+        dmGui::NewSceneParams params;
+        params.m_MaxNodes = 64;
+        params.m_MaxAnimations = 32;
+        params.m_UserData = this;
+        dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+        dmGui::SetSceneScript(scene, script);
+
+        // Set position
+        const char* src =
+                "local n1\n"
+                "local elapsed = 0\n"
+                "local animating = true\n"
+                "function init(self)\n"
+                "    n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+                "    gui.set_pivot(n1, gui.PIVOT_SW)\n"
+                "    gui.set_position(n1, vmath.vector3(0, 0, 0))\n"
+                "    gui.animate(n1, gui.PROP_SCALE, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1, 0, nil, gui.PLAYBACK_LOOP_FORWARD)\n"
+                "end\n"
+                "function update(self, dt)\n"
+                "    local scale = gui.get_scale(n1)\n"
+                "    elapsed = elapsed + dt\n"
+                "    if 0.5 <= elapsed and animating then\n"
+                "        gui.cancel_animation(n1, \"scale.y\")\n"
+                "        animating = false\n"
+                "    end\n"
+                "end\n";
+
+        dmGui::Result result = SetScript(script, src, strlen(src), "dummy_source");
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        result = dmGui::InitScene(scene);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+
+        int ticks = 0;
+        Vectormath::Aos::Matrix4 t1;
+        while (ticks < 4) {
+            dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
+            dmGui::UpdateScene(scene, 0.125f);
+            ++ticks;
+        }
+        Vectormath::Aos::Vector3 postScaleDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+
+        Vectormath::Aos::Matrix4 t2;
+        const float tinyDifference = 10e-10f;
+        while (ticks < 8) {
+            dmGui::RenderScene(scene, RenderNodesStoreTransform, &t1);
+            dmGui::UpdateScene(scene, 0.125f);
+            Vectormath::Aos::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
+            Vectormath::Aos::Vector3 difference = Vectormath::Aos::absPerElem(currentDiagonal - postScaleDiagonal);
+            if ( (tinyDifference >= difference[0]) || (tinyDifference < difference[1]) || (tinyDifference >= difference[2])) {
+                char animatedScale[64];
+                char currentScale[64];
+                ::snprintf(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
+                ::snprintf(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
+                EXPECT_STREQ(animatedScale, currentScale);
+            }
+            ++ticks;
+        }
+
+        dmGui::DeleteScene(scene);
+        dmGui::DeleteScript(script);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

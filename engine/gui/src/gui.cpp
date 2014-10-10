@@ -590,7 +590,7 @@ namespace dmGui
             c->m_RenderColors.SetCapacity(capacity);
             c->m_SceneTraversalCache.m_Data.SetCapacity(capacity);
             c->m_SceneTraversalCache.m_Data.SetSize(capacity);
-	    }
+        }
         c->m_SceneTraversalCache.m_NodeIndex = 0;
         if(++c->m_SceneTraversalCache.m_Version == INVALID_INDEX)
         {
@@ -1843,25 +1843,13 @@ namespace dmGui
         AnimateNodeHash(scene, node, prop_hash, to, easing, playback, duration, delay, animation_complete, userdata1, userdata2);
     }
 
-    void CancelAnimation(HScene scene, HNode node, Property property)
+    dmhash_t GetPropertyHash(Property property)
     {
-        dmArray<Animation>* animations = &scene->m_Animations;
-        uint32_t n_animations = animations->Size();
-
-        InternalNode* n = GetNode(scene, node);
-
-        for (uint32_t i = 0; i < n_animations; ++i)
-        {
-            Animation* anim = &(*animations)[i];
-            float* value = (float*) &n->m_Node.m_Properties[property];
-            for (int j = 0; j < 4; ++j) {
-                if (anim->m_Node == node && anim->m_Value == (value + j))
-                {
-                    anim->m_Cancelled = 1;
-                    return;
-                }
-            }
+        dmhash_t hash = 0;
+        if (PROPERTY_SHADOW >= property) {
+            hash = g_PropTable[property].m_Hash;
         }
+        return hash;
     }
 
     void CancelAnimationHash(HScene scene, HNode node, dmhash_t property_hash)
@@ -1882,17 +1870,23 @@ namespace dmGui
 
                 int from = 0;
                 int to = 4; // NOTE: Exclusive range
+                int expect = 4;
                 if (pd->m_Component != 0xff) {
                     from = pd->m_Component;
                     to = pd->m_Component + 1;
+                    expect = 1;
                 }
 
                 float* value = (float*) &n->m_Node.m_Properties[pd->m_Property];
+                int count = 0;
                 for (int j = from; j < to; ++j) {
                     if (anim->m_Node == node && anim->m_Value == (value + j))
                     {
                         anim->m_Cancelled = 1;
-                        return;
+                        ++count;
+                        if (count == expect) {
+                            return;
+                        }
                     }
                 }
             }
