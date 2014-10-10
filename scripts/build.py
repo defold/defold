@@ -330,8 +330,21 @@ class Configuration(object):
                               ["org.apache.httpcomponents", "httpcore", "4.2"],
                               ["clojure-ini",  "clojure-ini", "0.0.2"]]
 
+        common_artifacts = [["org.apache.httpcomponents", "httpcore", "4.2"],
+                            ["org.apache.httpcomponents", "httpclient", "4.2"],
+                            ["com.sun.jersey", "jersey-core", "1.18.1"],
+                            ["com.sun.jersey", "jersey-client", "1.18.1"],
+                            ["com.google.protobuf", "protobuf-java", "2.3.0"],
+                            ["commons-io", "commons-io", "2.4"],
+                            ["commons-lang", "commons-lang", "2.6"],
+                            ["commons-codec", "commons-codec", "1.9"],
+                            ["commons-configuration", "commons-configuration", "1.10"],
+                            ["org.apache.commons", "commons-lang3", "3.3.2"],
+                            ["org.codehaus.jackson", "jackson-mapper-asl", "1.9.13"]]
+
         self._resolve_maven_deps(ed2_artifacts, 'com.dynamo.cr/com.dynamo.cr.sceneed2/jars')
         self._resolve_maven_deps(ed2_test_artifacts, 'com.dynamo.cr/com.dynamo.cr.sceneed2.test/jars')
+        self._resolve_maven_deps(common_artifacts, 'com.dynamo.cr/com.dynamo.cr.common/jars')
 
     def install_ext(self):
         def make_path(platform):
