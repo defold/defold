@@ -4,8 +4,8 @@
 
     <path id="classpath">
         <fileset dir="lib" includes="*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="protobuf-java*.jar"/>
-        <fileset dir="../com.dynamo.cr.common/ext" includes="commons*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/jars" includes="protobuf-java*.jar"/>
+        <fileset dir="../com.dynamo.cr.common/jars" includes="commons*.jar"/>
         <fileset dir="../com.dynamo.cr.common/ext" includes="vecmath.jar"/>
         <fileset dir="lib" includes="*.jar"/>
     </path>
