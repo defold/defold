@@ -551,7 +551,7 @@ int Facebook_ShowDialog(lua_State* L)
     char params_json[1024];
     params_json[0] = '{';
     params_json[1] = '\0';
-    char tmp[128];
+    char tmp[256];
 
     lua_pushnil(L);
     int i = 0;
