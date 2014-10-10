@@ -244,13 +244,42 @@ class Configuration(object):
             else:
                 return None
 
+        props = {}
+        for x in tree.getroot().findall('properties'):
+            for p in x.getchildren():
+                props['%s' % p.tag] = p.text
+        import re
         for x in tree.getroot().findall('dependencies/dependency'):
             group = x.find('groupId').text
             artifact = x.find('artifactId').text
             version = get_text(x, 'version')
+            if version:
+                def f(m):
+                    k = m.groups()[0]
+                    if k in props:
+                        return props[k]
+                    else:
+                        return m.group(0)
+                version = re.sub('\${(.*?)}', f, version)
+
             scope = get_text(x, 'scope')
-            if version and scope not in ['test', 'provided', 'compile']:
-                deps.append([group, artifact, version])
+            optional = get_text(x, 'optional')
+
+            # NOTE: artifact != 'clojurescript' can be considered a hack but we
+            if optional != 'true' and version and version.find('$') == -1 and version and scope not in ['test', 'provided']:
+                if version.find(',') != -1:
+                    minv, maxv = version[1:-1].split(',')
+                    if maxv:
+                        version = maxv
+                    else:
+                        version = minv
+
+                # NOTE: This is a hack but some lazymap-3.1.0 is referring to clojure [1.2,1.6)
+                # and 1.6 isn't a valid version. Does maven try 1.6.0 implicitily?
+                if artifact == 'clojure' and version == '1.6':
+                    pass
+                else:
+                    deps.append([group, artifact, version])
         return deps
 
     def _resolve_maven_deps(self, root_artifacts, dest):
@@ -294,7 +323,12 @@ class Configuration(object):
                          ["com.stuartsierra", "component", "0.2.2"],
                          ["prismatic", "schema", "0.2.3"],
                          ["prismatic", "plumbing", "0.3.1"]]
-        ed2_test_artifacts = [["org.clojure", "test.check", "0.5.8"]]
+
+        ed2_test_artifacts = [["org.clojure", "test.check", "0.5.8"],
+                              ["clj-aws-s3", "clj-aws-s3", "0.3.10"],
+                              ["codox", "codox.core", "0.8.10"],
+                              ["org.apache.httpcomponents", "httpcore", "4.2"],
+                              ["clojure-ini",  "clojure-ini", "0.0.2"]]
 
         self._resolve_maven_deps(ed2_artifacts, 'com.dynamo.cr/com.dynamo.cr.sceneed2/jars')
         self._resolve_maven_deps(ed2_test_artifacts, 'com.dynamo.cr/com.dynamo.cr.sceneed2.test/jars')

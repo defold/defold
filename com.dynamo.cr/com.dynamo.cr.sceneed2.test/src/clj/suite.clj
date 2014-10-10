@@ -7,7 +7,8 @@
                       'internal.node-test
                       'dynamo.gl.vertex-test
                       'dynamo.condition-test
-                      'atlas.core-test])
+                      'atlas.core-test
+                      'docs])
 
 (defn suite []
   (doseq [test-ns test-namespaces]
