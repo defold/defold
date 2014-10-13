@@ -1,13 +1,14 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [plumbing.core :refer [defnk]]
             [dynamo.types :refer :all]
+            [dynamo.condition :refer :all]
+            [dynamo.file :refer [project-path local-path]]
             [dynamo.geom :refer :all]
             [dynamo.node :refer [defnode]]
-            [dynamo.file :refer [project-path local-path]]
-            [internal.cache :refer [caching]])
+            [internal.cache :refer [caching]]
+            [plumbing.core :refer [defnk]]
+            [schema.core :as s]
+            [schema.macros :as sm])
   (:import [javax.imageio ImageIO]
            [java.awt.image BufferedImage]
            [dynamo.types Rect Image]))
@@ -25,23 +26,6 @@
   [nm :- s/Any contents :- BufferedImage]
   (Image. nm contents (.getWidth contents) (.getHeight contents)))
 
-(def load-image
-  (caching
-    (fn [src]
-      (if-let [img (ImageIO/read (io/input-stream src))]
-        (make-image src img)))))
-
-;; Transform produces value
-;; TODO - return placeholder image when the named image is not found
-(defnk image-from-resource :- Image
-  [this project]
-  (load-image (project-path project (:image this))))
-
-;; Behavior
-(defnode ImageSource
-  (property image (resource))
-  (output   image Image :cached image-from-resource))
-
 (sm/defn blank-image :- BufferedImage
   ([space :- Rect]
     (blank-image (.width space) (.height space)))
@@ -49,6 +33,37 @@
     (blank-image width height BufferedImage/TYPE_4BYTE_ABGR))
   ([width :- s/Int height :- s/Int t :- s/Int]
     (BufferedImage. width height t)))
+
+(sm/defn flood :- BufferedImage
+  [img :- BufferedImage color :- java.awt.Color]
+  (let [g (.createGraphics img)]
+    (.setColor g color)
+    (.fillRect g 0 0 (.getWidth img) (.getHeight img))
+    (.dispose g)
+    img))
+
+(def load-image
+    (caching
+      (fn [src]
+        (if-let [img (ImageIO/read (io/input-stream src))]
+          (make-image src img)))))
+
+(def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) java.awt.Color/MAGENTA)))
+(defn use-placeholder [_] (invoke-restart :use-value placeholder-image))
+
+;; Transform produces value
+(defnk image-from-resource :- Image
+  [this project]
+  (let [src (project-path project (:image this))]
+    (try
+      (load-image src)
+      (catch Throwable e
+        (signal :unreadable-resource :exception e :path src)))))
+
+;; Behavior
+(defnode ImageSource
+  (property image (resource))
+  (output   image Image :cached image-from-resource))
 
 (sm/defn image-color-components :- long
   [src :- BufferedImage]

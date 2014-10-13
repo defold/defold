@@ -5,6 +5,7 @@
             [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.buffers :refer :all]
+            [dynamo.condition :refer :all]
             [dynamo.env :as e]
             [dynamo.geom :as g :refer [to-short-uv]]
             [dynamo.gl :as gl :refer [do-gl]]
@@ -81,10 +82,15 @@
               (into #{} images)
               (map #(into #{} (:images %)) containers))))
 
+(defn use-blank-textureset [_] (blank-textureset))
+
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
-  (-> (pack-textures margin extrude-borders (consolidate images animations))
-    (assoc :animations animations)))
+  (handler-bind
+    (:unreadable-resource use-placeholder)
+    (:empty-source-list use-blank-textureset)
+    (-> (pack-textures margin extrude-borders (consolidate images animations))
+      (assoc :animations animations))))
 
 (defnode AtlasProperties
   (input assets [OutlineItem])
@@ -167,14 +173,16 @@
 
 (defn render-textureset
   [ctx gl this]
-  (do-gl [this            (assoc this :gl gl)
-          textureset      (p/get-node-value this :textureset)
-          texture         (p/get-node-value this :gpu-texture)
-          shader          (p/get-node-value this :shader)
-          vbuf            (p/get-node-value this :vertex-buffer)
-          vertex-binding  (vtx/use-with gl vbuf shader)]
-         (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
-         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
+  (handler-bind
+    (:unreadable-resource use-placeholder)
+    (do-gl [this            (assoc this :gl gl)
+            textureset      (p/get-node-value this :textureset)
+            texture         (p/get-node-value this :gpu-texture)
+            shader          (p/get-node-value this :shader)
+            vbuf            (p/get-node-value this :vertex-buffer)
+            vertex-binding  (vtx/use-with gl vbuf shader)]
+           (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset)))))))
 
 (defnk produce-renderable :- RenderData
   [this]
