@@ -1133,7 +1133,7 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
-    if getattr(Options.options, 'use_vanilla_lua', False) == False:
+    if getattr(Options.options, 'use_vanilla_lua', False) == False and 'web' != build_util.get_target_os():
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
         conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
     else:
