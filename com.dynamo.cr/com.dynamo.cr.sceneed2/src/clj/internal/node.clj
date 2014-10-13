@@ -1,16 +1,17 @@
 (ns internal.node
-  (:require [clojure.core.match :refer [match]]
+  (:require [camel-snake-kebab :refer [->kebab-case]]
+            [clojure.core.match :refer [match]]
             [clojure.core.async :as a]
             [clojure.set :refer [rename-keys union]]
+            [dynamo.condition :refer :all]
+            [dynamo.types :as t]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [schema.core :as s]
             [schema.macros :as sm]
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
-            [dynamo.types :as t]
-            [service.log :as log]
-            [camel-snake-kebab :refer [->kebab-case]]))
+            [service.log :as log]))
 
 (set! *warn-on-reflection* true)
 
@@ -23,16 +24,24 @@
    :node-type (class n)
    :label     l})
 
+
+(defn- get-value-with-restarts
+  [node g label]
+  (restart-case
+    (:unreadable-resource
+      (:use-value [v] v))
+    (t/get-value node g label)))
+
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
     (let [schema (get-in target-node [:inputs target-label])]
       (cond
         (vector? schema)     (map (fn [[source-node source-label]]
-                                    (t/get-value (dg/node g source-node) g source-label))
+                                    (get-value-with-restarts (dg/node g source-node) g source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-                               (t/get-value (dg/node g first-source-node) g first-source-label))
+                               (get-value-with-restarts (dg/node g first-source-node) g first-source-label))
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))

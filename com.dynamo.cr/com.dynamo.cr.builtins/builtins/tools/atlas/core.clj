@@ -5,6 +5,7 @@
             [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.buffers :refer :all]
+            [dynamo.condition :refer :all]
             [dynamo.env :as e]
             [dynamo.geom :as g :refer [to-short-uv]]
             [dynamo.gl :as gl :refer [do-gl]]
@@ -165,16 +166,21 @@
   [this gl]
   (shader/make-shader gl pos-uv-vert pos-uv-frag))
 
+(def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) java.awt.Color/MAGENTA)))
+(defn use-placeholder [_] (invoke-restart :use-value placeholder-image))
+
 (defn render-textureset
   [ctx gl this]
-  (do-gl [this            (assoc this :gl gl)
-          textureset      (p/get-node-value this :textureset)
-          texture         (p/get-node-value this :gpu-texture)
-          shader          (p/get-node-value this :shader)
-          vbuf            (p/get-node-value this :vertex-buffer)
-          vertex-binding  (vtx/use-with gl vbuf shader)]
-         (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
-         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
+  (handler-bind
+    (:unreadable-resource use-placeholder)
+    (do-gl [this            (assoc this :gl gl)
+            textureset      (p/get-node-value this :textureset)
+            texture         (p/get-node-value this :gpu-texture)
+            shader          (p/get-node-value this :shader)
+            vbuf            (p/get-node-value this :vertex-buffer)
+            vertex-binding  (vtx/use-with gl vbuf shader)]
+           (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset)))))))
 
 (defnk produce-renderable :- RenderData
   [this]
