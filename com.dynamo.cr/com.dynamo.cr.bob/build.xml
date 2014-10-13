@@ -150,8 +150,8 @@
 
         <jar destfile="dist/bob.jar">
             <fileset dir="${classes.dir}"/>
-            <fileset dir="lib">
-                <include name="**/*texc_shared*"/>
+            <fileset dir=".">
+                <include name="lib/**/*texc_shared*"/>
             </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
