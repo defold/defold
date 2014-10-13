@@ -1,5 +1,6 @@
 (ns dynamo.texture
   (:require [dynamo.types :refer :all]
+            [dynamo.condition :refer :all]
             [dynamo.image :refer :all]
             [dynamo.node :refer [defnode]]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]
@@ -13,6 +14,14 @@
 (set! *warn-on-reflection* true)
 
 (defnk animation-frames [this g])
+
+(sm/defn blank-textureset :- TextureSet
+  ([]
+    (blank-textureset 64 64 java.awt.Color/ORANGE))
+  ([w h color]
+    (let [r   (rect 0 0 w h)
+          img (flood (blank-image w h) color)]
+      (TextureSet. r img [r] [r] []))))
 
 (defnode AnimationBehavior
   (input images [Image])
@@ -28,12 +37,14 @@
   [margin    :- (s/maybe s/Int)
    extrusion :- (s/maybe s/Int)
    sources   :- [Image]]
-  (let [extrusion     (max 0 (or extrusion 0))
-        margin        (max 0 (or margin 0))
-        sources       (map (partial extrude-borders extrusion) sources)
-        textureset    (max-rects-packing margin (map image-bounds sources))
-        texture-image (composite (blank-image (:aabb textureset)) (:coords textureset) sources)]
-    (assoc textureset :packed-image texture-image)))
+  (if (empty? sources)
+    (signal :empty-source-list)
+    (let [extrusion     (max 0 (or extrusion 0))
+          margin        (max 0 (or margin 0))
+          sources       (map (partial extrude-borders extrusion) sources)
+          textureset    (max-rects-packing margin (map image-bounds sources))
+          texture-image (composite (blank-image (:aabb textureset)) (:coords textureset) sources)]
+      (assoc textureset :packed-image texture-image))))
 
 (sm/defn ->engine-format :- EngineFormatTexture
   [original :- BufferedImage]

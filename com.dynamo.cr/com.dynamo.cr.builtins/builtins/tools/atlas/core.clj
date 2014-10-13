@@ -82,10 +82,13 @@
               (into #{} images)
               (map #(into #{} (:images %)) containers))))
 
+(defn use-blank-textureset [_] (blank-textureset))
+
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
   (handler-bind
     (:unreadable-resource use-placeholder)
+    (:empty-source-list use-blank-textureset)
     (-> (pack-textures margin extrude-borders (consolidate images animations))
       (assoc :animations animations))))
 

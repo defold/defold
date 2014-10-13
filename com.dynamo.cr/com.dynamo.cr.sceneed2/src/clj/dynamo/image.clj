@@ -54,13 +54,11 @@
 ;; Transform produces value
 (defnk image-from-resource :- Image
   [this project]
-  (handler-bind
-    (:unreadable-resource use-placeholder)
-    (let [src (project-path project (:image this))]
-      (try
-        (load-image src)
-        (catch Throwable e
-          (signal :unreadable-resource :exception e :path src))))))
+  (let [src (project-path project (:image this))]
+    (try
+      (load-image src)
+      (catch Throwable e
+        (signal :unreadable-resource :exception e :path src)))))
 
 ;; Behavior
 (defnode ImageSource

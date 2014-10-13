@@ -30,6 +30,8 @@
   (restart-case
     (:unreadable-resource
       (:use-value [v] v))
+    (:empty-source-list
+      (:use-value [v] v))
     (t/get-value node g label)))
 
 (defn get-inputs [target-node g target-label]

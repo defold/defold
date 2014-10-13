@@ -6,7 +6,7 @@
 
 (defn- throw-unhandled
   [condition]
-  (throw (ex-info "Unhandled signal" condition)))
+  (throw (ex-info "Unhandled signal: " condition)))
 
 (defn- supertramp
   "Like trampoline, but passes the args to every call"
