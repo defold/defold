@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <dlib/dstrings.h>
 
 #include "../gui.h"
 #include "../gui_script.h"
@@ -462,8 +463,8 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
             if (tinyDifference < Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal)) {
                 char animatedScale[64];
                 char currentScale[64];
-                ::snprintf(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
-                ::snprintf(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
+                DM_SNPRINTF(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
+                DM_SNPRINTF(currentScale, sizeof(currentScale), "(%f,%f,%f)", currentDiagonal[0], currentDiagonal[1], currentDiagonal[2]);
                 EXPECT_STREQ(animatedScale, currentScale);
             }
             ++ticks;
