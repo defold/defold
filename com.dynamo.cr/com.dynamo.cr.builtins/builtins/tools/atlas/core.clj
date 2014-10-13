@@ -84,8 +84,10 @@
 
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
-  (-> (pack-textures margin extrude-borders (consolidate images animations))
-    (assoc :animations animations)))
+  (handler-bind
+    (:unreadable-resource use-placeholder)
+    (-> (pack-textures margin extrude-borders (consolidate images animations))
+      (assoc :animations animations))))
 
 (defnode AtlasProperties
   (input assets [OutlineItem])
@@ -165,9 +167,6 @@
 (defnk produce-shader :- s/Int
   [this gl]
   (shader/make-shader gl pos-uv-vert pos-uv-frag))
-
-(def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) java.awt.Color/MAGENTA)))
-(defn use-placeholder [_] (invoke-restart :use-value placeholder-image))
 
 (defn render-textureset
   [ctx gl this]
