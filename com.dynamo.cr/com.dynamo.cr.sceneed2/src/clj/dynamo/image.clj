@@ -9,8 +9,10 @@
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [schema.macros :as sm])
-  (:import [javax.imageio ImageIO]
+  (:import java.awt.Color
+           [javax.imageio ImageIO]
            [java.awt.image BufferedImage]
+
            [dynamo.types Rect Image]))
 
 (set! *warn-on-reflection* true)
@@ -21,6 +23,13 @@
     `(let ~(into [] (concat binding [rsym `(do ~@body)]))
        (.dispose ~(first binding))
        ~rsym)))
+
+
+(sm/defn make-color :- java.awt.Color
+  ([ r :- Float g :- Float b :- Float]
+    (java.awt.Color. r g b))
+  ([ r :- Float g :- Float b :- Float a :- Float]
+    (java.awt.Color. r g b a)))
 
 (sm/defn make-image :- Image
   [nm :- s/Any contents :- BufferedImage]
@@ -35,11 +44,12 @@
     (BufferedImage. width height t)))
 
 (sm/defn flood :- BufferedImage
-  [img :- BufferedImage color :- java.awt.Color]
-  (let [g (.createGraphics img)]
-    (.setColor g color)
-    (.fillRect g 0 0 (.getWidth img) (.getHeight img))
-    (.dispose g)
+  [ ^BufferedImage img :- BufferedImage r :- Float g :- Float b :- Float]
+  (let [gfx (.createGraphics img)
+        color (make-color r g b)]
+    (.setColor gfx color)
+    (.fillRect gfx 0 0 (.getWidth img) (.getHeight img))
+    (.dispose gfx)
     img))
 
 (def load-image
@@ -48,7 +58,7 @@
         (if-let [img (ImageIO/read (io/input-stream src))]
           (make-image src img)))))
 
-(def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) java.awt.Color/MAGENTA)))
+(def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 1 0 1)))
 (defn use-placeholder [_] (invoke-restart :use-value placeholder-image))
 
 ;; Transform produces value
@@ -154,6 +164,13 @@ will bleed into the surrounding empty space. The pixels in the border
 region will be identical to the nearest pixel of the source image."
 
         #'image-from-resource
-        "Returns `{:path path :contents byte-array}` from an image resource."
+        "Returns `{:path path :contents byte-array}` from an image resource.\n\n
+         Signals: :unreadable-resource if the resources is unavailable."
+
+        #'make-color
+        "creates a color using rgb values (optional a). Color values between 0 and 1.0"
+
+        #'flood
+        "Floods the image with the specified color (r g b <a>). Color values between 0 and 1.0."
         }]
   (alter-meta! v assoc :doc doc))

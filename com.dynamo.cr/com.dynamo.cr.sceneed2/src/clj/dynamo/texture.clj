@@ -17,11 +17,11 @@
 
 (sm/defn blank-textureset :- TextureSet
   ([]
-    (blank-textureset 64 64 java.awt.Color/ORANGE))
-  ([w h color]
-    (let [r   (rect 0 0 w h)
-          img (flood (blank-image w h) color)]
-      (TextureSet. r img [r] [r] []))))
+    (blank-textureset 64 64 1 0.78 0))
+  ([w :- s/Num h :- s/Num r :- Float g :- Float b :- Float]
+    (let [rct   (rect 0 0 w h)
+          img (flood (blank-image w h) r g b)]
+      (TextureSet. rct img [rct] [rct] []))))
 
 (defnode AnimationBehavior
   (input images [Image])
@@ -58,6 +58,10 @@
         "Returns the frames of the animation."
 
         #'pack-textures
-        ""
+        "Returns a TextureSet. Margin and extrusion is applied, then the sources are packed.
+         \n\nSignals :empty-source-list if the list of sources is empty."
+
+        #'blank-textureset
+        "Create a blank TextureSet with the specified width w, height h, and color values (r g b). Color values should be between 0 and 1.0."
         }]
   (alter-meta! v assoc :doc doc))
