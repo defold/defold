@@ -1,35 +1,7 @@
 (ns basement)
 
 (comment
-  (defn lookup [event]
-    (println "default variable" (.getDefaultVariable (.getApplicationContext event)))
-    (println (active-editor (.getApplicationContext event)))
-    println)
 
-  (defn say-hello [^ExecutionEvent event] (println "Output here."))
-
-  (defcommand a-command "com.dynamo.cr.clojure-eclipse" "com.dynamo.cr.clojure-eclipse.commands.hello" "Speak!")
-  (defhandler hello a-command #'say-hello)
-
-
-  ;; This file explores alternate syntax for the "above the waterline" code.
-
-  (on :resize
-        (let [editor      (:editor self)
-              canvas      (:canvas @(:state editor))
-              camera-node (p/node-feeding-into self :camera)
-              client      (.getClientArea canvas)
-              viewport    (t/->Region 0 (.width client) 0 (.height client))
-              aspect      (/ (double (.width client)) (.height client))
-              camera      (:camera camera-node)
-              new-camera  (-> camera
-                            (c/set-orthographic (:fov camera)
-                                              aspect
-                                              -100000
-                                              100000)
-                            (assoc :viewport viewport))]
-          (set-property camera-node :camera new-camera)
-          (ui/request-repaint editor)))
 
   ;; node events
   ;; selection
@@ -67,39 +39,27 @@
   :can-drop?
   :accept-drop
 
+  (require '[dynamo.ui :refer :all])
+  (require 'internal.ui.editors)
+  (require 'dynamo.project)
+  (require '[dynamo.node :refer [defnode]])
+  (import org.eclipse.swt.widgets.Text)
 
-  ;; another approach to weaving together some simples into compounds
-  ;; this would go into an API file
-  (defn project-path [pathname] (f/project-path (e/current-project) pathname))
-  (defn load-shader  [path]     (shader/make-shader *gl* path))
+  (defnode Labeled
+    (on :focus
+        (println "FOCUS"))
+    (on :destroy
+        (println "DESTROY"))
+    (on :create
+        (let [l (doto (Text. (:parent event) 0) (.setText "Hello there"))]
+          (set-property self :label l))))
 
-  ;; this would go into a node file (or other visible file)
-  (defnk produce-shader :- s/Int
-    [this gl]
-    (load-shader (project-file "/builtins/tools/atlas/pos_uv")))
+  (defn add-labeled-part [prj]
+    (let [tx-r (dynamo.project/transact prj (dynamo.project/new-node (make-labeled :_id -1)))
+          labeled (dynamo.project/node-by-id prj (dynamo.project/resolve-tempid tx-r -1))]
+      (swt-safe (internal.ui.editors/open-part labeled))))
 
+  ;; before this works, you must open "dev/user.clj" and load it into a REPL
 
-
-(require '[dynamo.ui :refer :all])
-(require 'internal.ui.views)
-(require 'dynamo.project)
-(require '[dynamo.node :refer [defnode]])
-(import org.eclipse.swt.widgets.Text)
-
-(defnode Labeled
-  (on :focus
-      (println "FOCUS"))
-  (on :destroy
-      (println "DESTROY"))
-  (on :create
-      (let [l (doto (Text. (:parent event) 0) (.setText "Hello there"))]
-        (set-property self :label l))))
-
-(defn add-labeled-part [prj]
-  (let [tx-r (dynamo.project/transact prj (dynamo.project/new-resource (make-labeled :_id -1)))
-        labeled (dynamo.project/node-by-id prj (dynamo.project/resolve-tempid tx-r -1))]
-    (swt-safe (internal.ui.views/open-part labeled))))
-
-
-
+  (add-labeled-part (user/current-project))
   )
