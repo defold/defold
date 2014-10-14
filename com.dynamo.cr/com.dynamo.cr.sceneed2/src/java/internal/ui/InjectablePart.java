@@ -26,16 +26,16 @@ public class InjectablePart {
 
     @PostConstruct
     private void delegateCreate(Composite parent) {
-        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", CREATE, behavior, PARENT, parent);
+        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", behavior, CREATE, PARENT, parent);
     }
 
     @Focus
     private void delegateFocus() {
-        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", FOCUS, behavior);
+        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", behavior, FOCUS);
     }
 
     @PreDestroy
     private void delegateDestroy() {
-        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", DESTROY, behavior);
+        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", behavior, DESTROY);
     }
 }
