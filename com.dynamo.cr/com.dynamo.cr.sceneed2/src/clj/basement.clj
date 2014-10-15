@@ -55,9 +55,9 @@
           (set-property self :label l))))
 
   (defn add-labeled-part [prj]
-    (let [tx-r (dynamo.project/transact prj (dynamo.project/new-node (make-labeled :_id -1)))
+    (let [tx-r (dynamo.project/transact prj (dynamo.project/new-resource (make-labeled :_id -1)))
           labeled (dynamo.project/node-by-id prj (dynamo.project/resolve-tempid tx-r -1))]
-      (swt-safe (internal.ui.editors/open-part labeled))))
+      (swt-safe (dynamo.editors/open-part labeled :label "A dynamic view" :closeable true))))
 
   ;; before this works, you must open "dev/user.clj" and load it into a REPL
 

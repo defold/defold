@@ -21,18 +21,18 @@
       proj site file)))
 
 (defn- dynamic-part
-  [id label clsname]
+  [{:keys [id label closeable] :or {id "sceneed.view" label "Default part" closeable true}}]
   (doto (.createPart (MBasicFactory/INSTANCE))
     (.setElementId id)
     (.setLabel label)
-    (.setCloseable true)
-    (.setContributionURI (str "bundleclass://com.dynamo.cr.sceneed2/" clsname))))
+    (.setCloseable closeable)
+    (.setContributionURI (str "bundleclass://com.dynamo.cr.sceneed2/internal.ui.InjectablePart"))))
 
 (defn open-part
-  [behavior]
+  [behavior opts]
   (assert (satisfies? MessageTarget behavior) "Behavior must support protocol dynamo.types/MessageTarget")
   (let [ctx ^IEclipseContext (.getService (PlatformUI/getWorkbench) IEclipseContext)]
     (.set ctx "behavior" behavior)
-    (let [p (dynamic-part "test.view" "Testing from Clj" "internal.ui.InjectablePart")]
+    (let [p (dynamic-part opts)]
       (.showPart ^EPartService (.get ctx EPartService) ^MPart p EPartService$PartState/ACTIVATE)
       p)))
