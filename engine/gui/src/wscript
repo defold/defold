@@ -9,9 +9,6 @@ def build(bld):
                                 includes = '.',
                                 target = 'gui')
     resource.find_sources_in_dirs('.')
-    
-    if bld.env.LUA_BYTECODE_ENABLE == 'yes':
-        resource.cxxflags = ['-DLUA_BYTECODE_ENABLE']
 
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/gui', 'gui.h')
