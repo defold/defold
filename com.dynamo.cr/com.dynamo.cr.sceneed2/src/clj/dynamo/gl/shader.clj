@@ -141,6 +141,9 @@
 (defn- shader-walk-return [x]
   (format "%s;\n" (shader-walk-fn x)))
 
+(defn- shader-walk-index [x]
+  (format "%s[%d]" (second x) (nth x 2)))
+
 (defn- inner-walk
   [x]
   (cond
@@ -159,6 +162,7 @@
                    (= "varying" sfx)     (shader-stmt x)
                    (= "attribute" sfx)   (shader-stmt x)
                    (= "return" sfx)      (shader-walk-return x)
+                   (= "nth" sfx)         (shader-walk-index x)
                    (infix-operator? sfx) (shader-walk-infix x)
                    :else                 (shader-walk-fn x)))
    (symbol? x)  (identity x)
