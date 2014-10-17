@@ -8,7 +8,7 @@
             [dynamo.ui :as ui]
             [internal.cache :refer [caching]]
             [dynamo.geom :as g])
-  (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d]
+  (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]
            [org.eclipse.swt SWT]
            [dynamo.types Camera Region AABB]))
 
@@ -123,7 +123,7 @@
 
 (sm/defn camera-rotate :- Camera
   [camera :- Camera q :- Quat4d]
-  (assoc camera :rotation (.mul (t/rotation camera) (.normalize (Quat4d. q)))))
+  (assoc camera :rotation (.mul (t/rotation camera) (doto (Quat4d. q) (.normalize)))))
 
 (sm/defn camera-move :- Camera
   [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
@@ -278,12 +278,11 @@
            :position (Point3d. (.x delta) (.y delta) (.z delta))
            :rotation r)))
 
-
 (def ^:private button-interpretation
-  {[:one-button 1 SWT/ALT]                   :rotate
+  {[:one-button 1 SWT/ALT]                   :tumble
    [:one-button 1 (bit-or SWT/ALT SWT/CTRL)] :track
    [:one-button 1 SWT/CTRL]                  :dolly
-   [:three-button 1 SWT/ALT]                 :rotate
+   [:three-button 1 SWT/ALT]                 :tumble
    [:three-button 2 SWT/ALT]                 :track
    [:three-button 3 SWT/ALT]                 :dolly})
 
@@ -341,6 +340,7 @@
           (case (:movement self)
             :dolly  (do (update-property camera-node :camera dolly (* -0.002 (- y (:last-y self)))) (repaint))
             :track  (do (update-property camera-node :camera track (:last-x self) (:last-y self) x y) (repaint))
+            :tumble (do (update-property camera-node :camera tumble (:last-x self) (:last-y self) x y) (repaint))
             nil)
           (set-property self
                         :last-x x
