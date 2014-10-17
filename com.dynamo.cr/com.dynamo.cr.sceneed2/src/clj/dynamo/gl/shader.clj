@@ -194,7 +194,7 @@
 
 (defmethod set-uniform-at-index Matrix4d
   [^GL2 gl progn loc val]
-  (.glUniformMatrix4fv gl loc 1 false (g/as-array val) 0))
+  (.glUniformMatrix4fv gl loc 1 false (float-array (g/as-array val)) 0))
 
 (defmethod set-uniform-at-index Vector4f
   [^GL2 gl progn loc ^Vector4f val]
