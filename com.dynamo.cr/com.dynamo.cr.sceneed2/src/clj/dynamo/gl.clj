@@ -67,6 +67,9 @@
 (defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~gl ~idx))
 (defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~gl ~idx))
 (defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~gl ~idx))
+(defmacro gl-enable [gl cap]                                             `(.glEnable ~gl ~cap))
+(defmacro gl-disable [gl cap]                                            `(.glDisable ~gl ~cap))
+(defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~gl ~mode))
 
 (defn text-renderer [font-name font-style font-size]
   (TextRenderer. (Font. font-name font-style font-size) true true))
