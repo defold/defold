@@ -274,7 +274,7 @@
     ; position is now in delta
     (assoc camera
            :position (Point3d. (.x delta) (.y delta) (.z delta))
-           :rotation r))
+           :rotation r)))
 
 (def ^:private button-interpretation
   {[:one-button 1 SWT/ALT]                   :tumble
