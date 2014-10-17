@@ -835,8 +835,7 @@ namespace dmGameObject
 
             dmScript::PushURL(L, url);
             dmScript::PushHash(L, property_id);
-
-            int ret = dmScript::PCall(L, 3, 0);
+            dmScript::PCall(L, 3, 0);
 
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -1297,51 +1296,16 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    struct LuaData
-    {
-        const char* m_Buffer;
-        uint32_t m_Size;
-    };
-
-    static const char* ReadScript(lua_State *L, void *data, size_t *size)
-    {
-        LuaData* lua_data = (LuaData*)data;
-        if (lua_data->m_Size == 0)
-        {
-            return 0x0;
-        }
-        else
-        {
-            *size = lua_data->m_Size;
-            lua_data->m_Size = 0;
-            return lua_data->m_Buffer;
-        }
-    }
-
-    static bool LoadScript(lua_State* L, const void* script_data, uint32_t script_size, const void *bytecode_data, uint32_t bytecode_size, const char* filename, Script* script)
+    static bool LoadScript(lua_State* L, dmLuaDDF::LuaSource *source, const char* filename, Script* script)
     {
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
-
-        const void *buffer = script_data;
-        uint32_t buffer_size = script_size;
-
-        #if defined(LUA_BYTECODE_ENABLE)
-        if (bytecode_size > 0)
-        {
-            buffer = bytecode_data;
-            buffer_size = bytecode_size;
-        }
-        #endif
 
         bool result = false;
         int top = lua_gettop(L);
         (void) top;
 
-        LuaData data;
-        data.m_Buffer = (const char*)buffer;
-        data.m_Size = buffer_size;
-        int ret = lua_load(L, &ReadScript, &data, filename);
+        int ret = dmScript::LuaLoad(L, source, filename);
         if (ret == 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
@@ -1415,8 +1379,7 @@ bail:
         luaL_getmetatable(L, SCRIPT);
         lua_setmetatable(L, -2);
 
-        if (!LoadScript(L, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count,
-                           (const void*)lua_module->m_Bytecode.m_Data, lua_module->m_Bytecode.m_Count, filename, script))
+        if (!LoadScript(L, &lua_module->m_Source, filename, script))
         {
             DeleteScript(script);
             return 0;
@@ -1428,9 +1391,7 @@ bail:
     bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename)
     {
         script->m_LuaModule = lua_module;
-		return LoadScript(script->m_LuaState,
-                          (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, 
-                          (const void*)lua_module->m_Bytecode.m_Data, lua_module->m_Bytecode.m_Count, filename, script);
+        return LoadScript(script->m_LuaState, &lua_module->m_Source, filename, script);
     }
 
     void DeleteScript(HScript script)

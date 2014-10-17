@@ -2244,7 +2244,7 @@ namespace dmGui
         ResetScript(script);
     }
 
-    Result SetScript(HScript script, const char* source, uint32_t source_length, const char* bytecode, uint32_t bytecode_length, const char* filename)
+    Result SetScript(HScript script, dmLuaDDF::LuaSource *source, const char* filename)
     {
         lua_State* L = script->m_Context->m_LuaState;
         int top = lua_gettop(L);
@@ -2252,17 +2252,7 @@ namespace dmGui
 
         Result res = RESULT_OK;
 
-        int ret;
-
-#if defined(LUA_BYTECODE_ENABLE)
-        if (bytecode_length > 0)
-            ret = luaL_loadbuffer(L, bytecode, bytecode_length, filename);
-		else
-            ret = luaL_loadbuffer(L, source, source_length, filename);
-#else
-            ret = luaL_loadbuffer(L, source, source_length, filename);
-#endif
-
+        int ret = dmScript::LuaLoad(L, source, filename);
         if (ret != 0)
         {
             dmLogError("Error compiling script: %s", lua_tostring(L,-1));

@@ -15,6 +15,11 @@ extern "C"
 #include <lua/lauxlib.h>
 }
 
+namespace dmLuaDDF
+{
+    struct LuaSource;
+}
+
 namespace dmScript
 {
     typedef struct Context* HContext;
@@ -317,28 +322,21 @@ namespace dmScript
     /**
      * Add (load) module
      * @param context script context
-     * @param script lua script to load
-     * @param script_size lua script size
-     * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
-     * @param bytecode_size lua bytecode size
-     * @param bytecode_name bytecode-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
+     * @param source lua script to load
      * @param resource the resource will be released throught the resource system at finalization
      * @param path_hash hashed path of the originating resource
      * @return RESULT_OK on success
      */
-    Result AddModule(HContext context, const char* script, uint32_t script_size, const char *bytecode, uint32_t bytecode_size, const char* script_name, void* resource, dmhash_t path_hash);
+    Result AddModule(HContext context, dmLuaDDF::LuaSource *source, const char *script_name, void* resource, dmhash_t path_hash);
 
     /**
      * Reload loaded module
      * @param context script context
-     * @param script lua script to load
-     * @param script_size lua script size
-     * @param bytecode lua bytecode to load
-     * @param bytecode_size lua bytecode size
+     * @param source lua source to load
      * @param path_hash hashed path, see AddModule
      * @return RESULT_OK on success
      */
-    Result ReloadModule(HContext context, const char* script, uint32_t script_size, const char* bytecode, uint32_t bytecode_size, dmhash_t path_hash);
+    Result ReloadModule(HContext context, dmLuaDDF::LuaSource *source, dmhash_t path_hash);
 
     /**
      * Check if a module is loaded
@@ -417,6 +415,8 @@ namespace dmScript
      * @return error code from pcall
      */
     int PCall(lua_State* L, int nargs, int nresult);
+
+    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source, const char *filename);
 }
 
 #endif // DM_SCRIPT_H

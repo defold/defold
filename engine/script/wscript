@@ -18,6 +18,7 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
+    conf.check_tool('waf_ddf')
 
     waf_ddf.configure(conf)
 
@@ -37,7 +38,7 @@ def configure(conf):
 
 def build(bld):
     python_path = os.environ.get('PYTHONPATH', '')
-    os.environ['PYTHONPATH'] = os.path.abspath('build/default/proto') + os.pathsep + python_path
+    os.environ['PYTHONPATH'] = os.path.abspath('build/default/src/script') + os.pathsep + python_path
     bld.add_subdirs('src')
 
 def shutdown():
@@ -64,5 +65,5 @@ def shutdown():
 
     if not getattr(Options.options, 'skip_tests', False):
         python_path = os.environ.get('PYTHONPATH', '')
-        os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/proto' + os.pathsep + python_path
+        os.environ['PYTHONPATH'] = 'src' + os.pathsep + 'build/default/src' + os.pathsep + python_path
         os.system('python %s' % 'src/test/test_script_doc.py')

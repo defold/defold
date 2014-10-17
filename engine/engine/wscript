@@ -21,6 +21,7 @@ def init():
 def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
+    opt.tool_options('waf_ddf')
 
 def configure(conf):
     conf.check_tool('waf_dynamo')

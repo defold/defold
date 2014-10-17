@@ -186,8 +186,8 @@ static void CreateScriptFile(const char* file_name, const char* contents)
 {
     dmLuaDDF::LuaModule lua_module;
     memset(&lua_module, 0, sizeof(lua_module));
-    lua_module.m_Script.m_Data = (uint8_t*) contents;
-    lua_module.m_Script.m_Count = strlen(contents);
+    lua_module.m_Source.m_Script.m_Data = (uint8_t*) contents;
+    lua_module.m_Source.m_Script.m_Count = strlen(contents);
     dmDDF::Result r = dmDDF::SaveMessageToFile(&lua_module, dmLuaDDF::LuaModule::m_DDFDescriptor, file_name);
     assert(r == dmDDF::RESULT_OK);
 }

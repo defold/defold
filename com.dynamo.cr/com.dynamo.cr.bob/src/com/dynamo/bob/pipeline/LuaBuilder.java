@@ -23,6 +23,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.script.proto.Lua.LuaSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.google.protobuf.ByteString;
@@ -51,7 +52,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
 
-        // Need to write the input file separately in case it comes from built-in, and cannot 
+        // Need to write the input file separately in case it comes from built-in, and cannot
         // be found through its path alone.
         java.io.FileOutputStream fo = new java.io.FileOutputStream(inputFile);
         fo.write(task.input(0).getContent());
@@ -136,19 +137,25 @@ public abstract class LuaBuilder extends Builder<Void> {
         PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties);
         builder.setProperties(propertiesMsg);
 
-        builder.setScript(ByteString.copyFrom(scriptBytes));
+        LuaSource.Builder srcBuilder = LuaSource.newBuilder();
 
-        // For now it will always return, or throw an exception. This leaves the possibility of 
+        srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
+
+        // For now it will always return, or throw an exception. This leaves the possibility of
         // disabling bytecode generation.
         byte[] bytecode = constructBytecode(task);
         if (bytecode != null)
-            builder.setBytecode(ByteString.copyFrom(bytecode));
+            srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+
+        builder.setSource(srcBuilder);
 
         Message msg = builder.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
         msg.writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
+
+
     }
 
     private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties) throws CompileExceptionError {

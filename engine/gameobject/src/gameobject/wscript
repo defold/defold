@@ -5,15 +5,14 @@ def configure(conf):
     pass
 
 def build(bld):
+
     gameobject = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                   includes = '.',
                                   proto_gen_py = True,
-                                  protoc_includes = '../../proto',
+                                  protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],
+                                  protopy_includes = bld.env['PREFIX'] + '/lib/python',
                                   # NOTE: default/... is hardcoded. How to solve?
                                   target = 'gameobject')
-
-    if bld.env.LUA_BYTECODE_ENABLE == 'yes':
-        gameobject.cxxflags = ['-DLUA_BYTECODE_ENABLE']
 
     gameobject.find_sources_in_dirs(['.', '../../proto'])
     bld.add_group()
