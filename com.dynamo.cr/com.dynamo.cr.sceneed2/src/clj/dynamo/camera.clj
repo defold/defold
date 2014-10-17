@@ -238,6 +238,47 @@
     (assoc (camera-move camera (.x delta) (.y delta) (.z delta))
            :focus-point (doto focus (.add delta)))))
 
+(defn tumble
+  [^Camera camera last-x last-y evt-x evt-y]
+  (let [rate 0.005
+        dx (- last-x evt-x)
+        dy (- last-y evt-y)
+        focus ^Vector4d (:focus-point camera)
+        delta ^Vector4d (doto (Vector4d. ^Point3d (:position camera))
+                          (.sub focus))
+        q-delta ^Quat4d (doto (Quat4d.)
+                          (.set delta))
+        r ^Quat4d (Quat4d. ^Quat4d (:rotation camera))
+        inv-r ^Quat4d (doto (Quat4d. r)
+                     (.conjugate))
+        m ^Matrix4d (doto (Matrix4d.)
+                    (.setIdentity)
+                    (.set r)
+                    (.transpose))
+        q2 ^Quat4d (doto (Quat4d.)
+                     (.set (AxisAngle4d. 1.0  0.0  0.0 (* dy rate))))
+        y-axis ^Vector4d (doto (Vector4d.))
+        q1 ^Quat4d (doto (Quat4d.))]
+    (.mul q-delta inv-r q-delta)
+    (.mul q-delta r)
+    (.getColumn m 1 y-axis)
+    (.set q1 (AxisAngle4d. (.x y-axis) (.y y-axis) (.z y-axis) (* dx rate)))
+    (.mul q1 q2)
+    (.normalize q1)
+    (.mul r q1)
+    ; rotation is now in r
+    (.conjugate inv-r r)
+
+    (.mul q-delta r q-delta)
+    (.mul q-delta inv-r)
+    (.set delta q-delta)
+    (.add delta focus)
+    ; position is now in delta
+    (assoc camera
+           :position (Point3d. (.x delta) (.y delta) (.z delta))
+           :rotation r)))
+
+
 (def ^:private button-interpretation
   {[:one-button 1 SWT/ALT]                   :rotate
    [:one-button 1 (bit-or SWT/ALT SWT/CTRL)] :track
