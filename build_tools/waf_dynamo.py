@@ -1133,6 +1133,11 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
+    if getattr(Options.options, 'use_vanilla_lua', False) == False:
+        conf.env['STATICLIB_LUA'] = 'luajit-5.1'
+    else:
+        conf.env['STATICLIB_LUA'] = 'lua'
+
 def configure(conf):
     detect(conf)
 
@@ -1157,4 +1162,4 @@ def set_options(opt):
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
-
+    opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
