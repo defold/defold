@@ -23,6 +23,7 @@
           img (flood (blank-image w h) r g b)]
       (TextureSet. rct img [rct] [rct] []))))
 
+
 (defnode AnimationBehavior
   (input images [Image])
 
