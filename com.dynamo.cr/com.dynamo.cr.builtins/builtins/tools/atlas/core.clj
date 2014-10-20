@@ -506,12 +506,3 @@
       "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects"
       "Frame Objects")
 (defhandler frame-objects-handler frame-objects-cmd frame-objects)
-
-#_(defbinding "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects" kb/F)
-
-#_(defn make-menu-item
-   [category command-id item-name handler-fn]
-   (let [cmd-name (gensym)
-         handler-name (gensym)]
-     (defcommand cmd-name category command-id item-name)
-     (defhandler handler-name cmd-name handler-fn)))
