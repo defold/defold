@@ -105,14 +105,6 @@
   ^double [^Vector4d x ^Vector4d y]
   (.dot x y))
 
-(defn most-aligned-axis
-  [normal]
-  (let [[xdot ydot zdot] (map #(Math/abs (dot normal %)) axis-vectors)]
-    (cond
-      (and (>= xdot ydot) (>= xdot zdot)) 0
-      (and (>= ydot xdot) (>= ydot zdot)) 1
-      (and (>= zdot xdot) (>= zdot ydot)) 2)))
-
 (defn frustum-plane-projection
   [^Vector4d plane1 ^Vector4d plane2]
   (let [m (Matrix3d. 0.0         0.0         1.0
@@ -155,9 +147,9 @@
   (let [frustum-planes   (c/viewproj-frustum-planes camera)
         far-z-plane      (nth frustum-planes 5)
         normal           (as-unit-vector far-z-plane)
-        perp-axis        (most-aligned-axis normal)
         aabb             (frustum-projection-aabb frustum-planes)
         extent           (g/as-array (g/aabb-extent aabb))
+        perp-axis        2
         _                (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent  (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent)
