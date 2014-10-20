@@ -34,6 +34,10 @@
 
   (output frames s/Any animation-frames))
 
+(sm/defn make-empty-textureset :- TextureSet
+  []
+  (TextureSet. (rect 0 0 16 16) (blank-image 16 16) [] [] []))
+
 (sm/defn pack-textures :- TextureSet
   [margin    :- (s/maybe s/Int)
    extrusion :- (s/maybe s/Int)

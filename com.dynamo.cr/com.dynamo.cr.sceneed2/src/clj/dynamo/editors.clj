@@ -1,7 +1,9 @@
 (ns dynamo.editors
   (:require [clojure.core.async :refer [chan dropping-buffer]]
-            [dynamo.ui :as ui]
-            [internal.ui.editors :as ie]))
+            [internal.ui.editors :as ie]
+            [internal.ui.handlers :refer [active-editor]])
+  (:import  [internal.ui GenericEditor]
+            [org.eclipse.core.commands ExecutionEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -11,7 +13,15 @@
   (save [this file monitor])
   (dirty? [this])
   (save-as-allowed? [this])
-  (set-focus [this]))
+  (set-focus [this])
+  (get-state [this]))
+
+(defn event->active-editor
+  "returns the Clojure implementation of the active editor from the event's application context"
+  [^ExecutionEvent evt]
+  (let [editor (active-editor (.getApplicationContext evt))]
+    (if (instance? GenericEditor editor)
+      (.getImpl ^GenericEditor editor))))
 
 (defn open-part
   [behavior & {:as opts}]
