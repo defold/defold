@@ -135,9 +135,9 @@ namespace dmSound
         {
             master_gain = dmConfigFile::GetFloat(config, "sound.gain", 1.0f);
             max_sound_data = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_data", (int32_t) max_sound_data);
-            max_buffers = (uint32_t) dmConfigFile::GetInt(config, "sound.max_buffers", (int32_t) max_buffers);
-            max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sources", (int32_t) max_sources);
-            max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_instances", (int32_t) max_instances);
+            max_buffers = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_buffers", (int32_t) max_buffers);
+            max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
+            max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
         }
 
         dmSoundCodec::NewCodecContextParams codec_params;
