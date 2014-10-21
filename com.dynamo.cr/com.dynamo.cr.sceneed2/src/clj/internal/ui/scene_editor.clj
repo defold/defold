@@ -200,11 +200,7 @@
           _             (.setCurrent canvas)
           context       (.createExternalGLContext factory)
           _             (.makeCurrent context)
-          gl            (.. context getGL getGL2)
-          vertex-arr    (IntBuffer/allocate 1)
-          _             (.glGenVertexArrays gl 1 vertex-arr)
-          vertex-arr-id (.get vertex-arr 0)
-          _             (.glBindVertexArray gl vertex-arr-id)]
+          gl            (.. context getGL getGL2)]
       (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
       (.release context)
       (ui/listen canvas :resize on-resize this state)

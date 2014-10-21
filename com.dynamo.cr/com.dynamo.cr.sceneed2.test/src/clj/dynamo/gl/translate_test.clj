@@ -35,6 +35,22 @@ gl_FragColor = vec4(uv.x,uv.y,0.0,1.0);
           ]
       (is (= test-str gold-str)))))
 
+(deftest mat-index-test
+  (testing "Matrix indexing."
+    (let [_ (defshader test-shader
+              (uniform mat4 world)
+              (defn void main []
+                (setq gl_Position (nth world 0))))
+          test-str (str test-shader)
+          gold-str
+"uniform mat4 world;
+void main(void) {
+gl_Position = world[0];
+}
+"
+          ]
+      (is (= test-str gold-str)))))
+
 (deftest wave-test
   (testing "wave shader"
     (let [_ (defshader test-shader

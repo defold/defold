@@ -67,6 +67,9 @@
 (defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~gl ~idx))
 (defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~gl ~idx))
 (defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~gl ~idx))
+(defmacro gl-enable [gl cap]                                             `(.glEnable ~gl ~cap))
+(defmacro gl-disable [gl cap]                                            `(.glDisable ~gl ~cap))
+(defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~gl ~mode))
 
 (defn text-renderer [font-name font-style font-size]
   (TextRenderer. (Font. font-name font-style font-size) true true))
@@ -122,18 +125,18 @@
        (.glPopMatrix ~gl))))
 
 (defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [dbuf (double-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                            (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                            (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                            (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glLoadMatrixd gl dbuf 0)))
+  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
+                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
+                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
+                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
+    (.glLoadMatrixf gl fbuf 0)))
 
 (defn gl-mult-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (let [dbuf (double-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                            (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                            (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                            (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
-    (.glMultMatrixd gl dbuf 0)))
+  (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
+                           (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
+                           (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
+                           (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)])]
+    (.glMultMatrixf gl fbuf 0)))
 
 (defmacro color
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))

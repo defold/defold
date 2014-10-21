@@ -96,8 +96,13 @@
             id="com.dynamo.cr.sceneed2.atlasEditor"
             name="Atlas Editor (mark II)">
       </editor>
-   </extension>
-   <extension
-         point="org.eclipse.ui.bindings">
+      <editor
+            class="internal.ui.GenericEditor"
+            default="false"
+            extensions="cubemap"
+            icon="icons/images.png"
+            id="com.dynamo.cr.sceneed2.cubemapEditor"
+            name="Cubemap Editor (mark II)">
+      </editor>
    </extension>
 </plugin>
