@@ -323,6 +323,7 @@ namespace dmScript
      * Add (load) module
      * @param context script context
      * @param source lua script to load
+     * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
      * @param resource the resource will be released throught the resource system at finalization
      * @param path_hash hashed path of the originating resource
      * @return RESULT_OK on success
@@ -416,6 +417,9 @@ namespace dmScript
      */
     int PCall(lua_State* L, int nargs, int nresult);
 
+    /**
+     * Wraps luaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
+     */
     int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source, const char *filename);
 }
 
