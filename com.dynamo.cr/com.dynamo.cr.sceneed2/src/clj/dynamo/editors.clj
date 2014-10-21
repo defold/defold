@@ -1,6 +1,9 @@
 (ns dynamo.editors
   (:require [clojure.core.async :refer [chan dropping-buffer]]
-            [dynamo.ui :as ui]))
+            [internal.ui.editors :as ie]
+            [internal.ui.handlers :refer [active-editor]])
+  (:import  [internal.ui GenericEditor]
+            [org.eclipse.core.commands ExecutionEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -10,7 +13,19 @@
   (save [this file monitor])
   (dirty? [this])
   (save-as-allowed? [this])
-  (set-focus [this]))
+  (set-focus [this])
+  (get-state [this]))
+
+(defn event->active-editor
+  "returns the Clojure implementation of the active editor from the event's application context"
+  [^ExecutionEvent evt]
+  (let [editor (active-editor (.getApplicationContext evt))]
+    (if (instance? GenericEditor editor)
+      (.getImpl ^GenericEditor editor))))
+
+(defn open-part
+  [behavior & {:as opts}]
+  (ie/open-part behavior opts))
 
 (doseq [[v doc]
         {*ns*
@@ -44,5 +59,15 @@ saved with a new file name"
 
          #'set-focus
          "Called when this editor receives focus. Should
-in turn set focus on the most appropriate control."}]
+in turn set focus on the most appropriate control."
+
+         #'open-part
+         "Creates an Eclipse view for the given behavior. The
+behavior must support dynamo.types/MessageTarget.
+
+Allowed options are:
+
+:label - the visible label for the part
+:closeable - if true, the part can be closed (defaults to true)
+:id - the part ID by which Eclipse will know it"}]
   (alter-meta! v assoc :doc doc))

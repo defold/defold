@@ -5,15 +5,43 @@
             [dynamo.ui :refer [defcommand defhandler]])
   (:import [org.eclipse.core.commands ExecutionEvent]))
 
+(set! *warn-on-reflection* true)
 
-(defn make-menu-item [command]
-  [(.getName command) (.getId command)])
+(def SCENE-MENU "com.dynamo.cr.menus.scene")
+(def EDIT-MENU  "com.dynamo.cr.menus.edit")
 
-; com.dynamo.cr.menu-items.edit-menu
-(defn collect-items
+(def ^:private menu-configs (atom {SCENE-MENU ["Scene" "com.dynamo.cr.menu-items.scene"]
+                                   EDIT-MENU  ["Edit"  "com.dynamo.cr.menu-items.edit"]}))
+
+;; get-menu-config data structure:
+;; '(label category-id)
+(defn get-menu-config
+  [menu-id]
+  (get @menu-configs menu-id))
+
+(defn get-menu-ids
   []
-  (let [commands (handlers/commands-in-category "com.dynamo.cr.menu-items.EDIT")]
+  (keys @menu-configs))
+
+(defn get-category-ids
+  [menu-ids]
+  (prn "requesting " menu-ids)
+  (map #((second (get @menu-configs %))) menu-ids))
+
+(defn make-menu-item [^org.eclipse.core.commands.Command command]
+  [(.getName command) (.getId command)])
+;; collect-category-items' returned data structure:
+;; '(label command-id & [mnemonic image-id disabled-image-id])
+
+(defn collect-category-items
+  [category]
+  (let [commands (handlers/commands-in-category category)]
     (into [] (map make-menu-item commands))))
 
-;; collect-items' returned data structure:
-;; '(label command-id & [mnemonic image-id disabled-image-id])
+(defn collect-menu-items
+  "given a menu-id, returns a vec of:\n
+  '(label command-id & [mnemonic image-id disabled-image-id])"
+  [menu-id]
+  (if-let [menu-cfg (get @menu-configs menu-id)]
+    (collect-category-items (second menu-cfg))
+    []))

@@ -202,6 +202,17 @@
             (/ (+ (-> aabb min-p .y) (-> aabb max-p .y)) 2.0)
             (/ (+ (-> aabb min-p .z) (-> aabb max-p .z)) 2.0)))
 
+(sm/defn rect->aabb :- AABB
+  [^Rect bounds :- Rect ]
+  (assert bounds "rect->aabb require boundaries")
+  (let [x1 (.x bounds)
+        y1 (.y bounds)
+        x2 (+ x1 (.width bounds))
+        y2 (+ y1 (.height bounds))]
+    (-> (null-aabb)
+        (aabb-incorporate (Point3d. x1 y1 0))
+        (aabb-incorporate (Point3d. x2 y2 0)))))
+
 ; -------------------------------------
 ; Primitive shapes as vertex arrays
 ; -------------------------------------
@@ -209,17 +220,15 @@
 (sm/defn unit-sphere-pos-nrm [lats longs]
   (for [lat-i (range lats)
        long-i (range longs)]
-   (let [lat-angle (fn [rate] (* Math/PI rate))
-       long-angle (fn [rate] (* (* 2 Math/PI) rate))
-       make-vertex (fn [lat-a long-a]
-                     (let [y (Math/cos lat-a)
-                           radius (Math/sin lat-a)
-                           x (* radius (Math/cos long-a))
-                           z (* radius (Math/sin long-a))]
-                       [x y z x y z]))
-       vertices (for [lat-idx [lat-i (inc lat-i)]
-                      long-idx [long-i (inc long-i)]]
-                  (make-vertex (lat-angle (/ lat-idx lats)) (long-angle (/ long-idx longs))))
-       ]
-                (map #(nth vertices %) [0 1 2 1 3 2])
-                )))
+   (let [lat-angle   (fn [rate] (* Math/PI rate))
+         long-angle  (fn [rate] (* (* 2 Math/PI) rate))
+         make-vertex (fn [lat-a long-a]
+                       (let [y      (Math/cos lat-a)
+                             radius (Math/sin lat-a)
+                             x      (* radius (Math/cos long-a))
+                             z      (* radius (Math/sin long-a))]
+                         [x y z x y z]))
+         vertices (for [lat-idx  [lat-i (inc lat-i)]
+                        long-idx [long-i (inc long-i)]]
+                    (make-vertex (lat-angle (/ lat-idx lats)) (long-angle (/ long-idx longs))))]
+                (map #(nth vertices %) [0 1 2 1 3 2]))))

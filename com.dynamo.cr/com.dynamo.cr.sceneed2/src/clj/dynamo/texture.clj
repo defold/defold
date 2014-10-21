@@ -23,6 +23,7 @@
           img (flood (blank-image w h) r g b)]
       (TextureSet. rct img [rct] [rct] []))))
 
+
 (defnode AnimationBehavior
   (input images [Image])
 
@@ -32,6 +33,10 @@
   (property playback        (as-schema AnimationPlayback))
 
   (output frames s/Any animation-frames))
+
+(sm/defn make-empty-textureset :- TextureSet
+  []
+  (TextureSet. (rect 0 0 16 16) (blank-image 16 16) [] [] []))
 
 (sm/defn pack-textures :- TextureSet
   [margin    :- (s/maybe s/Int)
