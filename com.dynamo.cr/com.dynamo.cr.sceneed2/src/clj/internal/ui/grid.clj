@@ -60,12 +60,10 @@
 (defn render-grid-sizes
   [^GL2 gl ^doubles dir grids]
   (doall
-    (for [grid-index (range 2)
-         axis      (range 3)
-         :when      (> (aget dir axis) min-align)
-         :let       [ratio (nth (:ratios grids) grid-index)
-                     alpha (* (aget dir axis) ratio)]
-         :when      (> ratio 0.0)]
+    (for [grid-index (range 2) ; 0 1
+          axis       (range 3) ; 0 1 2
+          :let       [ratio (nth (:ratios grids) grid-index)
+                      alpha (Math/abs (* (aget dir axis) ratio))]]
      (do
        (gl-color-3dv+a gl grid-color alpha)
        (render-grid gl axis
