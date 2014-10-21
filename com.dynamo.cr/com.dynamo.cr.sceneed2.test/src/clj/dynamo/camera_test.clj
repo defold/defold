@@ -23,13 +23,13 @@
   (testing "one-button-movements"
            (are [move button mods] (= move (camera-movement :one-button button mods))
                 :track  1 (bit-or SWT/ALT SWT/CTRL)
-                :rotate 1 SWT/ALT
+                :tumble 1 SWT/ALT
                 :dolly  1 SWT/CTRL
                 :idle   1 0))
   (testing "three-button-movements"
            (are [move button mods] (= move (camera-movement :three-button button mods))
                 :track  2 SWT/ALT
-                :rotate 1 SWT/ALT
+                :tumble 1 SWT/ALT
                 :dolly  3 SWT/ALT
                 :idle   1 0
                 :idle   3 SWT/CTRL
