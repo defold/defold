@@ -96,8 +96,7 @@ struct SResourceFactory
     dmHttpClient::HClient                        m_HttpClient;
     dmHttpCache::HCache                          m_HttpCache;
 
-    char*                                        m_StreamBuffer;
-    uint32_t                                     m_StreamBufferSize;
+    dmArray<char>                                m_Buffer;
 
     // HTTP related state
     // Total number bytes loaded in current GET-request
@@ -149,7 +148,6 @@ void SetDefaultNewFactoryParams(struct NewFactoryParams* params)
 {
     params->m_MaxResources = 1024;
     params->m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-    params->m_StreamBufferSize = 4 * 1024 * 1024;
     params->m_BuiltinsArchive = 0;
     params->m_BuiltinsArchiveSize = 0;
 }
@@ -162,6 +160,14 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
     if (strcmp(key, "Content-Length") == 0)
     {
         factory->m_HttpContentLength = strtol(value, 0, 10);
+        if (factory->m_HttpContentLength < 0) {
+            dmLogError("Content-Length negative (%d)", factory->m_HttpContentLength);
+        } else {
+            if (factory->m_Buffer.Capacity() < factory->m_HttpContentLength) {
+                factory->m_Buffer.SetCapacity(factory->m_HttpContentLength);
+            }
+            factory->m_Buffer.SetSize(0);
+        }
     }
 }
 
@@ -173,14 +179,13 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
     // We must set http-status here. For direct cached result HttpHeader is not called.
     factory->m_HttpStatus = status_code;
 
-    assert(factory->m_HttpTotalBytesStreamed <= factory->m_StreamBufferSize);
-    if (factory->m_StreamBufferSize - factory->m_HttpTotalBytesStreamed < content_data_size)
-    {
-        factory->m_HttpFactoryResult = RESULT_STREAMBUFFER_TOO_SMALL;
-        return;
+    if (factory->m_Buffer.Remaining() < content_data_size) {
+        uint32_t diff = content_data_size - factory->m_Buffer.Remaining();
+        // NOTE: Resizing the the array can be inefficient but sometimes we don't know the actual size, i.e. when "Content-Size" isn't set
+        factory->m_Buffer.OffsetCapacity(diff + 1024 * 1024);
     }
 
-    memcpy(factory->m_StreamBuffer + factory->m_HttpTotalBytesStreamed, content_data, content_data_size);
+    factory->m_Buffer.PushArray((const char*) content_data, content_data_size);
     factory->m_HttpTotalBytesStreamed += content_data_size;
 }
 
@@ -195,14 +200,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
-    // NOTE: We need an extra byte for null-termination.
-    // Legacy reason (load python scripts from "const char*")
-    // The gui-system still relies on this behaviour (luaL_loadstring)
-
-    void* buffer = malloc(params->m_StreamBufferSize + 1);
-    if (!buffer)
-        return 0;
-
     SResourceFactory* factory = new SResourceFactory;
     memset(factory, 0, sizeof(*factory));
     factory->m_Socket = socket;
@@ -212,7 +209,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         dmLogError("Unable to parse uri: %s", uri);
         dmMessage::DeleteSocket(socket);
-        free(buffer);
         delete factory;
         return 0;
     }
@@ -267,7 +263,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {
             dmLogError("Invalid URI: %s", uri);
             dmMessage::DeleteSocket(socket);
-            free(buffer);
             delete factory;
             return 0;
         }
@@ -283,7 +278,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {
             dmLogError("Unable to load archive: %s", factory->m_UriParts.m_Path);
             dmMessage::DeleteSocket(socket);
-            free(buffer);
             delete factory;
             return 0;
         }
@@ -292,14 +286,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         dmLogError("Invalid URI: %s", uri);
         dmMessage::DeleteSocket(socket);
-        free(buffer);
         delete factory;
         return 0;
     }
 
     factory->m_ResourceTypesCount = 0;
-    factory->m_StreamBufferSize = params->m_StreamBufferSize;
-    factory->m_StreamBuffer = (char*) buffer;
 
     const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
     factory->m_Resources = new dmHashTable<uint64_t, SResourceDescriptor>();
@@ -336,7 +327,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
 void DeleteFactory(HFactory factory)
 {
-    free(factory->m_StreamBuffer);
     if (factory->m_Socket)
     {
         dmMessage::DeleteSocket(factory->m_Socket);
@@ -434,15 +424,13 @@ static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive arch
     if (r == dmResourceArchive::RESULT_OK)
     {
         uint32_t file_size = entry_info.m_Size;
-        // Extra byte for resources expecting null-terminated string...
-        if (file_size + 1 >= factory->m_StreamBufferSize)
-        {
-            dmLogError("Resource too large for streambuffer: %s", path);
-            return RESULT_STREAMBUFFER_TOO_SMALL;
+        if (factory->m_Buffer.Capacity() < file_size) {
+            factory->m_Buffer.SetCapacity(file_size);
         }
 
-        dmResourceArchive::Read(archive, &entry_info, factory->m_StreamBuffer);
-        factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+        factory->m_Buffer.SetSize(0);
+        dmResourceArchive::Read(archive, &entry_info, factory->m_Buffer.Begin());
+        factory->m_Buffer.SetSize(file_size);
         *resource_size = file_size;
 
         return RESULT_OK;
@@ -460,6 +448,14 @@ static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive arch
 
 static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
 {
+    const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
+
+    if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
+        factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
+    }
+
+    factory->m_Buffer.SetSize(0);
+
     if (factory->m_BuiltinsArchive)
     {
         if (LoadFromArchive(factory, factory->m_BuiltinsArchive, path, original_name, resource_size) == RESULT_OK)
@@ -505,13 +501,6 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
             dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", path, factory->m_HttpContentLength, factory->m_HttpTotalBytesStreamed);
         }
 
-        // Extra byte for resources expecting null-terminated string...
-        if (factory->m_HttpTotalBytesStreamed + 1 >= factory->m_StreamBufferSize)
-        {
-            dmLogError("Resource too large for streambuffer: %s", path);
-        }
-        factory->m_StreamBuffer[factory->m_HttpTotalBytesStreamed] = 0; // Null-terminate. See comment above
-
         *resource_size = factory->m_HttpTotalBytesStreamed;
         return RESULT_OK;
     }
@@ -524,14 +513,22 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
     {
         // Load over local file system
         uint32_t file_size;
-        dmSys::Result r = dmSys::LoadResource(path, factory->m_StreamBuffer, factory->m_StreamBufferSize, &file_size);
+        dmSys::Result r = dmSys::ResourceSize(path, &file_size);
+        if (r != dmSys::RESULT_OK) {
+            if (r == dmSys::RESULT_NOENT)
+                return RESULT_RESOURCE_NOT_FOUND;
+            else
+                return RESULT_IO_ERROR;
+        }
+
+        if (factory->m_Buffer.Capacity() < file_size) {
+            factory->m_Buffer.SetCapacity(file_size);
+        }
+        factory->m_Buffer.SetSize(0);
+
+        r = dmSys::LoadResource(path, factory->m_Buffer.Begin(), file_size, &file_size);
         if (r == dmSys::RESULT_OK) {
-            // Extra byte for resources expecting null-terminated string...
-            if (file_size + 1 >= factory->m_StreamBufferSize) {
-                dmLogError("Resource too large for streambuffer: %s", path);
-                return RESULT_STREAMBUFFER_TOO_SMALL;
-            }
-            factory->m_StreamBuffer[file_size] = 0; // Null-terminate. See comment above
+            factory->m_Buffer.SetSize(file_size);
             *resource_size = file_size;
             return RESULT_OK;
         } else {
@@ -628,7 +625,7 @@ Result DoGet(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType = (void*) resource_type;
 
-        Result create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, &tmp_resource, name);
+        Result create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_Buffer.Begin(), file_size, &tmp_resource, name);
 
         if (create_error == RESULT_OK)
         {
@@ -723,7 +720,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     Result result = LoadResource(factory, canonical_path, name, &file_size);
     if (result == RESULT_OK) {
         *resource = malloc(file_size);
-        memcpy(*resource, factory->m_StreamBuffer, file_size);
+        memcpy(*resource, factory->m_Buffer.Begin(), file_size);
         *resource_size = file_size;
     }
     return result;
@@ -753,7 +750,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     if (result != RESULT_OK)
         return result;
 
-    Result create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_StreamBuffer, file_size, rd, name);
+    Result create_result = resource_type->m_RecreateFunction(factory, resource_type->m_Context, factory->m_Buffer.Begin(), file_size, rd, name);
     if (create_result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)

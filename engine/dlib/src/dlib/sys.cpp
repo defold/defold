@@ -582,6 +582,25 @@ namespace dmSys
     }
 #endif
 
+#ifdef __ANDROID__
+    char* FixAndroidResourcePath(char *path)
+    {
+        // Fix path for android.
+        // We always try to have a path-root and '.'
+        // for current directory. Assets on Android
+        // are always loaded with relative path from assets
+        // E.g. The relative path to /assets/file is file
+
+        if (strcmp(path, "./") == 0) {
+            path += 2;
+        }
+        while (*path == '/') {
+            ++path;
+        }
+        return path;
+    }
+#endif
+
     bool ResourceExists(const char* path)
     {
 #ifdef __ANDROID__
@@ -599,21 +618,40 @@ namespace dmSys
 #endif
     }
 
+    Result ResourceSize(const char* path, uint32_t* resource_size)
+    {
+#ifdef __ANDROID__
+        path = FixAndroidResourcePath(path);
+        AAssetManager* am = g_AndroidApp->activity->assetManager;
+        AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+        if (asset) {
+            *resource_size = (uint32_t) AAsset_getLength(asset);
+
+            AAsset_close(asset);
+            return RESULT_OK;
+        } else {
+            return RESULT_NOENT;
+        }
+#else
+        struct stat file_stat;
+        if (stat(path, &file_stat) == 0) {
+
+            if (!S_ISREG(file_stat.st_mode)) {
+                return RESULT_NOENT;
+            }
+            *resource_size = (uint32_t) file_stat.st_size;
+            return RESULT_OK;
+        } else {
+            return RESULT_NOENT;
+        }
+#endif
+    }
+
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size)
     {
         *resource_size = 0;
 #ifdef __ANDROID__
-        // Fix path for android.
-        // We always try to have a path-root and '.'
-        // for current directory. Assets on Android
-        // are always loaded with relative path from assets
-        // E.g. The relative path to /assets/file is file
-        if (strcmp(path, "./") == 0) {
-            path += 2;
-        }
-        while (*path == '/') {
-            ++path;
-        }
+        path = FixAndroidResourcePath(path);
 
         AAssetManager* am = g_AndroidApp->activity->assetManager;
         // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
