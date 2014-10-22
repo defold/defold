@@ -1979,6 +1979,11 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * @name go.PLAYBACK_ONCE_BACKWARD
      * @variable
      */
+    /*# once ping pong
+     *
+     * @name go.PLAYBACK_ONCE_PINGPONG
+     * @variable
+     */
     /*# loop forward
      *
      * @name go.PLAYBACK_LOOP_FORWARD
