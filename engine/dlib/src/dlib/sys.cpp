@@ -583,7 +583,7 @@ namespace dmSys
 #endif
 
 #ifdef __ANDROID__
-    char* FixAndroidResourcePath(char *path)
+    const char* FixAndroidResourcePath(const char* path)
     {
         // Fix path for android.
         // We always try to have a path-root and '.'
