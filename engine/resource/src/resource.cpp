@@ -43,6 +43,8 @@
 
 namespace dmResource
 {
+const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
+
 #define RESOURCE_SOCKET_NAME "@resource"
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
@@ -534,19 +536,12 @@ static Result DoLoadResource(HFactory factory, const char* path, const char* ori
 
 static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
 {
-    const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
-
     if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
     factory->m_Buffer.SetSize(0);
 
     Result r = DoLoadResource(factory, path, original_name, resource_size);
-
-    if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
-        factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
-    }
-    factory->m_Buffer.SetSize(0);
 
     return r;
 }
@@ -637,6 +632,12 @@ Result DoGet(HFactory factory, const char* name, void** resource)
         tmp_resource.m_ResourceType = (void*) resource_type;
 
         Result create_error = resource_type->m_CreateFunction(factory, resource_type->m_Context, factory->m_Buffer.Begin(), file_size, &tmp_resource, name);
+
+        // Restore to default buffer size
+        if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
+            factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
+        }
+        factory->m_Buffer.SetSize(0);
 
         if (create_error == RESULT_OK)
         {
