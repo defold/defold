@@ -446,16 +446,8 @@ static Result LoadFromArchive(HFactory factory, dmResourceArchive::HArchive arch
 }
 
 
-static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
+static Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
 {
-    const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
-
-    if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
-        factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
-    }
-
-    factory->m_Buffer.SetSize(0);
-
     if (factory->m_BuiltinsArchive)
     {
         if (LoadFromArchive(factory, factory->m_BuiltinsArchive, path, original_name, resource_size) == RESULT_OK)
@@ -538,6 +530,25 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
                 return RESULT_IO_ERROR;
         }
     }
+}
+
+static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size)
+{
+    const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
+
+    if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
+        factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
+    }
+    factory->m_Buffer.SetSize(0);
+
+    Result r = DoLoadResource(factory, path, original_name, resource_size);
+
+    if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
+        factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
+    }
+    factory->m_Buffer.SetSize(0);
+
+    return r;
 }
 
 Result DoGet(HFactory factory, const char* name, void** resource)
