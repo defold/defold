@@ -412,7 +412,7 @@ class Configuration(object):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
-            libs="dlib ddf particle glfw  graphics hid input physics resource lua extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
+            libs="dlib ddf particle glfw  graphics lua hid input physics resource extension script render gameobject gui sound gamesys tools record iap push adtruth facebook engine".split()
 
         # Base platforms is the set of platforms to build the base libs for
         # The base libs are the libs needed to build bob, i.e. contains compiler code
