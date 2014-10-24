@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
 
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.RGB;
@@ -64,6 +65,9 @@ public class GuiNode extends Node {
     @Property(editorType = EditorType.DROP_DOWN)
     private String layer = "";
 
+    @Property
+    private Vector4d slice9 = new Vector4d(0,0,0,0);
+
     private transient int renderKey = 0;
 
     public GuiNode() {
@@ -120,6 +124,16 @@ public class GuiNode extends Node {
 
     public void setPivot(Pivot pivot) {
         this.pivot = pivot;
+    }
+
+    public Vector4d getSlice9()
+    {
+        return slice9;
+    }
+
+    public void setSlice9(Vector4d slice9)
+    {
+        this.slice9 = slice9;
     }
 
     public XAnchor getXanchor() {
