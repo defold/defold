@@ -225,6 +225,7 @@ namespace dmGameSystem
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_COLOR, node_desc->m_Color);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_OUTLINE, node_desc->m_Outline);
                 dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, node_desc->m_Shadow);
+                dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
                 dmGui::SetNodeBlendMode(scene, n, blend_mode);
                 dmGui::SetNodePivot(scene, n, (dmGui::Pivot) node_desc->m_Pivot);
                 dmGui::SetNodeXAnchor(scene, n, (dmGui::XAnchor) node_desc->m_Xanchor);
@@ -467,6 +468,8 @@ namespace dmGameSystem
         // See case 2264
         ro.Init();
 
+        const int vertex_count = 6*9;
+
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
         ro.m_SetBlendFactors = 1;
@@ -474,7 +477,7 @@ namespace dmGameSystem
         ro.m_VertexBuffer = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_VertexCount = 6 * node_count;
+        ro.m_VertexCount = vertex_count * node_count;
         ro.m_Material = gui_world->m_Material;
         ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
@@ -485,13 +488,19 @@ namespace dmGameSystem
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
-        if (gui_world->m_ClientVertexBuffer.Remaining() < (6 * node_count)) {
-            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, 6 * node_count));
+
+        if (gui_world->m_ClientVertexBuffer.Remaining() < (vertex_count * node_count)) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Min(128U, vertex_count * node_count));
         }
 
+        // 9-slice values are specified with reference to the original graphics and not by
+        // the possibly stretched texture.
+        float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
+        float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const Vector4& color = node_colors[i];
+            const dmGui::HNode node = nodes[i];
 
             ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
             // Pre-multiplied alpha
@@ -501,28 +510,77 @@ namespace dmGameSystem
             pm_color.setZ(color.getZ() * color.getW());
             uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
 
-            Vectormath::Aos::Vector4 p0 = (node_transforms[i] * Vectormath::Aos::Point3(0, 0, 0));
-            Vectormath::Aos::Vector4 p1 = (node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
-            Vectormath::Aos::Vector4 p2 = (node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
-            Vectormath::Aos::Vector4 p3 = (node_transforms[i] * Vectormath::Aos::Point3(0, 1, 0));
-            Vectormath::Aos::Vector4 p4 = (node_transforms[i] * Vectormath::Aos::Point3(1, 1, 0));
-            Vectormath::Aos::Vector4 p5 = (node_transforms[i] * Vectormath::Aos::Point3(1, 0, 0));
+            Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
+            Point3 size = dmGui::GetNodeSize(scene, node);
 
-            BoxVertex v0(p0, 0, 1, bcolor);
-            BoxVertex v1(p1, 0, 0, bcolor);
-            BoxVertex v2(p2, 1, 1, bcolor);
-            BoxVertex v3(p3, 0, 0, bcolor);
-            BoxVertex v4(p4, 1, 0, bcolor);
-            BoxVertex v5(p5, 1, 1, bcolor);
+            const float su = 1.0f / org_width;
+            const float sv = 1.0f / org_height;
+            const float sx = 1.0f / size.getX();
+            const float sy = 1.0f / size.getY();
 
-            gui_world->m_ClientVertexBuffer.Push(v0);
-            gui_world->m_ClientVertexBuffer.Push(v1);
-            gui_world->m_ClientVertexBuffer.Push(v2);
-            gui_world->m_ClientVertexBuffer.Push(v3);
-            gui_world->m_ClientVertexBuffer.Push(v4);
-            gui_world->m_ClientVertexBuffer.Push(v5);
+            float us[4], vs[4], xs[4], ys[4];
 
+            //   0  1      2  3
+            // 0 *-*-----*-*
+            //   | |  y  | |
+            // 1 *--*----*-*
+            //   | |     | |
+            //   |x|     |z|
+            //   | |     | |
+            // 2 *-*-----*-*
+            //   | |  w  | |
+            // 3 *-*-----*-*
+
+            // v are '1-v'
+            xs[0] = ys[0] = us[0] = vs[3] = 0;
+            xs[3] = ys[3] = us[3] = vs[0] = 1;
+
+            xs[1] = sx * slice9.getX();
+            xs[2] = 1 - sx * slice9.getZ();
+
+            ys[1] = sy * slice9.getW();
+            ys[2] = 1 - sy * slice9.getY();
+
+            us[1] = su * slice9.getX();
+            us[2] = 1 - su * slice9.getZ();
+
+            vs[1] = 1 - sv * slice9.getW();
+            vs[2] = sv * slice9.getY();
+
+            Vectormath::Aos::Vector4 pts[4][4];
+            for (int y=0;y<4;y++)
+            {
+                for (int x=0;x<4;x++)
+                {
+                    pts[y][x] = (node_transforms[i] * Vectormath::Aos::Point3(xs[x], ys[y], 0));
+                }
+            }
+
+            for (int y=0;y<3;y++)
+            {
+                for (int x=0;x<3;x++)
+                {
+                    const int x0 = x;
+                    const int x1 = x+1;
+                    const int y0 = y;
+                    const int y1 = y+1;
+
+                    // v<x><y>
+                    BoxVertex v00(pts[y0][x0], us[x0], vs[y0], bcolor);
+                    BoxVertex v10(pts[y0][x1], us[x1], vs[y0], bcolor);
+                    BoxVertex v01(pts[y1][x0], us[x0], vs[y1], bcolor);
+                    BoxVertex v11(pts[y1][x1], us[x1], vs[y1], bcolor);
+
+                    gui_world->m_ClientVertexBuffer.Push(v00);
+                    gui_world->m_ClientVertexBuffer.Push(v10);
+                    gui_world->m_ClientVertexBuffer.Push(v11);
+                    gui_world->m_ClientVertexBuffer.Push(v00);
+                    gui_world->m_ClientVertexBuffer.Push(v11);
+                    gui_world->m_ClientVertexBuffer.Push(v01);
+                }
+            }
         }
+
         dmRender::AddToRender(gui_context->m_RenderContext, &ro);
     }
 

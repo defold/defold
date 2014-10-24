@@ -60,6 +60,7 @@ namespace dmGui
             PROP(size, PROPERTY_SIZE )
             PROP(outline, PROPERTY_OUTLINE )
             PROP(shadow, PROPERTY_SHADOW )
+            PROP(slice9, PROPERTY_SLICE9 )
     };
 #undef PROP
 
@@ -71,6 +72,7 @@ namespace dmGui
             { dmHashString64("size"), PROPERTY_SIZE, 0xff },
             { dmHashString64("outline"), PROPERTY_OUTLINE, 0xff },
             { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
+            { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
     };
 
     static PropDesc* GetPropertyDesc(dmhash_t property_hash)
@@ -1114,6 +1116,7 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_OUTLINE] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SHADOW] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
+            node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
             node->m_Node.m_LocalTransform = Matrix4::identity();
             node->m_Node.m_BlendMode = 0;
             node->m_Node.m_NodeType = (uint32_t) node_type;
@@ -1472,6 +1475,18 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return Point3(n->m_Node.m_Properties[PROPERTY_POSITION].getXYZ());
+    }
+
+    Point3 GetNodeSize(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return Point3(n->m_Node.m_Properties[PROPERTY_SIZE].getXYZ());
+    }
+
+    Vector4 GetNodeSlice9(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_SLICE9];
     }
 
     void SetNodePosition(HScene scene, HNode node, const Point3& position)
