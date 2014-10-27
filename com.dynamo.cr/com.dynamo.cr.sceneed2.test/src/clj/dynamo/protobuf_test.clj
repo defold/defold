@@ -1,5 +1,6 @@
 (ns dynamo.protobuf-test
-  (:require [schema.macros :as sm]
+  (:require [clojure.test :refer :all]
+            [schema.macros :as sm]
             [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
             [dynamo.node :refer [defnode]]
@@ -7,7 +8,10 @@
             [dynamo.outline :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
-            [clojure.test :refer :all])
+            [dynamo.system :as ds]
+            [dynamo.system.test-support :refer [with-clean-world]]
+            [internal.query :as iq]
+            [internal.transaction :as it])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]))
 
@@ -18,7 +22,9 @@
 (defnode AtlasNode
   (inherits OutlineNode)
 
-  (input images [ImageSource])
+  (input images     [ImageSource])
+  (input animations [Animation])
+
   (property extrude-borders (non-negative-integer))
   (property margin          (non-negative-integer)))
 
@@ -34,34 +40,39 @@
   (output tree [OutlineItem] produce-tree))
 
 (protocol-buffer-converters
-  AtlasProto$Atlas
-  {:constructor #'dynamo.protobuf-test/make-atlas-node
-   :basic-properties [:extrude-borders :margin]
-   :node-properties  {:images-list [:tree -> :children,
-                                    :image -> :images]
-                      :animations-list [:tree -> :children,
-                                        :animation -> :animations]}}
+ AtlasProto$Atlas
+ {:constructor      #'make-atlas-node
+  :basic-properties [:extrude-borders :margin]
+  :node-properties  {:images-list [:tree -> :children,
+                                   :image -> :images]
+                     :animations-list [:tree -> :children,
+                                       :animation -> :animations]}}
 
-  AtlasProto$AtlasAnimation
-  {:constructor      #'dynamo.protobuf-test/make-atlas-animation-node
-   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
-   :node-properties  {:images-list [:tree -> :children,
-                                    :image -> :images]}}
+ AtlasProto$AtlasAnimation
+ {:constructor      #'make-atlas-animation-node
+  :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
+  :node-properties  {:images-list [:tree -> :children,
+                                   :image -> :images]}}
 
-  AtlasProto$AtlasImage
-  {:constructor #'dynamo.protobuf-test/make-atlas-image-node
-   :basic-properties [:image]})
+ AtlasProto$AtlasImage
+ {:constructor      #'make-atlas-image-node
+  :basic-properties [:image]})
 
 (defn atlas-with-one-animation [anim-id]
   (.build (doto (AtlasProto$Atlas/newBuilder)
+            (.setMargin 7)
             (.addAnimations (doto (AtlasProto$AtlasAnimation/newBuilder)
                               (.setId anim-id))))))
 
-(defn- creations-of [tx nm]
-  (count (filter #(= [:create-node nm] %) (map (juxt :type #(get-in % [:node :id])) (flatten tx)))))
-
 (deftest node-connections-have-right-cardinality
   (testing "Children of the atlas node should be created exactly once."
-           (let [message  (atlas-with-one-animation "the-animation")
-                 atlas-tx (f/message->node message (constantly []))]
-             (is (= 1 (creations-of atlas-tx "the-animation"))))))
+    (with-clean-world
+      (let [message    (atlas-with-one-animation "the-animation")
+            atlas-node (ds/transactional (f/message->node message))
+            tx-result  (:last-tx @(:world-ref (ds/current-scope)))
+            real-id    (it/resolve-tempid tx-result (:_id atlas-node))
+            real-node  (iq/node-by-id (:world-ref (ds/current-scope)) real-id)
+            anim-node  (iq/node-feeding-into real-node :animations)]
+        (is (not (nil? real-node)))
+        (is (= 7 (:margin real-node)))
+        (is (= "the-animation" (:id anim-node)))))))

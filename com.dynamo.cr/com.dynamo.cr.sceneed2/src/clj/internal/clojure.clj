@@ -1,15 +1,21 @@
 (ns internal.clojure
   (:require [clojure.java.io :as io]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
+            [plumbing.core :refer [defnk]]
             [dynamo.resource :as resource]
             [dynamo.file :as file]
             [dynamo.node :refer [defnode]]
-            [dynamo.env :refer [*current-project*]]
-            [plumbing.core :refer [defnk]]
+            [dynamo.system :as ds]
+            [internal.query :as iq]
             [eclipse.markers :as markers]
             [service.log :as log])
-  (:import [org.eclipse.core.resources IFile]
+  (:import [org.eclipse.core.resources IFile IResource]
            [clojure.lang LineNumberingPushbackReader]))
+
+(defn clojure-source?
+  [^IResource resource]
+  (and (instance? IFile resource)
+       (.endsWith (.getName resource) ".clj")))
 
 (defrecord UnloadableNamespace [ns-decl]
   resource/IDisposable
@@ -17,20 +23,25 @@
     (when (list? ns-decl)
       (remove-ns (second ns-decl)))))
 
-(defnk load-project-file
-  [project this g resource]
+(defnk compile-clojure
+  [this resource]
   (let [ns-decl     (read-file-ns-decl resource)
-        source-file (file/eclipse-file resource)]
+        source-file (file/eclipse-file resource)
+        project     (iq/node-consuming this :self)]
     (markers/remove-markers source-file)
     (try
-      (do
-        (binding [*current-project* project]
-          (Compiler/load (io/reader resource) (file/local-path resource) (.getName source-file))
-          (UnloadableNamespace. ns-decl)))
+      (ds/transactional (:world-ref this)
+        (ds/in project
+         (Compiler/load (io/reader resource) (file/local-path resource) (.getName source-file))
+         (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (markers/compile-error source-file compile-error)
         {:compile-error (.getMessage (.getCause compile-error))}))))
 
 (defnode ClojureSourceNode
   (property resource IFile)
-  (output   namespace UnloadableNamespace :cached load-project-file))
+  (output   namespace UnloadableNamespace :cached :on-update compile-clojure))
+
+(defn on-load-code
+  [resource _]
+  (ds/add (make-clojure-source-node :resource resource)))

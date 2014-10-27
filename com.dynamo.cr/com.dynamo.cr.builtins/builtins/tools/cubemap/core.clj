@@ -5,24 +5,32 @@
             [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.buffers :refer :all]
+            [dynamo.camera :as c]
             [dynamo.env :as e]
+            [dynamo.file :refer :all]
+            [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
             [dynamo.geom :as g :refer [to-short-uv unit-sphere-pos-nrm]]
             [dynamo.gl :as gl :refer [do-gl]]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
-            [dynamo.node :refer :all]
-            [dynamo.scene-editor :refer [dynamic-scene-editor]]
-            [dynamo.file :refer :all]
-            [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
-            [dynamo.project :as p :refer [register-loader register-editor transact new-resource connect query node-by-id resolve-tempid]]
-            [dynamo.types :refer :all]
-            [dynamo.texture :refer :all]
-            [dynamo.image :refer :all]
+            [dynamo.image :as img :refer :all]
+            [dynamo.node :as n]
             [dynamo.outline :refer :all]
+            [dynamo.project :as p]
+            [dynamo.system :as ds :refer [transactional in current-scope add in-transaction? connect]]
+            [dynamo.texture :refer :all]
+            [dynamo.types :refer :all]
             [dynamo.ui :refer [defcommand defhandler]]
+            [internal.ui.background :as background]
+            [internal.ui.grid :as grid]
+            [internal.ui.scene-editor :as ise]
+            [internal.ui.menus :as menus]
+            [internal.ui.handlers :as handlers]
             [internal.render.pass :as pass]
+            [internal.query :as iq]
+            [internal.transaction :as it]
             [service.log :as log :refer [logging-exceptions]]
             [camel-snake-kebab :refer :all]
             [clojure.osgi.core :refer [*bundle*]])
@@ -35,20 +43,20 @@
             [javax.vecmath Matrix4d Matrix4f Vector4f]
             [org.eclipse.core.commands ExecutionEvent]))
 
-(defnode CubemapProperties
-  (input image-right Image)
-  (input image-left Image)
-  (input image-top Image)
+(n/defnode CubemapProperties
+  (input image-right  Image)
+  (input image-left   Image)
+  (input image-top    Image)
   (input image-bottom Image)
-  (input image-front Image)
-  (input image-back Image)
+  (input image-front  Image)
+  (input image-back   Image)
 
-  (property right  (string))
-  (property left   (string))
-  (property top    (string))
-  (property bottom (string))
-  (property front  (string))
-  (property back   (string)))
+  (property right  String)
+  (property left   String)
+  (property top    String)
+  (property bottom String)
+  (property front  String)
+  (property back   String))
 
 (vtx/defvertex normal-vtx
   (vec3 position)
@@ -73,7 +81,7 @@
   (defn void main []
     (setq vec3 camToV (normalize (- vWorld (.xyz cameraPosition))))
     (setq vec3 refl (reflect camToV vNormal))
-	  (setq gl_FragColor (textureCube envMap refl))))
+      (setq gl_FragColor (textureCube envMap refl))))
 
 (defnk produce-shader :- s/Int
   [this gl]
@@ -97,9 +105,9 @@
 (defn render-cubemap
   [ctx ^GL2 gl this project world]
   (do-gl [this            (assoc this :gl gl)
-          texture         (p/get-node-value this :gpu-texture)
-          shader          (p/get-node-value this :shader)
-          vbuf            (p/get-node-value this :vertex-buffer)
+          texture         (n/get-node-value this :gpu-texture)
+          shader          (n/get-node-value this :shader)
+          vbuf            (n/get-node-value this :vertex-buffer)
           vertex-binding  (vtx/use-with gl vbuf shader)]
          (shader/set-uniform shader "world" world)
          (shader/set-uniform shader "cameraPosition" (doto (Vector4f.) (.set 0.0 0.0 4 1.0)))
@@ -109,26 +117,27 @@
          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
          (gl/gl-disable gl GL/GL_CULL_FACE)))
 
-(defn render-overlay
-  [ctx ^GL2 gl ^TextRenderer text-renderer this project image]
-   (let [img ^BufferedImage (:contents image)]
-     (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth img) (.getHeight img)) 12.0 -22.0 1.0 1.0)))
-
 (defnk produce-renderable :- RenderData
-  [this project image-right]
+  [this project]
   (let [world (Matrix4d. g/Identity4d)]
-    {pass/overlay
-    [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this project image-right))}]
-    pass/transparent
-    [{:world-transform world  :render-fn       (fn [ctx gl glu text-renderer] (render-cubemap ctx gl this project world))}]}))
+    {pass/transparent
+     [{:world-transform world
+       :render-fn       (fn [ctx gl glu text-renderer] (render-cubemap ctx gl this project world))}]}))
 
-(defnode CubemapRender
-  (output shader s/Any                :cached produce-shader)
-  (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
-  (output gpu-texture s/Any           :cached produce-gpu-texture)
-  (output renderable RenderData       :cached produce-renderable))
+(defnk unit-bounding-box
+  []
+  (-> (g/null-aabb)
+    (g/aabb-incorporate  1  1  1)
+    (g/aabb-incorporate -1 -1 -1)))
 
-(defnode CubemapNode
+(n/defnode CubemapRender
+  (output shader        s/Any      :cached produce-shader)
+  (output vertex-buffer s/Any      :cached produce-renderable-vertex-buffer)
+  (output gpu-texture   s/Any      :cached produce-gpu-texture)
+  (output renderable    RenderData :cached produce-renderable)
+  (output aabb          t/AABB             unit-bounding-box))
+
+(n/defnode CubemapNode
   (inherits CubemapProperties)
   (inherits CubemapRender))
 
@@ -137,32 +146,44 @@
  {:constructor #'cubemap.core/make-cubemap-node
   :basic-properties [:right :left :top :bottom :front :back]})
 
-(defn on-load
-  [project path ^Graphics$Cubemap cubemap-message]
-  (let [cubemap-tx (message->node cubemap-message (constantly []) :filename path :_id -1)
-        tx-result (transact project cubemap-tx)
-        ^CubemapProperties cubemap (node-by-id project (resolve-tempid tx-result -1))
-        right (make-image-source :image (:right cubemap))
-        left (make-image-source :image (:left cubemap))
-        top (make-image-source :image (:top cubemap))
-        bottom (make-image-source :image (:bottom cubemap))
-        front (make-image-source :image (:front cubemap))
-        back (make-image-source :image (:back cubemap))]
-    
-    (transact project
-      [(new-resource right)
-       (new-resource left)
-       (new-resource top)
-       (new-resource bottom)
-       (new-resource front)
-       (new-resource back)
-       (connect right :image cubemap :image-right)
-       (connect left :image cubemap :image-left)
-       (connect top :image cubemap :image-top)
-       (connect bottom :image cubemap :image-bottom)
-       (connect front :image cubemap :image-front)
-       (connect back :image cubemap :image-back)])))
+(defn- make-face
+  [cubemap side input]
+  (ds/connect (ds/add (img/make-image-source :image (get cubemap side))) :image cubemap input))
 
-(logging-exceptions "Cubemap tooling"
-  (register-editor (e/current-project) "cubemap" #'dynamic-scene-editor)
-  (register-loader (e/current-project) "cubemap" (protocol-buffer-loader Graphics$Cubemap on-load)))
+(def ^:private cubemap-inputs
+  {:right  :image-right
+   :left   :image-left
+   :top    :image-top
+   :bottom :image-bottom
+   :front  :image-front
+   :back   :image-back})
+
+(defn on-load
+  [path ^Graphics$Cubemap cubemap-message]
+  (let [cubemap (message->node cubemap-message :filename path :_id -1)]
+    (doseq [side [:right :left :top :bottom :front :back]]
+      (make-face cubemap side (get cubemap-inputs side)))))
+
+(defn on-edit
+  [world-ref project-node editor-site file]
+  (let [cubemap (p/node-by-filename project-node file)
+        editor  (ise/make-scene-editor :name "editor")]
+    (ds/transactional world-ref
+      (ds/in (ds/add editor)
+        (let [background (ds/add (background/make-background))
+              grid       (ds/add (grid/make-grid))
+              camera     (ds/add (c/make-camera-node :camera (c/make-camera :orthographic)))
+              controller (ds/add (c/make-camera-controller))]
+          (ds/connect camera     :camera     grid       :camera)
+          (ds/connect camera     :camera     editor     :view-camera)
+          (ds/connect controller :self       editor     :controller)
+          (ds/connect camera     :camera     controller :camera)
+          (ds/connect background :renderable editor     :renderables)
+          (ds/connect cubemap    :renderable editor     :renderables)
+          (ds/connect grid       :renderable editor     :renderables)
+          (ds/connect cubemap    :aabb       editor     :aabb))))
+    (let [tx-result (:last-tx @world-ref)]
+      (iq/node-by-id world-ref (it/resolve-tempid tx-result (:_id editor))))))
+
+(p/register-editor "cubemap" #'on-edit)
+(p/register-loader "cubemap" (protocol-buffer-loader Graphics$Cubemap on-load))

@@ -1,170 +1,140 @@
 (ns internal.system
-  (:require [clojure.core.async :as a :refer [<! chan go-loop put! close! onto-chan chan sliding-buffer]]
+  (:require [clojure.core.async :as a]
             [com.stuartsierra.component :as component]
-            [dynamo.project :as p]
-            [dynamo.file :as file]
-            [dynamo.env :as e]
-            [dynamo.resource :as r]
+            [dynamo.node :as n]
+            [dynamo.types :as t]
+            [schema.core :as s]
+            [internal.cache :refer [make-cache]]
+            [internal.disposal :refer [disposal-message disposal-subsystem]]
             [internal.graph.dgraph :as dg]
-            [service.log :as log :refer [logging-exceptions]]
-            [eclipse.resources :refer :all])
-  (:import [org.eclipse.core.resources IProject IResource IFile]))
+            [internal.graph.lgraph :as lg]
+            [internal.node :as in]
+            [internal.refresh :refer [refresh-message refresh-subsystem]]
+            [internal.transaction :refer [*scope*]]
+            [service.log :as log :refer [logging-exceptions]]))
 
 (set! *warn-on-reflection* true)
 
-(defprotocol ProjectLifecycle
-  (open-project [this project branch]  "Attach to the project and set up any internal state required.")
-  (close-project [this]                "Dispose any resources held by the project and release it."))
+(defn graph [world-ref]
+  (-> world-ref deref :graph))
 
-(defn- clojure-source?
-  [^IResource resource]
-  (and (instance? IFile resource)
-       (.endsWith (.getName resource) ".clj")))
+(defn- attach-root
+  [g r]
+  (lg/add-labeled-node g (t/inputs r) (t/outputs r) r))
 
-(defn project-relative-path
-  [^IProject proj ^String rel]
-  (.getFullPath (.getFile proj rel)))
+(defn address-to
+  [node body]
+  (merge body {::node-id (:_id node)}))
 
-(defrecord ProjectSubsystem [project-state tx-report-queue]
+(defn new-world-state
+  [state root]
+   (let [msgbus (a/chan 100)
+         tap    (a/pub msgbus ::node-id (fn [_] (a/dropping-buffer 100)))]
+     {:graph        (attach-root (dg/empty-graph) root)
+      :cache        (make-cache)
+      :cache-keys   {}
+      :world-time   0
+      :subscribe-to tap
+      :publish-to   msgbus}))
+
+(defrecord World [started state]
   component/Lifecycle
-  (start [this] this)
-
-  (stop [this]
-    (if project-state
-      (close-project this)
-      this))
-
-  ProjectLifecycle
-  (open-project [this eclipse-project branch]
-    (when project-state
-      (close-project this))
-    (let [project-state (ref (p/make-project eclipse-project branch tx-report-queue))]
-      (e/with-project project-state
-        (doseq [source (filter clojure-source? (resource-seq eclipse-project))]
-          (p/load-resource project-state (file/project-path project-state source)))
-        (assoc this :project-state project-state))))
-
-  (close-project [this]
-    (when project-state
-      (e/with-project project-state
-        (p/dispose-project project-state))
-      (dissoc this :project-state))))
-
-(defn- project-subsystem
-  [tx-report-queue]
-  (ProjectSubsystem. nil tx-report-queue))
-
-(defrecord BackgroundProcessor [starter queue control-chan]
-  component/Lifecycle
-   (start [this]
-    (if control-chan
+  (start [this]
+    (if (:started this)
       this
-      (assoc this :control-chan (starter queue))))
-
+      (dosync
+        (let [root (n/make-root :world-ref state :_id 1)]
+          (ref-set state (new-world-state state root))
+          (alter-var-root #'*scope* (constantly root))
+          (assoc this :started true)))))
   (stop [this]
-    (if control-chan
-      (do
-        (close! control-chan)
-        (dissoc this :control-chan)))))
+    (if (:started this)
+      (dosync
+        (ref-set state nil)
+        (assoc this :started false))
+      this)))
+
+(defn- start-event-loop!
+  [world-ref id in]
+  (a/go-loop []
+    (when-let [msg (a/<! in)]
+      (try
+        (t/process-one-event (dg/node (graph world-ref) id) msg)
+        (catch Exception ex
+          (service.log/error :message "Error in node event loop" :exception ex)))
+      (recur))))
+
+(defn- transaction-applied?
+  [{old-world-time :world-time} {new-world-time :world-time :as new-world}]
+  (and (:last-tx new-world) (< old-world-time new-world-time)))
+
+(defn- start-event-loops
+  [_ world-ref old-world {last-tx :last-tx subscribe-to :subscribe-to :as new-world}]
+  (when (transaction-applied? old-world new-world)
+    (doseq [n (:new-event-loops last-tx)]
+      (start-event-loop! world-ref n (a/sub subscribe-to n (a/chan 100))))))
+
+(defn- send-tx-reports
+  [report-ch _ _ old-world {last-tx :last-tx :as new-world}]
+  (when (transaction-applied? old-world new-world)
+    (a/put! report-ch last-tx)))
+
+(defn- world
+  [report-ch]
+  (let [world-ref (ref nil)]
+    (add-watch world-ref :tx-report   (partial send-tx-reports report-ch))
+    (add-watch world-ref :event-loops start-event-loops)
+    (->World false world-ref)))
 
 (defn- disposal-messages
   [tx-report]
-  (for [v (:values-to-dispose tx-report)]
-    {:project (:project-state tx-report)
-     :value v}))
-
-(def ^:private disposal-loop
-  (bound-fn
-    [in]
-    (go-loop []
-             (when-let [v (<! in)]
-               (logging-exceptions "disposal-loop"
-                 (e/with-project (:project v)
-                   (let [d (:value v)]
-                     (when (r/disposable? d)
-                       (r/dispose d)))))
-               (recur)))))
-
-(defn- disposal-subsystem
-  [disposal-queue]
-  (BackgroundProcessor. disposal-loop disposal-queue nil))
+  (filter identity
+    (for [v (:values-to-dispose tx-report)]
+      (logging-exceptions "extracting disposal message"
+        (disposal-message v)))))
 
 (defn- refresh-messages
-  [tx-report]
-  (for [[node output] (:expired-outputs tx-report)]
-    {:project (:project-state tx-report)
-     :node    node
-     :output  output}))
+  [{:keys [expired-outputs graph]}]
+  (filter identity
+    (for [[node output] expired-outputs]
+      (logging-exceptions "extracting refresh message"
+        (refresh-message node graph output)))))
 
-(def ^:private refresh-loop
-  (bound-fn
-    [in]
-    (go-loop []
-             (when-let [{:keys [project node output]} (<! in)]
-               (logging-exceptions "refresh-loop"
-                 (e/with-project project
-                   (p/get-node-value node output)))
-               (recur)))))
-
-(defn- refresh-subsystem
-  [refresh-queue]
-  (BackgroundProcessor. refresh-loop refresh-queue nil))
-
-(defrecord Editor [started]
-  component/Lifecycle
-  (start [this]
-    (if started
-      this
-      (assoc this :started true)))
-  (stop [this]
-    (if started
-      (dissoc this :started)
-      this)))
-
-(defn- editor
-  []
-  (Editor. false))
+(defn- multiplex-reports
+  [tx-report dispose refresh]
+  (a/onto-chan dispose (disposal-messages tx-report) false)
+  (a/onto-chan refresh (refresh-messages tx-report) false))
 
 (defn shred-tx-reports
   [in]
-  (let [dispose (chan (sliding-buffer 1000))
-        refresh (chan (sliding-buffer 1000))]
-    (go-loop []
-             (let [tx-report (<! in)]
-               (if tx-report
-                 (do
-                   (onto-chan dispose (disposal-messages tx-report) false)
-                   (onto-chan refresh (refresh-messages tx-report) false)
-                   (recur))
-                 (do
-                   (close! dispose)
-                   (close! refresh)))))
+  (let [dispose (a/chan (a/sliding-buffer 1000))
+        refresh (a/chan (a/sliding-buffer 1000))]
+    (a/go-loop []
+      (let [tx-report (a/<! in)]
+        (if tx-report
+          (do
+            (multiplex-reports tx-report dispose refresh)
+            (recur))
+          (do
+            (a/close! dispose)
+            (a/close! refresh)))))
     {:dispose dispose :refresh refresh}))
 
 (defn system
  []
- (let [tx-report-chan (chan 1)
+ (let [tx-report-chan (a/chan 1)
        {:keys [dispose refresh]} (shred-tx-reports tx-report-chan)]
    (component/map->SystemMap
-     {:project  (project-subsystem tx-report-chan)
-      :disposal (disposal-subsystem dispose)
-      :refresh  (refresh-subsystem  refresh)
-      :editor   (component/using (editor) [:project :disposal :refresh])})))
+     {:disposal  (disposal-subsystem dispose)
+      :refresh   (refresh-subsystem  refresh)
+      :world     (component/using (world tx-report-chan) [:disposal :refresh])})))
 
 (def the-system (atom (system)))
 
-(defn project-state [] (get-in @the-system [:project :project-state]))
-
 (defn start
-  []
-  (when-not (:started @the-system)
-    (swap! the-system component/start)))
+  ([]    (start the-system))
+  ([sys] (swap! sys component/start-system)))
 
 (defn stop
-  []
-  (when (:started @the-system)
-    (swap! the-system component/stop)))
-
-(defn attach-project
-  [project branch]
-  (swap! the-system update-in [:project] open-project project branch))
+  ([]    (stop the-system))
+  ([sys] (swap! sys component/stop-system)))

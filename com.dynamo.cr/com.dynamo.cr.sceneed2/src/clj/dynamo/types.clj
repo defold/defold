@@ -12,16 +12,23 @@
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------
+(defprotocol InjectionContext
+  (inject [this target] "Inject dependencies into target."))
+
+(defprotocol NamingContext
+  (lookup [this nm] "Locate a value by name"))
 
 (defprotocol NodeType
   (descriptor [this] "Return a data structure describing the node type"))
 
 (defprotocol Node
   (get-value  [this graph label] "given a graph, node, and transform label, `get-value` returns the result of the transform.")
-  (properties [this]             "Produce a description of properties supported by this node."))
+  (properties [this]             "Produce a description of properties supported by this node.")
+  (inputs     [this]             "Return a set of labels for the allowed inputs of the node.")
+  (outputs    [this]             "Return a set of labels for the outputs of this node.")
+  (cached-outputs [this]         "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'."))
 
 (defprotocol MessageTarget
-  (start-event-loop! [this event-ch])
   (process-one-event [this event]))
 
 (defprotocol R3Min
@@ -49,13 +56,13 @@
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
-
 (defn as-schema   [x] (with-meta x {:schema true}))
 (defn has-schema? [v] (and (fn? (if (var? v) (var-get v) v)) (:schema (meta v))))
 
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)
 (def NodeRef s/Int)
+(def Color   [s/Num])
 
 (def MouseType (s/enum :one-button :three-button))
 
@@ -162,7 +169,6 @@
 (defn resource             [& {:as opts}] (merge {:schema s/Str :default ""} opts))
 (defn texture-image        [& {:as opts}] (merge {:schema bytes} opts))
 (defn non-negative-integer [& {:as opts}] (merge (number :default 0) opts))
-(defn color                [& {:as opts}] (merge {:schema [s/Num s/Num s/Num s/Num]} opts))
 (defn isotropic-scale      [& {:as opts}] (merge (number :default 1.0) opts))
 
 (doseq [[v doc]

@@ -1,23 +1,37 @@
 (ns internal.node
   (:require [camel-snake-kebab :refer [->kebab-case]]
-            [clojure.core.match :refer [match]]
             [clojure.core.async :as a]
+            [clojure.core.cache :as cache]
+            [clojure.core.match :refer [match]]
             [clojure.set :refer [rename-keys union]]
-            [dynamo.condition :refer :all]
-            [dynamo.types :as t]
-            [internal.graph.lgraph :as lg]
-            [internal.graph.dgraph :as dg]
-            [schema.core :as s]
-            [schema.macros :as sm]
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
-            [service.log :as log]))
+            [dynamo.condition :refer :all]
+            [dynamo.types :as t]
+            [schema.core :as s]
+            [schema.macros :as sm]
+            [internal.graph.lgraph :as lg]
+            [internal.graph.dgraph :as dg]
+            [internal.query :as iq]
+            [service.log :as log]
+            [camel-snake-kebab :refer [->kebab-case]]))
 
 (set! *warn-on-reflection* true)
 
 ; ---------------------------------------------------------------------------
 ; Value handling
 ; ---------------------------------------------------------------------------
+(defn node-inputs [v] (into #{} (keys (-> v :descriptor :inputs))))
+(defn node-outputs [v] (into #{} (keys (-> v :descriptor :transforms))))
+(defn node-cached-outputs [v] (-> v :descriptor :cached))
+
+(defn- find-enclosing-scope
+  [tag node]
+  (when-let [scope (iq/node-consuming node :self)]
+    (if (= tag (:tag scope))
+      scope
+      (recur tag scope))))
+
 (defn missing-input [n l]
   {:error     :input-not-declared
    :node      (:_id n)
@@ -37,7 +51,7 @@
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
-    (let [schema (get-in target-node [:inputs target-label])]
+    (let [schema (get-in target-node [:descriptor :inputs target-label])]
       (cond
         (vector? schema)     (map (fn [[source-node source-label]]
                                     (get-value-with-restarts (dg/node g source-node) g source-label))
@@ -54,7 +68,8 @@
       (condp = k
         :g         (assoc m k g)
         :this      (assoc m k node)
-        :project   (assoc m k (:project-ref node))
+        :world     (assoc m k (:world-ref node))
+        :project   (assoc m k (find-enclosing-scope :project node))
         s/Keyword  m
         (assoc m k (get-inputs node g k))))
     {} input-schema))
@@ -67,17 +82,36 @@
     (fn?           transform)  (transform node g)
     :else transform))
 
+(defn- hit-cache [world-state cache-key value]
+  (dosync (alter world-state update-in [:cache] cache/hit cache-key))
+  value)
+
+(defn- miss-cache [world-state cache-key value]
+  (dosync (alter world-state update-in [:cache] cache/miss cache-key value))
+  value)
+
+(defn- produce-value [node g label]
+  (t/get-value node g label))
+
+(defn get-node-value
+  [node label]
+  (let [world-state (:world-ref node)]
+    (if-let [cache-key (get-in @world-state [:cache-keys (:_id node) label])]
+      (let [cache (:cache @world-state)]
+        (if (cache/has? cache cache-key)
+            (hit-cache  world-state cache-key (get cache cache-key))
+            (miss-cache world-state cache-key (produce-value node (:graph @world-state) label))))
+      (produce-value node (:graph @world-state) label))))
+
+
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
 
 (defn tempid [] (- (.getAndIncrement nextid)))
 
-(defn node-inputs [v] (into #{} (keys (:inputs v))))
-(defn node-outputs [v] (into #{} (keys (:transforms v))))
-
-(defn get-input [])
-(defn refresh-inputs [g n i])
-
+; ---------------------------------------------------------------------------
+; Definition handling
+; ---------------------------------------------------------------------------
 (defn is-schema? [vals] (some :schema (map meta vals)))
 
 (defn deep-merge
@@ -100,6 +134,12 @@
                  :else       (throw (ex-info (str "Unacceptable behavior " %) :argument %)))
               behaviors)))
 
+(defn classname-for [prefix]  (symbol (str prefix "__")))
+
+(defn fqsymbol [s]
+  (let [{:keys [ns name]} (meta (resolve s))]
+   (symbol (str ns) (str name))))
+
 (defn- property-symbols [behavior]
   (map (comp symbol name) (keys (:properties behavior))))
 
@@ -108,116 +148,18 @@
 
 (defn defaults
   [beh]
-  (let [out (dissoc beh :event-handlers :impl :impl-methods)]
-    (reduce-kv (fn [m k v]
-                 (let [v (if (seq? v) (eval v) v)]
-                   (if (:default v) (assoc m k (:default v)) m)))
-               out (:properties out))))
-
-(defn- print-md-table
-  "Prints a collection of maps in a textual table suitable for converting
-   to GMD-flavored markdown. Prints table headings
-   ks, and then a line of output for each row, corresponding to the keys
-   in ks. If ks are not specified, use the keys of the first item in rows.
-
-   Cribbed from `clojure.pprint/print-table`."
-  ([ks rows]
-     (when (seq rows)
-       (let [widths (map
-                     (fn [k]
-                       (apply max (count (str k)) (map #(count (str (get % k))) rows)))
-                     ks)
-             spacers (map #(apply str (repeat % "-")) widths)
-             fmts (map #(str "%" % "s") widths)
-             fmt-row (fn [leader divider trailer row]
-                       (str leader
-                            (apply str (interpose divider
-                                                  (for [[col fmt] (map vector (map #(get row %) ks) fmts)]
-                                                    (format fmt (str col)))))
-                            trailer))]
-         (println)
-         (println (fmt-row "| " " | " " |" (zipmap ks ks)))
-         (println (fmt-row "|-" "-|-" "-|" (zipmap ks spacers)))
-         (doseq [row rows]
-           (println (fmt-row "| " " | " " |" row))))))
-  ([rows] (print-md-table (keys (first rows)) rows)))
-
-(defn describe-properties [behavior]
-  (with-out-str (print-md-table ["Name" "Type" "Default"]
-                            (reduce-kv
-                              (fn [rows k v]
-                                  (conj rows (assoc (rename-keys v {:schema "Type" :default "Default"}) "Name" k)))
-                              []
-                              (:properties behavior)))))
-
-(defn generate-constructor [nm behavior]
-  (let [ctor             (symbol (str 'make- (->kebab-case (str nm))))
-        record-ctor      (symbol (str 'map-> nm))]
-    `(defn ~ctor
-       ~(str "Constructor for " nm ", using default values for any property not in property-values.\nThe properties on " nm " are:\n"
-             #_(describe-properties behavior))
-       [& {:as ~'property-values}]
-       (~record-ctor (merge {:_id (tempid)} ~(defaults behavior) ~'property-values)))))
-
-; --------------------------------------------------------------------
-(defn- replace-magic-imperatives
-  [form]
-  (match [form]
-         [(['repaint] :seq)]
-         `(dynamo.ui/repaint-current-view)
-
-         [(['attach & rest] :seq)]
-         `(conj! ~'transaction (dynamo.project/connect ~@rest))
-
-         [(['detach & rest] :seq)]
-         `(conj! ~'transaction (dynamo.project/disconnect ~@rest))
-
-         [(['send target-node type & body] :seq)]
-         `(conj! ~'message-drop [~target-node ~type ~body])
-
-         [(['invalidate target-node output] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node ~output))
-
-         [(['set-property target-node & pvs] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node assoc ~@pvs))
-
-         [(['update-property target-node property f & args] :seq)]
-         `(conj! ~'transaction (dynamo.project/update-resource ~target-node update-in [~property] ~f ~@args))
-
-         [(['new node-type & rest] :seq)]
-         (let [ctor (symbol (str 'make- (->kebab-case (str node-type))))]
-           `(let [~'new-node ~(list* ctor rest)]
-              (conj! ~'transaction (dynamo.project/new-resource ~'new-node))
-              ~'new-node))
-
-         :else
-         form))
-
-(defn transactional-specials
-  [form]
-  (cond
-    (seq? form)    (map transactional-specials (replace-magic-imperatives form))
-    (vector? form) (mapv transactional-specials (replace-magic-imperatives form))
-    :else          (replace-magic-imperatives form)))
-
-(defmacro transactional
-  [& forms]
-  `(let [~'transaction  (transient [])
-         ~'message-drop (transient [])]
-     (let [result# (do ~@(transactional-specials forms))]
-       (when (and (< 0 (count ~'transaction))
-                  (= :ok (:status (dynamo.project/transact (:project-ref ~'self) (persistent! ~'transaction)))))
-         (doseq [m# (persistent! ~'message-drop)]
-           (apply dynamo.project/publish m#)))
-       result#)))
+  (reduce-kv (fn [m k v]
+               (let [v (if (seq? v) (eval v) v)]
+                 (if (:default v) (assoc m k (:default v)) m)))
+             {} (:properties beh)))
 
 (def ^:private property-flags #{:cached :on-update})
 
 (defn- compile-defnode-form
   [prefix form]
   (match [form]
-     [(['inherits nm] :seq)]
-     {:inherits   #{nm}}
+     [(['inherits super] :seq)]
+     (deref (resolve super))
 
      [(['property nm tp] :seq)]
      {:properties {(keyword nm) tp}}
@@ -226,7 +168,9 @@
      {:inputs     {(keyword nm) (if (coll? schema) (into [] schema) schema)}}
 
      [(['on evt & fn-body] :seq)]
-     {:event-handlers {(keyword evt) (list* `do fn-body)}}
+     {:event-handlers {(keyword evt)
+                       `(fn [~'self ~'event]
+                          (dynamo.system/transactional ~@fn-body))}}
 
      [(['output nm output-type & remainder] :seq)]
      (let [oname       (keyword nm)
@@ -247,29 +191,22 @@
            flags)))
 
      [([nm [& args] & remainder] :seq)]
-     {:impl-methods [`(~nm ~args ~@remainder)]}
+     {:methods        {nm `(fn ~args ~@remainder)}
+      :record-methods [[prefix nm args]]}
 
      [impl :guard symbol?]
-     {:impl [(if (var? (resolve impl)) (:on (deref (resolve impl))) impl)]}))
+     (if (class? (resolve impl))
+       {:interfaces [impl]}
+       {:impl [impl]})))
 
-(defn- resolve-or-else [sym]
+(defn resolve-or-else [sym]
   (assert (symbol? sym) (pr-str "Cannot resolve " sym))
   (if-let [val (resolve sym)]
     val
     (throw (ex-info (str "Unable to resolve symbol " sym " in this context") {:symbol sym}))))
 
-(defn- ancestor-behaviors
-  [{:keys [inherits] :as m}]
-  (let [inherits (map #(symbol (str % ":descriptor")) inherits)
-        behaviors (apply deep-merge (map (comp deref resolve-or-else) inherits))]
-    (deep-merge behaviors (dissoc m :inherits))))
-
 (defn map-vals [m f]
   (reduce-kv (fn [i k v] (assoc i k (f v))) {} m))
-
-(defn- fix-event-handlers
-  [m]
-  (update-in m [:event-handlers] map-vals #(list `transactional %)))
 
 (defn- eval-default-exprs
   [prop]
@@ -281,77 +218,94 @@
   [m]
   (update-in m [:properties] map-vals eval-default-exprs))
 
-(defn generate-event-loop
-  [beh]
-  `(dynamo.types/start-event-loop!
-      [~'this ~'in]
-      (a/go-loop [id# (:_id ~'this)]
-        (when-let [~'msg (a/<! ~'in)]
-          (try
-            (dynamo.types/process-one-event (dynamo.project/node-by-id (:project-ref ~'this) id#) (:body ~'msg))
-            (catch Exception ~'ex
-              (service.log/error :message "Error in node event loop" :exception ~'ex)))
-          (recur id#)))))
-
-(defn- wrap-in-transaction
-  [fs]
-  (list* `transactional fs))
-
 (defn generate-message-processor
-  [beh]
-  (let [event-cases (mapcat identity (:event-handlers beh))]
+  [name descriptor]
+  (let [event-types (keys (:event-handlers descriptor))]
     `(dynamo.types/process-one-event
        [~'self ~'event]
-       (transactional
-         (case (:type ~'event)
-           ~@event-cases
-           nil)
-         :ok))))
+       (case (:type ~'event)
+         ~@(mapcat (fn [e] [e `((get-in ~name [:event-handlers ~e]) ~'self ~'event)]) event-types)
+         nil)
+       :ok)))
 
 (defn compile-specification
-  [name forms]
+  [nm forms]
   (->> forms
-    (map (partial compile-defnode-form name))
-    (reduce deep-merge {:name name})
-    (ancestor-behaviors)
+    (map (partial compile-defnode-form nm))
+    (reduce deep-merge {:name nm})
     (resolve-defaults)))
 
-(defn generate-type [name behavior]
-  (let [t 'this#
-        g 'g#
-        o 'output#
-        d 'default#]
-    (list* 'defrecord name (state-vector behavior)
-           'dynamo.types/Node
-           `(properties [~t] ~(:properties behavior))
-           `(get-value [~t ~g ~'label]
-                       (assert (get-in ~t [:transforms ~'label])
-                               (str "There is no transform " ~'label " on node " (:_id ~t)))
-                       (perform (get-in ~t [:transforms ~'label]) ~t ~g))
-           (concat
-             (:impl behavior)
-             (:impl-methods behavior)
-             (when (< 0 (count (:event-handlers behavior)))
-               ['dynamo.types/MessageTarget
-                (generate-event-loop behavior)
-                (generate-message-processor behavior)])))))
+(defn- emit-quote [form]
+  (list `quote form))
+
+(defn- generate-record-methods [descriptor]
+  (for [[defined-in method-name args] (:record-methods descriptor)]
+    `(~method-name ~args ((get-in ~defined-in [:methods ~(emit-quote method-name)]) ~@args))))
+
+(defn generate-defrecord [nm descriptor]
+  (list* `defrecord (classname-for nm) (state-vector descriptor)
+         `dynamo.types/Node
+         `(properties [t#] (:properties ~nm))
+         `(get-value [t# g# label#]
+                     (assert (get-in ~nm [:transforms label#])
+                             (str "There is no transform " label# " on node " (:_id t#)))
+                     (perform (get-in ~nm [:transforms label#]) t# g#))
+         `(inputs [t#] (into #{} (keys (:inputs ~nm))))
+         `(outputs [t#] (into #{} (keys (:transforms ~nm))))
+         `(cached-outputs [t#] (:cached ~nm))
+         `t/MessageTarget
+         (generate-message-processor nm descriptor)
+         (concat
+           (map fqsymbol (:impl descriptor))
+           (:interfaces descriptor)
+           (generate-record-methods descriptor))))
 
 (defn quote-functions
-  [beh]
-  (-> beh
-    (update-in [:event-handlers] map-vals #(list `quote %))
-    (update-in [:impl-methods]   (fn [ms] (mapv #(list* `quote %) ms)))))
+  [descriptor]
+  (-> descriptor
+    (update-in [:name]           emit-quote)
+    (update-in [:methods]        (fn [ms] (zipmap (map emit-quote (keys ms)) (vals ms))))
+    (update-in [:record-methods] (partial mapv emit-quote))
+    (update-in [:impl]           (partial mapv (comp emit-quote fqsymbol)))))
 
-(defn generate-descriptor [name behavior]
-  (let [descriptor-name (symbol (str name ":descriptor"))
-        behavior        (quote-functions behavior)]
-    `(def ~descriptor-name ~behavior)))
+(defn generate-constructor [nm descriptor]
+  (let [ctor             (symbol (str 'make- (->kebab-case (str nm))))
+        record-ctor      (symbol (str 'map-> (classname-for nm)))]
+    `(defn ~ctor
+       ~(str "Constructor for " nm ", using default values for any property not in property-values.\nThe properties on " nm " are:\n" #_(describe-properties behavior))
+       [& {:as ~'property-values}]
+       (~record-ctor (merge {:_id (tempid)}
+                            ~{:descriptor nm}
+                            ~(defaults descriptor)
+                            ~'property-values)))))
 
-(defn generate-print-method [name]
-  (let [tagged-arg (vary-meta (gensym "v") assoc :tag (resolve name))]
-    `(defmethod print-method ~name
+(defn generate-descriptor [nm descriptor]
+  `(def ~nm ~(quote-functions descriptor)))
+
+(defn generate-print-method [nm]
+  (let [classname (classname-for nm)
+        tagged-arg (vary-meta (gensym "v") assoc :tag (resolve classname))]
+    `(defmethod print-method ~classname
        [~tagged-arg w#]
-       (.write ^java.io.Writer w# (str "<" ~(str name)
+       (.write ^java.io.Writer w# (str "<" ~(str nm)
                                        (merge (select-keys ~tagged-arg [:_id :inputs :outputs])
-                                              (select-keys ~tagged-arg (select-keys ~tagged-arg (:properties ~tagged-arg))))
+                                              (select-keys ~tagged-arg (-> ~tagged-arg :descriptor :properties keys)))
                                        ">")))))
+
+; ---------------------------------------------------------------------------
+;
+; ---------------------------------------------------------------------------
+
+(defn- scoped-name
+  [scope node]
+  (:name node))
+
+(defnk scope-dictionary
+  [this nodes]
+  (reduce
+    (fn [m n]
+      (assoc m
+             (scoped-name this n)
+             n))
+    {}
+    nodes))

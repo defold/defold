@@ -13,7 +13,7 @@ import clojure.lang.RT;
 import clojure.osgi.ClojureHelper;
 
 public class InjectablePart {
-    private static final String VIEWS_NS = "dynamo.node";
+    private static final String NODE_NS = "dynamo.node";
 
     private static final Keyword PARENT = RT.keyword(null, "parent");
     private static final Keyword CREATE = RT.keyword(null, "create");
@@ -26,16 +26,16 @@ public class InjectablePart {
 
     @PostConstruct
     private void delegateCreate(Composite parent) {
-        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", behavior, CREATE, PARENT, parent);
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, CREATE, PARENT, parent);
     }
 
     @Focus
     private void delegateFocus() {
-        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", behavior, FOCUS);
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, FOCUS);
     }
 
     @PreDestroy
     private void delegateDestroy() {
-        ClojureHelper.invoke(VIEWS_NS, "dispatch-message", behavior, DESTROY);
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, DESTROY);
     }
 }

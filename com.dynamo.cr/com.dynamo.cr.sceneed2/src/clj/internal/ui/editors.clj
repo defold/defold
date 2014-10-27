@@ -1,24 +1,49 @@
 (ns internal.ui.editors
   (:require [dynamo.project :as p]
+            [dynamo.system :as ds]
             [dynamo.types :refer [MessageTarget]]
-            [internal.system :as sys])
+            [internal.query :as iq]
+            [internal.system :as is]
+            [service.log :as log])
   (:import [org.eclipse.ui PlatformUI]
+           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]
            [org.eclipse.e4.core.contexts IEclipseContext]
            [org.eclipse.e4.ui.model.application.ui.basic MBasicFactory MPart]
            [org.eclipse.e4.ui.workbench.modeling EPartService EPartService$PartState]))
 
 (set! *warn-on-reflection* true)
 
+(defn- eclipse-project-name
+  [project-node]
+  (.getName (.getDescription (:eclipse-project project-node))))
+
+(defn- warn-multiple-projects
+  [file project-nodes]
+  (let [actual (first project-nodes)]
+    (log/warn :multiple-projects
+      (str "File " file " is referenced by " (count project-nodes) " projects. Using " (eclipse-project-name actual) " (node " (:_id actual) ")."))))
+
+(defn- project-containing [world-ref file]
+  (let [eclipse-project (.getProject file)
+        project-nodes (iq/query world-ref [[:eclipse-project eclipse-project]])]
+    (case (count project-nodes)
+      0   (log/error :not-project-file (str "File " file " is not part of any project"))
+      1   (first project-nodes)
+      (do
+        (warn-multiple-projects file project-nodes)
+        (first project-nodes)))))
+
 (defn implementation-for
-  "Factory for values that implement the Editor protocol.
-   When called with an editor site and an input file, returns an
-   appropriate Editor value."
+  "Given an editor site and input file, call the factory function associated
+  with the file type (registered with `register-editor`.)"
   [site file]
-  (let [proj (sys/project-state)]
-    ((p/editor-for
-       proj
-       (.. file getFullPath getFileExtension))
-      proj site file)))
+  (let [world-ref (-> @is/the-system :world :state)
+        proj      (project-containing world-ref file)]
+    (ds/in proj
+      ((p/editor-for
+         proj
+         (.. file getFullPath getFileExtension))
+        world-ref proj site file))))
 
 (defn- dynamic-part
   [{:keys [id label closeable] :or {id "sceneed.view" label "Default part" closeable true}}]

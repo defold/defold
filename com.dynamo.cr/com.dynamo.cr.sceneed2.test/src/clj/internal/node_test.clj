@@ -4,8 +4,12 @@
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
             [dynamo.project :as p]
-            [dynamo.project.test-support :refer [clean-project]]
-            [internal.node :as in :refer [deep-merge]]))
+            [dynamo.system :as ds]
+            [dynamo.system.test-support :refer [with-clean-world]]
+            [internal.node :as in :refer [deep-merge]]
+            [internal.system :as is]
+            [internal.query :as iq]
+            [internal.transaction :as it]))
 
 (def a-schema (as-schema {:names [java.lang.String]}))
 
@@ -50,12 +54,13 @@
 
 (defnode NodeWithEvents
   (on :mousedown
-      (let [nn (new NodeWithProtocols :_id -1)]
-        (set-property {:_id -1} :foo "newly created"))))
+    (let [nn (ds/add (make-node-with-protocols :_id -1))]
+      (ds/set-property {:_id -1} :foo "newly created")
+      (ds/set-property self :message-processed true))))
 
 (deftest node-definition
   (testing "properties"
-    (is (= [:foo] (-> (make-simple-test-node) :properties keys)))
+    (is (= [:foo] (-> (make-simple-test-node) :descriptor :properties keys)))
     (is (contains? (make-simple-test-node) :foo)))
   (testing "property defaults"
     (is (= "FOO!" (-> (make-simple-test-node) :foo))))
@@ -67,10 +72,35 @@
     (is (instance? clojure.lang.IDeref (make-node-with-protocols)))
     (is (= "the user" @(make-node-with-protocols)))
     (is (satisfies? t/N2Extent (make-node-with-protocols)))
-    (is (= 800 (t/width (make-node-with-protocols)))))
-  (testing "sending events to nodes"
-    (let [proj       (clean-project)
-          evented    (make-node-with-events :_id -1)
-          tx-result  (p/transact proj [(p/new-resource evented)])
-          event-real (p/node-by-id proj (p/resolve-tempid tx-result -1))]
-      (is (= :ok (t/process-one-event event-real {:type :mousedown}))))))
+    (is (= 800 (t/width (make-node-with-protocols))))))
+
+(deftest event-delivery
+  (with-clean-world
+    (ds/in root
+        (let [evented    (ds/transactional (ds/add (make-node-with-events :_id -1)))
+              tx-result  (:last-tx @(:world-ref (ds/current-scope)))
+              node-id    (it/resolve-tempid tx-result -1)
+              event-real (iq/node-by-id world-ref node-id)]
+          (is (= :ok (t/process-one-event event-real {:type :mousedown})))
+          (is (:message-processed (iq/node-by-id world-ref node-id)))))))
+
+(deftest nodes-share-descriptors
+  (is (identical? (-> (make-simple-test-node) :descriptor) (-> (make-simple-test-node) :descriptor))))
+
+(defprotocol AProtocol
+  (complainer [this]))
+
+(definterface IInterface
+  (allGood []))
+
+(defnode MyNode
+  AProtocol
+  (complainer [this] :owie)
+  IInterface
+  (allGood [this] :ok))
+
+(deftest node-respects-namespaces
+  (testing "node can implement protocols not known/visible to internal.node"
+    (is (= :owie (complainer (make-my-node)))))
+  (testing "node can implement interface not known/visible to internal.node"
+    (is (= :ok (.allGood (make-my-node))))))

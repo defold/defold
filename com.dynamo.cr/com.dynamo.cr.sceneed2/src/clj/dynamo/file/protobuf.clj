@@ -3,66 +3,53 @@
             [internal.java :as j]
             [dynamo.file :as f]
             [dynamo.project :as p]
+            [dynamo.system :as ds]
             [camel-snake-kebab :refer :all])
   (:import [com.google.protobuf Message TextFormat]))
 
 (set! *warn-on-reflection* true)
 
-(defn mapper-name [cls]
-  (symbol (str (name cls) "->map")))
-
-(defn getter-name [fld]
-  (->camelCase (str "get-" (name fld))))
+(defn getter
+  [fld]
+  (symbol (->camelCase (str "get-" (name fld)))))
 
 (defn message-mapper
   [cls props]
-  (let [cname    (mapper-name cls)
-        gs       (map (comp symbol getter-name) props)
-        msg-symb (symbol "msg")]
-    `(defn ~cname
-       [~msg-symb]
-       (hash-map
-        ~@(mapcat (fn [k getter]
-                    [k (list '. msg-symb (symbol getter))])
-               props gs)))))
+  `(fn [~'protobuf]
+     (hash-map
+       ~@(mapcat (fn [k getter] [k (list '. 'protobuf (symbol getter))])
+           props (map getter props)))))
 
-(defn adder-fn
-  [parent-sym connections]
-  (let [child 'child
-        cxors (map (fn [[from _ to]]
-                     (list 'dynamo.project/connect child from parent-sym to))
-                   (partition 3 connections))]
-    `(fn [~child]
-       ~@cxors)))
+(defn connection
+  [[source-label _ target-label]]
+  (list `ds/connect 'node source-label 'this target-label))
 
 (defn subordinate-mapper
-  [parent-sym msg-sym from-property connections]
-  (let [getter (symbol (getter-name from-property))]
-    `(mapcat #(f/message->node % ~(adder-fn parent-sym connections)) (. ~msg-sym ~getter))))
+  [[from-property connections]]
+  `(doseq [~'node (map f/message->node (. ~'protobuf ~(getter from-property)))]
+     ~@(map connection (partition-all 3 connections))))
 
 (defmacro protocol-buffer-converter
   [class spec]
-  (let [nested-properties (:node-properties spec)
-        node-sym          (symbol "this")
-        msg-sym           (symbol "msg")
-        incoming-adder    (symbol "adder")
-        converter-name    (mapper-name class)
-        ctor              (:constructor spec)
-        mapper-sexps      (message-mapper class (:basic-properties spec))
-        nested-mappers    (mapcat (fn [[prop conns]]
-                                    [(gensym (name prop))
-                                     (subordinate-mapper node-sym msg-sym prop conns)])
-                               nested-properties)]
-    `(do
-       ~mapper-sexps
-       (defmethod f/message->node ~class
-         [~msg-sym ~incoming-adder & {:as overrides#}]
-         (let [basic-props# (~converter-name ~msg-sym)
-               ~node-sym    (apply ~ctor (mapcat identity (merge basic-props# overrides#)))
-               ~@nested-mappers]
-           (concat (p/new-resource ~node-sym)
-                   ~@(take-nth 2 nested-mappers)
-                   (~incoming-adder ~node-sym)))))))
+  `(defmethod f/message->node ~class
+     [~'protobuf & {:as ~'overrides}]
+     (let [~'message-mapper ~(message-mapper class (:basic-properties spec))
+           ~'basic-props    (~'message-mapper ~'protobuf)
+           ~'this           (apply ~(:constructor spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
+       (ds/add ~'this)
+       ~@(map subordinate-mapper (:node-properties spec))
+       ~'this)))
+
+(comment
+
+  (doseq [images_389383 (map message->node (. protobuf getImagesList))]
+    (connect images_389383 :tree this :children)
+    (connect images_389383 :image this :images))
+  (doseq [anim (map message->node (. protobuf getAnimationsList))]
+    (connect anim :tree this :children)
+    (connect anim :animation this :animations))
+
+  )
 
 (defmacro protocol-buffer-converters
   [& class+specs]

@@ -1,6 +1,6 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
-            [dynamo.types :refer :all]
+            [dynamo.types :as t]
             [dynamo.condition :refer :all]
             [dynamo.file :refer [project-path local-path]]
             [dynamo.geom :refer :all]
@@ -9,10 +9,9 @@
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [schema.macros :as sm])
-  (:import java.awt.Color
+  (:import [java.awt Color]
            [javax.imageio ImageIO]
            [java.awt.image BufferedImage]
-
            [dynamo.types Rect Image]))
 
 (set! *warn-on-reflection* true)
@@ -23,7 +22,6 @@
     `(let ~(into [] (concat binding [rsym `(do ~@body)]))
        (.dispose ~(first binding))
        ~rsym)))
-
 
 (sm/defn make-color :- java.awt.Color
   ([ r :- Float g :- Float b :- Float]
@@ -44,7 +42,7 @@
     (BufferedImage. width height t)))
 
 (sm/defn flood :- BufferedImage
-  [ ^BufferedImage img :- BufferedImage r :- Float g :- Float b :- Float]
+  [^BufferedImage img :- BufferedImage r :- Float g :- Float b :- Float]
   (let [gfx (.createGraphics img)
         color (make-color r g b)]
     (.setColor gfx color)
@@ -72,7 +70,7 @@
 
 ;; Behavior
 (defnode ImageSource
-  (property image (resource))
+  (property image (t/resource))
   (output   image Image :cached image-from-resource))
 
 (sm/defn image-color-components :- long
@@ -103,7 +101,7 @@
 
 (sm/defn image-bounds :- Rect
   [source :- Image]
-  (rect (.path source) 0 0 (.width source) (.height source)))
+  (t/rect (.path source) 0 0 (.width source) (.height source)))
 
 (sm/defn image-pixels :- ints
   [src :- BufferedImage]
@@ -125,7 +123,7 @@
   [extrusion :- s/Int src :- Image]
   (if-not (< 0 extrusion)
     src
-    (let [src-img        (contents src)
+    (let [src-img        (t/contents src)
           orig-width     (.width src)
           orig-height    (.height src)
           new-width      (+ orig-width (* 2 extrusion))

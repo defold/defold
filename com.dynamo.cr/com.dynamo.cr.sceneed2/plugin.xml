@@ -93,8 +93,8 @@
             default="false"
             extensions="atlas"
             icon="icons/images.png"
-            id="com.dynamo.cr.sceneed2.atlasEditor"
-            name="Atlas Editor (mark II)">
+            id="com.dynamo.cr.sceneed2.scene-editor"
+            name="Scene Editor">
       </editor>
       <editor
             class="internal.ui.GenericEditor"

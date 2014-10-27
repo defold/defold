@@ -1,322 +1,134 @@
 (ns dynamo.project
   (:require [clojure.java.io :as io]
             [clojure.core.async :as a :refer [put! onto-chan]]
-            [clojure.core.cache :as cache]
+            [clojure.core.match :refer [match]]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
+            [schema.core :as s]
+            [plumbing.core :refer [defnk]]
+            [dynamo.types :as t]
+            [dynamo.system :as ds]
+            [dynamo.file :as file]
+            [dynamo.resource :refer [disposable?]]
+            [dynamo.node :as n :refer [defnode Scope]]
+            [dynamo.ui :as ui]
+            [internal.clojure :as clojure]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [internal.graph.query :as q]
             [internal.java :as j]
-            [internal.clojure :as clojure]
-            [internal.cache :refer [make-cache]]
-            [dynamo.types :as t]
-            [dynamo.file :as file]
-            [dynamo.resource :refer [disposable?]]
-            [plumbing.core :refer [defnk]]
-            [schema.core :as s]
+            [internal.node :as in]
+            [internal.query :as iq]
+            [internal.system :as is]
+            [internal.transaction :as it]
             [eclipse.markers :as markers]
+            [eclipse.resources :as resources]
             [service.log :as log])
-  (:import [org.eclipse.core.resources IFile]))
+  (:import [org.eclipse.core.resources IFile IProject IResource]
+           [org.eclipse.ui PlatformUI]
+           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private ^java.util.concurrent.atomic.AtomicInteger
-     nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
-
-(defn new-cache-key [] (.getAndIncrement nextkey))
-
-(declare transact new-resource resolve-tempid node-by-id get-node-value)
-
-(defn on-load-code
-  [project-state resource input]
-  (let [tx-result (transact project-state
-                            (new-resource
-                              (clojure/make-clojure-source-node :_id -1 :resource resource)))
-        real-id   (resolve-tempid tx-result -1)
-        real-node (node-by-id project-state real-id)]
-    (get-node-value real-node :namespace)))
-
-(defn make-project
-  [eclipse-project branch tx-report-chan]
-  (let [msgbus (a/chan 100)
-        pubch  (a/pub msgbus :node-id (fn [_] (a/dropping-buffer 100)))]
-    {:handlers        {:loaders {"clj" on-load-code}}
-     :graph           (dg/empty-graph)
-     :cache-keys      {}
-     :cache           (make-cache)
-     :tx-report-chan  tx-report-chan
-     :eclipse-project eclipse-project
-     :branch          branch
-     :publish-to      msgbus
-     :subscribe-to    pubch}))
-
-(defn dispose-project
-  [project-state]
-  (let [report-ch (:tx-report-chan @project-state)
-        cached-vals (vals (:cache @project-state))]
-    (onto-chan report-ch (filter disposable? cached-vals) false)))
-
-(defn publish [node msg]
-  (when node
-    (a/put! (-> node :project-ref deref :publish-to) {:node-id (:_id node) :body msg})))
+(defn register-filetype
+  [extension default?]
+  (let [reg ^EditorRegistry (.getEditorRegistry (PlatformUI/getWorkbench))
+        desc (.findEditor reg "com.dynamo.cr.sceneed2.scene-editor")
+        mapping (doto
+                  (FileEditorMapping. extension)
+                  (.addEditor desc))
+        all-mappings (.getFileEditorMappings reg)]
+    (when default? (.setDefaultEditor mapping desc))
+    (ui/swt-safe (.setFileEditorMappings reg (into-array (concat (seq all-mappings) [mapping]))))))
 
 (defn- handle
-  [project-state key filetype handler]
-  (dosync (alter project-state assoc-in [:handlers key filetype] handler)))
+  [key filetype handler]
+  (ds/update-property (ds/current-scope) :handlers assoc-in [key filetype] handler))
 
-(defn- handler
-  [project-state key ext]
-  (let [hs (get-in @project-state [:handlers key])]
-    (or
-      (some (fn [[filetype h]] (when (= filetype ext) h)) hs)
+(defn register-loader
+  [filetype loader]
+  (handle :loader filetype loader))
+
+(defn register-editor
+  [filetype editor-builder]
+  (handle :editor filetype editor-builder)
+  (register-filetype filetype true))
+
+(def default-handlers {:loader {"clj" clojure/on-load-code}})
+
+(def no-such-handler
+  (memoize
+    (fn [key ext]
       (fn [& _] (throw (ex-info (str "No " (name key) " has been registered that can handle " ext) {}))))))
 
-(defn register-loader [project-state filetype loader] (handle project-state :loaders filetype loader))
-(defn loader-for [project-state ext] (handler project-state :loaders ext))
+(defn- handler
+  [project-scope key ext]
+  (or
+    (get-in project-scope [:handlers key ext])
+    (no-such-handler key ext)))
 
-(defn register-editor [project-state filetype editor] (handle project-state :editors filetype editor))
-(defn editor-for [project-state ext] (handler project-state :editors ext))
+(defn loader-for [project-scope ext] (handler project-scope :loader ext))
+(defn editor-for [project-scope ext] (handler project-scope :editor ext))
 
-(defn load-resource
-  [project-state path]
-  ((loader-for project-state (file/extension path)) project-state path (io/reader path)))
+(defn- load-resource
+  [project-scope path]
+  (ds/transactional (:world-ref project-scope)
+    (ds/in project-scope
+      ((loader-for project-scope (file/extension path)) path (io/reader path)))))
 
-(defn node-by-id
-  [project-state id]
-  (dg/node (:graph @project-state) id))
+(defn node-by-filename
+  [project-scope filename]
+  (let [f (file/project-path project-scope filename)]
+    (if-let [node (first (iq/query (:world-ref project-scope) [[:filename f]]))]
+      node
+      (do
+        (load-resource project-scope f)
+        (first (iq/query (:world-ref project-scope) [[:filename f]]))))))
 
-(defn- hit-cache [project-state cache-key value]
-  (dosync (alter project-state update-in [:cache] cache/hit cache-key))
-  value)
+; ---------------------------------------------------------------------------
+; Lifecycle, Called by Eclipse
+; ---------------------------------------------------------------------------
+(defnode Project
+  (inherits Scope)
 
-(defn- miss-cache [project-state cache-key value]
-  (dosync (alter project-state update-in [:cache] cache/miss cache-key value))
-  value)
+  (property tag {:schema s/Keyword :default :project})
+  (property eclipse-project IProject)
+  (property branch String))
 
-(defn- produce-value [node label]
-  (t/get-value node (-> node :project-ref deref :graph) label))
+(defn- open-project-in-world
+  [world-ref eclipse-project branch]
+  (ds/transactional world-ref
+    (let [project-node    (ds/add (make-project :eclipse-project eclipse-project :branch branch :handlers default-handlers))
+          clojure-sources (filter clojure/clojure-source? (resources/resource-seq eclipse-project))]
+      (ds/in project-node
+        (doseq [source clojure-sources]
+          (load-resource project-node (file/project-path project-node source)))))))
 
-(defn get-node-value [node label]
-  (let [project-state (:project-ref node)]
-    (if-let [cache-key (get-in @project-state [:cache-keys (:_id node) label])]
-      (let [cache (:cache @project-state)]
-        (if (cache/has? cache cache-key)
-            (hit-cache  project-state cache-key (get cache cache-key))
-            (miss-cache project-state cache-key (produce-value node label))))
-      (produce-value node label))))
+(defn open-project
+  [eclipse-project branch]
+  (open-project-in-world (-> is/the-system deref :world :state) eclipse-project branch))
 
-(defn node-feeding-into [node label]
-  (let [project-state (:project-ref node)]
-    (node-by-id project-state
-                (ffirst (lg/sources (:graph @project-state) (:_id node) label)))))
-
-(defn new-resource
-  ([node]
-    (new-resource node (set (keys (:inputs node))) (set (keys (:transforms node)))))
-  ([node inputs outputs]
-    [{:type    :create-node
-      :node    node
-      :inputs  inputs
-      :outputs outputs}]))
-
-(defn update-resource
-  [node f & args]
-  [{:type    :update-node
-    :node-id (:_id node)
-    :fn      f
-    :args    args}])
-
-(defn connect
-  [from-node from-label to-node to-label]
-  [{:type :connect
-     :source-id    (:_id from-node)
-     :source-label from-label
-     :target-id    (:_id to-node)
-     :target-label to-label}])
-
-(defn disconnect
-  [from-node from-label to-node to-label]
-  [{:type :disconnect
-     :source-id    (:_id from-node)
-     :source-label from-label
-     :target-id    (:_id to-node)
-     :target-label to-label}])
-
-(defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
-
-(defn resource->cache-keys [m]
-  (apply hash-map
-         (flatten
-           (for [output (:cached m)]
-            [output (new-cache-key)]))))
-
-(defmulti perform (fn [ctx m] (:type m)))
-
-(defmethod perform :create-node
-  [{:keys [graph tempids cache-keys modified-nodes state state-ref] :as ctx} m]
-  (let [next-id (dg/next-node graph)]
-    (assoc ctx
-      :graph           (lg/add-labeled-node graph (:inputs m) (:outputs m) (assoc (:node m) :_id next-id :project-ref state-ref))
-      :tempids         (assoc tempids    (get-in m [:node :_id]) next-id)
-      :cache-keys      (assoc cache-keys next-id (resource->cache-keys (:node m)))
-      :new-event-loops (if (satisfies? t/MessageTarget (:node m)) (conj (:new-event-loops ctx) (:node m)) (:new-event-loops ctx))
-      :modified-nodes  (conj modified-nodes next-id))))
-
-(defmethod perform :update-node
-  [{:keys [graph modified-nodes] :as ctx} m]
-  (let [n (resolve-tempid ctx (:node-id m))]
-    (assoc ctx
-           :graph          (apply dg/transform-node graph n (:fn m) (:args m))
-           :modified-nodes (conj modified-nodes n))))
-
-(defmethod perform :connect
-  [{:keys [graph modified-nodes] :as ctx} m]
-  (let [src (resolve-tempid ctx (:source-id m))
-        tgt (resolve-tempid ctx (:target-id m))]
-    (assoc ctx
-           :graph          (lg/connect graph src (:source-label m) tgt (:target-label m))
-           :modified-nodes (conj modified-nodes tgt))))
-
-(defmethod perform :disconnect
-  [{:keys [graph modified-nodes] :as ctx} m]
-  (let [src (resolve-tempid ctx (:source-id m))
-        tgt (resolve-tempid ctx (:target-id m))]
-    (assoc ctx
-           :graph          (lg/disconnect graph src (:source-label m) tgt (:target-label m))
-           :modified-nodes (conj modified-nodes tgt))))
-
-(defn- apply-tx
-  [ctx actions]
-  (reduce
-    (fn [ctx action]
-      (cond
-        (sequential? action) (apply-tx ctx action)
-        :else                (perform ctx action)))
-    ctx
-    actions))
-
-(defn- new-transaction-context
-  [state-ref]
-  (let [curr-state @state-ref]
-    {:state-ref       state-ref
-     :state           curr-state
-     :graph           (:graph curr-state)
-     :cache-keys      (:cache-keys curr-state)
-     :tempids         {}
-     :new-event-loops []
-     :modified-nodes #{}}))
-
-(defn- pairwise [f coll]
-  (for [n coll
-        x (f n)]
-    [n x]))
-
-(defn- affected-nodes
-  [{:keys [graph modified-nodes] :as ctx}]
-  (assoc ctx :affected-nodes (dg/tclosure graph modified-nodes)))
-
-(defn- determine-obsoletes
-  [{:keys [state affected-nodes] :as ctx}]
-  (assoc ctx :obsolete-cache-keys
-         (keep identity (mapcat #(vals (get-in state [:cache-keys %])) affected-nodes))))
-
-(defn- dispose-obsoletes
-  [{:keys [state obsolete-cache-keys] :as ctx}]
-  (assoc ctx :values-to-dispose (keep identity (filter disposable? (map #(get-in state [:cache %]) obsolete-cache-keys)))))
-
-(defn- evict-obsolete-caches
-  [{:keys [state obsolete-cache-keys] :as ctx}]
-  (update-in ctx [:state :cache] (fn [c] (reduce cache/evict c obsolete-cache-keys))))
-
-(defn- determine-autoupdates
-  [{:keys [graph affected-nodes] :as ctx}]
-  (assoc ctx :expired-outputs (pairwise :on-update (map #(dg/node graph %) affected-nodes))))
-
-(defn- start-event-loops
-  [{:keys [new-event-loops graph state] :as ctx}]
-  (doseq [n (map #(dg/node graph (resolve-tempid ctx (:_id %))) new-event-loops)]
-    (let [ch (a/chan 100)]
-      (t/start-event-loop! n (a/sub (:subscribe-to state) (:_id n) ch))))
-  ctx)
-
-(defn- finalize-update
-  [{:keys [graph cache-keys] :as ctx}]
-  (-> ctx
-    (assoc-in [:state :graph] graph)
-    (assoc-in [:state :cache-keys] cache-keys)
-    (assoc :status :ok)))
-
-(defn- send-to-tx-queue
-  [project-state tx-result]
-  (put! (:tx-report-chan @project-state)
-        (assoc tx-result :project-state project-state))
-  tx-result)
-
-(defn- transact*
-  [current-state tx]
-  (-> current-state
-    new-transaction-context
-    (apply-tx tx)
-    affected-nodes
-    determine-obsoletes
-    dispose-obsoletes
-    evict-obsolete-caches
-    determine-autoupdates
-    finalize-update
-    start-event-loops))
-
-(defn transact
-  [project-state txs]
-  (send-to-tx-queue project-state
-    (dosync
-      (let [tx-result (transact* project-state txs)]
-
-        (ref-set project-state (:state tx-result))
-        tx-result))))
-
-(defn query
-  [project-state clauses]
-  (map #(dg/node (:graph @project-state) %)
-       (q/query (:graph @project-state) clauses)))
-
+; ---------------------------------------------------------------------------
+; Documentation
+; ---------------------------------------------------------------------------
 (doseq [[v doc]
        {*ns*
         "Functions for performing transactional changes to a project and inspecting its current state."
 
-        #'perform
-        "A multimethod used for defining methods that perform the individual actions within a
-transaction. This is for internal use, not intended to be extended by applications.
+        #'open-project
+        "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function."
 
-Perform takes a transaction context (ctx) and a map (m) containing a value for keyword `:type`, and other keys and
-values appropriate to the transformation it represents. Callers should regard the map and context as opaque.
-
-In this case, the map passed to perform would look like `{:type :update-node :id tempid :fn update-fn :args update-fn-args}` All calls
-to `perform` return a new (updated) transaction context.
-
-Calls to perform are only executed by [[transact]]. The data required for `perform` calls are constructed in action functions,
-such as [[connect]] and [[update-resource]]."
-
-        #'connect
-        "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
-(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `connect` may have tempids."
-
-        #'disconnect
-        "*transaction step* - The reverse of [[connect]]. Creates a transaction step disconnecting a source node and label
-(`from-resource from-label`) from a target node and label
-(`to-resource to-label`). It returns a value suitable for consumption by [[perform]]. Nodes passed to `disconnect` may be tempids."
-
-        #'new-resource
-        "*transaction step* - creates a resource in the project. Expects a node. May include an `:_id` key containing a
-tempid if the resource will be referenced again in the same transaction. If supplied, _input_ and _output_ are sets of input and output labels, respectively.
-If not supplied as arguments, the `:input` and `:output` keys in the node may will be assigned as the resource's inputs and outputs."
-
-        #'update-resource
-        "*transaction step* - Expects a node and function f (with optional args) to be performed on the
-resource indicated by the node. The node may be a uncommitted, in which case it will have a tempid."
+        #'register-filetype
+        "TODO"
 
         #'register-loader
         "Associate a filetype (extension) with a loader function. The given loader will be
 used any time a file with that type is opened."
+
+        #'register-editor
+        "TODO"
+
+        #'editor-for
+        "TODO"
 
         #'load-resource
         "Load a resource, usually from file. This looks up a suitable loader based on the filename.
@@ -324,31 +136,10 @@ Loaders must be registered via register-loader before they can be used.
 
 This will invoke the loader function with the filename and a reader to supply the file contents."
 
-        #'query
-        "Query the project for resources that match all the clauses. Clauses are implicitly anded together.
-A clause may be one of the following forms:
+        #'node-by-filename
+        "TODO"
 
-[:attribute value] - returns nodes that contain the given attribute and value.
-(protocol protocolname) - returns nodes that satisfy the given protocol
-(input fromnode)        - returns nodes that have 'fromnode' as an input
-(output tonode)         - returns nodes that have 'tonode' as an output
-
-All the list forms look for symbols in the first position. Be sure to quote the list
-to distinguish it from a function call."
-
-        #'transact
-        "Execute a transaction to create a new project state. This takes in the current project state,
-modifies it according to the transaction steps in txs, and returns a transaction result.
-
-The txs must have been created by the transaction step functions in this namespace: [[connect]],
-[[disconnect]], [[new-resource]], and [[update-resource]]. The collection of txs can be nested.
-
-The transaction result is associative. It will have keys that supply the following:
-
-:project-state - The project state ref. Its value will be the project state _after_ the transaction.
-:expired-outputs - A sequence of [node id, label]. Each one represents an output value that has been invalidated by this transaction.
-:values-to-dispose - A sequence of IDisposable values that are obsoleted by this transaction.
-
-There may be other keys in the transaction result. These keys are not guaranteed as part of the
-contract. You should not rely on them."}]
+        #'Project
+        "TODO"
+}]
   (alter-meta! v assoc :doc doc))

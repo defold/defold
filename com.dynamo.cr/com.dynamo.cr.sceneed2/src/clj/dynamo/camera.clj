@@ -4,10 +4,12 @@
             [plumbing.core :refer [defnk]]
             [dynamo.types :as t]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.ui :as ui]
+            [dynamo.geom :as g]
+            [dynamo.system :as ds]
             [internal.cache :refer [caching]]
-            [dynamo.geom :as g])
+            [dynamo.geom :as g]
+            [internal.query :as iq])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]
            [org.eclipse.swt SWT]
            [dynamo.types Camera Region AABB]))
@@ -293,7 +295,7 @@
     (button-interpretation [mouse-type button mods] :idle)))
 
 
-(sm/defn camera-fov-from-aabb
+(sm/defn camera-fov-from-aabb :- s/Num
   [camera :- Camera ^AABB aabb :- AABB]
   (assert camera "no camera?")
   (assert aabb   "no aabb?")
@@ -310,14 +312,12 @@
         y-aspect    (/ fov-y-prim (:aspect camera))]
     (* 1.1 (Math/max y-aspect fov-x-prim))))
 
-(sm/defn camera-ortho-frame-aabb-fn :- Camera
+(sm/defn camera-orthographic-frame-aabb :- Camera
   [camera :- Camera ^AABB aabb :- AABB]
   (assert (= :orthographic (:type camera)))
-  (let [fov (camera-fov-from-aabb camera aabb)]
-    (fn [old-cam]
-      (-> old-cam
-        (set-orthographic fov (:aspect camera) (:z-near camera) (:z-far camera))
-        (camera-set-center aabb)))))
+  (-> camera
+    (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
+    (camera-set-center aabb)))
 
 (n/defnode CameraController
   (input camera [CameraNode])
@@ -327,32 +327,31 @@
   (output self CameraController [this _] this)
 
   (on :mouse-down
-      (set-property self
-                    :last-x (:x event)
-                    :last-y (:y event)
-                    :movement (camera-movement event)))
+    (ds/set-property self
+       :last-x (:x event)
+       :last-y (:y event)
+       :movement (camera-movement event)))
 
   (on :mouse-move
-      (when (not (= :idle (:movement self)))
-        (let [camera-node (p/node-feeding-into self :camera)
-              x (:x event)
-              y (:y event)]
-          (case (:movement self)
-            :dolly  (do (update-property camera-node :camera dolly (* -0.002 (- y (:last-y self)))) (repaint))
-            :track  (do (update-property camera-node :camera track (:last-x self) (:last-y self) x y) (repaint))
-            :tumble (do (update-property camera-node :camera tumble (:last-x self) (:last-y self) x y) (repaint))
-            nil)
-          (set-property self
-                        :last-x x
-                        :last-y y))))
+    (when (not (= :idle (:movement self)))
+      (let [camera-node (iq/node-feeding-into self :camera)
+           x (:x event)
+           y (:y event)]
+       (case (:movement self)
+         :dolly  (ds/update-property camera-node :camera dolly (* -0.002 (- y (:last-y self))))
+         :track  (ds/update-property camera-node :camera track (:last-x self) (:last-y self) x y)
+         :tumble (ds/update-property camera-node :camera tumble (:last-x self) (:last-y self) x y)
+         nil)
+       (ds/set-property self
+         :last-x x
+         :last-y y))))
 
   (on :mouse-up
-      (set-property self
-                    :last-x nil
-                    :last-y nil
-                    :movement :idle))
+    (ds/set-property self
+      :last-x nil
+      :last-y nil
+      :movement :idle))
 
   (on :mouse-wheel
-      (let [camera-node (p/node-feeding-into self :camera)]
-        (update-property camera-node :camera dolly (* -0.02 (:count event)))
-        (repaint))))
+    (let [camera-node (iq/node-feeding-into self :camera)]
+      (ds/update-property camera-node :camera dolly (* -0.02 (:count event))))))

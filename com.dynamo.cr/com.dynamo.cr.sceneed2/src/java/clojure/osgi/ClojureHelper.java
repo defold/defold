@@ -8,6 +8,8 @@ import org.osgi.framework.FrameworkUtil;
 import clojure.java.api.Clojure;
 import clojure.lang.IFn;
 import clojure.lang.ISeq;
+import clojure.lang.RT;
+import clojure.lang.Var;
 import clojure.osgi.internal.ClojureOSGi;
 
 /**
@@ -19,36 +21,36 @@ import clojure.osgi.internal.ClojureOSGi;
  * @author mtnygard
  */
 public class ClojureHelper {
-  public static final Object EMPTY_MAP = Clojure.read("{}");
+    public static final Object EMPTY_MAP = Clojure.read("{}");
 
-  private static final IFn SEQ = var("clojure.core", "seq");
+    private static final IFn SEQ = var("clojure.core", "seq");
 
-  private static IFn var(String pkg, String var) {
-    return Clojure.var(pkg, var);
-  }
-
-  public static void require(String packageName) {
-    ClojureOSGi.require(ClojureOSGi.clojureBundle(), packageName);
-  }
-
-  public static Object invoke(final String namespace, final String function, final Object... args) {
-    try {
-      return ClojureOSGi.withBundle(ClojureOSGi.clojureBundle(), new Callable<Object>() {
-        @Override
-        public Object call() {
-          return Clojure.var(namespace, function).applyTo((ISeq) SEQ.invoke(args));
-        }
-      });
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    public static Var var(String pkg, String var) {
+        return RT.var(pkg, var);
     }
-  }
 
-  public static <T> T inBundle(Bundle bundle, Callable<T> thunk) throws Exception {
-    return ClojureOSGi.withBundle(bundle, thunk);
-  }
+    public static void require(String packageName) {
+        ClojureOSGi.require(ClojureOSGi.clojureBundle(), packageName);
+    }
 
-  public static <T> T inBundle(Object caller, Callable<T> thunk) throws Exception {
-    return ClojureOSGi.withBundle(FrameworkUtil.getBundle(caller.getClass()), thunk);
-  }
+    public static Object invoke(final String namespace, final String function, final Object... args) {
+        try {
+            return ClojureOSGi.withBundle(ClojureOSGi.clojureBundle(), new Callable<Object>() {
+                @Override
+                public Object call() {
+                    return Clojure.var(namespace, function).applyTo((ISeq) SEQ.invoke(args));
+                }
+            });
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static <T> T inBundle(Bundle bundle, Callable<T> thunk) throws Exception {
+        return ClojureOSGi.withBundle(bundle, thunk);
+    }
+
+    public static <T> T inBundle(Object caller, Callable<T> thunk) throws Exception {
+        return ClojureOSGi.withBundle(FrameworkUtil.getBundle(caller.getClass()), thunk);
+    }
 }

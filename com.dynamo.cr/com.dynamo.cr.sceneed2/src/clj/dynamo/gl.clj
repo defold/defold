@@ -58,7 +58,6 @@
     (.glDeleteBuffers gl (count bufs) ^IntBuffer names)))
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~gl ~face ~mode))
-(defmacro gl-viewport [gl x y w h]       `(.glViewport ~gl ~x ~y ~w ~h))
 
 (defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~gl ~shader ~name))
 (defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~gl ~type ~name))

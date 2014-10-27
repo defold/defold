@@ -1,21 +1,39 @@
 (ns internal.value-test
   (:require [clojure.test :refer :all]
-            [dynamo.project.test-support :refer :all]
             [clojure.core.async :as async :refer [chan >!! <! alts!! timeout]]
             [schema.core :as s]
-            [dynamo.resource :as r]
             [plumbing.core :refer [defnk]]
-            [internal.cache :as c]
-            [internal.graph.dgraph :as dg]
-            [dynamo.project.test-support :refer :all]
+            [dynamo.node :as n :refer [Scope]]
             [dynamo.project :as p]
-            [dynamo.node :as n]
-            [dynamo.types :as t]))
+            [dynamo.resource :as r]
+            [dynamo.system :as ds]
+            [dynamo.system.test-support :refer :all]
+            [dynamo.types :as t]
+            [internal.graph.dgraph :as dg]
+            [internal.transaction :as it]))
 
-(defn tx-nodes [project-state & resources]
-  (let [tx-result (p/transact project-state (map p/new-resource resources))
+(def ^:dynamic *calls*)
+
+(defn tally [node fn-symbol]
+  (swap! *calls* update-in [(:_id node) fn-symbol] (fnil inc 0)))
+
+(defn get-tally [resource fn-symbol]
+  (get-in @*calls* [(:_id resource) fn-symbol] 0))
+
+(defmacro expect-call-when [node fn-symbol & body]
+  `(let [calls-before# (get-tally ~node ~fn-symbol)]
+     ~@body
+     (is (= (inc calls-before#) (get-tally ~node ~fn-symbol)))))
+
+(defmacro expect-no-call-when [node fn-symbol & body]
+  `(let [calls-before# (get-tally ~node ~fn-symbol)]
+     ~@body
+     (is (= calls-before# (get-tally ~node ~fn-symbol)))))
+
+(defn tx-nodes [world-ref & resources]
+  (let [tx-result (it/transact world-ref (map it/new-node resources))
         after (:graph tx-result)]
-    (map #(dg/node after (p/resolve-tempid tx-result %)) (map :_id resources))))
+    (map #(dg/node after (it/resolve-tempid tx-result %)) (map :_id resources))))
 
 (defn produce-simple-value
   [node g]
@@ -36,15 +54,20 @@
 
 (n/defnode CachedOutputNoInputs
   (output expensive-value :cached [node g]
-          (tally node 'compute-expensive-value)
-          "this took a long time to produce")
+    (tally node 'compute-expensive-value)
+    "this took a long time to produce")
   (input  operand String))
 
 (n/defnode UpdatesExpensiveValue
   (output expensive-value String :cached :on-update
-          [node g]
-          (tally node 'compute-expensive-value)
-          "this took a long time to produce"))
+    [node g]
+    (tally node 'compute-expensive-value)
+    "this took a long time to produce"))
+
+(n/defnode SecondaryCachedValue
+  (output another-value String :cached
+    [node g]
+    "this is distinct from the other outputs"))
 
 (defnk compute-derived-value
   [this first-name last-name]
@@ -61,54 +84,62 @@
   (inherits UncachedOutput)
   (inherits CachedOutputNoInputs)
   (inherits CachedOutputFromInputs)
-  (inherits UpdatesExpensiveValue))
+  (inherits UpdatesExpensiveValue)
+  (inherits SecondaryCachedValue))
 
 (defn build-sample-project
   []
-  (let [nodes (tx-nodes *test-project*
-                        (make-cache-test-node :scalar "Jane")
-                        (make-cache-test-node :scalar "Doe")
-                        (make-cache-test-node)
-                        (make-cache-test-node))
+  (let [world-ref (clean-world)
+        nodes     (tx-nodes world-ref
+                    (make-cache-test-node :scalar "Jane")
+                    (make-cache-test-node :scalar "Doe")
+                    (make-cache-test-node)
+                    (make-cache-test-node))
         [name1 name2 combiner expensive]  nodes]
-    (p/transact *test-project*
-                [(p/connect name1 :uncached-value combiner :first-name)
-                 (p/connect name2 :uncached-value combiner :last-name)
-                 (p/connect name1 :uncached-value expensive :operand)])
-    nodes))
+    (it/transact world-ref
+      [(it/connect name1 :uncached-value combiner :first-name)
+       (it/connect name2 :uncached-value combiner :last-name)
+       (it/connect name1 :uncached-value expensive :operand)])
+    [world-ref nodes]))
 
 (defn with-function-counts
   [f]
   (binding [*calls* (atom {})]
     (f)))
 
-(use-fixtures :each with-clean-project with-function-counts)
+(use-fixtures :each with-function-counts)
 
 (deftest labels-appear-in-cache-keys
-  (let [[name1 name2 combiner expensive] (build-sample-project)]
+  (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
     (testing "uncached values are unaffected"
-             (is (contains? (:cache-keys @*test-project*) (:_id combiner)))
-             (is (= #{:expensive-value :derived-value} (into #{} (keys (get-in @*test-project* [:cache-keys (:_id combiner)]))))))))
+      (is (contains? (:cache-keys @world-ref) (:_id combiner)))
+      (is (= #{:expensive-value :derived-value :another-value}
+            (into #{} (keys (get-in @world-ref [:cache-keys (:_id combiner)]))))))))
 
 (deftest project-cache
-  (let [[name1 name2 combiner expensive] (build-sample-project)]
+  (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
     (testing "uncached values are unaffected"
-             (is (= "Jane" (p/get-node-value name1 :uncached-value))))))
+      (is (= "Jane" (n/get-node-value name1 :uncached-value))))))
 
 (deftest caching-avoids-computation
   (testing "cached values are only computed once"
-           (let [[name1 name2 combiner expensive] (build-sample-project)]
-             (is (= "Jane Doe" (p/get-node-value combiner :derived-value)))
-             (expect-no-call-when combiner 'compute-derived-value
-                                  (doseq [x (range 100)]
-                                    (p/get-node-value combiner :derived-value)))))
+    (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
+      (is (= "Jane Doe" (n/get-node-value combiner :derived-value)))
+      (expect-no-call-when combiner 'compute-derived-value
+        (doseq [x (range 100)]
+          (n/get-node-value combiner :derived-value)))))
 
   (testing "modifying inputs invalidates the cached value"
-           (let [[name1 name2 combiner expensive] (build-sample-project)]
-             (is (= "Jane Doe" (p/get-node-value combiner :derived-value)))
-             (expect-call-when combiner 'compute-derived-value
-                               (p/transact *test-project* [(p/update-resource name1 assoc :scalar "John")])
-                               (is (= "John Doe" (p/get-node-value combiner :derived-value)))))))
+    (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
+      (is (= "Jane Doe" (n/get-node-value combiner :derived-value)))
+      (expect-call-when combiner 'compute-derived-value
+        (it/transact world-ref [(it/update-node name1 assoc :scalar "John")])
+        (is (= "John Doe" (n/get-node-value combiner :derived-value))))))
+
+  (testing "cached values are distinct"
+    (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
+      (is (= "this is distinct from the other outputs" (n/get-node-value combiner :another-value)))
+      (is (not= (n/get-node-value combiner :another-value) (n/get-node-value combiner :expensive-value))))))
 
 
 (defnk compute-disposable-value
@@ -137,23 +168,48 @@
 
 (defn build-override-project
   []
-  (let [nodes (tx-nodes *test-project*
-                        (make-override-value-node)
-                        (make-cache-test-node :scalar "Jane"))
+  (let [world-ref       (clean-world)
+        nodes           (tx-nodes world-ref
+                                  (make-override-value-node)
+                                  (make-cache-test-node :scalar "Jane"))
         [override jane]  nodes]
-    (p/transact *test-project*
-                [(p/connect jane :uncached-value override :overridden)])
+    (it/transact world-ref [(it/connect jane :uncached-value override :overridden)])
     nodes))
 
 (deftest local-properties
   (let [[override jane]  (build-override-project)]
     (testing "local properties take precedence over wired inputs"
-      (is (= "Jane"        (p/get-node-value override :output)))
-      (is (= "local value" (p/get-node-value (assoc override :overridden "local value") :output))))
+      (is (= "Jane"        (n/get-node-value override :output)))
+      (is (= "local value" (n/get-node-value (assoc override :overridden "local value") :output))))
     (testing "local properties are passed to fnks"
-      (is (= "value to fnk" (p/get-node-value (assoc override :an-input "value to fnk") :foo))))))
+      (is (= "value to fnk" (n/get-node-value (assoc override :an-input "value to fnk") :foo))))))
 
 (deftest invalid-resource-values
   (let [[override jane]  (build-override-project)]
     (testing "requesting a non-existent label throws"
-      (is (thrown? AssertionError (p/get-node-value override :aint-no-thang))))))
+      (is (thrown? AssertionError (n/get-node-value override :aint-no-thang))))))
+
+(defnk produce-output-with-project
+  [project]
+  (:name project))
+
+(n/defnode ProjectAwareNode
+  (inherits Scope)
+  (output testable-output s/Str produce-output-with-project))
+
+(defn build-project-aware-node
+  [project-name]
+  (let [world-ref (clean-world)
+        nodes (tx-nodes world-ref
+                (p/make-project :name project-name)
+                (make-project-aware-node)
+                (make-project-aware-node))
+        [project child grandchild] nodes]
+    (it/transact world-ref [(it/connect project    :self {:_id 1} :nodes)
+                            (it/connect child      :self project :nodes)
+                            (it/connect grandchild :self child :nodes)])
+    grandchild))
+
+(deftest sends-node-project-to-production-function
+  (let [project-aware-node (build-project-aware-node :some-project)]
+    (is (= :some-project (n/get-node-value project-aware-node :testable-output)))))

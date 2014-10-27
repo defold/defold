@@ -1,4 +1,5 @@
-(ns dynamo.env)
+(ns dynamo.env
+  )
 
 (set! *warn-on-reflection* true)
 
@@ -9,3 +10,4 @@
 (defmacro with-project [p & body]
   `(binding [*current-project* ~p]
      ~@body))
+

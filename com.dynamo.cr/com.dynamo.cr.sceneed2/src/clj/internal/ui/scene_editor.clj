@@ -1,28 +1,29 @@
 (ns internal.ui.scene-editor
   (:require [clojure.core.async :refer [<! >! go-loop]]
-            [plumbing.core :refer [defnk]]
-            [dynamo.editors :as e]
-            [dynamo.types :as t]
-            [dynamo.geom :as g]
-            [dynamo.camera :as c]
-            [dynamo.node :as n]
-            [dynamo.project :as p]
-            [dynamo.resource :refer [IDisposable dispose]]
-            [dynamo.ui :as ui]
             [schema.core :as s]
+            [plumbing.core :refer [defnk]]
+            [dynamo.camera :as c]
+            [dynamo.editors :as e]
+            [dynamo.geom :as g]
             [dynamo.gl :refer :all]
+            [dynamo.node :as n :refer [Scope]]
+            [dynamo.system :as ds]
+            [dynamo.types :as t]
+            [dynamo.ui :as ui]
             [service.log :as log]
             [internal.render.pass :as pass]
             [internal.ui.background :as back]
             [internal.fps :refer [new-fps-tracker]]
-            [internal.ui.grid :as grid])
+            [internal.ui.grid :as grid]
+            [internal.query :as iq])
   (:import [javax.media.opengl GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
            [java.nio IntBuffer]
            [java.awt Font]
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
            [org.eclipse.swt.opengl GLData GLCanvas]
-           [dynamo.types Camera Region]))
+           [com.jogamp.opengl.util.awt TextRenderer]
+           [dynamo.types Camera Region AABB]))
 
 (set! *warn-on-reflection* true)
 
@@ -44,158 +45,114 @@
      (bit-shift-left (or (:manipulator? obj) 0) MANIPULATOR_SHIFT)))
 
 (defnk produce-render-data :- t/RenderData
-  [this g renderables :- [t/RenderData] camera]
-  (assert camera (str "No camera is available as an input to Scene Renderer (node:" (:_id this) "."))
-  (apply merge-with (fn [a b] (reverse (sort-by #(render-key camera %) (concat a b)))) renderables))
-
-(n/defnode SceneRenderer
-  (input camera      Camera)
-  (input renderables [t/RenderData])
-  (input controller  t/Node)
-
-  (output render-data t/RenderData produce-render-data))
-
-(defn reframe
-  [editor state]
-  (let [{:keys [^GLCanvas canvas camera-node-id project-state scene-node-id]} @state
-        camera-node  (p/node-by-id project-state camera-node-id)
-        target-node  (p/node-by-id project-state scene-node-id)
-        aabb         (p/get-node-value target-node :aabb)
-        client       (.getClientArea canvas)
-        viewport     (t/->Region 0 (.width client) 0 (.height client))
-        camera       (p/get-node-value camera-node :camera)
-        camera       (assoc camera :viewport viewport)
-        framing-fn   (c/camera-ortho-frame-aabb-fn camera aabb)
-        new-camera   (framing-fn camera)]
-    (when aabb ;; there exists an aabb to center on
-      (p/transact project-state
-                  [(p/update-resource camera-node assoc :camera new-camera)])
-      (ui/request-repaint editor))))
-
-(defn resize
-  [editor state]
-  (let [{:keys [^GLCanvas canvas camera-node-id project-state]} @state
-        camera-node (p/node-by-id project-state camera-node-id)
-        client      (.getClientArea canvas)
-        viewport    (t/->Region 0 (.width client) 0 (.height client))
-        aspect      (/ (double (.width client)) (.height client))
-        camera      (:camera camera-node)
-        new-camera  (-> camera
-                      (c/set-orthographic (:fov camera)
-                                        aspect
-                                        -100000
-                                        100000)
-                      (assoc :viewport viewport))]
-    (p/transact project-state [(p/update-resource camera-node assoc :camera new-camera)])
-    (ui/request-repaint editor)))
-
-(defn on-reframe
-  [evt editor state]
-  (reframe editor state))
-
-(defn on-resize
-  [evt editor state]
-  (resize editor state))
+  [this g renderables :- [t/RenderData] view-camera :- Camera]
+  (assert view-camera (str "No camera is available as an input to Scene Renderer (node:" (:_id this) "."))
+  (apply merge-with (fn [a b] (reverse (sort-by #(render-key view-camera %) (concat a b)))) renderables))
 
 (defn setup-pass
-  [context ^GL2 gl ^GLU glu pass camera ^Region viewport]
-  (.glMatrixMode gl GL2/GL_PROJECTION)
-  (.glLoadIdentity gl)
-  (if (t/model-transform? pass)
-    (gl-mult-matrix-4d gl (c/camera-projection-matrix camera))
-    (glu-ortho glu viewport))
-  (.glMatrixMode gl GL2/GL_MODELVIEW)
-  (.glLoadIdentity gl)
-  (when (t/model-transform? pass)
-    (gl-load-matrix-4d gl (c/camera-view-matrix camera)))
-  (pass/prepare-gl pass gl glu))
+  [context ^GL2 gl ^GLU glu pass camera]
+  (let [viewport ^Region (:viewport camera)]
+    (.glMatrixMode gl GL2/GL_PROJECTION)
+    (.glLoadIdentity gl)
+    (if (t/model-transform? pass)
+      (gl-mult-matrix-4d gl (c/camera-projection-matrix camera))
+      (glu-ortho glu viewport))
+    (.glMatrixMode gl GL2/GL_MODELVIEW)
+    (.glLoadIdentity gl)
+    (when (t/model-transform? pass)
+      (gl-load-matrix-4d gl (c/camera-view-matrix camera)))
+    (pass/prepare-gl pass gl glu)))
 
-(defn do-paint
-  [{:keys [project-state ^GLContext context ^GLCanvas canvas camera-node-id render-node-id small-text-renderer] :as state}]
-  (when (not (.isDisposed canvas))
-    (.setCurrent canvas)
-    (with-context context [gl glu]
-      (try
-        (gl-clear gl 0.0 0.0 0.0 1)
+(defn gl-viewport [^GL2 gl camera]
+  (let [viewport ^Region (:viewport camera)]
+    (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))))
 
-        (let [camera      (p/get-node-value (p/node-by-id project-state camera-node-id) :camera)
-              render-data (p/get-node-value (p/node-by-id project-state render-node-id) :render-data)
-              viewport    (:viewport camera)]
-          (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))
-          (when render-data
+(defnk paint-renderer
+  [^GLContext context ^GLCanvas canvas this ^Camera view-camera text-renderer]
+  (ui/swt-safe
+    (when (and canvas (not (.isDisposed canvas)))
+      (.setCurrent canvas)
+      (with-context context [gl glu]
+        (try
+          (gl-clear gl 0.0 0.0 0.0 1)
+          (gl-viewport gl view-camera)
+          (when-let [renderables (n/get-node-value this :render-data)]
             (doseq [pass pass/passes]
-              (setup-pass context gl glu pass camera viewport)
-              (doseq [node (get render-data pass)]
+              (setup-pass context gl glu pass view-camera)
+              (doseq [node (get renderables pass)]
                 (gl-push-matrix gl
                     (when (t/model-transform? pass)
                       (gl-mult-matrix-4d gl (:world-transform node)))
                     (try
                       (when (:render-fn node)
-                        ((:render-fn node) context gl glu small-text-renderer))
+                        ((:render-fn node) context gl glu text-renderer))
                       (catch Exception e
                         (log/error :exception e
                                    :pass pass
-                                   :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))))))
-        (finally
-          (.swapBuffers canvas))))))
+                                   :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30)))))))))
+          (finally
+            (.swapBuffers canvas)))))))
 
-(defn batch-repaint
-  [state]
-  (when-not (:paint-pending @state)
-    (swap! state assoc :paint-pending true)
-    (ui/after 1
-             (swap! state dissoc :paint-pending)
-             (do-paint @state)
-             ;; uncomment the following for an FPS test
-             ;; (batch-repaint state)
-             )))
+(defnk passthrough-aabb
+  [aabb]
+  aabb)
 
-(defn- start-event-pump
-  [editor canvas {:keys [render-node-id project-state]}]
-  (let [event-chan (ui/make-event-channel)]
-    (doseq [evt [:resize :mouse-down :mouse-up :mouse-double-click :mouse-enter :mouse-exit :mouse-hover :mouse-move :mouse-wheel :key-down :key-up]]
-      (ui/pipe-events-to-channel canvas evt event-chan))
-    (go-loop []
-       (when-let [e (<! event-chan)]
-         (try
-           (p/publish (p/node-feeding-into (p/node-by-id project-state render-node-id) :controller) e)
-           (catch Exception ex (.printStackTrace ex)))
-         (recur)))
-    event-chan))
+(n/defnode Renderer
+  (input view-camera Camera)
+  (input renderables [t/RenderData])
+  (input controller  t/Node)
+  (input aabb        AABB)
 
-(deftype SceneEditor [state scene-node]
-  e/Editor
-  (init [this site]
-    (binding [ui/*view* this]
-      (let [render-node       (make-scene-renderer :_id -1 :editor this)
-            background-node   (back/make-background :_id -2)
-            grid-node         (grid/make-grid :_id -3)
-            fps-node          (new-fps-tracker)
-            camera            (c/make-camera :orthographic)
-            camera-node       (c/make-camera-node :camera camera :_id -4)
-            camera-controller (c/make-camera-controller)
-            tx-result         (p/transact (:project-state @state)
-                                          [(p/new-resource render-node)
-                                           (p/new-resource background-node)
-                                           (p/new-resource grid-node)
-                                           (p/new-resource camera-node)
-                                           (p/new-resource camera-controller)
-                                           (p/new-resource fps-node)
-                                           (p/connect fps-node          :renderable render-node :renderables)
-                                           (p/connect scene-node        :renderable render-node :renderables)
-                                           (p/connect background-node   :renderable render-node :renderables)
-                                           (p/connect grid-node         :renderable render-node :renderables)
-                                           (p/connect camera-node       :camera     render-node :camera)
-                                           (p/connect camera-node       :camera     grid-node   :camera)
-                                           (p/connect camera-node       :camera     camera-controller :camera)
-                                           (p/connect camera-controller :self       render-node :controller)])]
-        (swap! state assoc
-               :camera-node-id            (p/resolve-tempid tx-result -4)
-               :render-node-id            (p/resolve-tempid tx-result -1)
-               :scene-node-id             (:_id scene-node)))))
+  (property context GLContext)
+  (property canvas  GLCanvas)
+  (property text-renderer TextRenderer)
 
-  (create-controls [this parent]
-    (let [canvas        (glcanvas parent)
+  (output render-data t/RenderData produce-render-data)
+  (output paint s/Keyword :on-update paint-renderer)
+  (output aabb AABB passthrough-aabb)
+
+  (on :resize
+    (let [canvas      (:canvas self)
+          client      (.getClientArea ^GLCanvas canvas)
+          viewport    (t/->Region 0 (.width client) 0 (.height client))
+          aspect      (/ (double (.width client)) (.height client))
+          camera-node (iq/node-feeding-into self :view-camera)
+          camera      (n/get-node-value camera-node :camera)
+          new-camera  (-> camera
+                        (c/set-orthographic (:fov camera)
+                                            aspect
+                                            -100000
+                                            100000)
+                        (assoc :viewport viewport))]
+      (ds/set-property camera-node :camera new-camera)))
+
+  (on :reframe
+    (let [camera-node (iq/node-feeding-into self :view-camera)
+          camera      (n/get-node-value camera-node :camera)
+          aabb        (n/get-node-value self :aabb)]
+      (when aabb ;; there exists an aabb to center on
+        (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
+
+(defn- dispatch-to-controller-of [evt self]
+  (t/process-one-event (iq/node-feeding-into self :controller) evt))
+
+(defn start-event-pump
+  [canvas self]
+  (doseq [evt-type [:mouse-down :mouse-up :mouse-double-click :mouse-enter :mouse-exit :mouse-hover :mouse-move :mouse-wheel :key-down :key-up]]
+    (ui/listen canvas evt-type dispatch-to-controller-of self)))
+
+(defn pipe-events-to-node
+  [component type {:keys [_id world-ref] :as node}]
+  (ui/listen component type #(t/process-one-event (iq/node-by-id world-ref _id) %)))
+
+(n/defnode SceneEditor
+  (inherits Scope)
+  (inherits Renderer)
+
+  (input controller  s/Any)
+
+  (on :create
+    (let [canvas        (glcanvas (:parent event))
           factory       (glfactory)
           _             (.setCurrent canvas)
           context       (.createExternalGLContext factory)
@@ -203,19 +160,9 @@
           gl            (.. context getGL getGL2)]
       (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
       (.release context)
-      (ui/listen canvas :resize on-resize this state)
-      (swap! state assoc
-             :context context
-             :canvas  canvas
-             :event-channel (start-event-pump this canvas @state)
-             :small-text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12))
-      #_(reframe this state)))
-
-  (save [this file monitor])
-  (dirty? [this] false)
-  (save-as-allowed? [this] false)
-  (set-focus [this])
-  (get-state [this] @(.state this))
-
-  ui/Repaintable
-  (request-repaint [this] (batch-repaint state)))
+      (pipe-events-to-node canvas :resize self)
+      (start-event-pump canvas self)
+      (ds/set-property self
+        :context context
+        :canvas canvas
+        :text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12)))))

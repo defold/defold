@@ -80,16 +80,16 @@
 (alter-meta! #'map->NativePath update-in [:doc] str "\n\n See [[->NativePath.]]")
 
 (defn project-path
-  ([project-state]
-    (let [ep (eproj @project-state)]
-      (ProjectPath. @project-state (.toString (.removeFirstSegments (.getFullPath ep) 1)) nil)))
-  ([project-state resource]
-    (let [ep    (eproj @project-state)
+  ([project-scope]
+    (let [ep (eproj project-scope)]
+      (ProjectPath. project-scope (.toString (.removeFirstSegments (.getFullPath ep) 1)) nil)))
+  ([project-scope resource]
+    (let [ep    (eproj project-scope)
           file  (if (instance? IFile resource)
                   resource
                   (.getFile ep (str "content/" resource)))
           pr    (.removeFirstSegments (.getFullPath ^IFile file) 1)]
-      (ProjectPath. @project-state (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
+      (ProjectPath. project-scope (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
 
 (defn in-build-directory
   [^ProjectPath p]
@@ -106,10 +106,10 @@
 
 (defn protocol-buffer-loader
   [^java.lang.Class class f]
-  (fn [project-state nm ^Reader input-reader]
+  (fn [nm ^Reader input-reader]
     (let [builder (new-builder class)]
       (TextFormat/merge input-reader builder)
-      (f project-state nm (.build builder)))))
+      (f nm (.build builder)))))
 
 (defmulti message->node
   (fn [message & _] (class message)))
@@ -184,7 +184,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
         "Dynamically construct a protocol buffer builder, given a class as a variable."
 
         #'project-path
-        "Given a project-state, returns a ProjectPath containing the path to the project's files.
+        "Given a project-scope node, returns a ProjectPath containing the path to the project's files.
          The resource can be a string or an IFile."
 
         #'in-build-directory

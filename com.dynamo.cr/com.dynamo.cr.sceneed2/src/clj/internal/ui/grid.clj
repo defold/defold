@@ -72,7 +72,7 @@
 
 (defn render-scaled-grids
   [context ^GL2 gl this camera]
-  (let [grids       (p/get-node-value this :grids)
+  (let [grids       (n/get-node-value this :grids)
         view-matrix (c/camera-view-matrix camera)
         dir         (double-array 4)
         _           (.getRow view-matrix 2 dir)]
@@ -159,7 +159,7 @@
 
 (n/defnode Grid
   (input camera Camera)
-  (property grid-color (t/color))
+  (property grid-color t/Color)
   (property auto-grid  (t/bool))
   (property fixed-grid-size (t/non-negative-integer))
 

@@ -9,36 +9,41 @@
             [dynamo.editors :as ed]
             [dynamo.env :as e]
             [dynamo.geom :as g :refer [to-short-uv]]
-            [dynamo.gl :as gl :refer [do-gl]]
+            [dynamo.gl :as gl :refer :all]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
-            [dynamo.node :refer :all]
-            [dynamo.scene-editor :refer [dynamic-scene-editor]]
+            [dynamo.node :as n :refer :all]
+            [dynamo.system :as ds :refer [transactional in current-scope add in-transaction? connect]]
+            [internal.ui.scene-editor :refer :all]
+            [internal.ui.background :refer :all]
+            [internal.ui.grid :refer :all]
+            [dynamo.camera :refer :all]
             [dynamo.file :refer :all]
             [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
-            [dynamo.project :as p :refer [register-loader register-editor transact new-resource connect query]]
+            [dynamo.project :as p :refer [register-loader register-editor]]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
             [dynamo.outline :refer :all]
-            [dynamo.ui :refer [defcommand defhandler Repaintable request-repaint]]
+            [dynamo.ui :as ui :refer [defcommand defhandler]]
             [internal.ui.menus :as menus]
-            [internal.render.pass :as pass]
             [internal.ui.handlers :as handlers]
-            [internal.ui.scene-editor :refer [reframe]]
+            [internal.render.pass :as pass]
+            [internal.query :as iq]
+            [internal.transaction :as it]
             [service.log :as log :refer [logging-exceptions]]
-            [camel-snake-kebab :refer :all]
-            [clojure.osgi.core :refer [*bundle*]])
+            [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
             [com.jogamp.opengl.util.awt TextRenderer]
-            [java.nio ByteBuffer]
+            [java.nio ByteBuffer IntBuffer]
             [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
             [java.awt.image BufferedImage]
-            [javax.media.opengl GL GL2]
+            [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
+            [org.eclipse.swt.opengl GLData GLCanvas]
             [javax.vecmath Matrix4d]
             [org.eclipse.core.commands ExecutionEvent]))
 
@@ -98,7 +103,7 @@
 
 (defnk produce-aabb :- AABB
   [this project]
-  (let [textureset (p/get-node-value this :textureset)]
+  (let [textureset (get-node-value this :textureset)]
     (g/rect->aabb (:aabb textureset))))
 
 (defnode AtlasProperties
@@ -141,7 +146,7 @@
 
 (defnk save-atlas-file
   [this filename]
-  (let [text (p/get-node-value this :text-format)]
+  (let [text (get-node-value this :text-format)]
     (write-native-text-file filename text)
     :ok))
 
@@ -154,13 +159,13 @@
 
 (defn render-overlay
   [ctx ^GL2 gl ^TextRenderer text-renderer this]
-  (let [textureset ^TextureSet (p/get-node-value this :textureset)
+  (let [textureset ^TextureSet (get-node-value this :textureset)
         image      ^BufferedImage (.packed-image textureset)]
-    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
+    (overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
 (defnk produce-gpu-texture
   [this gl]
-  (texture/image-texture gl (:packed-image (p/get-node-value this :textureset))))
+  (texture/image-texture gl (:packed-image (get-node-value this :textureset))))
 
 
 (shader/defshader pos-uv-vert
@@ -185,26 +190,28 @@
   [ctx gl this]
   (handler-bind
     (:unreadable-resource use-placeholder)
-    (do-gl [this            (assoc this :gl gl)
-            textureset      (p/get-node-value this :textureset)
-            texture         (p/get-node-value this :gpu-texture)
-            shader          (p/get-node-value this :shader)
-            vbuf            (p/get-node-value this :vertex-buffer)
-            vertex-binding  (vtx/use-with gl vbuf shader)]
-           (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
-           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset)))))))
+  (do-gl [this            (assoc this :gl gl)
+          textureset      (get-node-value this :textureset)
+          texture         (get-node-value this :gpu-texture)
+          shader          (get-node-value this :shader)
+          vbuf            (get-node-value this :vertex-buffer)
+          vertex-binding  (vtx/use-with gl vbuf shader)]
+         (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+         (gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset)))))))
 
 (defnk produce-renderable :- RenderData
   [this]
   {pass/overlay
-   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this))}]
+   [{:world-transform g/Identity4d
+     :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this))}]
    pass/transparent
-   [{:world-transform g/Identity4d  :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]})
+   [{:world-transform g/Identity4d
+     :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]})
 
 (defnk produce-renderable-vertex-buffer
   [this gl]
-  (let [textureset (p/get-node-value this :textureset)
-        shader     (p/get-node-value this :shader)
+  (let [textureset (get-node-value this :textureset)
+        shader     (get-node-value this :shader)
         bounds     (:aabb textureset)
         coords     (:coords textureset)
         vbuf       (->texture-vtx (* 6 (count coords)))
@@ -233,8 +240,8 @@
 
 (defnk produce-outline-vertex-buffer
   [this gl]
-  (let [textureset (p/get-node-value this :textureset)
-        shader     (p/get-node-value this :shader)
+  (let [textureset (get-node-value this :textureset)
+        shader     (get-node-value this :shader)
         bounds     (:aabb textureset)
         coords     (:coords textureset)
         vbuf       (->texture-vtx (* 6 (count coords)))
@@ -274,23 +281,23 @@
   (inherits AtlasSave))
 
 (protocol-buffer-converters
- AtlasProto$Atlas
- {:constructor #'atlas.core/make-atlas-node
-  :basic-properties [:extrude-borders :margin]
-  :node-properties  {:images-list [:tree -> :children,
-                                   :image -> :images]
-                     :animations-list [:tree -> :children,
-                                       :animation -> :animations]}}
+  AtlasProto$Atlas
+  {:constructor      #'make-atlas-node
+   :basic-properties [:extrude-borders :margin]
+   :node-properties  {:images-list [:tree -> :children,
+                                    :image -> :images]
+                      :animations-list [:tree -> :children,
+                                        :animation -> :animations]}}
 
- AtlasProto$AtlasAnimation
- {:constructor      #'atlas.core/make-animation-group-node
-  :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
-  :node-properties  {:images-list [:tree -> :children,
-                                   :image -> :images]}}
+  AtlasProto$AtlasAnimation
+  {:constructor      #'make-animation-group-node
+   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
+   :node-properties  {:images-list [:tree -> :children,
+                                    :image -> :images]}}
 
- AtlasProto$AtlasImage
- {:constructor #'atlas.core/make-image-node
-  :basic-properties [:image]})
+  AtlasProto$AtlasImage
+  {:constructor      #'make-image-node
+   :basic-properties [:image]})
 
 (def ^:private outline-vertices-per-placement 4)
 (def ^:private vertex-size (.getNumber TextureSetProto$Constants/VERTEX_SIZE))
@@ -466,46 +473,20 @@
                      (.toByteArray (texturec-protocol-buffer (->engine-format (:packed-image textureset)))))
   :ok)
 
-(defnode CompiledTextureSave
+(defnode TextureSave
   (input textureset TextureSet)
 
-  (property texture-filename {:schema s/Any :default ""})
-
-  (output   texturec s/Any :on-update compile-texturec))
-
-(defnode CompiledTextureSetSave
-  (input textureset TextureSet)
-
-  (property texture-name (string))
+  (property texture-filename    {:schema s/Any :default ""})
+  (property texture-name        (string))
   (property textureset-filename {:schema s/Any :default ""})
 
+  (output   texturec s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
-
-(defnode TextureSave
-  (inherits CompiledTextureSave)
-  (inherits CompiledTextureSetSave))
-
-(defn on-load
-  [project path ^AtlasProto$Atlas atlas-message]
-  (let [atlas-tx (message->node atlas-message (constantly []) :filename path :_id -1)
-        compiler (make-texture-save :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
-                                    :textureset-filename (in-build-directory (replace-extension path "texturesetc"))
-                                    :texture-filename    (in-build-directory (replace-extension path "texturec")))]
-    (transact project
-      [atlas-tx
-       (new-resource compiler)
-       (connect {:_id -1} :textureset compiler :textureset)])))
 
 (defn frame-objects
   [^ExecutionEvent evt]
-  (when-let [editor        (ed/event->active-editor evt)]
-    (let [editor-state (.state editor)]
-      (reframe editor editor-state)
-      (request-repaint editor))))
-
-(logging-exceptions "Atlas tooling"
-  (register-editor (e/current-project) "atlas" #'dynamic-scene-editor)
-  (register-loader (e/current-project) "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))
+  (when-let [editor (ed/event->active-editor evt)]
+    (process-one-event editor {:type :reframe})))
 
 ;; MENUS
 ;; undefine command if defined
@@ -514,3 +495,36 @@
       "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects"
       "Frame Objects")
 (defhandler frame-objects-handler frame-objects-cmd frame-objects)
+
+(defn on-load
+  [path ^AtlasProto$Atlas atlas-message]
+  (let [atlas    (message->node atlas-message :filename path :_id -1)
+        compiler (add (make-texture-save
+                       :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
+                       :textureset-filename (in-build-directory (replace-extension path "texturesetc"))
+                       :texture-filename    (in-build-directory (replace-extension path "texturec"))))]
+    (connect atlas :textureset compiler :textureset)))
+
+(defn on-edit
+  [world-ref project-node editor-site file]
+  (let [atlas-node (p/node-by-filename project-node file)
+        editor (make-scene-editor :name "editor")]
+    (transactional world-ref
+      (in (add editor)
+        (let [background (add (make-background))
+              grid       (add (make-grid))
+              camera     (add (make-camera-node :camera (make-camera :orthographic)))
+              controller (add (make-camera-controller))]
+          (connect camera     :camera     grid       :camera)
+          (connect camera     :camera     editor     :view-camera)
+          (connect controller :self       editor     :controller)
+          (connect camera     :camera     controller :camera)
+          (connect background :renderable editor     :renderables)
+          (connect atlas-node :renderable editor     :renderables)
+          (connect grid       :renderable editor     :renderables)
+          (connect atlas-node :aabb       editor     :aabb))))
+    (let [tx-result (:last-tx @world-ref)]
+      (iq/node-by-id world-ref (it/resolve-tempid tx-result (:_id editor))))))
+
+(register-editor "atlas" #'on-edit)
+(register-loader "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))

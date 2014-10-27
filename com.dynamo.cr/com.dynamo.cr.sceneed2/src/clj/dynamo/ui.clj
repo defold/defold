@@ -1,7 +1,7 @@
 (ns dynamo.ui
-  (:require [clojure.core.async :refer [chan dropping-buffer put!]]
-            [internal.ui.handlers :as h]
+  (:require [internal.ui.handlers :as h]
             [internal.java :refer [bean-mapper]]
+            [dynamo.types :as t]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
             [org.eclipse.swt.widgets Display Listener Widget]
@@ -18,6 +18,10 @@
 (defn display ^Display
   []
   (or (Display/getCurrent) (Display/getDefault)))
+
+(defn- is-display-thread?
+  [display]
+  (= (.getThread display) (Thread/currentThread)))
 
 (defn swt-thread-safe*
   [f]
@@ -36,10 +40,10 @@
 
 (defn swt-timed-exec*
   [after f]
-  (when-let [cur (display)]
-    (if (= (Thread/currentThread) (.getThread cur))
-      (.timerExec cur after f)
-      (swt-thread-safe* #(.timerExec cur after f)))))
+  (when-let [d (display)]
+    (if (is-display-thread? d)
+      (.timerExec d after f)
+      (swt-thread-safe* #(.timerExec d after f)))))
 
 (defmacro swt-timed-exec
   [after & body]
@@ -63,29 +67,18 @@
 (defn event-type [^org.eclipse.swt.widgets.Event evt]
   (event-type-map (.type evt)))
 
-(def event->map (bean-mapper org.eclipse.swt.widgets.Event))
+(def ^:private e->m (bean-mapper org.eclipse.swt.widgets.Event))
 
-(deftype EventForwarder [ch]
-  Listener
-  (handleEvent [this evt]
-    (put! ch (update-in (event->map evt) [:type] event-type-map))))
+(defn event->map
+  [evt]
+  (update-in (e->m evt) [:type] event-type-map))
 
 (defn listen
   [^Widget component type callback-fn & args]
-  (let [f (bound-fn [evt] (apply callback-fn evt args))]
-    (.addListener component (event-map type)
-      (proxy [Listener] []
-        (handleEvent [evt]
-          (f evt))))))
-
-(defn make-event-channel
-  []
-  (chan (dropping-buffer 100)))
-
-(defn pipe-events-to-channel
-  [^Widget control type ch]
-  (.addListener control (event-map type)
-    (EventForwarder. ch)))
+  (.addListener component (event-map type)
+    (proxy [Listener] []
+      (handleEvent [evt]
+        (apply callback-fn (event->map evt) args)))))
 
 (defmacro defcommand
   [name category-id command-id label]
@@ -98,15 +91,6 @@
         fn-var     (first body)
         body       (rest body)]
     `(def ~name (h/make-handler ~command ~fn-var ~@body))))
-
-(def ^:dynamic *view* nil)
-
-(defprotocol Repaintable
-  (request-repaint [this]))
-
-(defn repaint-current-view []
-  (when *view*
-    (request-repaint *view*)))
 
 (doseq [[v doc]
         {*ns*
@@ -136,11 +120,5 @@ org.eclipse.core.commands.ExecutionEvent and the additional args.
 In the second form, enablement-fn will be checked. When it returns a truthy
 value, the handler will be enabled. Enablement-fn must have metadata to
 identify the evaluation context variables and properties that affect its
-return value."
-
-         #'Repaintable
-         "A type that satisfies this protocol can be repainted on demand."
-
-         #'request-repaint
-         "Schedule a repaint to occur at some time in the future."}]
+return value."}]
   (alter-meta! v assoc :doc doc))

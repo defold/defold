@@ -23,6 +23,8 @@ import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.statushandlers.StatusManager;
 
+import clojure.lang.Keyword;
+import clojure.lang.RT;
 import clojure.osgi.ClojureHelper;
 import clojure.osgi.internal.ClojureOSGiActivator;
 
@@ -52,21 +54,31 @@ import clojure.osgi.internal.ClojureOSGiActivator;
  */
 public class GenericEditor extends EditorPart {
     private static final String INTERNAL_NS = "internal.ui.editors";
-    private static final String EDITORS_NS = "dynamo.editors";
+    private static final String NODE_NS = "dynamo.node";
+
+    // Keywords that are event types
+    private static final Keyword INIT = RT.keyword(null, "init");
+    private static final Keyword SAVE = RT.keyword(null, "save");
+    private static final Keyword CREATE = RT.keyword(null, "create");
+    private static final Keyword FOCUS = RT.keyword(null, "focus");
+    private static final Keyword DESTROY = RT.keyword(null, "destroy");
+
+    // Keywords that go into the event maps
+    private static final Keyword PARENT = RT.keyword(null, "parent");
+    private static final Keyword SITE = RT.keyword(null, "site");
+    private static final Keyword INPUT = RT.keyword(null, "input");
+    private static final Keyword FILE = RT.keyword(null, "file");
+    private static final Keyword MONITOR = RT.keyword(null, "monitor");
 
     /**
      * This is a Clojure variable that provides the real implementation plugged
      * in to this generic editor.
      */
-    private Object impl;
-
-    public Object getImpl() {
-        return impl;
-    }
+    private Object behavior;
 
     static {
         ClojureHelper.require(INTERNAL_NS);
-        ClojureHelper.require(EDITORS_NS);
+        ClojureHelper.require(NODE_NS);
     }
 
     @Override
@@ -76,18 +88,30 @@ public class GenericEditor extends EditorPart {
         setPartName(input.getName());
 
         IFile file = ((IFileEditorInput) input).getFile();
-        impl = ClojureHelper.invoke(INTERNAL_NS, "implementation-for", site, file);
-        ClojureHelper.invoke(EDITORS_NS, "init", impl, site);
+        behavior = ClojureHelper.invoke(INTERNAL_NS, "implementation-for", site, file);
+
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, INIT, SITE, site, INPUT, input);
     }
 
     @Override
     public void createPartControl(Composite parent) {
-        ClojureHelper.invoke(EDITORS_NS, "create-controls", impl, parent);
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, CREATE, PARENT, parent);
     }
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        ClojureHelper.invoke(EDITORS_NS, "save", impl, ((IFileEditorInput) getEditorInput()).getFile(), monitor);
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, SAVE, FILE, ((IFileEditorInput) getEditorInput()).getFile(), MONITOR, monitor);
+    }
+
+    @Override
+    public void setFocus() {
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, FOCUS);
+    }
+
+    @Override
+    public void dispose() {
+        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, DESTROY);
+        super.dispose();
     }
 
     @Override
@@ -126,16 +150,15 @@ public class GenericEditor extends EditorPart {
 
     @Override
     public boolean isDirty() {
-        return (Boolean) ClojureHelper.invoke(EDITORS_NS, "dirty?", impl);
+        return true;
     }
 
     @Override
     public boolean isSaveAsAllowed() {
-        return (Boolean) ClojureHelper.invoke(EDITORS_NS, "save-as-allowed?", impl);
+        return true;
     }
 
-    @Override
-    public void setFocus() {
-        ClojureHelper.invoke(EDITORS_NS, "set-focus", impl);
+    public Object getBehavior() {
+        return behavior;
     }
 }

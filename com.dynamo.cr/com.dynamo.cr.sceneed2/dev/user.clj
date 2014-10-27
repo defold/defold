@@ -5,10 +5,12 @@
             [dynamo.project :as p]
             [dynamo.file :as f]
             [dynamo.image :refer :all]
+            [dynamo.node :as n]
+            [dynamo.system :as ds]
             [clojure.java.io :refer [file]]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
-            [internal.system :as sys]
+            [internal.system :as is]
             [clojure.repl :refer :all]
             [schema.core :as s])
   (:import [java.awt Dimension]
@@ -30,85 +32,34 @@
 
 (defmacro tap [x] `(do (prn ~(str "**** " &form " ") ~x) ~x))
 
-(defn current-project []
-  (get-in @sys/the-system [:project :project-state]))
-
 (defn macro-pretty-print
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
-(defn nodes-and-classes-in-project
+(defn the-world [] (:world @is/the-system))
+(defn the-graph [] (-> is/the-system deref :world :state is/graph))
+
+(defn nodes-and-classes
   []
-  (map (fn [n v] [n (class v)]) (keys (get-in @(current-project) [:graph :nodes])) (vals (get-in @(current-project) [:graph :nodes]))))
+  (let [gnodes (:nodes (the-graph))]
+    (sort (map (fn [n v] [n (class v)]) (keys gnodes) (vals gnodes)))))
 
-(defn node-in-project
+(defn node
   [id]
-  (dg/node (:graph @(current-project)) id))
+  (dg/node (the-graph) id))
 
-(defn load-resource-in-project
-  [res]
-  (p/load-resource (current-project) (f/project-path (current-project) res)))
-
-(defn get-value-in-project
+(defn get-value
   [id label & {:as opt-map}]
-  (p/get-node-value (merge (node-in-project id) opt-map) label))
+  (n/get-node-value (merge (node id) opt-map) label))
 
-(defn update-node-in-project
+(defn update-node
   [id f & args]
-  (p/transact (current-project) (apply p/update-resource {:_id id} f args)))
+  (ds/transactional (-> @is/the-system :world :state)
+    (apply ds/update {:_id id} f args)))
 
 (defn images-from-dir
   [d]
   (map load-image (filter #(.endsWith (.getName %) ".png") (file-seq (file d)))))
-
-(defn camera-fov-from-aabb
-  [camera aabb]
-  (let [viewport    (:viewport camera)
-        min-proj    (c/camera-project camera viewport (.. aabb min))
-        max-proj    (c/camera-project camera viewport (.. aabb max))
-        proj-width  (Math/abs (- (.x max-proj) (.x min-proj)))
-        proj-height (Math/abs (- (.y max-proj) (.x min-proj)))
-        factor-x (/ proj-width  (- (.right viewport) (.left viewport)))
-        factor-y (/ proj-height (- (.top viewport) (.bottom viewport)))
-        factor-y (* factor-y (:aspect camera))
-        fov-x-prim (* factor-x (:fov camera))
-        fov-y-prim (* factor-y (:fov camera))]
-    (* 1.1 (Math/max (/ fov-y-prim (:aspect camera)) fov-x-prim))))
-
-(defn aabb-ortho-framing-fn
-  [camera aabb]
-  (assert (= :orthographic (:type camera)))
-  (let [fov (camera-fov-from-aabb camera aabb)]
-    (fn [old-cam]
-      (-> old-cam
-        (c/set-orthographic fov (:aspect camera) (:z-near camera) (:z-far camera))
-        (c/camera-set-center aabb)))))
-
-#_(defn ortho-frame-aabb
-   [camera-node-id aabb]
-   (let [cam          (get-value-in-project camera-node-id :camera)]
-     (assert (= :orthographic (:type cam)))
-     (let [viewport (:viewport cam)
-           fov      (camera-fov-from-aabb cam aabb)]
-       (update-node-in-project camera-node-id update-in [:camera]
-                               (fn [old-cam]
-                                 (-> old-cam
-                                   (c/set-orthographic fov (:aspect cam) (:z-near cam) (:z-far cam))
-                                   (c/camera-set-center aabb)
-                                 ))))))
-
-(defn rect->aabb
-  [bounds]
-  (-> (g/null-aabb)
-      (g/aabb-incorporate (Point3d. (.x bounds) (.y bounds) 0))
-      (g/aabb-incorporate (Point3d. (.width bounds) (.height bounds) 0))))
-
-(defn ortho-frame-texture
-  [atlas-node-id camera-node-id]
-  (let [txt    (get-value-in-project atlas-node-id :textureset)
-        camera (get-value-in-project camera-node-id :camera)]
-    (update-node-in-project camera-node-id update-in [:camera]
-                              (aabb-ortho-framing-fn camera (rect->aabb (:aabb txt))))))
 
 (defn test-resource-dir
   [& [who]]

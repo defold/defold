@@ -1,65 +1,27 @@
 (ns dynamo.node
   "Define new node types"
   (:require [internal.node :as in]
-            [dynamo.types :refer :all]))
+            [dynamo.types :refer :all]
+            [plumbing.core :refer [defnk]]
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 
-(defmacro transactional
-  "Executes the body within a project transaction. All actions
-described in the body will happen atomically at the end of the transactional
-block.
+(defn get-node-value [node label]
+  (in/get-node-value node label))
 
-Some special syntax is allowed in this form. These imperative clauses describe
-the actions that should take place in the transaction.
+(defnk selfie [this] this)
 
-(repaint)
-Force a repaint of the current editor
-
-(new _node-type_ & [_property-name_ _property-value ...])
-Create a new node of the given type. Any properties listed here
-will override the node's default values for those properties.
-
-If you want to attach or detach connections to the new node, you must use
-a \"tempid\". That is an ID with a negative value. For example:
-   (new AtlasNode :_id -1)
-   (new TextureCompiler :_id -2)
-   (connect {:_id -1} :textureset {:_id -2} :textureset)
-
-Anywhere that the same tempid appears in the same transaction, it refers to the
-same node. Tempids are replaced with real IDs when the transaction executes.
-
-(attach _from-node_ _from-label_ _to-node_ _to-label_)
-Connect the output _from-label_ to the input _to-label_ on the given nodes.
-
-(detach _from-node_ _from-label_ _to-node_ _to-label_)
-The opposite of attach.
-
-(set-property _node_ _property_ _value_ [_property-2_ _value-2_ ...])
-Assign a value to the node's property. Note that this only takes effect at the end
-of the transaction, so the new value will not be visible to anyone during this body.
-
-(update-property _node_ _property_ _function_ & [_args])
-Apply a function to the a property of a node. The function is called with
-the current value of the property and any additional arguments you supply.
-
-(send _node_ _msg-type_ & _body_)
-Send a message to a node. If the node does not have a processor for that message
-type, it will complain in the system log, but otherwise ignore the message."
-  [& forms]
-  `(in/transactional ~@forms))
+(def node-intrinsics
+  '[(output self schema.core/Any selfie)])
 
 (defmacro defnode
-  "Given a name and a specification of behaviors, creates a node
+  "Given a name and a specification of behaviors, creates a node,
 and attendant functions.
-
-A record is created from name, along with a constructor of the
-form `make-node-name` that creates an instance of the node record
-type and adds it to the project.
 
 Allowed clauses are:
 
-(inherit  _symbol_)
+(inherits  _symbol_)
 Compose the behavior from the named node type
 
 (input    _symbol_ _schema_)
@@ -72,6 +34,14 @@ Define a property with schema and, possibly, default value and constraints.
 Define an output to produce values of type. Flags ':cached' and
 ':on-update' are optional. _producer_ may be a var that names an fn, or fnk.
 It may also be a function tail as [arglist] + forms.
+
+Values produced on an output with the :cached flag will be cached in memory until
+the node is affected by some change in inputs or properties. At that time, the
+cached value will be sent for disposal.
+
+Ordinarily, an output value is not produced until it is requested. However, an
+output with the :on-update flag will be updated as soon as possible after the
+previous value is invalidated.
 
 Example (from [[atlas.core]]):
 
@@ -89,8 +59,7 @@ Example (from [[atlas.core]]):
       (inherit TextureCompiler)
       (inherit TextureSetCompiler))
 
-This will produce a record `AtlasCompiler`, with a constructor function `make-atlas-compiler`, for adding
-an AtlasCompiler to the project. `defnode` merges the behaviors appropriately.
+This will produce a record `AtlasCompiler`. `defnode` merges the behaviors appropriately.
 
 Every node can receive messages. The node declares message handlers with a special syntax:
 
@@ -109,18 +78,41 @@ Every node always implements dynamo.types/Node.
 If there are any event handlers defined for the node type, then it will also
 implement dynamo.types/MessageTarget."
   [name & specs]
-  (let [beh (in/compile-specification name specs)]
+  (let [descriptor (in/compile-specification name (concat node-intrinsics specs))]
     `(do
-       ~(in/generate-type name beh)
-       ~(in/generate-constructor name beh)
-       ~(in/generate-print-method name)
-       ~(in/generate-descriptor name beh))))
+       ~(in/generate-descriptor   name descriptor)
+       ~(in/generate-defrecord    name descriptor)
+       ~(in/generate-constructor  name descriptor)
+       ~(in/generate-print-method name))))
 
 (defn dispatch-message
   "This is an advanced usage. If you have a reference to a node, you can directly send
 it a message.
 
 This function should mainly be used to create 'plumbing'. In most cases you will want
-to use dynamo.project/publish to send a message to a node."
+to use dynamo.system/publish to send a message to a node."
   [node type & {:as body}]
   (process-one-event node (assoc body :type type)))
+
+; ---------------------------------------------------------------------------
+; Bootstrapping the core node types
+; ---------------------------------------------------------------------------
+(defnode Scope
+  (input nodes [s/Any])
+  (property tag    {:schema s/Keyword})
+  (property parent {:schema s/Any})
+  (output dictionary s/Any in/scope-dictionary)
+
+  InjectionContext
+  (inject [this target] nil)
+
+  NamingContext
+  (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
+
+(defnode Root
+  (inherits Scope)
+  (property tag {:schema s/Keyword :default :root}))
+
+(defmethod print-method Root__
+  [^Root__ v ^java.io.Writer w]
+  (.write w (str "<Root{:_id " (:_id v) "}>")))
