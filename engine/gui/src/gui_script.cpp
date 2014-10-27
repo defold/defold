@@ -1853,7 +1853,7 @@ namespace dmGui
      *
      * If the specified node does not have a parent, nil is returned.
      *
-     * @name gui.get_node
+     * @name gui.get_parent
      * @param node the node from which to retrieve its parent (node)
      * @return parent instance (node)
      */
