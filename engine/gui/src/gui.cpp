@@ -1317,10 +1317,10 @@ namespace dmGui
         float sy = dmTrigLookup::Sin(half_euler.getY());
         float cz = dmTrigLookup::Cos(half_euler.getZ());
         float sz = dmTrigLookup::Sin(half_euler.getZ());
-        return Quat(sx*cy*cz - cx*sy*sz,
+        return Quat(sx*cy*cz + cx*sy*sz,
                 cx*sy*cz + sx*cy*sz,
                 cx*cy*sz - sx*sy*cz,
-                cx*cy*cz + sx*sy*sz);
+                cx*cy*cz - sx*sy*sz);
     }
 
     static Vector4 CalcPivotDelta(uint32_t pivot, Vector4 size)
