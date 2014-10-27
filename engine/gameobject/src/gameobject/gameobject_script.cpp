@@ -51,8 +51,6 @@ namespace dmGameObject
         "on_reload"
     };
 
-    dmScript::HContext g_ScriptContext = 0;
-
     ScriptWorld::ScriptWorld()
     : m_Instances()
     {
@@ -808,10 +806,15 @@ namespace dmGameObject
         return 1;
     }
 
+    static lua_State* GetLuaState(ScriptInstance* instance) {
+        return instance->m_Script->m_LuaState;
+    }
+
     void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
-        lua_State* L = GetLuaState();
+        ScriptInstance* script_instance = (ScriptInstance*)userdata1;
+        lua_State* L = GetLuaState(script_instance);
 
         int top = lua_gettop(L);
         (void) top;
@@ -821,7 +824,6 @@ namespace dmGameObject
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = component_id;
 
-        ScriptInstance* script_instance = (ScriptInstance*)userdata1;
         int ref = (int)userdata2;
 
         if (finished)
@@ -834,12 +836,7 @@ namespace dmGameObject
             dmScript::PushURL(L, url);
             dmScript::PushHash(L, property_id);
 
-            int ret = lua_pcall(L, 3, 0, 0);
-            if (ret != 0)
-            {
-                dmLogError("Error running animation callback: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
-            }
+            int ret = dmScript::PCall(L, 3, 0);
 
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -1220,10 +1217,9 @@ namespace dmGameObject
         {0, 0}
     };
 
-    void InitializeScript(dmScript::HContext context, dmResource::HFactory factory)
+    void InitializeScript(dmScript::HContext context)
     {
         lua_State* L = dmScript::GetLuaState(context);
-        g_ScriptContext = context;
 
         int top = lua_gettop(L);
         (void)top;
@@ -1301,15 +1297,6 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    void FinalizeScript(dmScript::HContext context, dmResource::HFactory factory)
-    {
-        if (g_ScriptContext)
-        {
-            dmGameObject::FreeModules(factory, g_ScriptContext);
-        }
-        g_ScriptContext = 0;
-    }
-
     struct LuaData
     {
         const char* m_Buffer;
@@ -1349,7 +1336,7 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            ret = lua_pcall(L, 0, LUA_MULTRET, 0);
+            ret = dmScript::PCall(L, 0, LUA_MULTRET);
             if (ret == 0)
             {
                 for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
@@ -1376,16 +1363,9 @@ namespace dmGameObject
                 }
                 result = true;
             }
-            else
-            {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
-            }
             lua_pushnil(L);
             dmScript::SetInstance(L);
-        }
-        else
-        {
+        } else {
             dmLogError("Error running script: %s", lua_tostring(L,-1));
             lua_pop(L, 1);
         }
@@ -1409,12 +1389,11 @@ bail:
         script->m_InstanceReference = LUA_NOREF;
     }
 
-    HScript NewScript(dmLuaDDF::LuaModule* lua_module, const char* filename)
+    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module, const char* filename)
     {
-        lua_State* L = GetLuaState();
-
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
         ResetScript(script);
+        script->m_LuaState = L;
 
         lua_pushvalue(L, -1);
         script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
@@ -1437,14 +1416,14 @@ bail:
     {
         bool result = true;
         script->m_LuaModule = lua_module;
-        if (!LoadScript(GetLuaState(), (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
+        if (!LoadScript(script->m_LuaState, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
             result = false;
         return result;
     }
 
     void DeleteScript(HScript script)
     {
-        lua_State* L = GetLuaState();
+        lua_State* L = script->m_LuaState;
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (script->m_FunctionReferences[i] != LUA_NOREF) {
@@ -1568,7 +1547,7 @@ bail:
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index)
     {
-        lua_State* L = GetLuaState();
+        lua_State* L = script->m_LuaState;
 
         int top = lua_gettop(L);
         (void) top;
@@ -1603,7 +1582,7 @@ bail:
 
     void DeleteScriptInstance(HScriptInstance script_instance)
     {
-        lua_State* L = GetLuaState();
+        lua_State* L = GetLuaState(script_instance);
 
         int top = lua_gettop(L);
         (void) top;

@@ -13,7 +13,7 @@ namespace dmGameObject
     PropertyResult LuaToVar(lua_State* L, int index, PropertyVar& out_var);
     void LuaPushVar(lua_State* L, const PropertyVar& var);
 
-    PropertyResult CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data);
+    PropertyResult CreatePropertySetUserDataLua(void* component_context, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data);
     void DestroyPropertySetUserDataLua(uintptr_t user_data);
 
     PropertyResult GetPropertyCallbackLua(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);

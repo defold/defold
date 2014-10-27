@@ -19,12 +19,14 @@ namespace dmGameObject
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        if (!LoadModules(factory, g_ScriptContext, GetLuaState(), lua_module))
+        dmScript::HContext script_context = (dmScript::HContext)context;
+        lua_State* L = dmScript::GetLuaState(script_context);
+        if (!RegisterSubModules(factory, script_context, lua_module))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        HScript script = NewScript(lua_module, filename);
+        HScript script = NewScript(L, lua_module, filename);
         if (script)
         {
             resource->m_Resource = (void*) script;
@@ -59,6 +61,13 @@ namespace dmGameObject
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
+
+        dmScript::HContext script_context = (dmScript::HContext)context;
+        if (!RegisterSubModules(factory, script_context, lua_module))
+        {
+            dmDDF::FreeMessage(lua_module);
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
 
         dmLuaDDF::LuaModule* old_lua_module = script->m_LuaModule;
         bool ok = ReloadScript(script, lua_module, filename);

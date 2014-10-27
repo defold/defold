@@ -88,8 +88,12 @@ TEST(dmSys, LoadResource)
     uint32_t size;
     r = dmSys::LoadResource("does_not_exists", buffer, sizeof(buffer), &size);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
+    r = dmSys::ResourceSize("does_not_exists", &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
     r = dmSys::LoadResource(".", buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+    r = dmSys::ResourceSize("does_not_exists", &size);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
     r = dmSys::LoadResource("wscript", 0, 0, &size);
@@ -97,7 +101,10 @@ TEST(dmSys, LoadResource)
 
     r = dmSys::LoadResource("wscript", buffer, sizeof(buffer), &size);
     ASSERT_EQ(dmSys::RESULT_OK, r);
-
+    uint32_t size2;
+    r = dmSys::ResourceSize("wscript", &size2);
+    ASSERT_EQ(dmSys::RESULT_OK, r);
+    ASSERT_EQ(size, size2);
     ASSERT_GT(size, 0);
 }
 

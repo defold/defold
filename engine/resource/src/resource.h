@@ -158,10 +158,6 @@ namespace dmResource
         /// Factory flags. Default is RESOURCE_FACTORY_FLAGS_EMPTY
         uint32_t m_Flags;
 
-        /// Stream buffer size. Must be equal or greater to the largest resource file to load.
-        /// Default is 4MB (4 * 1024 * 1024)
-        uint32_t m_StreamBufferSize;
-
         /// Pointer to a resource archive for builtin resources. Set to NULL for no archive (default value)
         const void* m_BuiltinsArchive;
 

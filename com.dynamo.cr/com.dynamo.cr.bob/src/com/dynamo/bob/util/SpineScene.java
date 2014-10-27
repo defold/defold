@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Vector;
 
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
@@ -269,7 +270,29 @@ public class SpineScene {
         };
     }
 
-    private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) {
+    private class Weight implements Comparable<Weight> {
+        public Point3d p;
+        public int boneIndex;
+        public float weight;
+
+        public Weight(Point3d p, int boneIndex, float weight) {
+            this.p = p;
+            this.boneIndex = boneIndex;
+            this.weight = weight;
+        }
+
+        private int toCompInt() {
+            // weight is [0.0, 1.0]
+            return (int)(Integer.MAX_VALUE * this.weight);
+        }
+
+        @Override
+        public int compareTo(Weight o) {
+            return o.toCompInt() - toCompInt();
+        }
+    }
+
+    private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) throws LoadException {
         Iterator<JsonNode> vertexIt = attNode.get("vertices").getElements();
         Iterator<JsonNode> uvIt = attNode.get("uvs").getElements();
         int vertexCount = 0;
@@ -282,32 +305,49 @@ public class SpineScene {
         mesh.vertices = new float[vertexCount * 5];
         mesh.boneIndices = new int[vertexCount * 4];
         mesh.boneWeights = new float[vertexCount * 4];
+        Vector<Weight> weights = new Vector<Weight>(10);
+        Point3d p = new Point3d();
         for (int i = 0; i < vertexCount; ++i) {
-            Point3d p = null;
             int boneOffset = i*4;
+            weights.setSize(0);
             if (skinned) {
                 int boneCount = vertexIt.next().asInt();
+                p.set(0.0, 0.0, 0.0);
                 for (int bi = 0; bi < boneCount; ++bi) {
                     int boneIndex = vertexIt.next().asInt();
                     double x = vertexIt.next().asDouble();
                     double y = vertexIt.next().asDouble();
                     double weight = vertexIt.next().asDouble();
-                    // Vertex is skinned, ignore supplied bone and use the first skinned bone to retrieve model space coordinates
-                    if (p == null) {
-                        bone = getBone(boneIndex);
-                        p = new Point3d(x, y, 0.0);
+                    if (weight > 0.0) {
+                        weights.add(new Weight(new Point3d(x, y, 0.0), boneIndex, (float)weight));
                     }
-                    mesh.boneIndices[boneOffset+bi] = boneIndex;
-                    mesh.boneWeights[boneOffset+bi] = (float)weight;
+                }
+                if (weights.size() > 4) {
+                    Collections.sort(weights);
+                    weights.setSize(4);
+                }
+                float totalWeight = 0.0f;
+                for (Weight w : weights) {
+                    totalWeight += w.weight;
+                }
+                boneCount = weights.size();
+                for (int bi = 0; bi < boneCount; ++bi) {
+                    Weight w = weights.get(bi);
+                    mesh.boneIndices[boneOffset+bi] = w.boneIndex;
+                    mesh.boneWeights[boneOffset+bi] = w.weight / totalWeight;
+                    Bone b = getBone(w.boneIndex);
+                    b.worldT.apply(w.p);
+                    w.p.scaleAdd(w.weight, p);
+                    p = w.p;
                 }
             } else {
                 double x = vertexIt.next().asDouble();
                 double y = vertexIt.next().asDouble();
-                p = new Point3d(x, y, 0.0);
+                p.set(x, y, 0.0);
+                bone.worldT.apply(p);
                 mesh.boneIndices[boneOffset] = bone.index;
                 mesh.boneWeights[boneOffset] = 1.0f;
             }
-            bone.worldT.apply(p);
             int vi = i*5;
             mesh.vertices[vi++] = (float)p.x;
             mesh.vertices[vi++] = (float)p.y;

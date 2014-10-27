@@ -47,6 +47,7 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
         return new ApplicationActionBarAdvisor(configurer);
     }
 
+    // TODO: This one isn't invoked in Eclipse 4. See WorkbenchWindowAdvisor#createWindowContents
     @Override
     public void createWindowContents(final Shell shell) {
         editorWindow = EditorUIPlugin.getDefault().createWindow(shell, getWindowConfigurer());

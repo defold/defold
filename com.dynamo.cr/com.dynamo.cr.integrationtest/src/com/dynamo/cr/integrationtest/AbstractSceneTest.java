@@ -30,7 +30,6 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.ui.ISelectionService;
 import org.junit.Before;
 import org.osgi.framework.Bundle;
 
@@ -89,7 +88,6 @@ public abstract class AbstractSceneTest {
             bind(INodeTypeRegistry.class).toInstance(nodeTypeRegistry);
             bind(IImageProvider.class).toInstance(imageProvider);
             bind(ManipulatorController.class).in(Singleton.class);
-            bind(ISelectionService.class).toInstance(mock(ISelectionService.class));
             bind(IRenderView.class).toInstance(mock(IRenderView.class));
             bind(IManipulatorRegistry.class).toInstance(mock(IManipulatorRegistry.class));
             bind(IClipboard.class).to(DummyClipboard.class).in(Singleton.class);

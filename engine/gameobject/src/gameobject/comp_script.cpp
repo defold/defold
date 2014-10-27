@@ -76,7 +76,7 @@ namespace dmGameObject
         const UpdateContext* m_UpdateContext;
     };
 
-    ScriptResult RunScript(HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
+    ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
         DM_PROFILE(Script, "RunScript");
 
@@ -84,7 +84,6 @@ namespace dmGameObject
 
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
-            lua_State* L = GetLuaState();
             int top = lua_gettop(L);
             (void) top;
 
@@ -108,11 +107,9 @@ namespace dmGameObject
                 ++arg_count;
             }
 
-            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
+            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             if (ret != 0)
             {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
                 result = SCRIPT_RESULT_FAILED;
             }
 
@@ -141,12 +138,20 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
+    static lua_State* GetLuaState(void* context) {
+        return dmScript::GetLuaState((dmScript::HContext)context);
+    }
+
+    static lua_State* GetLuaState(HScriptInstance instance) {
+        return instance->m_Script->m_LuaState;
+    }
+
     CreateResult CompScriptInit(const ComponentInitParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
         RunScriptParams run_params;
-        ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
+        ScriptResult ret = RunScript(GetLuaState(params.m_Context), script_instance->m_Script, SCRIPT_FUNCTION_INIT, script_instance, run_params);
         if (ret == SCRIPT_RESULT_FAILED)
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
@@ -161,10 +166,11 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        int top = lua_gettop(GetLuaState());
+        lua_State* L = GetLuaState(params.m_Context);
+        int top = lua_gettop(L);
         (void)top;
-        ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, RunScriptParams());
-        assert(top == lua_gettop(GetLuaState()));
+        ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_FINAL, script_instance, RunScriptParams());
+        assert(top == lua_gettop(L));
         if (ret == SCRIPT_RESULT_FAILED)
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
@@ -177,7 +183,8 @@ namespace dmGameObject
 
     UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params)
     {
-        int top = lua_gettop(GetLuaState());
+        lua_State* L = GetLuaState(params.m_Context);
+        int top = lua_gettop(L);
         (void)top;
         UpdateResult result = UPDATE_RESULT_OK;
         RunScriptParams run_params;
@@ -187,13 +194,13 @@ namespace dmGameObject
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
-            ScriptResult ret = RunScript(script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
+            ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
             if (ret == SCRIPT_RESULT_FAILED)
             {
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
-        assert(top == lua_gettop(GetLuaState()));
+        assert(top == lua_gettop(L));
         return result;
     }
 
@@ -215,7 +222,7 @@ namespace dmGameObject
 
         if (function_ref != LUA_NOREF)
         {
-            lua_State* L = GetLuaState();
+            lua_State* L = GetLuaState(params.m_Context);
             int top = lua_gettop(L);
             (void) top;
             int ret;
@@ -259,11 +266,9 @@ namespace dmGameObject
 
             dmScript::PushURL(L, params.m_Message->m_Sender);
 
-            ret = lua_pcall(L, 4, LUA_MULTRET, 0);
+            ret = dmScript::PCall(L, 4, LUA_MULTRET);
             if (ret != 0)
             {
-                dmLogError("Error running script: %s", lua_tostring(L,-1));
-                lua_pop(L, 1);
                 result = UPDATE_RESULT_UNKNOWN_ERROR;
             }
 
@@ -284,7 +289,7 @@ namespace dmGameObject
         int function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONINPUT];
         if (function_ref != LUA_NOREF)
         {
-            lua_State* L = GetLuaState();
+            lua_State* L = GetLuaState(params.m_Context);
             int top = lua_gettop(L);
             (void)top;
 
@@ -432,12 +437,10 @@ namespace dmGameObject
 
             int arg_count = 3;
             int input_ret = lua_gettop(L) - arg_count;
-            int ret = lua_pcall(L, arg_count, LUA_MULTRET, 0);
+            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             const char* function_name = SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT];
             if (ret != 0)
             {
-                dmLogError("Error running script %s: %s", function_name, lua_tostring(L, lua_gettop(L)));
-                lua_pop(L, 1);
                 result = INPUT_RESULT_UNKNOWN_ERROR;
             }
             else if (input_ret == lua_gettop(L))
@@ -467,7 +470,7 @@ namespace dmGameObject
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
 
-        lua_State* L = GetLuaState();
+        lua_State* L = GetLuaState(params.m_Context);
 
         int top = lua_gettop(L);
         (void)top;
@@ -485,7 +488,7 @@ namespace dmGameObject
         dmScript::SetInstance(L);
 
         RunScriptParams run_params;
-        RunScript(script_instance->m_Script, SCRIPT_FUNCTION_ONRELOAD, script_instance, run_params);
+        RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_ONRELOAD, script_instance, run_params);
         assert(top == lua_gettop(L));
     }
 
@@ -494,7 +497,7 @@ namespace dmGameObject
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_INSTANCE, params.m_PropertySet);
 
-        lua_State* L = GetLuaState();
+        lua_State* L = GetLuaState(script_instance);
 
         int top = lua_gettop(L);
         (void)top;
@@ -643,7 +646,7 @@ namespace dmGameObject
             out_value.m_ElementIds[3] = element_ids[3];
         }
 
-        lua_State* L = GetLuaState();
+        lua_State* L = GetLuaState(script_instance);
 
         int top = lua_gettop(L);
         (void)top;
@@ -701,7 +704,7 @@ namespace dmGameObject
         if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
             return PROPERTY_RESULT_NOT_FOUND;
 
-        lua_State* L = GetLuaState();
+        lua_State* L = GetLuaState(script_instance);
 
         int top = lua_gettop(L);
         (void)top;

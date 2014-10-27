@@ -2,6 +2,9 @@
 
 #include <render/render.h>
 
+#include <gameobject/lua_ddf.h>
+#include <gameobject/gameobject_script_util.h>
+
 namespace dmGameSystem
 {
     dmResource::Result ResRenderScriptCreate(dmResource::HFactory factory,
@@ -10,8 +13,20 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
+        dmLuaDDF::LuaModule* lua_module = 0;
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        if ( e != dmDDF::RESULT_OK )
+            return dmResource::RESULT_FORMAT_ERROR;
+
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
-        dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, buffer, buffer_size, filename);
+        if (!dmGameObject::RegisterSubModules(factory, dmRender::GetScriptContext(render_context), lua_module))
+        {
+            dmDDF::FreeMessage(lua_module);
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename);
+        dmDDF::FreeMessage(lua_module);
         if (render_script)
         {
             resource->m_Resource = (void*) render_script;
@@ -40,12 +55,25 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)context;
         dmRender::HRenderScript render_script = (dmRender::HRenderScript) resource->m_Resource;
-        if (dmRender::ReloadRenderScript(render_context, render_script, buffer, buffer_size, filename))
+
+        dmLuaDDF::LuaModule* lua_module = 0;
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(buffer, buffer_size, &lua_module);
+        if ( e != dmDDF::RESULT_OK ) {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        if (!dmGameObject::RegisterSubModules(factory, dmRender::GetScriptContext(render_context), lua_module))
         {
+            dmDDF::FreeMessage(lua_module);
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        if (dmRender::ReloadRenderScript(render_context, render_script, lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename))
+        {
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }
         else
         {
+            dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }

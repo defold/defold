@@ -5,9 +5,6 @@ import com.dynamo.bob.CopyBuilder;
 
 public class CopyBuilders {
 
-    @BuilderParams(name = "RenderScript", inExts = ".render_script", outExt = ".render_scriptc")
-    public static class RenderScriptBuilder extends CopyBuilder {}
-
     @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc")
     public static class WavBuilder extends CopyBuilder {}
 

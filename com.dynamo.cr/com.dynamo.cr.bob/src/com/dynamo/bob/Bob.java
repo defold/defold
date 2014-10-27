@@ -174,44 +174,48 @@ public class Bob {
         return texcLibDir;
     }
 
-    private static String getPlatform() {
+    private enum PlatformType {
+        Windows,
+        Darwin,
+        Linux
+    }
+
+    private static PlatformType getPlatform() {
         String os_name = System.getProperty("os.name").toLowerCase();
 
-        if (os_name.indexOf("win") != -1)
-            return "win32";
-        else if (os_name.indexOf("mac") != -1)
-            return "darwin";
-        else if (os_name.indexOf("linux") != -1)
-            return "linux";
-        return null;
+        if (os_name.indexOf("win") != -1) {
+            return PlatformType.Windows;
+        } else if (os_name.indexOf("mac") != -1) {
+            return PlatformType.Darwin;
+        } else if (os_name.indexOf("linux") != -1) {
+            return PlatformType.Linux;
+        } else {
+            throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
+        }
     }
 
     private static void setTexcLibDir() throws URISyntaxException, ZipException, IOException {
         URI uri = getJarURI();
-        String prefix = "";
-        String ext = "";
-        String platform = getPlatform();
-        if (platform.equals("win32")) {
-            ext = ".dll";
-        } else if (platform.equals("darwin")) {
-            prefix = "x86_64-darwin/lib";
-            ext = ".dylib";
-        } else if (platform.equals("linux")) {
-            prefix = "lib";
-            ext = ".so";
+        String libSubPath = null;
+        PlatformType platform = getPlatform();
+        switch (platform) {
+        case Windows:
+            libSubPath = "lib/win32/texc_shared.dll";
+            break;
+        case Darwin:
+            libSubPath = "lib/x86_64-darwin/libtexc_shared.dylib";
+            break;
+        case Linux:
+            libSubPath = "lib/linux/libtexc_shared.so";
+            break;
         }
-        String path = prefix + "texc_shared" + ext;
-        File file = FileUtils.toFile(getFile(uri, path).toURL());
-        if (!file.exists()) {
-            String libPath = uri.getPath() + "lib/";
-            // No platform-qualified path in dev mode (waf install)
-            if (!isDev() && !platform.equals("darwin")) {
-                libPath = libPath.concat(platform);
-            }
-            uri = new File(libPath).toURI();
-            file = FileUtils.toFile(getFile(uri, path).toURL());
+
+        File file = FileUtils.toFile(getFile(uri, libSubPath).toURL());
+        if (file.exists()) {
+            texcLibDir = file.getParentFile().getAbsolutePath();
+        } else {
+            throw new IOException(String.format("Could not locate '%s'", libSubPath));
         }
-        texcLibDir = file.getParentFile().getAbsolutePath();
     }
 
     private static URI getJarURI() throws URISyntaxException {
@@ -303,15 +307,6 @@ public class Bob {
                 ex.printStackTrace();
             }
         }
-    }
-
-    /**
-     * Return whether the editor is currently running in development mode or
-     * not. Based on if the "osgi.dev" system property is set or not.
-     */
-    private static boolean isDev() {
-        String dev = System.getProperty("osgi.dev");
-        return dev != null;
     }
 
     public static void verbose(String message, Object... args) {

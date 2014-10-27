@@ -28,10 +28,10 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/message");
         m_ScriptContext = dmScript::NewContext(0, 0);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext, m_Factory);
+        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         assert(dmMessage::NewSocket("@system", &m_Socket) == dmMessage::RESULT_OK);
 
         m_MessageTargetCounter = 0;
@@ -66,11 +66,10 @@ protected:
         dmMessage::DeleteSocket(m_Socket);
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
-        dmGameObject::Finalize(m_ScriptContext, m_Factory);
-        dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmResource::DeleteFactory(m_Factory);
+        dmGameObject::DeleteRegister(m_Register);
     }
 
     static dmResource::Result ResMessageTargetCreate(dmResource::HFactory factory,
@@ -98,6 +97,7 @@ public:
     std::map<uint32_t, uint32_t> m_MessageMap;
 
     uint32_t m_MessageTargetCounter;
+    dmGameObject::ModuleContext m_ModuleContext;
 };
 
 const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");

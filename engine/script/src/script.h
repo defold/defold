@@ -320,36 +320,21 @@ namespace dmScript
      * @param script lua script to load
      * @param script_size lua script size
      * @param script_name script-name. Should be in lua require-format, i.e. syntax use for the require statement. e.g. x.y.z without any extension
-     * @param user_data user data
+     * @param resource the resource will be released throught the resource system at finalization
+     * @param path_hash hashed path of the originating resource
      * @return RESULT_OK on success
      */
-    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* user_data);
+    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* resource, dmhash_t path_hash);
 
     /**
      * Reload loaded module
      * @param context script context
-     * @param L lua state
      * @param script lua script to load
      * @param script_size lua script size
-     * @param module_hash module hash-name, hashed version of script_name from AddModule
+     * @param path_hash hashed path, see AddModule
      * @return RESULT_OK on success
      */
-    Result ReloadModule(HContext context, lua_State* L, const char* script, uint32_t script_size, dmhash_t module_hash);
-
-    /**
-     * Iterate over all modules
-     * @param profile Profile snapshot to iterate over
-     * @param context User context
-     * @param call_back Call-back function pointer
-     */
-    void IterateModules(HContext context, void* user_context, void (*call_back)(void* user_context, void* user_data));
-
-    /**
-     * Remove all modules.
-     * @note In order to free related resource use IterateModules before calling this function
-     * @param context script context
-     */
-    void ClearModules(HContext context);
+    Result ReloadModule(HContext context, const char* script, uint32_t script_size, dmhash_t path_hash);
 
     /**
      * Check if a module is loaded
@@ -362,10 +347,10 @@ namespace dmScript
     /**
      * Check if a module is loaded by hash
      * @param context script context
-     * @param module_hash module hash, see ReloadModule
+     * @param path_hash hashed path, see AddModule
      * @return true if loaded
      */
-    bool ModuleLoaded(HContext context, dmhash_t module_hash);
+    bool ModuleLoaded(HContext context, dmhash_t path_hash);
 
     /**
      * Retrieve current instance from the global table and place it on the top of the stack, only valid when set.
@@ -418,6 +403,16 @@ namespace dmScript
      * @param meta array of meta methods
      */
     void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+
+    /**
+     * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
+     * In the case of an error, the error is logged and popped from the stack.
+     * @param L lua state
+     * @param nargs number of arguments
+     * @param nresult number of results
+     * @return error code from pcall
+     */
+    int PCall(lua_State* L, int nargs, int nresult);
 }
 
 #endif // DM_SCRIPT_H

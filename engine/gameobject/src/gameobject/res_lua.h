@@ -12,14 +12,10 @@ namespace dmGameObject
     struct LuaScript
     {
         LuaScript(dmLuaDDF::LuaModule* lua_module) :
-            m_LuaModule(lua_module), m_ScriptContext(0), m_NameHash(0), m_ModuleHash(0) {}
+            m_LuaModule(lua_module) {}
 
         dmLuaDDF::LuaModule* m_LuaModule;
 
-        // The following variables are used for reloading modules, see gameobject_script_util.cpp
-        dmScript::HContext   m_ScriptContext;
-        uint64_t             m_NameHash;
-        uint64_t             m_ModuleHash;
     };
 
     dmResource::Result ResLuaCreate(dmResource::HFactory factory,

@@ -27,7 +27,11 @@ def build(bld):
         bld.new_task_gen(source = source,
                          target = '%s_doc.sdoc' % d,
                          rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+        bld.new_task_gen(source = source,
+                         target = '%s_doc.json' % d,
+                         rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
         bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % d)
+        bld.install_files('${PREFIX}/share/doc', '%s_doc.json' % d)
 
     bld.add_group()
     bld.add_subdirs('test')

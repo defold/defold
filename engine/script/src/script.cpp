@@ -37,6 +37,7 @@ namespace dmScript
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
+        context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
@@ -480,5 +481,38 @@ namespace dmScript
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return false;
+    }
+
+    static int BacktraceErrorHandler(lua_State *m_state) {
+        if (!lua_isstring(m_state, 1))
+            return 1;
+        lua_getfield(m_state, LUA_GLOBALSINDEX, "debug");
+        if (!lua_istable(m_state, -1)) {
+            lua_pop(m_state, 1);
+            return 1;
+        }
+        lua_getfield(m_state, -1, "traceback");
+        if (!lua_isfunction(m_state, -1)) {
+            lua_pop(m_state, 2);
+            return 1;
+        }
+        lua_pushvalue(m_state, 1);  /* pass error message */
+        lua_pushinteger(m_state, 2);
+        lua_call(m_state, 2, 1);  /* call debug.traceback */
+
+        return 1;
+    }
+
+    int PCall(lua_State* L, int nargs, int nresult) {
+        lua_pushcfunction(L, BacktraceErrorHandler);
+        int err_index = lua_gettop(L) - nargs - 1;
+        lua_insert(L, err_index);
+        int result = lua_pcall(L, nargs, nresult, err_index);
+        lua_remove(L, err_index);
+        if (result != 0) {
+            dmLogError("%s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+        }
+        return result;
     }
 }

@@ -115,6 +115,7 @@ namespace dmEngine
         dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
         dmGameSystem::FactoryContext                m_FactoryContext;
         dmGameSystem::SpineModelContext             m_SpineModelContext;
+        dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmRender::HFontMap                          m_SystemFontMap;
         dmHID::HContext                             m_HidContext;
@@ -125,6 +126,8 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
+        bool										m_UseVariableDt;
+        uint64_t									m_PreviousFrameTime;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;

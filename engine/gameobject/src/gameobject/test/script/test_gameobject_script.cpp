@@ -28,12 +28,14 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/script";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, m_Factory);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext, m_Factory);
+        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
-        dmGameObject::RegisterResourceTypes(m_Factory, m_Register);
-        dmGameObject::RegisterComponentTypes(m_Factory, m_Register);
+        m_ModuleContext.m_ScriptContexts.SetCapacity(1);
+        m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
+        dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
+        dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
         dmMessage::Result result = dmMessage::NewSocket("@system", &m_Socket);
         assert(result == dmMessage::RESULT_OK);
@@ -44,11 +46,10 @@ protected:
         dmMessage::DeleteSocket(m_Socket);
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
-        dmGameObject::Finalize(m_ScriptContext, m_Factory);
-        dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmResource::DeleteFactory(m_Factory);
+        dmGameObject::DeleteRegister(m_Register);
     }
 
 public:
@@ -60,6 +61,7 @@ public:
     dmMessage::HSocket m_Socket;
     dmScript::HContext m_ScriptContext;
     const char* m_Path;
+    dmGameObject::ModuleContext m_ModuleContext;
 };
 
 struct TestScript01Context
@@ -357,7 +359,7 @@ int TestRef(lua_State* L)
 
 TEST_F(ScriptTest, TestInstanceCallback)
 {
-    lua_State* L = dmGameObject::GetLuaState();
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     lua_register(L, "test_ref", TestRef);
 

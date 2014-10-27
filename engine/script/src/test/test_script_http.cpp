@@ -141,12 +141,8 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     lua_gc(L, LUA_GCCOLLECT, 0);
 
     dmScript::PushDDF(L, descriptor, (const char*)&message->m_Data[0]);
-    int ret = lua_pcall(L, 1, 0, 0);
-    if (ret != 0) {
-        dmLogError("Error: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
-        ASSERT_TRUE(0);
-    }
+    int ret = dmScript::PCall(L, 1, 0);
+    ASSERT_EQ(0, ret);
 }
 
 TEST_F(ScriptHttpTest, TestPost)
@@ -163,12 +159,10 @@ TEST_F(ScriptHttpTest, TestPost)
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
     lua_getfield(L, -1, "test_http");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = lua_pcall(L, 0, LUA_MULTRET, 0);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
     if (result == LUA_ERRRUN)
     {
-        dmLogError("Error running script: %s", lua_tostring(L,-1));
         ASSERT_TRUE(false);
-        lua_pop(L, 1);
     }
     else
     {
@@ -216,12 +210,10 @@ TEST_F(ScriptHttpTest, TestTimeout)
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
     lua_getfield(L, -1, "test_http_timeout");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = lua_pcall(L, 0, LUA_MULTRET, 0);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
     if (result == LUA_ERRRUN)
     {
-        dmLogError("Error running script: %s", lua_tostring(L,-1));
         ASSERT_TRUE(false);
-        lua_pop(L, 1);
     }
     else
     {
@@ -268,12 +260,10 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
     lua_getfield(L, -1, "test_http");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
-    int result = lua_pcall(L, 0, LUA_MULTRET, 0);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
     if (result == LUA_ERRRUN)
     {
-        dmLogError("Error running script: %s", lua_tostring(L,-1));
         ASSERT_TRUE(false);
-        lua_pop(L, 1);
     }
     else
     {

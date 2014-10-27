@@ -113,8 +113,9 @@ namespace dmGameObject
         }
     }
 
-    PropertyResult CreatePropertySetUserDataLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
+    PropertyResult CreatePropertySetUserDataLua(void* component_context, uint8_t* buffer, uint32_t buffer_size, uintptr_t* user_data)
     {
+        lua_State* L = dmScript::GetLuaState((dmScript::HContext)component_context);
         int top = lua_gettop(L);
         (void)top;
         if (buffer_size > 0)

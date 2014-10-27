@@ -81,12 +81,10 @@ TEST_F(ScriptHashTest, TestHash)
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
     dmScript::PushHash(L, hash);
     lua_pushstring(L, hash_hex);
-    int result = lua_pcall(L, 2, LUA_MULTRET, 0);
+    int result = dmScript::PCall(L, 2, LUA_MULTRET);
     if (result == LUA_ERRRUN)
     {
-        dmLogError("Error running script: %s", lua_tostring(L,-1));
         ASSERT_TRUE(false);
-        lua_pop(L, 1);
     }
     else
     {

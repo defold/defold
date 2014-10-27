@@ -356,6 +356,38 @@ TEST_F(ParticleTest, OnceDelay)
 }
 
 /**
+ * Verify once emitters respect delay longer than duration (bug)
+ */
+TEST_F(ParticleTest, OnceLongDelay)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("once_long_delay.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::StartInstance(m_Context, instance);
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
+    ASSERT_EQ(0u, ParticleCount(e));
+    // delay
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(0u, ParticleCount(e));
+    // delay
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(0u, ParticleCount(e));
+    // spawn
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(1u, ParticleCount(e));
+    // wait for particle to die
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(0u, ParticleCount(e));
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
  * Verify loop emitters don't end
  */
 TEST_F(ParticleTest, Loop)
