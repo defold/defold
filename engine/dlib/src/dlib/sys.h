@@ -152,6 +152,14 @@ namespace dmSys
     bool ResourceExists(const char* path);
 
     /**
+     * Get resource sie
+     * @param path
+     * @param resource_size
+     * @return RESULT_OK on success. RESULT_NOENT if the file doesn't exists or isn't a regular file.
+     */
+    Result ResourceSize(const char* path, uint32_t* resource_size);
+
+    /**
      * Load resource. That path supplied should
      * be prepended by the path returned from GetResourcesPath()
      * @note LoadResource can only operate on local filesystem

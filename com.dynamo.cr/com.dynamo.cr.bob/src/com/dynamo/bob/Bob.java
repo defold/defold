@@ -200,17 +200,14 @@ public class Bob {
         PlatformType platform = getPlatform();
         switch (platform) {
         case Windows:
-            libSubPath = "win32/texc_shared.dll";
+            libSubPath = "lib/win32/texc_shared.dll";
             break;
         case Darwin:
-            libSubPath = "x86_64-darwin/libtexc_shared.dylib";
+            libSubPath = "lib/x86_64-darwin/libtexc_shared.dylib";
             break;
         case Linux:
-            libSubPath = "linux/libtexc_shared.so";
+            libSubPath = "lib/linux/libtexc_shared.so";
             break;
-        }
-        if (isDev()) {
-            libSubPath = "lib/" + libSubPath;
         }
 
         File file = FileUtils.toFile(getFile(uri, libSubPath).toURL());
@@ -310,15 +307,6 @@ public class Bob {
                 ex.printStackTrace();
             }
         }
-    }
-
-    /**
-     * Return whether the editor is currently running in development mode or
-     * not. Based on if the "osgi.dev" system property is set or not.
-     */
-    private static boolean isDev() {
-        String dev = System.getProperty("osgi.dev");
-        return dev != null;
     }
 
     public static void verbose(String message, Object... args) {

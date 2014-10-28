@@ -513,10 +513,11 @@ TEST_F(dmGuiTest, ClearNodes)
 
 TEST_F(dmGuiTest, AnimateNode)
 {
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     for (uint32_t i = 0; i < MAX_ANIMATIONS + 1; ++i)
     {
         dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-        dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.5f, 0, 0, 0);
+        dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.5f, 0, 0, 0);
 
         ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -540,10 +541,12 @@ TEST_F(dmGuiTest, AnimateNode)
 TEST_F(dmGuiTest, Playback)
 {
     const float duration = 4 / 60.0f;
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_BACKWARD, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_BACKWARD, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
@@ -557,7 +560,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f / 4.0f, EPSILON);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_FORWARD, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_FORWARD, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
@@ -571,7 +574,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_BACKWARD, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_BACKWARD, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
@@ -585,7 +588,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 3.0f / 4.0f, EPSILON);
 
     dmGui::SetNodePosition(m_Scene, node, Point3(0,0,0));
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_PINGPONG, duration, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_LOOP_PINGPONG, duration, 0, 0, 0, 0);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f / 4.0f, EPSILON);
@@ -606,8 +609,9 @@ TEST_F(dmGuiTest, Playback)
 
 TEST_F(dmGuiTest, AnimateNode2)
 {
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -623,8 +627,9 @@ TEST_F(dmGuiTest, AnimateNode2)
 
 TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
 {
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 2.0f / 60.0f, 1.0f / 60.0f, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -644,8 +649,9 @@ TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
 
 TEST_F(dmGuiTest, AnimateNodeDelete)
 {
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.1f, 0, 0, 0, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
     dmGui::HNode node2 = 0;
@@ -673,7 +679,8 @@ void MyAnimationComplete(dmGui::HScene scene,
                          void* userdata2)
 {
     MyAnimationCompleteCount++;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(2,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(2,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
     // Check that we reached target position
     *(Point3*)userdata2 = dmGui::GetNodePosition(scene, node);
 }
@@ -682,7 +689,8 @@ TEST_F(dmGuiTest, AnimateComplete)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     Point3 completed_position;
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -718,7 +726,8 @@ void MyPingPongComplete1(dmGui::HScene scene,
                         void* userdata2)
 {
     ++PingPongCount;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(0,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(0,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -727,13 +736,15 @@ void MyPingPongComplete2(dmGui::HScene scene,
                          void* userdata2)
 {
     ++PingPongCount;
-    dmGui::AnimateNode(scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 }
 
 TEST_F(dmGuiTest, PingPong)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-    dmGui::AnimateNode(m_Scene, node, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -755,7 +766,8 @@ TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
     dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeParent(m_Scene, child, parent);
-    dmGui::AnimateNode(m_Scene, child, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(m_Scene, child, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
 
     dmGui::SetNodeEnabled(m_Scene, parent, false);
 
@@ -777,8 +789,9 @@ TEST_F(dmGuiTest, Reset)
     dmGui::HNode n2 = dmGui::NewNode(m_Scene, Point3(100, 200, 300), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     // Set reset point only for the first node
     dmGui::SetNodeResetPoint(m_Scene, n1);
-    dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_POSITION, Vector4(1, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
-    dmGui::AnimateNode(m_Scene, n2, dmGui::PROPERTY_POSITION, Vector4(101, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(m_Scene, n1, property, Vector4(1, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, n2, property, Vector4(101, 0, 0, 0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
     dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
 
     dmGui::ResetNodes(m_Scene);
@@ -1678,9 +1691,10 @@ TEST_F(dmGuiTest, ReplaceAnimation)
     dmGui::HNode node1 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::HNode node2 = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
 
-    dmGui::AnimateNode(m_Scene, node2, dmGui::PROPERTY_POSITION, Vector4(123,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 0.5f, 0, 0, 0, 0);
-    dmGui::AnimateNode(m_Scene, node1, dmGui::PROPERTY_POSITION, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
-    dmGui::AnimateNode(m_Scene, node1, dmGui::PROPERTY_POSITION, Vector4(10,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
+    dmGui::AnimateNodeHash(m_Scene, node2, property, Vector4(123,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 0.5f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node1, property, Vector4(1,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
+    dmGui::AnimateNodeHash(m_Scene, node1, property, Vector4(10,0,0,0), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, 0, 0, 0);
 
     for (int i = 0; i < 60; ++i)
     {
@@ -2208,7 +2222,8 @@ TEST_F(dmGuiTest, EnableDisable)
     dmGui::RenderScene(m_Scene, RenderEnabledNodes, &rendered);
     ASSERT_FALSE(rendered);
 
-    dmGui::AnimateNode(m_Scene, n1, dmGui::PROPERTY_COLOR, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0x0, 0x0, 0x0);
+    dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_COLOR);
+    dmGui::AnimateNodeHash(m_Scene, n1, property, Vector4(0.0f, 0.0f, 0.0f, 0.0f), dmEasing::TYPE_LINEAR, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0x0, 0x0, 0x0);
     ASSERT_EQ(4U, m_Scene->m_Animations.Size());
 
     // Test no animation evaluation

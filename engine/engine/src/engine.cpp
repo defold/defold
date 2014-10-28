@@ -441,6 +441,8 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
+        engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
+        engine->m_PreviousFrameTime = dmTime::GetTime();
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
@@ -454,7 +456,6 @@ namespace dmEngine
             if (http_cache)
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
-        params.m_StreamBufferSize = 16 * 1024 * 1024; // We have some *large* textures...!
         params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
         params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
 
@@ -780,11 +781,11 @@ bail:
         engine->m_RunResult.m_ExitCode = 0;
 
         uint64_t time = dmTime::GetTime();
-        uint64_t prev_time = time;
+        uint64_t prev_time = engine->m_PreviousFrameTime;
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
-        bool variable_dt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
+        bool variable_dt = engine->m_UseVariableDt;
 
         if (engine->m_Alive)
         {
@@ -916,6 +917,7 @@ bail:
 
             prev_time = time;
             time = dmTime::GetTime();
+            engine->m_PreviousFrameTime = prev_time;
 
             // set fps continuously in case it changes during runtime
             fps = engine->m_UpdateFrequency;

@@ -624,8 +624,10 @@ namespace dmParticle
         }
         // Step emitter life
         emitter->m_Timer += dt;
-        // never go above duration
-        emitter->m_Timer = dmMath::Min(emitter->m_Timer, emitter_ddf->m_Duration);
+        if (emitter->m_State != EMITTER_STATE_PRESPAWN) {
+            // never go above duration
+            emitter->m_Timer = dmMath::Min(emitter->m_Timer, emitter_ddf->m_Duration);
+        }
         if (emitter->m_State == EMITTER_STATE_SPAWNING)
         {
             // wrap looping emitters when they reach the end

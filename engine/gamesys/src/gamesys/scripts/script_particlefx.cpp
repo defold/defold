@@ -215,7 +215,7 @@ namespace dmGameSystem
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
         dmhash_t emitter_id;
-        if (!GetHash(L, 3, &emitter_id))
+        if (!GetHash(L, 2, &emitter_id))
             return luaL_error(L, "emitter_id must be either a hash or a string");
 
         dmhash_t name_hash;

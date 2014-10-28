@@ -403,6 +403,16 @@ namespace dmScript
      * @param meta array of meta methods
      */
     void RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+
+    /**
+     * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
+     * In the case of an error, the error is logged and popped from the stack.
+     * @param L lua state
+     * @param nargs number of arguments
+     * @param nresult number of results
+     * @return error code from pcall
+     */
+    int PCall(lua_State* L, int nargs, int nresult);
 }
 
 #endif // DM_SCRIPT_H

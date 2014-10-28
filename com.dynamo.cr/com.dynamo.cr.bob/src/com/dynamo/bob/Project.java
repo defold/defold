@@ -629,6 +629,9 @@ run:
             path = FilenameUtils.normalize(path, true);
             if (skipDirs != null) {
                 for (String sd : skipDirs) {
+                    if (FilenameUtils.equalsNormalized(sd, path)) {
+                        return false;
+                    }
                     if (FilenameUtils.wildcardMatch(path, sd + "/*")) {
                         return false;
                     }

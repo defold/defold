@@ -120,7 +120,7 @@ TEST_F(ScriptTest, TestCoroutineCallback)
     // Retrieve and run callback from c func
     lua_getglobal(L, "_callback");
     luaL_checktype(L, -1, LUA_TFUNCTION);
-    int ret = lua_pcall(dmScript::GetMainThread(state), 0, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(dmScript::GetMainThread(state), 0, LUA_MULTRET);
     ASSERT_EQ(0, ret);
 
     // Retrieve coroutine
@@ -235,6 +235,21 @@ TEST_F(ScriptTest, TestUserType) {
 
 #undef ASSERT_EQ_URL
 #undef ASSERT_NE_URL
+
+static int FailingFunc(lua_State* L) {
+    return luaL_error(L, "this function does not work");
+}
+
+TEST_F(ScriptTest, TestErrorHandler) {
+
+    int top = lua_gettop(L);
+
+    lua_pushcfunction(L, FailingFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+}
 
 int main(int argc, char **argv)
 {
