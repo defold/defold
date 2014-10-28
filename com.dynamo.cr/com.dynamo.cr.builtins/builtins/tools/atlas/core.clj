@@ -31,8 +31,6 @@
             [internal.ui.menus :as menus]
             [internal.ui.handlers :as handlers]
             [internal.render.pass :as pass]
-            [internal.query :as iq]
-            [internal.transaction :as it]
             [service.log :as log :refer [logging-exceptions]]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
@@ -522,9 +520,8 @@
           (connect background :renderable editor     :renderables)
           (connect atlas-node :renderable editor     :renderables)
           (connect grid       :renderable editor     :renderables)
-          (connect atlas-node :aabb       editor     :aabb))))
-    (let [tx-result (:last-tx @world-ref)]
-      (iq/node-by-id world-ref (it/resolve-tempid tx-result (:_id editor))))))
+          (connect atlas-node :aabb       editor     :aabb))
+        editor))))
 
 (register-editor "atlas" #'on-edit)
 (register-loader "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))

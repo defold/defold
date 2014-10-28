@@ -61,11 +61,22 @@
 
 (def ^:private ^:dynamic *transaction* (->NullTransaction))
 
+(defn node? [v] (satisfies? t/Node v))
+
+(defn- resolve-return-val
+  [tx-outcome val]
+  (cond
+    (sequential? val)  (map #(resolve-return-val tx-outcome %) val)
+    (node? val)        (or (dg/node (:graph tx-outcome) (it/resolve-tempid tx-outcome (:_id val))) val)
+    :else              val))
+
 (defn transactional* [world-ref inner]
   (binding [*transaction* (tx-begin *transaction* world-ref)]
-    (let [result (inner)]
-      (tx-apply *transaction*)
-      result)))
+    (let [result     (inner)
+          tx-outcome (tx-apply *transaction*)]
+      (if tx-outcome
+        (resolve-return-val tx-outcome result)
+        result))))
 
 (defn in-transaction? []
   (not (instance? NullTransaction *transaction*)))

@@ -29,8 +29,6 @@
             [internal.ui.menus :as menus]
             [internal.ui.handlers :as handlers]
             [internal.render.pass :as pass]
-            [internal.query :as iq]
-            [internal.transaction :as it]
             [service.log :as log :refer [logging-exceptions]]
             [camel-snake-kebab :refer :all]
             [clojure.osgi.core :refer [*bundle*]])
@@ -181,9 +179,8 @@
           (ds/connect background :renderable editor     :renderables)
           (ds/connect cubemap    :renderable editor     :renderables)
           (ds/connect grid       :renderable editor     :renderables)
-          (ds/connect cubemap    :aabb       editor     :aabb))))
-    (let [tx-result (:last-tx @world-ref)]
-      (iq/node-by-id world-ref (it/resolve-tempid tx-result (:_id editor))))))
+          (ds/connect cubemap    :aabb       editor     :aabb))
+        editor))))
 
 (p/register-editor "cubemap" #'on-edit)
 (p/register-loader "cubemap" (protocol-buffer-loader Graphics$Cubemap on-load))

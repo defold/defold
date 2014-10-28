@@ -1,15 +1,15 @@
 (ns dynamo.transaction-test
   (:require [clojure.core.async :as a]
-            [dynamo.system.test-support :refer :all]
-            [dynamo.node :as n]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]
-            [internal.transaction :as it]
             [clojure.test.check :as tc]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
-            [clojure.test :refer :all]))
+            [clojure.test :refer :all]
+            [dynamo.system.test-support :refer :all]
+            [dynamo.node :as n]
+            [internal.graph.dgraph :as dg]
+            [internal.graph.lgraph :as lg]
+            [internal.transaction :as it]))
 
 (defn dummy-output [& _] :ok)
 
@@ -21,11 +21,6 @@
   (input consumer String))
 
 (def gen-node (gen/fmap (fn [n] (make-resource :_id n :original-id n)) (gen/such-that #(< % 0) gen/neg-int)))
-
-(defn tx-nodes [world-ref & ns]
-  (let [tx-result (it/transact world-ref (map it/new-node ns))
-        after     (:graph tx-result)]
-    (map #(dg/node after (it/resolve-tempid tx-result %)) (map :_id ns))))
 
 (defspec tempids-resolve-correctly
   (prop/for-all [nn gen-node]

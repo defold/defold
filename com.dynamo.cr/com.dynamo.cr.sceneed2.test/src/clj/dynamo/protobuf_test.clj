@@ -69,10 +69,7 @@
     (with-clean-world
       (let [message    (atlas-with-one-animation "the-animation")
             atlas-node (ds/transactional (f/message->node message))
-            tx-result  (:last-tx @(:world-ref (ds/current-scope)))
-            real-id    (it/resolve-tempid tx-result (:_id atlas-node))
-            real-node  (iq/node-by-id (:world-ref (ds/current-scope)) real-id)
-            anim-node  (iq/node-feeding-into real-node :animations)]
-        (is (not (nil? real-node)))
-        (is (= 7 (:margin real-node)))
+            anim-node  (iq/node-feeding-into atlas-node :animations)]
+        (is (not (nil? atlas-node)))
+        (is (= 7 (:margin atlas-node)))
         (is (= "the-animation" (:id anim-node)))))))

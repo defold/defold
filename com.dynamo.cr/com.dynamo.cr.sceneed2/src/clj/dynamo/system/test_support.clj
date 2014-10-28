@@ -21,3 +21,9 @@
          ~'root      (iq/node-by-id ~'world-ref 1)]
      (ds/in ~'root
          ~@forms)))
+
+(defn tx-nodes [world-ref & resources]
+  (ds/transactional
+    (doseq [r resources]
+      (ds/add r))
+    resources))

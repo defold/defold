@@ -50,6 +50,7 @@
     :target-id    (:_id to-node)
     :target-label to-label}])
 
+(defn has-tempid? [n] (and (:_id n) (neg? (:_id n))))
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
 
 (defn resource->cache-keys [n]

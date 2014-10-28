@@ -30,11 +30,6 @@
      ~@body
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
-(defn tx-nodes [world-ref & resources]
-  (let [tx-result (it/transact world-ref (map it/new-node resources))
-        after (:graph tx-result)]
-    (map #(dg/node after (it/resolve-tempid tx-result %)) (map :_id resources))))
-
 (defn produce-simple-value
   [node g]
   (tally node 'produce-simple-value)
@@ -89,18 +84,18 @@
 
 (defn build-sample-project
   []
-  (let [world-ref (clean-world)
-        nodes     (tx-nodes world-ref
-                    (make-cache-test-node :scalar "Jane")
-                    (make-cache-test-node :scalar "Doe")
-                    (make-cache-test-node)
-                    (make-cache-test-node))
-        [name1 name2 combiner expensive]  nodes]
-    (it/transact world-ref
-      [(it/connect name1 :uncached-value combiner :first-name)
-       (it/connect name2 :uncached-value combiner :last-name)
-       (it/connect name1 :uncached-value expensive :operand)])
-    [world-ref nodes]))
+  (with-clean-world
+    (let [nodes (tx-nodes world-ref
+                  (make-cache-test-node :scalar "Jane")
+                  (make-cache-test-node :scalar "Doe")
+                  (make-cache-test-node)
+                  (make-cache-test-node))
+          [name1 name2 combiner expensive]  nodes]
+      (ds/transactional world-ref
+        (ds/connect name1 :uncached-value combiner :first-name)
+        (ds/connect name2 :uncached-value combiner :last-name)
+        (ds/connect name1 :uncached-value expensive :operand))
+      [world-ref nodes])))
 
 (defn with-function-counts
   [f]
@@ -168,13 +163,14 @@
 
 (defn build-override-project
   []
-  (let [world-ref       (clean-world)
-        nodes           (tx-nodes world-ref
-                                  (make-override-value-node)
-                                  (make-cache-test-node :scalar "Jane"))
-        [override jane]  nodes]
-    (it/transact world-ref [(it/connect jane :uncached-value override :overridden)])
-    nodes))
+  (with-clean-world
+    (let [nodes (tx-nodes world-ref
+                  (make-override-value-node)
+                  (make-cache-test-node :scalar "Jane"))
+          [override jane]  nodes]
+      (ds/transactional world-ref
+        (ds/connect jane :uncached-value override :overridden))
+      nodes)))
 
 (deftest local-properties
   (let [[override jane]  (build-override-project)]
@@ -199,16 +195,11 @@
 
 (defn build-project-aware-node
   [project-name]
-  (let [world-ref (clean-world)
-        nodes (tx-nodes world-ref
-                (p/make-project :name project-name)
-                (make-project-aware-node)
-                (make-project-aware-node))
-        [project child grandchild] nodes]
-    (it/transact world-ref [(it/connect project    :self {:_id 1} :nodes)
-                            (it/connect child      :self project :nodes)
-                            (it/connect grandchild :self child :nodes)])
-    grandchild))
+  (with-clean-world
+    (ds/transactional world-ref
+      (ds/in (ds/add (p/make-project :name project-name))
+        (ds/in (ds/add (make-project-aware-node))
+          (ds/add (make-project-aware-node)))))))
 
 (deftest sends-node-project-to-production-function
   (let [project-aware-node (build-project-aware-node :some-project)]

@@ -77,12 +77,9 @@
 (deftest event-delivery
   (with-clean-world
     (ds/in root
-        (let [evented    (ds/transactional (ds/add (make-node-with-events :_id -1)))
-              tx-result  (:last-tx @(:world-ref (ds/current-scope)))
-              node-id    (it/resolve-tempid tx-result -1)
-              event-real (iq/node-by-id world-ref node-id)]
-          (is (= :ok (t/process-one-event event-real {:type :mousedown})))
-          (is (:message-processed (iq/node-by-id world-ref node-id)))))))
+      (let [evented (ds/transactional (ds/add (make-node-with-events :_id -1)))]
+        (is (= :ok (t/process-one-event evented {:type :mousedown})))
+        (is (:message-processed (iq/node-by-id world-ref (:_id evented))))))))
 
 (deftest nodes-share-descriptors
   (is (identical? (-> (make-simple-test-node) :descriptor) (-> (make-simple-test-node) :descriptor))))
