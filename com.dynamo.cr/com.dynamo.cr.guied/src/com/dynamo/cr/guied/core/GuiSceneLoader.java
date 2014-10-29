@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.io.IOUtils;
 import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -133,8 +134,13 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
                 .getRawLocationURI();
         File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0,
                 new NullProgressMonitor());
-        FileInputStream in = new FileInputStream(localProjectPropertiesFile);
-        node.loadProjectProperties(in);
+        if (localProjectPropertiesFile.isFile()) {
+            // in cr.integrationstest the root isn't /content and the 
+            // file doesn't exists. That's the reason we accept missing game.project
+            FileInputStream in = new FileInputStream(localProjectPropertiesFile);
+            node.loadProjectProperties(in);
+            IOUtils.closeQuietly(in);
+        }
 
         return node;
     }

@@ -31,8 +31,10 @@ public class GuiSceneNode extends ComponentTypeNode {
     private LabelNode texturesNode;
     private LabelNode fontsNode;
     private LabelNode layersNode;
-    private float width;
-    private float height;
+    // Fallback to something sensible if game.project doesn't exists
+    // See comment about tests
+    private float width = 960;
+    private float height = 640;
 
     public GuiSceneNode() {
         super();
