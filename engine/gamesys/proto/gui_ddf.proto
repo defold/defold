@@ -81,6 +81,7 @@ message NodeDesc
     optional string     parent       = 19;
     optional string     layer        = 20;
     optional bool       inherit_alpha = 21 [default = false];
+    optional dmMath.Vector4 slice9   = 22;
 }
 
 message SceneDesc
