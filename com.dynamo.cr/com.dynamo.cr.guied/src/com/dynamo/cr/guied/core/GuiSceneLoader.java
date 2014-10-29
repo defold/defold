@@ -64,6 +64,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setAdjustMode(desc.getAdjustMode());
         node.setLayer(desc.getLayer());
         node.setInheritAlpha(desc.getInheritAlpha());
+        node.setSlice9(LoaderUtil.toVector4(desc.getSlice9()));
         return node;
     }
 
@@ -166,6 +167,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setAdjustMode(node.getAdjustMode());
         builder.setLayer(node.getLayer());
         builder.setInheritAlpha(node.isInheritAlpha());
+        builder.setSlice9(LoaderUtil.toVector4(node.getSlice9()));
         return builder;
     }
 
