@@ -3,6 +3,7 @@ package mikera.cljunit;
 import java.util.Map;
 
 import org.junit.runner.Description;
+import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunNotifier;
 
 import clojure.lang.Keyword;
@@ -28,7 +29,14 @@ public class VarTester {
     }
 
     public void runTest(RunNotifier n) {
-        Clojure.invokeTest(n, desc, testVar);
+        n.fireTestStarted(desc);
+
+        try {
+            Clojure.invokeTest(n, desc, testVar);
+            n.fireTestFinished(desc);
+        } catch (Throwable t) {
+            n.fireTestFailure(new Failure(desc, t));
+        }
     }
 
     public Description getDescription() {

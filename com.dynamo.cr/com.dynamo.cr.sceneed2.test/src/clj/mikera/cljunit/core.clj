@@ -9,7 +9,7 @@
 
 (defn assertion-message [m]
   (str "Assertion failed: {:expected " (:expected m) " :actual " (:actual m) "}"
-       " <" (:file m) ":" (:line m) ">"))
+    " <" (:file m) ":" (:line m) ">"))
 
 (defn truncate-stacktrace [off-top]
   (let [st (.getStackTrace (Thread/currentThread))
@@ -19,24 +19,24 @@
 
 (def report-fn
   (fn [m]
-     ;;(println m)
-     (let [m (if (= :fail (:type m))
-               (assoc m :stacktrace (truncate-stacktrace 4))
-               m)]
-       (swap! *reports* conj m))))
+    ;;(println m)
+    (let [m (if (= :fail (:type m))
+              (assoc m :stacktrace (truncate-stacktrace 4))
+              m)]
+      (swap! *reports* conj m))))
 
 (defn notifier-fixture
   [^RunNotifier n desc f]
   (.fireTestStarted n desc)
   (try
-	   (f)
-	   (catch Throwable t
-	     (.fireTestFailure n (Failure. desc t)))
-	   (finally
+    (f)
+    (catch Throwable t
+      (.fireTestFailure n (Failure. desc t)))
+    (finally
       (.fireTestFinished n desc))))
 
 (defn invoke-test [n desc v]
-  (when-let [t v]   ;; (:test (meta v))
+  (when-let [t (:test (meta v))]
     (let [each-fixture (join-fixtures (cons (partial notifier-fixture n desc) (:clojure.test/each-fixtures (meta (:ns (meta v))))))]
       (binding [clojure.test/report report-fn
                 *reports* (atom [])]
@@ -83,11 +83,11 @@
   ([ns-name]
   (try
     (require (symbol ns-name))
-    (vec (map
-           #(str (first %))
-           (filter
-             (fn [[k v]] (:test (meta v)))
-             (ns-interns (symbol ns-name)))))
+    (mapv
+      #(str (first %))
+      (filter
+        (fn [[k v]] (:test (meta v)))
+        (ns-interns (symbol ns-name))))
     (catch Throwable t
       (throw (ex-info (str "Error attempting to get var names for namespace [" ns-name "]") {} t))))))
 

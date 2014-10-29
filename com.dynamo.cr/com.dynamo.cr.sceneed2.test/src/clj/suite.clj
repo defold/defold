@@ -22,5 +22,5 @@
 
 (defn suite []
   (doseq [test-ns test-namespaces]
-    (require test-ns))
+    (require :reload test-ns))
   (apply test/run-tests test-namespaces))
