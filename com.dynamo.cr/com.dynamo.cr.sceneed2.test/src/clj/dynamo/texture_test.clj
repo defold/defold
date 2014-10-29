@@ -12,18 +12,18 @@
   (:import [dynamo.types Rect]))
 
 (def rects (gen/fmap (fn [[x y w h]] (rect x y w h))
-                     (gen/tuple gen/int gen/int gen/s-pos-int gen/s-pos-int)))
+             (gen/tuple gen/int gen/int gen/s-pos-int gen/s-pos-int)))
 
 (def origin-rects (gen/fmap (fn [[src w h]] (rect src 0 0 w h))
-                     (gen/tuple (gen/resize 10 gen/string-alpha-numeric) gen/s-pos-int gen/s-pos-int)))
+                    (gen/tuple (gen/resize 10 gen/string-alpha-numeric) gen/s-pos-int gen/s-pos-int)))
 
 (def intersecting-rects
   (gen/bind rects
-            #(gen/tuple (gen/return %)
-                        (gen/fmap (fn [[x y w h]] (rect x y w h))
-                                  (gen/tuple gen/int gen/int
-                                             (gen/resize (* 2 (.width %)) gen/s-pos-int)
-                                             (gen/resize (* 2 (.height %)) gen/s-pos-int))))))
+    #(gen/tuple (gen/return %)
+       (gen/fmap (fn [[x y w h]] (rect x y w h))
+         (gen/tuple gen/int gen/int
+           (gen/resize (* 2 (.width %)) gen/s-pos-int)
+           (gen/resize (* 2 (.height %)) gen/s-pos-int))))))
 
 (defn total-area
   [non-overlapping-rects]
@@ -31,9 +31,8 @@
 
 (defspec split-rect-area-is-preserved
   (prop/for-all [[container content] intersecting-rects]
-                (= (total-area (conj (split-rect container content)
-                                     (intersect container content)))
-                   (area container))))
+    (= (total-area (conj (split-rect container content) (intersect container content)))
+       (area container))))
 
 (defn all-pairs
   [xs]
@@ -61,14 +60,14 @@
                 (<= 0 (.y %))) (:coords tex)))
 
 (defn total-texture-area-fits [tex textures]
-  (< (total-area textures) (area (:aabb tex))))
+  (<= (total-area textures) (area (:aabb tex))))
 
 (defspec texture-packing-invariant
   (prop/for-all [textures (gen/such-that not-empty (gen/resize 20 (gen/vector (gen/resize 128 origin-rects))))]
-                (let [tex (max-rects-packing textures)]
-                  (or (= :packing-failed tex)
-                      (and (packed-textures-fall-within-the-bounds-of-the-texturemap tex textures)
-                           (texturemap-includes-all-textures tex textures)
-                           (textures-have-non-negative-origins tex textures)
-                           (packed-textures-do-not-overlap tex textures)
-                           (total-texture-area-fits tex textures))))))
+    (let [tex (max-rects-packing textures)]
+      (or (= :packing-failed tex)
+        (and (packed-textures-fall-within-the-bounds-of-the-texturemap tex textures)
+          (texturemap-includes-all-textures tex textures)
+          (textures-have-non-negative-origins tex textures)
+          (packed-textures-do-not-overlap tex textures)
+          (total-texture-area-fits tex textures))))))

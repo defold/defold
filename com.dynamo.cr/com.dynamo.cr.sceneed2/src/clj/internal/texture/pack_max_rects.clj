@@ -3,7 +3,7 @@
             [schema.macros :as sm]
             [dynamo.geom :refer :all]
             [dynamo.image :refer :all]
-            [dynamo.types :refer [rect width height]]
+            [dynamo.types :as t :refer [rect width height]]
             [internal.texture.math :refer :all])
   (:import [dynamo.types Rect Image TextureSet]))
 
@@ -60,11 +60,7 @@
             (recur (reverse (sort-by area (concat remaining-free (split-rect best-fit (with-top-right-margin margin newly-placed)))))
                    (rest remaining)
                    (conj placed newly-placed)))))
-      (TextureSet. space-available
-                   nil
-                   placed
-                   sources
-                   []))))
+      (t/->TextureSet space-available nil placed sources []))))
 
 (sm/defn ^:private stepwise-doubling-sizes :- [Rect]
   [start :- s/Int]
@@ -75,18 +71,23 @@
   [sources :- [Rect]]
   (let [initial-power-of-two 64
         total-area           (reduce + (map area sources))
-        sq                   (Math/sqrt total-area)
-        split                (partition-by #(> sq %) (doubling initial-power-of-two))
-        short-side           (last (first split))
-        short-side           (max short-side initial-power-of-two)]
-    (stepwise-doubling-sizes short-side)))
+        sq                   (Math/sqrt total-area)]
+    (if (> initial-power-of-two sq)
+      (stepwise-doubling-sizes initial-power-of-two)
+      (let [split                (partition-by #(> sq %) (doubling initial-power-of-two))
+            short-side           (last (first split))
+            short-side           (max short-side initial-power-of-two)]
+        (stepwise-doubling-sizes short-side)))))
 
 (sm/defn max-rects-packing :- TextureSet
   ([sources :- [Rect]]
     (max-rects-packing 0 sources))
   ([margin :- s/Int sources :- [Rect]]
-    (->> sources
-      plausible-sizes
-      (map #(pack-at-size margin sources %))
-      (filter #(not= :packing-failed %))
-      first)))
+    (case (count sources)
+      0   :packing-failed
+      1   (t/->TextureSet (first sources) nil sources sources [])
+      (->> sources
+        plausible-sizes
+        (map #(pack-at-size margin sources %))
+        (filter #(not= :packing-failed %))
+        first))))
