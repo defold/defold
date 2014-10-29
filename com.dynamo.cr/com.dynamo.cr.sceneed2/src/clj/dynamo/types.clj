@@ -76,11 +76,15 @@
   (width [this] width)
   (height [this] height))
 
-(deftype AABB [min max]
+(sm/defrecord AABB [min max]
   R3Min
   (min-p [this] (.min this))
   R3Max
   (max-p [this] (.max this)))
+
+(defmethod print-method AABB
+  [^AABB v ^java.io.Writer w]
+  (.write w (str "<AABB \"min: " (.min v) ", max: " (.max v) "\">")))
 
 (sm/defn ^:always-validate rect :- Rect
   ([x :- s/Num y :- s/Num width :- s/Num height :- s/Num]
