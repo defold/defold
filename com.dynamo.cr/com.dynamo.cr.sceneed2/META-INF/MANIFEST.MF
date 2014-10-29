@@ -58,5 +58,5 @@ Bundle-ClassPath: jars/asm-all-4.1.jar,
  jars/tools.analyzer.jvm-0.1.0-beta12.jar,
  jars/tools.namespace-0.2.6.jar,
  jars/tools.nrepl-0.2.3.jar,
- target/classes/,
- jars/core.match-0.2.1.jar
+ jars/core.match-0.2.1.jar,
+ sceneed2.jar
