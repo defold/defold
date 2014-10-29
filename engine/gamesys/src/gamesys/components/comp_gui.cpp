@@ -490,7 +490,7 @@ namespace dmGameSystem
 
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < (vertex_count * node_count)) {
-            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Min(128U, vertex_count * node_count));
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count * node_count));
         }
 
         // 9-slice values are specified with reference to the original graphics and not by
