@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -97,9 +99,14 @@ public class TileSetTest implements IResourceChangeListener {
         project.setDescription(pd, monitor);
 
         Bundle bundle = Platform.getBundle("com.dynamo.cr.tileeditor.test");
-        Enumeration<URL> entries = bundle.findEntries("/test", "*", true);
-        while (entries.hasMoreElements()) {
-            URL url = entries.nextElement();
+        List<URL> entries = Collections.list(bundle.findEntries("/test", "*", true));
+        Collections.sort(entries, new Comparator<URL>() {
+            @Override
+            public int compare(URL o1, URL o2) {
+                return o1.toString().compareTo(o2.toString());
+            }
+        });
+        for (URL url : entries) {
             IPath path = new Path(url.getPath()).removeFirstSegments(1);
             // Create path of url-path and remove first element, ie /test/sounds/ -> /sounds
             if (url.getFile().endsWith("/")) {
