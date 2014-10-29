@@ -608,6 +608,10 @@ public class Server implements ServerMBean {
         return billingProvider;
     }
 
+    public void setBillingProvider(IBillingProvider provider) {
+        this.billingProvider = provider;
+    }
+
     public SecureRandom getSecureRandom() {
         return secureRandom;
     }

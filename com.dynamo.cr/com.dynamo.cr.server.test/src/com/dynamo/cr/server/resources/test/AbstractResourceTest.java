@@ -115,6 +115,27 @@ public class AbstractResourceTest {
         emf.getCache().evictAll();
         Util.clearAllTables();
         mailer.emails.clear();
+
+        // Given what we, for performance reasons, keep
+        // the server for all the tests we have to reset
+        // certain things - ugly
+        billingProvider = mock(IBillingProvider.class);
+        Mockito.doAnswer(new Answer<UserSubscription>() {
+            @Override
+            public UserSubscription answer(InvocationOnMock invocation) throws Throwable {
+                UserSubscription subscription = new UserSubscription();
+                subscription.setCreditCard(new CreditCard("1", 1, 2020));
+                subscription.setExternalId((Long)invocation.getArguments()[0]);
+                subscription.setExternalCustomerId(1l);
+                subscription.setProductId((long) freeProduct.getId());
+                subscription.setState(State.ACTIVE);
+                return subscription;
+            }
+        }).when(billingProvider).getSubscription(Mockito.anyLong());
+        server.setBillingProvider(billingProvider);
+
+        server.setCleanupBuildsInterval(10 * 1000);
+        server.setKeepBuildDescFor(100 * 1000);
     }
 
     static class Module extends AbstractModule {
