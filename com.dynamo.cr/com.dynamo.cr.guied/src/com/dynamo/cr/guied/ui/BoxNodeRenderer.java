@@ -133,8 +133,14 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         ys[2] = y1 - node.getSlice9().y;
         ys[3] = y1;
 
-        float sU = 1.0f / (float)texture.getImageWidth();
-        float sV = 1.0f / (float)texture.getImageHeight();
+        float sU = 0;
+        float sV = 0;
+
+        if (texture != null)
+        {
+            sU = 1.0f / (float)texture.getImageWidth();
+            sV = 1.0f / (float)texture.getImageHeight();
+        }
 
         us[0] = 0;
         us[1] = sU * node.getSlice9().x;
