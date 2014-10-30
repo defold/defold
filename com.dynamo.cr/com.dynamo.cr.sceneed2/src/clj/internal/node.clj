@@ -178,6 +178,7 @@
            remainder   (drop-while (every-pred property-flags keyword?) remainder)
            args-or-ref (first remainder)
            remainder   (rest remainder)]
+       (assert (not (keyword? output-type)) "The output type seems to be missing")
        (assert (or (and (vector? args-or-ref) (not (nil? remainder)))
                    (symbol? args-or-ref)
                    (var? args-or-ref)) (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
