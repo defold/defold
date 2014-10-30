@@ -609,13 +609,22 @@ instructions.configure=\
         def get_files(sha1):
             root = urlparse.urlparse(self.archive_path).path[1:]
             base_prefix = os.path.join(root, sha1)
-            prefix = os.path.join(base_prefix, 'engine')
             files = []
+            prefix = os.path.join(base_prefix, 'engine')
             for x in bucket.list(prefix = prefix):
                 if x.name[-1] != '/':
                     # Skip directory "keys". When creating empty directories
                     # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|bob.jar)$', x.name):
+                    if re.match('.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar)$', x.name):
+                        name = os.path.relpath(x.name, base_prefix)
+                        files.append({'name': name, 'path': '/' + x.name})
+
+            prefix = os.path.join(base_prefix, 'bob')
+            for x in bucket.list(prefix = prefix):
+                if x.name[-1] != '/':
+                    # Skip directory "keys". When creating empty directories
+                    # a psudeo-key is created. Directories isn't a first-class object on s3
+                    if re.match('.*(/bob.jar)$', x.name):
                         name = os.path.relpath(x.name, base_prefix)
                         files.append({'name': name, 'path': '/' + x.name})
             return files
