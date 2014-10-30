@@ -77,33 +77,37 @@ namespace dmVMath
 #define HALF_RAD_FACTOR 0.008726646f
 
     /**
-     * Converts euler angles (x, y, z) in degrees into a quaternion.
-     * The provided quaternion is expected to be normalized.
+     * Converts euler angles (x, y, z) in degrees into a quaternion
      * The error is guaranteed to be less than 0.001.
      * @param x rotation around x-axis (deg)
      * @param y rotation around y-axis (deg)
      * @param z rotation around z-axis (deg)
-     * @result Quat describing an equivalent rotation
+     * @result Quat describing an equivalent rotation (231 (YZX) rotation sequence).
      */
     inline Vectormath::Aos::Quat EulerToQuat(Vectormath::Aos::Vector3 xyz)
     {
-        float x = xyz.getX() * HALF_RAD_FACTOR;
-        float y = xyz.getY() * HALF_RAD_FACTOR;
-        float z = xyz.getZ() * HALF_RAD_FACTOR;
-        float sx = dmTrigLookup::Sin(x);
-        float cx = dmTrigLookup::Cos(x);
-        float sy = dmTrigLookup::Sin(y);
-        float cy = dmTrigLookup::Cos(y);
-        float sz = dmTrigLookup::Sin(z);
-        float cz = dmTrigLookup::Cos(z);
-        float cxcy = cx * cy;
-        float sxsy = sx * sy;
-        return Vectormath::Aos::Quat(
-            sx * cy * cz + cx * sy * sz,
-            cx * sy * cz  - sx * cy * sz,
-            cxcy * sz - sxsy * cz,
-            cxcy * cz + sxsy * sz
-        );
+        // Implementation based on:
+        // http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
+        // Rotation sequence: 231 (YZX)
+        float t1 = xyz.getY() * HALF_RAD_FACTOR;
+        float t2 = xyz.getZ() * HALF_RAD_FACTOR;
+        float t3 = xyz.getX() * HALF_RAD_FACTOR;
+
+        float c1 = dmTrigLookup::Cos(t1);
+        float s1 = dmTrigLookup::Sin(t1);
+        float c2 = dmTrigLookup::Cos(t2);
+        float s2 = dmTrigLookup::Sin(t2);
+        float c3 = dmTrigLookup::Cos(t3);
+        float s3 = dmTrigLookup::Sin(t3);
+        float c1_c2 = c1*c2;
+        float s2_s3 = s2*s3;
+
+        Vectormath::Aos::Quat quat;
+        quat.setW(-s1*s2_s3 + c1_c2*c3 );
+        quat.setX( s1*s2*c3 + s3*c1_c2 );
+        quat.setY( s1*c2*c3 + s2_s3*c1 );
+        quat.setZ(-s1*s3*c2 + s2*c1*c3 );
+        return quat;
     }
 
 #undef HALF_RAD_FACTOR

@@ -233,4 +233,42 @@ public class NodeTest extends AbstractNodeTest {
         assertAABBCenterX(r, -rootX);
     }
 
+    @Test
+    public void testNodeTransform() throws Exception {
+        DummyNode node = new DummyNode();
+        Matrix4d tmpMat = new Matrix4d();
+        Matrix4d refMat = new Matrix4d();
+        refMat.setIdentity();
+        Matrix4d transform = new Matrix4d();
+        final double epsilon = 0.0000000001;
+
+        node.setTranslation(new Point3d(0.25, 0.5, 0.75));
+        node.getWorldTransform(transform);
+        refMat.setTranslation(new Vector3d(0.25, 0.5, 0.75));
+        assertTrue(transform.epsilonEquals(refMat, epsilon));
+
+        node.setEuler(new Vector3d(90.0*0.25, 90.0*0.5, 90.0));
+        node.getWorldTransform(transform);
+        double radians = 90.0 * Math.PI / 180.0;
+        tmpMat.setIdentity();
+
+        // Rotation sequence 231 (YZX)
+        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), radians*0.5));
+        refMat.mul(tmpMat);
+        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), radians));
+        refMat.mul(tmpMat);
+        tmpMat.setRotation(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), radians*0.25));
+        refMat.mul(tmpMat);
+        assertTrue(transform.epsilonEquals(refMat, epsilon));
+
+        node.setComponentScale(new Vector3d(0.25, 0.5, 0.75));
+        node.getWorldTransform(transform);
+        tmpMat.setIdentity();
+        tmpMat.setElement(0, 0, 0.25);
+        tmpMat.setElement(1, 1, 0.5);
+        tmpMat.setElement(2, 2, 0.75);
+        refMat.mul(tmpMat);
+        assertTrue(transform.epsilonEquals(refMat, epsilon));
+    }
+
 }

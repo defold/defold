@@ -2648,6 +2648,38 @@ void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const V
     }
 
 /**
+ * Verify that the rendered transforms are correct with VectorMath library as a reference
+ * n1 == Vectormath::Aos::Matrix4
+ */
+TEST_F(dmGuiTest, NodeTransform)
+{
+    Vector3 size(1.0f, 1.0f, 1.0f);
+    Vector3 pos(0.25f, 0.5f, 0.75f);
+    Vectormath::Aos::Matrix4 transforms[1];
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, Point3(pos), size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodePivot(m_Scene, n1, dmGui::PIVOT_SW);
+
+    Vectormath::Aos::Matrix4 ref_mat;
+    ref_mat = Vectormath::Aos::Matrix4::identity();
+    ref_mat.setTranslation(pos);
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
+    ASSERT_MAT4(transforms[0], ref_mat);
+
+    const float radians = 90.0f * M_PI / 180.0f;
+    ref_mat *= Vectormath::Aos::Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Vectormath::Aos::Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Vectormath::Aos::Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(90.0f*0.25f, 90.0f*0.5f, 90.0f, 0.0f));
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
+    ASSERT_MAT4(transforms[0], ref_mat);
+
+    ref_mat *= Vectormath::Aos::Matrix4::scale(Vector3(0.25f, 0.5f, 0.75f));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_SCALE, Vector4(0.25f, 0.5f, 0.75f, 1.0f));
+    dmGui::RenderScene(m_Scene, RenderNodesStoreTransform, transforms);
+    ASSERT_MAT4(transforms[0], ref_mat);
+}
+
+/**
  * Verify that the rendered transforms are correct for a hierarchy:
  * - n1
  *   - n2
