@@ -57,7 +57,8 @@
                                     (get-value-with-restarts (dg/node g source-node) g source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-                               (get-value-with-restarts (dg/node g first-source-node) g first-source-label))
+                               (when first-source-node
+                                 (get-value-with-restarts (dg/node g first-source-node) g first-source-label)))
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))
