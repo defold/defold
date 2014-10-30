@@ -70,6 +70,21 @@ TEST(dmMath, TestEulerToQuat)
             ASSERT_NEAR(expected.getW(), q.getW(), epsilon);
         }
     }
+
+    // rotation sequence consistency (231 (YZX))
+    Matrix4 ref_mat;
+    ref_mat = Matrix4::identity();
+    const float radians = 90.0f * M_PI / 180.0f;
+    ref_mat *= Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));
+    Quat expected(ref_mat.getUpper3x3());
+
+    Quat q = dmVMath::EulerToQuat(Vector3(90.0f*0.25f, 90.0f*0.5f, 90.0f));
+    ASSERT_NEAR(expected.getX(), q.getX(), epsilon);
+    ASSERT_NEAR(expected.getY(), q.getY(), epsilon);
+    ASSERT_NEAR(expected.getZ(), q.getZ(), epsilon);
+    ASSERT_NEAR(expected.getW(), q.getW(), epsilon);
 }
 
 int main(int argc, char **argv)

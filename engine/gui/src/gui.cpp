@@ -11,6 +11,7 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/trig_lookup.h>
@@ -1310,22 +1311,6 @@ namespace dmGui
         scene->m_Animations.SetSize(0);
     }
 
-    static Quat EulerToQuat(Vector4 euler_radians)
-    {
-        // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
-        Vector4 half_euler = euler_radians * 0.5f;
-        float cx = dmTrigLookup::Cos(half_euler.getX());
-        float sx = dmTrigLookup::Sin(half_euler.getX());
-        float cy = dmTrigLookup::Cos(half_euler.getY());
-        float sy = dmTrigLookup::Sin(half_euler.getY());
-        float cz = dmTrigLookup::Cos(half_euler.getZ());
-        float sz = dmTrigLookup::Sin(half_euler.getZ());
-        return Quat(sx*cy*cz + cx*sy*sz,
-                cx*sy*cz + sx*cy*sz,
-                cx*cy*sz - sx*sy*cz,
-                cx*cy*cz - sx*sy*sz);
-    }
-
     static Vector4 CalcPivotDelta(uint32_t pivot, Vector4 size)
     {
         float width = size.getX();
@@ -1433,15 +1418,11 @@ namespace dmGui
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
         Vector4 scale = node.m_Properties[dmGui::PROPERTY_SCALE];
         AdjustPosScale(scene, n, reference_scale, position, scale);
-
-        const Vector4& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION];
-
-        const float deg_to_rad = 3.1415926f / 180.0f;
-        Quat r = EulerToQuat(rotation * deg_to_rad);
+        const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
+        Quat r = dmVMath::EulerToQuat(rotation);
+        r = normalize(r);
         node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale(scale.getXYZ()));
-
         node.m_LocalTransform.setTranslation(position.getXYZ());
-
         node.m_DirtyLocal = 0;
     }
 

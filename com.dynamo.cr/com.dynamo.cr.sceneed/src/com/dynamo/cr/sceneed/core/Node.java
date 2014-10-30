@@ -271,27 +271,27 @@ public abstract class Node implements IAdaptable, Serializable {
     }
 
     public static void eulerToQuat(Tuple3d euler, Quat4d quat) {
-        double bank = euler.x * Math.PI / 180;
-        double heading = euler.y * Math.PI / 180;
-        double attitude = euler.z * Math.PI / 180;
+        // Implementation based on:
+        // http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
+        // Rotation sequence: 231 (YZX)
+        double t1 = euler.y * Math.PI / 180;
+        double t2 = euler.z * Math.PI / 180;
+        double t3 = euler.x * Math.PI / 180;
 
-        double c1 = Math.cos(heading/2);
-        double s1 = Math.sin(heading/2);
-        double c2 = Math.cos(attitude/2);
-        double s2 = Math.sin(attitude/2);
-        double c3 = Math.cos(bank/2);
-        double s3 = Math.sin(bank/2);
-        double c1c2 = c1*c2;
-        double s1s2 = s1*s2;
-        double w =c1c2*c3 - s1s2*s3;
-        double x =c1c2*s3 + s1s2*c3;
-        double y =s1*c2*c3 + c1*s2*s3;
-        double z =c1*s2*c3 - s1*c2*s3;
+        double c1 = Math.cos(t1/2);
+        double s1 = Math.sin(t1/2);
+        double c2 = Math.cos(t2/2);
+        double s2 = Math.sin(t2/2);
+        double c3 = Math.cos(t3/2);
+        double s3 = Math.sin(t3/2);
+        double c1_c2 = c1*c2;
+        double s2_s3 = s2*s3;
 
-        quat.x = x;
-        quat.y = y;
-        quat.z = z;
-        quat.w = w;
+        quat.w = -s1*s2_s3 + c1_c2*c3;
+        quat.x =  s1*s2*c3 + s3*c1_c2;
+        quat.y =  s1*c2*c3 + s2_s3*c1;
+        quat.z = -s1*s3*c2 + s2*c1*c3;
+
         quat.normalize();
     }
 
