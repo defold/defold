@@ -160,7 +160,10 @@
   [prefix form]
   (match [form]
      [(['inherits super] :seq)]
-     (deref (resolve super))
+     (let [super-descriptor (resolve super)]
+       (assert super-descriptor (str "Cannot resolve " super " to a node definition."))
+       (deref super-descriptor))
+
 
      [(['property nm tp] :seq)]
      {:properties {(keyword nm) tp}}
