@@ -285,14 +285,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         eaglLayer.drawableProperties = [NSDictionary dictionaryWithObjectsAndKeys:
                                         [NSNumber numberWithBool:NO], kEAGLDrawablePropertyRetainedBacking, kEAGLColorFormatRGBA8, kEAGLDrawablePropertyColorFormat, nil];
 
-        context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-
-        if (!context || ![EAGLContext setCurrentContext:context])
-        {
-            [self release];
-            return nil;
-        }
-
         displayLink = [[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)];
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
         displayLink.frameInterval = 1;
@@ -634,6 +626,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLView *glView;
 }
 
+- (EAGLContext *)initialiseGlContext;
+- (void)createGlView;
 
 @property (nonatomic, retain) IBOutlet EAGLView *glView;
 
@@ -654,13 +648,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     [super viewDidLoad];
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.view.autoresizesSubviews = YES;
-    CGRect bounds = self.view.bounds;
-
-    CGFloat scaleFactor = [[UIScreen mainScreen] scale];
-    glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease ];
-    glView.contentScaleFactor = scaleFactor;
-    glView.layer.contentsScale = scaleFactor;
-    [ [self view] addSubview: glView ];
+    
+    [self createGlView];
+    
     [[UIAccelerometer sharedAccelerometer] setUpdateInterval:1.0/60.0];
     [[UIAccelerometer sharedAccelerometer] setDelegate:self];
 
@@ -673,6 +663,42 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         UIInterfaceOrientation orientation = _glfwWin.portrait ? UIInterfaceOrientationPortrait : UIInterfaceOrientationLandscapeRight;
         [[UIApplication sharedApplication] setStatusBarOrientation: orientation animated: NO];
     }
+}
+
+- (void)createGlView
+{
+    EAGLContext* glContext = nil;
+    if (glView) {
+        // We must recycle the GL context, since the engine will be performing operations
+        // (e.g. creating shaders and textures) that depend upon it.
+        glContext = glView.context;
+        [glView removeFromSuperview];
+    }
+    
+    if (!glContext) {
+        glContext = [self initialiseGlContext];
+    }
+    
+    CGRect bounds = self.view.bounds;
+    
+    CGFloat scaleFactor = [[UIScreen mainScreen] scale];
+    glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
+    glView.context = glContext;
+    glView.contentScaleFactor = scaleFactor;
+    glView.layer.contentsScale = scaleFactor;
+    [[self view] addSubview:glView];
+}
+
+- (EAGLContext *)initialiseGlContext
+{
+    EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
+    
+    if (!context || ![EAGLContext setCurrentContext:context])
+    {
+        return nil;
+    }
+    
+    return context;
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -718,7 +744,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     return YES;
 }
 
--(NSInteger)supportedInterfaceOrientations {
+-(NSUInteger)supportedInterfaceOrientations {
     // NOTE: Only for iOS6
     if (_glfwWin.portrait)
     {
@@ -759,26 +785,39 @@ _GLFWwin g_Savewin;
 
 - (void)reinit:(UIApplication *)application
 {
-
-    // We used to recreate the view-controller and view here in order to trigger orientation logic.
-    // The new method is to create a temporary view-contoller. See below.
-
-    // NOTE: This code is *not* invoked from the built-in/traditional event-loop
-    // hence *no* NSAutoreleasePool is setup. Without a pool here
-    // the application would leak and specifically the ViewController
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-
     // Restore window data
     _glfwWin = g_Savewin;
+    
+    // To avoid a race, since _glfwPlatformOpenWindow does not block,
+    // update the glfw's cached screen dimensions ahead of time.
+    BOOL flipScreen = NO;
+    if (_glfwWin.portrait) {
+        flipScreen = _glfwWin.width > _glfwWin.height;
+    } else {
+        flipScreen = _glfwWin.width < _glfwWin.height;
+    }
+    if (flipScreen) {
+        float tmp = _glfwWin.width;
+        _glfwWin.width = _glfwWin.height;
+        _glfwWin.height = tmp;
+    }
+    
+    // Running iOS8, if we don't force a change in the device orientation then
+    // the framebuffer will not be created with the correct orientation.
+    UIDevice *device = [UIDevice currentDevice];
+    UIDeviceOrientation desired = UIDeviceOrientationLandscapeRight;
+    if (_glfwWin.portrait) {
+        desired = UIDeviceOrientationPortrait;
+    } else if (UIDeviceOrientationLandscapeLeft == device.orientation) {
+       desired = UIDeviceOrientationLandscapeLeft;
+    }
+    [device setValue: [NSNumber numberWithInteger: desired] forKey:@"orientation"];
 
-    UIViewController *viewController = [[UIViewController alloc] init];
-    [viewController setModalPresentationStyle:UIModalPresentationCurrentContext];
-    viewController.view.frame = CGRectZero;
-    [window.rootViewController presentModalViewController:viewController animated:NO];
-    // NOTE: We used to have animated to YES here but on iOS 7 the view wasn't dismissed
-    [window.rootViewController dismissModalViewControllerAnimated:NO];
-    [viewController release];
-    [pool release];
+    // We then rebuild the GL view back within the application's event loop.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        ViewController *controller = (ViewController *)window.rootViewController;
+        [controller createGlView];
+    });
 }
 
 - (void)applicationDidFinishLaunching:(UIApplication *)application
