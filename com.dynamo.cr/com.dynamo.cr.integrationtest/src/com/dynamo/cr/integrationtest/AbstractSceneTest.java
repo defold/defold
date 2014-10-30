@@ -17,6 +17,7 @@ import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.commands.operations.UndoContext;
 import org.eclipse.core.resources.IContainer;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IFolder;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IProjectDescription;
 import org.eclipse.core.resources.IResourceChangeEvent;
@@ -121,12 +122,24 @@ public abstract class AbstractSceneTest {
         while (entries.hasMoreElements()) {
             URL url = entries.nextElement();
             IPath path = new Path(url.getPath()).removeFirstSegments(1);
-            // Create path of url-path and remove first element, ie /test/sounds/ -> /sounds
             if (url.getFile().endsWith("/")) {
-                this.project.getFolder(path).create(true, true, null);
+                // A path - skip
             } else {
                 InputStream is = url.openStream();
                 IFile file = this.project.getFile(path);
+                IContainer parent = file.getParent();
+                if (parent instanceof IFolder) {
+                    IFolder folder = (IFolder) file.getParent();
+                    while (!folder.exists()) {
+                        folder.create(true, true, null);
+                        parent = folder.getParent();
+                        if (parent instanceof IFolder) {
+                            folder = (IFolder) parent;
+                        } else {
+                            break;
+                        }
+                    }
+                }
                 file.create(is, true, null);
                 is.close();
             }

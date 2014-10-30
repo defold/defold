@@ -113,23 +113,68 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             }
         }
 
+        double us[] = new double[4];
+        double vs[] = new double[4];
+        double ys[] = new double[4];
+        double xs[] = new double[4];
+
         double x0 = -pivotOffsetX(node, node.getSize().x);
         double y0 = -pivotOffsetY(node, node.getSize().y);
         double x1 = x0 + node.getSize().x;
         double y1 = y0 + node.getSize().y;
+
+        xs[0] = x0;
+        xs[1] = x0 + node.getSlice9().x;
+        xs[2] = x1 - node.getSlice9().z;
+        xs[3] = x1;
+
+        ys[0] = y0;
+        ys[1] = y0 + node.getSlice9().w;
+        ys[2] = y1 - node.getSlice9().y;
+        ys[3] = y1;
+
+        float sU = 0;
+        float sV = 0;
+
+        if (texture != null)
+        {
+            sU = 1.0f / (float)texture.getImageWidth();
+            sV = 1.0f / (float)texture.getImageHeight();
+        }
+
+        us[0] = 0;
+        us[1] = sU * node.getSlice9().x;
+        us[2] = 1.0f - sU * node.getSlice9().z;
+        us[3] = 1.0f;
+
+        vs[0] = 1;
+        vs[1] = 1 - sV * node.getSlice9().w;
+        vs[2] = sV * node.getSlice9().y;
+        vs[3] = 0.0f;
+
         float[] color = node.calcNormRGBA();
         gl.glColor4fv(renderContext.selectColor(node, color), 0);
         gl.glBegin(GL2.GL_QUADS);
-        gl.glTexCoord2d(0.0, 0.0);
-        gl.glVertex2d(x0, y1);
-        gl.glTexCoord2d(1.0, 0.0);
-        gl.glVertex2d(x1, y1);
-        gl.glTexCoord2d(1.0, 1.0);
-        gl.glVertex2d(x1, y0);
-        gl.glTexCoord2d(0.0, 1.0);
-        gl.glVertex2d(x0, y0);
+
+        for (int i=0;i<3;i++)
+        {
+            for (int j=0;j<3;j++)
+            {
+                gl.glTexCoord2d(us[i], vs[j]);
+                gl.glVertex2d(xs[i], ys[j]);
+
+                gl.glTexCoord2d(us[i+1], vs[j]);
+                gl.glVertex2d(xs[i+1], ys[j]);
+
+                gl.glTexCoord2d(us[i+1], vs[j+1]);
+                gl.glVertex2d(xs[i+1], ys[j+1]);
+
+                gl.glTexCoord2d(us[i], vs[j+1]);
+                gl.glVertex2d(xs[i], ys[j+1]);
+            }
+        }
         gl.glEnd();
-        
+
         // Update AABB
         AABB aabb = new AABB();
         aabb.union(x0, y0, 0.0);

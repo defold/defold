@@ -320,6 +320,8 @@ TEST_P(GetResourceTest, IncRef)
     dmResource::IncRef(m_Factory, test_resource_cont);
     dmResource::Release(m_Factory, test_resource_cont);
     dmResource::Release(m_Factory, test_resource_cont);
+
+    (void)e;
 }
 
 TEST_P(GetResourceTest, SelfReferring)
@@ -453,11 +455,18 @@ dmResource::Result RecreateResourceCreate(dmResource::HFactory factory,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
 {
-    int* recreate_resource = new int(atoi((const char*) buffer));
-
-    resource->m_Resource = (void*) recreate_resource;
-    resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
-    return dmResource::RESULT_OK;
+    const int TMP_BUFFER_SIZE = 64;
+    char tmp[TMP_BUFFER_SIZE];
+    if (buffer_size < TMP_BUFFER_SIZE) {
+        memcpy(tmp, buffer, buffer_size);
+        tmp[buffer_size] = '\0';
+        int* recreate_resource = new int(atoi(tmp));
+        resource->m_Resource = (void*) recreate_resource;
+        resource->m_ResourceKind = dmResource::KIND_DDF_DATA;
+        return dmResource::RESULT_OK;
+    } else {
+        return dmResource::RESULT_OUT_OF_MEMORY;
+    }
 }
 
 dmResource::Result RecreateResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
@@ -476,9 +485,16 @@ dmResource::Result RecreateResourceRecreate(dmResource::HFactory factory,
     int* recreate_resource = (int*) resource->m_Resource;
     assert(recreate_resource);
 
-    *recreate_resource = atoi((const char*) buffer);
-
-    return dmResource::RESULT_OK;
+    const int TMP_BUFFER_SIZE = 64;
+    char tmp[TMP_BUFFER_SIZE];
+    if (buffer_size < TMP_BUFFER_SIZE) {
+        memcpy(tmp, buffer, buffer_size);
+        tmp[buffer_size] = '\0';
+        *recreate_resource = atoi(tmp);
+        return dmResource::RESULT_OK;
+    } else {
+        return dmResource::RESULT_OUT_OF_MEMORY;
+    }
 }
 
 TEST(dmResource, InvalidHost)
@@ -505,7 +521,10 @@ dmResource::Result AdResourceCreate(dmResource::HFactory factory,
                                            dmResource::SResourceDescriptor* resource,
                                            const char* filename)
 {
-    resource->m_Resource = strdup((const char*) buffer);
+    char* duplicate = (char*)malloc((buffer_size + 1) * sizeof(char));
+    memcpy(duplicate, buffer, buffer_size);
+    duplicate[buffer_size] = '\0';
+    resource->m_Resource = duplicate;
     return dmResource::RESULT_OK;
 }
 
@@ -700,10 +719,10 @@ dmResource::Result FilenameResourceCreate(dmResource::HFactory factory,
                                                 dmResource::SResourceDescriptor* resource,
                                                 const char* filename)
 {
-	if (strcmp(filename_resource_filename, filename) == 0)
-		return dmResource::RESULT_OK;
-	else
-		return dmResource::RESULT_FORMAT_ERROR;
+    if (strcmp(filename_resource_filename, filename) == 0)
+        return dmResource::RESULT_OK;
+    else
+        return dmResource::RESULT_FORMAT_ERROR;
 }
 
 dmResource::Result FilenameResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
@@ -717,15 +736,15 @@ dmResource::Result FilenameResourceRecreate(dmResource::HFactory factory,
                                                   dmResource::SResourceDescriptor* resource,
                                                   const char* filename)
 {
-	if (strcmp(filename_resource_filename, filename) == 0)
-		return dmResource::RESULT_OK;
-	else
-		return dmResource::RESULT_FORMAT_ERROR;
+    if (strcmp(filename_resource_filename, filename) == 0)
+        return dmResource::RESULT_OK;
+    else
+        return dmResource::RESULT_FORMAT_ERROR;
 }
 
 TEST(FilenameTest, FilenameTest)
 {
-	const char* tmp_dir = 0;
+    const char* tmp_dir = 0;
 #if defined(_MSC_VER)
     tmp_dir = ".";
 #else

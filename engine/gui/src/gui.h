@@ -135,10 +135,11 @@ namespace dmGui
         PROPERTY_SIZE       = 4,
         PROPERTY_OUTLINE    = 5,
         PROPERTY_SHADOW     = 6,
+        PROPERTY_SLICE9     = 7,
 
-        PROPERTY_RESERVED   = 7,
+        PROPERTY_RESERVED   = 8,
 
-        PROPERTY_COUNT      = 8,
+        PROPERTY_COUNT      = 9,
     };
 
     enum Playback
@@ -526,6 +527,9 @@ namespace dmGui
     NodeType GetNodeType(HScene scene, HNode node);
 
     Point3 GetNodePosition(HScene scene, HNode node);
+
+    Vector4 GetNodeSlice9(HScene scene, HNode node);
+    Point3 GetNodeSize(HScene scene, HNode node);
 
     void SetNodePosition(HScene scene, HNode node, const Point3& position);
 
