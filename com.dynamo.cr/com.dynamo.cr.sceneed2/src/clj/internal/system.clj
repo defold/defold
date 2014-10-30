@@ -4,6 +4,7 @@
             [dynamo.node :as n]
             [dynamo.types :as t]
             [schema.core :as s]
+            [internal.bus :as bus]
             [internal.cache :refer [make-cache]]
             [internal.disposal :refer [disposal-message disposal-subsystem]]
             [internal.graph.dgraph :as dg]
@@ -22,20 +23,13 @@
   [g r]
   (lg/add-labeled-node g (t/inputs r) (t/outputs r) r))
 
-(defn address-to
-  [node body]
-  (merge body {::node-id (:_id node)}))
-
 (defn new-world-state
   [state root]
-   (let [msgbus (a/chan 100)
-         tap    (a/pub msgbus ::node-id (fn [_] (a/dropping-buffer 100)))]
-     {:graph        (attach-root (dg/empty-graph) root)
-      :cache        (make-cache)
-      :cache-keys   {}
-      :world-time   0
-      :subscribe-to tap
-      :publish-to   msgbus}))
+   {:graph        (attach-root (dg/empty-graph) root)
+    :cache        (make-cache)
+    :cache-keys   {}
+    :world-time   0
+    :message-bus  (bus/make-bus)})
 
 (defrecord World [started state]
   component/Lifecycle
@@ -69,10 +63,10 @@
   (and (:last-tx new-world) (< old-world-time new-world-time)))
 
 (defn- start-event-loops
-  [_ world-ref old-world {last-tx :last-tx subscribe-to :subscribe-to :as new-world}]
+  [_ world-ref old-world {:keys [last-tx message-bus] :as new-world}]
   (when (transaction-applied? old-world new-world)
     (doseq [n (:new-event-loops last-tx)]
-      (start-event-loop! world-ref n (a/sub subscribe-to n (a/chan 100))))))
+      (start-event-loop! world-ref n (bus/subscribe message-bus n)))))
 
 (defn- send-tx-reports
   [report-ch _ _ old-world {last-tx :last-tx :as new-world}]

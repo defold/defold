@@ -41,21 +41,6 @@
   :can-drop?
   :accept-drop
 
-  (defn make-project
-    [eclipse-project branch tx-report-chan]
-    (let [msgbus (a/chan 100)
-          pubch  (a/pub msgbus :node-id (fn [_] (a/dropping-buffer 100)))]
-      {:handlers        {:loaders {"clj" on-load-code}}
-       :graph           (dg/empty-graph)
-       :cache-keys      {}
-       :cache           (make-cache)
-       :tx-report-chan  tx-report-chan
-       :eclipse-project eclipse-project
-       :branch          branch
-       :publish-to      msgbus
-       :subscribe-to    pubch}))
-
-
   (require '[dynamo.ui :refer :all])
   (require 'internal.ui.editors)
   (require '[internal.query :as iq])

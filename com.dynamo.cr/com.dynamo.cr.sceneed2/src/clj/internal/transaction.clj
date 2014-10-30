@@ -1,8 +1,10 @@
 (ns internal.transaction
-  (:require [clojure.core.async :as a]
+  (:require [clojure.set :as set]
+            [clojure.core.async :as a]
             [clojure.core.cache :as cache]
             [dynamo.resource :refer [disposable?]]
             [dynamo.types :as t]
+            [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]))
 
@@ -50,6 +52,12 @@
     :target-id    (:_id to-node)
     :target-label to-label}])
 
+(defn send-message
+  [to-node body]
+  [{:type      :message
+    :target-id (:_id to-node)
+    :body      body}])
+
 (defn has-tempid? [n] (and (:_id n) (neg? (:_id n))))
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
 
@@ -62,37 +70,43 @@
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys modified-nodes world world-ref new-event-loops] :as ctx} m]
-  (let [next-id (dg/next-node graph)]
+  [{:keys [graph tempids cache-keys nodes-modified world world-ref new-event-loops nodes-added] :as ctx} m]
+  (let [next-id   (dg/next-node graph)
+        full-node (assoc (:node m) :_id next-id :world-ref world-ref)]
     (assoc ctx
-      :graph           (lg/add-labeled-node graph (-> m :node :descriptor :inputs keys) (-> m :node :descriptor :transforms keys) (assoc (:node m) :_id next-id :world-ref world-ref))
+      :graph           (lg/add-labeled-node graph (-> m :node :descriptor :inputs keys) (-> m :node :descriptor :transforms keys) full-node)
+      :nodes-added     (conj nodes-added full-node)
       :tempids         (assoc tempids (get-in m [:node :_id]) next-id)
       :cache-keys      (assoc cache-keys next-id (resource->cache-keys (:node m)))
       :new-event-loops (if (satisfies? t/MessageTarget (:node m)) (conj new-event-loops next-id) new-event-loops)
-      :modified-nodes  (conj modified-nodes next-id))))
+      :nodes-modified  (conj nodes-modified next-id))))
 
 (defmethod perform :update-node
-  [{:keys [graph modified-nodes] :as ctx} m]
-  (let [n (resolve-tempid ctx (:node-id m))]
+  [{:keys [graph nodes-modified] :as ctx} m]
+  (let [node-id (resolve-tempid ctx (:node-id m))]
     (assoc ctx
-           :graph          (apply dg/transform-node graph n (:fn m) (:args m))
-           :modified-nodes (conj modified-nodes n))))
+           :graph          (apply dg/transform-node graph node-id (:fn m) (:args m))
+           :nodes-modified (conj nodes-modified node-id))))
 
 (defmethod perform :connect
-  [{:keys [graph modified-nodes] :as ctx} m]
+  [{:keys [graph nodes-modified] :as ctx} m]
   (let [src (resolve-tempid ctx (:source-id m))
         tgt (resolve-tempid ctx (:target-id m))]
     (assoc ctx
            :graph          (lg/connect graph src (:source-label m) tgt (:target-label m))
-           :modified-nodes (conj modified-nodes tgt))))
+           :nodes-modified (conj nodes-modified tgt))))
 
 (defmethod perform :disconnect
-  [{:keys [graph modified-nodes] :as ctx} m]
+  [{:keys [graph nodes-modified] :as ctx} m]
   (let [src (resolve-tempid ctx (:source-id m))
         tgt (resolve-tempid ctx (:target-id m))]
     (assoc ctx
            :graph          (lg/disconnect graph src (:source-label m) tgt (:target-label m))
-           :modified-nodes (conj modified-nodes tgt))))
+           :nodes-modified (conj nodes-modified tgt))))
+
+(defmethod perform :message
+  [ctx {:keys [to-node body]}]
+  (update-in ctx :messages conj (bus/address-to to-node body)))
 
 (defn- apply-tx
   [ctx actions]
@@ -110,13 +124,13 @@
     [n x]))
 
 (defn- affected-nodes
-  [{:keys [graph modified-nodes] :as ctx}]
-  (assoc ctx :affected-nodes (dg/tclosure graph modified-nodes)))
+  [{:keys [graph nodes-modified] :as ctx}]
+  (assoc ctx :affected-nodes (dg/tclosure graph nodes-modified)))
 
 (defn- determine-obsoletes
   [{:keys [graph affected-nodes cache-keys] :as ctx}]
   (assoc ctx :obsolete-cache-keys
-         (keep identity (mapcat #(vals (get cache-keys %)) affected-nodes))))
+    (keep identity (mapcat #(vals (get cache-keys %)) affected-nodes))))
 
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys] :as ctx}]
@@ -130,54 +144,95 @@
   [{:keys [graph affected-nodes] :as ctx}]
   (assoc ctx :expired-outputs (pairwise (comp :on-update :descriptor) (map #(dg/node graph %) affected-nodes))))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :affected-nodes :new-event-loops :tempids :graph :txs])
+(defn- push-context
+  [ctx]
+  (-> ctx
+    (assoc ::stack     ctx
+      :new-event-loops []
+      :nodes-added     #{}
+      :nodes-modified  #{}
+      :pending         []
+      :affected-nodes  []
+      :pending         []
+      :messages        [])))
 
-(defn- finalize-update
-  "Makes the transacted graph the new value of the world-state graph.
-   Likewise for cache and cache-keys."
-  [{:keys [graph cache cache-keys world-time] :as ctx}]
-  (update-in ctx [:world] assoc
-             :graph graph
-             :cache cache
-             :cache-keys cache-keys
-             :world-time (inc world-time)
-             :last-tx (assoc (select-keys ctx tx-report-keys) :status :ok)))
+(defn- pop-context
+  [ctx]
+  (-> (::stack ctx)
+    (update-in [:new-event-loops] concat    (:new-event-loops ctx))
+    (update-in [:nodes-added]     set/union (:nodes-added ctx))
+    (update-in [:nodes-modified]  set/union (:nodes-modified ctx))
+    (update-in [:pending]         concat    (:pending ctx))
+    (update-in [:messages]        concat    (:messages ctx))))
+
+(defn- process-triggers
+  [{:keys [graph affected-nodes] :as ctx}]
+  (pop-context
+    (reduce (fn [csub [n tr]]
+              (update-in csub [:pending] concat (tr n csub)))
+      (push-context ctx)
+      (pairwise :triggers (map #(dg/node graph %) affected-nodes)))))
 
 (defn- transact*
   [ctx]
-  (-> (apply-tx ctx (:txs ctx))
-    affected-nodes
-    determine-obsoletes
-    dispose-obsoletes
-    evict-obsolete-caches
-    determine-autoupdates
-    finalize-update))
+  (let [tx-list (first (:pending ctx))]
+;;    (println "transact* " tx-list)
+    (-> (update-in ctx [:pending] next)
+      (apply-tx tx-list)
+      affected-nodes
+      determine-obsoletes
+      dispose-obsoletes
+      evict-obsolete-caches
+      determine-autoupdates
+      process-triggers)))
 
 (defn- new-transaction-context
   [world-ref txs]
   (let [current-world @world-ref]
     {:world-ref       world-ref
      :world           current-world
-     :txs             txs
      :graph           (:graph current-world)
      :cache           (:cache current-world)
      :cache-keys      (:cache-keys current-world)
      :world-time      (:world-time current-world)
      :tempids         {}
      :new-event-loops []
-     :modified-nodes  #{}
-     :subscribe-to    (:subscribe-to current-world)
-     :pending         [#(transact* %)]}))
+     :nodes-added     #{}
+     :nodes-modified  #{}
+     :messages        []
+     :message-bus     (:message-bus current-world)
+     :pending         [txs]}))
+
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :affected-nodes :new-event-loops :tempids :graph :txs :nodes-added])
+
+(defn- finalize-update
+  "Makes the transacted graph the new value of the world-state graph.
+   Likewise for cache and cache-keys."
+  [{:keys [graph cache cache-keys world-time] :as ctx} completed?]
+  (if-not completed?
+    (update-in ctx [:world] assoc :last-tx {:status :aborted})
+    (update-in ctx [:world] assoc
+            :graph graph
+            :cache cache
+            :cache-keys cache-keys
+            :world-time (inc world-time)
+            :last-tx (assoc (select-keys ctx tx-report-keys) :status :ok))))
 
 (defn- run-to-completion
-  [w ctx]
-  (if-let [action (first (:pending ctx))]
-    (recur w (action (update-in ctx [:pending] rest)))
-    (:world ctx)))
+  [w ctx depth]
+;;  (println "run-to-completion: pending = " (:pending ctx))
+  (if (and (seq (:pending ctx)) (< depth 50))
+    (recur w (transact* ctx) (inc depth))
+    (finalize-update ctx (< depth 50))))
 
 (defn transact
   [world-ref txs]
-  (:last-tx (dosync (alter world-ref run-to-completion (new-transaction-context world-ref txs)))))
+  (dosync
+    (let [{:keys [world messages]} (run-to-completion @world-ref (new-transaction-context world-ref txs) 0)]
+      (ref-set world-ref world)
+      (when (= :ok (-> world :last-tx :status))
+        (bus/publish-all (:message-bus world) messages))
+      (:last-tx world))))
 
 ; ---------------------------------------------------------------------------
 ; Documentation

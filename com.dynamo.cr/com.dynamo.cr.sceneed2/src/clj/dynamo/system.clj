@@ -3,6 +3,7 @@
             [clojure.core.cache :as cache]
             [dynamo.resource :refer [disposable?]]
             [dynamo.types :as t]
+            [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.system :as is]
@@ -13,21 +14,11 @@
 (defn started? []    (-> (the-world) :started))
 
 ; ---------------------------------------------------------------------------
-; Internal messaging
-; ---------------------------------------------------------------------------
-(defn publish-all
-  [world-ref msgs]
-  (let [ch (:publish-to @world-ref)]
-    (doseq [s msgs]
-      (a/put! ch s))))
-
-; ---------------------------------------------------------------------------
 ; Transactional state
 ; ---------------------------------------------------------------------------
 
 (defprotocol Transaction
   (tx-bind       [this step]  "Add a step to the transaction")
-  (tx-send-after [this body]  "Send a message when the transaction completes")
   (tx-apply      [this]       "Apply the transaction steps")
   (tx-begin      [this world] "Create a subordinate transaction scope"))
 
@@ -36,28 +27,21 @@
 (deftype NestedTransaction [enclosing]
   Transaction
   (tx-bind [this step]        (tx-bind enclosing step))
-  (tx-send-after [this body]  nil)
   (tx-apply [this]            nil)
   (tx-begin [this _]          (->NestedTransaction this)))
 
-(deftype RootTransaction [world-ref steps messages]
+(deftype RootTransaction [world-ref steps]
   Transaction
   (tx-bind [this step]       (conj! steps step))
-  (tx-send-after [this body] (conj! messages body))
   (tx-apply [this]           (when (< 0 (count steps))
-                               (let [actions (persistent! steps)
-                                     tx-result (it/transact world-ref actions)]
-                                 (when (= :ok (:status tx-result))
-                                   (publish-all world-ref (persistent! messages)))
-                                 tx-result)))
+                               (it/transact world-ref (persistent! steps))))
   (tx-begin [this _]         (->NestedTransaction this)))
 
 (deftype NullTransaction []
   Transaction
   (tx-bind [this step]       nil)
-  (tx-send-after [this body] nil)
   (tx-apply [this]           nil)
-  (tx-begin [this world-ref] (->RootTransaction world-ref (transient []) (transient []))))
+  (tx-begin [this world-ref] (->RootTransaction world-ref (transient []))))
 
 (def ^:private ^:dynamic *transaction* (->NullTransaction))
 
@@ -81,12 +65,24 @@
 (defn in-transaction? []
   (not (instance? NullTransaction *transaction*)))
 
+(defn- is-scope?
+  [n]
+  (and
+    (satisfies? t/InjectionContext n)
+    (satisfies? t/NamingContext n)))
+
 ; ---------------------------------------------------------------------------
 ; High level API
 ; ---------------------------------------------------------------------------
 (defn current-scope
   []
   it/*scope*)
+
+(defn enclosing-scopes
+  ([]
+    (enclosing-scopes it/*scope*))
+  ([s]
+    (take-while identity (iterate :parent s))))
 
 (defmacro transactional
   [& forms]
@@ -116,12 +112,14 @@
   [n]
   (tx-bind *transaction* (it/new-node n))
   (when (current-scope)
-    (connect n :self (current-scope) :nodes))
+    (connect n :self (current-scope) :nodes)
+    (if (is-scope? n)
+      (set-property n :parent (current-scope))))
   n)
 
 (defn send-after
   [n args]
-  (tx-send-after *transaction* (is/address-to n args)))
+  (tx-bind *transaction* (it/send-message n args)))
 
 (defmacro in
   [s & forms]

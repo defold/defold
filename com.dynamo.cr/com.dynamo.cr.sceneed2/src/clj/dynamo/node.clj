@@ -99,8 +99,8 @@ to use dynamo.system/publish to send a message to a node."
 ; ---------------------------------------------------------------------------
 (defnode Scope
   (input nodes [s/Any])
-  (property tag    {:schema s/Keyword})
-  (property parent {:schema s/Any})
+  (property tag      {:schema s/Keyword})
+  (property parent   {:schema s/Any})
   (output dictionary s/Any in/scope-dictionary)
 
   InjectionContext
