@@ -48,25 +48,9 @@
         (assoc this :started false))
       this)))
 
-(defn- start-event-loop!
-  [world-ref id in]
-  (a/go-loop []
-    (when-let [msg (a/<! in)]
-      (try
-        (t/process-one-event (dg/node (graph world-ref) id) msg)
-        (catch Exception ex
-          (service.log/error :message "Error in node event loop" :exception ex)))
-      (recur))))
-
 (defn- transaction-applied?
   [{old-world-time :world-time} {new-world-time :world-time :as new-world}]
   (and (:last-tx new-world) (< old-world-time new-world-time)))
-
-(defn- start-event-loops
-  [_ world-ref old-world {:keys [last-tx message-bus] :as new-world}]
-  (when (transaction-applied? old-world new-world)
-    (doseq [n (:new-event-loops last-tx)]
-      (start-event-loop! world-ref n (bus/subscribe message-bus n)))))
 
 (defn- send-tx-reports
   [report-ch _ _ old-world {last-tx :last-tx :as new-world}]
@@ -76,8 +60,7 @@
 (defn- world
   [report-ch]
   (let [world-ref (ref nil)]
-    (add-watch world-ref :tx-report   (partial send-tx-reports report-ch))
-    (add-watch world-ref :event-loops start-event-loops)
+    (add-watch world-ref :tx-report (partial send-tx-reports report-ch))
     (->World false world-ref)))
 
 (defn- disposal-messages

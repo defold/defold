@@ -145,11 +145,18 @@
   [component type {:keys [_id world-ref] :as node}]
   (ui/listen component type #(t/process-one-event (iq/node-by-id world-ref _id) %)))
 
+(defn- send-view-scope-message
+  [self txn]
+  (doseq [n (:nodes-added txn)]
+    (ds/send-after n {:type :view-scope :scope self})))
+
 (n/defnode SceneEditor
   (inherits Scope)
   (inherits Renderer)
 
   (input controller  s/Any)
+
+  (property triggers {:schema s/Any :default [#'send-view-scope-message]})
 
   (on :create
     (let [canvas        (glcanvas (:parent event))

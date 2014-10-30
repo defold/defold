@@ -1,9 +1,11 @@
 (ns internal.bus
   (:require [clojure.core.async :as a]))
 
+(defn- subscriber-id [n] (if (number? n) n (:_id n)))
+
 (defn address-to
   [node body]
-  (merge body {::node-id (:_id node)}))
+  (merge body {::node-id (subscriber-id node)}))
 
 (defn publish
   [{publish-to :publish-to} msg]
@@ -15,8 +17,8 @@
     (publish bus s)))
 
 (defn subscribe
-  [{subscribe-to :subscribe-to} node-id]
-  (a/sub subscribe-to node-id (a/chan 100)))
+  [{subscribe-to :subscribe-to} node]
+  (a/sub subscribe-to (subscriber-id node) (a/chan 100)))
 
 (defn make-bus
   []

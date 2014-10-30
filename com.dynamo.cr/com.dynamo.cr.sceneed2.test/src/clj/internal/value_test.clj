@@ -10,6 +10,7 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [internal.graph.dgraph :as dg]
+            [internal.system :as is]
             [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)
@@ -204,3 +205,29 @@
 (deftest sends-node-project-to-production-function
   (let [project-aware-node (build-project-aware-node :some-project)]
     (is (= :some-project (n/get-node-value project-aware-node :testable-output)))))
+
+(deftest update-node-sees-in-transaction-value
+  (with-clean-world
+    (let [node (ds/transactional world-ref
+                 (ds/add (p/make-project :name "a project" :int-prop 0)))]
+      (let [after-transaction (ds/transactional world-ref
+                                (ds/update-property node :int-prop inc)
+                                (ds/update-property node :int-prop inc)
+                                (ds/update-property node :int-prop inc)
+                                (ds/update-property node :int-prop inc)
+                                node)]
+        (is (= 4 (:int-prop after-transaction)))))))
+
+(n/defnode ScopeReceiver
+  (on :project-scope
+    (ds/set-property self :message-received event)))
+
+(deftest node-receives-scope-message
+  (testing "project scope message"
+    (with-clean-world
+      (let [world-time (:world-time @world-ref)
+            ps-node    (ds/transactional world-ref
+                         (ds/in (ds/add (p/make-project :name "a project"))
+                           (ds/add (make-scope-receiver))))]
+        (await-world-time world-ref 3 500)
+        (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))

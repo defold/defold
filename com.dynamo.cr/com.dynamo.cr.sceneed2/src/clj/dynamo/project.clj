@@ -84,12 +84,18 @@
         (load-resource project-scope f)
         (first (iq/query (:world-ref project-scope) [[:filename f]]))))))
 
+(defn- send-project-scope-message
+  [self txn]
+  (doseq [n (:nodes-added txn)]
+    (ds/send-after n {:type :project-scope :scope self})))
+
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
 ; ---------------------------------------------------------------------------
 (defnode Project
   (inherits Scope)
 
+  (property triggers {:schema s/Any :default [#'send-project-scope-message]})
   (property tag {:schema s/Keyword :default :project})
   (property eclipse-project IProject)
   (property branch String))

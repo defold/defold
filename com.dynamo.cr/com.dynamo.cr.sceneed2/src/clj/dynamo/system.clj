@@ -6,8 +6,10 @@
             [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
+            [internal.query :as iq]
             [internal.system :as is]
-            [internal.transaction :as it]))
+            [internal.transaction :as it :refer [*transaction*]])
+  (:import [internal.transaction NullTransaction]))
 
 (defn- the-world []  (-> is/the-system deref :world))
 (defn groot []       (dg/node (-> (the-world) :state is/graph) 1))
@@ -17,33 +19,6 @@
 ; Transactional state
 ; ---------------------------------------------------------------------------
 
-(defprotocol Transaction
-  (tx-bind       [this step]  "Add a step to the transaction")
-  (tx-apply      [this]       "Apply the transaction steps")
-  (tx-begin      [this world] "Create a subordinate transaction scope"))
-
-(declare ->NestedTransaction)
-
-(deftype NestedTransaction [enclosing]
-  Transaction
-  (tx-bind [this step]        (tx-bind enclosing step))
-  (tx-apply [this]            nil)
-  (tx-begin [this _]          (->NestedTransaction this)))
-
-(deftype RootTransaction [world-ref steps]
-  Transaction
-  (tx-bind [this step]       (conj! steps step))
-  (tx-apply [this]           (when (< 0 (count steps))
-                               (it/transact world-ref (persistent! steps))))
-  (tx-begin [this _]         (->NestedTransaction this)))
-
-(deftype NullTransaction []
-  Transaction
-  (tx-bind [this step]       nil)
-  (tx-apply [this]           nil)
-  (tx-begin [this world-ref] (->RootTransaction world-ref (transient []))))
-
-(def ^:private ^:dynamic *transaction* (->NullTransaction))
 
 (defn node? [v] (satisfies? t/Node v))
 
@@ -55,9 +30,9 @@
     :else              val))
 
 (defn transactional* [world-ref inner]
-  (binding [*transaction* (tx-begin *transaction* world-ref)]
+  (binding [*transaction* (it/tx-begin *transaction* world-ref)]
     (let [result     (inner)
-          tx-outcome (tx-apply *transaction*)]
+          tx-outcome (it/tx-apply *transaction*)]
       (if tx-outcome
         (resolve-return-val tx-outcome result)
         result))))
@@ -90,27 +65,27 @@
 
 (defn update
   [n f & args]
-  (tx-bind *transaction* (apply it/update-node n f args)))
+  (it/tx-bind *transaction* (apply it/update-node n f args)))
 
 (defn connect
   [source-node source-label target-node target-label]
-  (tx-bind *transaction* (it/connect source-node source-label target-node target-label)))
+  (it/tx-bind *transaction* (it/connect source-node source-label target-node target-label)))
 
 (defn disconnect
   [source-node source-label target-node target-label]
-  (tx-bind *transaction* (it/disconnect source-node source-label target-node target-label)))
+  (it/tx-bind *transaction* (it/disconnect source-node source-label target-node target-label)))
 
 (defn set-property
   [n & kvs]
-  (tx-bind *transaction* (apply it/update-node n assoc kvs)))
+  (it/tx-bind *transaction* (apply it/update-node n assoc kvs)))
 
 (defn update-property
   [n p f & args]
-  (tx-bind *transaction* (apply it/update-node n update-in [p] f args)))
+  (it/tx-bind *transaction* (apply it/update-node n update-in [p] f args)))
 
 (defn add
   [n]
-  (tx-bind *transaction* (it/new-node n))
+  (it/tx-bind *transaction* (it/new-node n))
   (when (current-scope)
     (connect n :self (current-scope) :nodes)
     (if (is-scope? n)
@@ -119,7 +94,7 @@
 
 (defn send-after
   [n args]
-  (tx-bind *transaction* (it/send-message n args)))
+  (it/tx-bind *transaction* (it/send-message n args)))
 
 (defmacro in
   [s & forms]
@@ -128,6 +103,10 @@
      (assert (satisfies? t/NamingContext new-scope#) (str new-scope# " cannot be used as a scope."))
      (binding [it/*scope* new-scope#]
        ~@forms)))
+
+(defn refresh
+  [world-ref n]
+  (iq/node-by-id world-ref (:_id n)))
 
 ; ---------------------------------------------------------------------------
 ; Documentation
@@ -141,9 +120,6 @@
 
         #'started?
         "Returns true if the system has been started and not yet stopped."
-
-        #'publish-all
-        "Publish a collection of messages on the internal message bus."
 
         #'transactional
         "Executes the body within a project transaction. All actions

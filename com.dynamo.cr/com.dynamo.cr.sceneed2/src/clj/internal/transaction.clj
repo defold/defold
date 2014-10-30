@@ -18,6 +18,50 @@
   (.getAndIncrement nextkey))
 
 ; ---------------------------------------------------------------------------
+; Transaction protocols
+; ---------------------------------------------------------------------------
+
+(defprotocol Transaction
+  (tx-bind       [this step]  "Add a step to the transaction")
+  (tx-apply      [this]       "Apply the transaction steps")
+  (tx-begin      [this world] "Create a subordinate transaction scope"))
+
+(defprotocol Return
+  (tx-return     [this]       "Return the steps of the transaction."))
+
+(declare ->NestedTransaction transact)
+
+(deftype NestedTransaction [enclosing]
+  Transaction
+  (tx-bind [this step]        (tx-bind enclosing step))
+  (tx-apply [this]            nil)
+  (tx-begin [this _]          (->NestedTransaction this)))
+
+(deftype RootTransaction [world-ref steps]
+  Transaction
+  (tx-bind [this step]       (conj! steps step))
+  (tx-apply [this]           (when (< 0 (count steps))
+                               (transact world-ref (persistent! steps))))
+  (tx-begin [this _]         (->NestedTransaction this)))
+
+(deftype NullTransaction []
+  Transaction
+  (tx-bind [this step]       nil)
+  (tx-apply [this]           nil)
+  (tx-begin [this world-ref] (->RootTransaction world-ref (transient []))))
+
+(deftype TriggerTransaction [steps]
+  Transaction
+  (tx-bind [this step]       (conj! steps step))
+  (tx-apply [this]           nil)
+  (tx-begin [this _]         (->NestedTransaction this))
+
+  Return
+  (tx-return [this]          (persistent! steps)))
+
+(def ^:dynamic *transaction* (->NullTransaction))
+
+; ---------------------------------------------------------------------------
 ; Building transactions
 ; ---------------------------------------------------------------------------
 (defn new-node
@@ -54,9 +98,9 @@
 
 (defn send-message
   [to-node body]
-  [{:type      :message
-    :target-id (:_id to-node)
-    :body      body}])
+  [{:type    :message
+    :to-node (:_id to-node)
+    :body    body}])
 
 (defn has-tempid? [n] (and (:_id n) (neg? (:_id n))))
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
@@ -106,7 +150,7 @@
 
 (defmethod perform :message
   [ctx {:keys [to-node body]}]
-  (update-in ctx :messages conj (bus/address-to to-node body)))
+  (update-in ctx [:messages] conj (bus/address-to to-node body)))
 
 (defn- apply-tx
   [ctx actions]
@@ -144,39 +188,39 @@
   [{:keys [graph affected-nodes] :as ctx}]
   (assoc ctx :expired-outputs (pairwise (comp :on-update :descriptor) (map #(dg/node graph %) affected-nodes))))
 
-(defn- push-context
-  [ctx]
-  (-> ctx
-    (assoc ::stack     ctx
-      :new-event-loops []
-      :nodes-added     #{}
-      :nodes-modified  #{}
-      :pending         []
-      :affected-nodes  []
-      :pending         []
-      :messages        [])))
+(defn start-event-loop!
+  [world-ref graph id]
+  (let [in (bus/subscribe (:message-bus @world-ref) id)]
+    (binding [*transaction* (->NullTransaction)]
+      (a/go-loop []
+        (when-let [msg (a/<! in)]
+          (try
+            (t/process-one-event (dg/node graph id) msg)
+            (catch Exception ex
+              (service.log/error :message "Error in node event loop" :exception ex)))
+          (recur))))))
 
-(defn- pop-context
-  [ctx]
-  (-> (::stack ctx)
-    (update-in [:new-event-loops] concat    (:new-event-loops ctx))
-    (update-in [:nodes-added]     set/union (:nodes-added ctx))
-    (update-in [:nodes-modified]  set/union (:nodes-modified ctx))
-    (update-in [:pending]         concat    (:pending ctx))
-    (update-in [:messages]        concat    (:messages ctx))))
+(defn- start-event-loops
+  [{:keys [world-ref graph new-event-loops previously-started] :as ctx}]
+  (let [loops-to-start (set/difference new-event-loops previously-started)]
+    (doseq [l loops-to-start]
+      (start-event-loop! world-ref graph l))
+  (update-in ctx [:previously-started] set/union loops-to-start)))
 
 (defn- process-triggers
-  [{:keys [graph affected-nodes] :as ctx}]
-  (pop-context
-    (reduce (fn [csub [n tr]]
-              (update-in csub [:pending] concat (tr n csub)))
-      (push-context ctx)
-      (pairwise :triggers (map #(dg/node graph %) affected-nodes)))))
+  [{:keys [graph affected-nodes previously-triggered] :as ctx}]
+  (let [new-triggers (set/difference affected-nodes previously-triggered)
+        next-ctx (reduce (fn [csub [n tr]]
+                           (binding [*transaction* (->TriggerTransaction (transient []))]
+                             (tr n csub)
+                             (update-in csub [:pending] concat (tx-return *transaction*))))
+                   ctx
+                   (pairwise :triggers (map #(dg/node graph %) new-triggers)))]
+    (update-in next-ctx [:previously-triggered] set/union new-triggers)))
 
 (defn- transact*
   [ctx]
   (let [tx-list (first (:pending ctx))]
-;;    (println "transact* " tx-list)
     (-> (update-in ctx [:pending] next)
       (apply-tx tx-list)
       affected-nodes
@@ -184,6 +228,7 @@
       dispose-obsoletes
       evict-obsolete-caches
       determine-autoupdates
+      start-event-loops
       process-triggers)))
 
 (defn- new-transaction-context
@@ -196,11 +241,10 @@
      :cache-keys      (:cache-keys current-world)
      :world-time      (:world-time current-world)
      :tempids         {}
-     :new-event-loops []
+     :new-event-loops #{}
      :nodes-added     #{}
      :nodes-modified  #{}
      :messages        []
-     :message-bus     (:message-bus current-world)
      :pending         [txs]}))
 
 (def tx-report-keys [:status :expired-outputs :values-to-dispose :affected-nodes :new-event-loops :tempids :graph :txs :nodes-added])
@@ -212,15 +256,14 @@
   (if-not completed?
     (update-in ctx [:world] assoc :last-tx {:status :aborted})
     (update-in ctx [:world] assoc
-            :graph graph
-            :cache cache
+            :graph      graph
+            :cache      cache
             :cache-keys cache-keys
             :world-time (inc world-time)
-            :last-tx (assoc (select-keys ctx tx-report-keys) :status :ok))))
+            :last-tx    (assoc (select-keys ctx tx-report-keys) :status :ok))))
 
 (defn- run-to-completion
   [w ctx depth]
-;;  (println "run-to-completion: pending = " (:pending ctx))
   (if (and (seq (:pending ctx)) (< depth 50))
     (recur w (transact* ctx) (inc depth))
     (finalize-update ctx (< depth 50))))
