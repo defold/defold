@@ -175,6 +175,17 @@
 (defn non-negative-integer [& {:as opts}] (merge (number :default 0) opts))
 (defn isotropic-scale      [& {:as opts}] (merge (number :default 1.0) opts))
 
+; ----------------------------------------
+; Type compatibility and inference
+; ----------------------------------------
+(defn compatible?
+  [output-schema input-schema]
+  (or
+    (identical? output-schema input-schema)
+    (= input-schema s/Any)
+    (and (vector? input-schema) (identical? output-schema (first input-schema)))
+    (and (class? input-schema) (.isAssignableFrom input-schema output-schema))))
+
 (doseq [[v doc]
        {*ns*                   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."
         #'as-schema            "applies schema metadata to x."

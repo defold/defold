@@ -6,6 +6,7 @@
                       'internal.graph.graph-test
                       'internal.value-test
                       'internal.system-test
+                      'internal.type-test
                       'dynamo.transaction-test
                       'dynamo.texture-test
                       'dynamo.image-test
