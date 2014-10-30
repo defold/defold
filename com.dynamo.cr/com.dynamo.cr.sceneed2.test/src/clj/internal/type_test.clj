@@ -27,5 +27,3 @@
     (is (t/compatible? T1 s/Any))
     (is (t/compatible? String s/Any))
     (is (t/compatible? [String] s/Any))))
-
-(run-tests)

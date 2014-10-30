@@ -49,7 +49,7 @@
   "this took a long time to produce")
 
 (n/defnode CachedOutputNoInputs
-  (output expensive-value :cached [node g]
+  (output expensive-value String :cached [node g]
     (tally node 'compute-expensive-value)
     "this took a long time to produce")
   (input  operand String))
@@ -147,7 +147,7 @@
       (>!! (:channel (dg/node g this)) :gone))))
 
 (n/defnode DisposableValueNode
-  (output disposable-value :cached compute-disposable-value))
+  (output disposable-value r/IDisposable :cached compute-disposable-value))
 
 (defnk produce-input-from-node
   [overridden]
