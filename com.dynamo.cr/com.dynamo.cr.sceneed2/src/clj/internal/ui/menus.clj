@@ -1,8 +1,5 @@
 (ns internal.ui.menus
-  (:require [dynamo.project :as p]
-            [internal.system :as sys]
-            [internal.ui.handlers :as handlers]
-            [dynamo.ui :refer [defcommand defhandler]])
+  (:require [internal.ui.handlers :as handlers])
   (:import [org.eclipse.core.commands ExecutionEvent]))
 
 (set! *warn-on-reflection* true)

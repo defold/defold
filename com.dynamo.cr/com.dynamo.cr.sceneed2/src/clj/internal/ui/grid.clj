@@ -4,7 +4,6 @@
             [dynamo.camera :as c]
             [dynamo.geom :as g]
             [dynamo.node :as n]
-            [dynamo.project :as p]
             [dynamo.types :as t :refer [min-p max-p]]
             [dynamo.gl :refer :all]
             [internal.render.pass :as pass])

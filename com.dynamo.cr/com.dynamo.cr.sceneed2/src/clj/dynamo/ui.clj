@@ -1,7 +1,6 @@
 (ns dynamo.ui
   (:require [internal.ui.handlers :as h]
             [internal.java :refer [bean-mapper]]
-            [dynamo.types :as t]
             [camel-snake-kebab :refer :all])
   (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
             [org.eclipse.swt.widgets Display Listener Widget]
