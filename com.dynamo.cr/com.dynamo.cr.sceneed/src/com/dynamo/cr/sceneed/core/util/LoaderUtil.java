@@ -25,7 +25,7 @@ public class LoaderUtil {
     }
 
     public static Vector4d toVector4(Vector4 p) {
-        return new Vector4d(p.getX(), p.getY(), p.getZ(), 1);
+        return new Vector4d(p.getX(), p.getY(), p.getZ(), p.getW());
     }
 
     public static Vector3d toVector3(Vector4 p) {
@@ -90,7 +90,7 @@ public class LoaderUtil {
     public static Point4d toPoint4d(Vector4 p) {
         return new Point4d(p.getX(), p.getY(), p.getZ(), p.getW());
     }
-    
+
     public static RGB toRGB(Vector4 v) {
         float factor = 255.0f;
         return new RGB((int) (v.getX() * factor), (int) (v.getY() * factor), (int) (v.getZ() * factor));
