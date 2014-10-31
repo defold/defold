@@ -91,7 +91,8 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "sprite",
                 "sys",
                 "tilemap",
-                "vmath"
+                "vmath",
+                "spine"
         };
         for (String doc : docs) {
             loadDocumentation(String.format("doc/%s_doc.sdoc", doc));
