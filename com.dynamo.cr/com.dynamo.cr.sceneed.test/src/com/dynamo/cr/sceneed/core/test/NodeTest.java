@@ -300,21 +300,19 @@ public class NodeTest extends AbstractNodeTest {
         }
 
         // rotation sequence consistency
-        Matrix4d tmpMat = new Matrix4d();
+        Matrix3d tmpMat = new Matrix3d();
         tmpMat.setIdentity();
-        Matrix4d refMat = new Matrix4d();
+        Matrix3d refMat = new Matrix3d();
         refMat.setIdentity();
         Vector3d expected = new Vector3d(90.0, 22.5, 45.0);
-        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), expected.getY() * Math.PI / 180.0));
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), expected.getY() * Math.PI / 180.0));
         refMat.mul(tmpMat);
-        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), expected.getZ() * Math.PI / 180.0));
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), expected.getZ() * Math.PI / 180.0));
         refMat.mul(tmpMat);
-        tmpMat.setRotation(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), expected.getX() * Math.PI / 180.0));
+        tmpMat.set(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), expected.getX() * Math.PI / 180.0));
         refMat.mul(tmpMat);
-        Matrix3d refMatRS = new Matrix3d();
-        refMat.getRotationScale(refMatRS);
         Quat4d q = new Quat4d();
-        q.set(refMatRS);
+        q.set(refMat);
         q.normalize();
         Node.quatToEuler(q, euler);
         assertTrue(expected.epsilonEquals(euler, epsilon));
@@ -341,21 +339,19 @@ public class NodeTest extends AbstractNodeTest {
         }
 
         // rotation sequence consistency
-        Matrix4d tmpMat = new Matrix4d();
+        Matrix3d tmpMat = new Matrix3d();
         tmpMat.setIdentity();
-        Matrix4d refMat = new Matrix4d();
+        Matrix3d refMat = new Matrix3d();
         refMat.setIdentity();
         Vector3d expected = new Vector3d(90.0, 22.5, 45.0);
-        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), expected.getY() * Math.PI / 180.0));
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), expected.getY() * Math.PI / 180.0));
         refMat.mul(tmpMat);
-        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), expected.getZ() * Math.PI / 180.0));
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), expected.getZ() * Math.PI / 180.0));
         refMat.mul(tmpMat);
-        tmpMat.setRotation(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), expected.getX() * Math.PI / 180.0));
+        tmpMat.set(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), expected.getX() * Math.PI / 180.0));
         refMat.mul(tmpMat);
-        Matrix3d refMatRS = new Matrix3d();
-        refMat.getRotationScale(refMatRS);
         Quat4d q = new Quat4d();
-        q.set(refMatRS);
+        q.set(refMat);
         Quat4d quat = new Quat4d();
         Node.eulerToQuat(expected, quat);
         assertTrue(quat.epsilonEquals(q, epsilon));

@@ -42,13 +42,13 @@ TEST(dmMath, TestQuatToEuler)
     }
 
     // rotation sequence consistency
-    Matrix4 ref_mat;
-    ref_mat = Matrix4::identity();
+    Matrix3 ref_mat;
+    ref_mat = Matrix3::identity();
     Vector3 expected(90.0f, 22.5f, 45.0f);
-    ref_mat *= Matrix4::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
-    ref_mat *= Matrix4::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
-    ref_mat *= Matrix4::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
-    Quat q(ref_mat.getUpper3x3());
+    ref_mat *= Matrix3::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Matrix3::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Matrix3::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
+    Quat q(ref_mat);
     q = normalize(q);
     euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
     ASSERT_NEAR(expected.getX(), euler.getX(), epsilon);
@@ -79,13 +79,13 @@ TEST(dmMath, TestEulerToQuat)
     }
 
     // rotation sequence consistency
-    Matrix4 ref_mat;
-    ref_mat = Matrix4::identity();
+    Matrix3 ref_mat;
+    ref_mat = Matrix3::identity();
     Vector3 expected(90.0f, 22.5f, 45.0f);
-    ref_mat *= Matrix4::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
-    ref_mat *= Matrix4::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
-    ref_mat *= Matrix4::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
-    Quat q(ref_mat.getUpper3x3());
+    ref_mat *= Matrix3::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Matrix3::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Matrix3::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
+    Quat q(ref_mat);
     Quat quat = dmVMath::EulerToQuat(expected);
     ASSERT_NEAR(quat.getX(), q.getX(), epsilon);
     ASSERT_NEAR(quat.getY(), q.getY(), epsilon);
