@@ -17,12 +17,11 @@ TEST(dmVMath, QuatFromAngle)
 
 TEST(dmMath, TestQuatToEuler)
 {
-    float epsilon = 0.02f;
-
+    const float epsilon = 0.02f;
     Vector3 euler;
 
-    float half_rad_factor = (float) (M_PI / 360.0);
     // different degrees around different single axis
+    const float half_rad_factor = (float) (M_PI / 360.0);
     for (uint32_t i = 0; i < 3; ++i)
     {
         for (float a = 0.0f; a < 105.0f; a += 10.0f)
@@ -36,25 +35,33 @@ TEST(dmMath, TestQuatToEuler)
             float expected_i = ap;
             float expected_i_1 = 0.0f;
             float expected_i_n_1 = 0.0f;
-            if (i == 0 && ap >= 90.0f)
-            {
-                expected_i_1 = 90.0f;
-            }
             ASSERT_NEAR(expected_i, euler.getElem(i), epsilon);
             ASSERT_NEAR(expected_i_1, euler.getElem((i + 1) % 3), epsilon);
             ASSERT_NEAR(expected_i_n_1, euler.getElem((i + 2) % 3), epsilon);
         }
     }
+
+    // rotation sequence consistency
+    Matrix4 ref_mat;
+    ref_mat = Matrix4::identity();
+    Vector3 expected(90.0f, 22.5f, 45.0f);
+    ref_mat *= Matrix4::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Matrix4::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Matrix4::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
+    Quat q(ref_mat.getUpper3x3());
+    q = normalize(q);
+    euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_NEAR(expected.getX(), euler.getX(), epsilon);
+    ASSERT_NEAR(expected.getY(), euler.getY(), epsilon);
+    ASSERT_NEAR(expected.getZ(), euler.getZ(), epsilon);
 }
 
 TEST(dmMath, TestEulerToQuat)
 {
-    float epsilon = 0.001f;
+    const float epsilon = 0.001f;
 
-    Vector3 euler;
-
-    float half_rad_factor = (float) (M_PI / 360.0);
     // different degrees around different single axis
+    const float half_rad_factor = (float) (M_PI / 360.0);
     for (uint32_t i = 0; i < 3; ++i)
     {
         for (float a = 0.0f; a < 105.0f; a += 10.0f)
@@ -71,20 +78,19 @@ TEST(dmMath, TestEulerToQuat)
         }
     }
 
-    // rotation sequence consistency (231 (YZX))
+    // rotation sequence consistency
     Matrix4 ref_mat;
     ref_mat = Matrix4::identity();
-    const float radians = 90.0f * M_PI / 180.0f;
-    ref_mat *= Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
-    ref_mat *= Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
-    ref_mat *= Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));
-    Quat expected(ref_mat.getUpper3x3());
-
-    Quat q = dmVMath::EulerToQuat(Vector3(90.0f*0.25f, 90.0f*0.5f, 90.0f));
-    ASSERT_NEAR(expected.getX(), q.getX(), epsilon);
-    ASSERT_NEAR(expected.getY(), q.getY(), epsilon);
-    ASSERT_NEAR(expected.getZ(), q.getZ(), epsilon);
-    ASSERT_NEAR(expected.getW(), q.getW(), epsilon);
+    Vector3 expected(90.0f, 22.5f, 45.0f);
+    ref_mat *= Matrix4::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Matrix4::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Matrix4::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
+    Quat q(ref_mat.getUpper3x3());
+    Quat quat = dmVMath::EulerToQuat(expected);
+    ASSERT_NEAR(quat.getX(), q.getX(), epsilon);
+    ASSERT_NEAR(quat.getY(), q.getY(), epsilon);
+    ASSERT_NEAR(quat.getZ(), q.getZ(), epsilon);
+    ASSERT_NEAR(quat.getW(), q.getW(), epsilon);
 }
 
 int main(int argc, char **argv)

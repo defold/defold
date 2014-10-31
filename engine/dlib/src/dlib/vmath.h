@@ -29,8 +29,7 @@ namespace dmVMath
 #define DEG_FACTOR 57.295779513f
 
     /**
-     * Converts a quaternion into euler angles (r0, r1, r2), based on the specified rotation order.
-     * Order XYZ is specified as (x, y, z, w)
+     * Converts a quaternion into euler angles (r0, r1, r2), based on YZX rotation order.
      * To handle gimbal lock (singularity at r1 ~ +/- 90 degrees), the cut off is at r0 = +/- 88.85 degrees, which snaps to +/- 90.
      * The provided quaternion is expected to be normalized.
      * The error is guaranteed to be less than +/- 0.02 degrees
@@ -47,28 +46,28 @@ namespace dmVMath
         // * http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
         // * http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/Quaternions.pdf
         const float limit = 0.4999f; // gimbal lock limit, corresponds to 88.85 degrees
-        float test = q3 * q0 + q1 * q2;
         float r0, r1, r2;
+        float test = q0 * q1 + q2 * q3;
         if (test > limit)
         {
-            r0 = 2.0f * atan2(q0, q3);
-            r1 = (float) M_PI_2;
-            r2 = 0.0f;
+            r1 = 2.0f * atan2(q0, q3);
+            r2 = (float) M_PI_2;
+            r0 = 0.0f;
         }
         else if (test < -limit)
         {
-            r0 = -2.0f * atan2(q0, q3);
-            r1 = (float) -M_PI_2;
-            r2 = 0.0f;
+            r1 = -2.0f * atan2(q0, q3);
+            r2 = (float) -M_PI_2;
+            r0 = 0.0f;
         }
         else
         {
             float sq0 = q0 * q0;
             float sq1 = q1 * q1;
             float sq2 = q2 * q2;
-            r0 = atan2(2.0f * (q3 * q0 - q1 * q2), 1.0f - 2.0f * (sq0 + sq1));
-            r1 = asin(2.0f * (q3 * q1 + q0 * q2));
-            r2 = atan2(2.0f * (q3 * q2 - q0 * q1), 1.0f - 2.0f * (sq1 + sq2));
+            r1 = atan2(2.0f * q1 * q3 - 2.0f * q0 * q2, 1.0f - 2.0f * sq1 - 2.0f * sq2);
+            r2 = asin(2.0f * test);
+            r0 = atan2(2.0f * q0 * q3 - 2.0f * q1 * q2, 1.0f - 2.0f * sq0 - 2.0f * sq2);
         }
         return Vectormath::Aos::Vector3(r0, r1, r2) * DEG_FACTOR;
     }

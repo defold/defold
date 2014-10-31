@@ -445,9 +445,10 @@ TEST_F(PropsTest, PropsGetSet)
 
     epsilon = 0.02f;
 
-    rot = Quat(M_SQRT1_2, 0, 0, M_SQRT1_2);
+    rot = Quat(M_SQRT1_2, 0, 0, M_SQRT1_2);   // Based on conversion tool (YZX rotation sequence) on http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/
     dmGameObject::SetRotation(go, rot);
-    Vector3 euler(90.0f, 90.0f, 0.0f);
+    Vector3 euler(90.0f, 0.0f, 0.0f);               // bank, heading, attitude
+
     ASSERT_GET_PROP_V3(go, "euler", euler, epsilon);
     euler = Vector3(0.0f, 0.0f, 1.0);
     ASSERT_SET_PROP_V3(go, "euler", euler, epsilon);
