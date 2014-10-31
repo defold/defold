@@ -223,7 +223,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     GLint backingHeight;
     EAGLContext *context;
     GLuint viewRenderbuffer, viewFramebuffer;
-    GLuint depthRenderbuffer;
+    GLuint depthStencilRenderbuffer;
     CADisplayLink* displayLink;
     int countDown;
     int swapInterval;
@@ -266,7 +266,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
   }
     viewRenderbuffer = 0;
     viewFramebuffer = 0;
-    depthRenderbuffer = 0;
+    depthStencilRenderbuffer = 0;
 
   return self;
 }
@@ -559,11 +559,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         _glfwWin.windowSizeCallback( backingWidth, backingHeight );
     }
 
-    // Setup depth buffers
-    glGenRenderbuffers(1, &depthRenderbuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthRenderbuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, backingWidth, backingHeight);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRenderbuffer);
+    // Setup packed depth and stencil buffers
+    glGenRenderbuffers(1, &depthStencilRenderbuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, depthStencilRenderbuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, backingWidth, backingHeight);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthStencilRenderbuffer);
 
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
@@ -588,11 +589,11 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         CHECK_GL_ERROR
         viewRenderbuffer = 0;
 
-        if(depthRenderbuffer)
+        if(depthStencilRenderbuffer)
         {
-            glDeleteRenderbuffers(1, &depthRenderbuffer);
+            glDeleteRenderbuffers(1, &depthStencilRenderbuffer);
             CHECK_GL_ERROR
-            depthRenderbuffer = 0;
+            depthStencilRenderbuffer = 0;
         }
     }
 }
