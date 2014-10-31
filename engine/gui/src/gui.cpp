@@ -63,6 +63,8 @@ namespace dmGui
             PROP(outline, PROPERTY_OUTLINE )
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
+            { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
+            { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
     };
 #undef PROP
 
@@ -1119,7 +1121,10 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_SHADOW] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
             node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
+            node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
             node->m_Node.m_LocalTransform = Matrix4::identity();
+            node->m_Node.m_PerimeterVertices = 32;
+            node->m_Node.m_OuterBounds = PIEBOUNDS_ELLIPSE;
             node->m_Node.m_BlendMode = 0;
             node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Node.m_XAnchor = 0;
@@ -1705,6 +1710,55 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_YAnchor = (uint32_t) y_anchor;
+    }
+
+
+    void SetNodeOuterBounds(HScene scene, HNode node, PieBounds bounds)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_OuterBounds = bounds;
+    }
+
+    void SetNodePerimeterVertices(HScene scene, HNode node, uint32_t vertices)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_PerimeterVertices = vertices;
+    }
+
+    void SetNodeInnerRadius(HScene scene, HNode node, float radius)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].setX(radius);
+    }
+
+    void SetNodePieFillAngle(HScene scene, HNode node, float fill_angle)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].setY(fill_angle);
+    }
+
+    PieBounds GetNodeOuterBounds(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_OuterBounds;
+    }
+
+    uint32_t GetNodePerimeterVertices(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_PerimeterVertices;
+    }
+
+    float GetNodeInnerRadius(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].getX();
+    }
+
+    float GetNodePieFillAngle(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].getY();
     }
 
     Pivot GetNodePivot(HScene scene, HNode node)

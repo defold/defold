@@ -41,6 +41,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             boxNode.setTexture(desc.getTexture());
             boxNode.setSlice9(LoaderUtil.toVector4(desc.getSlice9()));
             node = boxNode;
+        } else if (desc.getType() == Type.TYPE_PIE) {
+            PieNode pieNode = new PieNode();
+            pieNode.setTexture(desc.getTexture());
+            pieNode.setPerimeterVertices(desc.getPerimeterVertices());
+            pieNode.setOuterBounds(desc.getOuterBounds());
+            pieNode.setInnerRadius(desc.getInnerRadius());
+            pieNode.setPieFillAngle(desc.getPieFillAngle());
+            node = pieNode;
         } else if (desc.getType() == Type.TYPE_TEXT) {
             TextNode textNode = new TextNode();
             textNode.setText(desc.getText());
@@ -152,6 +160,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             BoxNode box = (BoxNode)node;
             builder.setTexture(box.getTexture());
             builder.setSlice9(LoaderUtil.toVector4(box.getSlice9()));
+        } else if (node instanceof PieNode) {
+            builder.setType(NodeDesc.Type.TYPE_PIE);
+            PieNode box = (PieNode)node;
+            builder.setTexture(box.getTexture());
+            builder.setPerimeterVertices(box.getPerimeterVertices());
+            builder.setInnerRadius(box.getInnerRadius());
+            builder.setOuterBounds(box.getOuterBounds());
+            builder.setPieFillAngle(box.getPieFillAngle());
         } else if (node instanceof TextNode) {
             builder.setType(NodeDesc.Type.TYPE_TEXT);
             TextNode text = (TextNode)node;
