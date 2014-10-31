@@ -179,6 +179,9 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         _glfwWin.active = 1;
         break;
     case APP_CMD_LOST_FOCUS:
+        if (g_KeyboardActive) {
+            _glfwShowKeyboard(0, 0, 0);
+        }
         _glfwWin.active = 0;
         break;
     case APP_CMD_START:
