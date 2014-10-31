@@ -136,8 +136,12 @@ namespace dmGui
         PROPERTY_OUTLINE    = 5,
         PROPERTY_SHADOW     = 6,
         PROPERTY_SLICE9     = 7,
+        PROPERTY_PERIMETER_VERTICES = 8,
+        PROPERTY_OUTER_BOUNDS = 9,
+        PROPERTY_INNER_RADIUS = 10,
+        PROPERTY_PIE_FILL_ANGLE = 11,
 
-        PROPERTY_RESERVED   = 8,
+        PROPERTY_RESERVED   = 12,
 
         PROPERTY_COUNT      = 9,
     };
@@ -169,6 +173,7 @@ namespace dmGui
     {
         NODE_TYPE_BOX  = 0,
         NODE_TYPE_TEXT = 1,
+        NODE_TYPE_PIE  = 2,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -211,6 +216,14 @@ namespace dmGui
         ADJUST_MODE_FIT     = 0,
         ADJUST_MODE_ZOOM    = 1,
         ADJUST_MODE_STRETCH = 2,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+    enum PieBounds
+    {
+        PIEBOUNDS_RECTANGLE = 0,
+        PIEBOUNDS_ELLIPSE   = 1,
     };
 
     /**
@@ -606,6 +619,16 @@ namespace dmGui
     void SetNodePivot(HScene scene, HNode node, Pivot pivot);
 
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);
+
+    void SetNodeInnerRadius(HScene scene, HNode node, float radius);
+    void SetNodeOuterBounds(HScene scene, HNode node, PieBounds bounds);
+    void SetNodePieFillAngle(HScene scene, HNode node, float fillAngle);
+    void SetNodePerimeterVertices(HScene scene, HNode node, uint32_t vertices);
+
+    float GetNodeInnerRadius(HScene scene, HNode node);
+    PieBounds GetNodeOuterBounds(HScene scene, HNode node);
+    float GetNodePieFillAngle(HScene scene, HNode node);
+    uint32_t GetNodePerimeterVertices(HScene scene, HNode node);
 
     /**
      * Convenience method, converting a dmGui::Property value into a hash value suitable for use

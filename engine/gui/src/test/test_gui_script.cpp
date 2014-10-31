@@ -102,8 +102,11 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
                       "    local s = vmath.vector3(20, 20, 0)\n"
                       "    local n1 = gui.new_box_node(p, s)\n"
                       "    local n2 = gui.new_text_node(p, \"text\")\n"
+                      "    local n3 = gui.new_pie_node(p, s)\n"
                       "    gui.set_size(n2, s)\n"
+                      "    gui.set_size(n3, s)\n"
                       "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n2))\n"
+                      "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n3))\n"
                       "end\n";
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
     ASSERT_EQ(dmGui::RESULT_OK, result);
@@ -328,6 +331,43 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
 
     dmGui::DeleteScene(scene);
 
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestPieNodeScript)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n = gui.new_pie_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_perimeter_vertices(n, 123)\n"
+            "    assert(gui.get_perimeter_vertices(n) == 123)\n"
+            "    gui.set_inner_radius(n, 456)\n"
+            "    assert(gui.get_inner_radius(n) == 456)\n"
+            "    gui.set_outer_bounds(n, gui.PIEBOUNDS_RECTANGLE)\n"
+            "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_RECTANGLE)\n"
+            "    gui.set_outer_bounds(n, gui.PIEBOUNDS_ELLIPSE)\n"
+            "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_ELLIPSE)\n"
+            "    gui.set_pie_fill_angle(n, 90)\n"
+            "    assert(gui.get_pie_fill_angle(n) == 90)\n"
+            "    assert(0)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
     dmGui::DeleteScript(script);
 }
 
