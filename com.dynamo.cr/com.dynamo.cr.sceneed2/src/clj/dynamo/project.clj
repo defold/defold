@@ -95,7 +95,7 @@
 (defnode Project
   (inherits Scope)
 
-  (property triggers {:schema s/Any :default [#'send-project-scope-message]})
+  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-project-scope-message]})
   (property tag {:schema s/Keyword :default :project})
   (property eclipse-project IProject)
   (property branch String))

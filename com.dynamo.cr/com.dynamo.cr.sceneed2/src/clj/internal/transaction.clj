@@ -6,7 +6,8 @@
             [dynamo.types :as t]
             [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]))
+            [internal.graph.lgraph :as lg]
+            [service.log :as log]))
 
 (def ^:dynamic *scope* nil)
 
@@ -197,7 +198,7 @@
           (try
             (t/process-one-event (dg/node graph id) msg)
             (catch Exception ex
-              (service.log/error :message "Error in node event loop" :exception ex)))
+              (log/error :message "Error in node event loop" :exception ex)))
           (recur))))))
 
 (defn- start-event-loops

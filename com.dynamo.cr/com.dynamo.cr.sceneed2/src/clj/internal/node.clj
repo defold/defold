@@ -14,6 +14,7 @@
             [internal.graph.dgraph :as dg]
             [internal.query :as iq]
             [service.log :as log]
+            [inflections.core :refer [plural]]
             [camel-snake-kebab :refer [->kebab-case]]))
 
 (set! *warn-on-reflection* true)
@@ -192,7 +193,8 @@
                      :else                  args-or-ref)]
          (reduce
            (fn [m f] (assoc m f #{oname}))
-           {:transforms {(keyword nm) tform}}
+           {:transforms {oname tform}
+            :transform-types {oname output-type}}
            flags)))
 
      [([nm [& args] & remainder] :seq)]
@@ -298,7 +300,7 @@
                                        ">")))))
 
 ; ---------------------------------------------------------------------------
-;
+; Dependency Injection
 ; ---------------------------------------------------------------------------
 
 (defn- scoped-name
@@ -314,3 +316,18 @@
              n))
     {}
     nodes))
+
+(defn compatible?
+  [out out-type in in-type]
+  (or
+    (and (= out in) (t/compatible? out-type in-type false))
+    )
+  )
+
+(defn injection-candidates
+  [self node]
+  ;; for each output on node,
+  ;;  if there is a matching input on self
+  ;;  and the types are compatible,
+  ;;  connect node's output to self's input
+  )

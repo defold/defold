@@ -1,9 +1,10 @@
 (ns dynamo.node
   "Define new node types"
-  (:require [internal.node :as in]
+  (:require [plumbing.core :refer [defnk]]
+            [schema.core :as s]
+            [dynamo.system :as ds]
             [dynamo.types :refer :all]
-            [plumbing.core :refer [defnk]]
-            [schema.core :as s]))
+            [internal.node :as in]))
 
 (set! *warn-on-reflection* true)
 
@@ -89,22 +90,27 @@ implement dynamo.types/MessageTarget."
   "This is an advanced usage. If you have a reference to a node, you can directly send
 it a message.
 
-This function should mainly be used to create 'plumbing'. In most cases you will want
-to use dynamo.system/publish to send a message to a node."
+This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
   (process-one-event node (assoc body :type type)))
 
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
 ; ---------------------------------------------------------------------------
+(defn inject-new-nodes
+  [self transaction]
+  (doseq [new-node   (:nodes-added transaction)
+          connection (in/injection-candidates self new-node)]
+    (apply dynamo.system/connect connection)))
+
 (defnode Scope
   (input nodes [s/Any])
+
   (property tag      {:schema s/Keyword})
   (property parent   {:schema s/Any})
-  (output dictionary s/Any in/scope-dictionary)
+  (property triggers {:default [#'inject-new-nodes]})
 
-  InjectionContext
-  (inject [this target] nil)
+  (output dictionary s/Any in/scope-dictionary)
 
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))

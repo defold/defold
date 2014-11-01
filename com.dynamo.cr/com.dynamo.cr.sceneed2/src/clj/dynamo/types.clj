@@ -12,9 +12,6 @@
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------
-(defprotocol InjectionContext
-  (inject [this target] "Inject dependencies into target."))
-
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
 
@@ -178,13 +175,18 @@
 ; ----------------------------------------
 ; Type compatibility and inference
 ; ----------------------------------------
-(defn compatible?
-  [output-schema input-schema]
+(defn- check-single-type
+  [out in]
   (or
     (identical? output-schema input-schema)
     (= input-schema s/Any)
-    (and (vector? input-schema) (identical? output-schema (first input-schema)))
     (and (class? input-schema) (.isAssignableFrom input-schema output-schema))))
+
+(defn compatible?
+  [output-schema input-schema expect-collection?]
+  (or
+    (and (not expect-collection?) (check-single-type output-schema input-schema))
+    (and expect-collection? (vector? input-schema) (check-single-type output-schema (first input-schema)))))
 
 (doseq [[v doc]
        {*ns*                   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."

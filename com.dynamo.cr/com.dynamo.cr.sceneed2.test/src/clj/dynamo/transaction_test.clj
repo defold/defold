@@ -5,6 +5,7 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
+            [schema.core :as s]
             [dynamo.system.test-support :refer :all]
             [dynamo.node :as n]
             [internal.graph.dgraph :as dg]
@@ -15,7 +16,7 @@
 
 (n/defnode Resource
   (input a String)
-  (output b Keyword dummy-output))
+  (output b s/Keyword dummy-output))
 
 (n/defnode Downstream
   (input consumer String))
