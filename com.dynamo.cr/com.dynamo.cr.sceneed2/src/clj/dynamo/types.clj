@@ -178,9 +178,9 @@
 (defn- check-single-type
   [out in]
   (or
-    (identical? output-schema input-schema)
-    (= input-schema s/Any)
-    (and (class? input-schema) (.isAssignableFrom input-schema output-schema))))
+    (identical? out in)
+    (= in s/Any)
+    (and (class? in) (.isAssignableFrom in out))))
 
 (defn compatible?
   [output-schema input-schema expect-collection?]

@@ -319,8 +319,10 @@
 
 (defn compatible?
   [out out-type in in-type]
+  (let [expect-collection? (= (plural out) in)])
   (or
-    (and (= out in) (t/compatible? out-type in-type false))
+    (and (= out in)          (t/compatible? out-type in-type false))
+    (and expect-collection? (t/compatible? out-type in-type true))
     )
   )
 

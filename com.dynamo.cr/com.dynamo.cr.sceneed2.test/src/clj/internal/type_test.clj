@@ -11,7 +11,8 @@
   [value :- Integer])
 
 (deftest type-compatibility
-  (are [first second allow-collection? compatible?] (= compatible? (t/compatible? first second allow-collection?)))
+  (are [first second allow-collection? compatible?] 
+    (= compatible? (t/compatible? first second allow-collection?))
   T1 T1               false    true
   T1 T1               true     false
   T1 T2               false    false
@@ -43,6 +44,6 @@
   [String] s/Any      true     true
   [String] [s/Any]    false    true
   [String] [s/Any]    false    true
-  )
+  ))
 
 (run-tests)
