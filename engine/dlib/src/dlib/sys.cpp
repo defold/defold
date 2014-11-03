@@ -591,7 +591,7 @@ namespace dmSys
         // are always loaded with relative path from assets
         // E.g. The relative path to /assets/file is file
 
-        if (strcmp(path, "./") == 0) {
+        if (strncmp(path, "./", 2) == 0) {
             path += 2;
         }
         while (*path == '/') {

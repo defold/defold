@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 
 import javax.vecmath.AxisAngle4d;
+import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -231,6 +232,129 @@ public class NodeTest extends AbstractNodeTest {
         assertAABBCenterX(r, ((-rootX - c) + (-rootX + c + c)) * 0.5);
         r.removeChild(c1);
         assertAABBCenterX(r, -rootX);
+    }
+
+    @Test
+    public void testNodeTransform() throws Exception {
+        DummyNode node = new DummyNode();
+        Matrix4d tmpMat = new Matrix4d();
+        Matrix4d refMat = new Matrix4d();
+        refMat.setIdentity();
+        Matrix4d transform = new Matrix4d();
+        final double epsilon = 0.0000000001;
+
+        node.setTranslation(new Point3d(0.25, 0.5, 0.75));
+        node.getWorldTransform(transform);
+        refMat.setTranslation(new Vector3d(0.25, 0.5, 0.75));
+        assertTrue(transform.epsilonEquals(refMat, epsilon));
+
+        node.setEuler(new Vector3d(90.0*0.25, 90.0*0.5, 90.0));
+        node.getWorldTransform(transform);
+        double radians = 90.0 * Math.PI / 180.0;
+        tmpMat.setIdentity();
+
+        // Rotation sequence 231 (YZX)
+        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), radians*0.5));
+        refMat.mul(tmpMat);
+        tmpMat.setRotation(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), radians));
+        refMat.mul(tmpMat);
+        tmpMat.setRotation(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), radians*0.25));
+        refMat.mul(tmpMat);
+        assertTrue(transform.epsilonEquals(refMat, epsilon));
+
+        node.setComponentScale(new Vector3d(0.25, 0.5, 0.75));
+        node.getWorldTransform(transform);
+        tmpMat.setIdentity();
+        tmpMat.setElement(0, 0, 0.25);
+        tmpMat.setElement(1, 1, 0.5);
+        tmpMat.setElement(2, 2, 0.75);
+        refMat.mul(tmpMat);
+        assertTrue(transform.epsilonEquals(refMat, epsilon));
+    }
+
+    @Test
+    public void testNodeQuatToEuler() throws Exception {
+        final double epsilon = 0.02;
+        Vector3d euler = new Vector3d();
+
+        // different degrees around different single axis
+        final double halfRadFactor = Math.PI / 360.0;
+        for (int i = 0; i < 3; ++i) {
+            for (double a = 0.0; a < 105.0; a += 10.0) {
+                double ap = Math.min(a, 90.0);
+                double sa2 = Math.sin(ap * halfRadFactor);
+                double ca2 = Math.cos(ap * halfRadFactor);
+                double v[] = {0.0, 0.0, 0.0};
+                v[i] = sa2;
+                Quat4d quat = new Quat4d(v[0], v[1], v[2], ca2);
+                Node.quatToEuler(quat, euler);
+                double expected_i = ap;
+                double expected_i_1 = 0.0;
+                double expected_i_n_1 = 0.0;
+                double vE[] = new double[3];
+                euler.get(vE);
+                assertEquals(expected_i, vE[i], epsilon);
+                assertEquals(expected_i_1, vE[(i + 1) % 3], epsilon);
+                assertEquals(expected_i_n_1, vE[(i + 2) % 3], epsilon);
+            }
+        }
+
+        // rotation sequence consistency
+        Matrix3d tmpMat = new Matrix3d();
+        tmpMat.setIdentity();
+        Matrix3d refMat = new Matrix3d();
+        refMat.setIdentity();
+        Vector3d expected = new Vector3d(90.0, 22.5, 45.0);
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), expected.getY() * Math.PI / 180.0));
+        refMat.mul(tmpMat);
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), expected.getZ() * Math.PI / 180.0));
+        refMat.mul(tmpMat);
+        tmpMat.set(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), expected.getX() * Math.PI / 180.0));
+        refMat.mul(tmpMat);
+        Quat4d q = new Quat4d();
+        q.set(refMat);
+        q.normalize();
+        Node.quatToEuler(q, euler);
+        assertTrue(expected.epsilonEquals(euler, epsilon));
+    }
+
+    @Test
+    public void testNodeEulerToQuat() throws Exception {
+        final double epsilon = 0.02;
+
+        // different degrees around different single axis
+        final double halfRadFactor = Math.PI / 360.0;
+        for (int i = 0; i < 3; ++i) {
+            for (double a = 0.0; a < 105.0; a += 10.0) {
+                double vE[] = {0.0, 0.0, 0.0};
+                vE[i] = a;
+                Vector3d v = new Vector3d(vE);
+                Quat4d q = new Quat4d();
+                Node.eulerToQuat(v, q);
+                double qE[] = {0.0, 0.0, 0.0};
+                qE[i] = Math.sin(a * halfRadFactor);
+                Quat4d expected = new Quat4d(qE[0], qE[1], qE[2], Math.cos(a * halfRadFactor));
+                assertTrue(expected.epsilonEquals(q, epsilon));
+            }
+        }
+
+        // rotation sequence consistency
+        Matrix3d tmpMat = new Matrix3d();
+        tmpMat.setIdentity();
+        Matrix3d refMat = new Matrix3d();
+        refMat.setIdentity();
+        Vector3d expected = new Vector3d(90.0, 22.5, 45.0);
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), expected.getY() * Math.PI / 180.0));
+        refMat.mul(tmpMat);
+        tmpMat.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), expected.getZ() * Math.PI / 180.0));
+        refMat.mul(tmpMat);
+        tmpMat.set(new AxisAngle4d(new Vector3d(1.0, 0.0, 0.0), expected.getX() * Math.PI / 180.0));
+        refMat.mul(tmpMat);
+        Quat4d q = new Quat4d();
+        q.set(refMat);
+        Quat4d quat = new Quat4d();
+        Node.eulerToQuat(expected, quat);
+        assertTrue(quat.epsilonEquals(q, epsilon));
     }
 
 }

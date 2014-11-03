@@ -40,6 +40,7 @@ int init_gl(_GLFWwin* win)
             EGL_BLUE_SIZE, 8,
             EGL_GREEN_SIZE, 8,
             EGL_RED_SIZE, 8,
+            EGL_DEPTH_SIZE, 16,
             // NOTE: In order to run on emulator
             // EGL_CONFORMANT must not be specified
             EGL_CONFORMANT, EGL_OPENGL_ES2_BIT,

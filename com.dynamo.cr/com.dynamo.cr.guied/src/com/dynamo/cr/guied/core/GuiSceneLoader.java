@@ -39,6 +39,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         if (desc.getType() == Type.TYPE_BOX) {
             BoxNode boxNode = new BoxNode();
             boxNode.setTexture(desc.getTexture());
+            boxNode.setSlice9(LoaderUtil.toVector4(desc.getSlice9()));
             node = boxNode;
         } else if (desc.getType() == Type.TYPE_TEXT) {
             TextNode textNode = new TextNode();
@@ -134,7 +135,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0,
                 new NullProgressMonitor());
         if (localProjectPropertiesFile.isFile()) {
-            // in cr.integrationstest the root isn't /content and the 
+            // in cr.integrationstest the root isn't /content and the
             // file doesn't exists. That's the reason we accept missing game.project
             FileInputStream in = new FileInputStream(localProjectPropertiesFile);
             node.loadProjectProperties(in);
@@ -150,6 +151,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setType(NodeDesc.Type.TYPE_BOX);
             BoxNode box = (BoxNode)node;
             builder.setTexture(box.getTexture());
+            builder.setSlice9(LoaderUtil.toVector4(box.getSlice9()));
         } else if (node instanceof TextNode) {
             builder.setType(NodeDesc.Type.TYPE_TEXT);
             TextNode text = (TextNode)node;
