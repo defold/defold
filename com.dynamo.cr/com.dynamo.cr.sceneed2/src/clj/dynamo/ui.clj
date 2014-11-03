@@ -20,7 +20,7 @@
   (or (Display/getCurrent) (Display/getDefault)))
 
 (defn- is-display-thread?
-  [display]
+  [^Display display]
   (= (.getThread display) (Thread/currentThread)))
 
 (defn swt-thread-safe*

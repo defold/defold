@@ -5,7 +5,8 @@
             [internal.query :as iq]
             [internal.system :as is]
             [service.log :as log])
-  (:import [org.eclipse.ui PlatformUI]
+  (:import [org.eclipse.core.resources IFile IProject]
+           [org.eclipse.ui PlatformUI]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]
            [org.eclipse.e4.core.contexts IEclipseContext]
            [org.eclipse.e4.ui.model.application.ui.basic MBasicFactory MPart]
@@ -15,7 +16,7 @@
 
 (defn- eclipse-project-name
   [project-node]
-  (.getName (.getDescription (:eclipse-project project-node))))
+  (.getName (.getDescription ^IProject (:eclipse-project project-node))))
 
 (defn- warn-multiple-projects
   [file project-nodes]
@@ -23,7 +24,7 @@
     (log/warn :multiple-projects
       (str "File " file " is referenced by " (count project-nodes) " projects. Using " (eclipse-project-name actual) " (node " (:_id actual) ")."))))
 
-(defn- project-containing [world-ref file]
+(defn- project-containing [world-ref ^IFile file]
   (let [eclipse-project (.getProject file)
         project-nodes (iq/query world-ref [[:eclipse-project eclipse-project]])]
     (case (count project-nodes)
@@ -36,7 +37,7 @@
 (defn implementation-for
   "Given an editor site and input file, call the factory function associated
   with the file type (registered with `register-editor`.)"
-  [site file]
+  [site ^IFile file]
   (let [world-ref (-> @is/the-system :world :state)
         proj      (project-containing world-ref file)]
     (ds/in proj
