@@ -100,3 +100,9 @@
     (is (= :owie (complainer (make-my-node)))))
   (testing "node can implement interface not known/visible to internal.node"
     (is (= :ok (.allGood (make-my-node))))))
+
+(defnode EmptyNode)
+
+(deftest node-intrinsics
+  (let [node (make-empty-node)]
+    (is (identical? node (t/get-value node nil :self)))))
