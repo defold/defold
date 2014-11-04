@@ -1,5 +1,6 @@
 (ns internal.node-test
   (:require [clojure.test :refer :all]
+            [schema.core :as s]
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
@@ -106,3 +107,21 @@
 (deftest node-intrinsics
   (let [node (make-empty-node)]
     (is (identical? node (t/get-value node nil :self)))))
+
+(defn ^:dynamic production-fn [this g] :defn)
+(def ^:dynamic output-val :def)
+
+(defnode ProductionFunctionTypesNode
+  (output inline-fn      s/Keyword [this g] :fn)
+  (output defn-as-symbol s/Keyword production-fn)
+  (output def-as-symbol  s/Keyword output-val))
+
+(deftest production-function-types
+  (let [node (make-production-function-types-node)]
+    (is (= :fn   (t/get-value node nil :inline-fn)))
+    (is (= :defn (t/get-value node nil :defn-as-symbol)))
+    (is (= :def  (t/get-value node nil :def-as-symbol)))
+    (binding [production-fn :dynamic-binding-val]
+      (is (= :dynamic-binding-val (t/get-value node nil :defn-as-symbol))))
+    (binding [output-val (constantly :dynamic-binding-fn)]
+      (is (= :dynamic-binding-fn (t/get-value node nil :def-as-symbol))))))
