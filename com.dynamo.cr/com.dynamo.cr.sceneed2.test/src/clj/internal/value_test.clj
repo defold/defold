@@ -209,14 +209,14 @@
 (deftest update-node-sees-in-transaction-value
   (with-clean-world
     (let [node (ds/transactional
-                 (ds/add (p/make-project :name "a project" :int-prop 0)))]
-      (let [after-transaction (ds/transactional
-                                (ds/update-property node :int-prop inc)
-                                (ds/update-property node :int-prop inc)
-                                (ds/update-property node :int-prop inc)
-                                (ds/update-property node :int-prop inc)
-                                node)]
-        (is (= 4 (:int-prop after-transaction)))))))
+                 (ds/add (p/make-project :name "a project" :int-prop 0)))
+          after-transaction (ds/transactional
+                              (ds/update-property node :int-prop inc)
+                              (ds/update-property node :int-prop inc)
+                              (ds/update-property node :int-prop inc)
+                              (ds/update-property node :int-prop inc)
+                              node)]
+      (is (= 4 (:int-prop after-transaction))))))
 
 (n/defnode ScopeReceiver
   (on :project-scope
@@ -225,9 +225,8 @@
 (deftest node-receives-scope-message
   (testing "project scope message"
     (with-clean-world
-      (let [world-time (:world-time @world-ref)
-            ps-node    (ds/transactional
-                         (ds/in (ds/add (p/make-project :name "a project"))
-                           (ds/add (make-scope-receiver))))]
+      (let [ps-node (ds/transactional
+                      (ds/in (ds/add (p/make-project :name "a project"))
+                        (ds/add (make-scope-receiver))))]
         (await-world-time world-ref 3 500)
         (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))
