@@ -299,10 +299,6 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        CollisionComponent* cc = (CollisionComponent*)*params.m_UserData;
-        // TODO This is a temp-fix related to:
-        // https://defold.fogbugz.com/default.asp?2005
-        // https://defold.fogbugz.com/default.asp?116
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
@@ -324,7 +320,7 @@ namespace dmGameSystem
                 component->m_Object2D = 0;
             }
         }
-        delete cc;
+        delete component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
