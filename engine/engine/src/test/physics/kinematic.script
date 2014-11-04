@@ -1,5 +1,7 @@
 function init(self)
     self.velocity = vmath.vector3(0, -1, 0)
+    -- test for DEF-694, crash when accessing collision objects in init()
+    print("mass: " .. go.get("#co", "mass"))
 end
 
 function update(self, dt)

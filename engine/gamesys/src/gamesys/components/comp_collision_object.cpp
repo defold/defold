@@ -117,42 +117,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
-    {
-        CollisionObjectResource* co_res = (CollisionObjectResource*)params.m_Resource;
-        if (co_res == 0x0 || co_res->m_DDF == 0x0)
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
-            || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
-        {
-            dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionComponent* component = new CollisionComponent();
-        component->m_3D = (uint8_t) physics_context->m_3D;
-        component->m_Resource = (CollisionObjectResource*)params.m_Resource;
-        component->m_Instance = params.m_Instance;
-        component->m_Object2D = 0;
-        component->m_ComponentIndex = params.m_ComponentIndex;
-        *params.m_UserData = (uintptr_t)component;
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
-    dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
-    {
-        CollisionComponent* cc = (CollisionComponent*)*params.m_UserData;
-        // TODO This is a temp-fix related to:
-        // https://defold.fogbugz.com/default.asp?2005
-        // https://defold.fogbugz.com/default.asp?116
-        if (cc->m_Object2D != 0 || cc->m_Object3D != 0)
-        {
-            dmLogFatal("Collision object destroyed without being finalized; calling go.delete() from a final()-callback (directly or via message passing) is not allowed.");
-        }
-        delete cc;
-        return dmGameObject::CREATE_RESULT_OK;
-    }
-
     uint16_t GetGroupBitIndex(CollisionWorld* world, uint64_t group_hash)
     {
         if (group_hash != 0)
@@ -305,23 +269,40 @@ namespace dmGameSystem
         return true;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectInit(const dmGameObject::ComponentInitParams& params)
+    dmGameObject::CreateResult CompCollisionObjectCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
-        CollisionComponent* component = (CollisionComponent*) *params.m_UserData;
-        if (component->m_Object2D == 0)
+        CollisionObjectResource* co_res = (CollisionObjectResource*)params.m_Resource;
+        if (co_res == 0x0 || co_res->m_DDF == 0x0)
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        if ((co_res->m_DDF->m_Mass == 0.0f && co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
+            || (co_res->m_DDF->m_Mass > 0.0f && co_res->m_DDF->m_Type != dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC))
         {
-            CollisionWorld* world = (CollisionWorld*)params.m_World;
-            if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
-            {
-                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-            }
+            dmLogError("Invalid mass %f for shape type %d", co_res->m_DDF->m_Mass, co_res->m_DDF->m_Type);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        CollisionComponent* component = new CollisionComponent();
+        component->m_3D = (uint8_t) physics_context->m_3D;
+        component->m_Resource = (CollisionObjectResource*)params.m_Resource;
+        component->m_Instance = params.m_Instance;
+        component->m_Object2D = 0;
+        component->m_ComponentIndex = params.m_ComponentIndex;
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        if (!CreateCollisionObject(physics_context, world, params.m_Instance, component))
+        {
+            delete component;
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
+    dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
+        CollisionComponent* cc = (CollisionComponent*)*params.m_UserData;
+        // TODO This is a temp-fix related to:
+        // https://defold.fogbugz.com/default.asp?2005
+        // https://defold.fogbugz.com/default.asp?116
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
@@ -343,6 +324,7 @@ namespace dmGameSystem
                 component->m_Object2D = 0;
             }
         }
+        delete cc;
         return dmGameObject::CREATE_RESULT_OK;
     }
 

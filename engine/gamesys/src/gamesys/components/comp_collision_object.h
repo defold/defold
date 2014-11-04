@@ -15,10 +15,6 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectDestroy(const dmGameObject::ComponentDestroyParams& params);
 
-    dmGameObject::CreateResult CompCollisionObjectInit(const dmGameObject::ComponentInitParams& params);
-
-    dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params);
-
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params);
