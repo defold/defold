@@ -943,7 +943,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*# draws all 2d debug graphics
+    /*# draws all 2d debug graphics (Deprecated)
      *
      * @name render.draw_debug2d
      */

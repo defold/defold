@@ -292,6 +292,7 @@ namespace dmGameObject
 
     /**
      * Component create function. Should allocate all necessary resources for the component.
+     * The game object instance is guaranteed to have its id, scene hierarchy and transform data updated when this is called.
      * @param params Input parameters
      * @return CREATE_RESULT_OK on success
      */

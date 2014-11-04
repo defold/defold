@@ -278,6 +278,11 @@ namespace dmGameObject
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
+
+    HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name);
+    void UndoNewInstance(HCollection collection, HInstance instance);
+    bool CreateComponents(HCollection collection, HInstance instance);
+    void UpdateTransforms(HCollection collection);
 }
 
 #endif // GAMEOBJECT_COMMON_H
