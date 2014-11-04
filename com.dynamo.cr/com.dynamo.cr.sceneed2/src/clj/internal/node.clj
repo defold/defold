@@ -51,8 +51,10 @@
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
-    (let [schema (get-in target-node [:descriptor :inputs target-label])]
+    (let [output-transform (get-in target-node [:descriptor :transforms target-label])
+          schema (get-in target-node [:descriptor :inputs target-label])]
       (cond
+        (not (nil? output-transform)) (get-value-with-restarts target-node g target-label)
         (vector? schema)     (map (fn [[source-node source-label]]
                                     (get-value-with-restarts (dg/node g source-node) g source-label))
                                   (lg/sources g (:_id target-node) target-label))

@@ -124,29 +124,40 @@
 (defnk production-fnk-prop [prop] prop)
 (defnk production-fnk-in [in] in)
 (defnk production-fnk-in-multi [in-multi] in-multi)
+(defnk production-fnk-out [out] out)
+(defnk production-fnk-defnk-out [defnk-out] defnk-out)
+(defnk production-fnk-out-cached
+  [defnk-out-cached-invocation-count out]
+  (swap! defnk-out-cached-invocation-count inc)
+  out)
 
 (defnode ProductionFunctionInputsNode
   (input in       s/Keyword)
   (input in-multi [s/Keyword])
   (property prop {:schema s/Keyword})
-  (output inline-fn-this s/Any [this g] this)
-  (output inline-fn-g    s/Any [this g] g)
-  (output defn-this      s/Any production-fn-this)
-  (output defn-g         s/Any production-fn-g)
-  (output defnk-this     s/Any production-fnk-this)
-  (output defnk-g        s/Any production-fnk-g)
-  (output defnk-world    s/Any production-fnk-world)
-  (output defnk-project  s/Any production-fnk-project)
-  (output defnk-prop     s/Any production-fnk-prop)
-  (output defnk-in       s/Any production-fnk-in)
-  (output defnk-in-multi s/Any production-fnk-in-multi))
+  (output out s/Keyword [this g] :out-val)
+  (output inline-fn-this   s/Any [this g] this)
+  (output inline-fn-g      s/Any [this g] g)
+  (output defn-this        s/Any production-fn-this)
+  (output defn-g           s/Any production-fn-g)
+  (output defnk-this       s/Any production-fnk-this)
+  (output defnk-g          s/Any production-fnk-g)
+  (output defnk-world      s/Any production-fnk-world)
+  (output defnk-project    s/Any production-fnk-project)
+  (output defnk-prop       s/Any production-fnk-prop)
+  (output defnk-in         s/Any production-fnk-in)
+  (output defnk-in-multi   s/Any production-fnk-in-multi)
+  (output defnk-out        s/Any production-fnk-out)
+  (output defnk-defnk-out  s/Any production-fnk-defnk-out)
+  (property defnk-out-cached-invocation-count {:schema clojure.lang.Atom})
+  (output defnk-out-cached s/Any :cached production-fnk-out-cached))
 
 (deftest production-function-inputs
   (with-clean-world
     (let [project (ds/transactional (ds/add (p/make-project)))
           [node0 node1 node2] (ds/in project
                                 (tx-nodes
-                                  (make-production-function-inputs-node :prop :node0)
+                                  (make-production-function-inputs-node :prop :node0 :defnk-out-cached-invocation-count (atom 0))
                                   (make-production-function-inputs-node :prop :node1)
                                   (make-production-function-inputs-node :prop :node2)))
           _ (ds/transactional
@@ -158,22 +169,30 @@
               (ds/connect node1 :defnk-prop node2 :in-multi))
           graph (is/graph world-ref)]
       (testing "inline fn parameters"
-        (is (identical? node0 (t/get-value node0 graph :inline-fn-this)))
-        (is (identical? graph (t/get-value node0 graph :inline-fn-g))))
+        (is (identical? node0 (in/get-node-value node0 :inline-fn-this)))
+        (is (identical? graph (in/get-node-value node0 :inline-fn-g))))
       (testing "standard defn parameters"
-        (is (identical? node0 (t/get-value node0 graph :defn-this)))
-        (is (identical? graph (t/get-value node0 graph :defn-g))))
+        (is (identical? node0 (in/get-node-value node0 :defn-this)))
+        (is (identical? graph (in/get-node-value node0 :defn-g))))
       (testing "'special' defnk inputs"
-        (is (identical? node0     (t/get-value node0 graph :defnk-this)))
-        (is (identical? graph     (t/get-value node0 graph :defnk-g)))
-        (is (identical? world-ref (t/get-value node0 graph :defnk-world)))
-        (is (= project (t/get-value node0 graph :defnk-project))))
+        (is (identical? node0     (in/get-node-value node0 :defnk-this)))
+        (is (identical? graph     (in/get-node-value node0 :defnk-g)))
+        (is (identical? world-ref (in/get-node-value node0 :defnk-world)))
+        (is (= project (in/get-node-value node0 :defnk-project))))
       (testing "defnk inputs from node properties"
-        (is (= :node0 (t/get-value node0 graph :defnk-prop))))
+        (is (= :node0 (in/get-node-value node0 :defnk-prop))))
       (testing "defnk inputs from node inputs"
-        (is (nil?              (t/get-value node0 graph :defnk-in)))
-        (is (= :node0          (t/get-value node1 graph :defnk-in)))
-        (is (#{:node0 :node1}  (t/get-value node2 graph :defnk-in)))
-        (is (= []              (t/get-value node0 graph :defnk-in-multi)))
-        (is (= [:node0]        (t/get-value node1 graph :defnk-in-multi)))
-        (is (= [:node0 :node1] (t/get-value node2 graph :defnk-in-multi)))))))
+        (is (nil?              (in/get-node-value node0 :defnk-in)))
+        (is (= :node0          (in/get-node-value node1 :defnk-in)))
+        (is (#{:node0 :node1}  (in/get-node-value node2 :defnk-in)))
+        (is (= []              (in/get-node-value node0 :defnk-in-multi)))
+        (is (= [:node0]        (in/get-node-value node1 :defnk-in-multi)))
+        (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi))))
+      (testing "defnk inputs from node outputs"
+        (is (= :out-val (in/get-node-value node0 :defnk-out)))
+        (is (= :out-val (in/get-node-value node0 :defnk-defnk-out)))
+        (is (= 0 (-> node0 :defnk-out-cached-invocation-count deref)))
+        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
+        (is (= 1 (-> node0 :defnk-out-cached-invocation-count deref)))
+        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
+        (is (= 1 (-> node0 :defnk-out-cached-invocation-count deref)))))))
