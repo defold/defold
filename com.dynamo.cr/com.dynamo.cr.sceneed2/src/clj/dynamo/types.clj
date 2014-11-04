@@ -178,15 +178,26 @@
 (defn- check-single-type
   [out in]
   (or
+<<<<<<< HEAD
     (identical? out in)
     (= in s/Any)
     (and (class? in) (.isAssignableFrom in out))))
+=======
+   (= s/Any in)
+   (= out in)
+   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
+>>>>>>> Type compatibility checking.
 
 (defn compatible?
   [output-schema input-schema expect-collection?]
-  (or
-    (and (not expect-collection?) (check-single-type output-schema input-schema))
-    (and expect-collection? (vector? input-schema) (check-single-type output-schema (first input-schema)))))
+  (let [out-t-pl? (coll? output-schema)
+        in-t-pl?  (coll? input-schema)]
+    (or
+     (= s/Any input-schema)
+     (and expect-collection? (= [s/Any] input-schema))
+     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
+     (and (not expect-collection?) (check-single-type output-schema input-schema))
+     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
 
 (doseq [[v doc]
        {*ns*                   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."
