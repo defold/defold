@@ -77,7 +77,6 @@
 
 (defn perform [transform node g]
   (cond
-    (symbol?       transform)  (perform (resolve transform) node g)
     (var?          transform)  (perform (var-get transform) node g)
     (t/has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform)))
     (fn?           transform)  (transform node g)
@@ -183,13 +182,12 @@
            args-or-ref (first remainder)
            remainder   (rest remainder)]
        (assert (not (keyword? output-type)) "The output type seems to be missing")
-       (assert (or (and (vector? args-or-ref) (not (nil? remainder)))
-                   (symbol? args-or-ref)
-                   (var? args-or-ref)) (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
-       (let [tform (cond
-                     (vector? args-or-ref)  `(defn ~(symbol (str prefix ":" nm)) ~args-or-ref ~@remainder)
-                     (symbol? args-or-ref)  (resolve args-or-ref)
-                     :else                  args-or-ref)]
+       (assert (or (and (vector? args-or-ref) (seq remainder))
+                   (and (symbol? args-or-ref) (var? (resolve args-or-ref))))
+         (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
+       (let [tform (if (vector? args-or-ref)
+                     `(fn ~args-or-ref ~@remainder)
+                     (resolve args-or-ref))]
          (reduce
            (fn [m f] (assoc m f #{oname}))
            {:transforms {(keyword nm) tform}}
