@@ -7,6 +7,7 @@
                       'internal.value-test
                       'internal.system-test
                       'internal.type-test
+                      'internal.injection-test
                       'dynamo.transaction-test
                       'dynamo.texture-test
                       'dynamo.image-test
@@ -23,6 +24,5 @@
 
 (defn suite []
   (doseq [test-ns test-namespaces]
-    (remove-ns test-ns)
-    (require :reload test-ns))
-  (apply test/run-tests test-namespaces))
+    (require test-ns)
+    (test/run-tests test-ns)))

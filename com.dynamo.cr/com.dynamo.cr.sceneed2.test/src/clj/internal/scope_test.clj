@@ -22,9 +22,7 @@
     :name  String   :names  [String]  true     "ok"
     :name  String   :names  String    false    "plural name, singular type"
     :names [String] :names  [String]  true     "ok"
-    :name  String   :name   [String]  false    "singular name, plural type"
-    ))
-
+    :name  String   :name   [String]  false    "singular name, plural type"))
 
 (defnode ParticleEditor
   (inherits Scope))
@@ -88,5 +86,3 @@
                          (ds/add (make-value-producer :value (CommonValueType. "first")))
                          (ds/add (make-value-consumer))))]
         (is (= "first" (get-node-value consumer :concatenation)))))))
-
-(run-tests)

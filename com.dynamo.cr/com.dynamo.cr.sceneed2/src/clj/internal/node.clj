@@ -22,8 +22,10 @@
 ; ---------------------------------------------------------------------------
 ; Value handling
 ; ---------------------------------------------------------------------------
-(defn node-inputs [v] (into #{} (keys (-> v :descriptor :inputs))))
-(defn node-outputs [v] (into #{} (keys (-> v :descriptor :transforms))))
+(defn node-inputs [v]         (into #{} (keys (-> v :descriptor :inputs))))
+(defn node-input-types [v]    (-> v :descriptor :inputs))
+(defn node-outputs [v]        (into #{} (keys (-> v :descriptor :transforms))))
+(defn node-output-types [v]   (-> v :descriptor :transform-types))
 (defn node-cached-outputs [v] (-> v :descriptor :cached))
 
 (defn- find-enclosing-scope
@@ -319,17 +321,16 @@
 
 (defn compatible?
   [out out-type in in-type]
-  (let [expect-collection? (= (plural out) in)])
-  (or
-    (and (= out in)          (t/compatible? out-type in-type false))
-    (and expect-collection? (t/compatible? out-type in-type true))
-    )
-  )
+  (cond
+   (and (= out in) (t/compatible? out-type in-type false))
+   [out out-type in in-type]
+
+   (and (= (plural out) in) (t/compatible? out-type in-type true))
+   [out out-type in in-type]))
 
 (defn injection-candidates
   [self node]
-  ;; for each output on node,
-  ;;  if there is a matching input on self
-  ;;  and the types are compatible,
-  ;;  connect node's output to self's input
-  )
+  (filter #(apply compatible? %)
+          (for [i (node-input-types self)
+                o (node-output-types node)]
+            (concat o i))))
