@@ -6,7 +6,7 @@
             [dynamo.node :as n :refer [defnode]]
             [dynamo.project :as p]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world]]
+            [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
             [internal.node :as in :refer [deep-merge]]
             [internal.system :as is]
             [internal.query :as iq]
@@ -99,37 +99,81 @@
 
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)
-(defnk production-fn-this [this] this)
-(defnk production-fn-g [g] g)
-(defnk production-fn-world [world] world)
-(defnk production-fn-project [project] project)
 
-(defnode ProductionFunctionsNode
+(defnode ProductionFunctionTypesNode
   (output inline-fn      s/Keyword [this g] :fn)
   (output defn-as-symbol s/Keyword production-fn)
-  (output def-as-symbol  s/Keyword production-val)
-  (output inline-fn-this s/Any     [this g] this)
-  (output inline-fn-g    s/Any     [this g] g)
-  (output defnk-this     s/Any     production-fn-this)
-  (output defnk-g        s/Any     production-fn-g)
-  (output defnk-world    s/Any     production-fn-world)
-  (output defnk-project  s/Any     production-fn-project))
+  (output def-as-symbol  s/Keyword production-val))
 
-(deftest production-functions
+(deftest production-function-types
+  (let [node (make-production-function-types-node)]
+    (is (= :fn   (t/get-value node nil :inline-fn)))
+    (is (= :defn (t/get-value node nil :defn-as-symbol)))
+    (is (= :def  (t/get-value node nil :def-as-symbol)))
+    (binding [production-fn :dynamic-binding-val]
+      (is (= :dynamic-binding-val (t/get-value node nil :defn-as-symbol))))
+    (binding [production-val (constantly :dynamic-binding-fn)]
+      (is (= :dynamic-binding-fn (t/get-value node nil :def-as-symbol))))))
+
+(defn production-fn-this [this g] this)
+(defn production-fn-g [this g] g)
+(defnk production-fnk-this [this] this)
+(defnk production-fnk-g [g] g)
+(defnk production-fnk-world [world] world)
+(defnk production-fnk-project [project] project)
+(defnk production-fnk-prop [prop] prop)
+(defnk production-fnk-in [in] in)
+(defnk production-fnk-in-multi [in-multi] in-multi)
+
+(defnode ProductionFunctionInputsNode
+  (input in       s/Keyword)
+  (input in-multi [s/Keyword])
+  (property prop {:schema s/Keyword})
+  (output inline-fn-this s/Any [this g] this)
+  (output inline-fn-g    s/Any [this g] g)
+  (output defn-this      s/Any production-fn-this)
+  (output defn-g         s/Any production-fn-g)
+  (output defnk-this     s/Any production-fnk-this)
+  (output defnk-g        s/Any production-fnk-g)
+  (output defnk-world    s/Any production-fnk-world)
+  (output defnk-project  s/Any production-fnk-project)
+  (output defnk-prop     s/Any production-fnk-prop)
+  (output defnk-in       s/Any production-fnk-in)
+  (output defnk-in-multi s/Any production-fnk-in-multi))
+
+(deftest production-function-inputs
   (with-clean-world
     (let [project (ds/transactional (ds/add (p/make-project)))
-          node    (ds/transactional (ds/in project (ds/add (make-production-functions-node))))
-          graph   (is/graph world-ref)]
-      (is (= :fn   (t/get-value node graph :inline-fn)))
-      (is (= :defn (t/get-value node graph :defn-as-symbol)))
-      (is (= :def  (t/get-value node graph :def-as-symbol)))
-      (binding [production-fn :dynamic-binding-val]
-        (is (= :dynamic-binding-val (t/get-value node graph :defn-as-symbol))))
-      (binding [production-val (constantly :dynamic-binding-fn)]
-        (is (= :dynamic-binding-fn (t/get-value node graph :def-as-symbol))))
-      (is (identical? node (t/get-value node graph :inline-fn-this)))
-      (is (identical? node (t/get-value node graph :defnk-this)))
-      (is (identical? graph (t/get-value node graph :inline-fn-g)))
-      (is (identical? graph (t/get-value node graph :defnk-g)))
-      (is (identical? world-ref (t/get-value node graph :defnk-world)))
-      (is (= project (t/get-value node graph :defnk-project))))))
+          [node0 node1 node2] (ds/in project
+                                (tx-nodes
+                                  (make-production-function-inputs-node :prop :node0)
+                                  (make-production-function-inputs-node :prop :node1)
+                                  (make-production-function-inputs-node :prop :node2)))
+          _ (ds/transactional
+              (ds/connect node0 :defnk-prop node1 :in)
+              (ds/connect node0 :defnk-prop node2 :in)
+              (ds/connect node1 :defnk-prop node2 :in)
+              (ds/connect node0 :defnk-prop node1 :in-multi)
+              (ds/connect node0 :defnk-prop node2 :in-multi)
+              (ds/connect node1 :defnk-prop node2 :in-multi))
+          graph (is/graph world-ref)]
+      (testing "inline fn parameters"
+        (is (identical? node0 (t/get-value node0 graph :inline-fn-this)))
+        (is (identical? graph (t/get-value node0 graph :inline-fn-g))))
+      (testing "standard defn parameters"
+        (is (identical? node0 (t/get-value node0 graph :defn-this)))
+        (is (identical? graph (t/get-value node0 graph :defn-g))))
+      (testing "'special' defnk inputs"
+        (is (identical? node0     (t/get-value node0 graph :defnk-this)))
+        (is (identical? graph     (t/get-value node0 graph :defnk-g)))
+        (is (identical? world-ref (t/get-value node0 graph :defnk-world)))
+        (is (= project (t/get-value node0 graph :defnk-project))))
+      (testing "defnk inputs from node properties"
+        (is (= :node0 (t/get-value node0 graph :defnk-prop))))
+      (testing "defnk inputs from node inputs"
+        (is (nil?              (t/get-value node0 graph :defnk-in)))
+        (is (= :node0          (t/get-value node1 graph :defnk-in)))
+        (is (#{:node0 :node1}  (t/get-value node2 graph :defnk-in)))
+        (is (= []              (t/get-value node0 graph :defnk-in-multi)))
+        (is (= [:node0]        (t/get-value node1 graph :defnk-in-multi)))
+        (is (= [:node0 :node1] (t/get-value node2 graph :defnk-in-multi)))))))
