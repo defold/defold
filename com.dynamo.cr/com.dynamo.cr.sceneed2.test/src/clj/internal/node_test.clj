@@ -33,15 +33,8 @@
   (is (= schema-merge (deep-merge s1 s2)))
   (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
 
-(defn simple-production-fn [this graph] "a produced value")
-(defnk funky-production [this] "a funky value")
-
 (defnode SimpleTestNode
-  (property foo (t/string :default "FOO!"))
-
-  (output an-output String simple-production-fn)
-  (output inline-output String [this graph] "inlined function")
-  (output symbol-param-production String funky-production))
+  (property foo (t/string :default "FOO!")))
 
 (defnode NodeWithProtocols
   (property foo (t/string :default "the user"))
@@ -65,10 +58,6 @@
     (is (contains? (make-simple-test-node) :foo)))
   (testing "property defaults"
     (is (= "FOO!" (-> (make-simple-test-node) :foo))))
-  (testing "production functions"
-    (is (= "a produced value" (-> (make-simple-test-node) (t/get-value nil :an-output))))
-    (is (= "inlined function" (-> (make-simple-test-node) (t/get-value nil :inline-output))))
-    (is (= "a funky value"    (-> (make-simple-test-node) (t/get-value nil :symbol-param-production)))))
   (testing "extending nodes with protocols"
     (is (instance? clojure.lang.IDeref (make-node-with-protocols)))
     (is (= "the user" @(make-node-with-protocols)))
@@ -109,19 +98,38 @@
     (is (identical? node (t/get-value node nil :self)))))
 
 (defn ^:dynamic production-fn [this g] :defn)
-(def ^:dynamic output-val :def)
+(def ^:dynamic production-val :def)
+(defnk production-fn-this [this] this)
+(defnk production-fn-g [g] g)
+(defnk production-fn-world [world] world)
+(defnk production-fn-project [project] project)
 
-(defnode ProductionFunctionTypesNode
+(defnode ProductionFunctionsNode
   (output inline-fn      s/Keyword [this g] :fn)
   (output defn-as-symbol s/Keyword production-fn)
-  (output def-as-symbol  s/Keyword output-val))
+  (output def-as-symbol  s/Keyword production-val)
+  (output inline-fn-this s/Any     [this g] this)
+  (output inline-fn-g    s/Any     [this g] g)
+  (output defnk-this     s/Any     production-fn-this)
+  (output defnk-g        s/Any     production-fn-g)
+  (output defnk-world    s/Any     production-fn-world)
+  (output defnk-project  s/Any     production-fn-project))
 
-(deftest production-function-types
-  (let [node (make-production-function-types-node)]
-    (is (= :fn   (t/get-value node nil :inline-fn)))
-    (is (= :defn (t/get-value node nil :defn-as-symbol)))
-    (is (= :def  (t/get-value node nil :def-as-symbol)))
-    (binding [production-fn :dynamic-binding-val]
-      (is (= :dynamic-binding-val (t/get-value node nil :defn-as-symbol))))
-    (binding [output-val (constantly :dynamic-binding-fn)]
-      (is (= :dynamic-binding-fn (t/get-value node nil :def-as-symbol))))))
+(deftest production-functions
+  (with-clean-world
+    (let [project (ds/transactional (ds/add (p/make-project)))
+          node    (ds/transactional (ds/in project (ds/add (make-production-functions-node))))
+          graph   (is/graph world-ref)]
+      (is (= :fn   (t/get-value node graph :inline-fn)))
+      (is (= :defn (t/get-value node graph :defn-as-symbol)))
+      (is (= :def  (t/get-value node graph :def-as-symbol)))
+      (binding [production-fn :dynamic-binding-val]
+        (is (= :dynamic-binding-val (t/get-value node graph :defn-as-symbol))))
+      (binding [production-val (constantly :dynamic-binding-fn)]
+        (is (= :dynamic-binding-fn (t/get-value node graph :def-as-symbol))))
+      (is (identical? node (t/get-value node graph :inline-fn-this)))
+      (is (identical? node (t/get-value node graph :defnk-this)))
+      (is (identical? graph (t/get-value node graph :inline-fn-g)))
+      (is (identical? graph (t/get-value node graph :defnk-g)))
+      (is (identical? world-ref (t/get-value node graph :defnk-world)))
+      (is (= project (t/get-value node graph :defnk-project))))))
