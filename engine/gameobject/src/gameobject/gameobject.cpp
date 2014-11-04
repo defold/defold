@@ -429,23 +429,8 @@ namespace dmGameObject
         instance->m_LevelIndex = level_index;
     }
 
-    HInstance New(HCollection collection, const char* prototype_name)
-    {
+    HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name) {
         assert(collection->m_InUpdate == 0 && "Creating new instances during Update(.) is not permitted");
-        Prototype* proto;
-        dmResource::HFactory factory = collection->m_Factory;
-        if (prototype_name != 0x0)
-        {
-            dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
-            if (error != dmResource::RESULT_OK)
-            {
-                return 0;
-            }
-        }
-        else
-        {
-            proto = &EMPTY_PROTOTYPE;
-        }
 
         if (collection->m_InstanceIndices.Remaining() == 0)
         {
@@ -480,6 +465,21 @@ namespace dmGameObject
         assert(collection->m_Instances[instance_index] == 0);
         collection->m_Instances[instance_index] = instance;
 
+        InsertInstanceInLevelIndex(collection, instance);
+
+        return instance;
+    }
+
+    void UndoNewInstance(HCollection collection, HInstance instance) {
+        EraseSwapLevelIndex(collection, instance);
+        uint16_t instance_index = instance->m_Index;
+        operator delete ((void*)instance);
+        collection->m_Instances[instance_index] = 0x0;
+        collection->m_InstanceIndices.Push(instance_index);
+    }
+
+    bool CreateComponents(HCollection collection, HInstance instance) {
+        Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
         bool ok = true;
@@ -545,18 +545,38 @@ namespace dmGameObject
                 params.m_UserData = component_instance_data;
                 component_type->m_DestroyFunction(params);
             }
-
-            // We can not call Delete here. Delete call DestroyFunction for every component
-            if (instance->m_Prototype != &EMPTY_PROTOTYPE)
-                dmResource::Release(factory, instance->m_Prototype);
-            operator delete (instance_memory);
-            collection->m_Instances[instance_index] = 0x0;
-            collection->m_InstanceIndices.Push(instance_index);
-            return 0;
         }
 
-        InsertInstanceInLevelIndex(collection, instance);
+        return ok;
+    }
 
+    HInstance New(HCollection collection, const char* prototype_name) {
+        Prototype* proto;
+        dmResource::HFactory factory = collection->m_Factory;
+        if (prototype_name != 0x0)
+        {
+            dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
+            if (error != dmResource::RESULT_OK)
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            proto = &EMPTY_PROTOTYPE;
+        }
+        HInstance instance = NewInstance(collection, proto, prototype_name);
+        if (instance != 0) {
+            bool result = CreateComponents(collection, instance);
+            if (!result) {
+                // We can not call Delete here. Delete call DestroyFunction for every component
+                UndoNewInstance(collection, instance);
+                instance = 0;
+            }
+        }
+        if (instance == 0 && proto != &EMPTY_PROTOTYPE) {
+            dmResource::Release(factory, proto);
+        }
         return instance;
     }
 
@@ -591,17 +611,31 @@ namespace dmGameObject
 
     HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
     {
-        if (collection->m_InUpdate)
-        {
+        if (prototype_name == 0x0) {
+            dmLogError("No prototype to spawn from.");
+            return 0x0;
+        }
+        if (collection->m_InUpdate) {
             dmLogError("Spawning during update is not allowed, %s was never spawned.", prototype_name);
             return 0;
         }
-        HInstance instance = New(collection, prototype_name);
+        Prototype* proto = 0x0;
+        dmResource::HFactory factory = collection->m_Factory;
+        dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
+        if (error != dmResource::RESULT_OK) {
+            return 0x0;
+        }
+        HInstance instance = dmGameObject::NewInstance(collection, proto, prototype_name);
+        if (instance == 0) {
+            dmResource::Release(factory, proto);
+            return 0x0;
+        }
         if (instance != 0)
         {
             SetPosition(instance, position);
             SetRotation(instance, rotation);
             SetScale(instance, scale);
+            collection->m_WorldTransforms[instance->m_Index] = instance->m_Transform;
 
             dmHashInit64(&instance->m_CollectionPathHashState, true);
             dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
@@ -618,16 +652,17 @@ namespace dmGameObject
                 {
                     dmLogError("The identifier '%llu' is already in use.", id);
                 }
-                Delete(collection, instance);
+                UndoNewInstance(collection, instance);
                 instance = 0;
             }
-            else
-            {
+        }
+        if (instance != 0) {
+            bool success = CreateComponents(collection, instance);
+            if (success) {
                 uint32_t next_component_instance_data = 0;
                 dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
                 uint32_t count = components.Size();
-                for (uint32_t i = 0; i < count; ++i)
-                {
+                for (uint32_t i = 0; i < count; ++i) {
                     Prototype::Component& component = components[i];
                     ComponentType* component_type = component.m_Type;
                     uintptr_t* component_instance_data = 0;
@@ -652,22 +687,26 @@ namespace dmGameObject
                         if (result != PROPERTY_RESULT_OK)
                         {
                             dmLogError("Could not load properties when spawning '%s'.", prototype_name);
-                            Delete(collection, instance);
-                            return 0;
+                            success = false;
                         }
                     }
                 }
-                if (instance != 0 && !Init(collection, instance))
+                if (!Init(collection, instance))
                 {
                     dmLogError("Could not initialize when spawning %s.", prototype_name);
-                    Delete(collection, instance);
-                    return 0;
+                    success = false;
                 }
             }
+            if (!success) {
+                UndoNewInstance(collection, instance);
+                instance = 0;
+            }
         }
-        if (instance == 0)
-        {
+        if (instance == 0) {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
+            if (proto != 0x0) {
+                dmResource::Release(factory, proto);
+            }
         }
         return instance;
     }
@@ -765,8 +804,6 @@ namespace dmGameObject
             index = collection->m_Instances[index]->m_SiblingIndex;
         }
     }
-
-    void UpdateTransforms(HCollection collection);
 
     bool Init(HCollection collection, HInstance instance)
     {
