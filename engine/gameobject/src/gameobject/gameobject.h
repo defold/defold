@@ -1054,6 +1054,12 @@ namespace dmGameObject
      */
     void CancelAnimations(HCollection collection, HInstance instance);
 
+    /**
+     * Cancel animation callbacks installed during callbacks to Animate
+     * @param userdata1 corresponds to the userdata1 parameter passed to Animate.
+     */
+    void CancelAnimationCallbacks(HCollection collection, void* userdata1);
+
     struct ModuleContext
     {
         dmArray<dmScript::HContext> m_ScriptContexts;

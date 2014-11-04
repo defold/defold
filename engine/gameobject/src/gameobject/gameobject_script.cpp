@@ -1582,6 +1582,9 @@ bail:
 
     void DeleteScriptInstance(HScriptInstance script_instance)
     {
+        HCollection collection = script_instance->m_Instance->m_Collection;
+        CancelAnimationCallbacks(collection, script_instance);
+
         lua_State* L = GetLuaState(script_instance);
 
         int top = lua_gettop(L);
