@@ -54,7 +54,7 @@
 
 (defn update-node
   [id f & args]
-  (ds/transactional (-> @is/the-system :world :state)
+  (ds/transactional
     (apply ds/update {:_id id} f args)))
 
 (defn images-from-dir

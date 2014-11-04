@@ -22,7 +22,7 @@
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"
     (with-clean-world
-      (transactional world-ref
+      (transactional
         (in (add (make-particle-editor :label "view scope"))
           (add (make-emitter :name "emitter"))
           (add (make-modifier :name "vortex"))))
