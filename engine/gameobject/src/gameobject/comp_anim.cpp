@@ -40,7 +40,6 @@ namespace dmGameObject
         void*               m_Userdata2;
         uint16_t            m_PreviousListener;
         uint16_t            m_NextListener;
-        uint16_t            m_ListenerIndex;
         uint16_t            m_Index;
         uint16_t            m_Next;
         uint16_t            m_Playing : 1;
@@ -56,8 +55,6 @@ namespace dmGameObject
         dmArray<uint16_t>                   m_AnimMap;
         dmIndexPool<uint16_t>               m_AnimMapIndexPool;
         dmHashTable<uintptr_t, uint16_t>    m_InstanceToIndex;
-        dmArray<uint16_t>                   m_AnimListenerMap;
-        dmIndexPool<uint16_t>               m_AnimListenerMapIndexPool;
         dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;
         uint32_t                            m_InUpdate : 1;
     };
@@ -76,9 +73,6 @@ namespace dmGameObject
             // This is fetched from res_collection.cpp (ResCollectionCreate)
             const uint32_t instance_count = 1024;
             world->m_InstanceToIndex.SetCapacity(instance_count/3, instance_count);
-            world->m_AnimListenerMap.SetCapacity(MAX_CAPACITY);
-            world->m_AnimListenerMap.SetSize(MAX_CAPACITY);
-            world->m_AnimListenerMapIndexPool.SetCapacity(MAX_CAPACITY);
             world->m_ListenerInstanceToIndex.SetCapacity(instance_count/3, instance_count);
             world->m_InUpdate = 0;
             return CREATE_RESULT_OK;
@@ -140,7 +134,6 @@ namespace dmGameObject
     }
 
     static void RemoveAnimationCallback(AnimWorld* world, Animation* anim);
-    static void UpdateAnimListenerMap(AnimWorld* world, Animation* anim, uint16_t old_anim_index, uint16_t new_anim_index);
 
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params)
     {
@@ -339,8 +332,6 @@ namespace dmGameObject
                     uint16_t was = world->m_AnimMap[anim->m_Index];
                     // We swapped, anim points to the swapped animation, update its map
                     world->m_AnimMap[anim->m_Index] = i;
-
-                    UpdateAnimListenerMap(world, anim, was, i);
                 }
             }
             else
@@ -439,7 +430,6 @@ namespace dmGameObject
         animation.m_Userdata2 = userdata2;
         animation.m_PreviousListener = INVALID_INDEX;
         animation.m_NextListener = INVALID_INDEX;
-        animation.m_ListenerIndex = INVALID_INDEX;
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
         animation.m_Composite = composite ? 1 : 0;
@@ -449,31 +439,22 @@ namespace dmGameObject
 
         if (0x0 != animation_stopped)
         {
-            index = world->m_AnimListenerMapIndexPool.Pop();
             index_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)userdata1);
             if (0x0 == index_ptr)
             {
                 if (world->m_ListenerInstanceToIndex.Full())
                 {
                     dmLogError("Animation listener could not be stored since the buffer is full (%d).", world->m_ListenerInstanceToIndex.Size());
-                    world->m_AnimListenerMapIndexPool.Push(index);
                     return false;
                 }
-                world->m_ListenerInstanceToIndex.Put((uintptr_t)userdata1, index);
             }
             else
             {
-                Animation* last_anim = &world->m_Animations[world->m_AnimListenerMap[*index_ptr]];
-                while (last_anim->m_NextListener != INVALID_INDEX)
-                {
-                    last_anim = &world->m_Animations[world->m_AnimListenerMap[last_anim->m_NextListener]];
-                }
-                last_anim->m_NextListener = index;
-                animation.m_PreviousListener = last_anim->m_ListenerIndex;
+                Animation* last_anim = &world->m_Animations[world->m_AnimMap[*index_ptr]];
+                animation.m_NextListener = last_anim->m_Index;
+                last_anim->m_PreviousListener = index;
             }
-
-            world->m_AnimListenerMap[index] = top;
-            animation.m_ListenerIndex = index;
+            world->m_ListenerInstanceToIndex.Put((uintptr_t)userdata1, index);
         }
 
         return true;
@@ -628,8 +609,6 @@ namespace dmGameObject
                         // We swapped, anim points to the swapped animation, update its map
                         uint16_t was = world->m_AnimMap[anim->m_Index];
                         world->m_AnimMap[anim->m_Index] = anim_index;
-
-                        UpdateAnimListenerMap(world, anim, was, anim_index);
                     }
                 }
                 world->m_InstanceToIndex.Erase((uintptr_t)instance);
@@ -637,70 +616,38 @@ namespace dmGameObject
         }
     }
 
-    static void UpdateAnimListenerMap(AnimWorld* world, Animation* anim, uint16_t old_anim_index, uint16_t new_anim_index)
-    {
-        void* listener = anim->m_Userdata1;
-        uint16_t* head_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)listener);
-        if (0x0 != head_ptr)
-        {
-            uint16_t index = *head_ptr;
-            while (INVALID_INDEX != index)
-            {
-                uint16_t anim_index = world->m_AnimListenerMap[index];
-                if (anim_index == old_anim_index)
-                {
-                    world->m_AnimListenerMap[index] = new_anim_index;
-                    break;
-                }
-
-                anim = &world->m_Animations[anim_index];
-                index = anim->m_NextListener;
-            }
-        }
-    }
-
     static void RemoveAnimationCallback(AnimWorld* world, Animation* anim)
     {
-        if (INVALID_INDEX != anim->m_ListenerIndex)
+        uint16_t previous = anim->m_PreviousListener;
+        uint16_t next = anim->m_NextListener;
+
+        if (INVALID_INDEX != previous)
         {
-            uint16_t index = anim->m_ListenerIndex;
-
-            world->m_AnimListenerMapIndexPool.Push(index);
-            world->m_AnimListenerMap[index] = INVALID_INDEX;
-
-            uint16_t previous = anim->m_PreviousListener;
-            uint16_t next = anim->m_NextListener;
-
-            if (INVALID_INDEX != previous)
-            {
-                uint16_t anim_index_prev = world->m_AnimListenerMap[previous];
-                world->m_Animations[anim_index_prev].m_NextListener = next;
-            }
-            if (INVALID_INDEX != next)
-            {
-                uint16_t anim_index_next = world->m_AnimListenerMap[next];
-                world->m_Animations[anim_index_next].m_PreviousListener = previous;
-            }
-            if (INVALID_INDEX == previous)
-            {
-                if (INVALID_INDEX == next)
-                {
-                    world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
-                }
-                else
-                {
-                    uint16_t anim_ix = world->m_AnimListenerMap[next];
-                    world->m_ListenerInstanceToIndex.Put((uintptr_t)anim->m_Userdata1, next);
-                }
-            }
-
-            anim->m_PreviousListener = INVALID_INDEX;
-            anim->m_NextListener = INVALID_INDEX;
-            anim->m_ListenerIndex = INVALID_INDEX;
-            anim->m_AnimationStopped = 0x0;
-            anim->m_Userdata1 = 0x0;
-            anim->m_Userdata2 = 0x0;
+            uint16_t anim_index_prev = world->m_AnimMap[previous];
+            world->m_Animations[anim_index_prev].m_NextListener = next;
         }
+        if (INVALID_INDEX != next)
+        {
+            uint16_t anim_index_next = world->m_AnimMap[next];
+            world->m_Animations[anim_index_next].m_PreviousListener = previous;
+        }
+        if (INVALID_INDEX == previous)
+        {
+            if (INVALID_INDEX == next)
+            {
+                world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
+            }
+            else
+            {
+                world->m_ListenerInstanceToIndex.Put((uintptr_t)anim->m_Userdata1, next);
+            }
+        }
+
+        anim->m_PreviousListener = INVALID_INDEX;
+        anim->m_NextListener = INVALID_INDEX;
+        anim->m_AnimationStopped = 0x0;
+        anim->m_Userdata1 = 0x0;
+        anim->m_Userdata2 = 0x0;
     }
 
     void CancelAnimationCallbacks(HCollection collection, void* userdata1)
@@ -712,17 +659,13 @@ namespace dmGameObject
             uint16_t index = *head_ptr;
             while (INVALID_INDEX != index)
             {
-                uint16_t anim_index = world->m_AnimListenerMap[index];
+                uint16_t anim_index = world->m_AnimMap[index];
                 Animation* const anim = &world->m_Animations[anim_index];
-
-                world->m_AnimListenerMapIndexPool.Push(index);
-                world->m_AnimListenerMap[index] = INVALID_INDEX;
 
                 index = anim->m_NextListener;
 
                 anim->m_PreviousListener = INVALID_INDEX;
                 anim->m_NextListener = INVALID_INDEX;
-                anim->m_ListenerIndex = INVALID_INDEX;
                 anim->m_AnimationStopped = 0x0;
                 anim->m_Userdata1 = 0x0;
                 anim->m_Userdata2 = 0x0;
