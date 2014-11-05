@@ -196,3 +196,36 @@
         (is (= 1 (-> node0 :defnk-out-cached-invocation-count deref)))
         (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
         (is (= 1 (-> node0 :defnk-out-cached-invocation-count deref)))))))
+
+(defnk out-from-self [out-from-self] out-from-self)
+(defnk out-from-in [in] in)
+(defnk out-from-in-multi [in-multi] in-multi)
+
+(defnode DependencyNode
+  (input in s/Any)
+  (input in-multi [s/Any])
+  (output out-from-self     s/Any out-from-self)
+  (output out-from-in       s/Any out-from-in)
+  (output out-const         s/Any [this g] :const-val)
+  (output out-from-in-multi s/Any out-from-in-multi))
+
+(deftest production-function-dependency-loops
+  (with-clean-world
+    (let [[node0 node1 node2] (tx-nodes
+                                (make-dependency-node)
+                                (make-dependency-node)
+                                (make-dependency-node))
+          _ (ds/transactional
+              (ds/connect node0 :out-from-in node0 :in)
+              (ds/connect node1 :out-from-in node2 :in)
+              (ds/connect node2 :out-from-in node1 :in)
+              (ds/connect node0 :out-const   node1 :in-multi)
+              (ds/connect node1 :out-const   node1 :in-multi)
+              (ds/connect node0 :out-const   node2 :in-multi)
+              (ds/connect node1 :out-const   node2 :in-multi)
+              (ds/connect node1 :out-from-in node2 :in-multi))]
+      (is (thrown? java.lang.StackOverflowError (in/get-node-value node0 :out-from-self)))
+      (is (thrown? java.lang.StackOverflowError (in/get-node-value node0 :out-from-in)))
+      (is (thrown? java.lang.StackOverflowError (in/get-node-value node1 :out-from-in)))
+      (is (= [:const-val :const-val] (in/get-node-value node1 :out-from-in-multi)))
+      #_(is (thrown? java.lang.StackOverflowError (in/get-node-value node2 :out-from-in-multi))))))
