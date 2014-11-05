@@ -54,8 +54,8 @@
     (let [schema (get-in target-node [:descriptor :inputs target-label])
           output-transform (get-in target-node [:descriptor :transforms target-label])]
       (cond
-        (vector? schema)     (map (fn [[source-node source-label]]
-                                    (get-value-with-restarts (dg/node g source-node) g source-label))
+        (vector? schema)     (mapv (fn [[source-node source-label]]
+                                     (get-value-with-restarts (dg/node g source-node) g source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
                                (when first-source-node

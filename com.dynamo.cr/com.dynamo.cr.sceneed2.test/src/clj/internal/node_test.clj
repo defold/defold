@@ -228,4 +228,4 @@
       (is (thrown? java.lang.StackOverflowError (in/get-node-value node0 :out-from-in)))
       (is (thrown? java.lang.StackOverflowError (in/get-node-value node1 :out-from-in)))
       (is (= [:const-val :const-val] (in/get-node-value node1 :out-from-in-multi)))
-      #_(is (thrown? java.lang.StackOverflowError (in/get-node-value node2 :out-from-in-multi))))))
+      (is (thrown? java.lang.StackOverflowError (in/get-node-value node2 :out-from-in-multi))))))
