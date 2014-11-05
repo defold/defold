@@ -51,16 +51,16 @@
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
-    (let [output-transform (get-in target-node [:descriptor :transforms target-label])
-          schema (get-in target-node [:descriptor :inputs target-label])]
+    (let [schema (get-in target-node [:descriptor :inputs target-label])
+          output-transform (get-in target-node [:descriptor :transforms target-label])]
       (cond
-        (not (nil? output-transform)) (get-value-with-restarts target-node g target-label)
         (vector? schema)     (map (fn [[source-node source-label]]
                                     (get-value-with-restarts (dg/node g source-node) g source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
                                (when first-source-node
                                  (get-value-with-restarts (dg/node g first-source-node) g first-source-label)))
+        (not (nil? output-transform)) (get-value-with-restarts target-node g target-label)
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))
