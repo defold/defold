@@ -140,6 +140,7 @@ namespace dmGameObject
     }
 
     static void RemoveAnimationCallback(AnimWorld* world, Animation* anim);
+    static void UpdateAnimListenerMap(AnimWorld* world, Animation* anim, uint16_t old_anim_index, uint16_t new_anim_index);
 
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params)
     {
@@ -339,12 +340,7 @@ namespace dmGameObject
                     // We swapped, anim points to the swapped animation, update its map
                     world->m_AnimMap[anim->m_Index] = i;
 
-                    for (int j=0; j<world->m_AnimListenerMap.Size(); ++j) {
-                        if (world->m_AnimListenerMap[j] == was) {
-                            world->m_AnimListenerMap[j] = i;
-                            break;
-                        }
-                    }
+                    UpdateAnimListenerMap(world, anim, was, i);
                 }
             }
             else
@@ -633,15 +629,32 @@ namespace dmGameObject
                         uint16_t was = world->m_AnimMap[anim->m_Index];
                         world->m_AnimMap[anim->m_Index] = anim_index;
 
-                        for (int j=0; j<world->m_AnimListenerMap.Size(); ++j) {
-                            if (world->m_AnimListenerMap[j] == was) {
-                                world->m_AnimListenerMap[j] = anim_index;
-                                break;
-                            }
-                        }
+                        UpdateAnimListenerMap(world, anim, was, anim_index);
                     }
                 }
                 world->m_InstanceToIndex.Erase((uintptr_t)instance);
+            }
+        }
+    }
+
+    static void UpdateAnimListenerMap(AnimWorld* world, Animation* anim, uint16_t old_anim_index, uint16_t new_anim_index)
+    {
+        void* listener = anim->m_Userdata1;
+        uint16_t* head_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)listener);
+        if (0x0 != head_ptr)
+        {
+            uint16_t index = *head_ptr;
+            while (INVALID_INDEX != index)
+            {
+                uint16_t anim_index = world->m_AnimListenerMap[index];
+                if (anim_index == old_anim_index)
+                {
+                    world->m_AnimListenerMap[index] = new_anim_index;
+                    break;
+                }
+
+                anim = &world->m_Animations[anim_index];
+                index = anim->m_NextListener;
             }
         }
     }
