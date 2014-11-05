@@ -305,11 +305,11 @@ namespace dmGameObject
                     uint32_t orig_size = size;
                     anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
                             anim->m_Userdata1, anim->m_Userdata2);
-                    RemoveAnimationCallback(world, anim);
                     // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
                     size = world->m_Animations.Size();
                     if (size != orig_size)
                         anim = &world->m_Animations[i];
+                    RemoveAnimationCallback(world, anim);
                 }
                 uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
