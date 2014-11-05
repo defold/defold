@@ -658,7 +658,10 @@ namespace dmGameObject
         }
         if (instance != 0) {
             bool success = CreateComponents(collection, instance);
-            if (success) {
+            if (!success) {
+                UndoNewInstance(collection, instance);
+                instance = 0;
+            } else {
                 uint32_t next_component_instance_data = 0;
                 dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
                 uint32_t count = components.Size();
@@ -691,15 +694,16 @@ namespace dmGameObject
                         }
                     }
                 }
-                if (!Init(collection, instance))
+                if (success && !Init(collection, instance))
                 {
                     dmLogError("Could not initialize when spawning %s.", prototype_name);
                     success = false;
                 }
-            }
-            if (!success) {
-                UndoNewInstance(collection, instance);
-                instance = 0;
+                if (!success) {
+                    Delete(collection, instance);
+                    // No need to release the resource here as that happens as a part of destruction
+                    return 0;
+                }
             }
         }
         if (instance == 0) {
