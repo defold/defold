@@ -77,12 +77,19 @@
         (assoc m k (get-inputs node g k))))
     {} input-schema))
 
-(defn perform [transform node g]
+(defn perform* [transform node g]
   (cond
-    (var?          transform)  (perform (var-get transform) node g)
+    (var?          transform)  (recur (var-get transform) node g)
     (t/has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform)))
     (fn?           transform)  (transform node g)
     :else transform))
+
+(def ^:dynamic *perform-depth* 250)
+
+(defn perform [transform node g]
+  {:pre [(pos? *perform-depth*)]}
+  (binding [*perform-depth* (dec *perform-depth*)]
+    (perform* transform node g)))
 
 (defn- hit-cache [world-state cache-key value]
   (dosync (alter world-state update-in [:cache] cache/hit cache-key))

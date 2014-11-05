@@ -224,8 +224,20 @@
               (ds/connect node0 :out-const   node2 :in-multi)
               (ds/connect node1 :out-const   node2 :in-multi)
               (ds/connect node1 :out-from-in node2 :in-multi))]
-      (is (thrown? java.lang.StackOverflowError (in/get-node-value node0 :out-from-self)))
-      (is (thrown? java.lang.StackOverflowError (in/get-node-value node0 :out-from-in)))
-      (is (thrown? java.lang.StackOverflowError (in/get-node-value node1 :out-from-in)))
+      (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-self)))
+      (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in)))
+      (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in)))
       (is (= [:const-val :const-val] (in/get-node-value node1 :out-from-in-multi)))
-      (is (thrown? java.lang.StackOverflowError (in/get-node-value node2 :out-from-in-multi))))))
+      (is (thrown? java.lang.AssertionError (in/get-node-value node2 :out-from-in-multi))))))
+
+(deftest production-function-dependency-limit
+  (with-clean-world
+    (let [nodes (apply tx-nodes (repeatedly 251 make-dependency-node))
+          _ (ds/transactional
+              (ds/connect (first nodes) :out-const (second nodes) :in)
+              (doall (for [[x y] (partition 2 1 (rest nodes))]
+                       (ds/connect x :out-from-in y :in))))]
+      (is (= :const-val (in/get-node-value (nth nodes 0) :out-const)))
+      (is (= :const-val (in/get-node-value (nth nodes 1) :out-from-in)))
+      (is (= :const-val (in/get-node-value (nth nodes 249) :out-from-in)))
+      (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 250) :out-from-in))))))
