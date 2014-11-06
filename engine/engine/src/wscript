@@ -16,7 +16,7 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     additional_libs = []
-    exported_symbols = []
+    exported_symbols = ['DefaultSoundDevice']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
         additional_libs.append('FACEBOOK')
         additional_libs.append('SQLLITE')
