@@ -174,7 +174,8 @@
 
 
      [(['property nm tp] :seq)]
-     {:properties {(keyword nm) tp}}
+     {:properties {(keyword nm) tp}
+      :transforms {(keyword nm) `(fn [~'this ~'g] (get ~'this ~(keyword nm)))}}
 
      [(['input nm schema] :seq)]
      {:inputs     {(keyword nm) (if (coll? schema) (into [] schema) schema)}}

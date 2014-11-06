@@ -191,11 +191,19 @@
       (testing "defnk inputs from node outputs"
         (is (= :out-val (in/get-node-value node0 :defnk-out)))
         (is (= :out-val (in/get-node-value node0 :defnk-defnk-out)))
-        (is (= 0 (-> node0 :defnk-out-cached-invocation-count deref)))
+        (is (= 0 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
         (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
-        (is (= 1 (-> node0 :defnk-out-cached-invocation-count deref)))
+        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
         (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
-        (is (= 1 (-> node0 :defnk-out-cached-invocation-count deref)))))))
+        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))))))
+
+(deftest node-properties-as-node-outputs
+  (with-clean-world
+    (let [[node0 node1] (tx-nodes
+                          (make-production-function-inputs-node :prop :node0)
+                          (make-production-function-inputs-node :prop :node1))
+          _ (ds/transactional (ds/connect node0 :prop node1 :in))]
+      (is (= :node0 (in/get-node-value node1 :defnk-in))))))
 
 (defnk out-from-self [out-from-self] out-from-self)
 (defnk out-from-in [in] in)

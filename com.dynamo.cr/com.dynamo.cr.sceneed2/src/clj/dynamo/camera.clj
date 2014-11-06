@@ -221,8 +221,7 @@
          rows scales)))
 
 (n/defnode CameraNode
-  (property camera      {:schema Camera})
-  (output   camera Camera [this _] (:camera this)))
+  (property camera {:schema Camera}))
 
 (defn dolly
   [camera delta]

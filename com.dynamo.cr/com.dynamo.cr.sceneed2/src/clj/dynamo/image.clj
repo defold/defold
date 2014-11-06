@@ -70,6 +70,8 @@
 
 ;; Behavior
 (defnode ImageSource
+  ;; NOTE: Order is important here. `property` defines an
+  ;; output that is overridden by the later `output` clause.
   (property image (t/resource))
   (output   image Image :cached image-from-resource))
 
