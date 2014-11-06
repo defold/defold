@@ -14,6 +14,8 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
+import org.apache.commons.io.IOUtils;
+
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -49,74 +51,87 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     public byte[] constructBytecode(Task<Void> task) throws IOException, CompileExceptionError {
 
-        File outputFile = File.createTempFile("script", ".raw");
-        File inputFile = File.createTempFile("script", ".lua");
+        java.io.FileOutputStream fo = null;
+        RandomAccessFile rdr = null;
 
-        // Need to write the input file separately in case it comes from built-in, and cannot
-        // be found through its path alone.
-        java.io.FileOutputStream fo = new java.io.FileOutputStream(inputFile);
-        fo.write(task.input(0).getContent());
-        fo.close();
-
-        // Because the <copy> operation in build.xml does not understand
-        // to keep executable flags, set it here as we know it is an executable
-        // anyway.
-        File executable = new File(Bob.getLuajitBinPath());
-        if (!executable.canExecute())
-            executable.setExecutable(true);
-
-        // Doing a bit of custom set up here as the path is required.
-        ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getLuajitBinPath(), "-b", inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
-
-        java.util.Map<String, String> env = pb.environment();
-        env.put("LUA_PATH", Bob.getLuajitSharePath() + "/?.lua");
-
-        Process p = pb.start();
-        int ret = 127;
         try {
-            ret = p.waitFor();
 
-            InputStream is = p.getInputStream();
-            int toRead = is.available();
-            byte[] buf = new byte[toRead];
-            is.read(buf);
+            File outputFile = File.createTempFile("script", ".raw");
+            File inputFile = File.createTempFile("script", ".lua");
 
-            String cmdOutput = new String(buf);
-            if (ret != 0) {
-                // first delimiter is the executable name "luajit:"
-                int execSep = cmdOutput.indexOf(':');
-                if (execSep > 0) {
-                    // then comes the filename and the line like this:
-                    // "file.lua:30: <error message>"
-                    int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-                    if (lineBegin > 0) {
-                        int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-                        if (lineEnd > 0) {
-                            throw new CompileExceptionError(task.input(0),
-                                    Integer.parseInt(cmdOutput.substring(
-                                            lineBegin + 1, lineEnd)),
-                                    cmdOutput.substring(lineEnd + 2));
+            // Need to write the input file separately in case it comes from built-in, and cannot
+            // be found through its path alone.
+            fo = new java.io.FileOutputStream(inputFile);
+            fo.write(task.input(0).getContent());
+            fo.close();
+
+            // Because the <copy> operation in build.xml does not understand
+            // to keep executable flags, set it here as we know it is an executable
+            // anyway.
+            File executable = new File(Bob.getLuajitBinPath());
+            if (!executable.canExecute())
+                executable.setExecutable(true);
+
+            // Doing a bit of custom set up here as the path is required.
+            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getLuajitBinPath(), "-b", inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+
+            java.util.Map<String, String> env = pb.environment();
+            env.put("LUA_PATH", Bob.getLuajitSharePath() + "/?.lua");
+
+            Process p = pb.start();
+            InputStream is = null;
+            int ret = 127;
+
+            try {
+                ret = p.waitFor();
+                is = p.getInputStream();
+
+                int toRead = is.available();
+                byte[] buf = new byte[toRead];
+                is.read(buf);
+
+                String cmdOutput = new String(buf);
+                if (ret != 0) {
+                    // first delimiter is the executable name "luajit:"
+                    int execSep = cmdOutput.indexOf(':');
+                    if (execSep > 0) {
+                        // then comes the filename and the line like this:
+                        // "file.lua:30: <error message>"
+                        int lineBegin = cmdOutput.indexOf(':', execSep + 1);
+                        if (lineBegin > 0) {
+                            int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
+                            if (lineEnd > 0) {
+                                throw new CompileExceptionError(task.input(0),
+                                        Integer.parseInt(cmdOutput.substring(
+                                                lineBegin + 1, lineEnd)),
+                                        cmdOutput.substring(lineEnd + 2));
+                            }
                         }
                     }
+                    // Since parsing out the actual error failed, as a backup just
+                    // spit out whatever jualit said.
+                    inputFile.delete();
+                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
-                // Since parsing out the actual error failed, as a backup just
-                // spit out whatever jualit said.
-                inputFile.delete();
-                throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+            } catch (InterruptedException e) {
+                Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
+            } finally {
+                IOUtils.closeQuietly(is);
             }
-        } catch (InterruptedException e) {
-            Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
+
+            long resultBytes = outputFile.length();
+            rdr = new RandomAccessFile(outputFile, "r");
+            byte tmp[] = new byte[(int) resultBytes];
+            rdr.readFully(tmp);
+
+            outputFile.delete();
+            inputFile.delete();
+            return tmp;
         }
-
-        long resultBytes = outputFile.length();
-        RandomAccessFile rdr = new RandomAccessFile(outputFile, "r");
-        byte tmp[] = new byte[(int) resultBytes];
-        rdr.readFully(tmp);
-        rdr.close();
-
-        outputFile.delete();
-        inputFile.delete();
-        return tmp;
+        finally {
+            IOUtils.closeQuietly(fo);
+            IOUtils.closeQuietly(rdr);
+        }
     }
 
     @Override
