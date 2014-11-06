@@ -8,7 +8,7 @@
             [dynamo.gl.protocols :refer :all])
   (:import [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GLContext]
-           [javax.vecmath Matrix4d Vector4f]
+           [javax.vecmath Matrix4d Vector4f Point3d]
            [dynamo.file PathManipulation]))
 
 (set! *warn-on-reflection* true)
@@ -203,6 +203,10 @@
 (defmethod set-uniform-at-index Vector4f
   [^GL2 gl progn loc ^Vector4f val]
   (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
+
+(defmethod set-uniform-at-index Point3d
+  [^GL2 gl progn loc ^Point3d val]
+  (.glUniform3f gl loc (float (.x val)) (float (.y val)) (float (.z val))))
 
 (defmethod set-uniform-at-index (class (float-array []))
   [^GL2 gl progn loc ^floats val]

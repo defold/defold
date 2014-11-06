@@ -74,12 +74,12 @@
     (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 1.0)))))
 
 (shader/defshader pos-norm-frag
-  (uniform vec4 cameraPosition)
+  (uniform vec3 cameraPosition)
   (uniform samplerCube envMap)
   (varying vec3 vWorld)
   (varying vec3 vNormal)
   (defn void main []
-    (setq vec3 camToV (normalize (- vWorld (.xyz cameraPosition))))
+    (setq vec3 camToV (normalize (- vWorld cameraPosition)))
     (setq vec3 refl (reflect camToV vNormal))
       (setq gl_FragColor (textureCube envMap refl))))
 
@@ -109,11 +109,10 @@
           texture         (n/get-node-value this :gpu-texture)
           shader          (n/get-node-value this :shader)
           vbuf            (n/get-node-value this :vertex-buffer)
-          vertex-binding  (vtx/use-with gl vbuf shader)]
-         (let [camera          (first (in/get-inputs this (-> this :world-ref deref :graph) :camera))]
-          (println camera))
+          vertex-binding  (vtx/use-with gl vbuf shader)
+          camera          (in/get-inputs this (-> this :world-ref deref :graph) :camera)]
          (shader/set-uniform shader "world" world)
-         (shader/set-uniform shader "cameraPosition" (doto (Vector4f.) (.set 0.0 0.0 4 1.0)))
+         (shader/set-uniform shader "cameraPosition" (t/position camera))
          (shader/set-uniform shader "envMap" (texture/texture-unit-index texture))
          (gl/gl-enable gl GL/GL_CULL_FACE)
          (gl/gl-cull-face gl GL/GL_BACK)
