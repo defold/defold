@@ -23,6 +23,7 @@
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer [defcommand defhandler]]
+            [internal.node :as in]
             [internal.ui.background :as background]
             [internal.ui.grid :as grid]
             [internal.ui.scene-editor :as ise]
@@ -40,7 +41,7 @@
             [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d Matrix4f Vector4f]
             [org.eclipse.core.commands ExecutionEvent]
-            [dynamo.types AABB]))
+            [dynamo.types AABB Camera]))
 
 (n/defnode CubemapProperties
   (input image-right  Image)
@@ -83,8 +84,8 @@
       (setq gl_FragColor (textureCube envMap refl))))
 
 (defnk produce-shader :- s/Int
-  [this gl]
-  (shader/make-shader gl pos-norm-vert pos-norm-frag))
+  [this gl-context gl]
+  (shader/make-shader gl-context gl pos-norm-vert pos-norm-frag))
 
 (defnk produce-gpu-texture
   [project this gl image-right image-left image-top image-bottom image-front image-back]
@@ -103,11 +104,14 @@
 
 (defn render-cubemap
   [ctx ^GL2 gl this project world]
-  (do-gl [this            (assoc this :gl gl)
+  (do-gl [this            (assoc this :gl-context ctx)
+          this            (assoc this :gl gl)
           texture         (n/get-node-value this :gpu-texture)
           shader          (n/get-node-value this :shader)
           vbuf            (n/get-node-value this :vertex-buffer)
           vertex-binding  (vtx/use-with gl vbuf shader)]
+         (let [camera          (first (in/get-inputs this (-> this :world-ref deref :graph) :camera))]
+          (println camera))
          (shader/set-uniform shader "world" world)
          (shader/set-uniform shader "cameraPosition" (doto (Vector4f.) (.set 0.0 0.0 4 1.0)))
          (shader/set-uniform shader "envMap" (texture/texture-unit-index texture))
@@ -130,6 +134,7 @@
     (g/aabb-incorporate -1 -1 -1)))
 
 (n/defnode CubemapRender
+  (input  camera        Camera)
   (output shader        s/Any      :cached produce-shader)
   (output vertex-buffer s/Any      :cached produce-renderable-vertex-buffer)
   (output gpu-texture   s/Any      :cached produce-gpu-texture)
@@ -179,6 +184,7 @@
           (ds/connect camera     :camera     controller :camera)
           (ds/connect background :renderable editor     :renderables)
           (ds/connect cubemap    :renderable editor     :renderables)
+          (ds/connect camera     :camera     cubemap    :camera)
           (ds/connect grid       :renderable editor     :renderables)
           (ds/connect cubemap    :aabb       editor     :aabb))
         editor))))
