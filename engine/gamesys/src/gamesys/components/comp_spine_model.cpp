@@ -339,6 +339,9 @@ namespace dmGameSystem
         SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
         DestroyPose(component);
         uint32_t index = component - &world->m_Components[0];
+        // If we're going to use memset, then we should explicitly call dtors on pose and instance arrays.
+        component->m_Pose.~dmArray<dmTransform::Transform>();
+        component->m_NodeInstances.~dmArray<dmGameObject::HInstance>();
         memset(component, 0, sizeof(SpineModelComponent));
         world->m_ComponentIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
