@@ -85,7 +85,7 @@
         (first (iq/query (:world-ref project-scope) [[:filename f]]))))))
 
 (defn- send-project-scope-message
-  [self txn]
+  [graph self txn]
   (doseq [n (:nodes-added txn)]
     (ds/send-after n {:type :project-scope :scope self})))
 

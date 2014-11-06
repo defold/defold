@@ -13,16 +13,22 @@
             [internal.node :as in])
   (:import [dynamo.types Image AABB]))
 
+(defnode N1)
+(defnode N2)
+
 (deftest input-compatibility
-  (are [out out-type in in-type expect-compat why] (= expect-compat (in/compatible? out out-type in in-type))
-    :image Image    :image  AABB      false    "type mismatch"
-    :image Image    :image  Image     true     "ok"
-    :image Image    :images [Image]   true     "ok"
-    :image Image    :images Image     false    "plural name, singular type"
-    :name  String   :names  [String]  true     "ok"
-    :name  String   :names  String    false    "plural name, singular type"
-    :names [String] :names  [String]  true     "ok"
-    :name  String   :name   [String]  false    "singular name, plural type"))
+  (let [n1 (make-n-1)
+        n2 (make-n-2)]
+    (are [out-node out out-type in-node in in-type expect-compat why] 
+      (= expect-compat (in/compatible? out-node out out-type in-node in in-type))
+      n1 :image Image    n2 :image  AABB      nil                    "type mismatch"
+      n1 :image Image    n2 :image  Image     [n1 :image n2 :image]  "ok"
+      n1 :image Image    n2 :images [Image]   [n1 :image n2 :images] "ok"
+      n1 :image Image    n2 :images Image     nil                    "plural name, singular type"
+      n1 :name  String   n2 :names  [String]  [n1 :name n2 :names]   "ok"
+      n1 :name  String   n2 :names  String    nil                    "plural name, singular type"
+      n1 :names [String] n2 :names  [String]  [n1 :names n2 :names]  "ok"
+      n1 :name  String   n2 :name   [String]  nil                    "singular name, plural type")))
 
 (defnode ParticleEditor
   (inherits Scope))
@@ -48,41 +54,3 @@
         (are [n] (identical? (t/lookup scope-node n) (q world-ref [[:name n]]))
                  "emitter"
                  "vortex")))))
-
-(sm/defrecord CommonValueType
-  [identifier :- String])
-
-(defnk concat-all :- CommonValueType
-  [values :- [CommonValueType]]
-  (apply str/join (map :identifier values)))
-
-(defnode ValueConsumer
-  (input values [CommonValueType])
-  (output concatenation CommonValueType concat-all))
-
-(defnk passthrough [local-name] local-name)
-
-(defnode InjectionScope
-  (inherits Project)
-  (input local-name CommonValueType)
-  (output passthrough CommonValueType passthrough))
-
-(defnode ValueProducer
-  (property value {:schema CommonValueType})
-  (output output-name CommonValueType [this _] (:value this)))
-
-(deftest dependency-injection
-  (testing "attach node output to input on scope"
-    (with-clean-world
-      (let [scope (ds/transactional
-                    (ds/in (ds/add (make-injection-scope))
-                      (ds/add (make-value-producer :value (CommonValueType. "a known value")))
-                      (ds/current-scope)))]
-        (is (= "a known value" (get-node-value scope :passthrough))))))
-  (testing "using a project as scope"
-    (with-clean-world
-      (let [consumer (ds/transactional
-                       (ds/in (ds/add (make-project))
-                         (ds/add (make-value-producer :value (CommonValueType. "first")))
-                         (ds/add (make-value-consumer))))]
-        (is (= "first" (get-node-value consumer :concatenation)))))))

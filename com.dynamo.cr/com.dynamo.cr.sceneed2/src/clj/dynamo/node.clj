@@ -1,6 +1,7 @@
 (ns dynamo.node
   "Define new node types"
-  (:require [plumbing.core :refer [defnk]]
+  (:require [clojure.set :as set]
+            [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
@@ -14,7 +15,7 @@
 (defnk selfie [this] this)
 
 (def node-intrinsics
-  '[(output self schema.core/Any selfie)])
+  '[(output self schema.core/Any dynamo.node/selfie)])
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -98,10 +99,12 @@ This function should mainly be used to create 'plumbing'."
 ; Bootstrapping the core node types
 ; ---------------------------------------------------------------------------
 (defn inject-new-nodes
-  [self transaction]
-  (doseq [new-node   (:nodes-added transaction)
-          connection (in/injection-candidates self new-node)]
-    (apply dynamo.system/connect connection)))
+  [graph self transaction]
+  (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
+        out-from-new-connections (in/injection-candidates existing-nodes (:nodes-added transaction))
+        in-to-new-connections    (in/injection-candidates (:nodes-added transaction) existing-nodes)]
+    (doseq [connection (set/union out-from-new-connections in-to-new-connections)]
+      (apply dynamo.system/connect connection))))
 
 (defnode Scope
   (input nodes [s/Any])

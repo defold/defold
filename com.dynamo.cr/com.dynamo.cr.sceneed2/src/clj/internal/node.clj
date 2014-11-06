@@ -22,11 +22,12 @@
 ; ---------------------------------------------------------------------------
 ; Value handling
 ; ---------------------------------------------------------------------------
-(defn node-inputs [v]         (into #{} (keys (-> v :descriptor :inputs))))
-(defn node-input-types [v]    (-> v :descriptor :inputs))
-(defn node-outputs [v]        (into #{} (keys (-> v :descriptor :transforms))))
-(defn node-output-types [v]   (-> v :descriptor :transform-types))
-(defn node-cached-outputs [v] (-> v :descriptor :cached))
+(defn node-inputs [v]            (into #{} (keys (-> v :descriptor :inputs))))
+(defn node-input-types [v]       (-> v :descriptor :inputs))
+(defn node-injectable-inputs [v] (-> v :descriptor :injectable-inputs))
+(defn node-outputs [v]           (into #{} (keys (-> v :descriptor :transforms))))
+(defn node-output-types [v]      (-> v :descriptor :transform-types))
+(defn node-cached-outputs [v]    (-> v :descriptor :cached))
 
 (defn- find-enclosing-scope
   [tag node]
@@ -107,7 +108,6 @@
             (miss-cache world-state cache-key (produce-value node (:graph @world-state) label))))
       (produce-value node (:graph @world-state) label))))
 
-
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
 
@@ -171,8 +171,12 @@
      [(['property nm tp] :seq)]
      {:properties {(keyword nm) tp}}
 
-     [(['input nm schema] :seq)]
-     {:inputs     {(keyword nm) (if (coll? schema) (into [] schema) schema)}}
+     [(['input nm schema & flags] :seq)]
+     (let [schema (if (coll? schema) (into [] schema) schema)
+           label  (keyword nm)]
+       (if (some #{:inject} flags)
+         {:inputs {label schema} :injectable-inputs #{label}}
+         {:inputs {label schema}}))
 
      [(['on evt & fn-body] :seq)]
      {:event-handlers {(keyword evt)
@@ -320,17 +324,21 @@
     nodes))
 
 (defn compatible?
-  [out out-type in in-type]
+  [out-node out-label out-type in-node in-label in-type]
   (cond
-   (and (= out in) (t/compatible? out-type in-type false))
-   [out out-type in in-type]
+   (and (= out-label in-label) (t/compatible? out-type in-type false))
+   [out-node out-label in-node in-label]
 
-   (and (= (plural out) in) (t/compatible? out-type in-type true))
-   [out out-type in in-type]))
+   (and (= (plural out-label) in-label) (t/compatible? out-type in-type true))
+   [out-node out-label in-node in-label]))
 
 (defn injection-candidates
-  [self node]
-  (filter #(apply compatible? %)
-          (for [i (node-input-types self)
-                o (node-output-types node)]
-            (concat o i))))
+  [targets nodes]
+  (into #{}
+    (keep #(apply compatible? %)
+        (for [target  targets
+              i       (node-injectable-inputs target)
+              :let    [i-l (get (node-input-types target) i)]
+              node    nodes
+              [o o-l] (node-output-types node)]
+            [node o o-l target i i-l]))))
