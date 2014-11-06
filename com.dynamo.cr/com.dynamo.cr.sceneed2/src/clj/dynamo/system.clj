@@ -7,19 +7,12 @@
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.query :as iq]
-            [internal.system :as is]
             [internal.transaction :as it :refer [*transaction*]])
   (:import [internal.transaction NullTransaction]))
-
-(defn- the-world []  (-> is/the-system deref :world))
-(defn groot []       (dg/node (-> (the-world) :state is/graph) 1))
-(defn started? []    (-> (the-world) :started))
 
 ; ---------------------------------------------------------------------------
 ; Transactional state
 ; ---------------------------------------------------------------------------
-
-
 (defn node? [v] (satisfies? t/Node v))
 
 (defn- resolve-return-val
@@ -42,9 +35,7 @@
 
 (defn- is-scope?
   [n]
-  (and
-    (satisfies? t/InjectionContext n)
-    (satisfies? t/NamingContext n)))
+  (satisfies? t/NamingContext n))
 
 ; ---------------------------------------------------------------------------
 ; High level API
@@ -99,7 +90,6 @@
 (defmacro in
   [s & forms]
   `(let [new-scope# ~s]
-     (assert (satisfies? t/InjectionContext new-scope#) (str new-scope# " cannot be used as a scope."))
      (assert (satisfies? t/NamingContext new-scope#) (str new-scope# " cannot be used as a scope."))
      (binding [it/*scope* new-scope#]
        ~@forms)))
@@ -114,12 +104,6 @@
 (doseq [[v doc]
        {*ns*
         "Functions for performing transactional changes to the system graph."
-
-        #'groot
-        "Convenience function to access the root node of the graph."
-
-        #'started?
-        "Returns true if the system has been started and not yet stopped."
 
         #'transactional
         "Executes the body within a project transaction. All actions
@@ -162,7 +146,5 @@ The messages will only be sent if the transaction completes successfully."
 
         #'in
         "Execute the forms within the given scope. Scope is a node that
-inherits from dynamo.node/Scope."
-
-}]
+inherits from dynamo.node/Scope."}]
   (alter-meta! v assoc :doc doc))

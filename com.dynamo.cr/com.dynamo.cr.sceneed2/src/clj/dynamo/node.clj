@@ -1,9 +1,11 @@
 (ns dynamo.node
   "Define new node types"
-  (:require [internal.node :as in]
-            [dynamo.types :refer :all]
+  (:require [clojure.set :as set]
             [plumbing.core :refer [defnk]]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [dynamo.system :as ds]
+            [dynamo.types :refer :all]
+            [internal.node :as in]))
 
 (set! *warn-on-reflection* true)
 
@@ -13,7 +15,7 @@
 (defnk selfie [this] this)
 
 (def node-intrinsics
-  '[(output self schema.core/Any selfie)])
+  '[(output self schema.core/Any dynamo.node/selfie)])
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,
@@ -89,22 +91,29 @@ implement dynamo.types/MessageTarget."
   "This is an advanced usage. If you have a reference to a node, you can directly send
 it a message.
 
-This function should mainly be used to create 'plumbing'. In most cases you will want
-to use dynamo.system/publish to send a message to a node."
+This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
   (process-one-event node (assoc body :type type)))
 
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
 ; ---------------------------------------------------------------------------
+(defn inject-new-nodes
+  [graph self transaction]
+  (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
+        out-from-new-connections (in/injection-candidates existing-nodes (:nodes-added transaction))
+        in-to-new-connections    (in/injection-candidates (:nodes-added transaction) existing-nodes)]
+    (doseq [connection (set/union out-from-new-connections in-to-new-connections)]
+      (apply dynamo.system/connect connection))))
+
 (defnode Scope
   (input nodes [s/Any])
+
   (property tag      {:schema s/Keyword})
   (property parent   {:schema s/Any})
-  (output dictionary s/Any in/scope-dictionary)
+  (property triggers {:default [#'inject-new-nodes]})
 
-  InjectionContext
-  (inject [this target] nil)
+  (output dictionary s/Any in/scope-dictionary)
 
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))

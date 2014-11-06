@@ -6,7 +6,8 @@
             [dynamo.types :as t]
             [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]))
+            [internal.graph.lgraph :as lg]
+            [service.log :as log]))
 
 (def ^:dynamic *scope* nil)
 
@@ -115,14 +116,16 @@
 
 (defmethod perform :create-node
   [{:keys [graph tempids cache-keys nodes-modified world world-ref new-event-loops nodes-added] :as ctx} m]
-  (let [next-id   (dg/next-node graph)
-        full-node (assoc (:node m) :_id next-id :world-ref world-ref)]
+  (let [next-id     (dg/next-node graph)
+        full-node   (assoc (:node m) :_id next-id :world-ref world-ref)
+        graph-after (lg/add-labeled-node graph (-> m :node :descriptor :inputs keys) (-> m :node :descriptor :transforms keys) full-node)
+        full-node   (dg/node graph-after next-id)]
     (assoc ctx
-      :graph           (lg/add-labeled-node graph (-> m :node :descriptor :inputs keys) (-> m :node :descriptor :transforms keys) full-node)
+      :graph           graph-after
       :nodes-added     (conj nodes-added full-node)
       :tempids         (assoc tempids (get-in m [:node :_id]) next-id)
-      :cache-keys      (assoc cache-keys next-id (resource->cache-keys (:node m)))
-      :new-event-loops (if (satisfies? t/MessageTarget (:node m)) (conj new-event-loops next-id) new-event-loops)
+      :cache-keys      (assoc cache-keys next-id (resource->cache-keys full-node))
+      :new-event-loops (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
       :nodes-modified  (conj nodes-modified next-id))))
 
 (defmethod perform :update-node
@@ -197,7 +200,7 @@
           (try
             (t/process-one-event (dg/node graph id) msg)
             (catch Exception ex
-              (service.log/error :message "Error in node event loop" :exception ex)))
+              (log/error :message "Error in node event loop" :exception ex)))
           (recur))))))
 
 (defn- start-event-loops
@@ -212,7 +215,7 @@
   (let [new-triggers (set/difference affected-nodes previously-triggered)
         next-ctx (reduce (fn [csub [n tr]]
                            (binding [*transaction* (->TriggerTransaction (transient []))]
-                             (tr n csub)
+                             (tr (:graph csub) n csub)
                              (update-in csub [:pending] concat (tx-return *transaction*))))
                    ctx
                    (pairwise :triggers (map #(dg/node graph %) new-triggers)))]

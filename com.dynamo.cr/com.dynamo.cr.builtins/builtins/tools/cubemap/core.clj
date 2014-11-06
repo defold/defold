@@ -21,7 +21,7 @@
             [dynamo.project :as p]
             [dynamo.system :as ds :refer [transactional in current-scope add in-transaction? connect]]
             [dynamo.texture :refer :all]
-            [dynamo.types :refer :all]
+            [dynamo.types :as t :refer :all]
             [dynamo.ui :refer [defcommand defhandler]]
             [internal.ui.background :as background]
             [internal.ui.grid :as grid]
@@ -39,7 +39,8 @@
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d Matrix4f Vector4f]
-            [org.eclipse.core.commands ExecutionEvent]))
+            [org.eclipse.core.commands ExecutionEvent]
+            [dynamo.types AABB]))
 
 (n/defnode CubemapProperties
   (input image-right  Image)
@@ -133,7 +134,7 @@
   (output vertex-buffer s/Any      :cached produce-renderable-vertex-buffer)
   (output gpu-texture   s/Any      :cached produce-gpu-texture)
   (output renderable    RenderData :cached produce-renderable)
-  (output aabb          t/AABB             unit-bounding-box))
+  (output aabb          AABB               unit-bounding-box))
 
 (n/defnode CubemapNode
   (inherits CubemapProperties)

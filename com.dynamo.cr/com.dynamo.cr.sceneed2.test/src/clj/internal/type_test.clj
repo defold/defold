@@ -11,19 +11,36 @@
   [value :- Integer])
 
 (deftest type-compatibility
-  (testing "identity rules"
-    (is (t/compatible? T1 T1))
-    (is (not (t/compatible? T1 T2))))
-  (testing "collection rule"
-    (is (t/compatible? T1 [T1]))
-    (is (not (t/compatible? T1 [T2]))))
-  (testing "classes"
-    (is (t/compatible? String String))
-    (is (t/compatible? String [String])))
-  (testing "subclasses"
-    (is (t/compatible? Integer Number))
-    (is (t/compatible? Integer s/Num)))
-  (testing "wildcards"
-    (is (t/compatible? T1 s/Any))
-    (is (t/compatible? String s/Any))
-    (is (t/compatible? [String] s/Any))))
+  (are [first second allow-collection? compatible?]
+    (= compatible? (t/compatible? first second allow-collection?))
+    T1 T1               false    true
+    T1 T1               true     false
+    T1 T2               false    false
+    T1 T2               true     false
+    T1 [T1]             true     true
+    T1 [T1]             false    false
+    T1 [T2]             true     false
+    T1 [T2]             false    false
+    String String       false    true
+    String String       true     false
+    String [String]     false    false
+    String [String]     true     true
+    [String] String     false    false
+    [String] String     true     false
+    [String] [String]   false    true
+    [String] [String]   true     false
+    [String] [[String]] true     true
+    Integer  Number     false    true
+    Integer  s/Num      false    true
+    T1       s/Any      false    true
+    T1       s/Any      true     true
+    T1       [s/Any]    false    false
+    T1       [s/Any]    true     true
+    String   s/Any      false    true
+    String   s/Any      true     true
+    String   [s/Any]    false    false
+    String   [s/Any]    true     true
+    [String] s/Any      false    true
+    [String] s/Any      true     true
+    [String] [s/Any]    false    true
+    [String] [s/Any]    false    true))

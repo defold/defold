@@ -5,8 +5,10 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
+            [schema.core :as s]
+            [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
-            [dynamo.node :as n]
+            [dynamo.node :as n :refer [Scope]]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.transaction :as it]))
@@ -15,7 +17,7 @@
 
 (n/defnode Resource
   (input a String)
-  (output b Keyword dummy-output))
+  (output b s/Keyword dummy-output))
 
 (n/defnode Downstream
   (input consumer String))
@@ -60,3 +62,22 @@
         (is (= :ok (:status tx-result)))
         (is (= 42 (:c (dg/node (:graph tx-result) (:_id resource)))))))))
 
+(def trigger-called (atom 0))
+
+(defn count-calls [& _]
+  (swap! trigger-called inc))
+
+(n/defnode CountingScope
+  (inherits Scope)
+  (property triggers {:default [#'count-calls]}))
+
+(deftest trigger-runs-once
+  (testing "attach one node output to input on another node"
+    (with-clean-world
+      (reset! trigger-called 0)
+      (let [consumer (ds/transactional
+                       (ds/in
+                        (ds/add (make-counting-scope))
+                        (ds/add (make-downstream))
+                        (ds/add (make-resource))))]
+        (is (= 1 @trigger-called))))))

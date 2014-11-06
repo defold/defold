@@ -85,7 +85,7 @@
         (first (iq/query (:world-ref project-scope) [[:filename f]]))))))
 
 (defn- send-project-scope-message
-  [self txn]
+  [graph self txn]
   (doseq [n (:nodes-added txn)]
     (ds/send-after n {:type :project-scope :scope self})))
 
@@ -95,7 +95,7 @@
 (defnode Project
   (inherits Scope)
 
-  (property triggers {:schema s/Any :default [#'send-project-scope-message]})
+  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-project-scope-message]})
   (property tag {:schema s/Keyword :default :project})
   (property eclipse-project IProject)
   (property branch String))
