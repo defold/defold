@@ -324,8 +324,6 @@
 
   (property movement {:schema s/Any :default :idle})
 
-  (output self CameraController [this _] this)
-
   (on :mouse-down
     (ds/set-property self
        :last-x (:x event)
