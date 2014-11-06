@@ -7,7 +7,7 @@
             [dynamo.resource :refer [IDisposable dispose]]
             [dynamo.gl.protocols :refer :all])
   (:import [java.nio IntBuffer ByteBuffer]
-           [javax.media.opengl GL GL2]
+           [javax.media.opengl GL GL2 GLContext]
            [javax.vecmath Matrix4d Vector4f]
            [dynamo.file PathManipulation]))
 
@@ -269,7 +269,7 @@
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
 (defn make-shader
-  [^GL2 gl verts frags]
+  [^GLContext ctx ^GL2 gl verts frags]
   (let [vs (make-vertex-shader gl verts)
         fs (make-fragment-shader gl frags)
         program (make-program gl vs fs)]
@@ -279,12 +279,16 @@
 
       IDisposable
       (dispose [this]
-        (when (not= 0 vs)
-          (.glDeleteShader gl vs))
-        (when (not= 0 fs)
-          (.glDeleteShader gl fs))
-        (when (not= 0 program)
-          (.glDeleteProgram gl program)))
+        (.makeCurrent ctx)
+        (try
+          (when (not= 0 vs)
+            (.glDeleteShader gl vs))
+          (when (not= 0 fs)
+            (.glDeleteShader gl fs))
+          (when (not= 0 program)
+            (.glDeleteProgram gl program))
+          (finally
+            (.release ctx))))
 
       GlEnable
       (enable [this]
@@ -300,10 +304,10 @@
           (set-uniform-at-index gl program loc val))))))
 
 (defn load-shaders
-  [^GL2 gl ^PathManipulation sdef]
-  (make-shader gl
-                (slurp (replace-extension sdef "vp"))
-                (slurp (replace-extension sdef "fp"))))
+  [^GLContext ctx ^GL2 gl ^PathManipulation sdef]
+  (make-shader ctx gl
+    (slurp (replace-extension sdef "vp"))
+    (slurp (replace-extension sdef "fp"))))
 
 (doseq [[v doc]
         {*ns*

@@ -181,14 +181,14 @@
     (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
 
 (defnk produce-shader :- s/Int
-  [this gl]
-  (shader/make-shader gl pos-uv-vert pos-uv-frag))
+  [this gl ctx]
+  (shader/make-shader ctx gl pos-uv-vert pos-uv-frag))
 
 (defn render-textureset
   [ctx gl this]
   (handler-bind
     (:unreadable-resource use-placeholder)
-  (do-gl [this            (assoc this :gl gl)
+  (do-gl [this            (assoc this :gl gl :ctx ctx)
           textureset      (get-node-value this :textureset)
           texture         (get-node-value this :gpu-texture)
           shader          (get-node-value this :shader)
