@@ -30,7 +30,7 @@
         project     (iq/node-consuming this :self)]
     (markers/remove-markers source-file)
     (try
-      (ds/transactional (:world-ref this)
+      (ds/transactional
         (ds/in project
          (Compiler/load (io/reader resource) (file/local-path resource) (.getName source-file))
          (UnloadableNamespace. ns-decl)))

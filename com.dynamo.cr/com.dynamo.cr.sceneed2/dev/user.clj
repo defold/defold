@@ -36,8 +36,8 @@
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
-(defn the-world [] (:world @is/the-system))
-(defn the-graph [] (-> is/the-system deref :world :state is/graph))
+(defn the-world [] (-> is/the-system deref :world))
+(defn the-graph [] (-> (the-world) :state is/graph))
 
 (defn nodes-and-classes
   []
@@ -54,7 +54,7 @@
 
 (defn update-node
   [id f & args]
-  (ds/transactional (-> @is/the-system :world :state)
+  (ds/transactional
     (apply ds/update {:_id id} f args)))
 
 (defn images-from-dir

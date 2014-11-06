@@ -507,7 +507,7 @@
   [world-ref project-node editor-site file]
   (let [atlas-node (p/node-by-filename project-node file)
         editor (make-scene-editor :name "editor")]
-    (transactional world-ref
+    (transactional
       (in (add editor)
         (let [background (add (make-background))
               grid       (add (make-grid))
