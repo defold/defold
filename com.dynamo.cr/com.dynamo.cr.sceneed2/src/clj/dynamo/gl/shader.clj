@@ -268,27 +268,26 @@
 (def make-fragment-shader (partial make-shader* GL2/GL_FRAGMENT_SHADER))
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
+(defn delete-shader
+  [^GL2 gl shader]
+  (when (not= 0)
+    (.glDeleteShader gl shader)))
+
 (defn make-shader
   [^GLContext ctx ^GL2 gl verts frags]
   (let [vs (make-vertex-shader gl verts)
         fs (make-fragment-shader gl frags)
         program (make-program gl vs fs)]
+    (delete-shader gl vs)
+    (delete-shader gl fs)
     (reify
       ShaderProgram
       (shader-program [this] program)
 
       IDisposable
       (dispose [this]
-        (.makeCurrent ctx)
-        (try
-          (when (not= 0 vs)
-            (.glDeleteShader gl vs))
-          (when (not= 0 fs)
-            (.glDeleteShader gl fs))
-          (when (not= 0 program)
-            (.glDeleteProgram gl program))
-          (finally
-            (.release ctx))))
+        (when (not= 0 program)
+          (.glDeleteProgram gl program)))
 
       GlEnable
       (enable [this]
