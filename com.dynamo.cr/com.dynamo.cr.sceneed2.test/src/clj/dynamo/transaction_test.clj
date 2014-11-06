@@ -28,7 +28,7 @@
   (prop/for-all [nn gen-node]
     (with-clean-world
       (let [before (:_id nn)]
-        (= before (:original-id (first (tx-nodes world-ref nn))))))))
+        (= before (:original-id (first (tx-nodes nn))))))))
 
 (deftest low-level-transactions
   (testing "one node with tempid"
@@ -38,7 +38,7 @@
         (is (= "known value" (:a (dg/node (:graph tx-result) (it/resolve-tempid tx-result -5))))))))
   (testing "two connected nodes"
     (with-clean-world
-      (let [[resource1 resource2] (tx-nodes world-ref (make-resource :_id -1) (make-downstream :_id -2))
+      (let [[resource1 resource2] (tx-nodes (make-resource :_id -1) (make-downstream :_id -2))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
             after                 (:graph (it/transact world-ref (it/connect resource1 :b resource2 :consumer)))]
@@ -46,7 +46,7 @@
         (is (= [id2 :consumer] (first (lg/targets after id1 :b)))))))
   (testing "disconnect two singly-connected nodes"
     (with-clean-world
-      (let [[resource1 resource2] (tx-nodes world-ref (make-resource :_id -1) (make-downstream :_id -2))
+      (let [[resource1 resource2] (tx-nodes (make-resource :_id -1) (make-downstream :_id -2))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
             tx-result             (it/transact world-ref (it/connect    resource1 :b resource2 :consumer))
@@ -57,7 +57,7 @@
         (is (= [] (lg/targets after id1 :b))))))
   (testing "simple update"
     (with-clean-world
-      (let [[resource] (tx-nodes world-ref (make-resource :c 0))
+      (let [[resource] (tx-nodes (make-resource :c 0))
             tx-result  (it/transact world-ref (it/update-node resource update-in [:c] + 42))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (:c (dg/node (:graph tx-result) (:_id resource)))))))))

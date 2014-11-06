@@ -85,13 +85,13 @@
 (defn build-sample-project
   []
   (with-clean-world
-    (let [nodes (tx-nodes world-ref
+    (let [nodes (tx-nodes
                   (make-cache-test-node :scalar "Jane")
                   (make-cache-test-node :scalar "Doe")
                   (make-cache-test-node)
                   (make-cache-test-node))
           [name1 name2 combiner expensive]  nodes]
-      (ds/transactional world-ref
+      (ds/transactional
         (ds/connect name1 :uncached-value combiner :first-name)
         (ds/connect name2 :uncached-value combiner :last-name)
         (ds/connect name1 :uncached-value expensive :operand))
@@ -164,11 +164,11 @@
 (defn build-override-project
   []
   (with-clean-world
-    (let [nodes (tx-nodes world-ref
+    (let [nodes (tx-nodes
                   (make-override-value-node)
                   (make-cache-test-node :scalar "Jane"))
           [override jane]  nodes]
-      (ds/transactional world-ref
+      (ds/transactional
         (ds/connect jane :uncached-value override :overridden))
       nodes)))
 
@@ -196,7 +196,7 @@
 (defn build-project-aware-node
   [project-name]
   (with-clean-world
-    (ds/transactional world-ref
+    (ds/transactional
       (ds/in (ds/add (p/make-project :name project-name))
         (ds/in (ds/add (make-project-aware-node))
           (ds/add (make-project-aware-node)))))))
@@ -207,15 +207,15 @@
 
 (deftest update-node-sees-in-transaction-value
   (with-clean-world
-    (let [node (ds/transactional world-ref
-                 (ds/add (p/make-project :name "a project" :int-prop 0)))]
-      (let [after-transaction (ds/transactional world-ref
-                                (ds/update-property node :int-prop inc)
-                                (ds/update-property node :int-prop inc)
-                                (ds/update-property node :int-prop inc)
-                                (ds/update-property node :int-prop inc)
-                                node)]
-        (is (= 4 (:int-prop after-transaction)))))))
+    (let [node (ds/transactional
+                 (ds/add (p/make-project :name "a project" :int-prop 0)))
+          after-transaction (ds/transactional
+                              (ds/update-property node :int-prop inc)
+                              (ds/update-property node :int-prop inc)
+                              (ds/update-property node :int-prop inc)
+                              (ds/update-property node :int-prop inc)
+                              node)]
+      (is (= 4 (:int-prop after-transaction))))))
 
 (n/defnode ScopeReceiver
   (on :project-scope
@@ -224,9 +224,8 @@
 (deftest node-receives-scope-message
   (testing "project scope message"
     (with-clean-world
-      (let [world-time (:world-time @world-ref)
-            ps-node    (ds/transactional world-ref
-                         (ds/in (ds/add (p/make-project :name "a project"))
-                           (ds/add (make-scope-receiver))))]
+      (let [ps-node (ds/transactional
+                      (ds/in (ds/add (p/make-project :name "a project"))
+                        (ds/add (make-scope-receiver))))]
         (await-world-time world-ref 3 500)
         (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))

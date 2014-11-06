@@ -70,7 +70,7 @@
 
 (defn- load-resource
   [project-scope path]
-  (ds/transactional (:world-ref project-scope)
+  (ds/transactional
     (ds/in project-scope
       ((loader-for project-scope (file/extension path)) path (io/reader path)))))
 
@@ -101,7 +101,7 @@
 
 (defn- open-project-in-world
   [world-ref eclipse-project branch]
-  (ds/transactional world-ref
+  (ds/transactional
     (let [project-node    (ds/add (make-project :eclipse-project eclipse-project :branch branch :handlers default-handlers))
           clojure-sources (filter clojure/clojure-source? (resources/resource-seq eclipse-project))]
       (ds/in project-node

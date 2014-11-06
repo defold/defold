@@ -23,7 +23,7 @@
      (ds/in ~'root
          ~@forms)))
 
-(defn tx-nodes [world-ref & resources]
+(defn tx-nodes [& resources]
   (ds/transactional
     (doseq [r resources]
       (ds/add r))
