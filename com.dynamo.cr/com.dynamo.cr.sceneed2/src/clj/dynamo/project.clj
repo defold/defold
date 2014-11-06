@@ -8,7 +8,6 @@
             [dynamo.types :as t]
             [dynamo.system :as ds]
             [dynamo.file :as file]
-            [dynamo.resource :refer [disposable?]]
             [dynamo.node :as n :refer [defnode Scope]]
             [dynamo.ui :as ui]
             [internal.clojure :as clojure]

@@ -1,7 +1,6 @@
 (ns dynamo.system
   (:require [clojure.core.async :as a]
             [clojure.core.cache :as cache]
-            [dynamo.resource :refer [disposable?]]
             [dynamo.types :as t]
             [internal.bus :as bus]
             [internal.graph.dgraph :as dg]

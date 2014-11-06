@@ -2,7 +2,6 @@
   (:require [clojure.set :as set]
             [clojure.core.async :as a]
             [clojure.core.cache :as cache]
-            [dynamo.resource :refer [disposable?]]
             [dynamo.types :as t]
             [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
@@ -181,7 +180,7 @@
 
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys] :as ctx}]
-  (assoc ctx :values-to-dispose (keep identity (filter disposable? (map #(get cache %) obsolete-cache-keys)))))
+  (assoc ctx :values-to-dispose (keep identity (filter t/disposable? (map #(get cache %) obsolete-cache-keys)))))
 
 (defn- evict-obsolete-caches
   [{:keys [obsolete-cache-keys] :as ctx}]

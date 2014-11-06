@@ -2,10 +2,10 @@
   (:require [clojure.java.io :as io]
             [clojure.tools.namespace.file :refer [read-file-ns-decl]]
             [plumbing.core :refer [defnk]]
-            [dynamo.resource :as resource]
             [dynamo.file :as file]
             [dynamo.node :refer [defnode]]
             [dynamo.system :as ds]
+            [dynamo.types :as t]
             [internal.query :as iq]
             [eclipse.markers :as markers]
             [service.log :as log])
@@ -18,7 +18,7 @@
        (.endsWith (.getName resource) ".clj")))
 
 (defrecord UnloadableNamespace [ns-decl]
-  resource/IDisposable
+  t/IDisposable
   (dispose [this]
     (when (list? ns-decl)
       (remove-ns (second ns-decl)))))

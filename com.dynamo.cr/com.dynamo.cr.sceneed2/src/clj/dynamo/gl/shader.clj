@@ -4,7 +4,7 @@
             [dynamo.buffers :refer [bbuf->string]]
             [dynamo.geom :as g]
             [dynamo.file :refer [replace-extension]]
-            [dynamo.resource :refer [IDisposable dispose]]
+            [dynamo.types :refer [IDisposable dispose]]
             [dynamo.gl.protocols :refer :all])
   (:import [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GLContext]
@@ -270,7 +270,7 @@
 
 (defn delete-shader
   [^GL2 gl shader]
-  (when (not= 0)
+  (when (not= 0 shader)
     (.glDeleteShader gl shader)))
 
 (defn make-shader

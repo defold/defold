@@ -12,6 +12,11 @@
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------
+(defprotocol IDisposable
+  (dispose [this] "Clean up a value, including thread-jumping as needed"))
+
+(defn disposable? [x] (satisfies? IDisposable x))
+
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
 

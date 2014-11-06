@@ -6,7 +6,6 @@
             [schema.core :as s]
             [internal.bus :as bus]
             [internal.cache :refer [make-cache]]
-            [internal.disposal :refer [disposal-message disposal-subsystem]]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
@@ -25,11 +24,12 @@
 
 (defn new-world-state
   [state root]
-   {:graph        (attach-root (dg/empty-graph) root)
-    :cache        (make-cache)
-    :cache-keys   {}
-    :world-time   0
-    :message-bus  (bus/make-bus)})
+   {:graph          (attach-root (dg/empty-graph) root)
+    :cache          (make-cache)
+    :cache-keys     {}
+    :world-time     0
+    :message-bus    (bus/make-bus)
+    :disposal-queue (a/chan (a/dropping-buffer 1000))})
 
 (defrecord World [started state]
   component/Lifecycle
@@ -63,13 +63,6 @@
     (add-watch world-ref :tx-report (partial send-tx-reports report-ch))
     (->World false world-ref)))
 
-(defn- disposal-messages
-  [tx-report]
-  (filter identity
-    (for [v (:values-to-dispose tx-report)]
-      (logging-exceptions "extracting disposal message"
-        (disposal-message v)))))
-
 (defn- refresh-messages
   [{:keys [expired-outputs graph]}]
   (filter identity
@@ -78,33 +71,27 @@
         (refresh-message node graph output)))))
 
 (defn- multiplex-reports
-  [tx-report dispose refresh]
-  (a/onto-chan dispose (disposal-messages tx-report) false)
+  [tx-report refresh]
   (a/onto-chan refresh (refresh-messages tx-report) false))
 
 (defn shred-tx-reports
   [in]
-  (let [dispose (a/chan (a/sliding-buffer 1000))
-        refresh (a/chan (a/sliding-buffer 1000))]
+  (let [refresh (a/chan (a/sliding-buffer 1000))]
     (a/go-loop []
       (let [tx-report (a/<! in)]
         (if tx-report
           (do
-            (multiplex-reports tx-report dispose refresh)
+            (multiplex-reports tx-report refresh)
             (recur))
-          (do
-            (a/close! dispose)
-            (a/close! refresh)))))
-    {:dispose dispose :refresh refresh}))
+          (a/close! refresh))))
+    refresh))
 
 (defn system
  []
- (let [tx-report-chan (a/chan 1)
-       {:keys [dispose refresh]} (shred-tx-reports tx-report-chan)]
+ (let [tx-report-chan (a/chan 1)]
    (component/map->SystemMap
-     {:disposal  (disposal-subsystem dispose)
-      :refresh   (refresh-subsystem  refresh)
-      :world     (component/using (world tx-report-chan) [:disposal :refresh])})))
+     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan))
+      :world     (component/using (world tx-report-chan) [:refresh])})))
 
 (def the-system (atom (system)))
 

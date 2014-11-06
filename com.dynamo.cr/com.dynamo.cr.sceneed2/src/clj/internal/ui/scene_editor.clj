@@ -11,6 +11,7 @@
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [service.log :as log]
+            [internal.disposal :as disp]
             [internal.render.pass :as pass]
             [internal.ui.background :as back]
             [internal.fps :refer [new-fps-tracker]]
@@ -70,6 +71,7 @@
 (defnk paint-renderer
   [^GLContext context ^GLCanvas canvas this ^Camera view-camera text-renderer]
   (ui/swt-safe
+   (disp/dispose-pending (:world-ref this))
     (when (and canvas (not (.isDisposed canvas)))
       (.setCurrent canvas)
       (with-context context [gl glu]

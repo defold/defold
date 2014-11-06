@@ -5,7 +5,6 @@
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n :refer [Scope]]
             [dynamo.project :as p]
-            [dynamo.resource :as r]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
@@ -141,13 +140,13 @@
 (defnk compute-disposable-value
   [this g]
   (tally this 'compute-disposable-value)
-  (reify r/IDisposable
-    (dispose [t]
+  (reify t/IDisposable
+    (dispose [v]
       (tally this 'dispose)
       (>!! (:channel (dg/node g this)) :gone))))
 
 (n/defnode DisposableValueNode
-  (output disposable-value r/IDisposable :cached compute-disposable-value))
+  (output disposable-value t/IDisposable :cached compute-disposable-value))
 
 (defnk produce-input-from-node
   [overridden]

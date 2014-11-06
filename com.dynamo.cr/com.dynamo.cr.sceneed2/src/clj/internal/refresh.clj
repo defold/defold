@@ -1,7 +1,6 @@
 (ns internal.refresh
   (:require [clojure.core.async :as a]
             [com.stuartsierra.component :as component]
-            [dynamo.resource :as r]
             [dynamo.types :as t]
             [service.log :as log :refer [logging-exceptions]]))
 
