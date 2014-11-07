@@ -924,7 +924,7 @@ def run_gtests(valgrind = False):
 def linux_link_flags(self):
     platform = self.env['PLATFORM']
     if platform == 'linux':
-        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm'])
+        self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
 @feature('swf')
 @after('apply_link')
@@ -1133,6 +1133,13 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
+    if getattr(Options.options, 'use_vanilla_lua', False) == False and 'web' != build_util.get_target_os():
+        conf.env['STATICLIB_LUA'] = 'luajit-5.1'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
+    else:
+        conf.env['STATICLIB_LUA'] = 'lua'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'no'
+
 def configure(conf):
     detect(conf)
 
@@ -1157,4 +1164,4 @@ def set_options(opt):
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
-
+    opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')

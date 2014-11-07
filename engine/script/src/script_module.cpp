@@ -12,6 +12,8 @@
 
 #include <ddf/ddf.h>
 
+#include "script/lua_source_ddf.h"
+
 extern "C"
 {
 #include <lua/lauxlib.h>
@@ -20,36 +22,40 @@ extern "C"
 
 namespace dmScript
 {
-    struct LuaLoadData
-    {
-        const char* m_Buffer;
-        uint32_t m_Size;
-    };
 
-    static const char* ReadScript(lua_State *L, void *data, size_t *size)
+    // Helper function where the decision is made if to load bytecode or source code.
+    //
+    // Currently the bytecode is only ever built with LuaJIT which means it cannot be loaded
+    // with vanilla lua runtime. The LUA_BYTECODE_ENABLE indicates if we can load bytecode,
+    // and in reality, if linking happens against LuaJIT.
+    static void GetLuaSource(dmLuaDDF::LuaSource *source, const char **buf, uint32_t *size)
     {
-        LuaLoadData* lua_load_data = (LuaLoadData*)data;
-        if (lua_load_data->m_Size == 0)
+#if defined(LUA_BYTECODE_ENABLE)
+        if (source->m_Bytecode.m_Count > 0)
         {
-            return 0x0;
+            *buf = (const char*)source->m_Bytecode.m_Data;
+            *size = source->m_Bytecode.m_Count;
+            return;
         }
-        else
-        {
-            *size = lua_load_data->m_Size;
-            lua_load_data->m_Size = 0;
-            return lua_load_data->m_Buffer;
-        }
+#endif
+        *buf = (const char*)source->m_Script.m_Data;
+        *size = source->m_Script.m_Count;
     }
 
-    static bool LoadScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename)
+    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource *source, const char *filename)
+    {
+        const char *buf;
+        uint32_t size;
+        GetLuaSource(source, &buf, &size);
+        return luaL_loadbuffer(L, buf, size, filename);
+    }
+
+    static bool LuaLoadModule(lua_State *L, const char *buf, uint32_t size, const char *filename)
     {
         int top = lua_gettop(L);
         (void) top;
 
-        LuaLoadData data;
-        data.m_Buffer = (const char*)buffer;
-        data.m_Size = buffer_size;
-        int ret = lua_load(L, &ReadScript, &data, filename);
+        int ret = luaL_loadbuffer(L, buf, size, filename);
         if (ret == 0)
         {
             assert(top + 1 == lua_gettop(L));
@@ -62,6 +68,8 @@ namespace dmScript
             assert(top == lua_gettop(L));
             return false;
         }
+
+        return true;
     }
 
     static int LoadModule (lua_State *L) {
@@ -82,7 +90,8 @@ namespace dmScript
             assert(top + 1  == lua_gettop(L));
             return 1;
         }
-        if (!LoadScript(L, module->m_Script, module->m_ScriptSize, name))
+
+        if (!LuaLoadModule(L, module->m_Script, module->m_ScriptSize, name))
         {
             luaL_error(L, "error loading module '%s'from file '%s':\n\t%s",
                           lua_tostring(L, 1), name, lua_tostring(L, -1));
@@ -91,15 +100,22 @@ namespace dmScript
         return 1;
     }
 
-    Result AddModule(HContext context, const char* script, uint32_t script_size, const char* script_name, void* resource, dmhash_t path_hash)
+    Result AddModule(HContext context, dmLuaDDF::LuaSource *source, const char *script_name, void* resource, dmhash_t path_hash)
     {
         dmhash_t module_hash = dmHashString64(script_name);
 
+
         Module module;
         module.m_Name = strdup(script_name);
-        module.m_Script = (char*) malloc(script_size);
-        memcpy(module.m_Script, script, script_size);
-        module.m_ScriptSize = script_size;
+
+        const char *buf;
+        uint32_t size;
+        GetLuaSource(source, &buf, &size);
+
+        module.m_Script = (char*) malloc(size);
+        module.m_ScriptSize = size;
+        memcpy(module.m_Script, buf, size);
+
         module.m_Resource = resource;
 
         if (context->m_Modules.Full())
@@ -115,7 +131,7 @@ namespace dmScript
         return RESULT_OK;
     }
 
-    Result ReloadModule(HContext context, const char* script, uint32_t script_size, dmhash_t path_hash)
+    Result ReloadModule(HContext context, dmLuaDDF::LuaSource *source, dmhash_t path_hash)
     {
         lua_State* L = GetLuaState(context);
         int top = lua_gettop(L);
@@ -128,13 +144,15 @@ namespace dmScript
         }
         Module* module = *module_handle;
 
-        free(module->m_Script);
+        const char *buf;
+        uint32_t size;
+        GetLuaSource(source, &buf, &size);
 
-        module->m_Script = (char*) malloc(script_size);
-        memcpy(module->m_Script, script, script_size);
-        module->m_ScriptSize = script_size;
+        module->m_Script = (char*) realloc(module->m_Script, size);
+        module->m_ScriptSize = size;
+        memcpy(module->m_Script, buf, size);
 
-        if (LoadScript(L, script, script_size, module->m_Name))
+        if (LuaLoadModule(L, buf, size, module->m_Name))
         {
             lua_pushstring(L, module->m_Name);
             int ret = dmScript::PCall(L, 1, LUA_MULTRET);
@@ -160,7 +178,6 @@ namespace dmScript
         if (value->m_Resource != 0) {
             dmResource::Release((dmResource::HFactory)context, value->m_Resource);
         }
-        free(value->m_Name);
         free(value->m_Script);
     }
 

@@ -9,6 +9,7 @@
 #include <dlib/profile.h>
 
 #include <script/script.h>
+#include <script/lua_source_ddf.h>
 
 #include "font_renderer.h"
 #include "render/render_ddf.h"
@@ -1769,28 +1770,7 @@ namespace dmRender
         context.m_LuaState = 0;
     }
 
-    struct LuaData
-    {
-        const char* m_Buffer;
-        uint32_t m_Size;
-    };
-
-    const char* ReadScript(lua_State *L, void *data, size_t *size)
-    {
-        LuaData* lua_data = (LuaData*)data;
-        if (lua_data->m_Size == 0)
-        {
-            return 0x0;
-        }
-        else
-        {
-            *size = lua_data->m_Size;
-            lua_data->m_Size = 0;
-            return lua_data->m_Buffer;
-        }
-    }
-
-    static bool LoadRenderScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename, RenderScript* script)
+    static bool LoadRenderScript(lua_State* L, dmLuaDDF::LuaSource *source, const char* filename, RenderScript* script)
     {
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -1799,10 +1779,7 @@ namespace dmRender
         int top = lua_gettop(L);
         (void) top;
 
-        LuaData data;
-        data.m_Buffer = (const char*)buffer;
-        data.m_Size = buffer_size;
-        int ret = lua_load(L, &ReadScript, &data, filename);
+        int ret = dmScript::LuaLoad(L, source, filename);
         if (ret == 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
@@ -1861,7 +1838,7 @@ bail:
         }
     }
 
-    HRenderScript NewRenderScript(HRenderContext render_context, const void* buffer, uint32_t buffer_size, const char* filename)
+    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source, const char* filename)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
@@ -1874,7 +1851,7 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT);
         lua_setmetatable(L, -2);
         render_script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
-        if (LoadRenderScript(L, buffer, buffer_size, filename, render_script))
+        if (LoadRenderScript(L, source, filename, render_script))
         {
             assert(top == lua_gettop(L));
             return render_script;
@@ -1887,9 +1864,9 @@ bail:
         }
     }
 
-    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename)
+    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source, const char* filename)
     {
-        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, buffer, buffer_size, filename, render_script);
+        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, filename, render_script);
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)

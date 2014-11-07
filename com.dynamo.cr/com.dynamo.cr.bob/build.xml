@@ -20,6 +20,7 @@
                 <arg value="--java_out=generated"/>
                 <arg value="-I@{dir}"/>
                 <arg value="-I${env.DYNAMO_HOME}/ext/include"/>
+                <arg value="-I../../engine/script/src" />
                 <arg value="-I../../engine/ddf/src"/>
                 <arg value="@{dir}/@{file}"/>
             </exec>
@@ -43,7 +44,7 @@
             <proto dir="../../engine/engine/proto" file="engine_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="properties_ddf.proto"/>
             <proto dir="../../engine/gameobject/proto" file="gameobject_ddf.proto"/>
-            <proto dir="../../engine/gameobject/proto" file="lua_ddf.proto"/>
+            <proto dir="../../engine/gameobject/proto/" file="lua_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="atlas_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="camera_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>
@@ -63,9 +64,21 @@
             <proto dir="../../engine/render/proto/render" file="material_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="render_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource_ddf.proto"/>
-            <proto dir="../../engine/script/proto" file="script_doc_ddf.proto"/>
+            <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
+            <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
+
+        <copy todir="libexec">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin">
+                <include name="**/*luajit*"/>
+            </fileset>
+        </copy>
+         <copy todir="share">
+            <fileset dir="${env.DYNAMO_HOME}/ext/share">
+                <include name="luajit/jit/*.lua"/>
+            </fileset>
+        </copy>
 
         <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
              specifically vecmath.jar on OSX -->
@@ -122,6 +135,10 @@
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
             </fileset>
+            <fileset dir=".">
+                <include name="libexec/*/*luajit*"/>
+                <include name="share/luajit/**"/>
+            </fileset>
             <zipfileset src="tmp/external-libs.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
@@ -129,7 +146,6 @@
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
             </manifest>
-
         </jar>
     </target>
 
@@ -152,6 +168,10 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
+            </fileset>
+            <fileset dir=".">
+                <include name="libexec/*/*luajit*"/>
+                <include name="share/luajit/**.*"/>
             </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">

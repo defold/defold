@@ -21,6 +21,7 @@ def init():
 def set_options(opt):
     opt.sub_options('src')
     opt.tool_options('waf_dynamo')
+    opt.tool_options('waf_ddf')
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
@@ -94,7 +95,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_RENDER'] = 'render'
     conf.env['STATICLIB_GAMESYS'] = 'gamesys'
     conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
-    conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_GUI'] = 'gui'

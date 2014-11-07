@@ -6,12 +6,13 @@ def configure(conf):
 
 def build(bld):
     script = bld.new_task_gen(features = 'cxx cc cstaticlib',
-                          includes = '. ../proto',
+                          includes = '. script',
                           proto_gen_cc = False,
                           proto_gen_py = True,
-                          protoc_includes = '../proto',
+                          protoc_includes = '. script',
                           target = 'script')
-    script.find_sources_in_dirs(['.', '../proto'])
+
+    script.find_sources_in_dirs(['script', '.'])
 
     if bld.env.PLATFORM == 'js-web':
         script.source.remove(os.path.join('.','script_http.cpp'))
@@ -29,9 +30,13 @@ def build(bld):
     else:
         script.source.remove(os.path.join('luasocket', 'wsocket.c'))
 
+    # must not enable bytecode when building with --use-vanilla-lua
+    if bld.env.LUA_BYTECODE_ENABLE == 'yes':
+        script.cxxflags = ['-DLUA_BYTECODE_ENABLE']
+
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above
     # in order to avoid installation of dummylib
-    bld.install_files('${PREFIX}/lib/python', '../proto/script_doc_ddf_pb2.py')
+    bld.install_files('${PREFIX}/lib/python', 'script/script_doc_ddf_pb2.py')
 
     bld.add_group()
 
@@ -56,6 +61,19 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'script_doc.bat')
     bld.install_files('${PREFIX}/lib/python', 'script_doc.py')
     bld.install_files('${PREFIX}/include/script', 'script.h')
+
+    # for #imports to work for other projects
+    # ..first for python
+    ddf_ext = bld.new_task_gen(
+         rule   = 'echo "" > ${TGT}',
+         source = 'script/lua_source_ddf.proto',
+         target = '__init__.py',
+         shell = True)
+
+    bld.install_files('${PREFIX}/share/script', 'script/lua_source_ddf.proto')
+    bld.install_files('${PREFIX}/lib/python/script', '__init__.py')
+
+
     if bld.env.PLATFORM == 'js-web':
         bld.install_files('${PREFIX}/lib/js-web/js', '../lib/js/library_script.js', postpone = False)
 
