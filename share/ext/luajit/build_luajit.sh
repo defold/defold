@@ -78,6 +78,15 @@ case $1 in
 	linux)
 		export TARGET_SYS=Linux
 		;;
+	darwin)
+		function cmi_make() {
+                    set -e
+                    make -j8
+                    make install
+                    set +e
+                    cp src/lj.supp $PREFIX/share/luajit
+		}
+		;;
 	win32)
 		function cmi_make() {
 			cd src

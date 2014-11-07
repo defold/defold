@@ -912,7 +912,7 @@ def run_gtests(valgrind = False):
                 filename = '%s %s' % (Build.bld.env['NODEJS'], filename)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
-                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, filename)
+                filename = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, filename)
             proc = subprocess.Popen(filename, shell = True)
             ret = proc.wait()
             if ret != 0:
