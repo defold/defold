@@ -12,4 +12,4 @@ SHA1=`git log --pretty=%H -n1`
 cp -v $DYNAMO_HOME/archive/${SHA1}/ext/bin/linux/luajit libexec/linux/luajit
 cp -v $DYNAMO_HOME/archive/${SHA1}/ext/bin/darwin/luajit libexec/darwin/luajit
 cp -v $DYNAMO_HOME/archive/${SHA1}/ext/bin/win32/luajit.exe libexec/win32/luajit.exe
-cp -v -r $DYNAMO_HOME/archive/${SHA1}/share/luajit share
+cp -v -r $DYNAMO_HOME/ext/share/luajit share
