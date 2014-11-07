@@ -24,12 +24,13 @@
 
 (defn new-world-state
   [state root]
-   {:graph          (attach-root (dg/empty-graph) root)
-    :cache          (make-cache)
-    :cache-keys     {}
-    :world-time     0
-    :message-bus    (bus/make-bus)
-    :disposal-queue (a/chan (a/dropping-buffer 1000))})
+  {:graph               (attach-root (dg/empty-graph) root)
+   :cache               (make-cache)
+   :cache-keys          {}
+   :output-dependencies {}
+   :world-time          0
+   :message-bus         (bus/make-bus)
+   :disposal-queue      (a/chan (a/dropping-buffer 1000))})
 
 (defrecord World [started state]
   component/Lifecycle

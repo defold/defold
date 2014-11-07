@@ -28,7 +28,8 @@
   (properties [this]             "Produce a description of properties supported by this node.")
   (inputs     [this]             "Return a set of labels for the allowed inputs of the node.")
   (outputs    [this]             "Return a set of labels for the outputs of this node.")
-  (cached-outputs [this]         "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'."))
+  (cached-outputs [this]         "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
+  (output-dependencies [this]    "Return a map of labels for the outputs to sets of inputs that produce them. Outputs that don't have schemas are assumed to rely on :this and :g."))
 
 (defprotocol MessageTarget
   (process-one-event [this event]))

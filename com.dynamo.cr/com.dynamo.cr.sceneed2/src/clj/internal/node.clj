@@ -52,6 +52,8 @@
       (:use-value [v] v))
     (t/get-value node g label)))
 
+
+
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
@@ -255,6 +257,18 @@
   (for [[defined-in method-name args] (:record-methods descriptor)]
     `(~method-name ~args ((get-in ~defined-in [:methods ~(emit-quote method-name)]) ~@args))))
 
+(defn- descriptor->output-dependencies
+   [descriptor]
+   (reduce-kv
+    (fn [m output-label transform]
+      (let [transform (if (var? transform) (var-get transform) transform)]
+        (assoc m output-label
+          (if (t/has-schema? transform)
+            (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword)))
+            #{:this :g}))))
+    {}
+    (-> descriptor :transforms (dissoc :self))))
+
 (defn generate-defrecord [nm descriptor]
   (list* `defrecord (classname-for nm) (state-vector descriptor)
          `dynamo.types/Node
@@ -266,6 +280,7 @@
          `(inputs [t#] (into #{} (keys (:inputs ~nm))))
          `(outputs [t#] (into #{} (keys (:transforms ~nm))))
          `(cached-outputs [t#] (:cached ~nm))
+         `(output-dependencies [t#] ~(descriptor->output-dependencies descriptor))
          `t/MessageTarget
          (generate-message-processor nm descriptor)
          (concat

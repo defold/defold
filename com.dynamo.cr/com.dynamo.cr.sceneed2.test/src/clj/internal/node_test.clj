@@ -1,5 +1,6 @@
 (ns internal.node-test
   (:require [clojure.test :refer :all]
+            [schema.core :as s]
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
@@ -100,3 +101,40 @@
     (is (= :owie (complainer (make-my-node)))))
   (testing "node can implement interface not known/visible to internal.node"
     (is (= :ok (.allGood (make-my-node))))))
+
+(defnk depends-on-self [this] this)
+(defnk depends-on-input [an-input] an-input)
+(defnk depends-on-property [a-property] a-property)
+(defnk depends-on-several [this project g an-input a-property] [this project g an-input a-property])
+(defn  depends-on-default-params [this g] [this g])
+
+(defnode DependencyTestNode
+  (output depends-on-self s/Any depends-on-self)
+  (output depends-on-input s/Any depends-on-input)
+  (output depends-on-property s/Any depends-on-property)
+  (output depends-on-several s/Any depends-on-several)
+  (output depends-on-default-params s/Any depends-on-default-params))
+
+(deftest dependency-mapping
+  (testing "node reports its own dependencies"
+    (let [test-node (make-dependency-test-node)
+          deps      (t/output-dependencies test-node)]
+      (are [input expected-deps] (and (contains? deps input) (= expected-deps (get deps input)))
+           :depends-on-self           #{:this}
+           :depends-on-input          #{:an-input}
+           :depends-on-property       #{:a-property}
+           :depends-on-several        #{:this :project :g :an-input :a-property}
+           :depends-on-default-params #{:this :g})))
+  (testing "node dependencies are registered on the world"
+    (with-clean-world
+      (let [test-node (ds/transactional
+                       (ds/add (make-dependency-test-node)))
+            dependency-map (:output-dependencies @world-ref)]
+        (is (contains? dependency-map (:_id test-node)))
+        (let [node-deps (get dependency-map (:_id test-node))]
+          (are [input expected-deps] (and (contains? node-deps input) (= expected-deps (get node-deps input)))
+               :depends-on-self           #{:this}
+               :depends-on-input          #{:an-input}
+               :depends-on-property       #{:a-property}
+               :depends-on-several        #{:this :project :g :an-input :a-property}
+               :depends-on-default-params #{:this :g}))))))

@@ -105,7 +105,7 @@
 (defn has-tempid? [n] (and (:_id n) (neg? (:_id n))))
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
 
-(defn resource->cache-keys [n]
+(defn node->cache-keys [n]
   (zipmap (t/cached-outputs n) (repeatedly new-cache-key)))
 
 ; ---------------------------------------------------------------------------
@@ -114,18 +114,19 @@
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys nodes-modified world world-ref new-event-loops nodes-added] :as ctx} m]
+  [{:keys [graph tempids cache-keys nodes-modified output-dependencies world-ref new-event-loops nodes-added] :as ctx} m]
   (let [next-id     (dg/next-node graph)
         full-node   (assoc (:node m) :_id next-id :world-ref world-ref)
         graph-after (lg/add-labeled-node graph (-> m :node :descriptor :inputs keys) (-> m :node :descriptor :transforms keys) full-node)
         full-node   (dg/node graph-after next-id)]
     (assoc ctx
-      :graph           graph-after
-      :nodes-added     (conj nodes-added full-node)
-      :tempids         (assoc tempids (get-in m [:node :_id]) next-id)
-      :cache-keys      (assoc cache-keys next-id (resource->cache-keys full-node))
-      :new-event-loops (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
-      :nodes-modified  (conj nodes-modified next-id))))
+      :graph               graph-after
+      :nodes-added         (conj nodes-added full-node)
+      :output-dependencies (assoc output-dependencies next-id (t/output-dependencies full-node))
+      :tempids             (assoc tempids (get-in m [:node :_id]) next-id)
+      :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
+      :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
+      :nodes-modified      (conj nodes-modified next-id))))
 
 (defmethod perform :update-node
   [{:keys [graph nodes-modified] :as ctx} m]
@@ -236,31 +237,33 @@
 (defn- new-transaction-context
   [world-ref txs]
   (let [current-world @world-ref]
-    {:world-ref       world-ref
-     :world           current-world
-     :graph           (:graph current-world)
-     :cache           (:cache current-world)
-     :cache-keys      (:cache-keys current-world)
-     :world-time      (:world-time current-world)
-     :tempids         {}
-     :new-event-loops #{}
-     :nodes-added     #{}
-     :nodes-modified  #{}
-     :messages        []
-     :pending         [txs]}))
+    {:world-ref           world-ref
+     :world               current-world
+     :graph               (:graph current-world)
+     :cache               (:cache current-world)
+     :cache-keys          (:cache-keys current-world)
+     :output-dependencies (:output-dependencies current-world)
+     :world-time          (:world-time current-world)
+     :tempids             {}
+     :new-event-loops     #{}
+     :nodes-added         #{}
+     :nodes-modified      #{}
+     :messages            []
+     :pending             [txs]}))
 
 (def tx-report-keys [:status :expired-outputs :values-to-dispose :affected-nodes :new-event-loops :tempids :graph :txs :nodes-added])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.
    Likewise for cache and cache-keys."
-  [{:keys [graph cache cache-keys world-time] :as ctx} completed?]
+  [{:keys [graph cache cache-keys output-dependencies world-time] :as ctx} completed?]
   (if-not completed?
     (update-in ctx [:world] assoc :last-tx {:status :aborted})
     (update-in ctx [:world] assoc
             :graph      graph
             :cache      cache
             :cache-keys cache-keys
+            :output-dependencies output-dependencies
             :world-time (inc world-time)
             :last-tx    (assoc (select-keys ctx tx-report-keys) :status :ok))))
 
