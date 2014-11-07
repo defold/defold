@@ -1,8 +1,6 @@
 (ns dynamo.file.protobuf
   (:require [clojure.string :as str]
-            [internal.java :as j]
             [dynamo.file :as f]
-            [dynamo.project :as p]
             [dynamo.system :as ds]
             [camel-snake-kebab :refer :all])
   (:import [com.google.protobuf Message TextFormat]))

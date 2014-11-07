@@ -7,7 +7,6 @@
             [dynamo.ui :as ui]
             [dynamo.geom :as g]
             [dynamo.system :as ds]
-            [internal.cache :refer [caching]]
             [dynamo.geom :as g]
             [internal.query :as iq])
   (:import [javax.vecmath Point3d Quat4d Matrix4d Vector3d Vector4d AxisAngle4d]

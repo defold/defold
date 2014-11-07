@@ -2,7 +2,6 @@
   (:require [clojure.core.async :as a]
             [clojure.core.cache :as cache]
             [dynamo.types :as t]
-            [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.query :as iq]

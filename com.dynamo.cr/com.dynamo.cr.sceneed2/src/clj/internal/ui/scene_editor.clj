@@ -3,7 +3,6 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.camera :as c]
-            [dynamo.editors :as e]
             [dynamo.geom :as g]
             [dynamo.gl :refer :all]
             [dynamo.node :as n :refer [Scope]]
@@ -13,9 +12,6 @@
             [service.log :as log]
             [internal.disposal :as disp]
             [internal.render.pass :as pass]
-            [internal.ui.background :as back]
-            [internal.fps :refer [new-fps-tracker]]
-            [internal.ui.grid :as grid]
             [internal.query :as iq])
   (:import [javax.media.opengl GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
