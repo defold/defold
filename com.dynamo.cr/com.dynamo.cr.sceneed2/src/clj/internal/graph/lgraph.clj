@@ -40,8 +40,6 @@
 
 (defn connected?
   [g source source-label target target-label]
-  (println "lg/connected? " source source-label target target-label)
-  (println "lg/connected? "           (dg/arcs-from-to g source target))
   (not
    (empty?
     (filter

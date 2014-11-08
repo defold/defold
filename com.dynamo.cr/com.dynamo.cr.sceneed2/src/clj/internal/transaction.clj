@@ -46,7 +46,7 @@
 
 (deftype NullTransaction []
   Transaction
-  (tx-bind [this step]       nil)
+  (tx-bind [this step]       (assert false "This must be done inside a (transactional) block."))
   (tx-apply [this]           nil)
   (tx-begin [this world-ref] (->RootTransaction world-ref (transient []))))
 

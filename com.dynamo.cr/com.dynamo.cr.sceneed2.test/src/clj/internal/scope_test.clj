@@ -19,8 +19,8 @@
 (deftest input-compatibility
   (let [n1 (make-n-1)
         n2 (make-n-2)]
-    (are [out-node out out-type in-node in in-type expect-compat why] 
-      (= expect-compat (in/compatible? out-node out out-type in-node in in-type))
+    (are [out-node out out-type in-node in in-type expect-compat why]
+      (= expect-compat (in/compatible? [out-node out out-type in-node in in-type]))
       n1 :image Image    n2 :image  AABB      nil                    "type mismatch"
       n1 :image Image    n2 :image  Image     [n1 :image n2 :image]  "ok"
       n1 :image Image    n2 :images [Image]   [n1 :image n2 :images] "ok"
