@@ -38,7 +38,7 @@
     (if (:started this)
       this
       (dosync
-        (let [root (n/make-root :world-ref state :_id 1)]
+        (let [root (n/make-root-scope :world-ref state :_id 1)]
           (ref-set state (new-world-state state root))
           (alter-var-root #'*scope* (constantly root))
           (assoc this :started true)))))

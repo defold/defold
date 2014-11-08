@@ -123,10 +123,10 @@ This function should mainly be used to create 'plumbing'."
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
 
-(defnode Root
+(defnode RootScope
   (inherits Scope)
   (property tag {:schema s/Keyword :default :root}))
 
-(defmethod print-method Root__
-  [^Root__ v ^java.io.Writer w]
-  (.write w (str "<Root{:_id " (:_id v) "}>")))
+(defmethod print-method RootScope__
+  [^RootScope__ v ^java.io.Writer w]
+  (.write w (str "<RootScope{:_id " (:_id v) "}>")))
