@@ -17,7 +17,7 @@
 
 (sm/defn blank-textureset :- TextureSet
   ([]
-    (blank-textureset 64 64 1 0.78 0))
+    (blank-textureset 64 64 0.9568 0.0 0.6313))
   ([w :- s/Num h :- s/Num r :- Float g :- Float b :- Float]
     (let [rct   (rect 0 0 w h)
           img (flood (blank-image w h) r g b)]
