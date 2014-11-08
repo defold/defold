@@ -176,7 +176,6 @@
        (assert super-descriptor (str "Cannot resolve " super " to a node definition."))
        (deref super-descriptor))
 
-
      [(['property nm tp] :seq)]
      {:properties {(keyword nm) tp}}
 
@@ -346,7 +345,7 @@
     nodes))
 
 (defn compatible?
-  [out-node out-label out-type in-node in-label in-type]
+  [[out-node out-label out-type in-node in-label in-type]]
   (cond
    (and (= out-label in-label) (t/compatible? out-type in-type false))
    [out-node out-label in-node in-label]
@@ -357,7 +356,7 @@
 (defn injection-candidates
   [targets nodes]
   (into #{}
-    (keep #(apply compatible? %)
+     (keep compatible?
         (for [target  targets
               i       (node-injectable-inputs target)
               :let    [i-l (get (node-input-types target) i)]

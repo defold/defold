@@ -50,6 +50,9 @@
   [g source source-attributes target target-attributes]
   (update-in g [:arcs] (fn [arcs] (remove #(= % {:source source :source-attributes source-attributes :target target :target-attributes target-attributes}) arcs))))
 
+(defn arcs-from-to [g source target]
+  (filter #(and (= source (:source %)) (= target (:target %))) (:arcs g)))
+
 (defn arcs-from [g node]
   (filter #(= node (:source %)) (:arcs g)))
 
