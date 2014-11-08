@@ -154,7 +154,7 @@
 
   (input controller  s/Any)
 
-  (property triggers {:schema s/Any :default [#'send-view-scope-message]})
+  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-view-scope-message]})
 
   (on :create
     (let [canvas        (glcanvas (:parent event))
