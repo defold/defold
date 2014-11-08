@@ -179,6 +179,7 @@ namespace dmScript
             dmResource::Release((dmResource::HFactory)context, value->m_Resource);
         }
         free(value->m_Script);
+        free(value->m_Name);
     }
 
     void ClearModules(HContext context)
