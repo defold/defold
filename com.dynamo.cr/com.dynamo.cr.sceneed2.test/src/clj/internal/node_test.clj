@@ -43,7 +43,16 @@
   (output inline-output String [this graph] "inlined function")
   (output symbol-param-production String funky-production))
 
+(definterface MyInterface$InnerInterface
+  (^int bar []))
+
+(defnode AncestorInterfaceImplementer
+  MyInterface$InnerInterface
+  (bar [this] 800))
+
 (defnode NodeWithProtocols
+  (inherits AncestorInterfaceImplementer)
+
   (property foo (t/string :default "the user"))
 
   clojure.lang.IDeref

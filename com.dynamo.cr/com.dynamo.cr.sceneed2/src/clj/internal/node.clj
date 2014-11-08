@@ -142,9 +142,16 @@
 
 (defn classname-for [prefix]  (symbol (str prefix "__")))
 
-(defn fqsymbol [s]
-  (let [{:keys [ns name]} (meta (resolve s))]
-   (symbol (str ns) (str name))))
+(defn fqsymbol
+  [s]
+  (if (symbol? s)
+    (let [{:keys [ns name]} (meta (resolve s))]
+      (symbol (str ns) (str name)))))
+
+(defn classname-sym
+  [cls]
+  (when (class? cls)
+    (symbol (.getName ^Class cls))))
 
 (defn- property-symbols [behavior]
   (map (comp symbol name) (keys (:properties behavior))))
@@ -284,9 +291,9 @@
          `t/MessageTarget
          (generate-message-processor nm descriptor)
          (concat
-           (map fqsymbol (:impl descriptor))
-           (:interfaces descriptor)
-           (generate-record-methods descriptor))))
+          (map #(or (fqsymbol %) %) (:impl descriptor))
+          (map #(or (classname-sym %) %) (:interfaces descriptor))
+          (generate-record-methods descriptor))))
 
 (defn quote-functions
   [descriptor]
