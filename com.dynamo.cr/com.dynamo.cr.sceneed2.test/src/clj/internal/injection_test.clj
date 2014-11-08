@@ -107,5 +107,19 @@
             consumer (ds/transactional
                       (ds/in scope
                        (ds/add (make-value-consumer))))]
+        (is (= "a known value" (-> consumer (n/get-node-value :concatenation)))))))
+
+  (testing "explicitly connect nodes, see if injection also happens"
+    (with-clean-world
+      (let [scope (ds/transactional
+                    (ds/add (make-scope)))
+            producer (ds/transactional
+                       (ds/in scope
+                         (ds/add (make-value-producer :value (CommonValueType. "a known value")))))
+            consumer (ds/transactional
+                      (ds/in scope
+                        (let [c (ds/add (make-value-consumer))]
+                          (ds/connect producer :local-name c :local-names)
+                          c)))]
         (is (= "a known value" (-> consumer (n/get-node-value :concatenation))))))))
 
