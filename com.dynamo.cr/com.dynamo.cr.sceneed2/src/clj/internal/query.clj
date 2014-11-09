@@ -14,10 +14,10 @@
       (ffirst (lg/sources graph (:_id node) label)))))
 
 (defn node-consuming
-  [node label]
-  (let [graph (-> node :world-ref deref :graph)]
-    (dg/node graph
-      (ffirst (lg/targets graph (:_id node) label)))))
+  ([node label]
+     (node-consuming (-> node :world-ref deref :graph) node label))
+  ([graph node label]
+     (dg/node graph (ffirst (lg/targets graph (:_id node) label)))))
 
 (defn query
   [world-ref clauses]
