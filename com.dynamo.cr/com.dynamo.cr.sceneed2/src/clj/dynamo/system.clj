@@ -52,10 +52,6 @@
   [& forms]
   `(transactional* (:world-ref (current-scope)) (fn [] ~@forms)))
 
-(defn update
-  [n f & args]
-  (it/tx-bind *transaction* (apply it/update-node n f args)))
-
 (defn connect
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/connect source-node source-label target-node target-label)))
@@ -66,11 +62,14 @@
 
 (defn set-property
   [n & kvs]
-  (it/tx-bind *transaction* (apply it/update-node n assoc kvs)))
+  (it/tx-bind *transaction*
+    (for [[pr v] (partition-all 2 kvs)]
+      (it/set-property n pr v))))
 
 (defn update-property
   [n p f & args]
-  (it/tx-bind *transaction* (apply it/update-node n update-in [p] f args)))
+  (it/tx-bind *transaction*
+    (it/update-property n p f args)))
 
 (defn add
   [n]
@@ -93,8 +92,10 @@
        ~@forms)))
 
 (defn refresh
-  [world-ref n]
-  (iq/node-by-id world-ref (:_id n)))
+  ([n]
+     (refresh (:world-ref n) n))
+  ([world-ref n]
+     (iq/node-by-id world-ref (:_id n))))
 
 ; ---------------------------------------------------------------------------
 ; Documentation
@@ -113,10 +114,6 @@ block ends."
 
         #'current-scope
         "Return the node that constitutes the current scope."
-
-        #'update
-        "Update a node by applying a function to its in-transaction value. The function f
-will be invoked as if by (apply f n args)."
 
         #'connect
         "Make a connection from an output of the source node to an input on the target node.

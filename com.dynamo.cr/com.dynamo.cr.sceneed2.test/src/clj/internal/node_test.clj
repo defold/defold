@@ -118,6 +118,9 @@
 (defn  depends-on-default-params [this g] [this g])
 
 (defnode DependencyTestNode
+  (input unused-input String)
+  (property internal-property String)
+
   (output depends-on-self s/Any depends-on-self)
   (output depends-on-input s/Any depends-on-input)
   (output depends-on-property s/Any depends-on-property)
@@ -128,22 +131,11 @@
   (testing "node reports its own dependencies"
     (let [test-node (make-dependency-test-node)
           deps      (t/output-dependencies test-node)]
-      (are [input expected-deps] (and (contains? deps input) (= expected-deps (get deps input)))
-           :depends-on-self           #{:this}
-           :depends-on-input          #{:an-input}
-           :depends-on-property       #{:a-property}
-           :depends-on-several        #{:this :project :g :an-input :a-property}
-           :depends-on-default-params #{:this :g})))
-  (testing "node dependencies are registered on the world"
-    (with-clean-world
-      (let [test-node (ds/transactional
-                       (ds/add (make-dependency-test-node)))
-            dependency-map (:output-dependencies @world-ref)]
-        (is (contains? dependency-map (:_id test-node)))
-        (let [node-deps (get dependency-map (:_id test-node))]
-          (are [input expected-deps] (and (contains? node-deps input) (= expected-deps (get node-deps input)))
-               :depends-on-self           #{:this}
-               :depends-on-input          #{:an-input}
-               :depends-on-property       #{:a-property}
-               :depends-on-several        #{:this :project :g :an-input :a-property}
-               :depends-on-default-params #{:this :g}))))))
+      (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
+           :this                      #{:depends-on-self :depends-on-several :depends-on-default-params}
+           :an-input           #{:depends-on-input :depends-on-several}
+           :a-property         #{:depends-on-property :depends-on-several}
+           :project            #{:depends-on-several}
+           :g                  #{:depends-on-several :depends-on-default-params})
+      (is (not (contains? deps :unused-input)))
+      (is (not (contains? deps :internal-property))))))

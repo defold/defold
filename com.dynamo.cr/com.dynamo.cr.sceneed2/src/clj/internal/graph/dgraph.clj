@@ -59,55 +59,6 @@
 (defn arcs-to [g node]
   (filter #(= node (:target %)) (:arcs g)))
 
-(defn closure*
-  "Find a closure over the graph g beginning at n, and proceeding through
-   label k in with extension via function f. See also [itclosure*] and [tclosure*]."
-  [g n k f]
-  (loop [pending #{n}
-         marked  #{}]
-    (if-let [current (first pending)]
-      (if (some #{current} marked)
-        (recur (rest pending) marked)
-        (recur (into (rest pending) (map k (f g current))) (conj marked current)))
-      marked)))
-
-(defn itclosure*
-  "Find the inverse transitive closure beginning at the given node."
-  [g n]
-  (closure* g n :source #'arcs-to))
-
-(defn itclosure
-  "Find the inverse transitive closure (i.e., upstream set) from the
-   given nodes. This will include the given nodes and all sources of
-   their input arcs.
-
-   A node that is reachable by more than one path appears only once
-   in the returned collection."
-  [g ns]
-  (apply set/union (map #(itclosure* g %) ns)))
-
-(defn tclosure*
-  "Find the transitive closure beginning at the given node."
-  [g n]
-  #_(closure* g n :target #'arcs-from)
-  (loop [pending #{n}
-         marked  #{}]
-    (if-let [current (first pending)]
-      (if (some #{current} marked)
-        (recur (rest pending) marked)
-        (recur (into (rest pending) (map :target (arcs-from g current))) (conj marked current)))
-      marked)))
-
-(defn tclosure
-  "Find the transitive closure (i.e., downstream set) from the given nodes.
-   This will include the given nodes and anything reachable via their output
-   arcs.
-
-   A node that is reachable by more than one path only appears once in the
-   return collection."
-  [g ns]
-  (apply set/union (map #(tclosure* g %) ns)))
-
 (defmacro for-graph
   [gsym bindings & body]
   (let [loop-vars (into [] (map first (partition 2 bindings)))
