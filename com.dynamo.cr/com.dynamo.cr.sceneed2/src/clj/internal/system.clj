@@ -90,7 +90,7 @@
  []
  (let [tx-report-chan (a/chan 1)]
    (component/map->SystemMap
-     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan))
+     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 15)
       :world     (component/using (world tx-report-chan) [:refresh])})))
 
 (def the-system (atom (system)))
