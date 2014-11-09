@@ -52,6 +52,11 @@
   [id label & {:as opt-map}]
   (n/get-node-value (merge (node id) opt-map) label))
 
+(defn update-node
+  [id f & args]
+  (ds/transactional
+    (apply ds/update {:_id id} f args)))
+
 (defn images-from-dir
   [d]
   (map load-image (filter #(.endsWith (.getName %) ".png") (file-seq (file d)))))

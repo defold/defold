@@ -73,20 +73,12 @@
       :inputs  inputs
       :outputs outputs}]))
 
-(defn set-property
-  [node pr val]
-  [{:type     :set-property
-    :node-id  (:_id node)
-    :property pr
-    :value    val}])
-
-(defn update-property
-  [node pr f args]
-  [{:type     :update-property
-    :node-id  (:_id node)
-    :property pr
-    :fn       f
-    :args     args}])
+(defn update-node
+  [node f & args]
+  [{:type    :update-node
+    :node-id (:_id node)
+    :fn      f
+    :args    args}])
 
 (defn connect
   [from-node from-label to-node to-label]
@@ -119,66 +111,45 @@
 ; ---------------------------------------------------------------------------
 ; Executing transactions
 ; ---------------------------------------------------------------------------
-(defn- pairs [m] (for [[k vs] m v vs] [k v]))
-
-(defn- mark-dirty
-  [{:keys [graph] :as ctx} node-id input-label]
-  (let [dirty-deps (get (t/output-dependencies (dg/node graph node-id)) input-label)]
-    (if (empty? dirty-deps)
-      ctx
-      (update-in ctx [:outputs-modified node-id] into dirty-deps))))
-
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys nodes-modified outputs-modified world-ref new-event-loops nodes-added] :as ctx}
-   {:keys [node] :as m}]
+  [{:keys [graph tempids cache-keys nodes-modified output-dependencies world-ref new-event-loops nodes-added] :as ctx} m]
   (let [next-id     (dg/next-node graph)
-        full-node   (assoc node :_id next-id :world-ref world-ref)
-        graph-after (lg/add-labeled-node graph (t/inputs node) (t/outputs node) full-node)
+        full-node   (assoc (:node m) :_id next-id :world-ref world-ref)
+        graph-after (lg/add-labeled-node graph (-> m :node :descriptor :inputs keys) (-> m :node :descriptor :transforms keys) full-node)
         full-node   (dg/node graph-after next-id)]
     (assoc ctx
       :graph               graph-after
       :nodes-added         (conj nodes-added full-node)
-      :tempids             (assoc tempids (:_id node) next-id)
+      :output-dependencies (assoc output-dependencies next-id (t/output-dependencies full-node))
+      :tempids             (assoc tempids (get-in m [:node :_id]) next-id)
       :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
-      :outputs-modified    (merge-with concat outputs-modified {next-id (into [] (t/outputs full-node))})
       :nodes-modified      (conj nodes-modified next-id))))
 
-(defmethod perform :set-property
-  [{:keys [graph nodes-modified] :as ctx} {:keys [node-id property value] :as m}]
-  (let [node-id (resolve-tempid ctx node-id)]
-    (-> ctx
-        (mark-dirty node-id property)
-        (assoc :graph            (dg/transform-node graph node-id assoc property value)
-               :nodes-modified   (conj nodes-modified node-id)))))
-
-(defmethod perform :update-property
-  [{:keys [graph nodes-modified] :as ctx} {:keys [node-id property fn args] :as m}]
-  (let [node-id (resolve-tempid ctx node-id)]
-    (-> ctx
-        (mark-dirty node-id property)
-        (assoc :graph            (apply dg/transform-node graph node-id update-in [property] fn args)
-               :nodes-modified   (conj nodes-modified node-id)))))
+(defmethod perform :update-node
+  [{:keys [graph nodes-modified] :as ctx} m]
+  (let [node-id (resolve-tempid ctx (:node-id m))]
+    (assoc ctx
+           :graph          (apply dg/transform-node graph node-id (:fn m) (:args m))
+           :nodes-modified (conj nodes-modified node-id))))
 
 (defmethod perform :connect
-  [{:keys [graph nodes-modified] :as ctx} {:keys [source-id source-label target-id target-label] :as m}]
-  (let [source-id (resolve-tempid ctx source-id)
-        target-id (resolve-tempid ctx target-id)]
-    (-> ctx
-        (mark-dirty target-id target-label)
-        (assoc :graph            (lg/connect graph source-id source-label target-id target-label)
-               :nodes-modified   (conj nodes-modified target-id)))))
+  [{:keys [graph nodes-modified] :as ctx} m]
+  (let [src (resolve-tempid ctx (:source-id m))
+        tgt (resolve-tempid ctx (:target-id m))]
+    (assoc ctx
+           :graph          (lg/connect graph src (:source-label m) tgt (:target-label m))
+           :nodes-modified (conj nodes-modified tgt))))
 
 (defmethod perform :disconnect
-  [{:keys [graph nodes-modified] :as ctx} {:keys [source-id source-label target-id target-label] :as m}]
-  (let [source-id (resolve-tempid ctx source-id)
-        target-id (resolve-tempid ctx target-id)]
-    (-> ctx
-        (mark-dirty target-id target-label)
-        (assoc :graph            (lg/disconnect graph source-id source-label target-id target-label)
-               :nodes-modified   (conj nodes-modified target-id)))))
+  [{:keys [graph nodes-modified] :as ctx} m]
+  (let [src (resolve-tempid ctx (:source-id m))
+        tgt (resolve-tempid ctx (:target-id m))]
+    (assoc ctx
+           :graph          (lg/disconnect graph src (:source-label m) tgt (:target-label m))
+           :nodes-modified (conj nodes-modified tgt))))
 
 (defmethod perform :message
   [ctx {:keys [to-node body]}]
@@ -199,30 +170,14 @@
         x (f n)]
     [n x]))
 
-(defn- downstream-dirties
-  [{:keys [graph] :as ctx} outputs]
-  (->> (pairs outputs)
-       (mapcat #(apply lg/targets graph %))
-       (reduce #(apply mark-dirty %1 %2) ctx)
-       :outputs-modified))
-
-(defn- trace-dirty-outputs
-  [ctx]
-  (loop [ctx                  ctx
-         next-batch           (:outputs-modified ctx)
-         iterations-remaining 1000]
-    (let [next-batch (downstream-dirties (select-keys ctx [:graph]) next-batch)
-          ctx        (update-in ctx [:outputs-modified] #(merge-with into % next-batch))]
-      (if (empty? next-batch)
-        ctx
-        (do
-          (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
-          (recur ctx next-batch (dec iterations-remaining)))))))
+(defn- affected-nodes
+  [{:keys [graph nodes-modified] :as ctx}]
+  (assoc ctx :affected-nodes (dg/tclosure graph nodes-modified)))
 
 (defn- determine-obsoletes
-  [{:keys [graph outputs-modified cache-keys] :as ctx}]
+  [{:keys [graph affected-nodes cache-keys] :as ctx}]
   (assoc ctx :obsolete-cache-keys
-         (keep identity (map #(get-in cache-keys %) (pairs outputs-modified)))))
+    (keep identity (mapcat #(vals (get cache-keys %)) affected-nodes))))
 
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys] :as ctx}]
@@ -233,13 +188,8 @@
   (update-in ctx [:cache] (fn [c] (reduce cache/evict c obsolete-cache-keys))))
 
 (defn- determine-autoupdates
-  [{:keys [graph outputs-modified] :as ctx}]
-  (update-in ctx [:expired-outputs] concat
-             (for [[n vs] outputs-modified
-                   v vs
-                   :let [node (dg/node graph n)]
-                   :when (t/auto-update? node v)]
-               [node v])))
+  [{:keys [graph affected-nodes] :as ctx}]
+  (assoc ctx :expired-outputs (pairwise (comp :on-update :descriptor) (map #(dg/node graph %) affected-nodes))))
 
 (defn start-event-loop!
   [world-ref graph id]
@@ -261,8 +211,8 @@
   (update-in ctx [:previously-started] set/union loops-to-start)))
 
 (defn- process-triggers
-  [{:keys [graph outputs-modified previously-triggered] :as ctx}]
-  (let [new-triggers (set/difference (into #{} (keys outputs-modified)) previously-triggered)
+  [{:keys [graph affected-nodes previously-triggered] :as ctx}]
+  (let [new-triggers (set/difference affected-nodes previously-triggered)
         next-ctx (reduce (fn [csub [n tr]]
                            (binding [*transaction* (->TriggerTransaction (transient []))]
                              (tr (:graph csub) n csub)
@@ -276,7 +226,7 @@
   (let [tx-list (first (:pending ctx))]
     (-> (update-in ctx [:pending] next)
       (apply-tx tx-list)
-      trace-dirty-outputs
+      affected-nodes
       determine-obsoletes
       dispose-obsoletes
       evict-obsolete-caches
@@ -292,9 +242,8 @@
      :graph               (:graph current-world)
      :cache               (:cache current-world)
      :cache-keys          (:cache-keys current-world)
-     :outputs-modified    {}
+     :output-dependencies (:output-dependencies current-world)
      :world-time          (:world-time current-world)
-     :expired-outputs     []
      :tempids             {}
      :new-event-loops     #{}
      :nodes-added         #{}
@@ -302,18 +251,19 @@
      :messages            []
      :pending             [txs]}))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :outputs-modified])
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :affected-nodes :new-event-loops :tempids :graph :txs :nodes-added])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.
    Likewise for cache and cache-keys."
-  [{:keys [graph cache cache-keys world-time] :as ctx} completed?]
+  [{:keys [graph cache cache-keys output-dependencies world-time] :as ctx} completed?]
   (if-not completed?
     (update-in ctx [:world] assoc :last-tx {:status :aborted})
     (update-in ctx [:world] assoc
             :graph      graph
             :cache      cache
             :cache-keys cache-keys
+            :output-dependencies output-dependencies
             :world-time (inc world-time)
             :last-tx    (assoc (select-keys ctx tx-report-keys) :status :ok))))
 
@@ -346,8 +296,11 @@ transaction. This is for internal use, not intended to be extended by applicatio
 Perform takes a transaction context (ctx) and a map (m) containing a value for keyword `:type`, and other keys and
 values appropriate to the transformation it represents. Callers should regard the map and context as opaque.
 
+In this case, the map passed to perform would look like `{:type :update-node :id tempid :fn update-fn :args update-fn-args}` All calls
+to `perform` return a new (updated) transaction context.
+
 Calls to perform are only executed by [[transact]]. The data required for `perform` calls are constructed in action functions,
-such as [[connect]] and [[update-property]]."
+such as [[connect]] and [[update-node]]."
 
         #'connect
         "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
@@ -363,13 +316,9 @@ such as [[connect]] and [[update-property]]."
 tempid if the resource will be referenced again in the same transaction. If supplied, _input_ and _output_ are sets of input and output labels, respectively.
 If not supplied as arguments, the `:input` and `:output` keys in the node may will be assigned as the resource's inputs and outputs."
 
-        #'set-property
-        "*transaction step* - Expects a node, a property label, and a value. That will become the new value of the property."
-
-
-        #'update-property
-        "*transaction step* - Expects a node, a property label, and a function f (with optional args) to be performed on the
-current value of the property. The node may be a uncommitted, in which case it will have a tempid."
+        #'update-node
+        "*transaction step* - Expects a node and function f (with optional args) to be performed on the
+resource indicated by the node. The node may be a uncommitted, in which case it will have a tempid."
 
         #'transact
         "Execute a transaction to create a new version of the world's state. This takes in
@@ -377,6 +326,6 @@ a ref to the current world state, modifies it according to the transaction steps
 and returns a new world.
 
 The txs must have been created by the transaction step functions in this namespace: [[connect]],
-[[disconnect]], [[new-node]], [[set-property]], and [[update-property]]. The collection of txs can be nested."
+[[disconnect]], [[new-node]], and [[update-node]]. The collection of txs can be nested."
 }]
   (alter-meta! v assoc :doc doc))

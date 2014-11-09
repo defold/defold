@@ -42,6 +42,7 @@
    :node-type (class n)
    :label     l})
 
+
 (defn- get-value-with-restarts
   [node g label]
   (restart-case
@@ -162,7 +163,7 @@
   [beh]
   (reduce-kv (fn [m k v]
                (let [v (if (seq? v) (eval v) v)]
-                 (if (not (nil? (:default v))) (assoc m k (:default v)) m)))
+                 (if (:default v) (assoc m k (:default v)) m)))
              {} (:properties beh)))
 
 (def ^:private property-flags #{:cached :on-update})
@@ -252,7 +253,7 @@
   [nm forms]
   (->> forms
     (map (partial compile-defnode-form nm))
-    (reduce deep-merge {:name nm :on-update #{}})
+    (reduce deep-merge {:name nm})
     (resolve-defaults)))
 
 (defn- emit-quote [form]
@@ -262,25 +263,17 @@
   (for [[defined-in method-name args] (:record-methods descriptor)]
     `(~method-name ~args ((get-in ~defined-in [:methods ~(emit-quote method-name)]) ~@args))))
 
-(defn- invert-map
-  [m]
-  (apply merge-with into
-         (for [[k vs] m
-               v vs]
-           {v #{k}})))
-
-(defn- inputs-for
-  [transform]
-  (let [transform (if (var? transform) (var-get transform) transform)]
-    (if (t/has-schema? transform)
-      (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword)))
-      #{:this :g})))
-
 (defn- descriptor->output-dependencies
-   [{:keys [transforms]}]
-   (let [outs (dissoc transforms :self)
-         outs (zipmap (keys outs) (map inputs-for (vals outs)))]
-     (invert-map outs)))
+   [descriptor]
+   (reduce-kv
+    (fn [m output-label transform]
+      (let [transform (if (var? transform) (var-get transform) transform)]
+        (assoc m output-label
+          (if (t/has-schema? transform)
+            (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword)))
+            #{:this :g}))))
+    {}
+    (-> descriptor :transforms (dissoc :self))))
 
 (defn generate-defrecord [nm descriptor]
   (list* `defrecord (classname-for nm) (state-vector descriptor)
@@ -292,7 +285,6 @@
                      (perform (get-in ~nm [:transforms label#]) t# g#))
          `(inputs [t#] (into #{} (keys (:inputs ~nm))))
          `(outputs [t#] (into #{} (keys (:transforms ~nm))))
-         `(auto-update? [t# l#] ((-> t# :descriptor :on-update) l#))
          `(cached-outputs [t#] (:cached ~nm))
          `(output-dependencies [t#] ~(descriptor->output-dependencies descriptor))
          `t/MessageTarget
