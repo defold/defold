@@ -511,12 +511,10 @@
       (in (add editor)
         (let [background (add (make-background))
               grid       (add (make-grid))
-              camera     (add (make-camera-node :camera (make-camera :orthographic)))
-              controller (add (make-camera-controller))]
+              camera     (add (make-camera-controller :camera (make-camera :orthographic)))]
           (connect camera     :camera     grid       :camera)
           (connect camera     :camera     editor     :view-camera)
-          (connect controller :self       editor     :controller)
-          (connect camera     :camera     controller :camera)
+          (connect camera     :self       editor     :controller)
           (connect background :renderable editor     :renderables)
           (connect atlas-node :renderable editor     :renderables)
           (connect grid       :renderable editor     :renderables)

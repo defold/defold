@@ -6,6 +6,7 @@
 
 (defn- refresh-one
   [{:keys [graph node output]}]
+  (println "from refresh-one: node isa " (type node) " output is " output)
   (logging-exceptions "refresh-loop"
      (t/get-value node graph output)))
 

@@ -175,12 +175,10 @@
       (ds/in (ds/add editor)
         (let [background (ds/add (background/make-background))
               grid       (ds/add (grid/make-grid))
-              camera     (ds/add (c/make-camera-node :camera (c/make-camera :orthographic)))
-              controller (ds/add (c/make-camera-controller))]
+              camera     (ds/add (c/make-camera-controller :camera (c/make-camera :orthographic)))]
           (ds/connect camera     :camera     grid       :camera)
           (ds/connect camera     :camera     editor     :view-camera)
-          (ds/connect controller :self       editor     :controller)
-          (ds/connect camera     :camera     controller :camera)
+          (ds/connect camera     :self       editor     :controller)
           (ds/connect background :renderable editor     :renderables)
           (ds/connect cubemap    :renderable editor     :renderables)
           (ds/connect camera     :camera     cubemap    :camera)

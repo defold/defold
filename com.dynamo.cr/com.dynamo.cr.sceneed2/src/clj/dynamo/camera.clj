@@ -219,10 +219,6 @@
              temp))
          rows scales)))
 
-(n/defnode CameraNode
-  (property camera      {:schema Camera})
-  (output   camera Camera [this _] (:camera this)))
-
 (defn dolly
   [camera delta]
   (update-in camera [:fov]
@@ -318,12 +314,13 @@
     (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
+(defnk emit-camera [camera] camera)
+
 (n/defnode CameraController
-  (input camera [CameraNode])
+  (property camera {:schema Camera})
+  (output   camera Camera emit-camera)
 
   (property movement {:schema s/Any :default :idle})
-
-  (output self CameraController [this _] this)
 
   (on :mouse-down
     (ds/set-property self
@@ -333,13 +330,11 @@
 
   (on :mouse-move
     (when (not (= :idle (:movement self)))
-      (let [camera-node (iq/node-feeding-into self :camera)
-           x (:x event)
-           y (:y event)]
+      (let [{:keys [x y]} event]
        (case (:movement self)
-         :dolly  (ds/update-property camera-node :camera dolly (* -0.002 (- y (:last-y self))))
-         :track  (ds/update-property camera-node :camera track (:last-x self) (:last-y self) x y)
-         :tumble (ds/update-property camera-node :camera tumble (:last-x self) (:last-y self) x y)
+         :dolly  (ds/update-property self :camera dolly (* -0.002 (- y (:last-y self))))
+         :track  (ds/update-property self :camera track (:last-x self) (:last-y self) x y)
+         :tumble (ds/update-property self :camera tumble (:last-x self) (:last-y self) x y)
          nil)
        (ds/set-property self
          :last-x x
@@ -352,5 +347,4 @@
       :movement :idle))
 
   (on :mouse-wheel
-    (let [camera-node (iq/node-feeding-into self :camera)]
-      (ds/update-property camera-node :camera dolly (* -0.02 (:count event))))))
+    (ds/update-property self :camera dolly (* -0.02 (:count event)))))
