@@ -1,7 +1,8 @@
 package com.dynamo.bob.util;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -95,26 +96,17 @@ public class TextureUtil {
     public static BufferedImage depalettiseImage(BufferedImage src) {
         BufferedImage result = null;
         if (BufferedImage.TYPE_BYTE_INDEXED == src.getType()) {
-            ColorModel indexedCM = src.getColorModel();
-
             int width = src.getWidth();
             int height = src.getHeight();
+            Color clear = new Color(255,255,255,0);
 
             result = new BufferedImage(width, height, BufferedImage.TYPE_4BYTE_ABGR);
-            int[] srcPixels = new int[width * height];
-            int[] tgtPixels = new int[width * height];
 
-            src.getRaster().getPixels(0, 0, width, height, srcPixels);
-
-            for (int y=0; y<height; ++y) {
-                for (int x=0; x<width; ++x) {
-                    int offset = x + width * y;
-                    int index = srcPixels[offset];
-                    int colour = indexedCM.getRGB(index);
-                    tgtPixels[offset] = colour;
-                }
-            }
-            result.setRGB(0, 0, width, height, tgtPixels, 0, width);
+            Graphics2D graphics = result.createGraphics();
+            graphics.setBackground(clear);
+            graphics.clearRect(0, 0, width, height);
+            graphics.drawImage(src, 0, 0, null);
+            graphics.dispose();
         } else {
             result = src;
         }
