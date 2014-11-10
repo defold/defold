@@ -125,7 +125,7 @@ namespace dmGameSystem
      * </p>
      *
      * @param group group name [string]
-     * @name sound.set_group_gain
+     * @name sound.get_group_gain
      * @return gain in linear scale
      */
     int Sound_GetGroupGain(lua_State* L)
@@ -140,7 +140,7 @@ namespace dmGameSystem
         }
         lua_pushnumber(L, gain);
         assert(top + 1 == lua_gettop(L));
-        return 0;
+        return 1;
     }
 
     /*#
