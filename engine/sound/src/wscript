@@ -26,6 +26,22 @@ def build(bld):
     else:
         source2.append('devices/device_openal.cpp')
 
+    if 'android' in bld.env['PLATFORM']:
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
+        classpath = os.pathsep.join(classpath)
+
+        bld.new_task_gen(features='javac seq',
+                         classpath=classpath,
+                         source_root='java')
+
+        bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
+
+        bld.new_task_gen(features='jar seq',
+                         basedir='java',
+                         destfile='sound2_android.jar')
+
+        bld.install_files('${PREFIX}/share/java', 'sound2_android.jar')
+
     # NOTE: This if was just for 'sound' in EMSCRIPTEN branch,
     # assumed it applied to both sound and sound2
     if bld.env.platform != 'js-web':
