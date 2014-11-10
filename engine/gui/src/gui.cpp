@@ -17,6 +17,7 @@
 #include <dlib/trig_lookup.h>
 
 #include <script/script.h>
+#include <script/lua_source_ddf.h>
 
 #include "gui_private.h"
 #include "gui_script.h"
@@ -2244,7 +2245,7 @@ namespace dmGui
         ResetScript(script);
     }
 
-    Result SetScript(HScript script, dmLuaDDF::LuaSource *source, const char* filename)
+    Result SetScript(HScript script, dmLuaDDF::LuaSource *source)
     {
         lua_State* L = script->m_Context->m_LuaState;
         int top = lua_gettop(L);
@@ -2252,7 +2253,7 @@ namespace dmGui
 
         Result res = RESULT_OK;
 
-        int ret = dmScript::LuaLoad(L, source, filename);
+        int ret = dmScript::LuaLoad(L, source);
         if (ret != 0)
         {
             dmLogError("Error compiling script: %s", lua_tostring(L,-1));
@@ -2291,7 +2292,7 @@ namespace dmGui
             else
             {
                 if (lua_isnil(L, -1) == 0)
-                    dmLogWarning("'%s' is not a function (%s)", SCRIPT_FUNCTION_NAMES[i], filename);
+                    dmLogWarning("'%s' is not a function (%s)", SCRIPT_FUNCTION_NAMES[i], source->m_Filename);
                 lua_pop(L, 1);
             }
 

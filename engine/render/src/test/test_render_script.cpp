@@ -19,6 +19,7 @@ namespace
         memset(&tmp, 0x00, sizeof(tmp));
         tmp.m_Script.m_Data = (uint8_t*)source;
         tmp.m_Script.m_Count = strlen(source);
+        tmp.m_Filename = "render-dummy";
         return &tmp;
     }
 }
@@ -85,14 +86,14 @@ protected:
 
 TEST_F(dmRenderScriptTest, TestNewDelete)
 {
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));
     ASSERT_NE((void*)0, render_script);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
 TEST_F(dmRenderScriptTest, TestNewDeleteInstance)
 {
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));
     ASSERT_NE((void*)0, render_script);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
@@ -112,12 +113,12 @@ TEST_F(dmRenderScriptTest, TestReload)
         "    assert(self.count == 1)\n"
         "end\n";
 
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_a), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_a));
     ASSERT_NE((void*)0, render_script);
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     ASSERT_NE((void*)0, render_script_instance);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
-    ASSERT_TRUE(dmRender::ReloadRenderScript(m_Context, render_script, LuaSourceFromString(script_b), "none"));
+    ASSERT_TRUE(dmRender::ReloadRenderScript(m_Context, render_script, LuaSourceFromString(script_b)));
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
@@ -139,8 +140,8 @@ TEST_F(dmRenderScriptTest, TestSetRenderScript)
         "    assert(self.count == 1)\n"
         "end\n";
 
-    dmRender::HRenderScript render_script_a = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_a), "none");
-    dmRender::HRenderScript render_script_b = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_b), "none");
+    dmRender::HRenderScript render_script_a = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_a));
+    dmRender::HRenderScript render_script_b = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_b));
     ASSERT_NE((void*)0, render_script_a);
     ASSERT_NE((void*)0, render_script_b);
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script_a);
@@ -160,7 +161,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     "    render.enable_material(\"test_material\")\n"
     "    render.disable_material(\"test_material\")\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -202,7 +203,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMessage)
     "    end\n"
     "    assert(sender.path == hash(\"test_path\"), \"incorrect path\")\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
@@ -242,7 +243,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptUserMessage)
     "        self.received = message.test_value == 1\n"
     "    end\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance));
@@ -269,7 +270,7 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     "    render.set_cull_face(render.FACE_BACK)\n"
     "    render.set_polygon_offset(1, 2)\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
@@ -351,7 +352,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "    render.set_render_target_size(self.rt, 3, 4)\n"
     "    render.delete_render_target(self.rt)\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
@@ -377,7 +378,7 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
     "function update(self)\n"
     "    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [render.BUFFER_DEPTH_BIT] = 1})\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
@@ -411,7 +412,7 @@ TEST_F(dmRenderScriptTest, TestLuaTransform)
     "    render.set_view(vmath.matrix4())\n"
     "    render.set_projection(vmath.matrix4())\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -459,7 +460,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw)
     "    render.draw_debug3d()\n"
     "    render.draw_debug2d()\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -492,7 +493,7 @@ TEST_F(dmRenderScriptTest, TestLuaWindowSize)
     "    assert(render.get_window_width() == 20)\n"
     "    assert(render.get_window_height() == 10)\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance));
@@ -516,7 +517,7 @@ TEST_F(dmRenderScriptTest, TestPost)
     "    msg.post(\"test_socket:\", \"test_message\")\n"
     "end\n";
 
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     dmMessage::HSocket test_socket;
@@ -549,7 +550,7 @@ TEST_F(dmRenderScriptTest, TestPostToSelf)
         "    end\n"
         "end\n";
 
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -567,7 +568,7 @@ TEST_F(dmRenderScriptTest, TestDrawText)
         "    msg.post(\".\", \"draw_text\", {position = vmath.vector3(0, 0, 0), text = \"Hello world!\"})\n"
         "end\n";
 
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(0u, m_Context->m_TextContext.m_VertexIndex);
@@ -611,7 +612,7 @@ TEST_F(dmRenderScriptTest, TestInstanceCallback)
         "    test_ref()\n"
         "end\n";
 
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -641,7 +642,7 @@ TEST_F(dmRenderScriptTest, TestURL)
     "    local url = msg.url(\"@render:\")\n"
     "    assert(msg.url() == url)\n"
     "end\n";
-    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script), "none");
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));

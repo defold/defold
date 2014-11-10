@@ -703,7 +703,7 @@ namespace dmGui
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);
-    Result SetScript(HScript script, dmLuaDDF::LuaSource *source, const char* filename);
+    Result SetScript(HScript script, dmLuaDDF::LuaSource *source);
 
     /** Gets the lua state used for gui scripts.
      * @return lua state

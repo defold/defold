@@ -1296,7 +1296,7 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    static bool LoadScript(lua_State* L, dmLuaDDF::LuaSource *source, const char* filename, Script* script)
+    static bool LoadScript(lua_State* L, dmLuaDDF::LuaSource *source, Script* script)
     {
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -1305,7 +1305,7 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void) top;
 
-        int ret = dmScript::LuaLoad(L, source, filename);
+        int ret = dmScript::LuaLoad(L, source);
         if (ret == 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
@@ -1325,7 +1325,7 @@ namespace dmGameObject
                         }
                         else
                         {
-                            dmLogError("The global name '%s' in '%s' must be a function.", SCRIPT_FUNCTION_NAMES[i], filename);
+                            dmLogError("The global name '%s' in '%s' must be a function.", SCRIPT_FUNCTION_NAMES[i], source->m_Filename);
                             lua_pop(L, 1);
                             goto bail;
                         }
@@ -1364,7 +1364,7 @@ bail:
         script->m_InstanceReference = LUA_NOREF;
     }
 
-    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module, const char* filename)
+    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module)
     {
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
         ResetScript(script);
@@ -1379,7 +1379,7 @@ bail:
         luaL_getmetatable(L, SCRIPT);
         lua_setmetatable(L, -2);
 
-        if (!LoadScript(L, &lua_module->m_Source, filename, script))
+        if (!LoadScript(L, &lua_module->m_Source, script))
         {
             DeleteScript(script);
             return 0;
@@ -1388,10 +1388,10 @@ bail:
         return script;
     }
 
-    bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename)
+    bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module)
     {
         script->m_LuaModule = lua_module;
-        return LoadScript(script->m_LuaState, &lua_module->m_Source, filename, script);
+        return LoadScript(script->m_LuaState, &lua_module->m_Source, script);
     }
 
     void DeleteScript(HScript script)
