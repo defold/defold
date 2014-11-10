@@ -171,7 +171,7 @@
             </fileset>
             <fileset dir=".">
                 <include name="libexec/*/*luajit*"/>
-                <include name="share/luajit/**.*"/>
+                <include name="share/luajit/**"/>
             </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
