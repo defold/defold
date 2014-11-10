@@ -125,7 +125,7 @@ namespace dmGameSystem
      * </p>
      *
      * @param group group name [string]
-     * @name sound.set_group_gain
+     * @name sound.get_group_gain
      * @return gain in linear scale
      */
     int Sound_GetGroupGain(lua_State* L)
@@ -147,6 +147,7 @@ namespace dmGameSystem
      * Get all mixer group names
      * <p>Note that this function is only guaranteed to work in dev-mode</p>
      *
+     * @name sound.get_group_names
      * @return table of mixer groups names
      */
     int Sound_GetGroupNames(lua_State* L)
