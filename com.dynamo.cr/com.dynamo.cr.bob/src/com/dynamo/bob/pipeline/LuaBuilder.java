@@ -73,7 +73,12 @@ public abstract class LuaBuilder extends Builder<Void> {
                 executable.setExecutable(true);
 
             // Doing a bit of custom set up here as the path is required.
-            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getLuajitBinPath(), "-b", inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+            //
+            // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
+            //       correct chunk name (the original original source file) already here.
+            //
+            // See implementation of luaO_chunkid and why a prefix '=' is used; it is to pass through the filename without modifications.
+            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getLuajitBinPath(), "-bgf", ("=" + task.input(0).getPath()), inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
             env.put("LUA_PATH", Bob.getLuajitSharePath() + "/?.lua");
@@ -155,6 +160,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
 
         srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
+        srcBuilder.setFilename(task.input(0).getPath());
 
         // For now it will always return, or throw an exception. This leaves the possibility of
         // disabling bytecode generation.

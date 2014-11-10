@@ -363,6 +363,7 @@ def compile_lua(task):
         modules = scan_lua(script)
         lua_module = lua_ddf_pb2.LuaModule()
         lua_module.source.script = script
+        lua_module.source.filename = task.inputs[0].srcpath(task.env)
         for m in modules:
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)

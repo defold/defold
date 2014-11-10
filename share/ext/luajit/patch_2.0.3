@@ -1,7 +1,82 @@
-Binary files luajit-2.0/.git/index and luajit-2.0b/.git/index differ
+diff -u -r luajit-2.0/src/jit/bcsave.lua luajit-2.0b/src/jit/bcsave.lua
+--- luajit-2.0/src/jit/bcsave.lua	2014-03-12 13:10:00.000000000 +0100
++++ luajit-2.0b/src/jit/bcsave.lua	2014-11-10 13:21:37.000000000 +0100
+@@ -25,6 +25,7 @@
+   -l        Only list bytecode.
+   -s        Strip debug info (default).
+   -g        Keep debug info.
++  -f        Set file name passed to loadfile
+   -n name   Set module name (default: auto-detect from input name).
+   -t type   Set output file type (default: auto-detect from output name).
+   -a arch   Override architecture for object files (default: native).
+@@ -45,10 +46,14 @@
+   os.exit(1)
+ end
+ 
+-local function readfile(input)
++local function readfile(input, filename)
+   if type(input) == "function" then return input end
+   if input == "-" then input = nil end
+-  return check(loadfile(input))
++  
++  local f = assert(io.open(input, "r"))
++  local src = f:read("*all")    
++  f:close()
++  return check(loadstring(src, filename))
+ end
+ 
+ local function savefile(name, mode)
+@@ -573,13 +578,13 @@
+ 
+ ------------------------------------------------------------------------------
+ 
+-local function bclist(input, output)
+-  local f = readfile(input)
++local function bclist(input, output, filename)
++  local f = readfile(input, filename)
+   require("jit.bc").dump(f, savefile(output, "w"), true)
+ end
+ 
+-local function bcsave(ctx, input, output)
+-  local f = readfile(input)
++local function bcsave(ctx, input, output, filename)
++  local f = readfile(input, filename)
+   local s = string.dump(f, ctx.strip)
+   local t = ctx.type
+   if not t then
+@@ -602,6 +607,7 @@
+   local arg = {...}
+   local n = 1
+   local list = false
++  local filename = nil
+   local ctx = {
+     strip = true, arch = jit.arch, os = string.lower(jit.os),
+     type = false, modname = false,
+@@ -632,6 +638,8 @@
+ 	    ctx.arch = checkarg(table.remove(arg, n), map_arch, "architecture")
+ 	  elseif opt == "o" then
+ 	    ctx.os = checkarg(table.remove(arg, n), map_os, "OS name")
++	  elseif opt == "f" then
++	    filename = table.remove(arg, n)
+ 	  else
+ 	    usage()
+ 	  end
+@@ -643,10 +651,10 @@
+   end
+   if list then
+     if #arg == 0 or #arg > 2 then usage() end
+-    bclist(arg[1], arg[2] or "-")
++    bclist(arg[1], arg[2] or "-", filename or arg[1])
+   else
+     if #arg ~= 2 then usage() end
+-    bcsave(ctx, arg[1], arg[2])
++    bcsave(ctx, arg[1], arg[2], filename or arg[1])
+   end
+ end
+ 
 diff -u -r luajit-2.0/src/lj_alloc.c luajit-2.0b/src/lj_alloc.c
---- luajit-2.0/src/lj_alloc.c	2014-10-13 18:05:47.000000000 +0200
-+++ luajit-2.0b/src/lj_alloc.c	2014-10-13 18:06:00.000000000 +0200
+--- luajit-2.0/src/lj_alloc.c	2014-03-12 13:10:00.000000000 +0100
++++ luajit-2.0b/src/lj_alloc.c	2014-11-10 13:22:38.000000000 +0100
 @@ -35,7 +35,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
  
@@ -12,8 +87,8 @@ diff -u -r luajit-2.0/src/lj_alloc.c luajit-2.0b/src/lj_alloc.c
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
 diff -u -r luajit-2.0/src/lj_obj.h luajit-2.0b/src/lj_obj.h
---- luajit-2.0/src/lj_obj.h	2014-10-13 18:05:34.000000000 +0200
-+++ luajit-2.0b/src/lj_obj.h	2014-10-13 18:14:26.000000000 +0200
+--- luajit-2.0/src/lj_obj.h	2014-03-12 13:10:00.000000000 +0100
++++ luajit-2.0b/src/lj_obj.h	2014-11-10 13:22:38.000000000 +0100
 @@ -245,7 +245,8 @@
    GCRef env;		/* Should be at same offset in GCfunc. */
    MSize len;		/* Size of payload. */
@@ -25,8 +100,8 @@ diff -u -r luajit-2.0/src/lj_obj.h luajit-2.0b/src/lj_obj.h
  
  /* Userdata types. */
 diff -u -r luajit-2.0/src/msvcbuild.bat luajit-2.0b/src/msvcbuild.bat
---- luajit-2.0/src/msvcbuild.bat	2014-09-30 11:55:42.000000000 +0200
-+++ luajit-2.0b/src/msvcbuild.bat	2014-10-13 17:34:43.000000000 +0200
+--- luajit-2.0/src/msvcbuild.bat	2014-03-12 13:10:00.000000000 +0100
++++ luajit-2.0b/src/msvcbuild.bat	2014-11-10 13:22:38.000000000 +0100
 @@ -11,89 +11,89 @@
  @rem
  @rem Then cd to this directory and run this script.

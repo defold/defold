@@ -29,7 +29,7 @@ namespace dmGameSystem
         }
 
         dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
-        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source, filename);
+        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
         if (result == dmGui::RESULT_OK)
         {
             resource->m_Resource = script;
@@ -73,7 +73,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source, filename);
+        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
         if (result == dmGui::RESULT_OK)
         {
             GuiContext* gui_context = (GuiContext*)context;
