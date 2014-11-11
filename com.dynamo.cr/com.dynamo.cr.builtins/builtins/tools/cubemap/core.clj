@@ -21,8 +21,9 @@
             [dynamo.project :as p]
             [dynamo.system :as ds :refer [transactional in current-scope add in-transaction? connect]]
             [dynamo.texture :refer :all]
-            [dynamo.types :refer :all]
+            [dynamo.types :as t :refer :all]
             [dynamo.ui :refer [defcommand defhandler]]
+            [internal.node :as in]
             [internal.ui.background :as background]
             [internal.ui.grid :as grid]
             [internal.ui.scene-editor :as ise]
@@ -39,7 +40,8 @@
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2]
             [javax.vecmath Matrix4d Matrix4f Vector4f]
-            [org.eclipse.core.commands ExecutionEvent]))
+            [org.eclipse.core.commands ExecutionEvent]
+            [dynamo.types AABB Camera]))
 
 (n/defnode CubemapProperties
   (input image-right  Image)
@@ -72,18 +74,18 @@
     (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 1.0)))))
 
 (shader/defshader pos-norm-frag
-  (uniform vec4 cameraPosition)
+  (uniform vec3 cameraPosition)
   (uniform samplerCube envMap)
   (varying vec3 vWorld)
   (varying vec3 vNormal)
   (defn void main []
-    (setq vec3 camToV (normalize (- vWorld (.xyz cameraPosition))))
+    (setq vec3 camToV (normalize (- vWorld cameraPosition)))
     (setq vec3 refl (reflect camToV vNormal))
       (setq gl_FragColor (textureCube envMap refl))))
 
 (defnk produce-shader :- s/Int
-  [this gl]
-  (shader/make-shader gl pos-norm-vert pos-norm-frag))
+  [this gl-context gl]
+  (shader/make-shader gl-context gl pos-norm-vert pos-norm-frag))
 
 (defnk produce-gpu-texture
   [project this gl image-right image-left image-top image-bottom image-front image-back]
@@ -102,13 +104,15 @@
 
 (defn render-cubemap
   [ctx ^GL2 gl this project world]
-  (do-gl [this            (assoc this :gl gl)
+  (do-gl [this            (assoc this :gl-context ctx)
+          this            (assoc this :gl gl)
           texture         (n/get-node-value this :gpu-texture)
           shader          (n/get-node-value this :shader)
           vbuf            (n/get-node-value this :vertex-buffer)
-          vertex-binding  (vtx/use-with gl vbuf shader)]
+          vertex-binding  (vtx/use-with gl vbuf shader)
+          camera          (in/get-inputs this (-> this :world-ref deref :graph) :camera)]
          (shader/set-uniform shader "world" world)
-         (shader/set-uniform shader "cameraPosition" (doto (Vector4f.) (.set 0.0 0.0 4 1.0)))
+         (shader/set-uniform shader "cameraPosition" (t/position camera))
          (shader/set-uniform shader "envMap" (texture/texture-unit-index texture))
          (gl/gl-enable gl GL/GL_CULL_FACE)
          (gl/gl-cull-face gl GL/GL_BACK)
@@ -129,11 +133,12 @@
     (g/aabb-incorporate -1 -1 -1)))
 
 (n/defnode CubemapRender
+  (input  camera        Camera)
   (output shader        s/Any      :cached produce-shader)
   (output vertex-buffer s/Any      :cached produce-renderable-vertex-buffer)
   (output gpu-texture   s/Any      :cached produce-gpu-texture)
   (output renderable    RenderData :cached produce-renderable)
-  (output aabb          t/AABB             unit-bounding-box))
+  (output aabb          AABB               unit-bounding-box))
 
 (n/defnode CubemapNode
   (inherits CubemapProperties)
@@ -170,14 +175,13 @@
       (ds/in (ds/add editor)
         (let [background (ds/add (background/make-background))
               grid       (ds/add (grid/make-grid))
-              camera     (ds/add (c/make-camera-node :camera (c/make-camera :orthographic)))
-              controller (ds/add (c/make-camera-controller))]
+              camera     (ds/add (c/make-camera-controller :camera (c/make-camera :orthographic)))]
           (ds/connect camera     :camera     grid       :camera)
           (ds/connect camera     :camera     editor     :view-camera)
-          (ds/connect controller :self       editor     :controller)
-          (ds/connect camera     :camera     controller :camera)
+          (ds/connect camera     :self       editor     :controller)
           (ds/connect background :renderable editor     :renderables)
           (ds/connect cubemap    :renderable editor     :renderables)
+          (ds/connect camera     :camera     cubemap    :camera)
           (ds/connect grid       :renderable editor     :renderables)
           (ds/connect cubemap    :aabb       editor     :aabb))
         editor))))

@@ -1,5 +1,5 @@
 (ns dynamo.gl.texture
-  (:require [dynamo.resource :refer [IDisposable dispose]]
+  (:require [dynamo.types :refer [IDisposable dispose]]
             [dynamo.gl.protocols :refer :all]
             [dynamo.gl.shader :refer [shader-program]])
   (:import [java.awt.image BufferedImage]

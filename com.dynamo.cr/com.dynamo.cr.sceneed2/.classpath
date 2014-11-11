@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry kind="src" path="src/clj"/>
 	<classpathentry kind="src" path="src/java"/>
@@ -20,7 +20,9 @@
 	<classpathentry exported="true" kind="lib" path="jars/tools.analyzer.jvm-0.1.0-beta12.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/tools.namespace-0.2.6.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/tools.nrepl-0.2.3.jar"/>
-	<classpathentry exported="true" kind="lib" path="target/classes" sourcepath="target/classes"/>
 	<classpathentry exported="true" kind="lib" path="jars/core.match-0.2.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/commons-codec-1.9.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/inflections-0.9.10.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/noencore-0.1.15.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

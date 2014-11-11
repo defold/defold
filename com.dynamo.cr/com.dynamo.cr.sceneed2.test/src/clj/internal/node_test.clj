@@ -36,7 +36,16 @@
 (defnode SimpleTestNode
   (property foo (t/string :default "FOO!")))
 
+(definterface MyInterface$InnerInterface
+  (^int bar []))
+
+(defnode AncestorInterfaceImplementer
+  MyInterface$InnerInterface
+  (bar [this] 800))
+
 (defnode NodeWithProtocols
+  (inherits AncestorInterfaceImplementer)
+
   (property foo (t/string :default "the user"))
 
   clojure.lang.IDeref
@@ -90,6 +99,38 @@
     (is (= :owie (complainer (make-my-node)))))
   (testing "node can implement interface not known/visible to internal.node"
     (is (= :ok (.allGood (make-my-node))))))
+
+(defnk depends-on-self [this] this)
+(defnk depends-on-input [an-input] an-input)
+(defnk depends-on-property [a-property] a-property)
+(defnk depends-on-several [this project g an-input a-property] [this project g an-input a-property])
+(defn  depends-on-default-params [this g] [this g])
+
+(defnode DependencyTestNode
+  (input an-input String)
+  (input unused-input String)
+
+  (property a-property String)
+  (property internal-property String)
+
+  (output depends-on-self s/Any depends-on-self)
+  (output depends-on-input s/Any depends-on-input)
+  (output depends-on-property s/Any depends-on-property)
+  (output depends-on-several s/Any depends-on-several)
+  (output depends-on-default-params s/Any depends-on-default-params))
+
+(deftest dependency-mapping
+  (testing "node reports its own dependencies"
+    (let [test-node (make-dependency-test-node)
+          deps      (t/output-dependencies test-node)]
+      (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
+           :an-input           #{:depends-on-input :depends-on-several}
+           :a-property         #{:depends-on-property :depends-on-several}
+           :project            #{:depends-on-several})
+      (is (not (contains? deps :this)))
+      (is (not (contains? deps :g)))
+      (is (not (contains? deps :unused-input)))
+      (is (not (contains? deps :internal-property))))))
 
 (defnode EmptyNode)
 

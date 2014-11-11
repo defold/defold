@@ -1,9 +1,12 @@
 (ns dynamo.node
   "Define new node types"
-  (:require [internal.node :as in]
-            [dynamo.types :refer :all]
+  (:require [clojure.set :as set]
             [plumbing.core :refer [defnk]]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [dynamo.system :as ds]
+            [dynamo.types :refer :all]
+            [internal.node :as in]
+            [internal.graph.lgraph :as lg]))
 
 (set! *warn-on-reflection* true)
 
@@ -89,30 +92,41 @@ implement dynamo.types/MessageTarget."
   "This is an advanced usage. If you have a reference to a node, you can directly send
 it a message.
 
-This function should mainly be used to create 'plumbing'. In most cases you will want
-to use dynamo.system/publish to send a message to a node."
+This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
   (process-one-event node (assoc body :type type)))
 
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
 ; ---------------------------------------------------------------------------
+(defn inject-new-nodes
+  [graph self transaction]
+  (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
+        out-from-new-connections (in/injection-candidates existing-nodes (:nodes-added transaction))
+        in-to-new-connections    (in/injection-candidates (:nodes-added transaction) existing-nodes)
+        all-possible             (set/union out-from-new-connections in-to-new-connections)
+        not-already-connected    (remove (fn [[out out-label in in-label]]
+                                           (lg/connected? graph (:_id out) out-label (:_id in) in-label))
+                                         all-possible)]
+    (doseq [connection not-already-connected]
+      (apply dynamo.system/connect connection))))
+
 (defnode Scope
   (input nodes [s/Any])
+
   (property tag      {:schema s/Keyword})
   (property parent   {:schema s/Any})
-  (output dictionary s/Any in/scope-dictionary)
+  (property triggers {:default [#'inject-new-nodes]})
 
-  InjectionContext
-  (inject [this target] nil)
+  (output dictionary s/Any in/scope-dictionary)
 
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
 
-(defnode Root
+(defnode RootScope
   (inherits Scope)
   (property tag {:schema s/Keyword :default :root}))
 
-(defmethod print-method Root__
-  [^Root__ v ^java.io.Writer w]
-  (.write w (str "<Root{:_id " (:_id v) "}>")))
+(defmethod print-method RootScope__
+  [^RootScope__ v ^java.io.Writer w]
+  (.write w (str "<RootScope{:_id " (:_id v) "}>")))

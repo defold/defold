@@ -1,26 +1,13 @@
 (ns dynamo.project
   (:require [clojure.java.io :as io]
-            [clojure.core.async :as a :refer [put! onto-chan]]
-            [clojure.core.match :refer [match]]
-            [clojure.tools.namespace.file :refer [read-file-ns-decl]]
             [schema.core :as s]
-            [plumbing.core :refer [defnk]]
-            [dynamo.types :as t]
             [dynamo.system :as ds]
             [dynamo.file :as file]
-            [dynamo.resource :refer [disposable?]]
             [dynamo.node :as n :refer [defnode Scope]]
             [dynamo.ui :as ui]
             [internal.clojure :as clojure]
-            [internal.graph.lgraph :as lg]
-            [internal.graph.dgraph :as dg]
-            [internal.graph.query :as q]
-            [internal.java :as j]
-            [internal.node :as in]
             [internal.query :as iq]
             [internal.system :as is]
-            [internal.transaction :as it]
-            [eclipse.markers :as markers]
             [eclipse.resources :as resources]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IProject IResource]
@@ -85,7 +72,7 @@
         (first (iq/query (:world-ref project-scope) [[:filename f]]))))))
 
 (defn- send-project-scope-message
-  [self txn]
+  [graph self txn]
   (doseq [n (:nodes-added txn)]
     (ds/send-after n {:type :project-scope :scope self})))
 
@@ -95,7 +82,7 @@
 (defnode Project
   (inherits Scope)
 
-  (property triggers {:schema s/Any :default [#'send-project-scope-message]})
+  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-project-scope-message]})
   (property tag {:schema s/Keyword :default :project})
   (property eclipse-project IProject)
   (property branch String))

@@ -1,37 +1,17 @@
 (ns internal.disposal
-  (:require [clojure.core.async :as a]
-            [com.stuartsierra.component :as component]
-            [dynamo.resource :as r]
+  (:require [internal.async :as ia]
+            [dynamo.types :as t]
             [service.log :as log :refer [logging-exceptions]]))
 
 (defn- dispose-one [value]
   (logging-exceptions "disposal-loop"
-    (when (r/disposable? value)
-      (r/dispose value))))
+    (when (t/disposable? value)
+      (t/dispose value))))
 
-(defn- disposal-loop
-  [in]
-  (let [ctrl (a/chan 1)]
-    (a/go-loop []
-       (let [[v ch] (a/alts! [in ctrl])]
-         (when v
-           (dispose-one v)
-           (recur))))
-    ctrl))
-
-(defrecord Disposal [queue control-chan]
-  component/Lifecycle
-  (start [this]
-    (if control-chan
-      this
-      (assoc this :control-chan (disposal-loop queue))))
-
-  (stop [this]
-    (if control-chan
-      (do
-        (a/close! control-chan)
-        (assoc this :control-chan nil)))))
+(defn dispose-pending
+  [world-ref]
+  (logging-exceptions "disposal"
+    (doseq [v (ia/take-all (:disposal-queue @world-ref))]
+      (dispose-one v))))
 
 (defn disposal-message [v] v)
-
-(defn disposal-subsystem [disposal-queue] (->Disposal disposal-queue nil))

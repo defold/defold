@@ -1,7 +1,7 @@
 (ns dynamo.gl.vertex
   (:require [clojure.string :as str]
             [dynamo.buffers :as b]
-            [dynamo.resource :refer [IDisposable dispose]]
+            [dynamo.types :refer [IDisposable dispose]]
             [dynamo.gl.protocols :refer :all]
             [dynamo.gl.shader :refer [shader-program]]
             [dynamo.gl :as gl])
@@ -451,6 +451,6 @@
           This is also when it binds attribs to the shader.
 
           This function returns an object that satisfies dynamo.gl.protocols/GlEnable,
-          dynamo.gl.protocols/GlDisable, and dynamo.resource/IDisposable. You must ensure
+          dynamo.gl.protocols/GlDisable, and dynamo.types/IDisposable. You must ensure
           that `dispose` is called to free GPU memory eventually."}]
   (alter-meta! v assoc :doc doc))

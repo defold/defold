@@ -14,6 +14,7 @@
             [internal.graph.dgraph :as dg]
             [internal.query :as iq]
             [service.log :as log]
+            [inflections.core :refer [plural]]
             [camel-snake-kebab :refer [->kebab-case]]))
 
 (set! *warn-on-reflection* true)
@@ -21,9 +22,12 @@
 ; ---------------------------------------------------------------------------
 ; Value handling
 ; ---------------------------------------------------------------------------
-(defn node-inputs [v] (into #{} (keys (-> v :descriptor :inputs))))
-(defn node-outputs [v] (into #{} (keys (-> v :descriptor :transforms))))
-(defn node-cached-outputs [v] (-> v :descriptor :cached))
+(defn node-inputs [v]            (into #{} (keys (-> v :descriptor :inputs))))
+(defn node-input-types [v]       (-> v :descriptor :inputs))
+(defn node-injectable-inputs [v] (-> v :descriptor :injectable-inputs))
+(defn node-outputs [v]           (into #{} (keys (-> v :descriptor :transforms))))
+(defn node-output-types [v]      (-> v :descriptor :transform-types))
+(defn node-cached-outputs [v]    (-> v :descriptor :cached))
 
 (defn- find-enclosing-scope
   [tag node]
@@ -38,7 +42,6 @@
    :node-type (class n)
    :label     l})
 
-
 (defn- get-value-with-restarts
   [node g label]
   (restart-case
@@ -47,6 +50,8 @@
     (:empty-source-list
       (:use-value [v] v))
     (t/get-value node g label)))
+
+
 
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
@@ -112,7 +117,6 @@
             (miss-cache world-state cache-key (produce-value node (:graph @world-state) label))))
       (produce-value node (:graph @world-state) label))))
 
-
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
 
@@ -145,9 +149,16 @@
 
 (defn classname-for [prefix]  (symbol (str prefix "__")))
 
-(defn fqsymbol [s]
-  (let [{:keys [ns name]} (meta (resolve s))]
-   (symbol (str ns) (str name))))
+(defn fqsymbol
+  [s]
+  (if (symbol? s)
+    (let [{:keys [ns name]} (meta (resolve s))]
+      (symbol (str ns) (str name)))))
+
+(defn classname-sym
+  [cls]
+  (when (class? cls)
+    (symbol (.getName ^Class cls))))
 
 (defn- property-symbols [behavior]
   (map (comp symbol name) (keys (:properties behavior))))
@@ -159,7 +170,7 @@
   [beh]
   (reduce-kv (fn [m k v]
                (let [v (if (seq? v) (eval v) v)]
-                 (if (:default v) (assoc m k (:default v)) m)))
+                 (if (not (nil? (:default v))) (assoc m k (:default v)) m)))
              {} (:properties beh)))
 
 (def ^:private property-flags #{:cached :on-update})
@@ -172,13 +183,16 @@
        (assert super-descriptor (str "Cannot resolve " super " to a node definition."))
        (deref super-descriptor))
 
-
      [(['property nm tp] :seq)]
      {:properties {(keyword nm) tp}
-      :transforms {(keyword nm) `(fn [~'this ~'g] (get ~'this ~(keyword nm)))}}
+      :transforms {(keyword nm) (eval `(fnk [~nm] ~nm))}}
 
-     [(['input nm schema] :seq)]
-     {:inputs     {(keyword nm) (if (coll? schema) (into [] schema) schema)}}
+     [(['input nm schema & flags] :seq)]
+     (let [schema (if (coll? schema) (into [] schema) schema)
+           label  (keyword nm)]
+       (if (some #{:inject} flags)
+         {:inputs {label schema} :injectable-inputs #{label}}
+         {:inputs {label schema}}))
 
      [(['on evt & fn-body] :seq)]
      {:event-handlers {(keyword evt)
@@ -200,7 +214,8 @@
                      (resolve args-or-ref))]
          (reduce
            (fn [m f] (assoc m f #{oname}))
-           {:transforms {(keyword nm) tform}}
+           {:transforms {oname tform}
+            :transform-types {oname output-type}}
            flags)))
 
      [([nm [& args] & remainder] :seq)]
@@ -245,7 +260,7 @@
   [nm forms]
   (->> forms
     (map (partial compile-defnode-form nm))
-    (reduce deep-merge {:name nm})
+    (reduce deep-merge {:name nm :on-update #{}})
     (resolve-defaults)))
 
 (defn- emit-quote [form]
@@ -254,6 +269,26 @@
 (defn- generate-record-methods [descriptor]
   (for [[defined-in method-name args] (:record-methods descriptor)]
     `(~method-name ~args ((get-in ~defined-in [:methods ~(emit-quote method-name)]) ~@args))))
+
+(defn- invert-map
+  [m]
+  (apply merge-with into
+         (for [[k vs] m
+               v vs]
+           {v #{k}})))
+
+(defn- inputs-for
+  [transform]
+  (let [transform (if (var? transform) (var-get transform) transform)]
+    (if (t/has-schema? transform)
+      (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword :this :g)))
+      #{})))
+
+(defn- descriptor->output-dependencies
+   [{:keys [transforms]}]
+   (let [outs (dissoc transforms :self)
+         outs (zipmap (keys outs) (map inputs-for (vals outs)))]
+     (invert-map outs)))
 
 (defn generate-defrecord [nm descriptor]
   (list* `defrecord (classname-for nm) (state-vector descriptor)
@@ -265,13 +300,15 @@
                      (perform (get-in ~nm [:transforms label#]) t# g#))
          `(inputs [t#] (into #{} (keys (:inputs ~nm))))
          `(outputs [t#] (into #{} (keys (:transforms ~nm))))
+         `(auto-update? [t# l#] ((-> t# :descriptor :on-update) l#))
          `(cached-outputs [t#] (:cached ~nm))
+         `(output-dependencies [t#] ~(descriptor->output-dependencies descriptor))
          `t/MessageTarget
          (generate-message-processor nm descriptor)
          (concat
-           (map fqsymbol (:impl descriptor))
-           (:interfaces descriptor)
-           (generate-record-methods descriptor))))
+          (map #(or (fqsymbol %) %) (:impl descriptor))
+          (map #(or (classname-sym %) %) (:interfaces descriptor))
+          (generate-record-methods descriptor))))
 
 (defn quote-functions
   [descriptor]
@@ -306,7 +343,7 @@
                                        ">")))))
 
 ; ---------------------------------------------------------------------------
-;
+; Dependency Injection
 ; ---------------------------------------------------------------------------
 
 (defn- scoped-name
@@ -322,3 +359,23 @@
              n))
     {}
     nodes))
+
+(defn compatible?
+  [[out-node out-label out-type in-node in-label in-type]]
+  (cond
+   (and (= out-label in-label) (t/compatible? out-type in-type false))
+   [out-node out-label in-node in-label]
+
+   (and (= (plural out-label) in-label) (t/compatible? out-type in-type true))
+   [out-node out-label in-node in-label]))
+
+(defn injection-candidates
+  [targets nodes]
+  (into #{}
+     (keep compatible?
+        (for [target  targets
+              i       (node-injectable-inputs target)
+              :let    [i-l (get (node-input-types target) i)]
+              node    nodes
+              [o o-l] (node-output-types node)]
+            [node o o-l target i i-l]))))

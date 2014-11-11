@@ -37,3 +37,12 @@
 (defn disconnect
   [g source source-label target target-label]
   (dg/remove-arc g source {:label source-label} target {:label target-label}))
+
+(defn connected?
+  [g source source-label target target-label]
+  (not
+   (empty?
+    (filter
+     #(and (= source-label (-> % :source-attributes :label))
+           (= target-label (-> % :target-attributes :label)))
+     (dg/arcs-from-to g source target)))))

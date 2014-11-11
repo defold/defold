@@ -181,14 +181,14 @@
     (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
 
 (defnk produce-shader :- s/Int
-  [this gl]
-  (shader/make-shader gl pos-uv-vert pos-uv-frag))
+  [this gl ctx]
+  (shader/make-shader ctx gl pos-uv-vert pos-uv-frag))
 
 (defn render-textureset
   [ctx gl this]
   (handler-bind
     (:unreadable-resource use-placeholder)
-  (do-gl [this            (assoc this :gl gl)
+  (do-gl [this            (assoc this :gl gl :ctx ctx)
           textureset      (get-node-value this :textureset)
           texture         (get-node-value this :gpu-texture)
           shader          (get-node-value this :shader)
@@ -511,12 +511,10 @@
       (in (add editor)
         (let [background (add (make-background))
               grid       (add (make-grid))
-              camera     (add (make-camera-node :camera (make-camera :orthographic)))
-              controller (add (make-camera-controller))]
+              camera     (add (make-camera-controller :camera (make-camera :orthographic)))]
           (connect camera     :camera     grid       :camera)
           (connect camera     :camera     editor     :view-camera)
-          (connect controller :self       editor     :controller)
-          (connect camera     :camera     controller :camera)
+          (connect camera     :self       editor     :controller)
           (connect background :renderable editor     :renderables)
           (connect atlas-node :renderable editor     :renderables)
           (connect grid       :renderable editor     :renderables)

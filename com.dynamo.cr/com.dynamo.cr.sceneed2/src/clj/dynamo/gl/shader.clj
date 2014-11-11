@@ -4,11 +4,11 @@
             [dynamo.buffers :refer [bbuf->string]]
             [dynamo.geom :as g]
             [dynamo.file :refer [replace-extension]]
-            [dynamo.resource :refer [IDisposable dispose]]
+            [dynamo.types :refer [IDisposable dispose]]
             [dynamo.gl.protocols :refer :all])
   (:import [java.nio IntBuffer ByteBuffer]
-           [javax.media.opengl GL GL2]
-           [javax.vecmath Matrix4d Vector4f]
+           [javax.media.opengl GL GL2 GLContext]
+           [javax.vecmath Matrix4d Vector4f Point3d]
            [dynamo.file PathManipulation]))
 
 (set! *warn-on-reflection* true)
@@ -204,6 +204,10 @@
   [^GL2 gl progn loc ^Vector4f val]
   (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
 
+(defmethod set-uniform-at-index Point3d
+  [^GL2 gl progn loc ^Point3d val]
+  (.glUniform3f gl loc (float (.x val)) (float (.y val)) (float (.z val))))
+
 (defmethod set-uniform-at-index (class (float-array []))
   [^GL2 gl progn loc ^floats val]
   (case (count val)
@@ -268,21 +272,24 @@
 (def make-fragment-shader (partial make-shader* GL2/GL_FRAGMENT_SHADER))
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
+(defn delete-shader
+  [^GL2 gl shader]
+  (when (not= 0 shader)
+    (.glDeleteShader gl shader)))
+
 (defn make-shader
-  [^GL2 gl verts frags]
+  [^GLContext ctx ^GL2 gl verts frags]
   (let [vs (make-vertex-shader gl verts)
         fs (make-fragment-shader gl frags)
         program (make-program gl vs fs)]
+    (delete-shader gl vs)
+    (delete-shader gl fs)
     (reify
       ShaderProgram
       (shader-program [this] program)
 
       IDisposable
       (dispose [this]
-        (when (not= 0 vs)
-          (.glDeleteShader gl vs))
-        (when (not= 0 fs)
-          (.glDeleteShader gl fs))
         (when (not= 0 program)
           (.glDeleteProgram gl program)))
 
@@ -300,10 +307,10 @@
           (set-uniform-at-index gl program loc val))))))
 
 (defn load-shaders
-  [^GL2 gl ^PathManipulation sdef]
-  (make-shader gl
-                (slurp (replace-extension sdef "vp"))
-                (slurp (replace-extension sdef "fp"))))
+  [^GLContext ctx ^GL2 gl ^PathManipulation sdef]
+  (make-shader ctx gl
+    (slurp (replace-extension sdef "vp"))
+    (slurp (replace-extension sdef "fp"))))
 
 (doseq [[v doc]
         {*ns*

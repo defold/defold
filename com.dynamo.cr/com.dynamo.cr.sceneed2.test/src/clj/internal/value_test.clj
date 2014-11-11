@@ -5,7 +5,6 @@
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n :refer [Scope]]
             [dynamo.project :as p]
-            [dynamo.resource :as r]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
@@ -31,17 +30,14 @@
      ~@body
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
-(defn produce-simple-value
-  [node g]
-  (tally node 'produce-simple-value)
-  (:scalar node))
+(defnk produce-simple-value
+  [this scalar]
+  (tally this 'produce-simple-value)
+  scalar)
 
 (n/defnode UncachedOutput
   (property scalar (t/string :default "foo"))
-
-  (output uncached-value String [node g]
-          (tally node 'produce-simple-value)
-          (:scalar node)))
+  (output uncached-value String produce-simple-value))
 
 (defn compute-expensive-value
   [node g]
@@ -52,7 +48,7 @@
   (output expensive-value String :cached [node g]
     (tally node 'compute-expensive-value)
     "this took a long time to produce")
-  (input  operand String))
+  (input operand String))
 
 (n/defnode UpdatesExpensiveValue
   (output expensive-value String :cached :on-update
@@ -70,10 +66,16 @@
   (tally this 'compute-derived-value)
   (str first-name " " last-name))
 
+(defnk passthrough-first-name
+  [this first-name]
+  (tally this 'passthrough-first-name)
+  first-name)
+
 (n/defnode CachedOutputFromInputs
   (input first-name String)
   (input last-name  String)
 
+  (output nickname String :cached passthrough-first-name)
   (output derived-value String :cached compute-derived-value))
 
 (n/defnode CacheTestNode
@@ -109,7 +111,7 @@
   (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
     (testing "uncached values are unaffected"
       (is (contains? (:cache-keys @world-ref) (:_id combiner)))
-      (is (= #{:expensive-value :derived-value :another-value}
+      (is (= #{:expensive-value :nickname :derived-value :another-value}
             (into #{} (keys (get-in @world-ref [:cache-keys (:_id combiner)]))))))))
 
 (deftest project-cache
@@ -129,25 +131,36 @@
     (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
       (is (= "Jane Doe" (n/get-node-value combiner :derived-value)))
       (expect-call-when combiner 'compute-derived-value
-        (it/transact world-ref [(it/update-node name1 assoc :scalar "John")])
+        (it/transact world-ref [(it/set-property name1 :scalar "John")])
         (is (= "John Doe" (n/get-node-value combiner :derived-value))))))
 
   (testing "cached values are distinct"
     (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
       (is (= "this is distinct from the other outputs" (n/get-node-value combiner :another-value)))
-      (is (not= (n/get-node-value combiner :another-value) (n/get-node-value combiner :expensive-value))))))
+      (is (not= (n/get-node-value combiner :another-value) (n/get-node-value combiner :expensive-value)))))
+
+  (testing "cache invalidation only hits dependent outputs"
+    (let [[world-ref [name1 name2 combiner expensive]] (build-sample-project)]
+      (is (= "Jane" (n/get-node-value combiner :nickname)))
+      (expect-call-when combiner 'passthrough-first-name
+        (it/transact world-ref [(it/set-property name1 :scalar "Mark")])
+        (is (= "Mark" (n/get-node-value combiner :nickname))))
+      (expect-no-call-when combiner 'passthrough-first-name
+        (it/transact world-ref [(it/set-property name2 :scalar "Brandenburg")])
+        (is (= "Mark" (n/get-node-value combiner :nickname)))
+        (is (= "Mark Brandenburg" (n/get-node-value combiner :derived-value)))))))
 
 
 (defnk compute-disposable-value
   [this g]
   (tally this 'compute-disposable-value)
-  (reify r/IDisposable
-    (dispose [t]
+  (reify t/IDisposable
+    (dispose [v]
       (tally this 'dispose)
       (>!! (:channel (dg/node g this)) :gone))))
 
 (n/defnode DisposableValueNode
-  (output disposable-value r/IDisposable :cached compute-disposable-value))
+  (output disposable-value t/IDisposable :cached compute-disposable-value))
 
 (defnk produce-input-from-node
   [overridden]
@@ -206,7 +219,7 @@
   (let [project-aware-node (build-project-aware-node :some-project)]
     (is (= :some-project (n/get-node-value project-aware-node :testable-output)))))
 
-(deftest update-node-sees-in-transaction-value
+(deftest update-sees-in-transaction-value
   (with-clean-world
     (let [node (ds/transactional
                  (ds/add (p/make-project :name "a project" :int-prop 0)))

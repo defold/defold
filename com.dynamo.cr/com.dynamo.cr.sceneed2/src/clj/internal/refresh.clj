@@ -1,7 +1,6 @@
 (ns internal.refresh
   (:require [clojure.core.async :as a]
             [com.stuartsierra.component :as component]
-            [dynamo.resource :as r]
             [dynamo.types :as t]
             [service.log :as log :refer [logging-exceptions]]))
 
@@ -21,18 +20,19 @@
     ctrl))
 
 (defrecord Refresh
-  [queue control-chan]
+  [queue control-chans refresh-parallelism]
   component/Lifecycle
   (start [this]
-    (if control-chan
+    (if control-chans
       this
-      (assoc this :control-chan (refresh-loop queue))))
+      (assoc this :control-chans (mapv (fn [_] (refresh-loop queue)) (range refresh-parallelism)))))
 
   (stop [this]
-    (if control-chan
+    (if control-chans
       (do
-        (a/close! control-chan)
-        (assoc this :control-chan nil)))))
+        (doseq [ch control-chans]
+          (a/close! ch))
+        (assoc this :control-chans nil)))))
 
 (defn refresh-message
   [node g output]
@@ -41,5 +41,5 @@
    :output  output})
 
 (defn refresh-subsystem
-  [refresh-queue]
-  (->Refresh refresh-queue nil))
+  [refresh-queue parallelism]
+  (->Refresh refresh-queue nil parallelism))

@@ -1,5 +1,5 @@
 (ns service.registry
-  (require [dynamo.resource :refer [IDisposable dispose]]))
+  (require [dynamo.types :as t]))
 
 (defprotocol Registry
   (register [this ent])
@@ -22,10 +22,10 @@
     (get @store key))
   (valAt [this key not-found]
     (get @store key not-found))
-  IDisposable
+  t/IDisposable
   (dispose [this]
     (doseq [e (vals @store)]
-      (if (satisfies? IDisposable e) (dispose e)))))
+      (if (t/disposable? e) (dispose-fn e)))))
 
 (defn registered
   [make-fn arg-key cache-key-fn dispose-fn]

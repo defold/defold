@@ -12,8 +12,10 @@
 ; ----------------------------------------
 ; Protocols here help avoid circular dependencies
 ; ----------------------------------------
-(defprotocol InjectionContext
-  (inject [this target] "Inject dependencies into target."))
+(defprotocol IDisposable
+  (dispose [this] "Clean up a value, including thread-jumping as needed"))
+
+(defn disposable? [x] (satisfies? IDisposable x))
 
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
@@ -26,7 +28,9 @@
   (properties [this]             "Produce a description of properties supported by this node.")
   (inputs     [this]             "Return a set of labels for the allowed inputs of the node.")
   (outputs    [this]             "Return a set of labels for the outputs of this node.")
-  (cached-outputs [this]         "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'."))
+  (auto-update? [this label]     "Return true if the output label should be updated whenever it gets invalidated.")
+  (cached-outputs [this]         "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
+  (output-dependencies [this]    "Return a map of labels for the inputs and properties to outputs that depend on them."))
 
 (defprotocol MessageTarget
   (process-one-event [this event]))
@@ -178,13 +182,23 @@
 ; ----------------------------------------
 ; Type compatibility and inference
 ; ----------------------------------------
-(defn compatible?
-  [output-schema input-schema]
+(defn- check-single-type
+  [out in]
   (or
-    (identical? output-schema input-schema)
-    (= input-schema s/Any)
-    (and (vector? input-schema) (identical? output-schema (first input-schema)))
-    (and (class? input-schema) (.isAssignableFrom input-schema output-schema))))
+   (= s/Any in)
+   (= out in)
+   (and (class? in) (class? out) (.isAssignableFrom ^Class in out))))
+
+(defn compatible?
+  [output-schema input-schema expect-collection?]
+  (let [out-t-pl? (coll? output-schema)
+        in-t-pl?  (coll? input-schema)]
+    (or
+     (= s/Any input-schema)
+     (and expect-collection? (= [s/Any] input-schema))
+     (and expect-collection? in-t-pl? (check-single-type output-schema (first input-schema)))
+     (and (not expect-collection?) (check-single-type output-schema input-schema))
+     (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
 
 (doseq [[v doc]
        {*ns*                   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."

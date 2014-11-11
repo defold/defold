@@ -156,7 +156,7 @@
     (is (= #{p} parent))))
 
 
-(deftest transitive-closure
+(deftest checking-arcs
   (let [g           (empty-graph)
         g           (add-labeled-node g #{:textureset} #{:datafile} {:name "AtlasSaver"})
         grandparent (last-node g)
@@ -175,8 +175,6 @@
         g           (add-labeled-node g #{:image} #{} {:name "sprite"})
         sprite      (last-node g)
         g           (connect g img3 :parent sprite :image)]
-    (is (= #{img1 parent grandparent}             (tclosure g [img1])))
-    (is (= #{img2 parent grandparent}             (tclosure g [img2])))
-    (is (= #{img3 parent grandparent sprite}      (tclosure g [img3])))
-    (is (= #{parent grandparent}                  (tclosure g [parent])))
-    (is (= #{img1 img3 parent grandparent sprite} (tclosure g [img1 img3])))))
+    (is (= [{:source parent :source-attributes {:label :textureset}
+             :target grandparent :target-attributes {:label :textureset}}]
+           (arcs-from-to g parent grandparent)))))

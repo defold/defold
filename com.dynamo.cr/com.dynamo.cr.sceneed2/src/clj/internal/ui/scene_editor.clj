@@ -3,7 +3,6 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.camera :as c]
-            [dynamo.editors :as e]
             [dynamo.geom :as g]
             [dynamo.gl :refer :all]
             [dynamo.node :as n :refer [Scope]]
@@ -11,10 +10,8 @@
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [service.log :as log]
+            [internal.disposal :as disp]
             [internal.render.pass :as pass]
-            [internal.ui.background :as back]
-            [internal.fps :refer [new-fps-tracker]]
-            [internal.ui.grid :as grid]
             [internal.query :as iq])
   (:import [javax.media.opengl GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
@@ -70,6 +67,7 @@
 (defnk paint-renderer
   [^GLContext context ^GLCanvas canvas this ^Camera view-camera text-renderer]
   (ui/swt-safe
+   (disp/dispose-pending (:world-ref this))
     (when (and canvas (not (.isDisposed canvas)))
       (.setCurrent canvas)
       (with-context context [gl glu]
@@ -146,7 +144,7 @@
   (ui/listen component type #(t/process-one-event (iq/node-by-id world-ref _id) %)))
 
 (defn- send-view-scope-message
-  [self txn]
+  [graph self txn]
   (doseq [n (:nodes-added txn)]
     (ds/send-after n {:type :view-scope :scope self})))
 
@@ -156,7 +154,7 @@
 
   (input controller  s/Any)
 
-  (property triggers {:schema s/Any :default [#'send-view-scope-message]})
+  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-view-scope-message]})
 
   (on :create
     (let [canvas        (glcanvas (:parent event))
