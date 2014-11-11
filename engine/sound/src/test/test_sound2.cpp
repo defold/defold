@@ -364,13 +364,13 @@ TEST_P(dmSoundVerifyTest, Mix)
     }
 
     float rms_left, rms_right;
-    dmSound::GetGroupRMS("master", params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
     // Theoretical RMS for a sin-function with amplitude a is a / sqrt(2)
     ASSERT_NEAR(rms_left, 0.8f / sqrtf(2.0f), 0.02f);
     ASSERT_NEAR(rms_right, 0.8f / sqrtf(2.0f), 0.02f);
 
     float peak_left, peak_right;
-    dmSound::GetGroupPeak("master", params.m_BufferFrameCount / 44100.0f, &peak_left, &peak_right);
+    dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / 44100.0f, &peak_left, &peak_right);
     ASSERT_NEAR(peak_left, 0.8f, 0.01f);
     ASSERT_NEAR(peak_right, 0.8f, 0.01f);
 
@@ -545,7 +545,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
         int frames = g_LoopbackDevice->m_AllOutput.Size() / 2;
         float t = (float) (frames) / (float) (params.m_FrameCount);
         float g = 1.0f - t;
-        dmSound::SetGroupGain("master", g);
+        dmSound::SetGroupGain(dmHashString64("master"), g);
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
@@ -755,7 +755,7 @@ TEST_P(dmSoundMixerTest, Mixer)
 
     float master_gain = 0.75f;
 
-    r = dmSound::SetGroupGain("master", master_gain);
+    r = dmSound::SetGroupGain(dmHashString64("master"), master_gain);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::AddGroup("g1");
@@ -765,20 +765,20 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     ASSERT_EQ(3, dmSound::GetGroupCount());
-    std::set<std::string> groups;
+    std::set<dmhash_t> groups;
     for (uint32_t i = 0; i < dmSound::GetGroupCount(); i++) {
-        const char *name = 0;
-        dmSound::GetGroupName(i, &name);
-        groups.insert(name);
+        dmhash_t group = 0;
+        dmSound::GetGroupHash(i, &group);
+        groups.insert(group);
     }
 
-    ASSERT_TRUE(groups.find("master") != groups.end());
-    ASSERT_TRUE(groups.find("g1") != groups.end());
-    ASSERT_TRUE(groups.find("g2") != groups.end());
+    ASSERT_TRUE(groups.find(dmHashString64("master")) != groups.end());
+    ASSERT_TRUE(groups.find(dmHashString64("g1")) != groups.end());
+    ASSERT_TRUE(groups.find(dmHashString64("g2")) != groups.end());
 
-    r = dmSound::SetGroupGain("g1", params.m_Gain1);
+    r = dmSound::SetGroupGain(dmHashString64("g1"), params.m_Gain1);
     ASSERT_EQ(dmSound::RESULT_OK, r);
-    r = dmSound::SetGroupGain("g2", params.m_Gain2);
+    r = dmSound::SetGroupGain(dmHashString64("g2"), params.m_Gain2);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     dmSound::HSoundInstance instance1 = 0;
@@ -866,7 +866,7 @@ TEST_P(dmSoundMixerTest, Mixer)
     last_rms /= 32767.0f;
 
     float rms_left, rms_right;
-    dmSound::GetGroupRMS("g1", params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
+    dmSound::GetGroupRMS(dmHashString64("g1"), params.m_BufferFrameCount / 44100.0f, &rms_left, &rms_right);
     const float rms_tol = 3.0f;
     ASSERT_NEAR(rms_left, last_rms, rms_tol);
     ASSERT_NEAR(rms_right, last_rms, rms_tol);

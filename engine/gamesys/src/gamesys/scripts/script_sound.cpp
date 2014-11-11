@@ -31,6 +31,16 @@ namespace dmGameSystem
         return 1;
     }
 
+    static dmhash_t CheckGroupName(lua_State* L, int index) {
+        if (lua_isstring(L, index)) {
+            return dmHashString64(lua_tostring(L, index));
+        } else if (dmScript::IsHash(L, index)) {
+            return dmScript::CheckHash(L, index);
+        }
+        luaL_argerror(L, index, "hash or string expected");
+        return (dmhash_t) 0;
+    }
+
     /*#
      * Get RMS (Root Mean Square) value from mixer group.
      * <p>
@@ -38,7 +48,7 @@ namespace dmGameSystem
      * the effective window might be larger than specified.
      * </p>
      *
-     * @param group group name [string]
+     * @param group group name [hash|string]
      * @param window window length in seconds [float]
      * @name sound.get_rms
      * @return rms values for left and right channel
@@ -47,10 +57,10 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        const char* group = luaL_checkstring(L, 1);
+        dmhash_t group_hash = CheckGroupName(L, 1);
         float window = luaL_checknumber(L, 2);
         float left = 0, right = 0;
-        dmSound::Result r = dmSound::GetGroupRMS(group, window, &left, &right);
+        dmSound::Result r = dmSound::GetGroupRMS(group_hash, window, &left, &right);
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to get RMS (%d)", r);
         }
@@ -69,7 +79,7 @@ namespace dmGameSystem
      * the effective window might be larger than specified.
      * </p>
      *
-     * @param group group name [string]
+     * @param group group name [hash|string]
      * @param window window length in seconds [float]
      * @name sound.get_peak
      * @return peak values for left and right channel
@@ -78,10 +88,10 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        const char* group = luaL_checkstring(L, 1);
+        dmhash_t group_hash = CheckGroupName(L, 1);
         float window = luaL_checknumber(L, 2);
         float left = 0, right = 0;
-        dmSound::Result r = dmSound::GetGroupPeak(group, window, &left, &right);
+        dmSound::Result r = dmSound::GetGroupPeak(group_hash, window, &left, &right);
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to get peak (%d)", r);
         }
@@ -99,17 +109,17 @@ namespace dmGameSystem
      * Note that gain is in linear scale.
      * </p>
      *
-     * @param group group name [string]
+     * @param group group name [hash|string]
      * @param gain gain in linear scale [float]
      * @name sound.set_group_gain
      */
     int Sound_SetGroupGain(lua_State* L)
     {
         int top = lua_gettop(L);
-        const char* group = luaL_checkstring(L, 1);
+        dmhash_t group_hash = CheckGroupName(L, 1);
         float gain = luaL_checknumber(L, 2);
 
-        dmSound::Result r = dmSound::SetGroupGain(group, gain);
+        dmSound::Result r = dmSound::SetGroupGain(group_hash, gain);
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to set group gain (%d)", r);
         }
@@ -124,17 +134,17 @@ namespace dmGameSystem
      * Note that gain is in linear scale.
      * </p>
      *
-     * @param group group name [string]
+     * @param group group name [hash|string]
      * @name sound.get_group_gain
      * @return gain in linear scale
      */
     int Sound_GetGroupGain(lua_State* L)
     {
         int top = lua_gettop(L);
-        const char* group = luaL_checkstring(L, 1);
+        dmhash_t group_hash = CheckGroupName(L, 1);
         float gain = 0;
 
-        dmSound::Result r = dmSound::GetGroupGain(group, &gain);
+        dmSound::Result r = dmSound::GetGroupGain(group_hash, &gain);
         if (r != dmSound::RESULT_OK) {
             dmLogWarning("Failed to get group gain (%d)", r);
         }
@@ -145,26 +155,48 @@ namespace dmGameSystem
 
     /*#
      * Get all mixer group names
-     * <p>Note that this function is only guaranteed to work in dev-mode</p>
      *
-     * @name sound.get_group_names
-     * @return table of mixer groups names
+     * @name sound.get_groups
+     * @return table of mixer groups names ([hash])
      */
-    int Sound_GetGroupNames(lua_State* L)
+    int Sound_GetGroups(lua_State* L)
     {
         int top = lua_gettop(L);
 
         uint32_t count = dmSound::GetGroupCount();
         lua_createtable(L, count, 0);
         for (uint32_t i = 0; i < count; i++) {
-            const char* name = 0;
-            dmSound::GetGroupName(i, &name);
-            lua_pushstring(L, name);
+            dmhash_t group_hash;
+            dmSound::GetGroupHash(i, &group_hash);
+            dmScript::PushHash(L, group_hash);
             lua_rawseti(L, -2, i + 1);
         }
 
         assert(top + 1 == lua_gettop(L));
 
+        return 1;
+    }
+
+    /*# Get mixer group name
+     * <p>Note that this function is only guaranteed to work in dev-mode</p>
+     *
+     * @name sound.get_group_name
+     * @param group [hash|string]
+     * @return group name
+     */
+    int Sound_GetGroupName(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmhash_t group_hash = dmScript::CheckHash(L, 1);
+        const char* name = (const char*) dmHashReverse64(group_hash, 0);
+        if (name) {
+            lua_pushstring(L, name);
+        } else {
+            lua_pushfstring(L, "unknown_%llu", group_hash);
+        }
+
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -175,7 +207,8 @@ namespace dmGameSystem
         {"get_peak", Sound_GetPeak},
         {"set_group_gain", Sound_SetGroupGain},
         {"get_group_gain", Sound_GetGroupGain},
-        {"get_group_names", Sound_GetGroupNames},
+        {"get_groups", Sound_GetGroups},
+        {"get_group_name", Sound_GetGroupName},
         {0, 0}
     };
 

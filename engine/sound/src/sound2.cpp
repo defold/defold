@@ -499,9 +499,8 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result SetGroupGain(const char* group_name, float gain)
+    Result SetGroupGain(dmhash_t group_hash, float gain)
     {
-        dmhash_t group_hash = dmHashString64(group_name);
         SoundSystem* sound = g_SoundSystem;
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
@@ -513,9 +512,8 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result GetGroupGain(const char* group_name, float* gain)
+    Result GetGroupGain(dmhash_t group_hash, float* gain)
     {
-        dmhash_t group_hash = dmHashString64(group_name);
         SoundSystem* sound = g_SoundSystem;
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
@@ -533,7 +531,7 @@ namespace dmSound
         return sound->m_GroupMap.Size();
     }
 
-    Result GetGroupName(uint32_t index, const char** name)
+    Result GetGroupHash(uint32_t index, dmhash_t* hash)
     {
         SoundSystem* sound = g_SoundSystem;
         if (index >= sound->m_GroupMap.Size()) {
@@ -541,17 +539,12 @@ namespace dmSound
         }
 
         SoundGroup* group = &sound->m_Groups[index];
-        *name = (const char*) dmHashReverse64(group->m_NameHash, 0);
-        if (!*name) {
-            dmLogWarning("No revese hash found for sound group");
-            *name = "unknown";
-        }
+        *hash = group->m_NameHash;
         return RESULT_OK;
     }
 
-    Result GetGroupRMS(const char* group_name, float window, float* rms_left, float* rms_right)
+    Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right)
     {
-        dmhash_t group_hash = dmHashString64(group_name);
         SoundSystem* sound = g_SoundSystem;
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
@@ -580,9 +573,8 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result GetGroupPeak(const char* group_name, float window, float* peak_left, float* peak_right)
+    Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right)
     {
-        dmhash_t group_hash = dmHashString64(group_name);
         SoundSystem* sound = g_SoundSystem;
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
