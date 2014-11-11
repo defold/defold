@@ -1770,7 +1770,7 @@ namespace dmRender
         context.m_LuaState = 0;
     }
 
-    static bool LoadRenderScript(lua_State* L, dmLuaDDF::LuaSource *source, const char* filename, RenderScript* script)
+    static bool LoadRenderScript(lua_State* L, dmLuaDDF::LuaSource *source, RenderScript* script)
     {
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -1779,7 +1779,7 @@ namespace dmRender
         int top = lua_gettop(L);
         (void) top;
 
-        int ret = dmScript::LuaLoad(L, source, filename);
+        int ret = dmScript::LuaLoad(L, source);
         if (ret == 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
@@ -1799,7 +1799,7 @@ namespace dmRender
                         }
                         else
                         {
-                            dmLogError("The global name '%s' in '%s' must be a function.", RENDER_SCRIPT_FUNCTION_NAMES[i], filename);
+                            dmLogError("The global name '%s' in '%s' must be a function.", RENDER_SCRIPT_FUNCTION_NAMES[i], source->m_Filename);
                             lua_pop(L, 1);
                             goto bail;
                         }
@@ -1838,7 +1838,7 @@ bail:
         }
     }
 
-    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source, const char* filename)
+    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
@@ -1851,7 +1851,7 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT);
         lua_setmetatable(L, -2);
         render_script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
-        if (LoadRenderScript(L, source, filename, render_script))
+        if (LoadRenderScript(L, source, render_script))
         {
             assert(top == lua_gettop(L));
             return render_script;
@@ -1864,9 +1864,9 @@ bail:
         }
     }
 
-    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source, const char* filename)
+    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
-        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, filename, render_script);
+        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
