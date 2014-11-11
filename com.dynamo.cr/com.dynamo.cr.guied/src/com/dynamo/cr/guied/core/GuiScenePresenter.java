@@ -58,6 +58,13 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
         context.executeOperation(new AddGuiNodeOperation(scene, node, context));
     }
 
+    public void onAddPieNode(IPresenterContext context) {
+        Node scene = findGuiNodeParentFromSelection(context.getSelection());
+        PieNode node = new PieNode();
+        node.setId("pie");
+        context.executeOperation(new AddGuiNodeOperation(scene, node, context));
+    }
+
     public void onAddTextNode(IPresenterContext context) {
         Node scene = findGuiNodeParentFromSelection(context.getSelection());
         TextNode node = new TextNode();
