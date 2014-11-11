@@ -111,7 +111,6 @@
   (input unused-input String)
 
   (property a-property String)
-  (property internal-property String)
 
   (output depends-on-self s/Any depends-on-self)
   (output depends-on-input s/Any depends-on-input)
@@ -125,12 +124,11 @@
           deps      (t/output-dependencies test-node)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
-           :a-property         #{:depends-on-property :depends-on-several}
+           :a-property         #{:depends-on-property :depends-on-several :a-property}
            :project            #{:depends-on-several})
       (is (not (contains? deps :this)))
       (is (not (contains? deps :g)))
-      (is (not (contains? deps :unused-input)))
-      (is (not (contains? deps :internal-property))))))
+      (is (not (contains? deps :unused-input))))))
 
 (defnode EmptyNode)
 
@@ -255,29 +253,35 @@
   (input in-multi [s/Any])
   (output out-from-self     s/Any out-from-self)
   (output out-from-in       s/Any out-from-in)
-  (output out-const         s/Any [this g] :const-val)
-  (output out-from-in-multi s/Any out-from-in-multi))
+  (output out-const         s/Any [this g] :const-val))
 
-(deftest production-function-dependency-loops
-  (with-clean-world
-    (let [[node0 node1 node2] (tx-nodes
-                                (make-dependency-node)
-                                (make-dependency-node)
-                                (make-dependency-node))
-          _ (ds/transactional
-              (ds/connect node0 :out-from-in node0 :in)
-              (ds/connect node1 :out-from-in node2 :in)
-              (ds/connect node2 :out-from-in node1 :in)
-              (ds/connect node0 :out-const   node1 :in-multi)
-              (ds/connect node1 :out-const   node1 :in-multi)
-              (ds/connect node0 :out-const   node2 :in-multi)
-              (ds/connect node1 :out-const   node2 :in-multi)
-              (ds/connect node1 :out-from-in node2 :in-multi))]
-      (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-self)))
-      (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in)))
-      (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in)))
-      (is (= [:const-val :const-val] (in/get-node-value node1 :out-from-in-multi)))
-      (is (thrown? java.lang.AssertionError (in/get-node-value node2 :out-from-in-multi))))))
+(deftest value-computation-dependency-loops
+  (testing "output dependent on itself"
+    (with-clean-world
+      (let [[node] (tx-nodes (make-dependency-node))]
+        (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-self))))))
+  (testing "output dependent on itself connected to downstream input"
+    (with-clean-world
+       (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))
+             _ (ds/transactional (ds/connect node0 :out-from-self node1 :in))]
+         (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in))))))
+  (testing "cycle of period 1"
+    (with-clean-world
+      (let [[node] (tx-nodes (make-dependency-node))]
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                                (ds/connect node :out-from-in node :in)))))))
+  (testing "cycle of period 2 (single transaction)"
+    (with-clean-world
+      (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))]
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                                (ds/connect node0 :out-from-in node1 :in)
+                                                (ds/connect node1 :out-from-in node0 :in)))))))
+  (testing "cycle of period 2 (multiple transactions)"
+    (with-clean-world
+      (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))
+            _ (ds/transactional (ds/connect node0 :out-from-in node1 :in))]
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                                (ds/connect node1 :out-from-in node0 :in))))))))
 
 (deftest production-function-dependency-limit
   (with-clean-world
