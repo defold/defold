@@ -347,9 +347,19 @@ public class SpineModelNode extends ComponentTypeNode {
         if (ts == null) {
             return;
         }
-        List<Mesh> meshes = new ArrayList<Mesh>(this.scene.meshes);
+        List<Mesh> meshes = new ArrayList<Mesh>(this.scene.meshes.size());
+        for (Mesh mesh : this.scene.meshes) {
+            if (mesh.visible) {
+                meshes.add(mesh);
+            }
+        }
         if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
-            meshes.addAll(this.scene.skins.get(this.skin));
+            List<Mesh> source = this.scene.skins.get(this.skin);
+            for (Mesh mesh : source) {
+                if (mesh.visible) {
+                    meshes.add(mesh);
+                }
+            }
         }
         Collections.sort(meshes, new Comparator<Mesh>() {
             @Override

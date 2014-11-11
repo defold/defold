@@ -37,6 +37,12 @@ namespace dmGameSystem
         uint16_t                             m_Backwards : 1;
     };
 
+    struct MeshProperties {
+        float m_Color[4];
+        uint32_t m_Order;
+        bool m_Visible;
+    };
+
     struct SpineModelComponent
     {
         SpinePlayer                 m_Players[2];
@@ -55,8 +61,10 @@ namespace dmGameSystem
         dmArray<dmTransform::Transform> m_Pose;
         /// Nodes corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
+        /// Animated mesh properties
+        dmArray<MeshProperties>     m_MeshProperties;
         /// Currently used mesh
-        dmGameSystemDDF::Mesh*      m_Mesh;
+        dmGameSystemDDF::MeshEntry* m_MeshEntry;
         dmhash_t                    m_Skin;
         float                       m_BlendDuration;
         float                       m_BlendTimer;
