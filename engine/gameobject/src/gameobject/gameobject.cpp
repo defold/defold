@@ -603,14 +603,18 @@ namespace dmGameObject
         if (instance->m_Identifier != UNNAMED_IDENTIFIER)
             return RESULT_IDENTIFIER_ALREADY_SET;
 
-        if (collection->m_IDToInstance.Full()) {
-            return RESULT_OUT_OF_RESOURCES;
-        }
-
         instance->m_Identifier = id;
         collection->m_IDToInstance.Put(id, instance);
 
         return RESULT_OK;
+    }
+
+    static void ReleaseIdentifier(HCollection collection, HInstance instance)
+    {
+        if (instance->m_Identifier != UNNAMED_IDENTIFIER) {
+            collection->m_IDToInstance.Erase(instance->m_Identifier);
+            instance->m_Identifier = UNNAMED_IDENTIFIER;
+        }
     }
 
     HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
@@ -663,6 +667,7 @@ namespace dmGameObject
         if (instance != 0) {
             bool success = CreateComponents(collection, instance);
             if (!success) {
+                ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
                 instance = 0;
             } else {
@@ -1017,8 +1022,7 @@ namespace dmGameObject
             component_type->m_DestroyFunction(params);
         }
 
-        if (instance->m_Identifier != UNNAMED_IDENTIFIER)
-            collection->m_IDToInstance.Erase(instance->m_Identifier);
+        ReleaseIdentifier(collection, instance);
 
         assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
         assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
