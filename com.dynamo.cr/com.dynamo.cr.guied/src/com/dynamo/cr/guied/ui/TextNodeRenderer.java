@@ -12,8 +12,6 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
-import org.eclipse.swt.graphics.RGB;
-
 import com.dynamo.cr.guied.core.TextNode;
 import com.dynamo.cr.guied.util.TextUtil;
 import com.dynamo.cr.guied.util.TextUtil.TextMetric;

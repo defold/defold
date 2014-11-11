@@ -995,6 +995,30 @@ namespace dmGui
         return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font);
     }
 
+    /*# creates a new pie node
+     *
+     * @name gui.new_pie_node
+     * @param pos node position (vector3|vector4)
+     * @param size node size (vector3)
+     * @return new box node (node)
+     */
+    static int LuaNewPieNode(lua_State* L)
+    {
+        Vector3 pos;
+        if (dmScript::IsVector4(L, 1))
+        {
+            Vector4* p4 = dmScript::CheckVector4(L, 1);
+            pos = Vector3(p4->getX(), p4->getY(), p4->getZ());
+        }
+        else
+        {
+            pos = *dmScript::CheckVector3(L, 1);
+        }
+        Vector3 size = *dmScript::CheckVector3(L, 2);
+        Scene* scene = GuiScriptInstance_Check(L);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0);
+    }
+
     /*# gets the node text
      * This is only useful for text nodes.
      *
@@ -1700,6 +1724,198 @@ namespace dmGui
         return 1;
     }
 
+    /*# sets the number of generarted vertices around the perimeter
+     *
+     * @name gui.set_perimeter_vertices
+     * @param vertex count (number)
+     */
+    static int LuaSetPerimeterVertices(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        const int vertices = luaL_checkint(L, 2);
+        if (vertices < 2 || vertices > 100000)
+        {
+            luaL_error(L, "Unreasonable number of vertices: %d", vertices);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodePerimeterVertices(scene, hnode, vertices);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the number of generarted vertices around the perimeter
+     *
+     * @name gui.get_perimeter_vertices
+     * @return vertex count (number)
+     */
+    static int LuaGetPerimeterVertices(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushinteger(L, dmGui::GetNodePerimeterVertices(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the angle for the filled pie sector
+     *
+     * @name gui.set_pie_fill_angle
+     * @param sector angle
+     */
+    static int LuaSetPieFillAngle(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        float angle = luaL_checknumber(L, 2);
+        if (angle < -360.f || angle > 360.f)
+        {
+            luaL_error(L, "Fill angle out of bounds %f", angle);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodePieFillAngle(scene, hnode, angle);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the angle for the filled pie sector
+     *
+     * @name gui.set_pie_fill_angle
+     * @return sector angle
+     */
+    static int LuaGetPieFillAngle(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, dmGui::GetNodePieFillAngle(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the pie inner radius (defined along the x dimension)
+     *
+     * @name gui.set_inner_radius
+     * @param inner radius
+     */
+    static int LuaSetInnerRadius(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        float inner_radius = luaL_checknumber(L, 2);
+        if (inner_radius < 0)
+        {
+            luaL_error(L, "Inner radius out of bounds %f", inner_radius);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeInnerRadius(scene, hnode, inner_radius);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the pie inner radius (defined along the x dimension)
+     *
+     * @name gui.get_inner_radius
+     * @return inner radius
+     */
+    static int LuaGetInnerRadius(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushnumber(L, dmGui::GetNodeInnerRadius(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the pie outer bounds mode
+     *
+     * @name gui.set_outer_bounds
+     * @param BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
+     */
+    static int LuaSetOuterBounds(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        int bounds = luaL_checkint(L, 2);
+        if (bounds != PIEBOUNDS_ELLIPSE && bounds != PIEBOUNDS_RECTANGLE)
+        {
+            luaL_error(L, "Invalid value for outer bounds! %d", bounds);
+        }
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        SetNodeOuterBounds(scene, hnode, (PieBounds)bounds);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# gets the pie outer bounds mode
+     *
+     * @name gui.get_outer_bounds
+     * @return BOUNDS_RECTANGLE or BOUNDS_ELLIPSE
+     */
+    static int LuaGetOuterBounds(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        (void) n;
+
+        lua_pushinteger(L, dmGui::GetNodeOuterBounds(scene, hnode));
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# determines if the node is pickable by the supplied coordinates
      *
      * @name gui.pick_node
@@ -2315,6 +2531,7 @@ namespace dmGui
         {"cancel_animation",LuaCancelAnimation},
         {"new_box_node",    LuaNewBoxNode},
         {"new_text_node",   LuaNewTextNode},
+        {"new_pie_node",    LuaNewPieNode},
         {"get_text",        LuaGetText},
         {"set_text",        LuaSetText},
         {"set_line_break",  LuaSetLineBreak},
@@ -2356,6 +2573,15 @@ namespace dmGui
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
+        {"set_pie_fill_angle", LuaSetPieFillAngle},
+        {"get_pie_fill_angle", LuaGetPieFillAngle},
+        {"set_perimeter_vertices", LuaSetPerimeterVertices},
+        {"get_perimeter_vertices", LuaGetPerimeterVertices},
+        {"set_inner_radius", LuaSetInnerRadius},
+        {"get_inner_radius", LuaGetInnerRadius},
+        {"set_outer_bounds", LuaSetOuterBounds},
+        {"get_outer_bounds", LuaGetOuterBounds},
+
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
         REGGETSET(Scale, scale)
@@ -2689,6 +2915,15 @@ namespace dmGui
         SETPLAYBACK(LOOP_PINGPONG)
 
 #undef SETADJUST
+
+#define SETBOUNDS(name) \
+        lua_pushnumber(L, (lua_Number) PIEBOUNDS_##name); \
+        lua_setfield(L, -2, "PIEBOUNDS_"#name);\
+
+        SETBOUNDS(RECTANGLE)
+        SETBOUNDS(ELLIPSE)
+#undef SETBOUNDS
+
 
         lua_pop(L, 1);
 

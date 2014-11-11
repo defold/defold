@@ -26,6 +26,10 @@
             name="Add">
       </command>
       <command
+            id="com.dynamo.cr.sceneed.ui.commands.addTertiary"
+            name="Add">
+      </command>
+      <command
             id="com.dynamo.cr.sceneed.ui.commands.addSecondaryReference"
             name="Add Reference">
       </command>
