@@ -487,10 +487,11 @@ namespace dmGameSystem
                     continue;
                 }
                 uint32_t index_count = mesh->m_Indices.m_Count;
+                uint32_t buffer_offset = vertex_buffer.Size();
+                vertex_buffer.SetSize(buffer_offset + index_count);
                 for (uint32_t ii = 0; ii < index_count; ++ii)
                 {
-                    vertex_buffer.SetSize(vertex_buffer.Size()+1);
-                    SpineModelVertex& v = vertex_buffer.Back();
+                    SpineModelVertex& v = vertex_buffer[buffer_offset + ii];
                     uint32_t vi = mesh->m_Indices[ii];
                     uint32_t e = vi*3;
                     Point3 in_p(mesh->m_Positions[e+0], mesh->m_Positions[e+1], mesh->m_Positions[e+2]);
