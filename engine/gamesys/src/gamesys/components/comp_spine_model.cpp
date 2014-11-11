@@ -373,6 +373,7 @@ namespace dmGameSystem
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_Pose.SetCapacity(0);
         component->m_NodeInstances.SetCapacity(0);
+        component->m_MeshProperties.SetCapacity(0);
         memset(component, 0, sizeof(SpineModelComponent));
         world->m_ComponentIndices.Push(index);
     }
