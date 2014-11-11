@@ -9,6 +9,7 @@
 #include <dlib/math.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
+#include <dlib/path.h>
 
 #include <ddf/ddf.h>
 
@@ -42,12 +43,30 @@ namespace dmScript
         *size = source->m_Script.m_Count;
     }
 
-    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource *source, const char *filename)
+    // Prefixes string 'input' with 'prefix' into buffer 'buf' of size 'size'
+    //
+    // This is used to supply '=' prefixed strings into Lua, since that will allow passing in
+    // chunk name strings unmangled. '=' prefix means user data and will not be automagically modified.
+    //
+    // For this reason a null value for input is also just returned as null as it indicates unused argument.
+    static const char* PrefixFilename(const char *input, char prefix, char *buf, uint32_t size)
+    {
+        if (!input)
+            return 0;
+
+        buf[0] = prefix;
+        dmStrlCpy(&buf[1], input, size-1);
+        return buf;
+    }
+
+    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource *source)
     {
         const char *buf;
         uint32_t size;
         GetLuaSource(source, &buf, &size);
-        return luaL_loadbuffer(L, buf, size, filename);
+
+        char tmp[DMPATH_MAX_PATH];
+        return luaL_loadbuffer(L, buf, size, PrefixFilename(source->m_Filename, '=', tmp, sizeof(tmp)));
     }
 
     static bool LuaLoadModule(lua_State *L, const char *buf, uint32_t size, const char *filename)
@@ -55,7 +74,8 @@ namespace dmScript
         int top = lua_gettop(L);
         (void) top;
 
-        int ret = luaL_loadbuffer(L, buf, size, filename);
+        char tmp[DMPATH_MAX_PATH];
+        int ret = luaL_loadbuffer(L, buf, size, PrefixFilename(filename, '=', tmp, sizeof(tmp)));
         if (ret == 0)
         {
             assert(top + 1 == lua_gettop(L));
