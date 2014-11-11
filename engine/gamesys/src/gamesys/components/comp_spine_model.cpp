@@ -1155,6 +1155,8 @@ namespace dmGameSystem
             vertex_buffer_data = (void*)&(vertex_buffer[0]);
         dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_buffer.Size() * sizeof(SpineModelVertex), vertex_buffer_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
+        DM_COUNTER("SpineVertexBuffer", vertex_buffer.Size() * sizeof(SpineModelVertex));
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
