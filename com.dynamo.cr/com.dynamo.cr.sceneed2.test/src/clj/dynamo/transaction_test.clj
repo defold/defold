@@ -86,9 +86,7 @@
         (is (= 1 @trigger-called))))))
 
 (n/defnode NamedThing
-  (property name String)
-  ;; TODO - remove this output after PR #5 is merged
-  (output name String [this g] (:name this)))
+  (property name String))
 
 (defnk friendly-name [first-name] first-name)
 (defnk full-name [first-name surname] (str first-name " " surname))
@@ -139,9 +137,10 @@
   (with-clean-world
     (let [nodes (build-network)]
       (are [expected tx] (= (should-be-affected nodes expected) tx)
-           []                            (affected-by
+           [[:calculator :touched]]      (affected-by
                                           (ds/update-property (:calculator nodes) :touched (constantly true)))
-           [[:person :age]
+           [[:person :date-of-birth]
+            [:person :age]
             [:calculator :passthrough]]  (affected-by
                                           (ds/set-property (:person nodes) :date-of-birth (java.util.Date.)))))))
 

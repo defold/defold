@@ -6,7 +6,7 @@
             [dynamo.node :as n :refer [defnode]]
             [dynamo.project :as p]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world]]
+            [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
             [internal.node :as in :refer [deep-merge]]
             [internal.system :as is]
             [internal.query :as iq]
@@ -33,15 +33,8 @@
   (is (= schema-merge (deep-merge s1 s2)))
   (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
 
-(defn simple-production-fn [this graph] "a produced value")
-(defnk funky-production [this] "a funky value")
-
 (defnode SimpleTestNode
-  (property foo (t/string :default "FOO!"))
-
-  (output an-output String simple-production-fn)
-  (output inline-output String [this graph] "inlined function")
-  (output symbol-param-production String funky-production))
+  (property foo (t/string :default "FOO!")))
 
 (definterface MyInterface$InnerInterface
   (^int bar []))
@@ -74,10 +67,6 @@
     (is (contains? (make-simple-test-node) :foo)))
   (testing "property defaults"
     (is (= "FOO!" (-> (make-simple-test-node) :foo))))
-  (testing "production functions"
-    (is (= "a produced value" (-> (make-simple-test-node) (t/get-value nil :an-output))))
-    (is (= "inlined function" (-> (make-simple-test-node) (t/get-value nil :inline-output))))
-    (is (= "a funky value"    (-> (make-simple-test-node) (t/get-value nil :symbol-param-production)))))
   (testing "extending nodes with protocols"
     (is (instance? clojure.lang.IDeref (make-node-with-protocols)))
     (is (= "the user" @(make-node-with-protocols)))
@@ -122,7 +111,6 @@
   (input unused-input String)
 
   (property a-property String)
-  (property internal-property String)
 
   (output depends-on-self s/Any depends-on-self)
   (output depends-on-input s/Any depends-on-input)
@@ -136,9 +124,173 @@
           deps      (t/output-dependencies test-node)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
-           :a-property         #{:depends-on-property :depends-on-several}
+           :a-property         #{:depends-on-property :depends-on-several :a-property}
            :project            #{:depends-on-several})
       (is (not (contains? deps :this)))
       (is (not (contains? deps :g)))
-      (is (not (contains? deps :unused-input)))
-      (is (not (contains? deps :internal-property))))))
+      (is (not (contains? deps :unused-input))))))
+
+(defnode EmptyNode)
+
+(deftest node-intrinsics
+  (let [node (make-empty-node)]
+    (is (identical? node (t/get-value node nil :self)))))
+
+(defn ^:dynamic production-fn [this g] :defn)
+(def ^:dynamic production-val :def)
+
+(defnode ProductionFunctionTypesNode
+  (output inline-fn      s/Keyword [this g] :fn)
+  (output defn-as-symbol s/Keyword production-fn)
+  (output def-as-symbol  s/Keyword production-val))
+
+(deftest production-function-types
+  (let [node (make-production-function-types-node)]
+    (is (= :fn   (t/get-value node nil :inline-fn)))
+    (is (= :defn (t/get-value node nil :defn-as-symbol)))
+    (is (= :def  (t/get-value node nil :def-as-symbol)))
+    (binding [production-fn :dynamic-binding-val]
+      (is (= :dynamic-binding-val (t/get-value node nil :defn-as-symbol))))
+    (binding [production-val (constantly :dynamic-binding-fn)]
+      (is (= :dynamic-binding-fn (t/get-value node nil :def-as-symbol))))))
+
+(defn production-fn-this [this g] this)
+(defn production-fn-g [this g] g)
+(defnk production-fnk-this [this] this)
+(defnk production-fnk-g [g] g)
+(defnk production-fnk-world [world] world)
+(defnk production-fnk-project [project] project)
+(defnk production-fnk-prop [prop] prop)
+(defnk production-fnk-in [in] in)
+(defnk production-fnk-in-multi [in-multi] in-multi)
+(defnk production-fnk-out [out] out)
+(defnk production-fnk-defnk-out [defnk-out] defnk-out)
+(defnk production-fnk-out-cached
+  [defnk-out-cached-invocation-count out]
+  (swap! defnk-out-cached-invocation-count inc)
+  out)
+
+(defnode ProductionFunctionInputsNode
+  (input in       s/Keyword)
+  (input in-multi [s/Keyword])
+  (property prop {:schema s/Keyword})
+  (output out s/Keyword [this g] :out-val)
+  (output inline-fn-this   s/Any [this g] this)
+  (output inline-fn-g      s/Any [this g] g)
+  (output defn-this        s/Any production-fn-this)
+  (output defn-g           s/Any production-fn-g)
+  (output defnk-this       s/Any production-fnk-this)
+  (output defnk-g          s/Any production-fnk-g)
+  (output defnk-world      s/Any production-fnk-world)
+  (output defnk-project    s/Any production-fnk-project)
+  (output defnk-prop       s/Any production-fnk-prop)
+  (output defnk-in         s/Any production-fnk-in)
+  (output defnk-in-multi   s/Any production-fnk-in-multi)
+  (output defnk-out        s/Any production-fnk-out)
+  (output defnk-defnk-out  s/Any production-fnk-defnk-out)
+  (property defnk-out-cached-invocation-count {:schema clojure.lang.Atom})
+  (output defnk-out-cached s/Any :cached production-fnk-out-cached))
+
+(deftest production-function-inputs
+  (with-clean-world
+    (let [project (ds/transactional (ds/add (p/make-project)))
+          [node0 node1 node2] (ds/in project
+                                (tx-nodes
+                                  (make-production-function-inputs-node :prop :node0 :defnk-out-cached-invocation-count (atom 0))
+                                  (make-production-function-inputs-node :prop :node1)
+                                  (make-production-function-inputs-node :prop :node2)))
+          _ (ds/transactional
+              (ds/connect node0 :defnk-prop node1 :in)
+              (ds/connect node0 :defnk-prop node2 :in)
+              (ds/connect node1 :defnk-prop node2 :in)
+              (ds/connect node0 :defnk-prop node1 :in-multi)
+              (ds/connect node0 :defnk-prop node2 :in-multi)
+              (ds/connect node1 :defnk-prop node2 :in-multi))
+          graph (is/graph world-ref)]
+      (testing "inline fn parameters"
+        (is (identical? node0 (in/get-node-value node0 :inline-fn-this)))
+        (is (identical? graph (in/get-node-value node0 :inline-fn-g))))
+      (testing "standard defn parameters"
+        (is (identical? node0 (in/get-node-value node0 :defn-this)))
+        (is (identical? graph (in/get-node-value node0 :defn-g))))
+      (testing "'special' defnk inputs"
+        (is (identical? node0     (in/get-node-value node0 :defnk-this)))
+        (is (identical? graph     (in/get-node-value node0 :defnk-g)))
+        (is (identical? world-ref (in/get-node-value node0 :defnk-world)))
+        (is (= project (in/get-node-value node0 :defnk-project))))
+      (testing "defnk inputs from node properties"
+        (is (= :node0 (in/get-node-value node0 :defnk-prop))))
+      (testing "defnk inputs from node inputs"
+        (is (nil?              (in/get-node-value node0 :defnk-in)))
+        (is (= :node0          (in/get-node-value node1 :defnk-in)))
+        (is (#{:node0 :node1}  (in/get-node-value node2 :defnk-in)))
+        (is (= []              (in/get-node-value node0 :defnk-in-multi)))
+        (is (= [:node0]        (in/get-node-value node1 :defnk-in-multi)))
+        (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi))))
+      (testing "defnk inputs from node outputs"
+        (is (= :out-val (in/get-node-value node0 :defnk-out)))
+        (is (= :out-val (in/get-node-value node0 :defnk-defnk-out)))
+        (is (= 0 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
+        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
+        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
+        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
+        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))))))
+
+(deftest node-properties-as-node-outputs
+  (with-clean-world
+    (let [[node0 node1] (tx-nodes
+                          (make-production-function-inputs-node :prop :node0)
+                          (make-production-function-inputs-node :prop :node1))
+          _ (ds/transactional (ds/connect node0 :prop node1 :in))]
+      (is (= :node0 (in/get-node-value node1 :defnk-in))))))
+
+(defnk out-from-self [out-from-self] out-from-self)
+(defnk out-from-in [in] in)
+(defnk out-from-in-multi [in-multi] in-multi)
+
+(defnode DependencyNode
+  (input in s/Any)
+  (input in-multi [s/Any])
+  (output out-from-self     s/Any out-from-self)
+  (output out-from-in       s/Any out-from-in)
+  (output out-const         s/Any [this g] :const-val))
+
+(deftest value-computation-dependency-loops
+  (testing "output dependent on itself"
+    (with-clean-world
+      (let [[node] (tx-nodes (make-dependency-node))]
+        (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-self))))))
+  (testing "output dependent on itself connected to downstream input"
+    (with-clean-world
+       (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))
+             _ (ds/transactional (ds/connect node0 :out-from-self node1 :in))]
+         (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in))))))
+  (testing "cycle of period 1"
+    (with-clean-world
+      (let [[node] (tx-nodes (make-dependency-node))]
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                                (ds/connect node :out-from-in node :in)))))))
+  (testing "cycle of period 2 (single transaction)"
+    (with-clean-world
+      (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))]
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                                (ds/connect node0 :out-from-in node1 :in)
+                                                (ds/connect node1 :out-from-in node0 :in)))))))
+  (testing "cycle of period 2 (multiple transactions)"
+    (with-clean-world
+      (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))
+            _ (ds/transactional (ds/connect node0 :out-from-in node1 :in))]
+        (is (thrown? java.lang.AssertionError (ds/transactional
+                                                (ds/connect node1 :out-from-in node0 :in))))))))
+
+(deftest production-function-dependency-limit
+  (with-clean-world
+    (let [nodes (apply tx-nodes (repeatedly 251 make-dependency-node))
+          _ (ds/transactional
+              (ds/connect (first nodes) :out-const (second nodes) :in)
+              (doall (for [[x y] (partition 2 1 (rest nodes))]
+                       (ds/connect x :out-from-in y :in))))]
+      (is (= :const-val (in/get-node-value (nth nodes 0) :out-const)))
+      (is (= :const-val (in/get-node-value (nth nodes 1) :out-from-in)))
+      (is (= :const-val (in/get-node-value (nth nodes 249) :out-from-in)))
+      (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 250) :out-from-in))))))

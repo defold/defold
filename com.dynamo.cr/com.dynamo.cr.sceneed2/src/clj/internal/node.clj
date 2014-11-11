@@ -56,14 +56,16 @@
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
-    (let [schema (get-in target-node [:descriptor :inputs target-label])]
+    (let [schema (get-in target-node [:descriptor :inputs target-label])
+          output-transform (get-in target-node [:descriptor :transforms target-label])]
       (cond
-        (vector? schema)     (map (fn [[source-node source-label]]
-                                    (get-value-with-restarts (dg/node g source-node) g source-label))
+        (vector? schema)     (mapv (fn [[source-node source-label]]
+                                     (get-value-with-restarts (dg/node g source-node) g source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
                                (when first-source-node
                                  (get-value-with-restarts (dg/node g first-source-node) g first-source-label)))
+        (not (nil? output-transform)) (get-value-with-restarts target-node g target-label)
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))
@@ -80,13 +82,19 @@
         (assoc m k (get-inputs node g k))))
     {} input-schema))
 
-(defn perform [transform node g]
+(defn perform* [transform node g]
   (cond
-    (symbol?       transform)  (perform (resolve transform) node g)
-    (var?          transform)  (perform (var-get transform) node g)
+    (var?          transform)  (recur (var-get transform) node g)
     (t/has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform)))
     (fn?           transform)  (transform node g)
     :else transform))
+
+(def ^:dynamic *perform-depth* 250)
+
+(defn perform [transform node g]
+  {:pre [(pos? *perform-depth*)]}
+  (binding [*perform-depth* (dec *perform-depth*)]
+    (perform* transform node g)))
 
 (defn- hit-cache [world-state cache-key value]
   (dosync (alter world-state update-in [:cache] cache/hit cache-key))
@@ -176,7 +184,8 @@
        (deref super-descriptor))
 
      [(['property nm tp] :seq)]
-     {:properties {(keyword nm) tp}}
+     {:properties {(keyword nm) tp}
+      :transforms {(keyword nm) (eval `(fnk [~nm] ~nm))}}
 
      [(['input nm schema & flags] :seq)]
      (let [schema (if (coll? schema) (into [] schema) schema)
@@ -197,13 +206,12 @@
            args-or-ref (first remainder)
            remainder   (rest remainder)]
        (assert (not (keyword? output-type)) "The output type seems to be missing")
-       (assert (or (and (vector? args-or-ref) (not (nil? remainder)))
-                   (symbol? args-or-ref)
-                   (var? args-or-ref)) (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
-       (let [tform (cond
-                     (vector? args-or-ref)  `(defn ~(symbol (str prefix ":" nm)) ~args-or-ref ~@remainder)
-                     (symbol? args-or-ref)  (resolve args-or-ref)
-                     :else                  args-or-ref)]
+       (assert (or (and (vector? args-or-ref) (seq remainder))
+                   (and (symbol? args-or-ref) (var? (resolve args-or-ref))))
+         (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
+       (let [tform (if (vector? args-or-ref)
+                     `(fn ~args-or-ref ~@remainder)
+                     (resolve args-or-ref))]
          (reduce
            (fn [m f] (assoc m f #{oname}))
            {:transforms {oname tform}

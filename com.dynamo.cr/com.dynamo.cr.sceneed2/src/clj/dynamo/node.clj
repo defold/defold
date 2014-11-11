@@ -16,7 +16,7 @@
 (defnk selfie [this] this)
 
 (def node-intrinsics
-  '[(output self schema.core/Any dynamo.node/selfie)])
+  [(list 'output 'self `s/Any `selfie)])
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,

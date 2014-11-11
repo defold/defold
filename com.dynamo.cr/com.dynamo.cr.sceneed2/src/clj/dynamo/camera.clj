@@ -314,11 +314,8 @@
     (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
-(defnk emit-camera [camera] camera)
-
 (n/defnode CameraController
   (property camera {:schema Camera})
-  (output   camera Camera emit-camera)
 
   (property movement {:schema s/Any :default :idle})
 
