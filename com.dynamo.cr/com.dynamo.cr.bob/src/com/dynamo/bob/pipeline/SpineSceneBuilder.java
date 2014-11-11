@@ -418,15 +418,15 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static void toDDF(SpineScene.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
+    private static void toDDF(SpineScene.Slot slot, SpineScene.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
         switch (track.property) {
         case ATTACHMENT:
             VisibilityBuilder visibilityBuilder = new VisibilityBuilder(animTrackBuilder, meshName);
-            sampleTrack(track, visibilityBuilder, new Boolean(true), duration, sampleRate, spf, false);
+            sampleTrack(track, visibilityBuilder, new Boolean(meshName.equals(slot.attachment)), duration, sampleRate, spf, false);
             break;
         case COLOR:
             ColorBuilder colorBuilder = new ColorBuilder(animTrackBuilder);
-            sampleTrack(track, colorBuilder, new float[] {1.0f, 1.0f, 1.0f, 1.0f}, duration, sampleRate, spf, true);
+            sampleTrack(track, colorBuilder, slot.color, duration, sampleRate, spf, true);
             break;
         case DRAW_ORDER:
             DrawOrderBuilder drawOrderBuilder = new DrawOrderBuilder(animTrackBuilder);
@@ -444,7 +444,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static void toDDF(String id, SpineScene.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate, Map<Long, Map<String, List<MeshIndex>>> slotIndices) {
+    private static void toDDF(SpineScene scene, String id, SpineScene.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate, Map<Long, Map<String, List<MeshIndex>>> slotIndices) {
         SpineAnimation.Builder animBuilder = SpineAnimation.newBuilder();
         animBuilder.setId(MurmurHash.hash64(id));
         animBuilder.setDuration(animation.duration);
@@ -481,12 +481,13 @@ public class SpineSceneBuilder extends Builder<Void> {
                 Map<String, List<MeshIndex>> slotToMeshIndex = skinEntry.getValue();
                 for (SpineScene.SlotAnimationTrack track : animation.slotTracks) {
                     List<MeshIndex> meshIndices = slotToMeshIndex.get(track.slot.name);
+                    SpineScene.Slot slot = scene.getSlot(track.slot.name);
                     if (meshIndices != null) {
                         for (MeshIndex meshIndex : meshIndices) {
                             MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
                             trackBuilder.setSkinId(skinId);
                             trackBuilder.setMeshIndex(meshIndex.index);
-                            toDDF(track, trackBuilder, animation.duration, sampleRate, spf, meshIndex.name);
+                            toDDF(slot, track, trackBuilder, animation.duration, sampleRate, spf, meshIndex.name);
                             animBuilder.addMeshTracks(trackBuilder.build());
                         }
                     }
@@ -528,7 +529,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         // AnimationSet
         AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
         for (Map.Entry<String, SpineScene.Animation> entry : scene.animations.entrySet()) {
-            toDDF(entry.getKey(), entry.getValue(), animSetBuilder, sampleRate, slotIndices);
+            toDDF(scene, entry.getKey(), entry.getValue(), animSetBuilder, sampleRate, slotIndices);
         }
         b.setAnimationSet(animSetBuilder);
     }
