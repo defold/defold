@@ -329,7 +329,6 @@ namespace dmGameObject
                 --size;
                 if (size > i)
                 {
-                    uint16_t was = world->m_AnimMap[anim->m_Index];
                     // We swapped, anim points to the swapped animation, update its map
                     world->m_AnimMap[anim->m_Index] = i;
                 }
@@ -607,7 +606,6 @@ namespace dmGameObject
                     if (anim_count > anim_index)
                     {
                         // We swapped, anim points to the swapped animation, update its map
-                        uint16_t was = world->m_AnimMap[anim->m_Index];
                         world->m_AnimMap[anim->m_Index] = anim_index;
                     }
                 }
