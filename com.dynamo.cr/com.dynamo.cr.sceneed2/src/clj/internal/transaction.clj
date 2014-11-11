@@ -325,7 +325,6 @@
 
 (defn transact
   [world-ref txs]
-  (println txs)
   (dosync
     (let [{:keys [world messages]} (run-to-completion @world-ref (new-transaction-context world-ref txs) 0)]
       (ref-set world-ref world)

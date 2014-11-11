@@ -122,7 +122,6 @@
                                             -100000
                                             100000)
                         (assoc :viewport viewport))]
-      (println "Resize. New camera " new-camera " on node " (:_id camera-node))
       (ds/set-property camera-node :camera new-camera)))
 
   (on :reframe
