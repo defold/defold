@@ -59,6 +59,7 @@ namespace dmGameSystem
     };
 
     static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
+    static void DestroyComponent(SpineModelWorld* world, SpineModelComponent* component);
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -252,9 +253,18 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
-            if (inst == 0x0)
+            if (inst == 0x0) {
+                component->m_NodeInstances.SetSize(i);
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-            dmGameObject::SetIdentifier(collection, inst, dmGameObject::GenerateUniqueInstanceId(collection));
+            }
+
+            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, dmGameObject::GenerateUniqueInstanceId(collection));
+            if (dmGameObject::RESULT_OK != result) {
+                dmGameObject::Delete(collection, inst);
+                component->m_NodeInstances.SetSize(i);
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            }
+
             dmGameObject::SetBone(inst, true);
             dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
             if (i == 0)
@@ -297,6 +307,7 @@ namespace dmGameSystem
                 break;
             }
         }
+        component->m_NodeInstances.SetSize(0);
     }
 
     dmGameObject::CreateResult CompSpineModelCreate(const dmGameObject::ComponentCreateParams& params)
@@ -319,8 +330,10 @@ namespace dmGameSystem
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
         component->m_Mesh = FindMesh(&component->m_Resource->m_Scene->m_SpineScene->m_MeshSet, component->m_Skin);
         dmGameObject::CreateResult result = CreatePose(component);
-        if (result != dmGameObject::CREATE_RESULT_OK)
+        if (result != dmGameObject::CREATE_RESULT_OK) {
+            DestroyComponent(world, component);
             return result;
+        }
         ReHash(component);
         dmhash_t default_animation_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
         if (default_animation_id != NULL_ANIMATION)
@@ -333,10 +346,8 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSpineModelDestroy(const dmGameObject::ComponentDestroyParams& params)
+    static void DestroyComponent(SpineModelWorld* world, SpineModelComponent* component)
     {
-        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
-        SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
         DestroyPose(component);
         uint32_t index = component - &world->m_Components[0];
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
@@ -344,6 +355,13 @@ namespace dmGameSystem
         component->m_NodeInstances.SetCapacity(0);
         memset(component, 0, sizeof(SpineModelComponent));
         world->m_ComponentIndices.Push(index);
+    }
+
+    dmGameObject::CreateResult CompSpineModelDestroy(const dmGameObject::ComponentDestroyParams& params)
+    {
+        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
+        DestroyComponent(world, component);
         return dmGameObject::CREATE_RESULT_OK;
     }
 

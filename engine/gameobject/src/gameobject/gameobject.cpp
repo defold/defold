@@ -603,6 +603,10 @@ namespace dmGameObject
         if (instance->m_Identifier != UNNAMED_IDENTIFIER)
             return RESULT_IDENTIFIER_ALREADY_SET;
 
+        if (collection->m_IDToInstance.Full()) {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
         instance->m_Identifier = id;
         collection->m_IDToInstance.Put(id, instance);
 
