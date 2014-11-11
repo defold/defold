@@ -118,7 +118,10 @@
 (defn  depends-on-default-params [this g] [this g])
 
 (defnode DependencyTestNode
+  (input an-input String)
   (input unused-input String)
+
+  (property a-property String)
   (property internal-property String)
 
   (output depends-on-self s/Any depends-on-self)
@@ -132,10 +135,10 @@
     (let [test-node (make-dependency-test-node)
           deps      (t/output-dependencies test-node)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
-           :this                      #{:depends-on-self :depends-on-several :depends-on-default-params}
            :an-input           #{:depends-on-input :depends-on-several}
            :a-property         #{:depends-on-property :depends-on-several}
-           :project            #{:depends-on-several}
-           :g                  #{:depends-on-several :depends-on-default-params})
+           :project            #{:depends-on-several})
+      (is (not (contains? deps :this)))
+      (is (not (contains? deps :g)))
       (is (not (contains? deps :unused-input)))
       (is (not (contains? deps :internal-property))))))

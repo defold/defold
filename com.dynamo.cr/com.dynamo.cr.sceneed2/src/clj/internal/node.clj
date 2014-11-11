@@ -273,8 +273,8 @@
   [transform]
   (let [transform (if (var? transform) (var-get transform) transform)]
     (if (t/has-schema? transform)
-      (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword)))
-      #{:this :g})))
+      (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword :this :g)))
+      #{})))
 
 (defn- descriptor->output-dependencies
    [{:keys [transforms]}]
