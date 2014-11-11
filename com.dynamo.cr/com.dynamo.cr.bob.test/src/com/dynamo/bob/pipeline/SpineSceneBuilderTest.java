@@ -17,6 +17,7 @@ import com.dynamo.spine.proto.Spine.AnimationTrack;
 import com.dynamo.spine.proto.Spine.Bone;
 import com.dynamo.spine.proto.Spine.EventTrack;
 import com.dynamo.spine.proto.Spine.Mesh;
+import com.dynamo.spine.proto.Spine.MeshEntry;
 import com.dynamo.spine.proto.Spine.MeshSet;
 import com.dynamo.spine.proto.Spine.Skeleton;
 import com.dynamo.spine.proto.Spine.SpineAnimation;
@@ -55,19 +56,19 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertBone(skeleton, 8, "bone_scale", true);
     }
 
-    private static boolean hasMesh(Map<Long, Mesh> meshes, String id) {
+    private static boolean hasMeshEntry(Map<Long, MeshEntry> meshes, String id) {
         return meshes.containsKey(MurmurHash.hash64(id));
     }
 
     private void assertMeshSet(MeshSet meshSet) {
-        assertEquals(3, meshSet.getMeshesCount());
-        Map<Long, Mesh> meshes = new HashMap<Long, Mesh>();
-        for (Mesh mesh : meshSet.getMeshesList()) {
-            meshes.put(mesh.getId(), mesh);
+        assertEquals(3, meshSet.getMeshEntriesCount());
+        Map<Long, MeshEntry> meshes = new HashMap<Long, MeshEntry>();
+        for (MeshEntry meshEntry : meshSet.getMeshEntriesList()) {
+            meshes.put(meshEntry.getId(), meshEntry);
         }
-        assertTrue(hasMesh(meshes, ""));
-        assertTrue(hasMesh(meshes, "test_skin"));
-        assertTrue(hasMesh(meshes, "test_skin2"));
+        assertTrue(hasMeshEntry(meshes, ""));
+        assertTrue(hasMeshEntry(meshes, "test_skin"));
+        assertTrue(hasMeshEntry(meshes, "test_skin2"));
     }
 
     private void assertAnim(SpineAnimation anim, boolean pos, boolean rot, boolean scale) {
