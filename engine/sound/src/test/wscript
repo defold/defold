@@ -7,6 +7,7 @@ def gen_tone(task):
     sample_freq = int(task.generator.rate)
     sample_count = int(task.generator.frames)
     channels = int(task.generator.channels)
+    ramp = bool(task.generator.ramp)
 
     f = wave.open(task.outputs[0].abspath(task.env), "wb")
     f.setnchannels(channels)
@@ -17,6 +18,32 @@ def gen_tone(task):
     frames = []
     for i in range(sample_count):
         a = 0.8 * 32768 * math.sin((i * 2.0 * math.pi * tone_freq) / sample_freq)
+        if ramp:
+            r = ((sample_count - 1) - i) / float(sample_count)
+            a = a * r
+        if channels == 1:
+            buf.write(struct.pack('h', int(a)))
+        else:
+            buf.write(struct.pack('hh', int(a), int(a)))
+    f.writeframes(buf.getvalue())
+    f.close()
+
+    return 0
+
+def gen_dc(task):
+    sample_freq = int(task.generator.rate)
+    sample_count = int(task.generator.frames)
+    channels = int(task.generator.channels)
+
+    f = wave.open(task.outputs[0].abspath(task.env), "wb")
+    f.setnchannels(channels)
+    f.setsampwidth(2)
+    f.setframerate(sample_freq)
+    buf = cStringIO.StringIO()
+
+    frames = []
+    for i in range(sample_count):
+        a = 0.8 * 32768
         if channels == 1:
             buf.write(struct.pack('h', int(a)))
         else:
@@ -45,7 +72,34 @@ def build(bld):
                                  rate = rate,
                                  frames = frames,
                                  channels = channels,
+                                 ramp = False,
                                  rule = gen_tone,)
+
+    for rate in [32000]:
+        for tone in [440]:
+            channels = 1
+            frames = 2 * rate
+            name = '%s_toneramp_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
+            wavs.append(name)
+            bld.new_task_gen(target = name,
+                             tone = tone,
+                             rate = rate,
+                             frames = frames,
+                             channels = channels,
+                             ramp = True,
+                             rule = gen_tone)
+
+    for rate in [44100]:
+        channels = 1
+        frames = 2 * rate
+        name = '%s_dc_%d_%d.wav' % (["mono", "stereo"][channels-1], rate, frames)
+        wavs.append(name)
+        bld.new_task_gen(target = name,
+                         rate = rate,
+                         frames = frames,
+                         channels = channels,
+                         ramp = True,
+                         rule = gen_dc)
 
     bld.add_group()
 

@@ -91,6 +91,73 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result SetInstanceGroup(HSoundInstance instance, const char* group_name)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        return RESULT_OK;
+    }
+
+    Result SetInstanceGroup(HSoundInstance instance, dmhash_t group_hash)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        return RESULT_OK;
+    }
+
+    Result GetGroupRMS(const char* group_name, float window, float* rms_left, float* rms_right)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        *rms_left = 0;
+        *rms_right = 0;
+        return RESULT_OK;
+    }
+
+    Result GetGroupPeak(const char* group, float window, float* peak_left, float* peak_right)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        *peak_left = 0;
+        *peak_right = 0;
+        return RESULT_OK;
+    }
+
+    Result SetGroupGain(const char* group_name, float gain)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        return RESULT_OK;
+    }
+
+    Result GetGroupGain(const char* group, float* gain)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        return RESULT_OK;
+    }
+
+    uint32_t GetGroupCount()
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        return 0;
+    }
+
+    Result GetGroupName(uint32_t index, const char** name)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        return RESULT_OK;
+    }
+
+    Result AddGroup(const char* group)
+    {
+        // NOTE: Not supported.
+        // sound_null is deprecated and should be replaced by sound2 with null-device
+        return RESULT_OK;
+    }
+
     Result Update()
     {
         for (uint32_t i = 0; i < g_Instances->Size(); ++i)

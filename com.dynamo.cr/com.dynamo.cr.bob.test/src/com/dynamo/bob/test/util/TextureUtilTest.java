@@ -3,6 +3,11 @@ package com.dynamo.bob.test.util;
 import static org.junit.Assert.assertEquals;
 
 import java.awt.image.BufferedImage;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
+import javax.imageio.ImageIO;
 
 import org.junit.Test;
 
@@ -42,6 +47,29 @@ public class TextureUtilTest {
                 int sy = Math.min(Math.max(y - 1, 0), 1);
                 assertEquals(src.getRGB(sx, sy), tgt.getRGB(x, y));
             }
+        }
+    }
+
+    @Test
+    public void testDepalettiseImage() throws FileNotFoundException, IOException {
+        final String palettisedFile = "test/def_854_with_palette.png";
+        BufferedImage palettisedImage = ImageIO.read(new FileInputStream(palettisedFile));
+
+        assert(BufferedImage.TYPE_BYTE_INDEXED == palettisedImage.getType());
+
+        int width = palettisedImage.getWidth();
+        int height = palettisedImage.getHeight();
+
+        BufferedImage depalettisedImage = TextureUtil.depalettiseImage(palettisedImage);
+
+        int[] palettisedPixels = new int[width * height];
+        int[] depalettisedPixels = new int[width * height];
+
+        palettisedImage.getRGB(0, 0, width, height, palettisedPixels, 0, width);
+        depalettisedImage.getRGB(0, 0, width, height, depalettisedPixels, 0, width);
+
+        for (int i=0; i<palettisedPixels.length; ++i) {
+            assertEquals(palettisedPixels[i], depalettisedPixels[i]);
         }
     }
 }

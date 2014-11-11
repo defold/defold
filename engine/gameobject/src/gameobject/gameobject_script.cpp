@@ -835,8 +835,7 @@ namespace dmGameObject
 
             dmScript::PushURL(L, url);
             dmScript::PushHash(L, property_id);
-
-            int ret = dmScript::PCall(L, 3, 0);
+            dmScript::PCall(L, 3, 0);
 
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -1297,28 +1296,7 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    struct LuaData
-    {
-        const char* m_Buffer;
-        uint32_t m_Size;
-    };
-
-    static const char* ReadScript(lua_State *L, void *data, size_t *size)
-    {
-        LuaData* lua_data = (LuaData*)data;
-        if (lua_data->m_Size == 0)
-        {
-            return 0x0;
-        }
-        else
-        {
-            *size = lua_data->m_Size;
-            lua_data->m_Size = 0;
-            return lua_data->m_Buffer;
-        }
-    }
-
-    static bool LoadScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename, Script* script)
+    static bool LoadScript(lua_State* L, dmLuaDDF::LuaSource *source, const char* filename, Script* script)
     {
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -1327,10 +1305,7 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void) top;
 
-        LuaData data;
-        data.m_Buffer = (const char*)buffer;
-        data.m_Size = buffer_size;
-        int ret = lua_load(L, &ReadScript, &data, filename);
+        int ret = dmScript::LuaLoad(L, source, filename);
         if (ret == 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
@@ -1403,7 +1378,8 @@ bail:
         script->m_LuaModule = lua_module;
         luaL_getmetatable(L, SCRIPT);
         lua_setmetatable(L, -2);
-        if (!LoadScript(L, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
+
+        if (!LoadScript(L, &lua_module->m_Source, filename, script))
         {
             DeleteScript(script);
             return 0;
@@ -1414,11 +1390,8 @@ bail:
 
     bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, const char* filename)
     {
-        bool result = true;
         script->m_LuaModule = lua_module;
-        if (!LoadScript(script->m_LuaState, (const void*)lua_module->m_Script.m_Data, lua_module->m_Script.m_Count, filename, script))
-            result = false;
-        return result;
+        return LoadScript(script->m_LuaState, &lua_module->m_Source, filename, script);
     }
 
     void DeleteScript(HScript script)

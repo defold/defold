@@ -1,8 +1,10 @@
 #include <stdint.h>
+#include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
+#include <dlib/time.h>
 
 #include "sound.h"
 #include "sound2.h"
@@ -23,6 +25,96 @@ namespace dmSound
     // TODO: How many bits?
     const uint32_t RESAMPLE_FRACTION_BITS = 31;
 
+    const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
+    const uint32_t MAX_GROUPS = 32;
+    const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
+
+    /**
+     * Value with memory for "ramping" of values. See also struct Ramp below.
+     */
+    struct Value
+    {
+        inline void Reset(float value)
+        {
+            // NOTE: We always ramp from zero to x. Otherwise we can
+            // get initial clicks when playing sounds
+            m_Prev = 0.0f;
+            m_Current = value;
+            m_Next = value;
+        }
+
+        inline void Set(float value, bool reset)
+        {
+            if (reset) {
+                Reset(value);
+            } else {
+               m_Next = value;
+            }
+        }
+
+        /**
+         * Set previous value to current and current to next, i.e. "sample"
+         */
+        inline void Step()
+        {
+            m_Prev = m_Current;
+            m_Current = m_Next;
+        }
+
+        Value()
+        {
+            Reset(1.0f);
+        }
+
+        float m_Prev;
+        float m_Current;
+        float m_Next;
+    };
+
+    /**
+     * Helper for calculating ramps
+     */
+    struct Ramp
+    {
+        float m_From, m_To, m_TotalSamplesRecip;
+
+        Ramp(const Value* value, uint32_t buffer, uint32_t total_buffers, uint32_t total_samples)
+        {
+            float ramp_length = (value->m_Current - value->m_Prev) / total_buffers;
+            m_From = value->m_Prev + ramp_length * buffer;
+            m_To = m_From + ramp_length;
+            m_TotalSamplesRecip = 1.0f / total_samples;
+        }
+
+        inline float GetValue(int i)
+        {
+            float mix = i * m_TotalSamplesRecip;
+            return (1 - mix) * m_From + mix * m_To;
+        }
+    };
+
+    /**
+     * Context with data for mixing N buffers, i.e. during update
+     */
+    struct MixContext
+    {
+        MixContext(uint32_t current_buffer, uint32_t total_buffers)
+        {
+            m_CurrentBuffer = current_buffer;
+            m_TotalBuffers = total_buffers;
+        }
+        // Current buffer index
+        uint32_t m_CurrentBuffer;
+        // How many buffers to mix
+        uint32_t m_TotalBuffers;
+    };
+
+    Ramp GetRamp(const MixContext* mix_context, const Value* value, uint32_t total_samples)
+    {
+        Ramp ramp(value, mix_context->m_CurrentBuffer, mix_context->m_TotalBuffers, total_samples);
+        return ramp;
+    }
+
     struct SoundData
     {
         SoundDataType m_Type;
@@ -36,17 +128,28 @@ namespace dmSound
     {
         uint16_t        m_Index;
         uint16_t        m_SoundDataIndex;
-        float           m_Gain;
+        Value           m_Gain;
 
         dmSoundCodec::HDecoder m_Decoder;
         void*           m_Frames;
         uint32_t        m_FrameCount;
         uint32_t        m_FrameFraction;
 
+        dmhash_t        m_Group;
 
         uint32_t        m_Looping : 1;
         uint32_t        m_EndOfStream : 1;
         uint32_t        m_Playing : 1;
+    };
+
+    struct SoundGroup
+    {
+        dmhash_t m_NameHash;
+        Value    m_Gain;
+        float*   m_MixBuffer;
+        float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
+        float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
+        int      m_NextMemorySlot;
     };
 
     struct SoundSystem
@@ -61,12 +164,13 @@ namespace dmSound
         dmArray<SoundData>      m_SoundData;
         dmIndexPool16           m_SoundDataPool;
 
-        float                   m_MasterGain;
+        dmHashTable<dmhash_t, int> m_GroupMap;
+        SoundGroup              m_Groups[MAX_GROUPS];
+
         Stats                   m_Stats;
 
         uint32_t                m_MixRate;
         uint32_t                m_FrameCount;
-        float*                  m_MixBuffer;
 
         int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
         uint16_t                m_NextOutBuffer;
@@ -95,6 +199,28 @@ namespace dmSound
         }
 
         return RESULT_DEVICE_NOT_FOUND;
+    }
+
+    static int GetOrCreateGroup(const char* group_name)
+    {
+        dmhash_t group_hash = dmHashString64(group_name);
+
+        SoundSystem* sound = g_SoundSystem;
+        if (sound->m_GroupMap.Full()) {
+            return -1;
+        }
+
+        if (sound->m_GroupMap.Get(group_hash)) {
+            return *sound->m_GroupMap.Get(group_hash);
+        }
+
+        uint32_t index = sound->m_GroupMap.Size();
+        SoundGroup* group = &sound->m_Groups[index];
+        group->m_NameHash = group_hash;
+        group->m_Gain.Reset(1.0f);
+        group->m_MixBuffer = (float*) malloc(sound->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS);
+        sound->m_GroupMap.Put(group_hash, index);
+        return index;
     }
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
@@ -165,15 +291,22 @@ namespace dmSound
             sound->m_SoundData[i].m_Index = 0xffff;
         }
 
-        sound->m_MasterGain = master_gain;
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_FrameCount = params->m_FrameCount;
-        sound->m_MixBuffer = (float*) malloc(params->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS);
         for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
             sound->m_OutBuffers[i] = (int16_t*) malloc(params->m_FrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
         }
+        sound->m_NextOutBuffer = 0;
 
         memset(&g_SoundSystem->m_Stats, 0, sizeof(g_SoundSystem->m_Stats));
+        sound->m_GroupMap.SetCapacity(MAX_GROUPS * 2 + 1, MAX_GROUPS);
+        for (uint32_t i = 0; i < MAX_GROUPS; ++i) {
+            memset(&sound->m_Groups[i], 0, sizeof(SoundGroup));
+        }
+
+        int master_index = GetOrCreateGroup("master");
+        SoundGroup* master = &sound->m_Groups[master_index];
+        master->m_Gain.Reset(master_gain);
 
         return RESULT_OK;
     }
@@ -198,10 +331,15 @@ namespace dmSound
                 memset(instance, 0, sizeof(*instance));
             }
 
-            free((void*) sound->m_MixBuffer);
-
             for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
                 free((void*) sound->m_OutBuffers[i]);
+            }
+
+            for (int i = 0; i < MAX_GROUPS; i++) {
+                SoundGroup* g = &sound->m_Groups[i];
+                if (g->m_MixBuffer) {
+                    free((void*) g->m_MixBuffer);
+                }
             }
 
             sound->m_DeviceType->m_Close(sound->m_Device);
@@ -304,11 +442,12 @@ namespace dmSound
 
         si->m_SoundDataIndex = sound_data->m_Index;
         si->m_Index = index;
-        si->m_Gain = 1.0f;
+        si->m_Gain.Reset(1.0f);
         si->m_Looping = 0;
         si->m_EndOfStream = 0;
         si->m_Playing = 0;
         si->m_Decoder = decoder;
+        si->m_Group = MASTER_GROUP_HASH;
 
         *sound_instance = si;
 
@@ -330,6 +469,144 @@ namespace dmSound
         dmSoundCodec::DeleteDecoder(sound->m_CodecContext, sound_instance->m_Decoder);
         sound_instance->m_Decoder = 0;
         sound_instance->m_FrameCount = 0;
+
+        return RESULT_OK;
+    }
+
+    Result SetInstanceGroup(HSoundInstance instance, const char* group_name)
+    {
+        dmhash_t group_hash = dmHashString64(group_name);
+        return SetInstanceGroup(instance, group_hash);
+    }
+
+    Result SetInstanceGroup(HSoundInstance instance, dmhash_t group_hash)
+    {
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index) {
+            return RESULT_NO_SUCH_GROUP;
+        }
+        instance->m_Group = group_hash;
+        return RESULT_OK;
+    }
+
+    Result AddGroup(const char* group)
+    {
+        int index = GetOrCreateGroup(group);
+        if (index == -1) {
+            return RESULT_OUT_OF_GROUPS;
+        }
+        return RESULT_OK;
+    }
+
+    Result SetGroupGain(const char* group_name, float gain)
+    {
+        dmhash_t group_hash = dmHashString64(group_name);
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index) {
+            return RESULT_NO_SUCH_GROUP;
+        }
+
+        SoundGroup* group = &sound->m_Groups[*index];
+        group->m_Gain.m_Next = gain;
+        return RESULT_OK;
+    }
+
+    Result GetGroupGain(const char* group_name, float* gain)
+    {
+        dmhash_t group_hash = dmHashString64(group_name);
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index) {
+            return RESULT_NO_SUCH_GROUP;
+        }
+
+        SoundGroup* group = &sound->m_Groups[*index];
+        *gain = group->m_Gain.m_Next;
+        return RESULT_OK;
+    }
+
+    uint32_t GetGroupCount()
+    {
+        SoundSystem* sound = g_SoundSystem;
+        return sound->m_GroupMap.Size();
+    }
+
+    Result GetGroupName(uint32_t index, const char** name)
+    {
+        SoundSystem* sound = g_SoundSystem;
+        if (index >= sound->m_GroupMap.Size()) {
+            return RESULT_NO_SUCH_GROUP;
+        }
+
+        SoundGroup* group = &sound->m_Groups[index];
+        *name = (const char*) dmHashReverse64(group->m_NameHash, 0);
+        if (!*name) {
+            dmLogWarning("No revese hash found for sound group");
+            *name = "unknown";
+        }
+        return RESULT_OK;
+    }
+
+    Result GetGroupRMS(const char* group_name, float window, float* rms_left, float* rms_right)
+    {
+        dmhash_t group_hash = dmHashString64(group_name);
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index) {
+            return RESULT_NO_SUCH_GROUP;
+        }
+
+        SoundGroup* g = &sound->m_Groups[*index];
+        uint32_t rms_frames = (uint32_t) (sound->m_MixRate * window);
+        int left = rms_frames;
+        int ss_index = (g->m_NextMemorySlot - 1) % GROUP_MEMORY_BUFFER_COUNT;
+        float sum_sq_left = 0;
+        float sum_sq_right = 0;
+        int count = 0;
+        while (left > 0) {
+            sum_sq_left += g->m_SumSquaredMemory[2 * ss_index + 0];
+            sum_sq_right += g->m_SumSquaredMemory[2 * ss_index + 1];
+
+            left -= sound->m_FrameCount;
+            ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
+            count++;
+        }
+
+        *rms_left = sqrtf(sum_sq_left / (float) (count * sound->m_FrameCount)) / 32767.0f;
+        *rms_right = sqrtf(sum_sq_right / (float) (count * sound->m_FrameCount)) / 32767.0f;
+
+        return RESULT_OK;
+    }
+
+    Result GetGroupPeak(const char* group_name, float window, float* peak_left, float* peak_right)
+    {
+        dmhash_t group_hash = dmHashString64(group_name);
+        SoundSystem* sound = g_SoundSystem;
+        int* index = sound->m_GroupMap.Get(group_hash);
+        if (!index) {
+            return RESULT_NO_SUCH_GROUP;
+        }
+
+        SoundGroup* g = &sound->m_Groups[*index];
+        uint32_t rms_frames = (uint32_t) (sound->m_MixRate * window);
+        int left = rms_frames;
+        int ss_index = (g->m_NextMemorySlot - 1) % GROUP_MEMORY_BUFFER_COUNT;
+        float max_peak_left_sq = 0;
+        float max_peak_right_sq = 0;
+        int count = 0;
+        while (left > 0) {
+            max_peak_left_sq = dmMath::Max(max_peak_left_sq, g->m_PeakMemorySq[2 * ss_index + 0]);
+            max_peak_right_sq = dmMath::Max(max_peak_right_sq, g->m_PeakMemorySq[2 * ss_index + 1]);
+
+            left -= sound->m_FrameCount;
+            ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
+            count++;
+        }
+
+        *peak_left = sqrtf(max_peak_left_sq) / 32767.0f;
+        *peak_right = sqrtf(max_peak_right_sq) / 32767.0f;
 
         return RESULT_OK;
     }
@@ -361,10 +638,11 @@ namespace dmSound
 
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value)
     {
+        bool reset = !sound_instance->m_Playing;
         switch(parameter)
         {
             case PARAMETER_GAIN:
-                sound_instance->m_Gain = dmMath::Max(0.0f, value.getX());
+                sound_instance->m_Gain.Set(dmMath::Max(0.0f, value.getX()), reset);
                 break;
             default:
                 dmLogError("Invalid parameter: %d\n", parameter);
@@ -374,12 +652,11 @@ namespace dmSound
     }
 
     template <typename T, int offset, int scale>
-    static void MixResampleUpMono(SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResampleUpMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
-        const uint32_t mask = (1 << RESAMPLE_FRACTION_BITS) - 1;
+        const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
         const float range_recip = 1.0f / mask; // TODO: Divide by (1 << RESAMPLE_FRACTION_BITS) OR (1 << RESAMPLE_FRACTION_BITS) - 1?
 
-        uint32_t startFrac = instance->m_FrameFraction;
         uint32_t frac = instance->m_FrameFraction;
         uint32_t prev_index = 0;
         uint32_t index = 0;
@@ -392,9 +669,10 @@ namespace dmSound
         // We never overfetch for identity mixing as identity mixing is a special case
         frames[instance->m_FrameCount] = frames[instance->m_FrameCount-1];
 
-        float gain = instance->m_Gain;
+        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
         for (int i = 0; i < mix_buffer_count; i++)
         {
+            float gain = ramp.GetValue(i);
             float mix = frac * range_recip;
             T s1 = frames[index];
             T s2 = frames[index + 1];
@@ -409,7 +687,7 @@ namespace dmSound
             frac += delta;
             index += frac >> RESAMPLE_FRACTION_BITS;
 
-            frac &= ((1 << RESAMPLE_FRACTION_BITS) - 1);
+            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U);
         }
         instance->m_FrameFraction = frac;
 
@@ -420,9 +698,9 @@ namespace dmSound
     }
 
     template <typename T, int offset, int scale>
-    static void MixResampleUpStereo(SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResampleUpStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
-        const uint32_t mask = (1 << RESAMPLE_FRACTION_BITS) - 1;
+        const uint32_t mask = (1U << RESAMPLE_FRACTION_BITS) - 1U;
         const float range_recip = 1.0f / mask; // TODO: Divide by (1 << RESAMPLE_FRACTION_BITS) OR (1 << RESAMPLE_FRACTION_BITS) - 1?
 
         uint32_t frac = instance->m_FrameFraction;
@@ -438,9 +716,10 @@ namespace dmSound
         frames[2 * instance->m_FrameCount] = frames[2 * instance->m_FrameCount - 2];
         frames[2 * instance->m_FrameCount + 1] = frames[2 * instance->m_FrameCount - 1];
 
-        float gain = instance->m_Gain;
+        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
         for (int i = 0; i < mix_buffer_count; i++)
         {
+            float gain = ramp.GetValue(i);
             float mix = frac * range_recip;
             T sl1 = frames[2 * index];
             T sl2 = frames[2 * index + 2];
@@ -461,7 +740,7 @@ namespace dmSound
             frac += delta;
             index += frac >> RESAMPLE_FRACTION_BITS;
 
-            frac &= ((1 << RESAMPLE_FRACTION_BITS) - 1);
+            frac &= ((1U << RESAMPLE_FRACTION_BITS) - 1U);
         }
         instance->m_FrameFraction = frac;
 
@@ -472,13 +751,14 @@ namespace dmSound
     }
 
     template <typename T, int offset, int scale>
-    static void MixResampleIdentityMono(SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResampleIdentityMono(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
-        float gain = instance->m_Gain;
+        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
         for (int i = 0; i < mix_buffer_count; i++)
         {
+            float gain = ramp.GetValue(i);
             float s = frames[i];
             s = (s - offset) * scale * gain;
             mix_buffer[2 * i] += s;
@@ -488,13 +768,14 @@ namespace dmSound
     }
 
     template <typename T, int offset, int scale>
-    static void MixResampleIdentityStereo(SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResampleIdentityStereo(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
         assert(instance->m_FrameCount == mix_buffer_count);
         T* frames = (T*) instance->m_Frames;
-        float gain = instance->m_Gain;
+        Ramp ramp = GetRamp(mix_context, &instance->m_Gain, mix_buffer_count);
         for (int i = 0; i < mix_buffer_count; i++)
         {
+            float gain = ramp.GetValue(i);
             float s1 = frames[2 * i];
             float s2 = frames[2 * i + 1];
             s1 = (s1 - offset) * scale * gain;
@@ -505,7 +786,7 @@ namespace dmSound
         instance->m_FrameCount -= mix_buffer_count;
     }
 
-    typedef void (*MixerFunction)(SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count);
+    typedef void (*MixerFunction)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count);
 
     struct Mixer
     {
@@ -534,12 +815,12 @@ namespace dmSound
             Mixer(2, 16, MixResampleIdentityStereo<int16_t, 0, 1>),
     };
 
-    static void MixResample(SoundInstance* instance, const dmSoundCodec::Info* info, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
+    static void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count)
     {
         const uint32_t rate = info->m_Rate;
         assert(rate <= mix_rate);
 
-        void (*mixer)(SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count) = 0;
+        void (*mixer)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count) = 0;
 
         if (rate == mix_rate) {
             uint32_t n = sizeof(g_IdentityMixers) / sizeof(g_IdentityMixers[0]);
@@ -562,10 +843,10 @@ namespace dmSound
                 }
             }
         }
-        mixer(instance, rate, mix_rate, mix_buffer, mix_buffer_count);
+        mixer(mix_context, instance, rate, mix_rate, mix_buffer, mix_buffer_count);
     }
 
-    static void Mix(SoundInstance* instance, const dmSoundCodec::Info* info)
+    static void Mix(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info)
     {
         DM_PROFILE(Sound, "Mix")
 
@@ -574,10 +855,17 @@ namespace dmSound
         uint32_t mix_count = ((uint64_t) (instance->m_FrameCount) << RESAMPLE_FRACTION_BITS) / delta;
         mix_count = dmMath::Min(mix_count, sound->m_FrameCount);
         assert(mix_count <= sound->m_FrameCount);
-        MixResample(instance, info, sound->m_MixRate, sound->m_MixBuffer, mix_count);
+
+        int* index = sound->m_GroupMap.Get(instance->m_Group);
+        if (index) {
+            SoundGroup* group = &sound->m_Groups[*index];
+            MixResample(mix_context, instance, info, sound->m_MixRate, group->m_MixBuffer, mix_count);
+        } else {
+            dmLogError("Sound group not found");
+        }
     }
 
-    static void MixInstance(SoundInstance* instance) {
+    static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
         uint32_t decoded = 0;
 
@@ -636,7 +924,7 @@ namespace dmSound
             return;
         }
 
-        Mix(instance, &info);
+        Mix(mix_context, instance, &info);
 
         if (instance->m_FrameCount <= 1 && instance->m_EndOfStream) {
             // NOTE: Due to round-off errors, e.g 32000 -> 44100,
@@ -646,16 +934,46 @@ namespace dmSound
         }
     }
 
-    static Result MixInstances() {
+    static Result MixInstances(const MixContext* mix_context) {
         SoundSystem* sound = g_SoundSystem;
 
-        memset(sound->m_MixBuffer, 0, sound->m_FrameCount * sizeof(float) * 2);
+        for (int i = 0; i < MAX_GROUPS; i++) {
+            SoundGroup* g = &sound->m_Groups[i];
+
+            if (g->m_MixBuffer) {
+                uint32_t frame_count = sound->m_FrameCount;
+                float sum_sq_left = 0;
+                float sum_sq_right = 0;
+                float max_sq_left = 0;
+                float max_sq_right = 0;
+                for (uint32_t j = 0; j < frame_count; j++) {
+
+                    float gain = g->m_Gain.m_Current;
+
+                    float left = g->m_MixBuffer[2 * j + 0] * gain;
+                    float right = g->m_MixBuffer[2 * j + 1] * gain;
+                    float left_sq = left * left;
+                    float right_sq = right * right;
+                    sum_sq_left += left_sq;
+                    sum_sq_right += right_sq;
+                    max_sq_left = dmMath::Max(max_sq_left, left_sq);
+                    max_sq_right = dmMath::Max(max_sq_right, right_sq);
+                }
+                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 0] = sum_sq_left;
+                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 1] = sum_sq_right;
+                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 0] = max_sq_left;
+                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
+                g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
+
+                memset(g->m_MixBuffer, 0, sound->m_FrameCount * sizeof(float) * 2);
+            }
+        }
 
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0) {
-                MixInstance(instance);
+                MixInstance(mix_context, instance);
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
@@ -667,18 +985,37 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    void Master() {
+    void Master(const MixContext* mix_context) {
         DM_PROFILE(Sound, "Master")
 
         SoundSystem* sound = g_SoundSystem;
-
         uint32_t n = sound->m_FrameCount;
         int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
-        const float master_gain = sound->m_MasterGain;
-        float* mix_buffer = sound->m_MixBuffer;
+        int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
+        SoundGroup* master = &sound->m_Groups[*master_index];
+        float* mix_buffer = master->m_MixBuffer;
+
+        for (int i = 0; i < MAX_GROUPS; i++) {
+            SoundGroup* g = &sound->m_Groups[i];
+            Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
+            if (g->m_MixBuffer && g->m_NameHash != MASTER_GROUP_HASH /*&& (fabs(from) + fabs(to)) > 0.0f*/) {
+                for (uint32_t i = 0; i < n; i++) {
+                    float gain = ramp.GetValue(i);
+                    gain = dmMath::Clamp(gain, 0.0f, 1.0f);
+
+                    float s1 = g->m_MixBuffer[2 * i];
+                    float s2 = g->m_MixBuffer[2 * i + 1];
+                    mix_buffer[2 * i] += s1 * gain;
+                    mix_buffer[2 * i + 1] += s2 * gain;
+                }
+            }
+        }
+
+        Ramp ramp = GetRamp(mix_context, &master->m_Gain, n);
         for (uint32_t i = 0; i < n; i++) {
-            float s1 = mix_buffer[2 * i] * master_gain;
-            float s2 = mix_buffer[2 * i + 1] * master_gain;
+            float gain = ramp.GetValue(i);
+            float s1 = mix_buffer[2 * i] * gain;
+            float s2 = mix_buffer[2 * i + 1] * gain;
             s1 = dmMath::Min(32767.0f, s1);
             s1 = dmMath::Max(-32768.0f, s1);
             s2 = dmMath::Min(32767.0f, s2);
@@ -688,22 +1025,55 @@ namespace dmSound
         }
     }
 
+    static void StepGroupValues()
+    {
+        SoundSystem* sound = g_SoundSystem;
+
+        for (int i = 0; i < MAX_GROUPS; i++) {
+            SoundGroup* g = &sound->m_Groups[i];
+            if (g->m_MixBuffer) {
+                g->m_Gain.Step();
+            }
+        }
+    }
+
+    static void StepInstanceValues()
+    {
+        SoundSystem* sound = g_SoundSystem;
+
+        uint32_t instances = sound->m_Instances.Size();
+        for (uint32_t i = 0; i < instances; ++i) {
+            SoundInstance* instance = &sound->m_Instances[i];
+            if (instance->m_Playing || instance->m_FrameCount > 0) {
+                instance->m_Gain.Step();
+            }
+        }
+    }
+
     Result Update()
     {
         DM_PROFILE(Sound, "Update")
         SoundSystem* sound = g_SoundSystem;
 
         uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
+        if (free_slots > 0) {
+            StepGroupValues();
+            StepInstanceValues();
+        }
 
+        uint32_t current_buffer = 0;
+        uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
-            Result r = MixInstances();
+            MixContext mix_context(current_buffer, total_buffers);
+            Result r = MixInstances(&mix_context);
             if (r != RESULT_OK) {
                 return r;
             }
-            Master();
+            Master(&mix_context);
             sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
 
+            current_buffer++;
             free_slots--;
         }
 

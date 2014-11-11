@@ -41,6 +41,7 @@ namespace dmScript
     *
     * @name image.load
     * @param buffer image data buffer
+    * @param [premult] premultiply alpha. optional and default false
     * @return object with the following fields: width, height, type and buffer (raw data). nil is returned if loading fails.
     */
     int Image_Load(lua_State* L)
@@ -50,8 +51,13 @@ namespace dmScript
         size_t buffer_len = 0;
         const char* buffer = lua_tolstring(L, 1, &buffer_len);
 
+        bool premult = false;
+        if (top == 2) {
+            premult = lua_toboolean(L, 2);
+        }
+
         dmImage::Image image;
-        dmImage::Result r = dmImage::Load(buffer, buffer_len, &image);
+        dmImage::Result r = dmImage::Load(buffer, buffer_len, premult, &image);
         if (r == dmImage::RESULT_OK) {
 
             int bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);

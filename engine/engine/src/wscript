@@ -16,7 +16,7 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     additional_libs = []
-    exported_symbols = []
+    exported_symbols = ['DefaultSoundDevice']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
         additional_libs.append('FACEBOOK')
         additional_libs.append('SQLLITE')
@@ -60,7 +60,8 @@ def build(bld):
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/iap_android.jar' % (dynamo_home),
               '%s/share/java/push_android.jar' % (dynamo_home),
-              '%s/share/java/adtruth_android.jar' % (dynamo_home)])
+              '%s/share/java/adtruth_android.jar' % (dynamo_home),
+              '%s/share/java/sound2_android.jar' % (dynamo_home)])
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')

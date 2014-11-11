@@ -36,6 +36,8 @@ import com.dynamo.bob.util.LibraryUtil;
 public class Bob {
 
     private static String texcLibDir = null;
+    private static String luajitBinPath = null;
+    private static String luajitSharePath = null;
     private static boolean verbose = false;
 
     private static CommandLine parse(String[] args) {
@@ -174,6 +176,36 @@ public class Bob {
         return texcLibDir;
     }
 
+    public static String getLuajitBinPath() {
+        if (luajitBinPath == null) {
+            try {
+                setLuajitPaths();
+            } catch (ZipException e) {
+                throw new RuntimeException(e);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return luajitBinPath;
+    }
+
+    public static String getLuajitSharePath() {
+        if (luajitSharePath == null) {
+            try {
+                setLuajitPaths();
+            } catch (ZipException e) {
+                throw new RuntimeException(e);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return luajitSharePath;
+    }
+
     private enum PlatformType {
         Windows,
         Darwin,
@@ -215,6 +247,41 @@ public class Bob {
             texcLibDir = file.getParentFile().getAbsolutePath();
         } else {
             throw new IOException(String.format("Could not locate '%s'", libSubPath));
+        }
+    }
+
+    private static void setLuajitPaths() throws URISyntaxException, ZipException, IOException {
+    	URI uri = getJarURI();
+
+    	// Need to set up 2 paths. Share path first where lua jit librarys are.
+        String sharePath = "share/luajit/";
+        File shareDir = FileUtils.toFile(getFile(uri, sharePath).toURL());
+        if (shareDir.exists()) {
+            luajitSharePath = shareDir.getAbsolutePath();
+        } else {
+            throw new IOException(String.format("Could not locate '%s'", sharePath));
+        }
+
+        // Now the executable.
+        String binPath = null;
+        PlatformType platform = getPlatform();
+        switch (platform) {
+        case Windows:
+            binPath = "libexec/win32/luajit.exe";
+            break;
+        case Darwin:
+            binPath = "libexec/darwin/luajit";
+            break;
+        case Linux:
+            binPath = "libexec/linux/luajit";
+            break;
+        }
+
+        File file = FileUtils.toFile(getFile(uri, binPath).toURL());
+        if (file.exists()) {
+            luajitBinPath = file.getAbsolutePath();
+        } else {
+            throw new IOException(String.format("Could not locate '%s'", binPath));
         }
     }
 
@@ -276,6 +343,10 @@ public class Bob {
             throw new FileNotFoundException("cannot find file: " + filePath + " in archive: " + zipFile.getName());
         }
 
+        if (entry.isDirectory()) {
+            return extractByPrefix(zipFile,  filePath);
+        }
+
         final InputStream zipStream  = zipFile.getInputStream(entry);
         OutputStream fileStream = null;
 
@@ -297,6 +368,44 @@ public class Bob {
         verbose("Extracted '%s' from '%s' to '%s'", filePath, zipFile.getName(), dstPath);
 
         return (new File(dstPath).toURI());
+    }
+
+    private static URI extractByPrefix(final ZipFile zipFile, final String prefix) throws IOException {  
+        String whereTo = uniqueTmpDir();
+        java.util.Enumeration<? extends ZipEntry> allFiles = zipFile.entries();
+        while (allFiles.hasMoreElements())
+        {
+            ZipEntry entry = allFiles.nextElement();
+            if (!entry.getName().startsWith(prefix) || entry.isDirectory()) {
+                continue;
+            }
+            
+            String dstPath = FilenameUtils.concat(whereTo, entry.getName());
+            File dstFile = new File(dstPath);
+            dstFile.getParentFile().mkdirs();
+
+            final InputStream zipStream  = zipFile.getInputStream(entry);
+            OutputStream fileStream = null;
+            
+            try {
+                final byte[] buf;
+                int i;
+    
+                fileStream = new FileOutputStream(dstPath);
+                buf = new byte[1024];
+                i = 0;
+    
+                while((i = zipStream.read(buf)) != -1) {
+                    fileStream.write(buf, 0, i);
+                }
+            } finally {
+                close(zipStream);
+                close(fileStream);
+            }
+            verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), zipFile.getName(), dstPath);
+        }
+
+        return (new File(FilenameUtils.concat(whereTo, prefix)).toURI());
     }
 
     private static void close(final Closeable stream) {

@@ -359,6 +359,9 @@ namespace dmGameSystem
         SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
         DestroyPose(component);
         uint32_t index = component - &world->m_Components[0];
+        // If we're going to use memset, then we should explicitly clear pose and instance arrays.
+        component->m_Pose.SetCapacity(0);
+        component->m_NodeInstances.SetCapacity(0);
         memset(component, 0, sizeof(SpineModelComponent));
         world->m_ComponentIndices.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
@@ -490,7 +493,7 @@ namespace dmGameSystem
                     SpineModelVertex& v = vertex_buffer.Back();
                     uint32_t vi = mesh->m_Indices[ii];
                     uint32_t e = vi*3;
-                    Point3 in_p(mesh->m_Positions[e++], mesh->m_Positions[e++], mesh->m_Positions[e++]);
+                    Point3 in_p(mesh->m_Positions[e+0], mesh->m_Positions[e+1], mesh->m_Positions[e+2]);
                     Point3 out_p(0.0f, 0.0f, 0.0f);
                     uint32_t bi_offset = vi * 4;
                     uint32_t* bone_indices = &mesh->m_BoneIndices[bi_offset];
@@ -503,10 +506,13 @@ namespace dmGameSystem
                             out_p += Vector3(dmTransform::Apply(component->m_Pose[bone_index], dmTransform::Apply(bind_pose[bone_index].m_ModelToLocal, in_p))) * bone_weights[bi];
                         }
                     }
-                    *((Vector4*)&v) = w * out_p;
+                    Vector4 posed_vertex = w * out_p;
+                    v.x = posed_vertex[0];
+                    v.y = posed_vertex[1];
+                    v.z = posed_vertex[2];
                     e = vi*2;
-                    v.u = TO_SHORT(mesh->m_Texcoord0[e++]);
-                    v.v = TO_SHORT(mesh->m_Texcoord0[e++]);
+                    v.u = TO_SHORT(mesh->m_Texcoord0[e+0]);
+                    v.v = TO_SHORT(mesh->m_Texcoord0[e+1]);
                     v.r = TO_BYTE(properties->m_Color[0]);
                     v.g = TO_BYTE(properties->m_Color[1]);
                     v.b = TO_BYTE(properties->m_Color[2]);

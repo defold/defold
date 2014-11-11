@@ -11,6 +11,9 @@ using namespace Vectormath::Aos;
 #include <Carbon/Carbon.h>
 #endif
 
+#include <ddf/ddf.h>
+#include <script/lua_source_ddf.h>
+
 GLuint checker_texture;
 dmGui::HContext g_GuiContext;
 
@@ -194,7 +197,12 @@ int main(void)
         fclose(f);
 
         dmGui::AddTexture(scene, "checker", (void*) checker_texture);
-        dmGui::SetScript(script, buf, file_size, script_file);
+
+        dmLuaDDF::LuaSource luaSource;
+        memset(&luaSource, 0x00, sizeof(luaSource));
+        luaSource.m_Script.m_Data = (uint8_t*) buf;
+        luaSource.m_Script.m_Count = file_size;
+        dmGui::SetScript(script, &luaSource, script_file);
 
         delete [] buf;
     }

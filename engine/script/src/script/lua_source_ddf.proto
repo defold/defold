@@ -1,0 +1,12 @@
+package dmLuaDDF;
+
+option java_package = "com.dynamo.script.proto";
+option java_outer_classname = "Lua";
+
+message LuaSource
+{
+    // For now provide both script and bytecode to support the engine build option
+    // of compiling with vanilla lua.
+    required bytes script                               = 1;
+    optional bytes bytecode                             = 2;
+}
