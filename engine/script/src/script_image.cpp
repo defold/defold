@@ -20,19 +20,19 @@ namespace dmScript
 
     /*# RGB image type
      *
-     * @name gui.TYPE_RGB
+     * @name image.TYPE_RGB
      * @variable
      */
 
     /*# RGBA image type
      *
-     * @name gui.TYPE_RGBA
+     * @name image.TYPE_RGBA
      * @variable
      */
 
     /*# Luminance image type
      *
-     * @name gui.TYPE_LUMINANCE
+     * @name image.TYPE_LUMINANCE
      * @variable
      */
 
