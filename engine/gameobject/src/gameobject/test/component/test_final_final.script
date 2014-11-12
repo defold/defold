@@ -1,3 +1,9 @@
+local id = 0
 function final(self)
-    go.delete(go.get_id("test_b"))
+    -- the final object has id9 and should not attempt to delete anything
+    if id < 10 then
+        local current = "id" .. id
+        go.delete(go.get_id(current))
+        id = id + 1
+    end
 end

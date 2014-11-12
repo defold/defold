@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 
 #include <resource/resource.h>
@@ -435,23 +436,32 @@ TEST_F(ComponentTest, TestComponentType)
 // The test is to verify that the final callback is called for both components a and b
 TEST_F(ComponentTest, FinalCallsFinal)
 {
-    dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 2);
+    dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 11);
 
-    dmGameObject::HInstance go_a = dmGameObject::New(collection, "/test_final_final_a.goc");
-    dmGameObject::SetIdentifier(collection, go_a, "test_a");
+    dmGameObject::HInstance go_a = dmGameObject::New(collection, "/test_final_final.goc");
+    dmGameObject::SetIdentifier(collection, go_a, "first");
 
-    dmGameObject::HInstance go_b = dmGameObject::New(collection, "/test_final_final_b.goc");
-    dmGameObject::SetIdentifier(collection, go_b, "test_b");
+    char buf[5];
+    for (uint32_t i = 0; i < 10; ++i) {
+        dmGameObject::HInstance go_b = dmGameObject::New(collection, "/test_final_final.goc");
+        DM_SNPRINTF(buf, 5, "id%d", i);
+        dmGameObject::SetIdentifier(collection, go_b, buf);
+    }
 
-    ASSERT_EQ(2u, collection->m_InstanceIndices.Size());
+    ASSERT_EQ(11u, collection->m_InstanceIndices.Size());
 
     dmGameObject::Init(collection); // Init is required for final
     dmGameObject::Delete(collection, go_a);
     dmGameObject::PostUpdate(collection);
 
+    ASSERT_EQ(1u, collection->m_InstanceIndices.Size());
+    ASSERT_EQ((uint32_t) 10, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+
+    // One more pass needed to delete the last object in the chain
+    dmGameObject::PostUpdate(collection);
+
     ASSERT_EQ(0u, collection->m_InstanceIndices.Size());
-    ASSERT_EQ((uint32_t) 1, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
-    ASSERT_EQ((uint32_t) 1, m_ComponentFinalCountMap[TestGameObjectDDF::BResource::m_DDFHash]);
+    ASSERT_EQ((uint32_t) 11, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     dmGameObject::DeleteCollection(collection);
     dmGameObject::PostUpdate(m_Register);

@@ -166,7 +166,7 @@ namespace dmGameSystem
         return 0x0;
     }
 
-    static void AllocateMeshProperties(dmGameSystemDDF::MeshSet* mesh_set, dmArray<MeshProperties>* mesh_properties) {
+    static void AllocateMeshProperties(dmGameSystemDDF::MeshSet* mesh_set, dmArray<MeshProperties>& mesh_properties) {
         uint32_t max_mesh_count = 0;
         uint32_t count = mesh_set->m_MeshEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i) {
@@ -175,7 +175,7 @@ namespace dmGameSystem
                 max_mesh_count = mesh_count;
             }
         }
-        mesh_properties->SetCapacity(max_mesh_count);
+        mesh_properties.SetCapacity(max_mesh_count);
     }
 
     static SpinePlayer* GetPlayer(SpineModelComponent* component)
@@ -342,7 +342,7 @@ namespace dmGameSystem
         component->m_Enabled = 1;
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
         dmGameSystemDDF::MeshSet* mesh_set = &component->m_Resource->m_Scene->m_SpineScene->m_MeshSet;
-        AllocateMeshProperties(mesh_set, &component->m_MeshProperties);
+        AllocateMeshProperties(mesh_set, component->m_MeshProperties);
         component->m_MeshEntry = FindMeshEntry(&component->m_Resource->m_Scene->m_SpineScene->m_MeshSet, component->m_Skin);
 
         dmGameObject::CreateResult result = CreatePose(world, component);
@@ -1262,7 +1262,7 @@ namespace dmGameSystem
     {
         dmGameSystemDDF::SpineScene* scene = component->m_Resource->m_Scene->m_SpineScene;
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
-        AllocateMeshProperties(&scene->m_MeshSet, &component->m_MeshProperties);
+        AllocateMeshProperties(&scene->m_MeshSet, component->m_MeshProperties);
         component->m_MeshEntry = FindMeshEntry(&scene->m_MeshSet, component->m_Skin);
         dmhash_t default_anim_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
         for (uint32_t i = 0; i < 2; ++i)

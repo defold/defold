@@ -1684,6 +1684,8 @@ namespace dmGameObject
             }
         }
 
+        uint32_t instances_deleted = 0;
+
         if (collection->m_InstancesToDeleteHead != INVALID_INSTANCE_INDEX) {
             // Arbitrary max pass count to only guard for unexpected cycles and infinite hangs, see clause after while
             uint32_t max_pass_count = 10;
@@ -1722,17 +1724,19 @@ namespace dmGameObject
                     assert(instance->m_ToBeDeleted);
                     index = instance->m_NextToDelete;
                     DoDelete(collection, instance);
+                    ++instances_deleted;
                 }
             }
             if (pass_count == max_pass_count) {
-                dmLogError("Creation/deletion cycles encountered, postponing to next frame to avoid infinite hang.");
+                dmLogWarning("Creation/deletion cycles encountered, postponing to next frame to avoid infinite hang.");
             }
         } else {
             // Dispatch messages even if there are no deletion happening
             if (!DispatchAllSockets(collection)) {
-                return result;
+                result = false;
             }
         }
+        DM_COUNTER("InstancesDeleted", instances_deleted);
 
         return result;
     }
