@@ -70,9 +70,22 @@
         </parallel>
 
         <copy todir="libexec" overwrite="true">
-            <fileset dir="${env.DYNAMO_HOME}/ext/bin">
-                <include name="**/*luajit*"/>
-            </fileset>
+            <cutdirsmapper dirs="1"/>
+            <tarfileset includes="bin/linux/luajit">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-linux.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/win32/luajit.exe">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-win32.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/darwin/luajit">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-darwin.tar.gz" />
+                </gzipresource>
+            </tarfileset>
         </copy>
          <copy todir="share" overwrite="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/share">
@@ -173,6 +186,7 @@
                 <include name="libexec/*/*luajit*"/>
                 <include name="share/luajit/**"/>
             </fileset>
+            <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
