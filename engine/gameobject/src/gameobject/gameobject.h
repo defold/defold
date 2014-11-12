@@ -802,6 +802,13 @@ namespace dmGameObject
     uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count);
 
     /**
+     * Recursively delete all instances flagged as bones under the given parent instance.
+     * The order of deletion is depth-first, so that the children are deleted before the parents.
+     * @param parent Parent instance of the hierarchy to set
+     */
+    void DeleteBones(HInstance parent);
+
+    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */

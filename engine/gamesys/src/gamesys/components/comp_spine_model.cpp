@@ -50,17 +50,19 @@ namespace dmGameSystem
 
     struct SpineModelWorld
     {
-        dmArray<SpineModelComponent>    m_Components;
-        dmIndexPool32                   m_ComponentIndices;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
-        dmArray<SpineModelVertex>       m_VertexBufferData;
+        dmArray<SpineModelComponent>        m_Components;
+        dmIndexPool32                       m_ComponentIndices;
+        dmArray<dmRender::RenderObject>     m_RenderObjects;
+        dmGraphics::HVertexDeclaration      m_VertexDeclaration;
+        dmGraphics::HVertexBuffer           m_VertexBuffer;
+        dmArray<SpineModelVertex>           m_VertexBufferData;
 
-        dmArray<uint32_t>               m_RenderSortBuffer;
-        dmArray<uint32_t>               m_DrawOrderToMesh;
-        float                           m_MinZ;
-        float                           m_MaxZ;
+        dmArray<uint32_t>                   m_RenderSortBuffer;
+        dmArray<uint32_t>                   m_DrawOrderToMesh;
+        // Temporary scratch array for instances, only used during the creation phase of components
+        dmArray<dmGameObject::HInstance>    m_ScratchInstances;
+        float                               m_MinZ;
+        float                               m_MaxZ;
     };
 
     static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
@@ -112,6 +114,7 @@ namespace dmGameSystem
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+        world->m_ScratchInstances.SetCapacity(0);
 
         dmResource::UnregisterResourceReloadedCallback(((SpineModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
 
@@ -163,7 +166,7 @@ namespace dmGameSystem
         return 0x0;
     }
 
-    static void AllocateMeshProperties(dmGameSystemDDF::MeshSet* mesh_set, dmArray<MeshProperties>* mesh_properties) {
+    static void AllocateMeshProperties(dmGameSystemDDF::MeshSet* mesh_set, dmArray<MeshProperties>& mesh_properties) {
         uint32_t max_mesh_count = 0;
         uint32_t count = mesh_set->m_MeshEntries.m_Count;
         for (uint32_t i = 0; i < count; ++i) {
@@ -172,7 +175,7 @@ namespace dmGameSystem
                 max_mesh_count = mesh_count;
             }
         }
-        mesh_properties->SetCapacity(max_mesh_count);
+        mesh_properties.SetCapacity(max_mesh_count);
     }
 
     static SpinePlayer* GetPlayer(SpineModelComponent* component)
@@ -252,7 +255,7 @@ namespace dmGameSystem
         component->m_MixedHash = dmHashFinal32(&state);
     }
 
-    static dmGameObject::CreateResult CreatePose(SpineModelComponent* component)
+    static dmGameObject::CreateResult CreatePose(SpineModelWorld* world, SpineModelComponent* component)
     {
         dmGameObject::HInstance instance = component->m_Instance;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
@@ -265,21 +268,25 @@ namespace dmGameSystem
         {
             component->m_Pose[i].SetIdentity();
         }
-        component->m_NodeInstances.SetCapacity(bone_count);
-        component->m_NodeInstances.SetSize(bone_count);
-        memset(component->m_NodeInstances.Begin(), 0, sizeof(dmGameObject::HInstance) * bone_count);
+        component->m_NodeIds.SetCapacity(bone_count);
+        component->m_NodeIds.SetSize(bone_count);
+        if (bone_count > world->m_ScratchInstances.Capacity()) {
+            world->m_ScratchInstances.SetCapacity(bone_count);
+        }
+        world->m_ScratchInstances.SetSize(0);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             dmGameObject::HInstance inst = dmGameObject::New(collection, 0x0);
             if (inst == 0x0) {
-                component->m_NodeInstances.SetSize(i);
+                component->m_NodeIds.SetSize(i);
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
 
-            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, dmGameObject::GenerateUniqueInstanceId(collection));
+            dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
+            dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
             if (dmGameObject::RESULT_OK != result) {
                 dmGameObject::Delete(collection, inst);
-                component->m_NodeInstances.SetSize(i);
+                component->m_NodeIds.SetSize(i);
                 return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
             }
 
@@ -292,17 +299,18 @@ namespace dmGameSystem
             dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
             dmGameObject::SetRotation(inst, transform.GetRotation());
             dmGameObject::SetScale(inst, transform.GetScale());
-            component->m_NodeInstances[i] = inst;
+            component->m_NodeIds[i] = id;
+            world->m_ScratchInstances.Push(inst);
         }
         // Set parents in reverse to account for child-prepending
         for (uint32_t i = 0; i < bone_count; ++i)
         {
             uint32_t index = bone_count - 1 - i;
-            dmGameObject::HInstance inst = component->m_NodeInstances[index];
+            dmGameObject::HInstance inst = world->m_ScratchInstances[index];
             dmGameObject::HInstance parent = instance;
             if (index > 0)
             {
-                parent = component->m_NodeInstances[skeleton->m_Bones[index].m_Parent];
+                parent = world->m_ScratchInstances[skeleton->m_Bones[index].m_Parent];
             }
             dmGameObject::SetParent(inst, parent);
         }
@@ -312,20 +320,7 @@ namespace dmGameSystem
     static void DestroyPose(SpineModelComponent* component)
     {
         // Delete bone game objects
-        uint32_t bone_count = component->m_NodeInstances.Size();
-        for (uint32_t i = 0; i < bone_count; ++i)
-        {
-            dmGameObject::HInstance inst = component->m_NodeInstances[i];
-            if (inst != 0x0)
-            {
-                dmGameObject::Delete(dmGameObject::GetCollection(component->m_Instance), inst);
-            }
-            else
-            {
-                break;
-            }
-        }
-        component->m_NodeInstances.SetSize(0);
+        dmGameObject::DeleteBones(component->m_Instance);
     }
 
     dmGameObject::CreateResult CompSpineModelCreate(const dmGameObject::ComponentCreateParams& params)
@@ -347,9 +342,10 @@ namespace dmGameSystem
         component->m_Enabled = 1;
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
         dmGameSystemDDF::MeshSet* mesh_set = &component->m_Resource->m_Scene->m_SpineScene->m_MeshSet;
-        AllocateMeshProperties(mesh_set, &component->m_MeshProperties);
+        AllocateMeshProperties(mesh_set, component->m_MeshProperties);
         component->m_MeshEntry = FindMeshEntry(&component->m_Resource->m_Scene->m_SpineScene->m_MeshSet, component->m_Skin);
-        dmGameObject::CreateResult result = CreatePose(component);
+
+        dmGameObject::CreateResult result = CreatePose(world, component);
         if (result != dmGameObject::CREATE_RESULT_OK) {
             DestroyComponent(world, component);
             return result;
@@ -372,7 +368,7 @@ namespace dmGameSystem
         uint32_t index = component - &world->m_Components[0];
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_Pose.SetCapacity(0);
-        component->m_NodeInstances.SetCapacity(0);
+        component->m_NodeIds.SetCapacity(0);
         component->m_MeshProperties.SetCapacity(0);
         memset(component, 0, sizeof(SpineModelComponent));
         world->m_ComponentIndices.Push(index);
@@ -1262,11 +1258,11 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static void OnResourceReloaded(SpineModelComponent* component)
+    static void OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component)
     {
         dmGameSystemDDF::SpineScene* scene = component->m_Resource->m_Scene->m_SpineScene;
         component->m_Skin = dmHashString64(component->m_Resource->m_Model->m_Skin);
-        AllocateMeshProperties(&scene->m_MeshSet, &component->m_MeshProperties);
+        AllocateMeshProperties(&scene->m_MeshSet, component->m_MeshProperties);
         component->m_MeshEntry = FindMeshEntry(&scene->m_MeshSet, component->m_Skin);
         dmhash_t default_anim_id = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
         for (uint32_t i = 0; i < 2; ++i)
@@ -1283,14 +1279,15 @@ namespace dmGameSystem
             }
         }
         DestroyPose(component);
-        CreatePose(component);
+        CreatePose(world, component);
     }
 
     void CompSpineModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
+        SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
         component->m_Resource = (SpineModelResource*)params.m_Resource;
-        OnResourceReloaded(component);
+        OnResourceReloaded(world, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -1349,7 +1346,7 @@ namespace dmGameSystem
         {
             SpineModelComponent* component = &components[i];
             if (component->m_Resource != 0x0 && component->m_Resource->m_Scene == descriptor->m_Resource)
-                OnResourceReloaded(component);
+                OnResourceReloaded(world, component);
         }
     }
 
