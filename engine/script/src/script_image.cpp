@@ -41,7 +41,7 @@ namespace dmScript
     *
     * @name image.load
     * @param buffer image data buffer
-    * @param [premult] premultiply alpha. optional and default false
+    * @param [premult] premultiply alpha. optional and default false
     * @return object with the following fields: width, height, type and buffer (raw data). nil is returned if loading fails.
     */
     int Image_Load(lua_State* L)
