@@ -63,8 +63,8 @@ message NodeDesc
 
     enum PieBounds
     {
-        PIEBOUNDS_RECTANGLE = 0;
-        PIEBOUNDS_ELLIPSE   = 1;
+        PIEBOUNDS_RECTANGLE = 0 [(displayName) = "Rectangle"];
+        PIEBOUNDS_ELLIPSE   = 1 [(displayName) = "Ellipse"];
     };
 
     required dmMath.Vector4 position = 1;
