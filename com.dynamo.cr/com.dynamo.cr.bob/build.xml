@@ -71,7 +71,7 @@
 
         <copy todir="libexec" overwrite="true">
             <cutdirsmapper dirs="1"/>
-            <tarfileset includes="bin/linux/luajit">
+            <tarfileset includes="bin/linux/luajit*">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.3-linux.tar.gz" />
                 </gzipresource>
@@ -81,7 +81,7 @@
                     <file file="../../packages/luajit-2.0.3-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
-            <tarfileset includes="bin/darwin/luajit">
+            <tarfileset includes="bin/darwin/luajit*">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.3-darwin.tar.gz" />
                 </gzipresource>
