@@ -80,9 +80,7 @@
                       (ds/in
                        (ds/add (make-counting-scope))
                        (ds/add (make-downstream))
-                       (ds/add (make-resource))
-
-                       ))]
+                       (ds/add (make-resource))))]
         (is (= 1 @trigger-called))))))
 
 (n/defnode NamedThing

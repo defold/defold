@@ -19,7 +19,7 @@
             [dynamo.node :as n]
             [dynamo.outline :refer :all]
             [dynamo.project :as p]
-            [dynamo.system :as ds :refer [transactional in current-scope add in-transaction? connect]]
+            [dynamo.system :as ds :refer [transactional in add connect]]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer [defcommand defhandler]]

@@ -15,7 +15,7 @@
             [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
             [dynamo.node :as n :refer :all]
-            [dynamo.system :as ds :refer [transactional in current-scope add in-transaction? connect]]
+            [dynamo.system :as ds :refer [transactional in add connect]]
             [internal.ui.scene-editor :refer :all]
             [internal.ui.background :refer :all]
             [internal.ui.grid :refer :all]
