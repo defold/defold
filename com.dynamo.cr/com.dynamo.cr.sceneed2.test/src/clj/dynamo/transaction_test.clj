@@ -149,10 +149,10 @@
 (deftest event-loops-started-by-transaction
   (with-clean-world
     (let [receiver (ds/transactional
-                    (ds/add (make-event-receiver :latch (promise))))]
+                     (ds/add (make-event-receiver :latch (promise))))]
       (ds/transactional
-       (ds/send-after receiver {:type :custom-event}))
-      (is (= true @(:latch receiver))))))
+        (ds/send-after receiver {:type :custom-event}))
+      (is (= true (deref (:latch receiver) 500 :timeout))))))
 
 (defnk say-hello [first-name] (str "Hello, " first-name))
 
