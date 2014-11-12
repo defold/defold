@@ -23,7 +23,7 @@
   (binding [*transaction* (it/tx-begin *transaction*)]
     (let [result     (inner)
           tx-outcome (it/tx-apply *transaction*)]
-      (if tx-outcome
+      (if (= :ok (:status tx-outcome))
         (resolve-return-val tx-outcome result)
         result))))
 

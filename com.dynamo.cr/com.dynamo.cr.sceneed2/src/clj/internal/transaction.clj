@@ -47,15 +47,17 @@
   (tx-apply [this]      (tx-merge receiver (persistent! accumulator)))
 
   TransactionReceiver
-  (tx-merge [this work] (tx-bind this work)))
+  (tx-merge [this work] (tx-bind this work)
+                        {:status :pending}))
 
 (deftype TransactionSeed [world-ref]
   TransactionStarter
   (tx-begin [this]      (make-transaction-level this))
 
   TransactionReceiver
-  (tx-merge [this work] (when (< 0 (count work))
-                          (transact world-ref work))))
+  (tx-merge [this work] (if (< 0 (count work))
+                          (transact world-ref work)
+                          {:status :empty})))
 
 (deftype NullTransaction []
   TransactionStarter
