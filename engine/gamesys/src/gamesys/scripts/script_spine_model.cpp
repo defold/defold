@@ -203,12 +203,12 @@ namespace dmGameSystem
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
-        if (instance == 0x0)
+        dmhash_t instance_id = component->m_NodeIds[bone_index];
+        if (instance_id == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
         }
-        dmScript::PushHash(L, dmGameObject::GetIdentifier(instance));
+        dmScript::PushHash(L, instance_id);
 
         assert(top + 1 == lua_gettop(L));
         return 1;

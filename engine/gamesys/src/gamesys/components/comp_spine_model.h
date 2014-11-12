@@ -60,7 +60,7 @@ namespace dmGameSystem
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
         dmArray<dmTransform::Transform> m_Pose;
         /// Nodes corresponding to the bones
-        dmArray<dmGameObject::HInstance> m_NodeInstances;
+        dmArray<dmhash_t> m_NodeIds;
         /// Animated mesh properties
         dmArray<MeshProperties>     m_MeshProperties;
         /// Currently used mesh

@@ -981,6 +981,11 @@ namespace dmGameObject
         if (instance->m_ToBeDeleted)
             return;
 
+        // NOTE: No point in deleting when the collection is being deleted
+        // Actually dangerous, since we can be anywhere in the sequential game object destruction
+        if (collection->m_ToBeDeleted)
+            return;
+
         instance->m_ToBeDeleted = 1;
 
         uint16_t index = instance->m_Index;
@@ -1233,10 +1238,27 @@ namespace dmGameObject
         return count;
     }
 
-    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count)
-    {
+    uint32_t SetBoneTransforms(HInstance parent, dmTransform::Transform* transforms, uint32_t transform_count) {
         HCollection collection = parent->m_Collection;
         return DoSetBoneTransforms(collection, parent->m_FirstChildIndex, transforms, transform_count);
+    }
+
+    static void DoDeleteBones(HCollection collection, uint16_t first_index) {
+        uint16_t current_index = first_index;
+        while (current_index != INVALID_INSTANCE_INDEX) {
+            HInstance instance = collection->m_Instances[current_index];
+            if (instance->m_Bone && instance->m_ToBeDeleted == 0) {
+                DoDeleteBones(collection, instance->m_FirstChildIndex);
+                // Delete children first, to avoid any unnecessary re-parenting
+                Delete(collection, instance);
+            }
+            current_index = instance->m_SiblingIndex;
+        }
+    }
+
+    void DeleteBones(HInstance parent) {
+        HCollection collection = parent->m_Collection;
+        return DoDeleteBones(collection, parent->m_FirstChildIndex);
     }
 
     struct DispatchMessagesContext
