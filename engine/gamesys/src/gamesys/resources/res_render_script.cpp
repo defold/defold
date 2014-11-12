@@ -25,7 +25,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, &lua_module->m_Source, filename);
+        dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, &lua_module->m_Source);
         dmDDF::FreeMessage(lua_module);
         if (render_script)
         {
@@ -66,7 +66,7 @@ namespace dmGameSystem
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        if (dmRender::ReloadRenderScript(render_context, render_script, &lua_module->m_Source, filename))
+        if (dmRender::ReloadRenderScript(render_context, render_script, &lua_module->m_Source))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;

@@ -86,13 +86,13 @@ namespace dmSound
     Result SetInstanceGroup(HSoundInstance instance, dmhash_t group_hash);
 
     Result AddGroup(const char* group);
-    Result SetGroupGain(const char* group, float gain);
-    Result GetGroupGain(const char* group, float* gain);
+    Result SetGroupGain(dmhash_t group_hash, float gain);
+    Result GetGroupGain(dmhash_t group_hash, float* gain);
     uint32_t GetGroupCount();
-    Result GetGroupName(uint32_t index, const char** name);
+    Result GetGroupHash(uint32_t index, dmhash_t* hash);
 
-    Result GetGroupRMS(const char* group, float window, float* rms_left, float* rms_right);
-    Result GetGroupPeak(const char* group, float window, float* peak_left, float* peak_right);
+    Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right);
+    Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right);
 
     Result Update();
 

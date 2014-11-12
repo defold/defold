@@ -30,7 +30,7 @@ namespace dmGameSystem
 
             dmSound::Result result = dmSound::AddGroup(sound_desc->m_Group);
             if (result != dmSound::RESULT_OK) {
-                dmLogWarning("Failed to create group '%s' (%d)", sound_desc->m_Group, result);
+                dmLogError("Failed to create group '%s' (%d)", sound_desc->m_Group, result);
             }
 
             *sound = s;

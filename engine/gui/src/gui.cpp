@@ -17,6 +17,7 @@
 #include <dlib/trig_lookup.h>
 
 #include <script/script.h>
+#include <script/lua_source_ddf.h>
 
 #include "gui_private.h"
 #include "gui_script.h"
@@ -62,6 +63,8 @@ namespace dmGui
             PROP(outline, PROPERTY_OUTLINE )
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
+            { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
+            { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
     };
 #undef PROP
 
@@ -1118,7 +1121,10 @@ namespace dmGui
             node->m_Node.m_Properties[PROPERTY_SHADOW] = Vector4(0,0,0,1);
             node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
             node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
+            node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
             node->m_Node.m_LocalTransform = Matrix4::identity();
+            node->m_Node.m_PerimeterVertices = 32;
+            node->m_Node.m_OuterBounds = PIEBOUNDS_ELLIPSE;
             node->m_Node.m_BlendMode = 0;
             node->m_Node.m_NodeType = (uint32_t) node_type;
             node->m_Node.m_XAnchor = 0;
@@ -1706,6 +1712,55 @@ namespace dmGui
         n->m_Node.m_YAnchor = (uint32_t) y_anchor;
     }
 
+
+    void SetNodeOuterBounds(HScene scene, HNode node, PieBounds bounds)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_OuterBounds = bounds;
+    }
+
+    void SetNodePerimeterVertices(HScene scene, HNode node, uint32_t vertices)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_PerimeterVertices = vertices;
+    }
+
+    void SetNodeInnerRadius(HScene scene, HNode node, float radius)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].setX(radius);
+    }
+
+    void SetNodePieFillAngle(HScene scene, HNode node, float fill_angle)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].setY(fill_angle);
+    }
+
+    PieBounds GetNodeOuterBounds(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_OuterBounds;
+    }
+
+    uint32_t GetNodePerimeterVertices(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_PerimeterVertices;
+    }
+
+    float GetNodeInnerRadius(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].getX();
+    }
+
+    float GetNodePieFillAngle(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_Properties[PROPERTY_PIE_PARAMS].getY();
+    }
+
     Pivot GetNodePivot(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2244,7 +2299,7 @@ namespace dmGui
         ResetScript(script);
     }
 
-    Result SetScript(HScript script, dmLuaDDF::LuaSource *source, const char* filename)
+    Result SetScript(HScript script, dmLuaDDF::LuaSource *source)
     {
         lua_State* L = script->m_Context->m_LuaState;
         int top = lua_gettop(L);
@@ -2252,7 +2307,7 @@ namespace dmGui
 
         Result res = RESULT_OK;
 
-        int ret = dmScript::LuaLoad(L, source, filename);
+        int ret = dmScript::LuaLoad(L, source);
         if (ret != 0)
         {
             dmLogError("Error compiling script: %s", lua_tostring(L,-1));
@@ -2291,7 +2346,7 @@ namespace dmGui
             else
             {
                 if (lua_isnil(L, -1) == 0)
-                    dmLogWarning("'%s' is not a function (%s)", SCRIPT_FUNCTION_NAMES[i], filename);
+                    dmLogWarning("'%s' is not a function (%s)", SCRIPT_FUNCTION_NAMES[i], source->m_Filename);
                 lua_pop(L, 1);
             }
 

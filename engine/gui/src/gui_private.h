@@ -80,6 +80,9 @@ namespace dmGui
         Matrix4     m_LocalTransform;
         uint32_t    m_ResetPointState;
 
+        uint32_t m_PerimeterVertices;
+        PieBounds m_OuterBounds;
+
         union
         {
             struct

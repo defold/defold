@@ -69,12 +69,12 @@
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
 
-        <copy todir="libexec">
+        <copy todir="libexec" overwrite="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin">
                 <include name="**/*luajit*"/>
             </fileset>
         </copy>
-         <copy todir="share">
+         <copy todir="share" overwrite="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/share">
                 <include name="luajit/jit/*.lua"/>
             </fileset>
@@ -105,10 +105,10 @@
             <compilerarg value="-g"/>
         </javac>
 
-        <copy todir="${classes.dir}">
+        <copy todir="${classes.dir}" overwrite="true">
             <fileset dir="src" includes="**/*.properties" />
         </copy>
-        <copy todir="lib">
+        <copy todir="lib" overwrite="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="**/*texc_shared*"/>
             </fileset>
