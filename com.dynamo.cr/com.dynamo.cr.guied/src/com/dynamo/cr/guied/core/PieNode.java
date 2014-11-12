@@ -9,6 +9,7 @@ import org.eclipse.swt.graphics.Image;
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
+import com.dynamo.cr.properties.Range;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
@@ -30,9 +31,11 @@ public class PieNode extends GuiNode {
     private NodeDesc.PieBounds outerBounds = PieBounds.PIEBOUNDS_ELLIPSE;
 
     @Property
+    @Range(min = 4, max = 1000)
     private int perimeterVertices = 10;
 
     @Property
+    @Range(min = -360, max = 360)
     private float pieFillAngle = 360;
 
     public float getInnerRadius() {
