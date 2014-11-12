@@ -64,12 +64,7 @@
 
 (defn node-by-filename
   [project-scope filename]
-  (let [f (file/project-path project-scope filename)]
-    (if-let [node (first (iq/query (:world-ref project-scope) [[:filename f]]))]
-      node
-      (do
-        (load-resource project-scope f)
-        (first (iq/query (:world-ref project-scope) [[:filename f]]))))))
+  (load-resource project-scope (file/project-path project-scope filename)))
 
 (defn- send-project-scope-message
   [graph self txn]
@@ -87,18 +82,15 @@
   (property eclipse-project IProject)
   (property branch String))
 
-(defn- open-project-in-world
-  [world-ref eclipse-project branch]
+(defn open-project
+  [eclipse-project branch]
   (ds/transactional
     (let [project-node    (ds/add (make-project :eclipse-project eclipse-project :branch branch :handlers default-handlers))
           clojure-sources (filter clojure/clojure-source? (resources/resource-seq eclipse-project))]
       (ds/in project-node
         (doseq [source clojure-sources]
-          (load-resource project-node (file/project-path project-node source)))))))
-
-(defn open-project
-  [eclipse-project branch]
-  (open-project-in-world (-> is/the-system deref :world :state) eclipse-project branch))
+          (load-resource project-node (file/project-path project-node source))))
+      project-node)))
 
 ; ---------------------------------------------------------------------------
 ; Documentation

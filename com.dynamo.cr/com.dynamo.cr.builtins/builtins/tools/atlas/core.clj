@@ -501,10 +501,11 @@
                        :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
                        :textureset-filename (in-build-directory (replace-extension path "texturesetc"))
                        :texture-filename    (in-build-directory (replace-extension path "texturec"))))]
-    (connect atlas :textureset compiler :textureset)))
+    (connect atlas :textureset compiler :textureset)
+    atlas))
 
 (defn on-edit
-  [world-ref project-node editor-site file]
+  [project-node editor-site file]
   (let [atlas-node (p/node-by-filename project-node file)
         editor (make-scene-editor :name "editor")]
     (transactional

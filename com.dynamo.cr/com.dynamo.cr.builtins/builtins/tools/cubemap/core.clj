@@ -165,10 +165,11 @@
   [path ^Graphics$Cubemap cubemap-message]
   (let [cubemap (message->node cubemap-message :filename path :_id -1)]
     (doseq [side [:right :left :top :bottom :front :back]]
-      (make-face cubemap side (get cubemap-inputs side)))))
+      (make-face cubemap side (get cubemap-inputs side)))
+    cubemap))
 
 (defn on-edit
-  [world-ref project-node editor-site file]
+  [project-node editor-site file]
   (let [cubemap (p/node-by-filename project-node file)
         editor  (ise/make-scene-editor :name "editor")]
     (ds/transactional

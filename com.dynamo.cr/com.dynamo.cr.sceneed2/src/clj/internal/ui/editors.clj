@@ -44,7 +44,7 @@
       ((p/editor-for
          proj
          (.. file getFullPath getFileExtension))
-        world-ref proj site file))))
+        proj site file))))
 
 (defn- dynamic-part
   [{:keys [id label closeable] :or {id "sceneed.view" label "Default part" closeable true}}]
