@@ -1,0 +1,3 @@
+function final(self)
+    go.delete(go.get_id("test_b"))
+end

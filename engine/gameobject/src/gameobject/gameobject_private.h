@@ -86,6 +86,7 @@ namespace dmGameObject
             m_LevelIndex = INVALID_INSTANCE_INDEX;
             m_SiblingIndex = INVALID_INSTANCE_INDEX;
             m_FirstChildIndex = INVALID_INSTANCE_INDEX;
+            m_NextToDelete = INVALID_INSTANCE_INDEX;
             m_ToBeDeleted = 0;
         }
 
@@ -128,6 +129,9 @@ namespace dmGameObject
         uint16_t        m_Index : 15;
         // Used for deferred deletion
         uint16_t        m_ToBeDeleted : 1;
+
+        // Index to next instance to delete or INVALID_INSTANCE_INDEX
+        uint16_t        m_NextToDelete : 16;
 
         // Index to Collection::m_LevelIndex. Index is relative to current level (m_Depth), eg first object in level L always has level-index 0
         // Level-index is used to reorder Collection::m_LevelIndex entries in O(1). Given an instance we need to find where the
@@ -195,7 +199,6 @@ namespace dmGameObject
             m_InstanceIndices.SetCapacity(max_instances);
             m_WorldTransforms.SetCapacity(max_instances);
             m_WorldTransforms.SetSize(max_instances);
-            m_InstancesToDelete.SetCapacity(max_instances);
             m_IDToInstance.SetCapacity(dmMath::Max(1U, max_instances/3), max_instances);
             // TODO: Un-hard-code
             m_InputFocusStack.SetCapacity(16);
@@ -206,6 +209,9 @@ namespace dmGameObject
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
             m_ScaleAlongZ = 0;
+
+            m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
+            m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
 
             memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
             memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
@@ -245,11 +251,6 @@ namespace dmGameObject
         // Array of world transforms. Calculated using m_LevelIndices above
         dmArray<dmTransform::Transform> m_WorldTransforms;
 
-        // NOTE: Be *very* careful about m_InstancesToDelete
-        // m_InstancesToDelete is an array of instances flagged for delete during Update(.)
-        // Related code is Delete(.) and Update(.)
-        dmArray<uint16_t>        m_InstancesToDelete;
-
         // Identifier to Instance mapping
         dmHashTable64<Instance*> m_IDToInstance;
 
@@ -268,6 +269,11 @@ namespace dmGameObject
 
         // Counter for generating instance ids, protected by m_Mutex
         uint32_t                 m_GenInstanceCounter;
+
+        // Head of linked list of instances scheduled for deferred deletion
+        uint16_t                 m_InstancesToDeleteHead;
+        // Tail of the same list, for O(1) appending
+        uint16_t                 m_InstancesToDeleteTail;
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

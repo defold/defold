@@ -982,7 +982,16 @@ namespace dmGameObject
             return;
 
         instance->m_ToBeDeleted = 1;
-        collection->m_InstancesToDelete.Push(instance->m_Index);
+
+        uint16_t index = instance->m_Index;
+        uint16_t tail = collection->m_InstancesToDeleteTail;
+        if (tail != INVALID_INSTANCE_INDEX) {
+            HInstance tail_instance = collection->m_Instances[tail];
+            tail_instance->m_NextToDelete = index;
+        } else {
+            collection->m_InstancesToDeleteHead = index;
+        }
+        collection->m_InstancesToDeleteTail = index;
     }
 
     void DoDelete(HCollection collection, HInstance instance)
@@ -1597,6 +1606,20 @@ namespace dmGameObject
         return ret;
     }
 
+    static bool DispatchAllSockets(HCollection collection) {
+        bool result = true;
+        dmMessage::HSocket sockets[] =
+        {
+                // Some components might have sent messages in their final()
+                collection->m_ComponentSocket,
+                // Frame dispatch, handle e.g. spawning
+                collection->m_FrameSocket
+        };
+        if (!DispatchMessages(collection, sockets, 2))
+            result = false;
+        return result;
+    }
+
     bool PostUpdate(HCollection collection)
     {
         DM_PROFILE(GameObject, "PostUpdate");
@@ -1626,46 +1649,54 @@ namespace dmGameObject
             }
         }
 
-        if (collection->m_InstancesToDelete.Size() > 0)
-        {
-            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
-            for (uint32_t j = 0; j < n_to_delete; ++j)
-            {
-                uint16_t index = collection->m_InstancesToDelete[j];
-                Instance* instance = collection->m_Instances[index];
+        if (collection->m_InstancesToDeleteHead != INVALID_INSTANCE_INDEX) {
+            // Arbitrary max pass count to only guard for unexpected cycles and infinite hangs, see clause after while
+            uint32_t max_pass_count = 10;
+            uint32_t pass_count = 0;
+            while (collection->m_InstancesToDeleteHead != INVALID_INSTANCE_INDEX && pass_count < max_pass_count) {
+                ++pass_count;
+                // Save the list and clear the head and tail
+                uint16_t head = collection->m_InstancesToDeleteHead;
+                collection->m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
+                collection->m_InstancesToDeleteTail = INVALID_INSTANCE_INDEX;
 
-                assert(collection->m_Instances[instance->m_Index] == instance);
-                assert(instance->m_ToBeDeleted);
-                if (instance->m_Initialized)
-                    if (!Final(collection, instance) && result)
-                        result = false;
+                uint16_t index = head;
+                while (index != INVALID_INSTANCE_INDEX) {
+                    Instance* instance = collection->m_Instances[index];
 
+                    assert(collection->m_Instances[instance->m_Index] == instance);
+                    assert(instance->m_ToBeDeleted);
+                    if (instance->m_Initialized) {
+                        if (!Final(collection, instance) && result) {
+                            result = false;
+                        }
+                    }
+                    index = instance->m_NextToDelete;
+                }
+
+                if (!DispatchAllSockets(collection)) {
+                    result = false;
+                }
+
+                // Reset to iterate for actual deletion
+                index = head;
+                while (index != INVALID_INSTANCE_INDEX) {
+                    Instance* instance = collection->m_Instances[index];
+
+                    assert(collection->m_Instances[instance->m_Index] == instance);
+                    assert(instance->m_ToBeDeleted);
+                    index = instance->m_NextToDelete;
+                    DoDelete(collection, instance);
+                }
             }
-        }
-
-        dmMessage::HSocket sockets[] =
-        {
-                // Some components might have sent messages in their final()
-                collection->m_ComponentSocket,
-                // Frame dispatch, handle e.g. spawning
-                collection->m_FrameSocket
-        };
-        if (!DispatchMessages(collection, sockets, 2))
-            result = false;
-
-        if (collection->m_InstancesToDelete.Size() > 0)
-        {
-            uint32_t n_to_delete = collection->m_InstancesToDelete.Size();
-            for (uint32_t j = 0; j < n_to_delete; ++j)
-            {
-                uint16_t index = collection->m_InstancesToDelete[j];
-                Instance* instance = collection->m_Instances[index];
-
-                assert(collection->m_Instances[instance->m_Index] == instance);
-                assert(instance->m_ToBeDeleted);
-                DoDelete(collection, instance);
+            if (pass_count == max_pass_count) {
+                dmLogError("Creation/deletion cycles encountered, postponing to next frame to avoid infinite hang.");
             }
-            collection->m_InstancesToDelete.SetSize(0);
+        } else {
+            // Dispatch messages even if there are no deletion happening
+            if (!DispatchAllSockets(collection)) {
+                return result;
+            }
         }
 
         return result;
