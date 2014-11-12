@@ -420,7 +420,7 @@ namespace dmScript
     /**
      * Wraps luaL_loadbuffer but takes dmLuaDDF::LuaSource instead of buffer directly.
      */
-    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source, const char *filename);
+    int LuaLoad(lua_State *L, dmLuaDDF::LuaSource* source);
 }
 
 #endif // DM_SCRIPT_H

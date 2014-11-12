@@ -224,9 +224,9 @@ namespace dmRender
      */
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color);
 
-    HRenderScript   NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source, const char* filename);
+    HRenderScript   NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source);
 
-    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source, const char* filename);
+    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source);
 
     void            DeleteRenderScript(HRenderContext render_context, HRenderScript render_script);
 

@@ -590,14 +590,6 @@ local function debug_hook(event, line)
         end
       end
 
-      -- DEFOLD: Change 'scriptc' into 'script' because of how files are built.
-      --         If that does not update the string, it should be a .lua file
-      --         where we can get paths with . instead of /
-      local old = file
-      file = string.lower(file:gsub("scriptc$", "script"))
-      if old == file then
-            file = file:gsub("%.", "/") .. ".lua"
-      end
       -- set to true if we got here; this only needs to be done once per
       -- session, so do it here to at least avoid setting it for every line.
       seen_hook = true

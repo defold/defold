@@ -105,7 +105,7 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result GetGroupRMS(const char* group_name, float window, float* rms_left, float* rms_right)
+    Result GetGroupRMS(dmhash_t group_hash, float window, float* rms_left, float* rms_right)
     {
         // NOTE: Not supported.
         // sound_null is deprecated and should be replaced by sound2 with null-device
@@ -114,7 +114,7 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result GetGroupPeak(const char* group, float window, float* peak_left, float* peak_right)
+    Result GetGroupPeak(dmhash_t group_hash, float window, float* peak_left, float* peak_right)
     {
         // NOTE: Not supported.
         // sound_null is deprecated and should be replaced by sound2 with null-device
@@ -123,14 +123,14 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result SetGroupGain(const char* group_name, float gain)
+    Result SetGroupGain(dmhash_t group_hash, float gain)
     {
         // NOTE: Not supported.
         // sound_null is deprecated and should be replaced by sound2 with null-device
         return RESULT_OK;
     }
 
-    Result GetGroupGain(const char* group, float* gain)
+    Result GetGroupGain(dmhash_t group_hash, float* gain)
     {
         // NOTE: Not supported.
         // sound_null is deprecated and should be replaced by sound2 with null-device
@@ -144,7 +144,7 @@ namespace dmSound
         return 0;
     }
 
-    Result GetGroupName(uint32_t index, const char** name)
+    Result GetGroupHash(uint32_t index, dmhash_t* hash)
     {
         // NOTE: Not supported.
         // sound_null is deprecated and should be replaced by sound2 with null-device

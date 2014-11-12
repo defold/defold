@@ -476,6 +476,7 @@ namespace dmGameObject
         operator delete ((void*)instance);
         collection->m_Instances[instance_index] = 0x0;
         collection->m_InstanceIndices.Push(instance_index);
+        assert(collection->m_IDToInstance.Size() <= collection->m_InstanceIndices.Size());
     }
 
     bool CreateComponents(HCollection collection, HInstance instance) {
@@ -606,7 +607,16 @@ namespace dmGameObject
         instance->m_Identifier = id;
         collection->m_IDToInstance.Put(id, instance);
 
+        assert(collection->m_IDToInstance.Size() <= collection->m_InstanceIndices.Size());
         return RESULT_OK;
+    }
+
+    static void ReleaseIdentifier(HCollection collection, HInstance instance)
+    {
+        if (instance->m_Identifier != UNNAMED_IDENTIFIER) {
+            collection->m_IDToInstance.Erase(instance->m_Identifier);
+            instance->m_Identifier = UNNAMED_IDENTIFIER;
+        }
     }
 
     HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
@@ -659,6 +669,7 @@ namespace dmGameObject
         if (instance != 0) {
             bool success = CreateComponents(collection, instance);
             if (!success) {
+                ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
                 instance = 0;
             } else {
@@ -1027,8 +1038,7 @@ namespace dmGameObject
             component_type->m_DestroyFunction(params);
         }
 
-        if (instance->m_Identifier != UNNAMED_IDENTIFIER)
-            collection->m_IDToInstance.Erase(instance->m_Identifier);
+        ReleaseIdentifier(collection, instance);
 
         assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
         assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
@@ -1107,6 +1117,8 @@ namespace dmGameObject
         // Clear all memory excluding ComponentInstanceUserData
         memset(instance_memory, 0xcc, sizeof(Instance));
         operator delete (instance_memory);
+
+        assert(collection->m_IDToInstance.Size() <= collection->m_InstanceIndices.Size());
     }
 
     void DeleteAll(HCollection collection)
@@ -1587,6 +1599,7 @@ namespace dmGameObject
     bool Update(HCollection collection, const UpdateContext* update_context)
     {
         DM_PROFILE(GameObject, "Update");
+        DM_COUNTER("Instances", collection->m_InstanceIndices.Size());
 
         assert(collection != 0x0);
 
