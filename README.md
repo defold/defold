@@ -271,7 +271,10 @@ Facebook and Google Play into this location.
 * Download SDK Tools 23.0 from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html).
   Drill down to *VIEW ALL DOWNLOADS AND SIZES* and *SDK Tools Only*. Change URL to ...23.0.. if necessary.
 * Launch android tool and install Android SDK Platform-tools 20 and Build-tools 20.0
-* Download NDK 10b: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html)
+* Download NDK 10b: [http://developer.android.com/tools/sdk/ndk/index.html](http://developer.android.com/tools/sdk/ndk/index.html).
+  The revision you look for might be outdated and the path syntax to the link tends to change.
+  You can find older versions, for example Max OS X 64, r10b, by the following convention:
+    [http://dl.google.com/android/ndk/android-ndk32-r10b-darwin-x86_64.tar.bz2](http://dl.google.com/android/ndk/android-ndk32-r10b-darwin-x86_64.tar.bz2).
 * Put NDK/SDK in ~/android/android-ndk-r10b and ~/android/android-sdk respectively
 
 ### Android testing
