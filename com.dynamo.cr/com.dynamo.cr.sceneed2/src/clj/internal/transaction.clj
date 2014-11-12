@@ -266,7 +266,7 @@
         next-ctx (reduce (fn [csub [n tr]]
                            (binding [*transaction* (->TriggerTransaction (transient []))]
                              (tr (:graph csub) n csub)
-                             (update-in csub [:pending] concat (tx-return *transaction*))))
+                             (update-in csub [:pending] conj (tx-return *transaction*))))
                    ctx
                    (pairwise :triggers (map #(dg/node graph %) new-triggers)))]
     (update-in next-ctx [:previously-triggered] set/union new-triggers)))
