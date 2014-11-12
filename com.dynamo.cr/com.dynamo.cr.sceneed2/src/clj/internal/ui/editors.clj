@@ -18,21 +18,20 @@
   [project-node]
   (.getName (.getDescription ^IProject (:eclipse-project project-node))))
 
-(defn- warn-multiple-projects
+(defn- select-applicable-project
   [file project-nodes]
-  (let [actual (first project-nodes)]
-    (log/warn :multiple-projects
-      (str "File " file " is referenced by " (count project-nodes) " projects. Using " (eclipse-project-name actual) " (node " (:_id actual) ")."))))
+  (let [actual (last (sort-by :_id project-nodes))]
+    (when (next project-nodes)
+      (log/warn :multiple-projects
+        (str "File " file " is referenced by " (count project-nodes) " projects. Using " (eclipse-project-name actual) " (node " (:_id actual) ").")))
+    actual))
 
 (defn- project-containing [world-ref ^IFile file]
   (let [eclipse-project (.getProject file)
         project-nodes (iq/query world-ref [[:eclipse-project eclipse-project]])]
-    (case (count project-nodes)
-      0   (log/error :not-project-file (str "File " file " is not part of any project"))
-      1   (first project-nodes)
-      (do
-        (warn-multiple-projects file project-nodes)
-        (first project-nodes)))))
+    (if (empty? project-nodes)
+      (log/error :not-project-file (str "File " file " is not part of any project"))
+      (select-applicable-project file project-nodes))))
 
 (defn implementation-for
   "Given an editor site and input file, call the factory function associated
