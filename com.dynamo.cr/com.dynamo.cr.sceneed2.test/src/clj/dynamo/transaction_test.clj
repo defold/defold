@@ -107,24 +107,38 @@
   (property touched {:schema s/Bool :default false})
   (output passthrough s/Any passthrough))
 
+(defnk aggregator [aggregator] aggregator)
+
+(n/defnode FocalNode
+  (input aggregator [s/Any])
+  (output aggregated [s/Any] aggregator))
+
 (defn- build-network
   []
-  (let [all (zipmap [:person :first-name-cell :last-name-cell :greeter :formal-greeter :calculator]
-                    (tx-nodes (make-person) (make-named-thing) (make-named-thing) (make-receiver) (make-receiver) (make-receiver)))]
+  (let [nodes {:person            (make-person)
+               :first-name-cell   (make-named-thing)
+               :last-name-cell    (make-named-thing)
+               :greeter           (make-receiver)
+               :formal-greeter    (make-receiver)
+               :calculator        (make-receiver)
+               :multi-node-target (make-focal-node)}
+        nodes (zipmap (keys nodes) (apply tx-nodes (vals nodes)))]
     (ds/transactional
-     (doseq [[f f-l t t-l]
-             [[:first-name-cell :name          :person         :first-name]
-              [:last-name-cell  :name          :person         :surname]
-              [:person          :friendly-name :greeter        :generic-input]
-              [:person          :full-name     :formal-greeter :generic-input]
-              [:person          :age           :calculator     :generic-input]]]
-       (ds/connect (f all) f-l (t all) t-l)))
-    all))
+      (doseq [[f f-l t t-l]
+              [[:first-name-cell :name          :person            :first-name]
+               [:last-name-cell  :name          :person            :surname]
+               [:person          :friendly-name :greeter           :generic-input]
+               [:person          :full-name     :formal-greeter    :generic-input]
+               [:person          :age           :calculator        :generic-input]
+               [:person          :full-name     :multi-node-target :aggregator]
+               [:formal-greeter  :passthrough   :multi-node-target :aggregator]]]
+        (ds/connect (f nodes) f-l (t nodes) t-l)))
+    nodes))
 
-(defn- should-be-affected [nodes ident-labels]
-  (apply merge-with concat {}
-    (for [[node-id label] ident-labels]
-      {(get-in nodes [node-id :_id]) [label]})))
+(defn map-keys [f m]
+  (zipmap
+    (map f (keys m))
+    (vals m)))
 
 (defmacro affected-by [& forms]
   `(do
@@ -133,14 +147,16 @@
 
 (deftest precise-invalidation
   (with-clean-world
-    (let [nodes (build-network)]
-      (are [expected tx] (= (should-be-affected nodes expected) tx)
-           [[:calculator :touched]]      (affected-by
-                                          (ds/update-property (:calculator nodes) :touched (constantly true)))
-           [[:person :date-of-birth]
-            [:person :age]
-            [:calculator :passthrough]]  (affected-by
-                                          (ds/set-property (:person nodes) :date-of-birth (java.util.Date.)))))))
+    (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network)]
+      (are [update expected] (= (map-keys :_id expected) (affected-by (apply ds/set-property update)))
+        [calculator :touched true]                {calculator        #{:touched}}
+        [person :date-of-birth (java.util.Date.)] {person            #{:age :date-of-birth}
+                                                   calculator        #{:passthrough}}
+        [first-name-cell :name "Sam"]             {first-name-cell   #{:name}
+                                                   person            #{:full-name :friendly-name}
+                                                   greeter           #{:passthrough}
+                                                   formal-greeter    #{:passthrough}
+                                                   multi-node-target #{:aggregated}}))))
 
 (n/defnode EventReceiver
   (on :custom-event

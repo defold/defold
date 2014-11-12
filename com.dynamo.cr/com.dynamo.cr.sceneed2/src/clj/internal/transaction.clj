@@ -133,15 +133,15 @@
   (let [dirty-deps (get (t/output-dependencies (dg/node graph node-id)) input-label)]
     (if (empty? dirty-deps)
       ctx
-      (update-in ctx [:outputs-modified node-id] into dirty-deps))))
+      (update-in ctx [:outputs-modified node-id] set/union dirty-deps))))
 
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys nodes-modified outputs-modified world-ref new-event-loops nodes-added] :as ctx}
-   {:keys [node] :as m}]
+  [{:keys [graph tempids cache-keys outputs-modified world-ref new-event-loops nodes-added] :as ctx}
+   {:keys [node]}]
   (let [next-id     (dg/next-node graph)
-        full-node   (assoc node :_id next-id :world-ref world-ref)
+        full-node   (assoc node :_id next-id :world-ref world-ref) ;; TODO: can we remove :world-ref from nodes?
         graph-after (lg/add-labeled-node graph (t/inputs node) (t/outputs node) full-node)
         full-node   (dg/node graph-after next-id)]
     (assoc ctx
@@ -150,42 +150,37 @@
       :tempids             (assoc tempids (:_id node) next-id)
       :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
-      :outputs-modified    (merge-with concat outputs-modified {next-id (into [] (t/outputs full-node))})
-      :nodes-modified      (conj nodes-modified next-id))))
+      :outputs-modified    (merge-with set/union outputs-modified {next-id (t/outputs full-node)}))))
 
 (defmethod perform :set-property
-  [{:keys [graph nodes-modified] :as ctx} {:keys [node-id property value] :as m}]
+  [{:keys [graph] :as ctx} {:keys [node-id property value]}]
   (let [node-id (resolve-tempid ctx node-id)]
     (-> ctx
         (mark-dirty node-id property)
-        (assoc :graph            (dg/transform-node graph node-id assoc property value)
-               :nodes-modified   (conj nodes-modified node-id)))))
+        (assoc :graph (dg/transform-node graph node-id assoc property value)))))
 
 (defmethod perform :update-property
-  [{:keys [graph nodes-modified] :as ctx} {:keys [node-id property fn args] :as m}]
+  [{:keys [graph] :as ctx} {:keys [node-id property fn args]}]
   (let [node-id (resolve-tempid ctx node-id)]
     (-> ctx
         (mark-dirty node-id property)
-        (assoc :graph            (apply dg/transform-node graph node-id update-in [property] fn args)
-               :nodes-modified   (conj nodes-modified node-id)))))
+        (assoc :graph (apply dg/transform-node graph node-id update-in [property] fn args)))))
 
 (defmethod perform :connect
-  [{:keys [graph nodes-modified] :as ctx} {:keys [source-id source-label target-id target-label] :as m}]
+  [{:keys [graph] :as ctx} {:keys [source-id source-label target-id target-label]}]
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
         (mark-dirty target-id target-label)
-        (assoc :graph            (lg/connect graph source-id source-label target-id target-label)
-               :nodes-modified   (conj nodes-modified target-id)))))
+        (assoc :graph (lg/connect graph source-id source-label target-id target-label)))))
 
 (defmethod perform :disconnect
-  [{:keys [graph nodes-modified] :as ctx} {:keys [source-id source-label target-id target-label] :as m}]
+  [{:keys [graph] :as ctx} {:keys [source-id source-label target-id target-label]}]
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
         (mark-dirty target-id target-label)
-        (assoc :graph            (lg/disconnect graph source-id source-label target-id target-label)
-               :nodes-modified   (conj nodes-modified target-id)))))
+        (assoc :graph (lg/disconnect graph source-id source-label target-id target-label)))))
 
 (defmethod perform :message
   [ctx {:keys [to-node body]}]
@@ -219,7 +214,7 @@
          next-batch           (:outputs-modified ctx)
          iterations-remaining 1000]
     (let [next-batch (downstream-dirties (select-keys ctx [:graph]) next-batch)
-          ctx        (update-in ctx [:outputs-modified] #(merge-with into % next-batch))]
+          ctx        (update-in ctx [:outputs-modified] #(merge-with set/union % next-batch))]
       (if (empty? next-batch)
         ctx
         (do
@@ -309,7 +304,6 @@
      :tempids             {}
      :new-event-loops     #{}
      :nodes-added         #{}
-     :nodes-modified      #{}
      :messages            []
      :pending             [txs]}))
 
