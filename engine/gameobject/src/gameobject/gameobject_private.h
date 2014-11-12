@@ -130,15 +130,11 @@ namespace dmGameObject
         // Used for deferred deletion
         uint16_t        m_ToBeDeleted : 1;
 
-        // Index to next instance to delete or INVALID_INSTANCE_INDEX
-        uint16_t        m_NextToDelete : 16;
-
         // Index to Collection::m_LevelIndex. Index is relative to current level (m_Depth), eg first object in level L always has level-index 0
         // Level-index is used to reorder Collection::m_LevelIndex entries in O(1). Given an instance we need to find where the
         // instance index is located in Collection::m_LevelIndex
         uint16_t        m_LevelIndex : 15;
         uint16_t        m_Pad2 : 1;
-
 
 #ifdef __EMSCRIPTEN__
         // TODO: FIX!! Workaround for LLVM/Clang bug when compiling with any optimization level > 0.
@@ -152,6 +148,9 @@ namespace dmGameObject
         //			   The bug is tracked as http://llvm.org/bugs/show_bug.cgi?id=19800
         float m_llvm_pad;
 #endif
+
+        // Index to next instance to delete or INVALID_INSTANCE_INDEX
+        uint16_t        m_NextToDelete : 16;
 
         // Next sibling index. Index to Collection::m_Instances
         uint16_t        m_SiblingIndex : 15;
