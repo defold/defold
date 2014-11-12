@@ -433,7 +433,7 @@ TEST_F(ComponentTest, TestComponentType)
 }
 
 // Deleting the first go should delete the second in its final callback
-// The test is to verify that the final callback is called for both components a and b
+// The test is to verify that the final callback is called for a cascading deletion of objects.
 TEST_F(ComponentTest, FinalCallsFinal)
 {
     dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 11);
@@ -448,18 +448,21 @@ TEST_F(ComponentTest, FinalCallsFinal)
         dmGameObject::SetIdentifier(collection, go_b, buf);
     }
 
+    // 11 objects in total
     ASSERT_EQ(11u, collection->m_InstanceIndices.Size());
 
     dmGameObject::Init(collection); // Init is required for final
     dmGameObject::Delete(collection, go_a);
     dmGameObject::PostUpdate(collection);
 
+    // One lingering due to the cap of passes in dmGameObject::PostUpdate, which is currently set to 10
     ASSERT_EQ(1u, collection->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 10, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     // One more pass needed to delete the last object in the chain
     dmGameObject::PostUpdate(collection);
 
+    // All done
     ASSERT_EQ(0u, collection->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 11, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
