@@ -5,8 +5,7 @@
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.query :as iq]
-            [internal.transaction :as it :refer [*transaction*]])
-  (:import [internal.transaction NullTransaction]))
+            [internal.transaction :as it :refer [Transaction *transaction*]]))
 
 ; ---------------------------------------------------------------------------
 ; Transactional state
@@ -20,16 +19,17 @@
     (node? val)        (or (dg/node (:graph tx-outcome) (it/resolve-tempid tx-outcome (:_id val))) val)
     :else              val))
 
-(defn transactional* [world-ref inner]
-  (binding [*transaction* (it/tx-begin *transaction* world-ref)]
+(defn transactional* [inner]
+  (binding [*transaction* (it/tx-begin *transaction*)]
     (let [result     (inner)
           tx-outcome (it/tx-apply *transaction*)]
       (if tx-outcome
         (resolve-return-val tx-outcome result)
         result))))
 
-(defn in-transaction? []
-  (not (instance? NullTransaction *transaction*)))
+(defn in-transaction?
+  []
+  (satisfies? Transaction *transaction*))
 
 (defn- is-scope?
   [n]
@@ -50,7 +50,7 @@
 
 (defmacro transactional
   [& forms]
-  `(transactional* (:world-ref (current-scope)) (fn [] ~@forms)))
+  `(transactional* (fn [] ~@forms)))
 
 (defn connect
   [source-node source-label target-node target-label]

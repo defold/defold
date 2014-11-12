@@ -20,8 +20,9 @@
   [& forms]
   `(let [~'world-ref (clean-world)
          ~'root      (iq/node-by-id ~'world-ref 1)]
-     (ds/in ~'root
-         ~@forms)))
+     (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
+       (ds/in ~'root
+           ~@forms))))
 
 (defn tx-nodes [& resources]
   (ds/transactional

@@ -10,7 +10,7 @@
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
             [internal.refresh :refer [refresh-message refresh-subsystem]]
-            [internal.transaction :refer [*scope*]]
+            [internal.transaction :refer [*scope* set-world-ref!]]
             [service.log :as log :refer [logging-exceptions]]))
 
 (set! *warn-on-reflection* true)
@@ -40,6 +40,7 @@
         (let [root (n/make-root-scope :world-ref state :_id 1)]
           (ref-set state (new-world-state state root))
           (alter-var-root #'*scope* (constantly root))
+          (set-world-ref! state)
           (assoc this :started true)))))
   (stop [this]
     (if (:started this)

@@ -20,46 +20,51 @@
 ; ---------------------------------------------------------------------------
 ; Transaction protocols
 ; ---------------------------------------------------------------------------
+(declare ->TransactionLevel transact)
+
+(defn- make-transaction-level
+  ([receiver]
+    (make-transaction-level receiver 0))
+  ([receiver depth]
+    (->TransactionLevel receiver depth (transient []))))
+
+(defprotocol TransactionStarter
+  (tx-begin [this]      "Create a subordinate transaction scope"))
 
 (defprotocol Transaction
-  (tx-bind       [this step]  "Add a step to the transaction")
-  (tx-apply      [this]       "Apply the transaction steps")
-  (tx-begin      [this world] "Create a subordinate transaction scope"))
+  (tx-bind  [this work] "Add a unit of work to the transaction")
+  (tx-apply [this]      "Apply the transaction work"))
 
-(defprotocol Return
-  (tx-return     [this]       "Return the steps of the transaction."))
+(defprotocol TransactionReceiver
+  (tx-merge [this work] "Merge the transaction work into yourself."))
 
-(declare ->NestedTransaction transact)
+(deftype TransactionLevel [receiver depth accumulator]
+  TransactionStarter
+  (tx-begin [this]      (make-transaction-level this (inc depth)))
 
-(deftype NestedTransaction [enclosing]
   Transaction
-  (tx-bind [this step]        (tx-bind enclosing step))
-  (tx-apply [this]            nil)
-  (tx-begin [this _]          (->NestedTransaction this)))
+  (tx-bind  [this work] (conj! accumulator work))
+  (tx-apply [this]      (tx-merge receiver (persistent! accumulator)))
 
-(deftype RootTransaction [world-ref steps]
-  Transaction
-  (tx-bind [this step]       (conj! steps step))
-  (tx-apply [this]           (when (< 0 (count steps))
-                               (transact world-ref (persistent! steps))))
-  (tx-begin [this _]         (->NestedTransaction this)))
+  TransactionReceiver
+  (tx-merge [this work] (tx-bind this work)))
+
+(deftype TransactionSeed [world-ref]
+  TransactionStarter
+  (tx-begin [this]      (make-transaction-level this))
+
+  TransactionReceiver
+  (tx-merge [this work] (when (< 0 (count work))
+                          (transact world-ref work))))
 
 (deftype NullTransaction []
-  Transaction
-  (tx-bind [this step]       (assert false "This must be done inside a (transactional) block."))
-  (tx-apply [this]           nil)
-  (tx-begin [this world-ref] (->RootTransaction world-ref (transient []))))
-
-(deftype TriggerTransaction [steps]
-  Transaction
-  (tx-bind [this step]       (conj! steps step))
-  (tx-apply [this]           nil)
-  (tx-begin [this _]         (->NestedTransaction this))
-
-  Return
-  (tx-return [this]          (persistent! steps)))
+  TransactionStarter
+  (tx-begin [this]      (assert false "The system is not initialized enough to run transactions yet.")))
 
 (def ^:dynamic *transaction* (->NullTransaction))
+
+(defn set-world-ref! [r]
+  (alter-var-root #'*transaction* (constantly (->TransactionSeed r))))
 
 ; ---------------------------------------------------------------------------
 ; Building transactions
@@ -244,7 +249,7 @@
 (defn start-event-loop!
   [world-ref graph id]
   (let [in (bus/subscribe (:message-bus @world-ref) id)]
-    (binding [*transaction* (->NullTransaction)]
+    (binding [*transaction* (->TransactionSeed world-ref)]
       (a/go-loop []
         (when-let [msg (a/<! in)]
           (try
@@ -260,13 +265,17 @@
       (start-event-loop! world-ref graph l))
   (update-in ctx [:previously-started] set/union loops-to-start)))
 
+(deftype TriggerReceiver [transaction-context]
+  TransactionReceiver
+  (tx-merge [this steps] (update-in transaction-context [:pending] conj steps)))
+
 (defn- process-triggers
   [{:keys [graph outputs-modified previously-triggered] :as ctx}]
   (let [new-triggers (set/difference (into #{} (keys outputs-modified)) previously-triggered)
         next-ctx (reduce (fn [csub [n tr]]
-                           (binding [*transaction* (->TriggerTransaction (transient []))]
+                           (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
                              (tr (:graph csub) n csub)
-                             (update-in csub [:pending] conj (tx-return *transaction*))))
+                             (tx-apply *transaction*)))
                    ctx
                    (pairwise :triggers (map #(dg/node graph %) new-triggers)))]
     (update-in next-ctx [:previously-triggered] set/union new-triggers)))
