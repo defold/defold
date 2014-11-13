@@ -184,6 +184,13 @@ public class SpineScene {
         public Property property;
     }
 
+    public static class Event {
+        public String name;
+        public String stringPayload;
+        public float floatPayload;
+        public int intPayload;
+    }
+
     public static class EventKey {
         public float t;
         public String stringPayload;
@@ -210,6 +217,7 @@ public class SpineScene {
     public Map<String, List<Mesh>> skins = new HashMap<String, List<Mesh>>();
     public Map<String, Animation> animations = new HashMap<String, Animation>();
     public Map<String, Slot> slots = new HashMap<String, Slot>();
+    public Map<String, Event> events = new HashMap<String, Event>();
 
     public Bone getBone(String name) {
         return nameToBones.get(name);
@@ -225,6 +233,10 @@ public class SpineScene {
 
     public Animation getAnimation(String name) {
         return animations.get(name);
+    }
+
+    public Event getEvent(String name) {
+        return events.get(name);
     }
 
     private static void loadTransform(JsonNode node, Transform t) {
@@ -530,11 +542,12 @@ public class SpineScene {
                     keys = new ArrayList<EventKey>();
                     tracks.put(eventId, keys);
                 }
+                Event event = getEvent(eventId);
                 EventKey key = new EventKey();
                 key.t = (float)keyNode.get("time").asDouble();
-                key.intPayload = JsonUtil.get(keyNode, "int", 0);
-                key.floatPayload = JsonUtil.get(keyNode, "float", 0.0f);
-                key.stringPayload = JsonUtil.get(keyNode, "string", "");
+                key.intPayload = JsonUtil.get(keyNode, "int", event.intPayload);
+                key.floatPayload = JsonUtil.get(keyNode, "float", event.floatPayload);
+                key.stringPayload = JsonUtil.get(keyNode, "string", event.stringPayload);
                 keys.add(key);
             }
             for (Map.Entry<String, List<EventKey>> entry : tracks.entrySet()) {
@@ -646,6 +659,19 @@ public class SpineScene {
                 JsonUtil.hexToRGBA(JsonUtil.get(slotNode,  "color",  "ffffffff"), slot.color);
                 scene.slots.put(slotNode.get("name").asText(), slot);
                 ++slotIndex;
+            }
+            if (node.has("events")) {
+                Iterator<Map.Entry<String, JsonNode>> eventIt = node.get("events").getFields();
+                while (eventIt.hasNext()) {
+                    Map.Entry<String, JsonNode> eventEntry = eventIt.next();
+                    Event event = new Event();
+                    event.name = eventEntry.getKey();
+                    JsonNode eventNode = eventEntry.getValue();
+                    event.stringPayload = JsonUtil.get(eventNode, "string", "");
+                    event.intPayload = JsonUtil.get(eventNode, "int", 0);
+                    event.floatPayload = JsonUtil.get(eventNode, "float", 0.0f);
+                    scene.events.put(event.name, event);
+                }
             }
             if (!node.has("skins")) {
                 return scene;
