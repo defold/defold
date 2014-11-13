@@ -41,11 +41,11 @@ namespace dmScript
      * @param [post_data] option data to send
      * @examples
      * <p>
-     * Basic HTTP-GET request. The callback receives an object with the response
-     * in the fields status, payload (the data) and headers.
+     * Basic HTTP-GET request. The callback receives a table with the response
+     * in the fields status, payload (the data) and headers (a table).
      * </p>
      * <pre>
-     * local function http_result(response)
+     * local function http_result(self, id, response)
      *     print(response.status)
      *     print(response.payload)
      *     print(response.headers)
