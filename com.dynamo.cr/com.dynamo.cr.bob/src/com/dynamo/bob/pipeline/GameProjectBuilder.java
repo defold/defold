@@ -73,6 +73,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".guic", Gui.SceneDesc.class);
         extToMessageClass.put(".scriptc", LuaModule.class);
         extToMessageClass.put(".gui_scriptc", LuaModule.class);
+        extToMessageClass.put(".render_scriptc", LuaModule.class);
         extToMessageClass.put(".luac", LuaModule.class);
         extToMessageClass.put(".tilegridc", TileGrid.class);
         extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
@@ -98,7 +99,6 @@ public class GameProjectBuilder extends Builder<Void> {
         leafResourceTypes.add(".fpc");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
-        leafResourceTypes.add(".render_scriptc");
         leafResourceTypes.add(".meshc");
     }
 
