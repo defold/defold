@@ -1800,7 +1800,7 @@ namespace dmGui
 
     /*# gets the angle for the filled pie sector
      *
-     * @name gui.set_pie_fill_angle
+     * @name gui.get_pie_fill_angle
      * @return sector angle
      */
     static int LuaGetPieFillAngle(lua_State* L)

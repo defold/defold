@@ -30,18 +30,18 @@ namespace dmScript
      * @variable
      */
 
-    /*# Luminance image type
+    /*# luminance image type
      *
      * @name image.TYPE_LUMINANCE
      * @variable
      */
 
     /*# load image from buffer
-    * Load image (png and jpeg) from buffer
+    * Load image (PNG or JPEG) from buffer.
     *
     * @name image.load
     * @param buffer image data buffer
-    * @param [premult] premultiply alpha. optional and default false
+    * @param [premult] premultiply alpha. optional and defaults to false
     * @return object with the following fields: width, height, type and buffer (raw data). nil is returned if loading fails.
     */
     int Image_Load(lua_State* L)
