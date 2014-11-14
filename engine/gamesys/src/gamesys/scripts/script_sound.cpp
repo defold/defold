@@ -20,10 +20,11 @@ extern "C"
 
 namespace dmGameSystem
 {
-    /*# Check if background music is on, e.g. from iTunes
-     *
-     *
+    /*# check if background music is playing
+     * Checks if background music is playing, e.g. from iTunes
+    *
      * @name sound.is_music_playing
+     * @return true if music is playing (bool)
      */
     int Sound_IsMusicPlaying(lua_State* L)
     {
@@ -41,7 +42,7 @@ namespace dmGameSystem
         return (dmhash_t) 0;
     }
 
-    /*#
+    /*# get rms value from mixer group
      * Get RMS (Root Mean Square) value from mixer group.
      * <p>
      * Note that the returned value might be an approximation and in particular
@@ -72,7 +73,7 @@ namespace dmGameSystem
         return 2;
     }
 
-    /*#
+    /*# get peak gain value from mixer group
      * Get peak value from mixer group.
      * <p>
      * Note that the returned value might be an approximation and in particular
@@ -103,7 +104,7 @@ namespace dmGameSystem
         return 2;
     }
 
-    /*#
+    /*# set mixer group gain
      * Set mixer group gain
      * <p>
      * Note that gain is in linear scale.
@@ -128,7 +129,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*#
+    /*# get mixer group gain
      * Get mixer group gain
      * <p>
      * Note that gain is in linear scale.
@@ -153,7 +154,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*#
+    /*# get all mixer group names
      * Get all mixer group names
      *
      * @name sound.get_groups
@@ -177,12 +178,13 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# Get mixer group name
+    /*# get mixer group name string
+     * Get a mixer group name as a string.
      * <p>Note that this function does not return correct group name in release mode</p>
      *
      * @name sound.get_group_name
      * @param group [hash|string]
-     * @return group name
+     * @return group name (string)
      */
     int Sound_GetGroupName(lua_State* L)
     {

@@ -714,10 +714,12 @@ namespace dmGameSystem
         return t;
     }
 
-    static void PostEvent(dmMessage::URL* sender, dmMessage::URL* receiver, dmhash_t event_id, dmGameSystemDDF::EventKey* key)
+    static void PostEvent(dmMessage::URL* sender, dmMessage::URL* receiver, dmhash_t event_id, dmhash_t animation_id, float blend_weight, dmGameSystemDDF::EventKey* key)
     {
         dmGameSystemDDF::SpineEvent event;
         event.m_EventId = event_id;
+        event.m_AnimationId = animation_id;
+        event.m_BlendWeight = blend_weight;
         event.m_T = key->m_T;
         event.m_Integer = key->m_Integer;
         event.m_Float = key->m_Float;
@@ -734,7 +736,7 @@ namespace dmGameSystem
         }
     }
 
-    static void PostEventsInterval(dmMessage::URL* sender, dmMessage::URL* receiver, dmGameSystemDDF::SpineAnimation* animation, float start_cursor, float end_cursor, float duration, bool backwards)
+    static void PostEventsInterval(dmMessage::URL* sender, dmMessage::URL* receiver, dmGameSystemDDF::SpineAnimation* animation, float start_cursor, float end_cursor, float duration, bool backwards, float blend_weight)
     {
         const uint32_t track_count = animation->m_EventTracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti)
@@ -749,13 +751,13 @@ namespace dmGameSystem
                     cursor = duration - cursor;
                 if (start_cursor <= cursor && cursor < end_cursor)
                 {
-                    PostEvent(sender, receiver, track->m_EventId, key);
+                    PostEvent(sender, receiver, track->m_EventId, animation->m_Id, blend_weight, key);
                 }
             }
         }
     }
 
-    static void PostEvents(SpinePlayer* player, dmMessage::URL* sender, dmMessage::URL* listener, dmGameSystemDDF::SpineAnimation* animation, float dt, float prev_cursor, float duration, bool completed)
+    static void PostEvents(SpinePlayer* player, dmMessage::URL* sender, dmMessage::URL* listener, dmGameSystemDDF::SpineAnimation* animation, float dt, float prev_cursor, float duration, bool completed, float blend_weight)
     {
         dmMessage::URL receiver = *listener;
         if (!dmMessage::IsSocketValid(receiver.m_Socket))
@@ -777,8 +779,8 @@ namespace dmGameSystem
             {
                 prev_backwards = !player->m_Backwards;
             }
-            PostEventsInterval(sender, &receiver, animation, prev_cursor, duration, duration, prev_backwards);
-            PostEventsInterval(sender, &receiver, animation, 0.0f, cursor, duration, player->m_Backwards);
+            PostEventsInterval(sender, &receiver, animation, prev_cursor, duration, duration, prev_backwards, blend_weight);
+            PostEventsInterval(sender, &receiver, animation, 0.0f, cursor, duration, player->m_Backwards, blend_weight);
         }
         else
         {
@@ -789,17 +791,17 @@ namespace dmGameSystem
                 // If the previous cursor was still in the forward direction, treat it as two distinct intervals: [start_cursor,half_duration) and [half_duration, end_cursor)
                 if (prev_cursor < half_duration)
                 {
-                    PostEventsInterval(sender, &receiver, animation, prev_cursor, half_duration, duration, false);
-                    PostEventsInterval(sender, &receiver, animation, half_duration, cursor, duration, true);
+                    PostEventsInterval(sender, &receiver, animation, prev_cursor, half_duration, duration, false, blend_weight);
+                    PostEventsInterval(sender, &receiver, animation, half_duration, cursor, duration, true, blend_weight);
                 }
                 else
                 {
-                    PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, true);
+                    PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, true, blend_weight);
                 }
             }
             else
             {
-                PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, player->m_Backwards);
+                PostEventsInterval(sender, &receiver, animation, prev_cursor, cursor, duration, player->m_Backwards, blend_weight);
             }
         }
     }
@@ -814,7 +816,7 @@ namespace dmGameSystem
         return duration;
     }
 
-    static void UpdatePlayer(SpineModelComponent* component, SpinePlayer* player, float dt, dmMessage::URL* listener)
+    static void UpdatePlayer(SpineModelComponent* component, SpinePlayer* player, float dt, dmMessage::URL* listener, float blend_weight)
     {
         dmGameSystemDDF::SpineAnimation* animation = player->m_Animation;
         if (animation == 0x0 || !player->m_Playing)
@@ -867,7 +869,7 @@ namespace dmGameSystem
         {
             dmMessage::URL receiver = *listener;
             receiver.m_Function = 0;
-            PostEvents(player, &sender, &receiver, animation, dt, prev_cursor, duration, completed);
+            PostEvents(player, &sender, &receiver, animation, dt, prev_cursor, duration, completed, blend_weight);
         }
 
         if (completed)
@@ -1002,31 +1004,37 @@ namespace dmGameSystem
             if (component->m_Blending)
             {
                 float fade_rate = component->m_BlendTimer / component->m_BlendDuration;
-                float blend_weight = 1.0f;
+                // How much to blend the pose, 1 first time to overwrite the bind pose, either fade_rate or 1 - fade_rate second depending on which one is the current player
+                float alpha = 1.0f;
                 for (uint32_t pi = 0; pi < 2; ++pi)
                 {
                     SpinePlayer* p = &component->m_Players[pi];
-                    UpdatePlayer(component, p, dt, &component->m_Listener);
+                    // How much relative blending between the two players
+                    float blend_weight = fade_rate;
+                    if (player != p) {
+                        blend_weight = 1.0f - fade_rate;
+                    }
+                    UpdatePlayer(component, p, dt, &component->m_Listener, blend_weight);
                     bool draw_order = true;
                     if (player == p) {
                         draw_order = fade_rate >= 0.5f;
                     } else {
                         draw_order = fade_rate < 0.5f;
                     }
-                    ApplyAnimation(p, pose, properties, blend_weight, component->m_Skin, draw_order);
+                    ApplyAnimation(p, pose, properties, alpha, component->m_Skin, draw_order);
                     if (player == p)
                     {
-                        blend_weight = 1.0f - fade_rate;
+                        alpha = 1.0f - fade_rate;
                     }
                     else
                     {
-                        blend_weight = fade_rate;
+                        alpha = fade_rate;
                     }
                 }
             }
             else
             {
-                UpdatePlayer(component, player, dt, &component->m_Listener);
+                UpdatePlayer(component, player, dt, &component->m_Listener, 1.0f);
                 ApplyAnimation(player, pose, properties, 1.0f, component->m_Skin, true);
             }
 

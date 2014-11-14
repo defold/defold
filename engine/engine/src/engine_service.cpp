@@ -9,6 +9,7 @@
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/template.h>
+#include <dlib/profile.h>
 #include <ddf/ddf.h>
 #include "engine_service.h"
 #include "engine_version.h"
@@ -362,6 +363,7 @@ namespace dmEngineService
 
     void Update(HEngineService engine_service)
     {
+        DM_PROFILE(Engine, "Service");
         dmWebServer::Update(engine_service->m_WebServer);
         dmSSDP::Update(engine_service->m_SSDP, false);
     }
