@@ -178,7 +178,7 @@ namespace dmGameSystem
     }
 
     /*# Get mixer group name
-     * <p>Note that this function is only guaranteed to work in dev-mode</p>
+     * <p>Note that this function does not return correct group name in release mode</p>
      *
      * @name sound.get_group_name
      * @param group [hash|string]

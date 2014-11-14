@@ -207,7 +207,7 @@ namespace dmGameSystem
                 {
                     result = dmSound::SetInstanceGroup(entry.m_SoundInstance, entry.m_Sound->m_GroupHash);
                     if (result != dmSound::RESULT_OK) {
-                        dmLogWarning("Failed to set sound group");
+                        dmLogError("Failed to set sound group (%d)", result);
                     }
 
                     float gain = play_sound->m_Gain * entry.m_Sound->m_Gain;
