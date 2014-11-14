@@ -39,8 +39,6 @@
       (dosync
         (let [root (n/make-root-scope :world-ref state :_id 1)]
           (ref-set state (new-world-state state root))
-          (alter-var-root #'*scope* (constantly root))
-          (set-world-ref! state)
           (assoc this :started true)))))
   (stop [this]
     (if (:started this)
@@ -97,7 +95,13 @@
 (def the-system (atom (system)))
 
 (defn start
-  ([]    (start the-system))
+  ([]    (let [system-map (start the-system)
+               state (-> system-map :world :state)
+               graph (-> state deref :graph)
+               root (dg/node graph 1)]
+           (set-world-ref! state)
+           (alter-var-root #'*scope* (constantly root))
+           system-map))
   ([sys] (swap! sys component/start-system)))
 
 (defn stop
