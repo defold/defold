@@ -875,7 +875,7 @@ namespace dmSound
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
 
-        if (instance->m_FrameCount < sound->m_FrameCount) {
+        if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
             assert(instance->m_FrameCount < sound->m_FrameCount);
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
 
