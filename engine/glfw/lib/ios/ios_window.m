@@ -714,6 +714,8 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
+    
+    [glView createFramebuffer];
 }
 
 - (void)updateViewFramesWorkaround
@@ -894,7 +896,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void)viewWillTransitionToSize:(CGSize)size
        withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
 {
-    NSLog(@"viewWillTransitionToSize size: %.1f,%.1f\n", size.width, size.height);
     [self updateViewFramesWorkaround];
 }
 
@@ -1052,7 +1053,6 @@ int  _glfwPlatformOpenWindow( int width, int height,
 {
 
     _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;
-    NSLog(@"glfw] open window (%dx%d)\n", width, height);
 
     // The desired orientation might have changed when rebooting to a new game
     g_Savewin.portrait = _glfwWin.portrait;
