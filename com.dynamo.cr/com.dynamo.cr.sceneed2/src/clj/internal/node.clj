@@ -42,16 +42,16 @@
    :node-type (class n)
    :label     l})
 
+(declare get-node-value)
+
 (defn- get-value-with-restarts
-  [node g label]
+  [node label]
   (restart-case
     (:unreadable-resource
       (:use-value [v] v))
     (:empty-source-list
       (:use-value [v] v))
-    (t/get-value node g label)))
-
-
+    (get-node-value node label)))
 
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
@@ -60,12 +60,12 @@
           output-transform (get-in target-node [:descriptor :transforms target-label])]
       (cond
         (vector? schema)     (mapv (fn [[source-node source-label]]
-                                     (get-value-with-restarts (dg/node g source-node) g source-label))
+                                     (get-value-with-restarts (dg/node g source-node) source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
                                (when first-source-node
-                                 (get-value-with-restarts (dg/node g first-source-node) g first-source-label)))
-        (not (nil? output-transform)) (get-value-with-restarts target-node g target-label)
+                                 (get-value-with-restarts (dg/node g first-source-node) first-source-label)))
+        (not (nil? output-transform)) (get-value-with-restarts target-node target-label)
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))
