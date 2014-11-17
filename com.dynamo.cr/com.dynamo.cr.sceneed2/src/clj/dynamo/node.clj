@@ -130,3 +130,10 @@ This function should mainly be used to create 'plumbing'."
 (defmethod print-method RootScope__
   [^RootScope__ v ^java.io.Writer w]
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
+
+(defn get-node-inputs
+  "Sometimes a production function needs direct access to an input source.
+   This function takes any number of input labels and returns a vector of their
+   values, in the same order."
+  [node & labels]
+  (map (in/collect-inputs node (-> node :world-ref deref :graph) (zipmap labels (repeat :ok))) labels))

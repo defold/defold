@@ -57,6 +57,9 @@
   (width ^Integer [this])
   (height ^Integer [this]))
 
+(defprotocol Frame
+  (frame [this] "Notified one frame after being altered."))
+
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------

@@ -3,14 +3,15 @@
             [com.stuartsierra.component :as component]
             [dynamo.node :as n]
             [dynamo.types :as t]
-            [schema.core :as s]
             [internal.bus :as bus]
             [internal.cache :refer [make-cache]]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
             [internal.refresh :refer [refresh-message refresh-subsystem]]
+            [internal.repaint :as repaint]
             [internal.transaction :refer [*scope* set-world-ref!]]
+            [schema.core :as s]
             [service.log :as log :refer [logging-exceptions]]))
 
 (set! *warn-on-reflection* true)
@@ -23,22 +24,23 @@
   (lg/add-labeled-node g (t/inputs r) (t/outputs r) r))
 
 (defn new-world-state
-  [state root]
+  [state root repaint-needed]
   {:graph               (attach-root (dg/empty-graph) root)
    :cache               (make-cache)
    :cache-keys          {}
    :world-time          0
    :message-bus         (bus/make-bus)
-   :disposal-queue      (a/chan (a/dropping-buffer 1000))})
+   :disposal-queue      (a/chan (a/dropping-buffer 1000))
+   :repaint-needed      repaint-needed})
 
-(defrecord World [started state]
+(defrecord World [started state repaint-needed]
   component/Lifecycle
   (start [this]
     (if (:started this)
       this
       (dosync
         (let [root (n/make-root-scope :world-ref state :_id 1)]
-          (ref-set state (new-world-state state root))
+          (ref-set state (new-world-state state root repaint-needed))
           (alter-var-root #'*scope* (constantly root))
           (set-world-ref! state)
           (assoc this :started true)))))
@@ -58,11 +60,23 @@
   (when (transaction-applied? old-world new-world)
     (a/put! report-ch last-tx)))
 
+(defn- nodes-modified
+  [graph last-tx]
+  (map (partial dg/node graph) (-> last-tx :outputs-modified keys)))
+
+(defn- schedule-repaints
+  [repaint-needed _ world-ref old-world {last-tx :last-tx graph :graph :as new-world}]
+  (when (transaction-applied? old-world new-world)
+    (repaint/schedule-repaint repaint-needed (keep
+                                               #(when (satisfies? t/Frame %) %)
+                                               (nodes-modified graph last-tx)))))
+
 (defn- world
-  [report-ch]
+  [report-ch repaint-needed]
   (let [world-ref (ref nil)]
     (add-watch world-ref :tx-report (partial send-tx-reports report-ch))
-    (->World false world-ref)))
+    (add-watch world-ref :tx-report (partial schedule-repaints repaint-needed))
+    (->World false world-ref repaint-needed)))
 
 (defn- refresh-messages
   [{:keys [expired-outputs graph]}]
@@ -89,10 +103,12 @@
 
 (defn system
  []
- (let [tx-report-chan (a/chan 1)]
+ (let [repaint-needed (ref #{})
+       tx-report-chan (a/chan 1)]
    (component/map->SystemMap
-     {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 15)
-      :world     (component/using (world tx-report-chan) [:refresh])})))
+    {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 15)
+     :world     (world tx-report-chan repaint-needed)
+     :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])})))
 
 (def the-system (atom (system)))
 

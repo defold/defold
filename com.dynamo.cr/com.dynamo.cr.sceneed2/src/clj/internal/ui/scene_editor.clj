@@ -13,6 +13,7 @@
             [internal.metrics :as metrics]
             [internal.disposal :as disp]
             [internal.render.pass :as pass]
+            [internal.repaint :as repaint]
             [internal.query :as iq])
   (:import [javax.media.opengl GL2 GLContext GLDrawableFactory]
            [javax.media.opengl.glu GLU]
@@ -65,7 +66,7 @@
   (let [viewport ^Region (:viewport camera)]
     (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))))
 
-(defnk paint-renderer
+(defn paint-renderer
   [^GLContext context ^GLCanvas canvas this ^Camera view-camera text-renderer]
   (metrics/paint)
   (ui/swt-safe
@@ -109,8 +110,16 @@
   (property text-renderer TextRenderer)
 
   (output render-data t/RenderData produce-render-data)
-  (output paint s/Keyword :on-update paint-renderer)
   (output aabb AABB passthrough-aabb)
+
+  t/Frame
+  (frame [this]
+    (paint-renderer
+      (:context this)
+      (:canvas this)
+      this
+      (first (n/get-node-inputs this :view-camera))
+      (:text-renderer this)))
 
   (on :resize
     (let [canvas      (:canvas self)

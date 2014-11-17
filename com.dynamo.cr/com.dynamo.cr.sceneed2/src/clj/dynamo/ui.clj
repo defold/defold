@@ -1,7 +1,8 @@
 (ns dynamo.ui
   (:require [internal.ui.handlers :as h]
             [internal.java :refer [bean-mapper]]
-            [camel-snake-kebab :refer :all])
+            [camel-snake-kebab :refer :all]
+            [service.log :as log])
   (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
             [org.eclipse.swt.widgets Display Listener Widget]
             [org.eclipse.swt SWT]))
@@ -24,7 +25,10 @@
 
 (defn swt-thread-safe*
   [f]
-  (.asyncExec (display) f))
+  (when-let [d (display)]
+    (if (is-display-thread? d)
+      (f)
+      (.asyncExec d f))))
 
 (defmacro swt-safe
   [& body]
@@ -44,13 +48,21 @@
       (.timerExec d after f)
       (swt-thread-safe* #(.timerExec d after f)))))
 
-(defmacro swt-timed-exec
-  [after & body]
-  `(swt-timed-exec* ~after (bound-fn [] ~@body)))
-
 (defmacro after
   [wait-time & body]
-  `(swt-timed-exec ~wait-time ~@body))
+  `(swt-timed-exec* ~wait-time (bound-fn [] ~@body)))
+
+(defn tick
+  [interval f]
+  (if-let [d (display)]
+    (letfn [(tickf [] (f) (.timerExec d interval tickf))]
+      (.asyncExec d tickf)
+      tickf)
+    (log/error :message "Display is not available.")))
+
+(defn untick
+  [tickf]
+  (swt-thread-safe* #(.timerExec (display) -1 tickf)))
 
 (defmacro swt-events [& evts]
   (let [keywords (map (comp keyword ->kebab-case str) evts)

@@ -13,7 +13,7 @@
   (let [world-ref (ref nil)
         root      (n/make-root-scope :world-ref world-ref :_id 1)]
     (dosync
-      (ref-set world-ref (is/new-world-state world-ref root))
+      (ref-set world-ref (is/new-world-state world-ref root (ref #{})))
       world-ref)))
 
 (defmacro with-clean-world
