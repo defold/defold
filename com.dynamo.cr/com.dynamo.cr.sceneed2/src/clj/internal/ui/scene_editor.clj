@@ -92,7 +92,7 @@
                                   :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30)))))))))
          (finally
            (.swapBuffers canvas)
-           (metrics/paint-done)))))))
+           (metrics/paint-complete)))))))
 
 (defnk passthrough-aabb
   [aabb]
