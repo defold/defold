@@ -1,16 +1,20 @@
 function init(self)
     self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
-    self.id_b = factory.create("#factory_b", nil, nil, {factory = msg.url("#")})
+    msg.post(self.id_a, "hello")
 end
 
 function update(self, dt)
-    msg.post(self.id_a, "hello", {id_b = self.id_b})
-    assert(not self.updated)
+    assert(self.a_hello, "no response from A yet")
+    assert(not self.updated, "one more run through update than expected")
     self.updated = true
+    self.id_b = factory.create("#factory_b", nil, nil, {factory = msg.url("#")})
+    msg.post(self.id_b, "hello")
 end
 
 function on_message(self, message_id, message, sender)
-    if message_id == hash("done") then
+    if message_id == hash("hello") then
+        self.a_hello = sender.path == self.id_a
+    elseif message_id == hash("done") then
         msg.post("main:/main#script", "done")
     end
 end

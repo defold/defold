@@ -430,8 +430,6 @@ namespace dmGameObject
     }
 
     HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name) {
-        assert(collection->m_InUpdate == 0 && "Creating new instances during Update(.) is not permitted");
-
         if (collection->m_InstanceIndices.Remaining() == 0)
         {
             dmLogError("Unable to create instance. Out of resources");
@@ -619,15 +617,89 @@ namespace dmGameObject
         }
     }
 
+    // Schedule instance to be added to update
+    static void AddToUpdate(HCollection collection, HInstance instance) {
+        // NOTE: Do not add to update twice.
+        assert(instance->m_ToBeAdded == 0);
+        instance->m_ToBeAdded = 1;
+        uint16_t index = instance->m_Index;
+        uint16_t tail = collection->m_InstancesToAddTail;
+        if (tail != INVALID_INSTANCE_INDEX) {
+            HInstance tail_instance = collection->m_Instances[tail];
+            tail_instance->m_NextToAdd = index;
+        } else {
+            collection->m_InstancesToAddHead = index;
+        }
+        collection->m_InstancesToAddTail = index;
+    }
+
+    // Actually add instance to update
+    static bool DoAddToUpdate(HCollection collection, HInstance instance) {
+        if (instance)
+        {
+            assert(collection->m_Instances[instance->m_Index] == instance);
+
+            instance->m_ToBeAdded = 0;
+            uint32_t next_component_instance_data = 0;
+            Prototype* prototype = instance->m_Prototype;
+            for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
+            {
+                Prototype::Component* component = &prototype->m_Components[i];
+                ComponentType* component_type = component->m_Type;
+
+                uintptr_t* component_instance_data = 0;
+                if (component_type->m_InstanceHasUserData)
+                {
+                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                }
+                assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+
+                if (component_type->m_AddToUpdateFunction)
+                {
+                    ComponentAddToUpdateParams params;
+                    params.m_Collection = collection;
+                    params.m_Instance = instance;
+                    params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
+                    params.m_Context = component_type->m_Context;
+                    params.m_UserData = component_instance_data;
+                    CreateResult result = component_type->m_AddToUpdateFunction(params);
+                    if (result != CREATE_RESULT_OK)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // Actually add all scheduled instances to the update
+    static bool DoAddToUpdate(HCollection collection) {
+        if (collection->m_InUpdate) {
+            dmLogError("Instances can not be added to update during the update.");
+            return false;
+        }
+        uint16_t index = collection->m_InstancesToAddHead;
+        bool result = true;
+        while (index != INVALID_INSTANCE_INDEX) {
+            HInstance instance = collection->m_Instances[index];
+            if (!DoAddToUpdate(collection, instance)) {
+                result = false;
+            }
+            index = instance->m_NextToAdd;
+            instance->m_NextToAdd = INVALID_INSTANCE_INDEX;
+        }
+        collection->m_InstancesToAddHead = INVALID_INSTANCE_INDEX;
+        collection->m_InstancesToAddTail = INVALID_INSTANCE_INDEX;
+        return result;
+    }
+
     HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)
     {
         if (prototype_name == 0x0) {
             dmLogError("No prototype to spawn from.");
             return 0x0;
-        }
-        if (collection->m_InUpdate) {
-            dmLogError("Spawning during update is not allowed, %s was never spawned.", prototype_name);
-            return 0;
         }
         Prototype* proto = 0x0;
         dmResource::HFactory factory = collection->m_Factory;
@@ -709,6 +781,18 @@ namespace dmGameObject
                 {
                     dmLogError("Could not initialize when spawning %s.", prototype_name);
                     success = false;
+                }
+                if (success) {
+                    if (collection->m_InUpdate) {
+                        // deferred add-to-update
+                        AddToUpdate(collection, instance);
+                    } else {
+                        // Immediate add-to-update
+                        if (!DoAddToUpdate(collection, instance)) {
+                            dmLogError("Could not add to update when spawning %s.", prototype_name);
+                            success = false;
+                        }
+                    }
                 }
                 if (!success) {
                     Delete(collection, instance);
@@ -901,12 +985,12 @@ namespace dmGameObject
 
         bool result = true;
         // Update scripts
-        uint32_t n_objects = collection->m_Instances.Size();
-        for (uint32_t i = 0; i < n_objects; ++i)
-        {
+        uint32_t count = collection->m_InstanceIndices.Size();
+        for (uint32_t i = 0; i < count; ++i) {
             Instance* instance = collection->m_Instances[i];
-            if ( ! Init(collection, instance) )
-            {
+            if (!Init(collection, instance)) {
+                result = false;
+            } else if (!DoAddToUpdate(collection, instance)) {
                 result = false;
             }
         }
@@ -1602,6 +1686,9 @@ namespace dmGameObject
         DM_COUNTER("Instances", collection->m_InstanceIndices.Size());
 
         assert(collection != 0x0);
+
+        // Add to update
+        DoAddToUpdate(collection);
 
         collection->m_InUpdate = 1;
 

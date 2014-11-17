@@ -371,6 +371,30 @@ namespace dmGameObject
     typedef CreateResult (*ComponentFinal)(const ComponentFinalParams& params);
 
     /**
+     * Parameters to ComponentAddToUpdate callback.
+     */
+    struct ComponentAddToUpdateParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Game object instance
+        HInstance m_Instance;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
+
+    /**
+     * Component add to update function. Only components called with this function should be included in the update passes.
+     * @param params Input parameters
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*ComponentAddToUpdate)(const ComponentAddToUpdateParams& params);
+
+    /**
      * Parameters to ComponentsUpdate callback.
      */
     struct ComponentsUpdateParams
@@ -557,6 +581,7 @@ namespace dmGameObject
         ComponentDestroy        m_DestroyFunction;
         ComponentInit           m_InitFunction;
         ComponentFinal          m_FinalFunction;
+        ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
