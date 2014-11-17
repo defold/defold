@@ -10,6 +10,7 @@
             [dynamo.types :as t]
             [schema.core :as s]
             [schema.macros :as sm]
+            [internal.metrics :as metrics]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [internal.query :as iq]
@@ -105,6 +106,7 @@
   value)
 
 (defn- produce-value [node g label]
+  (metrics/node-value node label)
   (t/get-value node g label))
 
 (defn get-node-value

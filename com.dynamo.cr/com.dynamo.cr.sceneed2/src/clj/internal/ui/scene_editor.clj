@@ -10,6 +10,7 @@
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [service.log :as log]
+            [internal.metrics :as metrics]
             [internal.disposal :as disp]
             [internal.render.pass :as pass]
             [internal.query :as iq])
@@ -66,30 +67,32 @@
 
 (defnk paint-renderer
   [^GLContext context ^GLCanvas canvas this ^Camera view-camera text-renderer]
+  (metrics/paint)
   (ui/swt-safe
    (disp/dispose-pending (:world-ref this))
-    (when (and canvas (not (.isDisposed canvas)))
-      (.setCurrent canvas)
-      (with-context context [gl glu]
-        (try
-          (gl-clear gl 0.0 0.0 0.0 1)
-          (gl-viewport gl view-camera)
-          (when-let [renderables (n/get-node-value this :render-data)]
-            (doseq [pass pass/passes]
-              (setup-pass context gl glu pass view-camera)
-              (doseq [node (get renderables pass)]
-                (gl-push-matrix gl
-                    (when (t/model-transform? pass)
-                      (gl-mult-matrix-4d gl (:world-transform node)))
-                    (try
-                      (when (:render-fn node)
-                        ((:render-fn node) context gl glu text-renderer))
-                      (catch Exception e
-                        (log/error :exception e
-                                   :pass pass
-                                   :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30)))))))))
-          (finally
-            (.swapBuffers canvas)))))))
+   (when (and canvas (not (.isDisposed canvas)))
+     (.setCurrent canvas)
+     (with-context context [gl glu]
+       (try
+         (gl-clear gl 0.0 0.0 0.0 1)
+         (gl-viewport gl view-camera)
+         (when-let [renderables (n/get-node-value this :render-data)]
+           (doseq [pass pass/passes]
+             (setup-pass context gl glu pass view-camera)
+             (doseq [node (get renderables pass)]
+               (gl-push-matrix gl
+                   (when (t/model-transform? pass)
+                     (gl-mult-matrix-4d gl (:world-transform node)))
+                   (try
+                     (when (:render-fn node)
+                       ((:render-fn node) context gl glu text-renderer))
+                     (catch Exception e
+                       (log/error :exception e
+                                  :pass pass
+                                  :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30)))))))))
+         (finally
+           (.swapBuffers canvas)
+           (metrics/paint-done)))))))
 
 (defnk passthrough-aabb
   [aabb]
