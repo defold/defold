@@ -1,7 +1,6 @@
 (ns internal.system-test
   (:require [clojure.test :refer :all]
             [com.stuartsierra.component :as component]
-            [dynamo.system :as ds :refer [current-scope]]
             [internal.graph.dgraph :as dg]
             [internal.system :as is]
             [internal.transaction :as txn]))
@@ -18,7 +17,6 @@
     (is/start sys)
     (is (started? sys))
     (is (not (nil? (system-graph sys))))
-    (is (not (nil? (current-scope))))
     (is (not (nil? (:world-ref (graph-root sys)))))
     (is (= 1 (:_id (graph-root sys))))
 
