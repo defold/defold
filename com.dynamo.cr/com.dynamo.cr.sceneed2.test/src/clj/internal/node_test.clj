@@ -133,8 +133,9 @@
 (defnode EmptyNode)
 
 (deftest node-intrinsics
-  (let [node (make-empty-node)]
-    (is (identical? node (t/get-value node nil :self)))))
+  (with-clean-world
+    (let [[node] (tx-nodes (make-empty-node))]
+      (is (identical? node (in/get-node-value node :self))))))
 
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)
@@ -145,14 +146,15 @@
   (output def-as-symbol  s/Keyword production-val))
 
 (deftest production-function-types
-  (let [node (make-production-function-types-node)]
-    (is (= :fn   (t/get-value node nil :inline-fn)))
-    (is (= :defn (t/get-value node nil :defn-as-symbol)))
-    (is (= :def  (t/get-value node nil :def-as-symbol)))
-    (binding [production-fn :dynamic-binding-val]
-      (is (= :dynamic-binding-val (t/get-value node nil :defn-as-symbol))))
-    (binding [production-val (constantly :dynamic-binding-fn)]
-      (is (= :dynamic-binding-fn (t/get-value node nil :def-as-symbol))))))
+  (with-clean-world
+    (let [[node] (tx-nodes (make-production-function-types-node))]
+      (is (= :fn   (in/get-node-value node :inline-fn)))
+      (is (= :defn (in/get-node-value node :defn-as-symbol)))
+      (is (= :def  (in/get-node-value node :def-as-symbol)))
+      (binding [production-fn :dynamic-binding-val]
+        (is (= :dynamic-binding-val (in/get-node-value node :defn-as-symbol))))
+      (binding [production-val (constantly :dynamic-binding-fn)]
+        (is (= :dynamic-binding-fn (in/get-node-value node :def-as-symbol)))))))
 
 (defn production-fn-this [this g] this)
 (defn production-fn-g [this g] g)

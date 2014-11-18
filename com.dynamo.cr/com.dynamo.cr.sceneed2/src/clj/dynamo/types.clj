@@ -24,13 +24,12 @@
   (descriptor [this] "Return a data structure describing the node type"))
 
 (defprotocol Node
-  (get-value  [this graph label] "given a graph, node, and transform label, `get-value` returns the result of the transform.")
-  (properties [this]             "Produce a description of properties supported by this node.")
-  (inputs     [this]             "Return a set of labels for the allowed inputs of the node.")
-  (outputs    [this]             "Return a set of labels for the outputs of this node.")
-  (auto-update? [this label]     "Return true if the output label should be updated whenever it gets invalidated.")
-  (cached-outputs [this]         "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
-  (output-dependencies [this]    "Return a map of labels for the inputs and properties to outputs that depend on them."))
+  (properties [this]          "Produce a description of properties supported by this node.")
+  (inputs     [this]          "Return a set of labels for the allowed inputs of the node.")
+  (outputs    [this]          "Return a set of labels for the outputs of this node.")
+  (auto-update? [this label]  "Return true if the output label should be updated whenever it gets invalidated.")
+  (cached-outputs [this]      "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
+  (output-dependencies [this] "Return a map of labels for the inputs and properties to outputs that depend on them."))
 
 (defprotocol MessageTarget
   (process-one-event [this event]))

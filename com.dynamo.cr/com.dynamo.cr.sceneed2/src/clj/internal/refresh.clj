@@ -1,13 +1,13 @@
 (ns internal.refresh
   (:require [clojure.core.async :as a]
             [com.stuartsierra.component :as component]
-            [dynamo.types :as t]
+            [dynamo.node :as n]
             [service.log :as log :refer [logging-exceptions]]))
 
 (defn- refresh-one
-  [{:keys [graph node output]}]
+  [{:keys [node output]}]
   (logging-exceptions "refresh-loop"
-     (t/get-value node graph output)))
+     (n/get-node-value node output)))
 
 (defn refresh-loop
   [in]
@@ -35,9 +35,8 @@
         (assoc this :control-chans nil)))))
 
 (defn refresh-message
-  [node g output]
-  {:graph   g
-   :node    node
+  [node output]
+  {:node    node
    :output  output})
 
 (defn refresh-subsystem

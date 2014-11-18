@@ -77,11 +77,11 @@
     (->World false world-ref repaint-needed)))
 
 (defn- refresh-messages
-  [{:keys [expired-outputs graph]}]
+  [{:keys [expired-outputs]}]
   (filter identity
     (for [[node output] expired-outputs]
       (logging-exceptions "extracting refresh message"
-        (refresh-message node graph output)))))
+        (refresh-message node output)))))
 
 (defn- multiplex-reports
   [tx-report refresh]

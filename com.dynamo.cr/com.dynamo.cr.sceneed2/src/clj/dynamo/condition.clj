@@ -38,11 +38,11 @@ use the value of `placeholder-image` in the location where the signal originated
 The particular restart case is selected when the value is produced:
 
 		(defn- get-value-with-restarts
-		  [node g label]
+		  [node label]
 		  (restart-case
 		    (:unreadable-resource
 		      (:use-value [v] v))
-		    (t/get-value node g label)))
+		    (n/get-node-value node label)))
 
 `signal` signals an error condition which may be restarted at the site of the error.
 `handler-bind` provides a function that, when evaluated, defines the restart to be invoked.

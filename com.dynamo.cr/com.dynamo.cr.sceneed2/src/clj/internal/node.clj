@@ -106,8 +106,10 @@
   value)
 
 (defn- produce-value [node g label]
-  (metrics/node-value node label)
-  (t/get-value node g label))
+  (let [transform (get-in node [:descriptor :transforms label])]
+    (assert transform (str "There is no transform " label " on node " (:_id node)))
+    (metrics/node-value node label)
+    (perform transform node g)))
 
 (defn get-node-value
   [node label]
@@ -296,10 +298,6 @@
   (list* `defrecord (classname-for nm) (state-vector descriptor)
          `dynamo.types/Node
          `(properties [t#] (:properties ~nm))
-         `(get-value [t# g# label#]
-                     (assert (get-in ~nm [:transforms label#])
-                             (str "There is no transform " label# " on node " (:_id t#)))
-                     (perform (get-in ~nm [:transforms label#]) t# g#))
          `(inputs [t#] (into #{} (keys (:inputs ~nm))))
          `(outputs [t#] (into #{} (keys (:transforms ~nm))))
          `(auto-update? [t# l#] ((-> t# :descriptor :on-update) l#))
