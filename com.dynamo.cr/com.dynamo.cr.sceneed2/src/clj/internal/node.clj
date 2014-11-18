@@ -178,6 +178,19 @@
              {} (:properties beh)))
 
 (def ^:private property-flags #{:cached :on-update})
+(def ^:private option-flags #{:substitute-value})
+
+(defn parse-output-flags [args]
+  (loop [properties #{}
+         options {}
+         args args]
+    (if-let [[arg & remainder] (seq args)]
+      (cond
+        (contains? property-flags arg) (recur (conj properties arg) options remainder)
+        (contains? option-flags arg) (do (assert remainder (str "Expected value for option " arg))
+                                       (recur properties (assoc options arg (first remainder)) (rest remainder)))
+        :else {:properties properties :options options :remainder args})
+      {:properties properties :options options :remainder args})))
 
 (defn- compile-defnode-form
   [prefix form]
@@ -204,11 +217,9 @@
                           (dynamo.system/transactional ~@fn-body))}}
 
      [(['output nm output-type & remainder] :seq)]
-     (let [oname       (keyword nm)
-           flags       (take-while (every-pred property-flags keyword?) remainder)
-           remainder   (drop-while (every-pred property-flags keyword?) remainder)
-           args-or-ref (first remainder)
-           remainder   (rest remainder)]
+     (let [oname (keyword nm)
+           {:keys [properties options remainder]} (parse-output-flags remainder)
+           [args-or-ref & remainder] remainder]
        (assert (not (keyword? output-type)) "The output type seems to be missing")
        (assert (or (and (vector? args-or-ref) (seq remainder))
                    (and (symbol? args-or-ref) (var? (resolve args-or-ref)) (empty? remainder)))
@@ -220,7 +231,7 @@
            (fn [m f] (assoc m f #{oname}))
            {:transforms {oname tform}
             :transform-types {oname output-type}}
-           flags)))
+           properties)))
 
      [([nm [& args] & remainder] :seq)]
      {:methods        {nm `(fn ~args ~@remainder)}

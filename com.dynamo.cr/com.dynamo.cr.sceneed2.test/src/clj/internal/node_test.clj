@@ -296,3 +296,26 @@
       (is (= :const-val (in/get-node-value (nth nodes 1) :out-from-in)))
       (is (= :const-val (in/get-node-value (nth nodes 249) :out-from-in)))
       (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 250) :out-from-in))))))
+
+(deftest test-parse-output-flags
+  (testing "degenerate cases"
+    (is (= {:properties #{} :options {} :remainder nil} (in/parse-output-flags nil)))
+    (is (= {:properties #{} :options {} :remainder []}  (in/parse-output-flags []))))
+  (testing "preserves production function tail"
+    (is (= '[production-fn] (:remainder (in/parse-output-flags '[production-fn]))))
+    (is (= '[[a b] c (d e)] (:remainder (in/parse-output-flags '[[a b] c (d e)])))))
+  (testing "boolean flags"
+    (is (= #{:cached}            (:properties (in/parse-output-flags '[:cached production-fn]))))
+    (is (= #{:cached :on-update} (:properties (in/parse-output-flags '[:cached :on-update :cached production-fn]))))
+    (is (= #{}                   (:properties (in/parse-output-flags '[:unrecognized :cached production-fn])))))
+  (testing "options with parameters"
+    (is (= {:substitute-value 'subst-fn} (:options (in/parse-output-flags '[:substitute-value subst-fn production-fn]))))
+    (is (thrown? java.lang.AssertionError (in/parse-output-flags '[:substitute-value])))
+    (is (thrown? java.lang.AssertionError (in/parse-output-flags '[:cached :substitute-value]))))
+  (testing "interactions among flags, options, and tail"
+    (is (= {:properties #{:cached} :options {:substitute-value 'subst-fn} :remainder '[production-fn]}
+          (in/parse-output-flags '[:cached :substitute-value subst-fn production-fn])))
+    (is (= {:properties #{:cached} :options {:substitute-value 'subst-fn} :remainder '[production-fn]}
+          (in/parse-output-flags '[:substitute-value subst-fn :cached production-fn])))
+    (is (= {:properties #{} :options {:substitute-value :cached} :remainder '[production-fn]}
+          (in/parse-output-flags '[:substitute-value :cached production-fn])))))
