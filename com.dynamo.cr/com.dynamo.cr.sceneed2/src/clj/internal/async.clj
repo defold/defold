@@ -10,4 +10,4 @@
     (let [[v _] (a/alts!! [in] :default nil)]
       (if-not v
         batch
-        (recur (conj v batch))))))
+        (recur (conj batch v))))))

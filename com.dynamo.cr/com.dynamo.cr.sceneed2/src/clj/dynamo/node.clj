@@ -96,6 +96,13 @@ This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
   (process-one-event node (assoc body :type type)))
 
+(defn get-node-inputs
+  "Sometimes a production function needs direct access to an input source.
+   This function takes any number of input labels and returns a vector of their
+   values, in the same order."
+  [node & labels]
+  (map (in/collect-inputs node (-> node :world-ref deref :graph) (zipmap labels (repeat :ok))) labels))
+
 ; ---------------------------------------------------------------------------
 ; Bootstrapping the core node types
 ; ---------------------------------------------------------------------------
@@ -120,6 +127,10 @@ This function should mainly be used to create 'plumbing'."
 
   (output dictionary s/Any in/scope-dictionary)
 
+  IDisposable
+  (dispose [this]
+    (ds/transactional (doseq [n (first (get-node-inputs this :nodes))] (ds/delete n))))
+
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
 
@@ -131,9 +142,3 @@ This function should mainly be used to create 'plumbing'."
   [^RootScope__ v ^java.io.Writer w]
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
 
-(defn get-node-inputs
-  "Sometimes a production function needs direct access to an input source.
-   This function takes any number of input labels and returns a vector of their
-   values, in the same order."
-  [node & labels]
-  (map (in/collect-inputs node (-> node :world-ref deref :graph) (zipmap labels (repeat :ok))) labels))

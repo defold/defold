@@ -2,6 +2,10 @@
   (:require [clojure.core.async :as a]
             [clojure.string :as str]
             [clojure.test :refer :all]
+            [clojure.test.check :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
             [schema.macros :as sm]
             [plumbing.core :refer [defnk]]
             [dynamo.node :refer :all]
@@ -9,6 +13,7 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.system :as ds :refer [transactional add in]]
             [dynamo.types :as t]
+            [internal.async :as ia]
             [internal.query :as iq]
             [internal.node :as in])
   (:import [dynamo.types Image AABB]))
@@ -54,3 +59,24 @@
         (are [n] (identical? (t/lookup scope-node n) (q world-ref [[:name n]]))
                  "emitter"
                  "vortex")))))
+
+(defnode DisposableNode
+  t/IDisposable
+  (dispose [this] (deliver (:latch this) true)))
+
+(def gen-disposable-node
+  (gen/fmap (fn [_] (make-disposable-node)) (gen/return 1)))
+
+(def gen-nodelist
+  (gen/vector gen-disposable-node))
+
+(defspec scope-disposes-contained-nodes
+  (prop/for-all [scoped-nodes gen-nodelist]
+    (with-clean-world
+      (let [scope          (transactional (add (make-scope)))
+            disposables    (transactional (in scope (doseq [n scoped-nodes] (add n))) scoped-nodes)
+            disposable-ids (map :_id disposables)]
+        (t/dispose scope)
+        (let [last-tx   (:last-tx @world-ref)
+              disposals (:values-to-dispose last-tx)]
+          (is (= (sort disposable-ids) (sort (map :_id disposals)))))))))

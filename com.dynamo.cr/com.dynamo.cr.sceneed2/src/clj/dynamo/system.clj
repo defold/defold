@@ -80,6 +80,10 @@
       (set-property n :parent (current-scope))))
   n)
 
+(defn delete
+  [n]
+  (it/tx-bind *transaction* (it/delete-node n)))
+
 (defn send-after
   [n args]
   (it/tx-bind *transaction* (it/send-message n args)))

@@ -7,9 +7,10 @@
             [clojure.test :refer :all]
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
+            [dynamo.node :as n :refer [Scope]]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
-            [dynamo.node :as n :refer [Scope]]
+            [dynamo.types :as t]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.transaction :as it]))
@@ -61,7 +62,16 @@
       (let [[resource] (tx-nodes (make-resource :c 0))
             tx-result  (it/transact world-ref (it/update-property resource :c (fnil + 0) [42]))]
         (is (= :ok (:status tx-result)))
-        (is (= 42 (:c (dg/node (:graph tx-result) (:_id resource)))))))))
+        (is (= 42 (:c (dg/node (:graph tx-result) (:_id resource))))))))
+  (testing "node deletion"
+    (with-clean-world
+      (let [[resource1 resource2] (tx-nodes (make-resource :_id -1) (make-downstream :_id -2))]
+        (it/transact world-ref (it/connect resource1 :b resource2 :consumer))
+        (let [tx-result (it/transact world-ref (it/delete-node resource2))
+              after     (:graph tx-result)]
+          (is (nil?   (dg/node    after (:_id resource2))))
+          (is (empty? (lg/targets after (:_id resource1) :b)))
+          (is (= [(:_id resource2)] (map :_id (:nodes-removed tx-result)))))))))
 
 (def trigger-called (atom 0))
 
@@ -186,3 +196,14 @@
       (let [real-updater (dg/node (:graph tx-result) (it/resolve-tempid tx-result (:_id update-node)))]
         (is (= 1 (count (:expired-outputs tx-result))))
         (is (= [real-updater :updating] (first (:expired-outputs tx-result))))))))
+
+(n/defnode DisposableNode
+  t/IDisposable
+  (dispose [this] true))
+
+(deftest nodes-are-disposed-after-deletion
+  (with-clean-world
+    (let [tx-result  (it/transact world-ref (it/new-node (make-disposable-node :_id -1)))
+          disposable (dg/node (:graph tx-result) (it/resolve-tempid tx-result -1))
+          tx-result  (it/transact world-ref (it/delete-node disposable))]
+      (is (= disposable (first (:values-to-dispose tx-result)))))))

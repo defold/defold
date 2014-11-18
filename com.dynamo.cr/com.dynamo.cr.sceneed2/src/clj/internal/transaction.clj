@@ -80,6 +80,11 @@
       :inputs  inputs
       :outputs outputs}]))
 
+(defn delete-node
+  [node]
+  [{:type    :delete-node
+    :node-id (:_id node)}])
+
 (defn set-property
   [node pr val]
   [{:type     :set-property
@@ -151,6 +156,16 @@
       :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
       :outputs-modified    (merge-with set/union outputs-modified {next-id (t/outputs full-node)}))))
+
+(defmethod perform :delete-node
+  [{:keys [graph outputs-modified nodes-removed] :as ctx} {:keys [node-id]}]
+  (let [node-id     (resolve-tempid ctx node-id)
+        node        (dg/node graph node-id)
+        all-outputs (concat (t/outputs node) (keys (t/properties node)))
+        ctx         (reduce (fn [ctx out] (mark-dirty ctx node-id out)) ctx all-outputs)]
+    (assoc ctx
+      :graph         (dg/remove-node graph node-id)
+      :nodes-removed (conj nodes-removed node))))
 
 (defmethod perform :set-property
   [{:keys [graph] :as ctx} {:keys [node-id property value]}]
@@ -227,8 +242,11 @@
          (keep identity (map #(get-in cache-keys %) (pairs outputs-modified)))))
 
 (defn- dispose-obsoletes
-  [{:keys [cache obsolete-cache-keys] :as ctx}]
-  (assoc ctx :values-to-dispose (keep identity (filter t/disposable? (map #(get cache %) obsolete-cache-keys)))))
+  [{:keys [cache obsolete-cache-keys nodes-removed] :as ctx}]
+  (let [candidates (concat
+                     (filter t/disposable? (map #(get cache %) obsolete-cache-keys))
+                     (filter t/disposable? nodes-removed))]
+    (assoc ctx :values-to-dispose (keep identity candidates))))
 
 (defn- evict-obsolete-caches
   [{:keys [obsolete-cache-keys] :as ctx}]
@@ -307,7 +325,7 @@
      :messages            []
      :pending             [txs]}))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :outputs-modified])
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-removed :outputs-modified])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.
@@ -334,6 +352,7 @@
     (let [{:keys [world messages]} (run-to-completion @world-ref (new-transaction-context world-ref txs) 0)]
       (ref-set world-ref world)
       (when (= :ok (-> world :last-tx :status))
+        (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false)
         (bus/publish-all (:message-bus world) messages))
       (:last-tx world))))
 
