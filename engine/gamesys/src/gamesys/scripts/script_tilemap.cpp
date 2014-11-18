@@ -4,7 +4,7 @@
 #include "../components/comp_tilegrid.h"
 #include "../proto/physics_ddf.h"
 #include "gamesys.h"
-#include "gamesys_private.h"
+#include "../gamesys_private.h"
 #include "script_tilemap.h"
 
 extern "C"
@@ -144,9 +144,12 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
         uintptr_t user_data;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, &receiver);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -224,8 +227,11 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
         uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -261,8 +267,11 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
         uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 

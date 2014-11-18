@@ -1,5 +1,6 @@
 function init(self)
     self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
+    pprint(self.id_a)
     msg.post(self.id_a, "hello")
 end
 

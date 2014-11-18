@@ -319,14 +319,12 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url)
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url)
     {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
-            if (sender.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            if (sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
                 return; // Actually never reached
@@ -334,7 +332,7 @@ namespace dmGameObject
 
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, index, &receiver, &sender);
-            instance = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, index));

@@ -757,15 +757,16 @@ namespace dmGameObject
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
     /**
-     * Get gameobject instance from lua-argument. This function is typically used from lua-bindings
+     * Get component user data from lua-argument. This function is typically used from lua-bindings
      * and can only be used from protected lua-calls as luaL_error might be invoked
      * @param L lua-state
      * @param index index to argument
+     * @param collection in which to search
      * @param component_ext when specified, the call will fail if the found component does not have the specified extension
      * @param user_data will be overwritten component user-data output if available
      * @param url will be overwritten with a URL to the component when specified
      */
-    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url);
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url);
 
     /**
      * Get current game object instance from the lua state, if any.

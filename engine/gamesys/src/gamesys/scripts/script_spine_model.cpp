@@ -169,9 +169,12 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
         uintptr_t user_data;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver);
         SpineModelComponent* component = (SpineModelComponent*) user_data;
 
         dmhash_t bone_id;

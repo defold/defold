@@ -429,9 +429,10 @@ static int LuaTestCompType(lua_State* L)
 {
     int top = lua_gettop(L);
 
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     uintptr_t user_data = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentUserDataFromLua(L, 1, "a", &user_data, &receiver);
+    dmGameObject::GetComponentUserDataFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &user_data, &receiver);
     assert(user_data == 1);
 
     assert(top == lua_gettop(L));

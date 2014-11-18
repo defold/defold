@@ -502,6 +502,10 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
+        dmScript::GetInstance(L);
+        void* user_data = lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
@@ -509,7 +513,11 @@ namespace dmGameObject
         PropertyResult result = PropertiesToLuaTable(script_instance->m_Instance, script_instance->m_Script, script_instance->m_Properties, L, -1);
         lua_pop(L, 1);
 
-        lua_pushnil(L);
+        if (user_data != 0x0) {
+            lua_pushlightuserdata(L, user_data);
+        } else {
+            lua_pushnil(L);
+        }
         dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
