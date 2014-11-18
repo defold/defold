@@ -211,7 +211,7 @@
            remainder   (rest remainder)]
        (assert (not (keyword? output-type)) "The output type seems to be missing")
        (assert (or (and (vector? args-or-ref) (seq remainder))
-                   (and (symbol? args-or-ref) (var? (resolve args-or-ref))))
+                   (and (symbol? args-or-ref) (var? (resolve args-or-ref)) (empty? remainder)))
          (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
        (let [tform (if (vector? args-or-ref)
                      `(fn ~args-or-ref ~@remainder)
