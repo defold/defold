@@ -43,19 +43,19 @@
 
 ;- Instantiate node
 
-;; Given any graph
-;;  when I create a node
-;;  then I can discover the node's unique identifier
-
 (deftest adding-node
   (let [v "Any node value at all"
         g  (add-node (random-graph) v)
         id (last-node g)]
     (is (= v (node g id)))))
 
-;; Given an empty graph
-;;  when I create a node with a name
-;;  then I can look up the node by its name
+(deftest removing-node
+  (let [v "Any node value"
+        g (add-node (random-graph) v)
+        id (last-node g)
+        g (remove-node g id)]
+    (is (nil? (node g id)))
+    (is (empty? (filter #(= "Any node value" %) (node-values g))))))
 
 (defspec query-by-name
   100
@@ -96,36 +96,6 @@
                      target-label (inputs target)
                      [source source-label] (sources g target target-label)]
                  (some #(= % [target target-label]) (targets g source source-label))))))
-
-;; Given a graph with a node A with an output label "x"
-;;   and a node B with an input label "y"
-;;   and "y" can receive input from "x"
-;;  when I ask to connect "x" to "y"
-;;  then I can ask what the target of A's "x" output is
-;;   and I can ask what the source of B's "y" input is
-
-;; Given a graph with some nodes
-;;  when I connect two nodes' outputs to one target node
-;;  then each source node will have the same output
-;;   and the target node will have both sources on the same input.
-
-;; Given a graph with some nodes
-;;   and I connect multiple nodes to the same input
-;;  then each source node will have the same output
-;;   and the target node will have them all on the same input
-
-;; Given a graph with a node A with an output label "x"
-;;   and a node B with an input label "y"
-;;   and a connection from x to y
-;;  when I disconnect A from B
-;;  then x no longer appears in B's "y" input
-;;   and A's "x" output will be empty
-
-;; Given a graph with a node A with an output label "x"
-;;   and a node B with an input label "y"
-;;   and a connection from x to y
-;;  when I remove A from the graph
-;;  then x no longer appears in B's "y" input
 
 
 (defspec reflexivity
