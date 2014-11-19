@@ -1,5 +1,6 @@
 package com.dynamo.bob.textureset;
 
+import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
@@ -116,8 +117,9 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
-            int margin, int extrudeBorders, boolean genOutlines) {
+            int margin, int innerPadding, int extrudeBorders, boolean genOutlines) {
 
+        images = createInnerPadding(images, innerPadding);
         images = extrudeBorders(images, extrudeBorders);
 
         Layout layout = layout(LayoutType.BASIC, margin, images);
@@ -133,6 +135,15 @@ public class TextureSetGenerator {
         result.uvTransforms = textureSet.right;
         result.image = image;
         return result;
+    }
+
+    private static Color paddingColour = new Color(0,0,0,0);
+
+    private static List<BufferedImage> createInnerPadding(List<BufferedImage> images, int amount) {
+        if (0 < amount) {
+            images = TextureUtil.createPaddedImages(images,  amount, paddingColour);
+        }
+        return images;
     }
 
     private static List<BufferedImage> extrudeBorders(List<BufferedImage> images, int amount) {
