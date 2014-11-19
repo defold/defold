@@ -191,6 +191,7 @@ public class ProjectTest {
                 if (etag != null && etag.equals(sha1)) {
                     _304Count.incrementAndGet();
                     response.setStatus(304);
+                    baseRequest.setHandled(true);
                 } else {
                     super.handle(target, baseRequest, request, response);
                 }
