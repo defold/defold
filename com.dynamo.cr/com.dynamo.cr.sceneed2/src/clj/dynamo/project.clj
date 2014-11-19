@@ -80,9 +80,12 @@
   (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-project-scope-message]})
   (property tag {:schema s/Keyword :default :project})
   (property eclipse-project IProject)
-  (property branch String))
+  (property branch String)
 
-(defn open-project
+  (on :destroy
+    (ds/delete self)))
+
+(defn load-project-and-tools
   [eclipse-project branch]
   (ds/transactional
     (let [project-node    (ds/add (make-project :eclipse-project eclipse-project :branch branch :handlers default-handlers))
@@ -91,6 +94,10 @@
         (doseq [source clojure-sources]
           (load-resource project-node (file/project-path project-node source))))
       project-node)))
+
+(defn open-project
+  [eclipse-project branch]
+  (resources/listen-for-close (load-project-and-tools eclipse-project branch)))
 
 ; ---------------------------------------------------------------------------
 ; Documentation
