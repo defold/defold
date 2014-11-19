@@ -497,9 +497,8 @@
     atlas))
 
 (defn on-edit
-  [project-node editor-site file]
-  (let [atlas-node (p/node-by-filename project-node file)
-        editor (make-scene-editor :name "editor")]
+  [project-node editor-site atlas-node]
+  (let [editor (make-scene-editor :name "editor")]
     (transactional
       (in (add editor)
         (let [background (add (make-background))

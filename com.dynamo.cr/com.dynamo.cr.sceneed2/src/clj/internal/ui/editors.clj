@@ -1,16 +1,17 @@
 (ns internal.ui.editors
-  (:require [dynamo.project :as p]
+  (:require [dynamo.file :as file]
+            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :refer [MessageTarget]]
             [internal.query :as iq]
             [internal.system :as is]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IProject]
-           [org.eclipse.ui PlatformUI]
-           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]
            [org.eclipse.e4.core.contexts IEclipseContext]
            [org.eclipse.e4.ui.model.application.ui.basic MBasicFactory MPart]
-           [org.eclipse.e4.ui.workbench.modeling EPartService EPartService$PartState]))
+           [org.eclipse.e4.ui.workbench.modeling EPartService EPartService$PartState]
+           [org.eclipse.ui PlatformUI]
+           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
 
 (set! *warn-on-reflection* true)
 
@@ -43,7 +44,9 @@
       ((p/editor-for
          proj
          (.. file getFullPath getFileExtension))
-        proj site file))))
+       proj site (p/node-by-filename world-ref proj
+                                     (file/project-path proj file)
+                                     p/load-resource)))))
 
 (defn- dynamic-part
   [{:keys [id label closeable] :or {id "sceneed.view" label "Default part" closeable true}}]

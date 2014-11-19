@@ -1,22 +1,24 @@
 (ns suite
  (:require [clojure.test :as test]))
 
-(def test-namespaces ['internal.node-test
+(def test-namespaces ['internal.injection-test
+                      'internal.node-test
                       'internal.scope-test
-                      'internal.graph.graph-test
-                      'internal.value-test
                       'internal.system-test
                       'internal.type-test
-                      'internal.injection-test
                       'internal.either-test
-                      'dynamo.transaction-test
-                      'dynamo.texture-test
-                      'dynamo.image-test
-                      'dynamo.geom-test
-                      'dynamo.gl.vertex-test
-                      'dynamo.gl.translate-test
+                      'internal.value-test
+                      'internal.graph.graph-test
+                      'internal.render.pass-test
                       'dynamo.camera-test
+                      'dynamo.condition-test
+                      'dynamo.geom-test
+                      'dynamo.image-test
                       'dynamo.protobuf-test
+                      'dynamo.texture-test
+                      'dynamo.transaction-test
+                      'dynamo.gl.translate-test
+                      'dynamo.gl.vertex-test
                       'docs])
 
 (def test-namespaces-for-junit

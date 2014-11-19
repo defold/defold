@@ -56,15 +56,17 @@
 (defn loader-for [project-scope ext] (handler project-scope :loader ext))
 (defn editor-for [project-scope ext] (handler project-scope :editor ext))
 
-(defn- load-resource
-  [project-scope path]
+(defn load-resource
+  [project-scope file]
   (ds/transactional
     (ds/in project-scope
-      ((loader-for project-scope (file/extension path)) path (io/reader path)))))
+      ((loader-for project-scope (file/extension file)) file (io/reader file)))))
 
 (defn node-by-filename
-  [project-scope filename]
-  (load-resource project-scope (file/project-path project-scope filename)))
+  [world-ref project-scope file factory]
+  (if-let [node (first (iq/query world-ref [[:filename file]]))]
+    node
+    (factory project-scope file)))
 
 (defn- send-project-scope-message
   [graph self txn]

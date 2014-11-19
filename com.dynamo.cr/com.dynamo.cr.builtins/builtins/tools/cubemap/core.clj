@@ -169,9 +169,8 @@
     cubemap))
 
 (defn on-edit
-  [project-node editor-site file]
-  (let [cubemap (p/node-by-filename project-node file)
-        editor  (ise/make-scene-editor :name "editor")]
+  [project-node editor-site cubemap]
+  (let [editor (ise/make-scene-editor :name "editor")]
     (ds/transactional
       (ds/in (ds/add editor)
         (let [background (ds/add (background/make-background))
