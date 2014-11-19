@@ -5,7 +5,6 @@
             [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.buffers :refer :all]
-            [dynamo.condition :refer :all]
             [dynamo.editors :as ed]
             [dynamo.env :as e]
             [dynamo.geom :as g :refer [to-short-uv]]
@@ -89,15 +88,10 @@
               (into #{} images)
               (map #(into #{} (:images %)) containers))))
 
-(defn use-blank-textureset [_] (blank-textureset))
-
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
-  (handler-bind
-    (:unreadable-resource use-placeholder)
-    (:empty-source-list use-blank-textureset)
-    (-> (pack-textures margin extrude-borders (consolidate images animations))
-      (assoc :animations animations))))
+  (-> (pack-textures margin extrude-borders (consolidate images animations))
+    (assoc :animations animations)))
 
 (defnk produce-aabb :- AABB
   [this project]
@@ -113,7 +107,7 @@
   (property extrude-borders (non-negative-integer))
   (property filename        (string))
 
-  (output textureset TextureSet :cached produce-textureset)
+  (output textureset TextureSet :cached :substitute-value (blank-textureset) produce-textureset)
   (output aabb       AABB               produce-aabb))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
@@ -186,16 +180,14 @@
 
 (defn render-textureset
   [ctx gl this]
-  (handler-bind
-    (:unreadable-resource use-placeholder)
   (do-gl [this            (assoc this :gl gl :ctx ctx)
           textureset      (get-node-value this :textureset)
           texture         (get-node-value this :gpu-texture)
           shader          (get-node-value this :shader)
           vbuf            (get-node-value this :vertex-buffer)
           vertex-binding  (vtx/use-with gl vbuf shader)]
-         (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
-         (gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset)))))))
+    (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+    (gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
 (defnk produce-renderable :- RenderData
   [this]

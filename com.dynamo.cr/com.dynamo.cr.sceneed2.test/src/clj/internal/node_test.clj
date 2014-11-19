@@ -133,8 +133,9 @@
 (defnode EmptyNode)
 
 (deftest node-intrinsics
-  (let [node (make-empty-node)]
-    (is (identical? node (t/get-value node nil :self)))))
+  (with-clean-world
+    (let [[node] (tx-nodes (make-empty-node))]
+      (is (identical? node (in/get-node-value node :self))))))
 
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)
@@ -145,14 +146,15 @@
   (output def-as-symbol  s/Keyword production-val))
 
 (deftest production-function-types
-  (let [node (make-production-function-types-node)]
-    (is (= :fn   (t/get-value node nil :inline-fn)))
-    (is (= :defn (t/get-value node nil :defn-as-symbol)))
-    (is (= :def  (t/get-value node nil :def-as-symbol)))
-    (binding [production-fn :dynamic-binding-val]
-      (is (= :dynamic-binding-val (t/get-value node nil :defn-as-symbol))))
-    (binding [production-val (constantly :dynamic-binding-fn)]
-      (is (= :dynamic-binding-fn (t/get-value node nil :def-as-symbol))))))
+  (with-clean-world
+    (let [[node] (tx-nodes (make-production-function-types-node))]
+      (is (= :fn   (in/get-node-value node :inline-fn)))
+      (is (= :defn (in/get-node-value node :defn-as-symbol)))
+      (is (= :def  (in/get-node-value node :def-as-symbol)))
+      (binding [production-fn :dynamic-binding-val]
+        (is (= :dynamic-binding-val (in/get-node-value node :defn-as-symbol))))
+      (binding [production-val (constantly :dynamic-binding-fn)]
+        (is (= :dynamic-binding-fn (in/get-node-value node :def-as-symbol)))))))
 
 (defn production-fn-this [this g] this)
 (defn production-fn-g [this g] g)
@@ -285,12 +287,192 @@
 
 (deftest production-function-dependency-limit
   (with-clean-world
-    (let [nodes (apply tx-nodes (repeatedly 251 make-dependency-node))
+    (let [nodes (apply tx-nodes (repeatedly 201 make-dependency-node))
           _ (ds/transactional
               (ds/connect (first nodes) :out-const (second nodes) :in)
               (doall (for [[x y] (partition 2 1 (rest nodes))]
                        (ds/connect x :out-from-in y :in))))]
       (is (= :const-val (in/get-node-value (nth nodes 0) :out-const)))
       (is (= :const-val (in/get-node-value (nth nodes 1) :out-from-in)))
-      (is (= :const-val (in/get-node-value (nth nodes 249) :out-from-in)))
-      (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 250) :out-from-in))))))
+      (is (= :const-val (in/get-node-value (nth nodes 199) :out-from-in)))
+      (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 200) :out-from-in))))))
+
+(defn throw-exception-defn [this g]
+  (throw (ex-info "Exception from production function" {})))
+
+(defnk throw-exception-defnk []
+  (throw (ex-info "Exception from production function" {})))
+
+(defn production-fn-with-abort [this g]
+  (n/abort "Aborting..." {:some-key :some-value})
+  :unreachable-code)
+
+(defnk throw-exception-defnk-with-invocation-count [invocation-count]
+  (swap! invocation-count inc)
+  (throw (ex-info "Exception from production function" {})))
+
+(defnode SubstituteValueNode
+  (output out-defn                     s/Any throw-exception-defn)
+  (output out-defnk                    s/Any throw-exception-defnk)
+  (output out-defn-with-substitute-fn  s/Any :substitute-value (constantly :substitute) throw-exception-defn)
+  (output out-defnk-with-substitute-fn s/Any :substitute-value (constantly :substitute) throw-exception-defnk)
+  (output out-defn-with-substitute     s/Any :substitute-value :substitute              throw-exception-defn)
+  (output out-defnk-with-substitute    s/Any :substitute-value :substitute              throw-exception-defnk)
+  (output substitute-value-passthrough s/Any :substitute-value identity                 throw-exception-defn)
+  (output out-abort                    s/Any production-fn-with-abort)
+  (output out-abort-with-substitute    s/Any :substitute-value (constantly :substitute) production-fn-with-abort)
+  (output out-abort-with-substitute-f  s/Any :substitute-value (fn [_] (throw (ex-info "bailed" {}))) production-fn-with-abort)
+  (property invocation-count {:schema clojure.lang.Atom})
+  (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
+
+(deftest node-output-substitute-value
+  (with-clean-world
+    (let [n (ds/transactional (ds/add (make-substitute-value-node :invocation-count (atom 0))))]
+      (testing "exceptions from get-node-value when no substitute value fn"
+        (is (thrown? Throwable (in/get-node-value n :out-defn)))
+        (is (thrown? Throwable (in/get-node-value n :out-defnk))))
+      (testing "substitute value replacement"
+        (is (= :substitute (in/get-node-value n :out-defn-with-substitute-fn)))
+        (is (= :substitute (in/get-node-value n :out-defnk-with-substitute-fn)))
+        (is (= :substitute (in/get-node-value n :out-defn-with-substitute)))
+        (is (= :substitute (in/get-node-value n :out-defnk-with-substitute))))
+      (testing "parameters to substitute value fn"
+        (is (= n (:node (in/get-node-value n :substitute-value-passthrough)))))
+      (testing "exception from substitute value fn"
+        (is (thrown-with-msg? Throwable #"bailed" (in/get-node-value n :out-abort-with-substitute-f))))
+      (testing "abort"
+        (is (thrown-with-msg? Throwable #"Aborting\.\.\." (in/get-node-value n :out-abort)))
+        (try
+          (in/get-node-value n :out-abort)
+          (is false "Expected get-node-value to throw an exception")
+          (catch Throwable e
+            (is (= {:some-key :some-value} (ex-data e)))))
+        (is (= :substitute (in/get-node-value n :out-abort-with-substitute))))
+      (testing "interaction with cache"
+        (is (= 0 @(in/get-node-value n :invocation-count)))
+        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+        (is (= 1 @(in/get-node-value n :invocation-count)))
+        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+        (is (= 1 @(in/get-node-value n :invocation-count)))))))
+
+(defnode ValueHolderNode
+  (property value {:schema s/Int}))
+
+(def ^:dynamic *answer-call-count* (atom 0))
+
+(defnk the-answer [in]
+  (swap! *answer-call-count* inc)
+  (assert (= 42 in))
+  in)
+
+(defnode AnswerNode
+  (input in s/Int)
+  (output out                        s/Int                                      the-answer)
+  (output out-cached                 s/Int :cached                              the-answer)
+  (output out-with-substitute        s/Int         :substitute-value :forty-two the-answer)
+  (output out-cached-with-substitute s/Int :cached :substitute-value :forty-two the-answer))
+
+(deftest substitute-values-and-cache-invalidation
+  (with-clean-world
+    (let [[holder-node answer-node] (tx-nodes (make-value-holder-node :value 23) (make-answer-node))]
+
+      (ds/transactional (ds/connect holder-node :value answer-node :in))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (= 2 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 2 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 1 @*answer-call-count*)))
+
+      (ds/transactional (ds/set-property holder-node :value 42))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 1 @*answer-call-count*))))))
+
+(defnk always-fail []
+  (assert false "I always fail :-("))
+
+(defnode FailureNode
+  (output out s/Any always-fail))
+
+(deftest production-fn-input-failure
+  (with-clean-world
+    (let [[failure-node answer-node] (tx-nodes (make-failure-node) (make-answer-node))]
+
+      (ds/transactional (ds/connect failure-node :out answer-node :in))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (= 0 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (= 0 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 0 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 0 @*answer-call-count*)))
+
+      (ds/transactional
+        (ds/disconnect failure-node :out answer-node :in)
+        (ds/connect (ds/add (make-value-holder-node :value 42)) :value answer-node :in))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 1 @*answer-call-count*))))))
+
+(deftest test-parse-output-flags
+  (testing "degenerate cases"
+    (is (= {:properties #{} :options {} :remainder nil} (in/parse-output-flags nil)))
+    (is (= {:properties #{} :options {} :remainder []}  (in/parse-output-flags []))))
+  (testing "preserves production function tail"
+    (is (= '[production-fn] (:remainder (in/parse-output-flags '[production-fn]))))
+    (is (= '[[a b] c (d e)] (:remainder (in/parse-output-flags '[[a b] c (d e)])))))
+  (testing "boolean flags"
+    (is (= #{:cached}            (:properties (in/parse-output-flags '[:cached production-fn]))))
+    (is (= #{:cached :on-update} (:properties (in/parse-output-flags '[:cached :on-update :cached production-fn]))))
+    (is (= #{}                   (:properties (in/parse-output-flags '[:unrecognized :cached production-fn])))))
+  (testing "options with parameters"
+    (is (= {:substitute-value 'subst-fn} (:options (in/parse-output-flags '[:substitute-value subst-fn production-fn]))))
+    (is (thrown? java.lang.AssertionError (in/parse-output-flags '[:substitute-value])))
+    (is (thrown? java.lang.AssertionError (in/parse-output-flags '[:cached :substitute-value]))))
+  (testing "interactions among flags, options, and tail"
+    (is (= {:properties #{:cached} :options {:substitute-value 'subst-fn} :remainder '[production-fn]}
+          (in/parse-output-flags '[:cached :substitute-value subst-fn production-fn])))
+    (is (= {:properties #{:cached} :options {:substitute-value 'subst-fn} :remainder '[production-fn]}
+          (in/parse-output-flags '[:substitute-value subst-fn :cached production-fn])))
+    (is (= {:properties #{} :options {:substitute-value :cached} :remainder '[production-fn]}
+          (in/parse-output-flags '[:substitute-value :cached production-fn])))))

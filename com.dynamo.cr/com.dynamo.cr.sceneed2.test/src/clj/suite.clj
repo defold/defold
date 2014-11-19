@@ -8,12 +8,12 @@
                       'internal.system-test
                       'internal.type-test
                       'internal.injection-test
+                      'internal.either-test
                       'dynamo.transaction-test
                       'dynamo.texture-test
                       'dynamo.image-test
                       'dynamo.geom-test
                       'dynamo.gl.vertex-test
-                      'dynamo.condition-test
                       'dynamo.gl.translate-test
                       'dynamo.camera-test
                       'dynamo.protobuf-test

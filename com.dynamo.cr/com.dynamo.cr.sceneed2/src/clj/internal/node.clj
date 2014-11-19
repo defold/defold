@@ -6,7 +6,6 @@
             [clojure.set :refer [rename-keys union]]
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
-            [dynamo.condition :refer :all]
             [dynamo.types :as t]
             [schema.core :as s]
             [schema.macros :as sm]
@@ -14,6 +13,7 @@
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [internal.query :as iq]
+            [internal.either :as e]
             [service.log :as log]
             [inflections.core :refer [plural]]
             [camel-snake-kebab :refer [->kebab-case]]))
@@ -45,15 +45,6 @@
 
 (declare get-node-value)
 
-(defn- get-value-with-restarts
-  [node label]
-  (restart-case
-    (:unreadable-resource
-      (:use-value [v] v))
-    (:empty-source-list
-      (:use-value [v] v))
-    (get-node-value node label)))
-
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
@@ -61,12 +52,12 @@
           output-transform (get-in target-node [:descriptor :transforms target-label])]
       (cond
         (vector? schema)     (mapv (fn [[source-node source-label]]
-                                     (get-value-with-restarts (dg/node g source-node) source-label))
+                                     (get-node-value (dg/node g source-node) source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
                                (when first-source-node
-                                 (get-value-with-restarts (dg/node g first-source-node) first-source-label)))
-        (not (nil? output-transform)) (get-value-with-restarts target-node target-label)
+                                 (get-node-value (dg/node g first-source-node) first-source-label)))
+        (not (nil? output-transform)) (get-node-value target-node target-label)
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))
@@ -83,14 +74,31 @@
         (assoc m k (get-inputs node g k))))
     {} input-schema))
 
-(defn perform* [transform node g]
-  (cond
-    (var?          transform)  (recur (var-get transform) node g)
-    (t/has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform)))
-    (fn?           transform)  (transform node g)
-    :else transform))
+(defn- apply-if-fn [f & args]
+  (if (fn? f)
+    (apply f args)
+    f))
 
-(def ^:dynamic *perform-depth* 250)
+(defn- perform-with-inputs [production-fn node g]
+  (if (t/has-schema? production-fn)
+    (apply-if-fn production-fn (collect-inputs node g (pf/input-schema production-fn)))
+    (apply-if-fn production-fn node g)))
+
+(defn- var-get-recursive [var-or-value]
+  (if (var? var-or-value)
+    (recur (var-get var-or-value))
+    var-or-value))
+
+(defn- default-substitute-value-fn [v]
+  (throw (:exception v)))
+
+(defn perform* [transform node g]
+  (let [production-fn       (-> transform :production-fn var-get-recursive)
+        substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)]
+    (-> (e/bind (perform-with-inputs production-fn node g))
+        (e/or-else (fn [e] (apply-if-fn substitute-value-fn {:exception e :node node}))))))
+
+(def ^:dynamic *perform-depth* 200)
 
 (defn perform [transform node g]
   {:pre [(pos? *perform-depth*)]}
@@ -106,10 +114,12 @@
   value)
 
 (defn- produce-value [node g label]
-  (metrics/node-value node label)
-  (t/get-value node g label))
+  (let [transform (get-in node [:descriptor :transforms label])]
+    (assert transform (str "There is no transform " label " on node " (:_id node)))
+    (metrics/node-value node label)
+    (perform transform node g)))
 
-(defn get-node-value
+(defn- get-node-value-internal
   [node label]
   (let [world-state (:world-ref node)]
     (if-let [cache-key (get-in @world-state [:cache-keys (:_id node) label])]
@@ -118,6 +128,10 @@
             (hit-cache  world-state cache-key (get cache cache-key))
             (miss-cache world-state cache-key (produce-value node (:graph @world-state) label))))
       (produce-value node (:graph @world-state) label))))
+
+(defn get-node-value
+  [node label]
+  (e/result (get-node-value-internal node label)))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
@@ -176,6 +190,19 @@
              {} (:properties beh)))
 
 (def ^:private property-flags #{:cached :on-update})
+(def ^:private option-flags #{:substitute-value})
+
+(defn parse-output-flags [args]
+  (loop [properties #{}
+         options {}
+         args args]
+    (if-let [[arg & remainder] (seq args)]
+      (cond
+        (contains? property-flags arg) (recur (conj properties arg) options remainder)
+        (contains? option-flags arg) (do (assert remainder (str "Expected value for option " arg))
+                                       (recur properties (assoc options arg (first remainder)) (rest remainder)))
+        :else {:properties properties :options options :remainder args})
+      {:properties properties :options options :remainder args})))
 
 (defn- compile-defnode-form
   [prefix form]
@@ -187,7 +214,7 @@
 
      [(['property nm tp] :seq)]
      {:properties {(keyword nm) tp}
-      :transforms {(keyword nm) (eval `(fnk [~nm] ~nm))}}
+      :transforms {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}}
 
      [(['input nm schema & flags] :seq)]
      (let [schema (if (coll? schema) (into [] schema) schema)
@@ -202,23 +229,23 @@
                           (dynamo.system/transactional ~@fn-body))}}
 
      [(['output nm output-type & remainder] :seq)]
-     (let [oname       (keyword nm)
-           flags       (take-while (every-pred property-flags keyword?) remainder)
-           remainder   (drop-while (every-pred property-flags keyword?) remainder)
-           args-or-ref (first remainder)
-           remainder   (rest remainder)]
+     (let [oname (keyword nm)
+           {:keys [properties options remainder]} (parse-output-flags remainder)
+           [args-or-ref & remainder] remainder]
        (assert (not (keyword? output-type)) "The output type seems to be missing")
        (assert (or (and (vector? args-or-ref) (seq remainder))
-                   (and (symbol? args-or-ref) (var? (resolve args-or-ref))))
+                   (and (symbol? args-or-ref) (var? (resolve args-or-ref)) (empty? remainder)))
          (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
-       (let [tform (if (vector? args-or-ref)
-                     `(fn ~args-or-ref ~@remainder)
-                     (resolve args-or-ref))]
+       (let [production-fn (if (vector? args-or-ref)
+                             `(fn ~args-or-ref ~@remainder)
+                             (resolve args-or-ref))
+             tform (merge {:production-fn production-fn}
+                     (when (contains? options :substitute-value) {:substitute-value-fn (:substitute-value options)}))]
          (reduce
            (fn [m f] (assoc m f #{oname}))
            {:transforms {oname tform}
             :transform-types {oname output-type}}
-           flags)))
+           properties)))
 
      [([nm [& args] & remainder] :seq)]
      {:methods        {nm `(fn ~args ~@remainder)}
@@ -281,9 +308,9 @@
 
 (defn- inputs-for
   [transform]
-  (let [transform (if (var? transform) (var-get transform) transform)]
-    (if (t/has-schema? transform)
-      (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword :this :g)))
+  (let [production-fn (-> transform :production-fn var-get-recursive)]
+    (if (t/has-schema? production-fn)
+      (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
       #{})))
 
 (defn- descriptor->output-dependencies
@@ -296,10 +323,6 @@
   (list* `defrecord (classname-for nm) (state-vector descriptor)
          `dynamo.types/Node
          `(properties [t#] (:properties ~nm))
-         `(get-value [t# g# label#]
-                     (assert (get-in ~nm [:transforms label#])
-                             (str "There is no transform " label# " on node " (:_id t#)))
-                     (perform (get-in ~nm [:transforms label#]) t# g#))
          `(inputs [t#] (into #{} (keys (:inputs ~nm))))
          `(outputs [t#] (into #{} (keys (:transforms ~nm))))
          `(auto-update? [t# l#] ((-> t# :descriptor :on-update) l#))
