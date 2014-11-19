@@ -8,6 +8,7 @@
                       'internal.system-test
                       'internal.type-test
                       'internal.injection-test
+                      'internal.either-test
                       'dynamo.transaction-test
                       'dynamo.texture-test
                       'dynamo.image-test

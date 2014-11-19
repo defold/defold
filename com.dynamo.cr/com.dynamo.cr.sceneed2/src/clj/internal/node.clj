@@ -13,6 +13,7 @@
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
             [internal.query :as iq]
+            [internal.either :as e]
             [service.log :as log]
             [inflections.core :refer [plural]]
             [camel-snake-kebab :refer [->kebab-case]]))
@@ -88,36 +89,14 @@
     (recur (var-get var-or-value))
     var-or-value))
 
-(declare ->Right ->Left)
-
-(defmacro bind [expr]
-  `(try
-     (->Right ~expr)
-     (catch Throwable e#
-       (->Left e#))))
-
-(defprotocol Either
-  (result  [this])
-  (or-else [this f]))
-
-(defrecord Right [value]
-  Either
-  (result  [_] value)
-  (or-else [this _] this))
-
-(defrecord Left [exception]
-  Either
-  (result  [_] (throw exception))
-  (or-else [_ f] (bind (f exception))))
-
 (defn- default-substitute-value-fn [v]
   (throw (:exception v)))
 
 (defn perform* [transform node g]
   (let [production-fn       (-> transform :production-fn var-get-recursive)
         substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)]
-    (-> (bind (perform-with-inputs production-fn node g))
-        (or-else (fn [e] (apply-if-fn substitute-value-fn {:exception e :node node}))))))
+    (-> (e/bind (perform-with-inputs production-fn node g))
+        (e/or-else (fn [e] (apply-if-fn substitute-value-fn {:exception e :node node}))))))
 
 (def ^:dynamic *perform-depth* 200)
 
@@ -152,7 +131,7 @@
 
 (defn get-node-value
   [node label]
-  (result (get-node-value-internal node label)))
+  (e/result (get-node-value-internal node label)))
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
      nextid (java.util.concurrent.atomic.AtomicInteger. 1000000))
