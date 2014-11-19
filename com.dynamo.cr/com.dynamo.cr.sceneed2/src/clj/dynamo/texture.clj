@@ -1,6 +1,5 @@
 (ns dynamo.texture
   (:require [dynamo.types :refer :all]
-            [dynamo.condition :refer :all]
             [dynamo.image :refer :all]
             [dynamo.node :refer [defnode]]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]

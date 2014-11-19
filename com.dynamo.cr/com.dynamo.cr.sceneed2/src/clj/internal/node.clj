@@ -6,7 +6,6 @@
             [clojure.set :refer [rename-keys union]]
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
-            [dynamo.condition :refer :all]
             [dynamo.types :as t]
             [schema.core :as s]
             [schema.macros :as sm]
@@ -45,15 +44,6 @@
 
 (declare get-node-value)
 
-(defn- get-value-with-restarts
-  [node label]
-  (restart-case
-    (:unreadable-resource
-      (:use-value [v] v))
-    (:empty-source-list
-      (:use-value [v] v))
-    (get-node-value node label)))
-
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
@@ -61,12 +51,12 @@
           output-transform (get-in target-node [:descriptor :transforms target-label])]
       (cond
         (vector? schema)     (mapv (fn [[source-node source-label]]
-                                     (get-value-with-restarts (dg/node g source-node) source-label))
+                                     (get-node-value (dg/node g source-node) source-label))
                                   (lg/sources g (:_id target-node) target-label))
         (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
                                (when first-source-node
-                                 (get-value-with-restarts (dg/node g first-source-node) first-source-label)))
-        (not (nil? output-transform)) (get-value-with-restarts target-node target-label)
+                                 (get-node-value (dg/node g first-source-node) first-source-label)))
+        (not (nil? output-transform)) (get-node-value target-node target-label)
         :else                (let [missing (missing-input target-node target-label)]
                                (service.log/warn :missing-input missing)
                                missing)))))

@@ -1,7 +1,6 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
             [dynamo.types :as t]
-            [dynamo.condition :refer :all]
             [dynamo.file :refer [project-path local-path]]
             [dynamo.geom :refer :all]
             [dynamo.node :refer [defnode]]
@@ -58,7 +57,6 @@
 
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
-(defn use-placeholder [_] (invoke-restart :use-value placeholder-image))
 
 ;; Transform produces value
 (defnk image-from-resource :- Image
