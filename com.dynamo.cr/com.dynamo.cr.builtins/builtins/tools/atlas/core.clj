@@ -255,19 +255,23 @@
           (conj! [x1 y0 0 1 u1 (- 1 v0)]))))
     (persistent! vbuf)))
 
-
+(defnk passthrough-textureset
+  [textureset]
+  textureset)
 
 (defnode AtlasRender
+  (input  textureset s/Any)
+
+  (output textureset s/Any            :cached passthrough-textureset)
   (output shader s/Any                :cached produce-shader)
   (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
   (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
   (output gpu-texture s/Any           :cached produce-gpu-texture)
-  (output renderable RenderData  produce-renderable))
+  (output renderable RenderData       produce-renderable))
 
 (defnode AtlasNode
   (inherits OutlineNode)
   (inherits AtlasProperties)
-  (inherits AtlasRender)
   (inherits AtlasSave))
 
 (protocol-buffer-converters
@@ -500,18 +504,20 @@
   [project-node editor-site atlas-node]
   (let [editor (make-scene-editor :name "editor")]
     (transactional
-      (in (add editor)
-        (let [background (add (make-background))
-              grid       (add (make-grid))
-              camera     (add (make-camera-controller :camera (make-camera :orthographic)))]
-          (connect camera     :camera     grid       :camera)
-          (connect camera     :camera     editor     :view-camera)
-          (connect camera     :self       editor     :controller)
-          (connect background :renderable editor     :renderables)
-          (connect atlas-node :renderable editor     :renderables)
-          (connect grid       :renderable editor     :renderables)
-          (connect atlas-node :aabb       editor     :aabb))
-        editor))))
+     (in (add editor)
+         (let [atlas-render (add (make-atlas-render))
+               background (add (make-background))
+               grid       (add (make-grid))
+               camera     (add (make-camera-controller :camera (make-camera :orthographic)))]
+           (connect atlas-node   :textureset atlas-render :textureset)
+           (connect camera       :camera     grid         :camera)
+           (connect camera       :camera     editor       :view-camera)
+           (connect camera       :self       editor       :controller)
+           (connect background   :renderable editor       :renderables)
+           (connect atlas-render :renderable editor       :renderables)
+           (connect grid         :renderable editor       :renderables)
+           (connect atlas-node   :aabb       editor       :aabb))
+         editor))))
 
 (register-editor "atlas" #'on-edit)
 (register-loader "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
