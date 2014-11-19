@@ -321,6 +321,7 @@
   (output substitute-value-passthrough s/Any :substitute-value identity                 throw-exception-defn)
   (output out-abort                    s/Any production-fn-with-abort)
   (output out-abort-with-substitute    s/Any :substitute-value (constantly :substitute) production-fn-with-abort)
+  (output out-abort-with-substitute-f  s/Any :substitute-value (fn [_] (throw (ex-info "bailed" {}))) production-fn-with-abort)
   (property invocation-count {:schema clojure.lang.Atom})
   (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
 
@@ -337,6 +338,8 @@
         (is (= :substitute (in/get-node-value n :out-defnk-with-substitute))))
       (testing "parameters to substitute value fn"
         (is (= n (:node (in/get-node-value n :substitute-value-passthrough)))))
+      (testing "exception from substitute value fn"
+        (is (thrown-with-msg? Throwable #"bailed" (in/get-node-value n :out-abort-with-substitute-f))))
       (testing "abort"
         (is (thrown-with-msg? Throwable #"Aborting\.\.\." (in/get-node-value n :out-abort)))
         (try
