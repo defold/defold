@@ -76,7 +76,7 @@ public class TextureUtilTest {
 
     @Test
     public void testCreatePaddedImage() throws FileNotFoundException, IOException {
-        final String sourceFile = "test/def_738.png";
+        final String sourceFile = "test/apply_inner_padding.png";
         final int paddingAmount = 2;
         final Color paddingColour = new Color(0xff, 0, 0, 0x7f);
         BufferedImage image = ImageIO.read(new FileInputStream(sourceFile));
@@ -98,24 +98,31 @@ public class TextureUtilTest {
                 boolean isPadding = false;
                 int outputColour = paddedImage.getRGB(x, y);
 
+                int sx = x;
+                int sy = y;
                 if (x < paddingAmount || (x >= srcWidth + paddingAmount)) {
                     isPadding = true;
                 } else {
-                    x -= paddingAmount;
+                    sx = x - paddingAmount;
                 }
                 if (y < paddingAmount || (y >= srcHeight + paddingAmount)) {
                     isPadding = true;
                 } else {
-                    y -= paddingAmount;
+                    sy = y - paddingAmount;
                 }
 
                 int comparisonColour;
                 if (isPadding) {
                     comparisonColour = paddingRGBA;
                 } else {
-                    comparisonColour = image.getRGB(x, y);
+                    comparisonColour = image.getRGB(sx, sy);
                 }
-                assertEquals(outputColour, comparisonColour);
+                boolean comparisonTransparent = 0 == ((comparisonColour>>24)&0xff);
+                if (comparisonTransparent) {
+                    assertEquals(0, (outputColour>>24)&0xff);
+                } else {
+                    assertEquals(outputColour, comparisonColour);
+                }
             }
         }
     }
