@@ -5,22 +5,18 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
@@ -30,6 +26,7 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.util.resource.Resource;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.osgi.framework.Bundle;
 
@@ -54,6 +51,9 @@ public class ProjectTest {
 
     private AtomicInteger _304Count = new AtomicInteger();
 
+    @Rule
+    public TestLibrariesRule testLibs = new TestLibrariesRule();
+
     private void initHttpServer(String serverLocation) throws IOException {
         httpServer = new Server();
 
@@ -73,23 +73,6 @@ public class ProjectTest {
         }
     }
 
-    void createLib(String root, String name, String sha1) throws IOException {
-        File file = new File(String.format("%s/test_lib%s.zip", root, name));
-        ZipOutputStream out = new ZipOutputStream(new FileOutputStream(file));
-        out.setComment(sha1);
-        ZipEntry ze;
-
-        ze = new ZipEntry("game.project");
-        out.putNextEntry(ze);
-        out.write(String.format("[library]\ninclude_dirs=test_lib%s", name).getBytes());
-
-        ze = new ZipEntry(String.format("test_lib%s/file%s.in", name, name));
-        out.putNextEntry(ze);
-        out.write(String.format("file%s", name).getBytes());
-
-        out.close();
-    }
-
     @Before
     public void setUp() throws Exception {
         bundle = Platform.getBundle("com.dynamo.cr.bob");
@@ -100,10 +83,7 @@ public class ProjectTest {
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
         project.setLibUrls(Arrays.asList(new URL("http://localhost:8081/test_lib1.zip"), new URL("http://localhost:8081/test_lib2.zip")));
 
-        String serverLocation = FileLocator.resolve(getClass().getClassLoader().getResource("server_root")).getPath();
-        createLib(serverLocation, "1", "111");
-        createLib(serverLocation, "2", "222");
-        initHttpServer(serverLocation);
+        initHttpServer(testLibs.getServerLocation());
     }
 
     @After
