@@ -83,12 +83,24 @@
         (assoc m k (get-inputs node g k))))
     {} input-schema))
 
+(defn- apply-if-fn [f & args]
+  (if (fn? f)
+    (apply f args)
+    f))
+
+(defn- perform-with-inputs [production-fn node g]
+  (if (t/has-schema? production-fn)
+    (apply-if-fn production-fn (collect-inputs node g (pf/input-schema production-fn)))
+    (apply-if-fn production-fn node g)))
+
+(defn- var-get-recursive [var-or-value]
+  (if (var? var-or-value)
+    (recur (var-get var-or-value))
+    var-or-value))
+
 (defn perform* [transform node g]
-  (cond
-    (var?          transform)  (recur (var-get transform) node g)
-    (t/has-schema? transform)  (transform (collect-inputs node g (pf/input-schema transform)))
-    (fn?           transform)  (transform node g)
-    :else transform))
+  (let [production-fn (-> transform :production-fn var-get-recursive)]
+    (perform-with-inputs production-fn node g)))
 
 (def ^:dynamic *perform-depth* 250)
 
@@ -202,7 +214,7 @@
 
      [(['property nm tp] :seq)]
      {:properties {(keyword nm) tp}
-      :transforms {(keyword nm) (eval `(fnk [~nm] ~nm))}}
+      :transforms {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}}
 
      [(['input nm schema & flags] :seq)]
      (let [schema (if (coll? schema) (into [] schema) schema)
@@ -224,9 +236,11 @@
        (assert (or (and (vector? args-or-ref) (seq remainder))
                    (and (symbol? args-or-ref) (var? (resolve args-or-ref)) (empty? remainder)))
          (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
-       (let [tform (if (vector? args-or-ref)
-                     `(fn ~args-or-ref ~@remainder)
-                     (resolve args-or-ref))]
+       (let [production-fn (if (vector? args-or-ref)
+                             `(fn ~args-or-ref ~@remainder)
+                             (resolve args-or-ref))
+             tform (merge {:production-fn production-fn}
+                     (when (contains? options :substitute-value) {:substitute-value-fn (:substitute-value options)}))]
          (reduce
            (fn [m f] (assoc m f #{oname}))
            {:transforms {oname tform}
@@ -294,9 +308,9 @@
 
 (defn- inputs-for
   [transform]
-  (let [transform (if (var? transform) (var-get transform) transform)]
-    (if (t/has-schema? transform)
-      (into #{} (keys (dissoc (pf/input-schema transform) s/Keyword :this :g)))
+  (let [production-fn (-> transform :production-fn var-get-recursive)]
+    (if (t/has-schema? production-fn)
+      (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
       #{})))
 
 (defn- descriptor->output-dependencies
