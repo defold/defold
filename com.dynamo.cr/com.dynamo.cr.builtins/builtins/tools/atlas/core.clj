@@ -113,7 +113,7 @@
   (property extrude-borders (non-negative-integer))
   (property filename        (string))
 
-  (output textureset TextureSet :cached produce-textureset)
+  (output textureset TextureSet :cached :substitute-value (blank-textureset) produce-textureset)
   (output aabb       AABB               produce-aabb))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage

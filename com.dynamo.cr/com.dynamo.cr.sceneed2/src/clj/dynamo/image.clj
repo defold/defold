@@ -64,17 +64,14 @@
 (defnk image-from-resource :- Image
   [this project]
   (let [src (project-path project (:image this))]
-    (try
-      (load-image src)
-      (catch Throwable e
-        (signal :unreadable-resource :exception e :path src)))))
+    (load-image src)))
 
 ;; Behavior
 (defnode ImageSource
   ;; NOTE: Order is important here. `property` defines an
   ;; output that is overridden by the later `output` clause.
   (property image (t/resource))
-  (output   image Image :cached image-from-resource))
+  (output   image Image :cached :substitute-value placeholder-image image-from-resource))
 
 (sm/defn image-color-components :- long
   [src :- BufferedImage]
@@ -165,8 +162,7 @@ will bleed into the surrounding empty space. The pixels in the border
 region will be identical to the nearest pixel of the source image."
 
         #'image-from-resource
-        "Returns `{:path path :contents byte-array}` from an image resource.\n\n
-         Signals: :unreadable-resource if the resources is unavailable."
+        "Returns `{:path path :contents byte-array}` from an image resource."
 
         #'make-color
         "creates a color using rgb values (optional a). Color values between 0 and 1.0"
