@@ -70,7 +70,6 @@
   [^GLContext context ^GLCanvas canvas this ^Camera view-camera text-renderer]
   (metrics/paint)
   (ui/swt-safe
-   (disp/dispose-pending (:world-ref this))
    (when (and canvas (not (.isDisposed canvas)))
      (.setCurrent canvas)
      (with-context context [gl glu]
@@ -182,4 +181,7 @@
       (ds/set-property self
         :context context
         :canvas canvas
-        :text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12)))))
+        :text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12))))
+
+  (on :destroy
+    (ds/delete self)))

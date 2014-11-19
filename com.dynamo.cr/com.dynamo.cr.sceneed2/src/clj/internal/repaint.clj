@@ -2,6 +2,7 @@
   (:require [com.stuartsierra.component :as component]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [internal.disposal :as disp]
             [internal.graph.dgraph :as dg]
             [internal.query :as iq]
             [service.log :as log])
@@ -15,6 +16,7 @@
   (ui/tick
     delay
     (fn []
+      (disp/dispose-pending world-ref)
       (dosync
         (let [g (:graph @world-ref)]
           (doseq [w @waiters]

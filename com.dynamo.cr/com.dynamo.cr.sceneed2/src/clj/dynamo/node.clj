@@ -116,20 +116,24 @@ This function should mainly be used to create 'plumbing'."
                                            (lg/connected? graph (:_id out) out-label (:_id in) in-label))
                                          all-possible)]
     (doseq [connection not-already-connected]
-      (apply dynamo.system/connect connection))))
+      (apply ds/connect connection))))
+
+(defn dispose-nodes
+  [graph self transaction]
+  (when (some #{(:_id self)} (map :_id (:nodes-removed transaction)))
+    (let [graph-before-deletion (-> transaction :world-ref deref :graph)
+          nodes-to-delete       (:nodes (in/collect-inputs self graph-before-deletion {:nodes :ok}))]
+      (doseq [n nodes-to-delete]
+        (ds/delete n)))))
 
 (defnode Scope
   (input nodes [s/Any])
 
   (property tag      {:schema s/Keyword})
   (property parent   {:schema s/Any})
-  (property triggers {:default [#'inject-new-nodes]})
+  (property triggers {:default [#'inject-new-nodes #'dispose-nodes]})
 
   (output dictionary s/Any in/scope-dictionary)
-
-  IDisposable
-  (dispose [this]
-    (ds/transactional (doseq [n (first (get-node-inputs this :nodes))] (ds/delete n))))
 
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))

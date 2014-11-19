@@ -286,14 +286,17 @@
 
 (defn- process-triggers
   [{:keys [graph outputs-modified previously-triggered] :as ctx}]
-  (let [new-triggers (set/difference (into #{} (keys outputs-modified)) previously-triggered)
-        next-ctx (reduce (fn [csub [n tr]]
-                           (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
-                             (tr (:graph csub) n csub)
-                             (tx-apply *transaction*)))
-                   ctx
-                   (pairwise :triggers (map #(dg/node graph %) new-triggers)))]
-    (update-in next-ctx [:previously-triggered] set/union new-triggers)))
+  (let [new-or-changed (zipmap (keys outputs-modified) (map #(dg/node graph %) (keys outputs-modified)))
+        all-activated  (merge new-or-changed (zipmap (map :_id (:nodes-removed ctx)) (:nodes-removed ctx)))
+        all-activated  (apply dissoc all-activated previously-triggered)
+
+        next-ctx       (reduce (fn [csub [[n-id n] tr]]
+                                 (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
+                                   (tr (:graph csub) n csub)
+                                   (tx-apply *transaction*)))
+                         ctx
+                         (pairwise (comp :triggers second) all-activated))]
+    (update-in next-ctx [:previously-triggered] set/union (into #{} (keys all-activated)))))
 
 (defn- transact*
   [ctx]

@@ -11,7 +11,7 @@
             [dynamo.node :refer :all]
             [dynamo.project :refer [Project make-project]]
             [dynamo.system.test-support :refer :all]
-            [dynamo.system :as ds :refer [transactional add in]]
+            [dynamo.system :as ds :refer [transactional add in delete]]
             [dynamo.types :as t]
             [internal.async :as ia]
             [internal.query :as iq]
@@ -76,7 +76,7 @@
       (let [scope          (transactional (add (make-scope)))
             disposables    (transactional (in scope (doseq [n scoped-nodes] (add n))) scoped-nodes)
             disposable-ids (map :_id disposables)]
-        (t/dispose scope)
+        (transactional (delete scope))
         (let [last-tx   (:last-tx @world-ref)
               disposals (:values-to-dispose last-tx)]
           (is (= (sort disposable-ids) (sort (map :_id disposals)))))))))
