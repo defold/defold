@@ -303,6 +303,10 @@
 (defnk throw-exception-defnk []
   (throw (ex-info "Exception from production function" {})))
 
+(defn production-fn-with-abort [this g]
+  (n/abort "Aborting..." {:some-key :some-value})
+  :unreachable-code)
+
 (defnk throw-exception-defnk-with-invocation-count [invocation-count]
   (swap! invocation-count inc)
   (throw (ex-info "Exception from production function" {})))
@@ -315,6 +319,8 @@
   (output out-defn-with-substitute     s/Any :substitute-value :substitute              throw-exception-defn)
   (output out-defnk-with-substitute    s/Any :substitute-value :substitute              throw-exception-defnk)
   (output substitute-value-passthrough s/Any :substitute-value identity                 throw-exception-defn)
+  (output out-abort                    s/Any production-fn-with-abort)
+  (output out-abort-with-substitute    s/Any :substitute-value (constantly :substitute) production-fn-with-abort)
   (property invocation-count {:schema clojure.lang.Atom})
   (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
 
@@ -331,6 +337,14 @@
         (is (= :substitute (in/get-node-value n :out-defnk-with-substitute))))
       (testing "parameters to substitute value fn"
         (is (= n (:node (in/get-node-value n :substitute-value-passthrough)))))
+      (testing "abort"
+        (is (thrown-with-msg? Throwable #"Aborting\.\.\." (in/get-node-value n :out-abort)))
+        (try
+          (in/get-node-value n :out-abort)
+          (is false "Expected get-node-value to throw an exception")
+          (catch Throwable e
+            (is (= {:some-key :some-value} (ex-data e)))))
+        (is (= :substitute (in/get-node-value n :out-abort-with-substitute))))
       (testing "interaction with cache"
         (is (= 0 @(in/get-node-value n :invocation-count)))
         (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))

@@ -88,6 +88,11 @@ implement dynamo.types/MessageTarget."
        ~(in/generate-constructor  name descriptor)
        ~(in/generate-print-method name))))
 
+(defn abort
+  "Abort production function and use substitute value."
+  [msg & args]
+  (throw (apply ex-info msg args)))
+
 (defn dispatch-message
   "This is an advanced usage. If you have a reference to a node, you can directly send
 it a message.
