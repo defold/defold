@@ -129,7 +129,7 @@
     (-> (bind (perform-with-inputs production-fn node g))
         (or-else (fn [e] (apply-if-fn substitute-value-fn {:exception e :node node}))))))
 
-(def ^:dynamic *perform-depth* 250)
+(def ^:dynamic *perform-depth* 200)
 
 (defn perform [transform node g]
   {:pre [(pos? *perform-depth*)]}
