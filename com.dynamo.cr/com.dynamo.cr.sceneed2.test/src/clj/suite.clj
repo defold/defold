@@ -13,7 +13,6 @@
                       'dynamo.image-test
                       'dynamo.geom-test
                       'dynamo.gl.vertex-test
-                      'dynamo.condition-test
                       'dynamo.gl.translate-test
                       'dynamo.camera-test
                       'dynamo.protobuf-test
