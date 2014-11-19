@@ -573,8 +573,8 @@ run:
             InputStream input = null;
             try {
                 connection.connect();
-                String etag = connection.getHeaderField("ETag");
-                if (etag != null && sha1 != null && etag.equals(sha1)) {
+                int code = connection.getResponseCode();
+                if (code == 304) {
                     // Reusing cached library
                 } else {
                     input = new BufferedInputStream(connection.getInputStream());
