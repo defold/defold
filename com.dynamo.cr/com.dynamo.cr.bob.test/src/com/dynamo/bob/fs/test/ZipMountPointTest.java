@@ -38,7 +38,6 @@ public class ZipMountPointTest {
     public void testResource() throws Exception {
         IResource resource = mp.get("test_lib1/file1.in");
         assertTrue(resource != null);
-        System.out.println(new String(resource.getContent()));
         assertEquals(new String(resource.getContent()), "file1");
     }
 
