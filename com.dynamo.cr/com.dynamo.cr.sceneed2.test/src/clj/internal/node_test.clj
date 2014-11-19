@@ -297,6 +297,47 @@
       (is (= :const-val (in/get-node-value (nth nodes 249) :out-from-in)))
       (is (thrown? java.lang.AssertionError (in/get-node-value (nth nodes 250) :out-from-in))))))
 
+(defn throw-exception-defn [this g]
+  (throw (ex-info "Exception from production function" {})))
+
+(defnk throw-exception-defnk []
+  (throw (ex-info "Exception from production function" {})))
+
+(defnk throw-exception-defnk-with-invocation-count [invocation-count]
+  (swap! invocation-count inc)
+  (throw (ex-info "Exception from production function" {})))
+
+(defnode SubstituteValueNode
+  (output out-defn                     s/Any throw-exception-defn)
+  (output out-defnk                    s/Any throw-exception-defnk)
+  (output out-defn-with-substitute-fn  s/Any :substitute-value (constantly :substitute) throw-exception-defn)
+  (output out-defnk-with-substitute-fn s/Any :substitute-value (constantly :substitute) throw-exception-defnk)
+  (output out-defn-with-substitute     s/Any :substitute-value :substitute              throw-exception-defn)
+  (output out-defnk-with-substitute    s/Any :substitute-value :substitute              throw-exception-defnk)
+  (output substitute-value-passthrough s/Any :substitute-value identity                 throw-exception-defn)
+  (property invocation-count {:schema clojure.lang.Atom})
+  (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
+
+(deftest node-output-substitute-value
+  (with-clean-world
+    (let [n (ds/transactional (ds/add (make-substitute-value-node :invocation-count (atom 0))))]
+      (testing "exceptions from get-node-value when no substitute value fn"
+        (is (thrown? Throwable (in/get-node-value n :out-defn)))
+        (is (thrown? Throwable (in/get-node-value n :out-defnk))))
+      (testing "substitute value replacement"
+        (is (= :substitute (in/get-node-value n :out-defn-with-substitute-fn)))
+        (is (= :substitute (in/get-node-value n :out-defnk-with-substitute-fn)))
+        (is (= :substitute (in/get-node-value n :out-defn-with-substitute)))
+        (is (= :substitute (in/get-node-value n :out-defnk-with-substitute))))
+      (testing "parameters to substitute value fn"
+        (is (= n (:node (in/get-node-value n :substitute-value-passthrough)))))
+      (testing "interaction with cache"
+        (is (= 0 @(in/get-node-value n :invocation-count)))
+        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+        (is (= 1 @(in/get-node-value n :invocation-count)))
+        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+        (is (= 1 @(in/get-node-value n :invocation-count)))))))
+
 (deftest test-parse-output-flags
   (testing "degenerate cases"
     (is (= {:properties #{} :options {} :remainder nil} (in/parse-output-flags nil)))
