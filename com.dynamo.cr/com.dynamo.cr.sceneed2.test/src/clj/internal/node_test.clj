@@ -355,6 +355,105 @@
         (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
         (is (= 1 @(in/get-node-value n :invocation-count)))))))
 
+(defnode ValueHolderNode
+  (property value {:schema s/Int}))
+
+(def ^:dynamic *answer-call-count* (atom 0))
+
+(defnk the-answer [in]
+  (swap! *answer-call-count* inc)
+  (assert (= 42 in))
+  in)
+
+(defnode AnswerNode
+  (input in s/Int)
+  (output out                        s/Int                                      the-answer)
+  (output out-cached                 s/Int :cached                              the-answer)
+  (output out-with-substitute        s/Int         :substitute-value :forty-two the-answer)
+  (output out-cached-with-substitute s/Int :cached :substitute-value :forty-two the-answer))
+
+(deftest substitute-values-and-cache-invalidation
+  (with-clean-world
+    (let [[holder-node answer-node] (tx-nodes (make-value-holder-node :value 23) (make-answer-node))]
+
+      (ds/transactional (ds/connect holder-node :value answer-node :in))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (= 2 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 2 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 1 @*answer-call-count*)))
+
+      (ds/transactional (ds/set-property holder-node :value 42))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 1 @*answer-call-count*))))))
+
+(defnk always-fail []
+  (assert false "I always fail :-("))
+
+(defnode FailureNode
+  (output out s/Any always-fail))
+
+(deftest production-fn-input-failure
+  (with-clean-world
+    (let [[failure-node answer-node] (tx-nodes (make-failure-node) (make-answer-node))]
+
+      (ds/transactional (ds/connect failure-node :out answer-node :in))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out)))
+        (is (= 0 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (thrown? Throwable (in/get-node-value answer-node :out-cached)))
+        (is (= 0 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 0 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= :forty-two (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 0 @*answer-call-count*)))
+
+      (ds/transactional
+        (ds/disconnect failure-node :out answer-node :in)
+        (ds/connect (ds/add (make-value-holder-node :value 42)) :value answer-node :in))
+
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 42 (in/get-node-value answer-node :out-cached)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-with-substitute)))
+        (is (= 1 @*answer-call-count*)))
+      (binding [*answer-call-count* (atom 0)]
+        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
+        (is (= 1 @*answer-call-count*))))))
+
 (deftest test-parse-output-flags
   (testing "degenerate cases"
     (is (= {:properties #{} :options {} :remainder nil} (in/parse-output-flags nil)))
