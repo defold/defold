@@ -106,8 +106,8 @@ public class TextureSetGeneratorTest {
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage image = result.image;
-        assertThat(image.getWidth(), is(32));
-        assertThat(image.getHeight(), is(32));
+        assertThat(image.getWidth(), is(64));
+        assertThat(image.getHeight(), is(16));
         assertThat(textureSet.getAnimationsCount(), is(2));
 
         assertThat(getVertexCount(textureSet, "anim1", 0), is(6));
@@ -129,8 +129,8 @@ public class TextureSetGeneratorTest {
 
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false);
         BufferedImage image = result.image;
-        assertThat(image.getWidth(), is(32));
-        assertThat(image.getHeight(), is(32));
+        assertThat(image.getWidth(), is(64));
+        assertThat(image.getHeight(), is(16));
 
         TextureSet textureSet = result.builder.setTexture("").build();
 
@@ -157,9 +157,9 @@ public class TextureSetGeneratorTest {
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false);
 
         TextureSet textureSet = result.builder.setTexture("").build();
-        assertUVTransform(0.0f, 0.0f, 0.5f, 0.5f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 0));
-        assertUVTransform(0.5f, 0.0f, 0.5f, 0.5f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 1));
-        assertUVTransform(0.0f, 0.5f, 0.5f, 0.5f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 2));
+        assertUVTransform(0.0f, 0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 0));
+        assertUVTransform(0.25f, 0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 1));
+        assertUVTransform(0.5f, 0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 2));
     }
 
     private static int getFrameIndex(TextureSet textureSet, String id, int frame) {

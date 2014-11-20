@@ -16,7 +16,6 @@ import javax.vecmath.Vector2d;
 import org.apache.commons.lang3.Pair;
 
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
-import com.dynamo.bob.textureset.TextureSetLayout.LayoutType;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.textureset.proto.TextureSetProto;
@@ -122,7 +121,7 @@ public class TextureSetGenerator {
         images = createInnerPadding(images, innerPadding);
         images = extrudeBorders(images, extrudeBorders);
 
-        Layout layout = layout(LayoutType.BASIC, margin, images);
+        Layout layout = layout(margin, images);
 
         BufferedImage image = composite(images, layout);
 
@@ -153,14 +152,14 @@ public class TextureSetGenerator {
         return images;
     }
 
-    private static Layout layout(LayoutType type, int margin, List<BufferedImage> images) {
+    private static Layout layout(int margin, List<BufferedImage> images) {
         List<Rect> rectangles = new ArrayList<Rect>(images.size());
         int index = 0;
         for (BufferedImage image : images) {
             rectangles.add(new Rect(index++, image.getWidth(), image.getHeight()));
         }
 
-        Layout layout = TextureSetLayout.layout(LayoutType.BASIC, margin, rectangles);
+        Layout layout = TextureSetLayout.layout(margin, rectangles);
         Collections.sort(layout.getRectangles(), new Comparator<Rect>() {
             @Override
             public int compare(Rect r1, Rect r2) {

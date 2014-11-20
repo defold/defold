@@ -12,6 +12,7 @@ public class TextureSetLayout {
     public static class Rect {
         public Object id;
         public int x, y, width, height;
+        public boolean rotated;
 
         public Rect(Object id, int x, int y, int width, int height) {
             this.id = id;
@@ -19,6 +20,7 @@ public class TextureSetLayout {
             this.y = y;
             this.width = width;
             this.height = height;
+            this.rotated = false;
         }
 
         public Rect(Object id, int width, int height) {
@@ -27,6 +29,16 @@ public class TextureSetLayout {
             this.y = -1;
             this.width = width;
             this.height = height;
+            this.rotated = false;
+        }
+
+        public Rect(Rect other) {
+            this.id = other.id;
+            this.x = other.x;
+            this.y = other.y;
+            this.width = other.width;
+            this.height = other.height;
+            this.rotated = other.rotated;
         }
 
         public int area() {
@@ -37,10 +49,6 @@ public class TextureSetLayout {
         public String toString() {
             return String.format("[%d, %d, %d, %d]", x, y, width, height);
         }
-    }
-
-    public static enum LayoutType {
-        BASIC
     }
 
     public static class Layout {
@@ -65,95 +73,46 @@ public class TextureSetLayout {
 
     }
 
-    private static List<Rect> doLayout(int width, int height, int margin, List<Rect> rectangles) {
-        List<Rect> result = new ArrayList<TextureSetLayout.Rect>(rectangles.size());
-
-        int x = 0, y = 0;
-        int rowHeight = 0;
-
-        for (Rect rect : rectangles) {
-            if (width - x < rect.width) {
-                x = 0;
-                y += rowHeight + margin;
-                rowHeight = 0;
-            }
-
-            if (width - x < rect.width) {
-                return null;
-            }
-
-            if (height - y < rect.height) {
-                return null;
-            }
-
-            result.add(new Rect(rect.id, x, y, rect.width, rect.height));
-            x += rect.width + margin;
-            rowHeight = Math.max(rowHeight, rect.height);
-        }
-
-        return result;
-    }
-
-    /**
-     * Layout rectangles according to algorithm and margin.
-     * @note Margin is only added between internal rectangles and not to the border. The
-     * margin specifies the total space between rectangles and not margin for individual rectangles.
-     * @param layout layout method
-     * @param margin total margin between internal tiles
-     * @param rectangles rectangles to layout
-     * @return {@link Layout} result
-     */
-    public static Layout layout(LayoutType layout, int margin, List<Rect> rectangles) {
+    public static Layout layout(int margin, List<Rect> rectangles) {
         if (rectangles.size() == 0) {
             return new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>());
         }
-        int totalArea = 0;
-        for (Rect rect : rectangles) {
-            totalArea += rect.area();
-        }
-
-        int tmp = (int) Math.sqrt(totalArea);
-        int width = closestPowerTwoDown(tmp);
-        int height = width;
-
-        List<Rect> result = null;
-        while (true) {
-            result = doLayout(width, height, margin, rectangles);
-            if (result == null) {
-                if (width <= height) {
-                    width *= 2;
-                } else {
-                    height *= 2;
-                }
-
-            } else {
-                break;
-            }
-        }
-
-        // Adjust size if possible
-        int maxWidth = 0;
-        int maxHeight = 0;
-        for (Rect rect : result) {
-            maxWidth = Math.max(maxWidth, rect.x + rect.width);
-            maxHeight = Math.max(maxHeight, rect.y + rect.height);
-        }
-        while (maxWidth <= width / 2) {
-            width /= 2;
-        }
-        while (maxHeight <= height / 2) {
-            height /= 2;
-        }
-
-        return new Layout(width, height, result);
+        return createMaxRectsLayout(margin, rectangles);
     }
 
-    public static int closestPowerTwoDown(int i) {
-        int nextPow2 = 1;
-        while (nextPow2 <= i) {
-            nextPow2 *= 2;
-        }
-        return Math.max(1, nextPow2 / 2);
-    }
+    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles) {
+        int defaultMaxPageSize = 1024;
+        final int defaultMinPageSize = 16;
 
+        MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
+        settings.maxPageHeight = defaultMaxPageSize;
+        settings.maxPageWidth = defaultMaxPageSize;
+        settings.minPageHeight = defaultMinPageSize;
+        settings.minPageWidth = defaultMinPageSize;
+        settings.paddingX = margin;
+        settings.paddingY = margin;
+        settings.rotation = false;
+        settings.fast = false;
+        settings.square = false;
+
+        // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
+        int maxLengthScale = 0;
+        for (Rect r : rectangles) {
+            maxLengthScale = Math.max(maxLengthScale, r.width + 2 * margin);
+            maxLengthScale = Math.max(maxLengthScale, r.height + 2 * margin);
+        }
+        settings.maxPageHeight = Math.max(settings.maxPageHeight, maxLengthScale);
+        settings.maxPageWidth = Math.max(settings.maxPageWidth, maxLengthScale);
+
+        MaxRectsLayoutStrategy strategy = new MaxRectsLayoutStrategy(settings);
+        List<Layout> layouts = strategy.createLayout(rectangles);
+
+        while (1 < layouts.size()) {
+            settings.maxPageHeight *= 2;
+            settings.maxPageWidth *= 2;
+            layouts = strategy.createLayout(rectangles);
+        }
+
+        return layouts.get(0);
+    }
 }
