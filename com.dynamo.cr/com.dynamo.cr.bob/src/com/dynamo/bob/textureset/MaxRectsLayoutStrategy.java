@@ -351,6 +351,9 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                         bestNode.score2 = newNode.score2;
                         bestNode.rect.x = newNode.rect.x;
                         bestNode.rect.y = newNode.rect.y;
+                        bestNode.rect.width = newNode.rect.width;
+                        bestNode.rect.height = newNode.rect.height;
+                        bestNode.rect.rotated = newNode.rect.rotated;
                         bestRectIndex = i;
                     }
                 }
@@ -527,6 +530,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
                     if (longSideFit < bestNode.score2 || (longSideFit == bestNode.score2 && shortSideFit < bestNode.score1)) {
                         bestNode.rect = new Rect(currentNode.rect.id, currentNode.rect.x, currentNode.rect.y, width, height);
+                        bestNode.rect.rotated = currentNode.rect.rotated;
                         bestNode.score1 = shortSideFit;
                         bestNode.score2 = longSideFit;
                     }

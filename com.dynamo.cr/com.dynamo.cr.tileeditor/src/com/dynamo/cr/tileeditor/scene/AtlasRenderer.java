@@ -85,7 +85,7 @@ public class AtlasRenderer implements INodeRenderer<AtlasNode> {
             gl.glPopMatrix();
         } else if (renderData.getPass() == Pass.TRANSPARENT) {
 
-            VertexBufferObject vertexBuffer = node.getRuntimeTextureSet().getVertexBuffer();
+            VertexBufferObject vertexBuffer = node.getRuntimeTextureSet().getAtlasVertexBuffer();
             vertexBuffer.enable(gl);
 
             shader.enable(gl);

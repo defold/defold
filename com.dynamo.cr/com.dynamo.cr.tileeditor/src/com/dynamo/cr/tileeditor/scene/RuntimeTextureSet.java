@@ -25,8 +25,9 @@ public class RuntimeTextureSet {
 
     private TextureSet textureSet;
     private VertexBufferObject vertexBuffer = new VertexBufferObject();
+    private VertexBufferObject atlasVertexBuffer = new VertexBufferObject();
     private VertexBufferObject outlineVertexBuffer = new VertexBufferObject();
-    private ByteBuffer texCoordsBuffer = ByteBuffer.allocateDirect(0);
+    private FloatBuffer texCoordsBuffer = FloatBuffer.allocate(0); //ByteBuffer.allocateDirect(0);
     private List<UVTransform> uvTransforms;
 
     public RuntimeTextureSet() {
@@ -38,7 +39,8 @@ public class RuntimeTextureSet {
 
     public void dispose(GL gl) {
         vertexBuffer.dispose(gl);
-        vertexBuffer.dispose(gl);
+        atlasVertexBuffer.dispose(gl);
+        outlineVertexBuffer.dispose(gl);
     }
 
     private static void updateBuffer(VertexBufferObject vb, ByteString bs) {
@@ -55,11 +57,34 @@ public class RuntimeTextureSet {
     public void update(TextureSet textureSet, List<UVTransform> uvTransforms) {
         this.textureSet = textureSet;
         updateBuffer(vertexBuffer, textureSet.getVertices());
+        updateBuffer(atlasVertexBuffer, textureSet.getAtlasVertices());
         updateBuffer(outlineVertexBuffer, textureSet.getOutlineVertices());
 
-        texCoordsBuffer = ByteBuffer.allocateDirect(textureSet.getTexCoords().size());
-        texCoordsBuffer.put(textureSet.getTexCoords().asReadOnlyByteBuffer());
+        // Compute texture bounds from stream.
+        final int floatsPerFrame = 12;
+        FloatBuffer src = textureSet.getTexCoords().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        int numFrames = src.capacity() / floatsPerFrame;
+        texCoordsBuffer = FloatBuffer.allocate(numFrames * 4);
+        for (int i=0; i<numFrames; ++i) {
+            float minU = Float.MAX_VALUE;
+            float minV = Float.MAX_VALUE;
+            float maxU = -Float.MAX_VALUE;
+            float maxV = -Float.MAX_VALUE;
+            int offset = floatsPerFrame * i;
+            for (int j=0;j<floatsPerFrame;j+=2) {
+                minU = Math.min(minU, src.get(offset + j));
+                minV = Math.min(minV, src.get(offset + j + 1));
+                maxU = Math.max(maxU,  src.get(offset + j));
+                maxV = Math.max(maxV, src.get(offset + j + 1));
+            }
+            texCoordsBuffer.put(minU);
+            texCoordsBuffer.put(minV);
+            texCoordsBuffer.put(maxU);
+            texCoordsBuffer.put(maxV);
+        }
         texCoordsBuffer.flip();
+
+
         this.uvTransforms = new ArrayList<UVTransform>(uvTransforms);
     }
 
@@ -70,6 +95,16 @@ public class RuntimeTextureSet {
      */
     public VertexBufferObject getVertexBuffer() {
         return vertexBuffer;
+    }
+
+    /**
+     *  Gets the vertex buffer object that represents images in the space of the atlas
+     *  i.e. if an object has been packed with a rotation in the atlas, then we will see
+     *  that rotation when rendering from this buffer.
+     *  @return {@link VertexBufferObject} with vertex-data
+     */
+    public VertexBufferObject getAtlasVertexBuffer() {
+        return atlasVertexBuffer;
     }
 
     /**
@@ -88,7 +123,7 @@ public class RuntimeTextureSet {
      * i.e. four floats.
      * @return {@link FloatBuffer} with texture coordinates
      */
-    public ByteBuffer getTexCoords() {
+    public FloatBuffer getTexCoords() {
         return texCoordsBuffer;
     }
 
@@ -186,14 +221,14 @@ public class RuntimeTextureSet {
 
     /**
      * Get tile-image center x in uv-space
-     * 
+     *
      * @param tile
      *            tile to get center x for
      * @return center x
      */
     public float getCenterX(int tile) {
         // NOTE: The texcoords-buffer is in little endian
-        FloatBuffer tc = getTexCoords().asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        FloatBuffer tc = getTexCoords().asReadOnlyBuffer();//.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
         int start = tile * 4;
         float c = (tc.get(start) + tc.get(start + 2)) * 0.5f;
         return c;
@@ -201,7 +236,7 @@ public class RuntimeTextureSet {
 
     /**
      * Get atlas-image center y in uv-space
-     * 
+     *
      * @param anim
      *            animation to get center y for
      * @return center y
@@ -212,14 +247,14 @@ public class RuntimeTextureSet {
 
     /**
      * Get tile-image center y in uv-space
-     * 
+     *
      * @param tile
      *            tile to get center y for
      * @return center y
      */
     public float getCenterY(int tile) {
         // NOTE: The texcoords-buffer is in little endian
-        FloatBuffer tc = getTexCoords().asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        FloatBuffer tc = getTexCoords().asReadOnlyBuffer(); //.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
         int start = tile * 4;
         float c = (tc.get(start + 1) + tc.get(start + 3)) * 0.5f;
         return c;
@@ -227,7 +262,7 @@ public class RuntimeTextureSet {
 
     /**
      * Get bounds for an image/animation
-     * 
+     *
      * @param id
      *            identifier
      * @return {@link AABB}

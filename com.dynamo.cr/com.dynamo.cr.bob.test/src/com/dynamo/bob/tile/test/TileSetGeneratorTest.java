@@ -39,7 +39,7 @@ public class TileSetGeneratorTest {
         tileSet.addAnimations(newAnim("a1", 0, 0));
         tileSet.addAnimations(newAnim("a2", 1, 1));
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
 
         int vertexSize = TextureSetProto.Constants.VERTEX_SIZE.getNumber();
@@ -103,7 +103,7 @@ public class TileSetGeneratorTest {
         int tileCount = 9;
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 
@@ -142,7 +142,7 @@ public class TileSetGeneratorTest {
         int tileHeight = 16;
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 
@@ -164,7 +164,7 @@ public class TileSetGeneratorTest {
         TileSet.Builder tileSet = newTileSet(tileWidth, tileHeight);
         tileSet.setExtrudeBorders(1);
 
-        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image, false, false);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 

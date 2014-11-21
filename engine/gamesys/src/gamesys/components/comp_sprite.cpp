@@ -361,6 +361,12 @@ namespace dmGameSystem
     void CreateVertexData(SpriteWorld* sprite_world, void* vertex_buffer, TextureSetResource* texture_set, uint32_t start_index, uint32_t end_index)
     {
         DM_PROFILE(Sprite, "CreateVertexData");
+        static int tex_coord_order[] = {
+            0,1,2,3,4,5,
+            4,3,1,1,0,4,	//h
+            1,0,4,4,3,1,	//v
+            2,4,0,0,1,2		//hv
+        };
 
         const dmArray<SpriteComponent>& components = sprite_world->m_Components;
         const dmArray<uint32_t>& sort_buffer = sprite_world->m_RenderSortBuffer;
@@ -383,25 +389,21 @@ namespace dmGameSystem
 
             SpriteVertex *v = (SpriteVertex*)((vertex_buffer)) + i * 6;
 
-            const float* tc = &tex_coords[GetCurrentTile(component, animation_ddf) * 4];
-            float u0 = tc[0];
-            float v0 = tc[1];
-            float u1 = tc[2];
-            float v1 = tc[3];
+            const float* tc = &tex_coords[GetCurrentTile(component, animation_ddf) * 12];
+            uint32_t flip_flag = 0;
+
             // ddf values are guaranteed to be 0 or 1 when saved by the editor
             // component values are guaranteed to be 0 or 1
             if (animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal)
             {
-                float u = u0;
-                u0 = u1;
-                u1 = u;
+                flip_flag = 1;
             }
             if (animation_ddf->m_FlipVertical ^ component->m_FlipVertical)
             {
-                float v = v0;
-                v0 = v1;
-                v1 = v;
+                flip_flag |= 2;
             }
+
+            const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
             const Matrix4& w = component->m_World;
 
@@ -409,41 +411,41 @@ namespace dmGameSystem
             v[0].x = p0.getX();
             v[0].y = p0.getY();
             v[0].z = p0.getZ();
-            v[0].u = u0;
-            v[0].v = v1;
+            v[0].u = tc[tex_lookup[0] * 2];
+            v[0].v = tc[tex_lookup[0] * 2 + 1];
 
             Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
             v[1].x = p1.getX();
             v[1].y = p1.getY();
             v[1].z = p1.getZ();
-            v[1].u = u0;
-            v[1].v = v0;
+            v[1].u = tc[tex_lookup[1] * 2];
+            v[1].v = tc[tex_lookup[1] * 2 + 1];
 
             Vector4 p2 = w * Point3(0.5f, 0.5f, 0.0f);
             v[2].x = p2.getX();
             v[2].y = p2.getY();
             v[2].z = p2.getZ();
-            v[2].u = u1;
-            v[2].v = v0;
+            v[2].u = tc[tex_lookup[2] * 2];
+            v[2].v = tc[tex_lookup[2] * 2 + 1];
 
             v[3].x = p2.getX();
             v[3].y = p2.getY();
             v[3].z = p2.getZ();
-            v[3].u = u1;
-            v[3].v = v0;
+            v[3].u = tc[tex_lookup[3] * 2];
+            v[3].v = tc[tex_lookup[3] * 2 + 1];
 
             Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
             v[4].x = p3.getX();
             v[4].y = p3.getY();
             v[4].z = p3.getZ();
-            v[4].u = u1;
-            v[4].v = v1;
+            v[4].u = tc[tex_lookup[4] * 2];
+            v[4].v = tc[tex_lookup[4] * 2 + 1];
 
             v[5].x = v[0].x;
             v[5].y = v[0].y;
             v[5].z = v[0].z;
-            v[5].u = u0;
-            v[5].v = v1;
+            v[5].u = tc[tex_lookup[5] * 2];
+            v[5].v = tc[tex_lookup[5] * 2 + 1];
         }
     }
 

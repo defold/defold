@@ -204,8 +204,7 @@ public class TileGridNode extends ComponentTypeNode {
         final int componentCount = 5;
         this.vertexData = FloatBuffer.allocate(vertexCount * componentCount);
 
-        FloatBuffer texCoordBuffer = tileSetNode.getRuntimeTextureSet().getTexCoords().order(ByteOrder.LITTLE_ENDIAN)
-                .asFloatBuffer();
+        FloatBuffer texCoordBuffer = tileSetNode.getRuntimeTextureSet().getTexCoords().asReadOnlyBuffer();
 
         AABB aabb = new AABB();
         FloatBuffer v = this.vertexData;

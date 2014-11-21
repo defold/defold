@@ -91,7 +91,7 @@ public class TextureSetLayout {
         settings.minPageWidth = defaultMinPageSize;
         settings.paddingX = margin;
         settings.paddingY = margin;
-        settings.rotation = false;
+        settings.rotation = true;
         settings.fast = false;
         settings.square = false;
 
