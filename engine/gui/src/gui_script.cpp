@@ -2761,6 +2761,16 @@ namespace dmGui
      * @variable
      */
 
+    /*# elliptical pie node bounds
+     * @name gui.PIEBOUNDS_ELLIPSE
+     * @variable
+     */
+
+    /*# rectangular pie node bounds
+     * @name gui.PIEBOUNDS_RECTANGLE
+     * @variable
+     */
+    
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = dmScript::GetLuaState(script_context);
