@@ -1629,15 +1629,15 @@ namespace dmGui
      * @param node node to get pivot from (node)
      * @return pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaGetPivot(lua_State* L)
@@ -1664,15 +1664,15 @@ namespace dmGui
      * @param node node to set pivot for (node)
      * @param pivot pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaSetPivot(lua_State* L)
@@ -2317,8 +2317,16 @@ namespace dmGui
 
     /*# display on-display keyboard if available
      *
+     * The specified type of keyboard is displayed, if it is available on
+     * the device.
+     *
      * @name gui.show_keyboard
-     * @param type keyboard type
+     * @param type keyboard type (constant)
+     * <ul>
+     *   <li><code>gui.KEYBOARD_TYPE_DEFAULT</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_EMAIL</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_NUMBER_PAD</code></li>
+     * </ul>
      * @param autoclose close keyboard automatically when clicking outside
      */
     static int LuaShowKeyboard(lua_State* L)
@@ -2332,6 +2340,8 @@ namespace dmGui
     }
 
     /*# hide on-display keyboard if available
+     *
+     * Hide the on-display keyboard on the device.
      *
      * @name gui.hide_keyboard
      */
@@ -2751,6 +2761,16 @@ namespace dmGui
      * @variable
      */
 
+    /*# elliptical pie node bounds
+     * @name gui.PIEBOUNDS_ELLIPSE
+     * @variable
+     */
+
+    /*# rectangular pie node bounds
+     * @name gui.PIEBOUNDS_RECTANGLE
+     * @variable
+     */
+    
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = dmScript::GetLuaState(script_context);

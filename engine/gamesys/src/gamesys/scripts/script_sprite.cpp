@@ -21,9 +21,10 @@ extern "C"
 
 namespace dmGameSystem
 {
-    /*# sprite size
+    /*# sprite size (vector3)
      *
      * [READ ONLY] Returns the size of the sprite, not allowing for any additional scaling that may be applied.
+     * The type of the property is vector3.
      *
      * @name size
      * @property
@@ -34,13 +35,33 @@ namespace dmGameSystem
      * </p>
      * <pre>
      * function init(self)
+     *  -- get size from component "sprite"
      * 	local size = go.get("#sprite", "size")
      * 	local sx = go.get("#sprite", "size.x")
      * 	-- do something useful
      * 	assert(size.x == sx)
      * end
      * </pre>
-     * <p>It is assumed that the sprite component has id "sprite".</p>
+     */
+    
+    /*# sprite scale (vector3)
+     *
+     * The non-uniform scale of the sprite. The type of the property is vector3.
+     *
+     * @name scale
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to scale a sprite independently along the X and Y axis:
+     * </p>
+     * <pre>
+     * function init(self)
+     *  -- Double the y-axis scaling on component "sprite"
+     * 	local yscale = go.get("#sprite", "scale.y")
+     * 	go.set("#sprite", "scale.y", yscale * 2)
+     * end
+     * </pre>
      */
 
     /*# make a sprite flip the animations horizontally or not

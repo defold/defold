@@ -98,6 +98,7 @@ public class TileSetGenerator {
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
 
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
+                tileSet.getInnerPadding(),
                 tileSet.getExtrudeBorders(), genOutlines);
 
         TextureSet.Builder builder = result.builder;

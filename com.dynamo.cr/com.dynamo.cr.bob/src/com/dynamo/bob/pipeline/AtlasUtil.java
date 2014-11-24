@@ -165,6 +165,8 @@ public class AtlasUtil {
         }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         return TextureSetGenerator.generate(images, iterator,
-                Math.max(0, atlas.getMargin()), Math.max(0, atlas.getExtrudeBorders()), false);
+                Math.max(0, atlas.getMargin()),
+                Math.max(0,  atlas.getInnerPadding()),
+                Math.max(0, atlas.getExtrudeBorders()), false);
     }
 }

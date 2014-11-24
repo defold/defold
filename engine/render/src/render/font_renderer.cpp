@@ -347,6 +347,18 @@ namespace dmRender
         }
     }
 
+    static const Glyph* GetGlyph(HFontMap font_map, uint16_t c) {
+        const Glyph* g = font_map->m_Glyphs.Get(c);
+        if (!g)
+            g = font_map->m_Glyphs.Get(126U); // Fallback to ~
+
+        if (!g) {
+            dmLogWarning("Character code %x not supported by font, nor is fallback '~'", c);
+        }
+
+        return g;
+    }
+
     void CreateFontVertexData(HRenderContext render_context, const uint64_t* key, int32_t* batch)
     {
         DM_PROFILE(Render, "CreateFontVertexData");
@@ -409,9 +421,10 @@ namespace dmRender
                 {
                     uint16_t c = (uint16_t) dmUtf8::NextChar(&cursor);
 
-                    const Glyph* g = font_map->m_Glyphs.Get(c);
-                    if (!g)
-                        g = font_map->m_Glyphs.Get(126U); // Fallback to ~
+                    const Glyph* g =  GetGlyph(font_map, c);
+                    if (!g) {
+                        continue;
+                    }
 
                     if (text_context.m_VertexIndex + 6 >= text_context.m_MaxVertexCount)
                     {
@@ -507,16 +520,18 @@ namespace dmRender
         for (int i = 0; i < n; ++i)
         {
             uint32_t c = dmUtf8::NextChar(&cursor);
-            const Glyph* g = font_map->m_Glyphs.Get(c);
-            if (!g)
-                g = font_map->m_Glyphs.Get(126U); // Fallback to ~
+            const Glyph* g = GetGlyph(font_map, c);
+            if (!g) {
+                continue;
+            }
+
             if (i == 0)
                 first = g;
             last = g;
             // NOTE: We round advance here just as above in DrawText
             width += (int16_t) g->m_Advance;
         }
-        if (n > 0)
+        if (n > 0 && 0 != last)
         {
             float last_end_point = last->m_LeftBearing + last->m_Width;
             float last_right_bearing = last->m_Advance - last_end_point;

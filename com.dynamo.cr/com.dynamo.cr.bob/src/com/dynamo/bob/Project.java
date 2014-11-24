@@ -8,8 +8,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
+import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -536,7 +536,7 @@ run:
         String libPath = getLibPath();
         File libDir = new File(libPath);
         // Clean lib dir first
-        FileUtils.deleteQuietly(libDir);
+        //FileUtils.deleteQuietly(libDir);
         FileUtils.forceMkdir(libDir);
         // Download libs
         List<File> libFiles = LibraryUtil.convertLibraryUrlsToFiles(libPath, libUrls);
@@ -547,22 +547,47 @@ run:
             if (progress.isCanceled()) {
                 break;
             }
+            File f = libFiles.get(i);
+            String sha1 = null;
+
+            if (f.exists()) {
+                ZipFile zipFile = null;
+
+                try {
+                    zipFile = new ZipFile(f);
+                    sha1 = zipFile.getComment();
+                } finally {
+                    if (zipFile != null) {
+                        zipFile.close();
+                    }
+                }
+            }
+
             URL url = libUrls.get(i);
-            URLConnection connection = url.openConnection();
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            if (sha1 != null) {
+                connection.addRequestProperty("If-None-Match", sha1);
+            }
             connection.addRequestProperty("X-Email", this.options.get("email"));
             connection.addRequestProperty("X-Auth", this.options.get("auth"));
             InputStream input = null;
             try {
-                input = new BufferedInputStream(connection.getInputStream());
-                File f = libFiles.get(i);
-                FileUtils.copyInputStreamToFile(input, f);
-                try {
-                    ZipFile zip = new ZipFile(f);
-                    zip.close();
-                } catch (ZipException e) {
-                    f.delete();
-                    throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                connection.connect();
+                int code = connection.getResponseCode();
+                if (code == 304) {
+                    // Reusing cached library
+                } else {
+                    input = new BufferedInputStream(connection.getInputStream());
+                    FileUtils.copyInputStreamToFile(input, f);
+                    try {
+                        ZipFile zip = new ZipFile(f);
+                        zip.close();
+                    } catch (ZipException e) {
+                        f.delete();
+                        throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                    }
                 }
+                connection.disconnect();
             } catch (ConnectException e) {
                 throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
             } catch (FileNotFoundException e) {
