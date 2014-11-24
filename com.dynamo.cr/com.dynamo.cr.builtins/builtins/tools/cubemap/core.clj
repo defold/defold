@@ -43,6 +43,37 @@
             [org.eclipse.core.commands ExecutionEvent]
             [dynamo.types AABB Camera]))
 
+(n/defnode CubemapImageInputs
+  (input image-right  Image)
+  (input image-left   Image)
+  (input image-top    Image)
+  (input image-bottom Image)
+  (input image-front  Image)
+  (input image-back   Image))
+
+(n/defnode CubemapImageProperties
+  (property right  String)
+  (property left   String)
+  (property top    String)
+  (property bottom String)
+  (property front  String)
+  (property back   String))
+
+(defnk produce-image-right  [image-right]  image-right)
+(defnk produce-image-left   [image-left]   image-left)
+(defnk produce-image-top    [image-top]    image-top)
+(defnk produce-image-bottom [image-bottom] image-bottom)
+(defnk produce-image-front  [image-front]  image-front)
+(defnk produce-image-back   [image-back]   image-back)
+
+(n/defnode CubemapImageOutputs
+  (output image-right  Image produce-image-right)
+  (output image-left   Image produce-image-left)
+  (output image-top    Image produce-image-top)
+  (output image-bottom Image produce-image-bottom)
+  (output image-front  Image produce-image-front)
+  (output image-back   Image produce-image-back))
+
 (vtx/defvertex normal-vtx
   (vec3 position)
   (vec3 normal))
@@ -117,57 +148,24 @@
     (g/aabb-incorporate  1  1  1)
     (g/aabb-incorporate -1 -1 -1)))
 
-#_(defmacro for-each-side [bindings ])
-
 (n/defnode CubemapRender
+  (inherits CubemapImageInputs)
   (input  camera        Camera)
-  (input  image-right   Image)
-  (input  image-left    Image)
-  (input  image-top     Image)
-  (input  image-bottom  Image)
-  (input  image-front   Image)
-  (input  image-back    Image)
   (output shader        s/Any      :cached produce-shader)
   (output vertex-buffer s/Any      :cached produce-renderable-vertex-buffer)
   (output gpu-texture   s/Any      :cached produce-gpu-texture)
   (output renderable    RenderData :cached produce-renderable)
   (output aabb          AABB               unit-bounding-box))
 
-(defnk produce-image-right  [image-right]  image-right)
-(defnk produce-image-left   [image-left]   image-left)
-(defnk produce-image-top    [image-top]    image-top)
-(defnk produce-image-bottom [image-bottom] image-bottom)
-(defnk produce-image-front  [image-front]  image-front)
-(defnk produce-image-back   [image-back]   image-back)
-
 (n/defnode CubemapNode
-  (property right        String)
-  (property left         String)
-  (property top          String)
-  (property bottom       String)
-  (property front        String)
-  (property back         String)
-  (input    image-right  Image)
-  (input    image-left   Image)
-  (input    image-top    Image)
-  (input    image-bottom Image)
-  (input    image-front  Image)
-  (input    image-back   Image)
-  (output   image-right  Image produce-image-right)
-  (output   image-left   Image produce-image-left)
-  (output   image-top    Image produce-image-top)
-  (output   image-bottom Image produce-image-bottom)
-  (output   image-front  Image produce-image-front)
-  (output   image-back   Image produce-image-back))
+  (inherits CubemapImageProperties)
+  (inherits CubemapImageInputs)
+  (inherits CubemapImageOutputs))
 
 (protocol-buffer-converters
  Graphics$Cubemap
  {:constructor #'cubemap.core/make-cubemap-node
   :basic-properties [:right :left :top :bottom :front :back]})
-
-(defn- make-face
-  [cubemap side input]
-  (ds/connect (ds/add (img/make-image-source :image (get cubemap side))) :image cubemap input))
 
 (def ^:private cubemap-inputs
   {:right  :image-right
@@ -177,12 +175,20 @@
    :front  :image-front
    :back   :image-back})
 
+(defn- make-faces
+  [cubemap]
+  (doseq [[side input] cubemap-inputs]
+    (ds/connect (ds/add (img/make-image-source :image (get cubemap side))) :image cubemap input)))
+
 (defn on-load
   [path ^Graphics$Cubemap cubemap-message]
   (let [cubemap (message->node cubemap-message :filename path :_id -1)]
-    (doseq [side [:right :left :top :bottom :front :back]]
-      (make-face cubemap side (get cubemap-inputs side)))
+    (make-faces cubemap)
     cubemap))
+
+(defn- connect-cubemap-inputs [source-node dest-node]
+  (doseq [label (vals cubemap-inputs)]
+    (ds/connect source-node label dest-node label)))
 
 (defn on-edit
   [project-node editor-site cubemap]
@@ -193,20 +199,15 @@
               background     (ds/add (background/make-background))
               grid           (ds/add (grid/make-grid))
               camera         (ds/add (c/make-camera-controller :camera (c/make-camera :orthographic)))]
-          (ds/connect cubemap        :image-right  cubemap-render :image-right)
-          (ds/connect cubemap        :image-left   cubemap-render :image-left)
-          (ds/connect cubemap        :image-top    cubemap-render :image-top)
-          (ds/connect cubemap        :image-bottom cubemap-render :image-bottom)
-          (ds/connect cubemap        :image-front  cubemap-render :image-front)
-          (ds/connect cubemap        :image-back   cubemap-render :image-back)
-          (ds/connect camera         :camera       grid           :camera)
-          (ds/connect camera         :camera       editor         :view-camera)
-          (ds/connect camera         :self         editor         :controller)
-          (ds/connect background     :renderable   editor         :renderables)
-          (ds/connect cubemap-render :renderable   editor         :renderables)
-          (ds/connect camera         :camera       cubemap-render :camera)
-          (ds/connect grid           :renderable   editor         :renderables)
-          (ds/connect cubemap-render :aabb         editor         :aabb))
+          (connect-cubemap-inputs cubemap cubemap-render)
+          (ds/connect camera         :camera     grid           :camera)
+          (ds/connect camera         :camera     editor         :view-camera)
+          (ds/connect camera         :self       editor         :controller)
+          (ds/connect background     :renderable editor         :renderables)
+          (ds/connect cubemap-render :renderable editor         :renderables)
+          (ds/connect camera         :camera     cubemap-render :camera)
+          (ds/connect grid           :renderable editor         :renderables)
+          (ds/connect cubemap-render :aabb       editor         :aabb))
         editor))))
 
 (p/register-editor "cubemap" #'on-edit)
