@@ -4,6 +4,7 @@ import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,11 +28,19 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.bundle.AndroidBundler;
+import com.dynamo.bob.bundle.HTML5Bundler;
+import com.dynamo.bob.bundle.IBundler;
+import com.dynamo.bob.bundle.IOSBundler;
+import com.dynamo.bob.bundle.LinuxBundler;
+import com.dynamo.bob.bundle.OSXBundler;
+import com.dynamo.bob.bundle.Win32Bundler;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
 
 /**
@@ -52,6 +61,8 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
+
+    private BobProjectProperties projectProperties;
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -81,6 +92,10 @@ public class Project {
 
     public String getLibPath() {
         return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
+    }
+
+    public BobProjectProperties getProjectProperties() {
+        return projectProperties;
     }
 
     /**
@@ -223,13 +238,19 @@ public class Project {
      * @throws CompileExceptionError
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
+        FileInputStream is = null;
         try {
+            projectProperties = new BobProjectProperties();
+            is = new FileInputStream(new File(getRootDirectory() + "/" + "game.project"));
+            projectProperties.load(is);
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
+        } finally {
+            IOUtils.closeQuietly(is);
         }
     }
 
@@ -322,6 +343,66 @@ public class Project {
         }
     }
 
+
+    static Map<Platform, Class<? extends IBundler>> bundlers;
+    static {
+        bundlers = new HashMap<Platform, Class<? extends IBundler>>();
+        bundlers.put(Platform.X86Darwin, OSXBundler.class);
+        bundlers.put(Platform.X86Linux, LinuxBundler.class);
+        bundlers.put(Platform.X86Win32, Win32Bundler.class);
+        bundlers.put(Platform.Armv7Android, AndroidBundler.class);
+        bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
+        bundlers.put(Platform.JsWeb, HTML5Bundler.class);
+    }
+
+    private void bundle(IProgress monitor) throws IOException, CompileExceptionError {
+        IProgress m = monitor.subProgress(1);
+        m.beginTask("Bundling...", 1);
+        String pair = option("platform", null);
+        if (pair == null) {
+            throw new CompileExceptionError(null, -1, "No platform specified");
+        }
+
+        Platform platform = Platform.get(pair);
+        if (platform == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+
+        Class<? extends IBundler> bundlerClass = bundlers.get(platform);
+        if (bundlerClass == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+
+        IBundler bundler;
+        try {
+            bundler = bundlerClass.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        String bundleOutput = option("bundle-output", null);
+        File bundleDir = null;
+        if (bundleOutput != null) {
+            bundleDir = new File(bundleOutput);
+        } else {
+            bundleDir = new File(getRootDirectory(), getBuildDirectory());
+        }
+        bundleDir.mkdirs();
+        bundler.bundleApplication(this, bundleDir);
+        m.worked(1);
+        m.done();
+    }
+
+    static boolean anyFailing(Collection<TaskResult> results) {
+        for (TaskResult taskResult : results) {
+            if (!taskResult.isOk()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
@@ -338,6 +419,9 @@ public class Project {
                 m.beginTask("Building...", newTasks.size());
                 result = runTasks(m);
                 m.done();
+                if (anyFailing(result)) {
+                    return result;
+                }
             } else if (command.equals("clean")) {
                 IProgress m = monitor.subProgress(1);
                 m.beginTask("Cleaning...", newTasks.size());
@@ -355,6 +439,8 @@ public class Project {
                 FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
                 m.worked(1);
                 m.done();
+            } else if (command.equals("bundle")) {
+                bundle(monitor);
             }
         }
 
@@ -365,7 +451,7 @@ public class Project {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<TaskResult> runTasks(IProgress monitor) throws IOException {
+    List<TaskResult> runTasks(IProgress monitor) throws IOException {
 
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)

@@ -34,27 +34,7 @@
                 <configuration>
                     <executable>sh</executable>
                     <arguments>
-                        <argument>scripts/copy_libtexc.sh</argument>
-                    </arguments>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.1</version>
-                <executions>
-                    <execution>
-                        <id>compile</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <executable>sh</executable>
-                    <arguments>
-                       <argument>scripts/copy_luajit.sh</argument>
+                        <argument>scripts/copy.sh</argument>
                     </arguments>
                 </configuration>
             </plugin>

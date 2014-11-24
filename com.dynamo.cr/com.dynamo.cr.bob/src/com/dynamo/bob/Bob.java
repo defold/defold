@@ -1,49 +1,149 @@
 package com.dynamo.bob;
 
-import java.io.Closeable;
+import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.security.CodeSource;
-import java.security.ProtectionDomain;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipException;
-import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.LibraryUtil;
 
 public class Bob {
 
-    private static String texcLibDir = null;
-    private static String luajitBinPath = null;
-    private static String luajitSharePath = null;
     private static boolean verbose = false;
+    private static File rootFolder = null;
+
+    public Bob() {
+    }
+
+    private static void init() {
+        if (rootFolder != null) {
+            return;
+        }
+
+        try {
+            rootFolder = Files.createTempDirectory(null).toFile();
+            extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
+            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
+
+            // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
+            URL android_jar = Bob.class.getResource("/lib/android.jar");
+            if (android_jar != null) {
+                FileUtils.copyURLToFile(android_jar, new File(rootFolder, "lib/android.jar"));
+            }
+            URL classes_dex = Bob.class.getResource("/lib/classes.dex");
+            if (classes_dex != null) {
+                FileUtils.copyURLToFile(classes_dex, new File(rootFolder, "lib/classes.dex"));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void extract(final URL url, File toFolder) throws IOException {
+
+        ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
+
+        ZipEntry entry = zipStream.getNextEntry();
+        while (entry != null)
+        {
+            if (!entry.isDirectory()) {
+
+                File dstFile = new File(toFolder, entry.getName());
+                dstFile.deleteOnExit();
+                dstFile.getParentFile().mkdirs();
+
+                OutputStream fileStream = null;
+
+                try {
+                    final byte[] buf;
+                    int i;
+
+                    fileStream = new FileOutputStream(dstFile);
+                    buf = new byte[1024];
+                    i = 0;
+
+                    while((i = zipStream.read(buf)) != -1) {
+                        fileStream.write(buf, 0, i);
+                    }
+                } finally {
+                    IOUtils.closeQuietly(fileStream);
+                }
+                verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+            }
+
+            entry = zipStream.getNextEntry();
+        }
+    }
+
+    public static String getPath(String path) {
+        init();
+        File f = new File(rootFolder, path);
+        if (!f.exists()) {
+            throw new RuntimeException(String.format("location %s not found", f.toString()));
+        }
+        return f.getAbsolutePath();
+    }
+
+    public static String getExe(Platform platform, String name) throws IOException {
+        init();
+
+        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
+        URL url = Bob.class.getResource("/libexec/" + exeName);
+        if (url == null) {
+            throw new RuntimeException(String.format("/libexec/%s not found", exeName));
+        }
+        File f = new File(rootFolder, exeName);
+        if (!f.exists()) {
+            FileUtils.copyURLToFile(url, f);
+            f.setExecutable(true);
+        }
+
+        return f.getAbsolutePath();
+    }
+
+    public static String getLib(String name) throws IOException {
+        init();
+
+        Platform platform = Platform.getJavaPlatform();
+        String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
+        URL url = Bob.class.getResource("/lib/" + libName);
+        if (url == null) {
+            throw new RuntimeException(String.format("/lib/%s not found", libName));
+        }
+        File f = new File(rootFolder, libName);
+        if (!f.exists()) {
+            FileUtils.copyURLToFile(url, f);
+            f.setExecutable(true);
+        }
+        return f.getAbsolutePath();
+    }
 
     private static CommandLine parse(String[] args) {
         Options options = new Options();
         options.addOption("r", "root", true, "Build root directory. Default is current directory");
-        options.addOption("o", "out", true, "Output directory. Default is \"build/default\"");
+        options.addOption("o", "output", true, "Output directory. Default is \"build/default\"");
         options.addOption("i", "input", true, "Source directory. Default is current directory");
         options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("h", "help", false, "This help directory");
@@ -51,6 +151,20 @@ public class Bob {
         options.addOption("c", "compress", false, "Compress archive entries (if -a/--archive)");
         options.addOption("e", "email", true, "User email");
         options.addOption("u", "auth", true, "User auth token");
+
+        options.addOption("p", "platform", true, "Platform (when bundling)");
+        options.addOption("bo", "bundle-output", true, "Bundle output directory");
+
+        options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
+        options.addOption("", "identity", true, "Sign identity (iOS)");
+
+        options.addOption("ce", "certificate", true, "Certificate (Android)");
+        options.addOption("pk", "private-key", true, "Private key (Android)");
+
+        options.addOption("re", "release", false, "Release mode (when bundling)");
+        //options.addOption(OptionBuilder.withArgName("release").withDescription("Release mode (when bundling)").create("release"));
+        //
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -83,18 +197,22 @@ public class Bob {
         }
 
         Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
-        if (cmd.hasOption('a')) {
-            project.setOption("build_disk_archive", "true");
-
-            if (cmd.hasOption('c')) {
-                project.setOption("compress_disk_archive_entries", "true");
-            }
-        }
         if (cmd.hasOption('e')) {
             project.setOption("email", getOptionsValue(cmd, 'e', null));
         }
         if (cmd.hasOption('u')) {
             project.setOption("auth", getOptionsValue(cmd, 'u', null));
+        }
+
+        Option[] options = cmd.getOptions();
+        for (Option o : options) {
+            if (cmd.hasOption(o.getLongOpt())) {
+                if (o.hasArg()) {
+                    project.setOption(o.getLongOpt(), cmd.getOptionValue(o.getLongOpt()));
+                } else {
+                    project.setOption(o.getLongOpt(), "true");
+                }
+            }
         }
 
         ClassLoaderScanner scanner = new ClassLoaderScanner();
@@ -159,263 +277,6 @@ public class Bob {
             value = cmd.getOptionValue(o);
         }
         return value;
-    }
-
-    public static String getTexcLibDir() {
-        if (texcLibDir == null) {
-            try {
-                setTexcLibDir();
-            } catch (ZipException e) {
-                throw new RuntimeException(e);
-            } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return texcLibDir;
-    }
-
-    public static String getLuajitBinPath() {
-        if (luajitBinPath == null) {
-            try {
-                setLuajitPaths();
-            } catch (ZipException e) {
-                throw new RuntimeException(e);
-            } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return luajitBinPath;
-    }
-
-    public static String getLuajitSharePath() {
-        if (luajitSharePath == null) {
-            try {
-                setLuajitPaths();
-            } catch (ZipException e) {
-                throw new RuntimeException(e);
-            } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return luajitSharePath;
-    }
-
-    private enum PlatformType {
-        Windows,
-        Darwin,
-        Linux
-    }
-
-    private static PlatformType getPlatform() {
-        String os_name = System.getProperty("os.name").toLowerCase();
-
-        if (os_name.indexOf("win") != -1) {
-            return PlatformType.Windows;
-        } else if (os_name.indexOf("mac") != -1) {
-            return PlatformType.Darwin;
-        } else if (os_name.indexOf("linux") != -1) {
-            return PlatformType.Linux;
-        } else {
-            throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
-        }
-    }
-
-    private static void setTexcLibDir() throws URISyntaxException, ZipException, IOException {
-        URI uri = getJarURI();
-        String libSubPath = null;
-        PlatformType platform = getPlatform();
-        switch (platform) {
-        case Windows:
-            libSubPath = "lib/win32/texc_shared.dll";
-            break;
-        case Darwin:
-            libSubPath = "lib/x86_64-darwin/libtexc_shared.dylib";
-            break;
-        case Linux:
-            libSubPath = "lib/linux/libtexc_shared.so";
-            break;
-        }
-
-        File file = FileUtils.toFile(getFile(uri, libSubPath).toURL());
-        if (file.exists()) {
-            texcLibDir = file.getParentFile().getAbsolutePath();
-        } else {
-            throw new IOException(String.format("Could not locate '%s'", libSubPath));
-        }
-    }
-
-    private static void setLuajitPaths() throws URISyntaxException, ZipException, IOException {
-    	URI uri = getJarURI();
-
-    	// Need to set up 2 paths. Share path first where lua jit librarys are.
-        String sharePath = "share/luajit/";
-        File shareDir = FileUtils.toFile(getFile(uri, sharePath).toURL());
-        if (shareDir.exists()) {
-            luajitSharePath = shareDir.getAbsolutePath();
-        } else {
-            throw new IOException(String.format("Could not locate '%s'", sharePath));
-        }
-
-        // Now the executable.
-        String binPath = null;
-        PlatformType platform = getPlatform();
-        switch (platform) {
-        case Windows:
-            binPath = "libexec/win32/luajit.exe";
-            break;
-        case Darwin:
-            binPath = "libexec/darwin/luajit";
-            break;
-        case Linux:
-            binPath = "libexec/linux/luajit";
-            break;
-        }
-
-        File file = FileUtils.toFile(getFile(uri, binPath).toURL());
-        if (file.exists()) {
-            luajitBinPath = file.getAbsolutePath();
-        } else {
-            throw new IOException(String.format("Could not locate '%s'", binPath));
-        }
-    }
-
-    private static URI getJarURI() throws URISyntaxException {
-        final ProtectionDomain domain = Bob.class.getProtectionDomain();
-        final CodeSource source = domain.getCodeSource();
-        final URL url = source.getLocation();
-        final URI uri;
-        try {
-            uri = url.toURI();
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
-            throw e;
-        }
-        return uri;
-    }
-
-    private static URI getFile(final URI where, final String filePath) throws ZipException, IOException {
-        final File location;
-        final URI fileURI;
-
-        location = new File(where);
-
-        // not in a JAR, just return the path on disk
-        if(location.isDirectory()) {
-            fileURI = URI.create(where.toString() + filePath);
-        } else {
-            final ZipFile zipFile = new ZipFile(location);
-            try {
-                fileURI = extract(zipFile, filePath);
-            } finally {
-                zipFile.close();
-            }
-        }
-
-        return (fileURI);
-    }
-
-    private static String uniqueTmpDir() {
-        final int length = 8;
-        String tmp = FileUtils.getTempDirectory().getAbsolutePath();
-        String uniquePath = FilenameUtils.concat(tmp, UUID.randomUUID().toString().substring(0, length));
-        File f = new File(uniquePath);
-        while (f.exists()) {
-            uniquePath = FilenameUtils.concat(tmp, UUID.randomUUID().toString().substring(length));
-            f = new File(uniquePath);
-        }
-        f.mkdir();
-        f.deleteOnExit();
-        return uniquePath;
-    }
-
-    private static URI extract(final ZipFile zipFile, final String filePath) throws IOException {
-        String fileName = FilenameUtils.getName(filePath);
-        String dstPath = FilenameUtils.concat(uniqueTmpDir(), fileName);
-        final ZipEntry entry = zipFile.getEntry(filePath);
-
-        if(entry == null) {
-            throw new FileNotFoundException("cannot find file: " + filePath + " in archive: " + zipFile.getName());
-        }
-
-        if (entry.isDirectory()) {
-            return extractByPrefix(zipFile,  filePath);
-        }
-
-        final InputStream zipStream  = zipFile.getInputStream(entry);
-        OutputStream fileStream = null;
-
-        try {
-            final byte[] buf;
-            int i;
-
-            fileStream = new FileOutputStream(dstPath);
-            buf = new byte[1024];
-            i = 0;
-
-            while((i = zipStream.read(buf)) != -1) {
-                fileStream.write(buf, 0, i);
-            }
-        } finally {
-            close(zipStream);
-            close(fileStream);
-        }
-        verbose("Extracted '%s' from '%s' to '%s'", filePath, zipFile.getName(), dstPath);
-
-        return (new File(dstPath).toURI());
-    }
-
-    private static URI extractByPrefix(final ZipFile zipFile, final String prefix) throws IOException {  
-        String whereTo = uniqueTmpDir();
-        java.util.Enumeration<? extends ZipEntry> allFiles = zipFile.entries();
-        while (allFiles.hasMoreElements())
-        {
-            ZipEntry entry = allFiles.nextElement();
-            if (!entry.getName().startsWith(prefix) || entry.isDirectory()) {
-                continue;
-            }
-            
-            String dstPath = FilenameUtils.concat(whereTo, entry.getName());
-            File dstFile = new File(dstPath);
-            dstFile.getParentFile().mkdirs();
-
-            final InputStream zipStream  = zipFile.getInputStream(entry);
-            OutputStream fileStream = null;
-            
-            try {
-                final byte[] buf;
-                int i;
-    
-                fileStream = new FileOutputStream(dstPath);
-                buf = new byte[1024];
-                i = 0;
-    
-                while((i = zipStream.read(buf)) != -1) {
-                    fileStream.write(buf, 0, i);
-                }
-            } finally {
-                close(zipStream);
-                close(fileStream);
-            }
-            verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), zipFile.getName(), dstPath);
-        }
-
-        return (new File(FilenameUtils.concat(whereTo, prefix)).toURI());
-    }
-
-    private static void close(final Closeable stream) {
-        if(stream != null) {
-            try {
-                stream.close();
-            } catch(final IOException ex) {
-                ex.printStackTrace();
-            }
-        }
     }
 
     public static void verbose(String message, Object... args) {
