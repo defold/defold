@@ -11,6 +11,9 @@
    :last-node 0
    :arcs []})
 
+(defn- removev [pred coll]
+  (filterv (complement pred) coll))
+
 
 ;;; Published API
 (defn node-ids    [g] (keys (:nodes g)))
@@ -32,8 +35,8 @@
   [g n]
   (-> g
     (update-in [:nodes] dissoc n)
-    (update-in [:arcs] (fn [arcs] (remove #(or (= n (:source %))
-                                               (= n (:target %))) arcs)))))
+    (update-in [:arcs] (fn [arcs] (removev #(or (= n (:source %))
+                                                (= n (:target %))) arcs)))))
 
 (defn transform-node
   [g n f & args]
@@ -48,7 +51,7 @@
 
 (defn remove-arc
   [g source source-attributes target target-attributes]
-  (update-in g [:arcs] (fn [arcs] (remove #(= % {:source source :source-attributes source-attributes :target target :target-attributes target-attributes}) arcs))))
+  (update-in g [:arcs] (fn [arcs] (removev #(= % {:source source :source-attributes source-attributes :target target :target-attributes target-attributes}) arcs))))
 
 (defn arcs-from-to [g source target]
   (filter #(and (= source (:source %)) (= target (:target %))) (:arcs g)))

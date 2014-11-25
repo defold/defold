@@ -133,8 +133,8 @@
     (is (vector? (arcs (-> (empty-graph) (add-node :node1) (add-node :node2))))))
   (testing "after remove node"
     (let [g (add-node (empty-graph) :node1)]
-      #_(is (vector? (arcs (remove-node g (last-node g)))))
-      #_(is (vector? (arcs (remove-node g (next-node g)))))))
+      (is (vector? (arcs (remove-node g (last-node g)))))
+      (is (vector? (arcs (remove-node g (next-node g)))))))
   (testing "after add arc"
     (let [g     (empty-graph)
           g     (add-node g :node1)
@@ -155,13 +155,13 @@
           node2 (last-node g)
           g     (add-arc g node1 :from node1 :to)
           g     (add-arc g node1 :from node2 :to)]
-      #_(is (vector? (arcs (remove-arc g node1         :from     node1         :to))))
-      #_(is (vector? (arcs (remove-arc g node1         :from     node2         :to))))
-      #_(is (vector? (arcs (remove-arc g node1         :not-from node2         :to))))
-      #_(is (vector? (arcs (remove-arc g node1         :from     node2         :not-to))))
-      #_(is (vector? (arcs (remove-arc g node1         :from     (next-node g) :to))))
-      #_(is (vector? (arcs (remove-arc g (next-node g) :from     node1         :to))))
-      #_(is (vector? (arcs (remove-arc g (next-node g) :from     (next-node g) :to))))))
+      (is (vector? (arcs (remove-arc g node1         :from     node1         :to))))
+      (is (vector? (arcs (remove-arc g node1         :from     node2         :to))))
+      (is (vector? (arcs (remove-arc g node1         :not-from node2         :to))))
+      (is (vector? (arcs (remove-arc g node1         :from     node2         :not-to))))
+      (is (vector? (arcs (remove-arc g node1         :from     (next-node g) :to))))
+      (is (vector? (arcs (remove-arc g (next-node g) :from     node1         :to))))
+      (is (vector? (arcs (remove-arc g (next-node g) :from     (next-node g) :to))))))
   (testing "after remove node with arcs"
     (let [g     (empty-graph)
           g     (add-node g :node1)
@@ -170,8 +170,8 @@
           node2 (last-node g)
           g     (add-arc g node1 :from node1 :to)
           g     (add-arc g node1 :from node2 :to)]
-      #_(is (vector? (arcs (remove-node g node1))))
-      #_(is (vector? (arcs (remove-node g node2)))))))
+      (is (vector? (arcs (remove-node g node1))))
+      (is (vector? (arcs (remove-node g node2)))))))
 
 (deftest checking-arcs
   (let [g           (empty-graph)
