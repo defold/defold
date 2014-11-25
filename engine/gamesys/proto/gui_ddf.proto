@@ -26,6 +26,14 @@ message NodeDesc
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
+    enum ClippingMode
+    {
+        CLIPPING_MODE_NONE    = 0 [(displayName) = "None"];
+        CLIPPING_MODE_SCISSOR = 1 [(displayName) = "Scissor"];
+        CLIPPING_MODE_STENCIL = 2 [(displayName) = "Stencil"];
+    }
+
+    // NOTE: Enum values must correspond to the enum values in dmGui
     enum XAnchor
     {
         XANCHOR_NONE  = 0 [(displayName) = "None"];
@@ -95,6 +103,10 @@ message NodeDesc
     optional float     innerRadius   = 24 [default = 0];
     optional int32     perimeterVertices = 25 [default = 32];
     optional float     pieFillAngle  = 26 [default = 360];
+
+    optional ClippingMode clipping_mode  = 27 [default = CLIPPING_MODE_NONE];
+    optional bool       clipping_visible = 28 [default = true];
+    optional bool       clipping_inverted = 29 [default = false];
 }
 
 message SceneDesc

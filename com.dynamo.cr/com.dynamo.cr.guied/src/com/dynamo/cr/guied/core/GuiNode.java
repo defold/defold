@@ -9,6 +9,7 @@ import javax.vecmath.Vector3d;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.RGB;
 
+import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
@@ -17,6 +18,7 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.BlendMode;
+import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
 import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
@@ -63,6 +65,8 @@ public class GuiNode extends Node {
 
     @Property(editorType = EditorType.DROP_DOWN)
     private String layer = "";
+
+    private transient Clipping.ClippingState clippingState = new Clipping.ClippingState();
 
     private transient int renderKey = 0;
 
@@ -162,6 +166,27 @@ public class GuiNode extends Node {
         this.inheritAlpha = inheritAlpha;
     }
 
+    public void setClippingMode(ClippingMode mode) {
+    }
+
+    public ClippingMode getClippingMode() {
+        return ClippingMode.CLIPPING_MODE_NONE;
+    }
+
+    public void setClippingVisible(boolean show) {
+    }
+
+    public boolean getClippingVisible() {
+        return true;
+    }
+
+    public void setClippingInverted(boolean inverted) {
+    }
+
+    public boolean getClippingInverted() {
+        return false;
+    }
+
     public Object[] getLayerOptions() {
         List<Node> layerNodes = getScene().getLayersNode().getChildren();
         List<String> layers = new ArrayList<String>(layerNodes.size());
@@ -227,4 +252,14 @@ public class GuiNode extends Node {
         }
         return rgba;
     }
+
+    public Clipping.ClippingState getClippingState() {
+        if(clippingState == null) {
+            clippingState = new Clipping.ClippingState();
+        }
+        return clippingState;
+    }
+
+
 }
+

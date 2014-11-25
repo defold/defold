@@ -54,6 +54,7 @@
 
 // Render states
 #define DMGRAPHICS_STATE_DEPTH_TEST                         (GL_DEPTH_TEST)
+#define DMGRAPHICS_STATE_SCISSOR_TEST                       (GL_SCISSOR_TEST)
 #define DMGRAPHICS_STATE_STENCIL_TEST                       (GL_STENCIL_TEST)
 #define DMGRAPHICS_STATE_ALPHA_TEST                         (GL_ALPHA_TEST)
 #define DMGRAPHICS_STATE_BLEND                              (GL_BLEND)
@@ -162,15 +163,15 @@
 #define DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_DST_ALPHA         (GL_ONE_MINUS_DST_ALPHA)
 #define DMGRAPHICS_BLEND_FACTOR_SRC_ALPHA_SATURATE          (GL_SRC_ALPHA_SATURATE)
 
-// Stencil func
-#define DMGRAPHICS_STENCIL_FUNC_NEVER                       (GL_NEVER)
-#define DMGRAPHICS_STENCIL_FUNC_LESS                        (GL_LESS)
-#define DMGRAPHICS_STENCIL_FUNC_LEQUAL                      (GL_LEQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_GREATER                     (GL_GREATER)
-#define DMGRAPHICS_STENCIL_FUNC_GEQUAL                      (GL_GEQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_EQUAL                       (GL_EQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_NOTEQUAL                    (GL_NOTEQUAL)
-#define DMGRAPHICS_STENCIL_FUNC_ALWAYS                      (GL_ALWAYS)
+// Compare functions
+#define DMGRAPHICS_COMPARE_FUNC_NEVER                       (GL_NEVER)
+#define DMGRAPHICS_COMPARE_FUNC_LESS                        (GL_LESS)
+#define DMGRAPHICS_COMPARE_FUNC_LEQUAL                      (GL_LEQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_GREATER                     (GL_GREATER)
+#define DMGRAPHICS_COMPARE_FUNC_GEQUAL                      (GL_GEQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_EQUAL                       (GL_EQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_NOTEQUAL                    (GL_NOTEQUAL)
+#define DMGRAPHICS_COMPARE_FUNC_ALWAYS                      (GL_ALWAYS)
 
 // Stencil operation
 #define DMGRAPHICS_STENCIL_OP_KEEP                          (GL_KEEP)

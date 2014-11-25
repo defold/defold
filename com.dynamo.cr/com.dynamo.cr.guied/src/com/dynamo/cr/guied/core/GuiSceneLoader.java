@@ -74,6 +74,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setAdjustMode(desc.getAdjustMode());
         node.setLayer(desc.getLayer());
         node.setInheritAlpha(desc.getInheritAlpha());
+        node.setClippingMode(desc.getClippingMode());
+        node.setClippingVisible(desc.getClippingVisible());
+        node.setClippingInverted(desc.getClippingInverted());
         return node;
     }
 
@@ -191,6 +194,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setAdjustMode(node.getAdjustMode());
         builder.setLayer(node.getLayer());
         builder.setInheritAlpha(node.isInheritAlpha());
+        builder.setClippingMode(node.getClippingMode());
+        builder.setClippingVisible(node.getClippingVisible());
+        builder.setClippingInverted(node.getClippingInverted());
         return builder;
     }
 

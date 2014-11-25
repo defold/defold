@@ -17,7 +17,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc;
 import com.dynamo.gui.proto.Gui.NodeDesc.PieBounds;
 
 @SuppressWarnings("serial")
-public class PieNode extends GuiNode {
+public class PieNode extends ClippingNode {
 
     @Property(editorType = EditorType.DROP_DOWN)
     private String texture = "";
