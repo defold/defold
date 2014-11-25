@@ -465,7 +465,7 @@ namespace dmGameSystem
         for (uint32_t i = start_index; i < n; ++i)
         {
             const SpriteComponent* c = &components[sort_buffer[i]];
-            if (!c->m_Enabled || c->m_MixedHash != hash || c->m_SortKey.m_Z != z)
+            if (!c->m_Enabled || c->m_MixedHash != hash)
             {
                 end_index = i;
                 break;
