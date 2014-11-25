@@ -25,8 +25,7 @@ public class BundleHelper {
     private String title;
     private File buildDir;
     private File appDir;
-    private Map<String, Map<String, String>> propertiesMap;
-    private BobProjectProperties meta;
+    private Map<String, Map<String, Object>> propertiesMap;
 
     public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
         BobProjectProperties projectProperties = project.getProjectProperties();
@@ -37,7 +36,22 @@ public class BundleHelper {
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
-        meta = new BobProjectProperties();
+        this.propertiesMap = createPropertiesMap(project.getProjectProperties());
+    }
+
+    static Object convert(String value, String type) {
+        if (type != null && type.equals("bool")) {
+            if (value != null) {
+                return value.equals("1");
+            } else {
+                return false;
+            }
+        }
+        return value;
+    }
+
+    public static Map<String, Map<String, Object>> createPropertiesMap(BobProjectProperties projectProperties) throws IOException {
+        BobProjectProperties meta = new BobProjectProperties();
         InputStream is = Bob.class.getResourceAsStream("meta.properties");
         try {
             meta.load(is);
@@ -47,34 +61,32 @@ public class BundleHelper {
             IOUtils.closeQuietly(is);
         }
 
-        this.propertiesMap = createPropertiesMap(project.getProjectProperties());
-    }
-
-    Map<String, Map<String, String>> createPropertiesMap(BobProjectProperties projectProperties) {
-        Map<String, Map<String, String>> map = new HashMap<>();
+        Map<String, Map<String, Object>> map = new HashMap<>();
 
         for (String c : meta.getCategoryNames()) {
-            map.put(c, new HashMap<String, String>());
+            map.put(c, new HashMap<String, Object>());
 
             for (String k : meta.getKeys(c)) {
                 if (k.endsWith(".default")) {
                     String k2 = k.split("\\.")[0];
                     String v = meta.getStringValue(c, k);
-                    map.get(c).put(k2, v);
+                    Object v2 = convert(v, meta.getStringValue(c, k2 + ".type"));
+                    map.get(c).put(k2, v2);
                 }
             }
         }
 
         for (String c : projectProperties.getCategoryNames()) {
             if (!map.containsKey(c)) {
-                map.put(c, new HashMap<String, String>());
+                map.put(c, new HashMap<String, Object>());
             }
 
             for (String k : projectProperties.getKeys(c)) {
                 String def = meta.getStringValue(c, k + ".default");
                 map.get(c).put(k, def);
                 String v = projectProperties.getStringValue(c, k);
-                map.get(c).put(k, v);
+                Object v2 = convert(v, meta.getStringValue(c, k + ".type"));
+                map.get(c).put(k, v2);
             }
         }
 
