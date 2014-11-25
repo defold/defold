@@ -839,7 +839,7 @@ namespace dmParticle
 
     static float unit_tex_coords[] =
     {
-            0.0f, 0.0f, 1.0f, 1.0f
+            0.0f,1.0f, 0.0f,0.0f, 1.0f,0.0f, 1.0f,1.0f
     };
 
     static uint32_t UpdateRenderData(HContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt)
