@@ -47,7 +47,7 @@ public class OSXBundlerTest {
     }
 
     private void assertExe() throws IOException {
-        assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/MacOS/dmengine_release")).isFile());
+        assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/MacOS/Unnamed")).isFile());
     }
 
     void build() throws IOException, CompileExceptionError {

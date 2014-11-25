@@ -3,8 +3,8 @@ package com.dynamo.bob;
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -238,19 +238,21 @@ public class Project {
      * @throws CompileExceptionError
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
-        FileInputStream is = null;
         try {
             projectProperties = new BobProjectProperties();
-            is = new FileInputStream(new File(getRootDirectory() + "/" + "game.project"));
-            projectProperties.load(is);
+            IResource gameProject = this.fileSystem.get("/game.project");
+            if (gameProject.exists()) {
+                ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
+                projectProperties.load(is);
+            } else {
+                logWarning("No game.project found");
+            }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
-        } finally {
-            IOUtils.closeQuietly(is);
         }
     }
 
@@ -420,7 +422,7 @@ public class Project {
                 result = runTasks(m);
                 m.done();
                 if (anyFailing(result)) {
-                    return result;
+                    break;
                 }
             } else if (command.equals("clean")) {
                 IProgress m = monitor.subProgress(1);
