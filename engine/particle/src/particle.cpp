@@ -846,10 +846,10 @@ namespace dmParticle
     {
         DM_PROFILE(Particle, "UpdateRenderData");
         static int tex_coord_order[] = {
-            0,1,2,3,4,5,
-            4,3,1,1,0,4,	//h
-            1,0,4,4,3,1,	//v
-            2,4,0,0,1,2		//hv
+            0,1,2,2,3,0,
+            3,2,1,1,0,3,	//h
+            1,0,3,3,2,1,	//v
+            2,3,0,0,1,2		//hv
         };
 
         emitter->m_VertexIndex = vertex_index;
@@ -950,7 +950,7 @@ namespace dmParticle
                     tile = tile_count - tile - 1;
             }
             tile += start_tile;
-            float* tex_coord = &tex_coords[tile * 12];
+            float* tex_coord = &tex_coords[tile * 8];
             uint32_t flip_flag = 0;
             if (hFlip)
             {

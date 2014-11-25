@@ -281,7 +281,7 @@ public class TextureSetGenerator {
             atlasVertexBuffer = newBuffer(vertexSize * triangleVertexCount * quadCount);
         }
 
-        final int numTexCoordsPerQuad = 12;
+        final int numTexCoordsPerQuad = 8;
         ByteBuffer texCoordsBuffer = newBuffer(numTexCoordsPerQuad * 4 * quadCount);
 
         float xs = 1.0f / image.getWidth();
@@ -440,9 +440,9 @@ public class TextureSetGenerator {
         putVertex(vertexBuffer, texCoordsBuffer, -w2, h2, 0, x0 * xs, y0 * ys);
         putVertex(vertexBuffer, texCoordsBuffer, w2, h2, 0, x1 * xs, y0 * ys);
 
-        putVertex(vertexBuffer, texCoordsBuffer, w2, h2, 0, x1 * xs, y0 * ys);
+        putVertex(vertexBuffer, null, w2, h2, 0, x1 * xs, y0 * ys);
         putVertex(vertexBuffer, texCoordsBuffer, w2, -h2, 0, x1 * xs, y1 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, -w2, -h2, 0, x0 * xs, y1 * ys);
+        putVertex(vertexBuffer, null, -w2, -h2, 0, x0 * xs, y1 * ys);
     }
 
     private static void putRotatedQuad(ByteBuffer vertexBuffer, ByteBuffer texCoordsBuffer, Rect r,float xs, float ys) {
@@ -458,9 +458,9 @@ public class TextureSetGenerator {
         putVertex(vertexBuffer, texCoordsBuffer, -h2, w2, 0, x1 * xs, y0 * ys);
         putVertex(vertexBuffer, texCoordsBuffer, h2, w2, 0, x1 * xs, y1 * ys);
 
-        putVertex(vertexBuffer, texCoordsBuffer, h2, w2, 0, x1 * xs, y1 * ys);
+        putVertex(vertexBuffer, null, h2, w2, 0, x1 * xs, y1 * ys);
         putVertex(vertexBuffer, texCoordsBuffer, h2, -w2, 0, x0 * xs, y1 * ys);
-        putVertex(vertexBuffer, texCoordsBuffer, -h2, -w2, 0, x0 * xs, y0 * ys);
+        putVertex(vertexBuffer, null, -h2, -w2, 0, x0 * xs, y0 * ys);
     }
 
 }

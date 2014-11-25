@@ -290,10 +290,10 @@ namespace dmGameSystem
             float v;
         };
         static int tex_coord_order[] = {
-            0,1,2,3,4,5,
-            4,3,1,1,0,4,	//h
-            1,0,4,4,3,1,	//v
-            2,4,0,0,1,2		//hv
+            0,1,2,2,3,0,
+            3,2,1,1,0,3,	//h
+            1,0,3,3,2,1,	//v
+            2,3,0,0,1,2		//hv
         };
 
         const uint32_t VERTCIES_PER_TILE = 6;
@@ -332,7 +332,7 @@ namespace dmGameSystem
                         if (tile != 0xffff)
                         {
                             CalculateCellBounds(x, y, texture_set_ddf->m_TileWidth, texture_set_ddf->m_TileHeight, p);
-                            const float* puv = &tex_coords[tile * 12];
+                            const float* puv = &tex_coords[tile * 8];
                             uint32_t flip_flag = 0;
 
                             TileGridComponent::Flags flags = component->m_CellFlags[cell];

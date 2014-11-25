@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.media.opengl.GL2;
+import javax.vecmath.Vector2f;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
@@ -204,7 +205,7 @@ public class TileGridNode extends ComponentTypeNode {
         final int componentCount = 5;
         this.vertexData = FloatBuffer.allocate(vertexCount * componentCount);
 
-        FloatBuffer texCoordBuffer = tileSetNode.getRuntimeTextureSet().getTexCoords().asReadOnlyBuffer();
+        RuntimeTextureSet rts = tileSetNode.getRuntimeTextureSet();
 
         AABB aabb = new AABB();
         FloatBuffer v = this.vertexData;
@@ -221,16 +222,14 @@ public class TileGridNode extends ComponentTypeNode {
                     float y0 = y * tileHeight;
                     float y1 = y0 + tileHeight;
                     int tile = entry.getValue();
-                    int texCoordIndex = tile * 4;
-                    float u0 = texCoordBuffer.get(texCoordIndex);
-                    float v0 = texCoordBuffer.get(texCoordIndex + 1);
-                    float u1 = texCoordBuffer.get(texCoordIndex + 2);
-                    float v1 = texCoordBuffer.get(texCoordIndex + 3);
 
-                    v.put(u0); v.put(v1); v.put(x0); v.put(y0); v.put(z);
-                    v.put(u0); v.put(v0); v.put(x0); v.put(y1); v.put(z);
-                    v.put(u1); v.put(v0); v.put(x1); v.put(y1); v.put(z);
-                    v.put(u1); v.put(v1); v.put(x1); v.put(y0); v.put(z);
+                    Vector2f minUV = rts.getMin(tile);
+                    Vector2f maxUV = rts.getMax(tile);
+
+                    v.put(minUV.x); v.put(maxUV.y); v.put(x0); v.put(y0); v.put(z);
+                    v.put(minUV.x); v.put(minUV.y); v.put(x0); v.put(y1); v.put(z);
+                    v.put(maxUV.x); v.put(minUV.y); v.put(x1); v.put(y1); v.put(z);
+                    v.put(maxUV.x); v.put(maxUV.y); v.put(x1); v.put(y0); v.put(z);
 
                     aabb.union(x0, y0, z);
                     aabb.union(x1, y1, z);

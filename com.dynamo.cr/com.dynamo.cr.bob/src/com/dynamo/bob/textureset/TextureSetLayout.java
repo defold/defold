@@ -108,6 +108,8 @@ public class TextureSetLayout {
         List<Layout> layouts = strategy.createLayout(rectangles);
 
         while (1 < layouts.size()) {
+            settings.minPageWidth = settings.maxPageWidth;
+            settings.maxPageHeight = settings.maxPageHeight;
             settings.maxPageHeight *= 2;
             settings.maxPageWidth *= 2;
             layouts = strategy.createLayout(rectangles);

@@ -221,4 +221,13 @@ public class TextureSetLayoutTest {
             }
         }
     }
+
+    @Test
+    public void testLargeLayout() {
+        List<Rect> rectangles = Arrays.asList(rect(0, 1000, 800), rect(1, 800, 1000), rect(2, 1000, 100), rect(3, 800, 100));
+        Layout layout = TextureSetLayout.layout(0, rectangles);
+
+        assertEquals(layout.getWidth(), 2048);
+        assertEquals(layout.getHeight(), 1024);
+    }
 }

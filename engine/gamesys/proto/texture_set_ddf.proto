@@ -66,7 +66,11 @@ message TextureSet
     repeated float convex_hull_points       = 15;
     repeated string collision_groups        = 16;
 
-    // min/max uv, 4 floats. Legacy and the vertex-buffer should be used instead.
+    // A series of four pairs of UV coords, representing quad texture coordinates and
+    // allowing for rotation on texture atlases.
+    // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
+    // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
+    // (See TextureSetGenerator.java)
     required bytes tex_coords               = 17;
     required uint32 tile_count              = 18;
 }

@@ -362,10 +362,10 @@ namespace dmGameSystem
     {
         DM_PROFILE(Sprite, "CreateVertexData");
         static int tex_coord_order[] = {
-            0,1,2,3,4,5,
-            4,3,1,1,0,4,	//h
-            1,0,4,4,3,1,	//v
-            2,4,0,0,1,2		//hv
+            0,1,2,2,3,0,
+            3,2,1,1,0,3,	//h
+            1,0,3,3,2,1,	//v
+            2,3,0,0,1,2		//hv
         };
 
         const dmArray<SpriteComponent>& components = sprite_world->m_Components;
@@ -389,7 +389,7 @@ namespace dmGameSystem
 
             SpriteVertex *v = (SpriteVertex*)((vertex_buffer)) + i * 6;
 
-            const float* tc = &tex_coords[GetCurrentTile(component, animation_ddf) * 12];
+            const float* tc = &tex_coords[GetCurrentTile(component, animation_ddf) * 8];
             uint32_t flip_flag = 0;
 
             // ddf values are guaranteed to be 0 or 1 when saved by the editor

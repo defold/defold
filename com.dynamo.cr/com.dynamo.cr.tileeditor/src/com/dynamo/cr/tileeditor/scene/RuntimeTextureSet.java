@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.List;
 
 import javax.media.opengl.GL;
+import javax.vecmath.Vector2f;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.cr.sceneed.core.AABB;
@@ -27,7 +28,7 @@ public class RuntimeTextureSet {
     private VertexBufferObject vertexBuffer = new VertexBufferObject();
     private VertexBufferObject atlasVertexBuffer = new VertexBufferObject();
     private VertexBufferObject outlineVertexBuffer = new VertexBufferObject();
-    private FloatBuffer texCoordsBuffer = FloatBuffer.allocate(0); //ByteBuffer.allocateDirect(0);
+    private ByteBuffer texCoordsBuffer = ByteBuffer.allocateDirect(0);
     private List<UVTransform> uvTransforms;
 
     public RuntimeTextureSet() {
@@ -60,30 +61,9 @@ public class RuntimeTextureSet {
         updateBuffer(atlasVertexBuffer, textureSet.getAtlasVertices());
         updateBuffer(outlineVertexBuffer, textureSet.getOutlineVertices());
 
-        // Compute texture bounds from stream.
-        final int floatsPerFrame = 12;
-        FloatBuffer src = textureSet.getTexCoords().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        int numFrames = src.capacity() / floatsPerFrame;
-        texCoordsBuffer = FloatBuffer.allocate(numFrames * 4);
-        for (int i=0; i<numFrames; ++i) {
-            float minU = Float.MAX_VALUE;
-            float minV = Float.MAX_VALUE;
-            float maxU = -Float.MAX_VALUE;
-            float maxV = -Float.MAX_VALUE;
-            int offset = floatsPerFrame * i;
-            for (int j=0;j<floatsPerFrame;j+=2) {
-                minU = Math.min(minU, src.get(offset + j));
-                minV = Math.min(minV, src.get(offset + j + 1));
-                maxU = Math.max(maxU,  src.get(offset + j));
-                maxV = Math.max(maxV, src.get(offset + j + 1));
-            }
-            texCoordsBuffer.put(minU);
-            texCoordsBuffer.put(minV);
-            texCoordsBuffer.put(maxU);
-            texCoordsBuffer.put(maxV);
-        }
+        texCoordsBuffer = ByteBuffer.allocateDirect(textureSet.getTexCoords().size());
+        texCoordsBuffer.put(textureSet.getTexCoords().asReadOnlyByteBuffer());
         texCoordsBuffer.flip();
-
 
         this.uvTransforms = new ArrayList<UVTransform>(uvTransforms);
     }
@@ -119,11 +99,11 @@ public class RuntimeTextureSet {
 
     /**
      * Get texture coordinates for all images/animations.
-     * @note The texture form is in (min-x, min-y) (max-x, max-y)-format,
-     * i.e. four floats.
-     * @return {@link FloatBuffer} with texture coordinates
+     * @note The texture form describes quad UVs, allowing for rotations on the atlas.
+     * i.e. four pairs of floats.
+     * @return {@link ByteBuffer} with texture coordinates
      */
-    public FloatBuffer getTexCoords() {
+    public ByteBuffer getTexCoords() {
         return texCoordsBuffer;
     }
 
@@ -211,53 +191,54 @@ public class RuntimeTextureSet {
     }
 
     /**
-     * Get atlas-image center x in uv-space
-     * @param anim animation to get center x for
-     * @return center x
-     */
-    public float getCenterX(TextureSetAnimation anim) {
-        return getCenterX(anim.getStart());
-    }
-
-    /**
-     * Get tile-image center x in uv-space
-     *
+     * Get tile-image center x,y in uv-space
      * @param tile
-     *            tile to get center x for
-     * @return center x
+     *             tile to get center x,y for
+     * @return center x,y
      */
-    public float getCenterX(int tile) {
-        // NOTE: The texcoords-buffer is in little endian
-        FloatBuffer tc = getTexCoords().asReadOnlyBuffer();//.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        int start = tile * 4;
-        float c = (tc.get(start) + tc.get(start + 2)) * 0.5f;
-        return c;
+    public Vector2f getCenter(int tile) {
+        Vector2f center = new Vector2f();
+        center.add(getMin(tile), getMax(tile));
+        center.scale(0.5f);
+        return center;
     }
 
     /**
-     * Get atlas-image center y in uv-space
-     *
-     * @param anim
-     *            animation to get center y for
-     * @return center y
-     */
-    public float getCenterY(TextureSetAnimation anim) {
-        return getCenterY(anim.getStart());
-    }
-
-    /**
-     * Get tile-image center y in uv-space
-     *
+     * Get tile-image minimum x,y in uv-space
      * @param tile
-     *            tile to get center y for
-     * @return center y
+     *             tile to get minimum x,y for
+     * @return min x,y
      */
-    public float getCenterY(int tile) {
-        // NOTE: The texcoords-buffer is in little endian
-        FloatBuffer tc = getTexCoords().asReadOnlyBuffer(); //.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        int start = tile * 4;
-        float c = (tc.get(start + 1) + tc.get(start + 3)) * 0.5f;
-        return c;
+    public Vector2f getMin(int tile) {
+        final int floatsPerFrame = 8;
+        FloatBuffer src = this.texCoordsBuffer.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        float minU = Float.MAX_VALUE;
+        float minV = Float.MAX_VALUE;
+        int offset = floatsPerFrame * tile;
+        for (int j=0;j<floatsPerFrame;j+=2) {
+            minU = Math.min(minU, src.get(offset + j));
+            minV = Math.min(minV, src.get(offset + j + 1));
+        }
+        return new Vector2f(minU, minV);
+    }
+
+    /**
+     * Get tile-image maximum x,y in uv-space
+     * @param tile
+     *             tile to get maximum x,y for
+     * @return max x,y
+     */
+    public Vector2f getMax(int tile) {
+        final int floatsPerFrame = 8;
+        FloatBuffer src = this.texCoordsBuffer.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        float maxU = -Float.MAX_VALUE;
+        float maxV = -Float.MAX_VALUE;
+        int offset = floatsPerFrame * tile;
+        for (int j=0;j<floatsPerFrame;j+=2) {
+            maxU = Math.max(maxU,  src.get(offset + j));
+            maxV = Math.max(maxV, src.get(offset + j + 1));
+        }
+        return new Vector2f(maxU, maxV);
     }
 
     /**
