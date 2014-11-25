@@ -45,7 +45,8 @@ public class AndroidBundler implements IBundler {
             throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getExe(Platform.Armv7Android, "dmengine_release");
+        String exeName = "dmengine_release";
+        String exe = Bob.getExe(Platform.Armv7Android, exeName);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         String certificate = project.option("certificate", "");
@@ -89,6 +90,7 @@ public class AndroidBundler implements IBundler {
         } else {
             properties.put("has-icons?", false);
         }
+        properties.put("exe-name", exeName);
 
         helper.format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
 
