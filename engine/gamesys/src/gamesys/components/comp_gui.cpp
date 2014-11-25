@@ -53,17 +53,6 @@ namespace dmGameSystem
 
         gui_world->m_Components.SetCapacity(64);
 
-        // TODO: Everything below here should be move to the "universe" when available
-        // and hence shared among all the worlds
-        gui_world->m_VertexProgram = dmGraphics::NewVertexProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_VPC, GUI_VPC_SIZE);
-        gui_world->m_FragmentProgram = dmGraphics::NewFragmentProgram(dmRender::GetGraphicsContext(gui_context->m_RenderContext), GUI_FPC, GUI_FPC_SIZE);
-
-        gui_world->m_Material = dmRender::NewMaterial(gui_context->m_RenderContext, gui_world->m_VertexProgram, gui_world->m_FragmentProgram);
-        SetMaterialProgramConstantType(gui_world->m_Material, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
-        SetMaterialProgramConstantType(gui_world->m_Material, dmHashString64("world"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD);
-
-        dmRender::AddMaterialTag(gui_world->m_Material, dmHashString32("gui"));
-
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
@@ -126,9 +115,6 @@ namespace dmGameSystem
                 delete gui_world->m_Components[i];
             }
         }
-        dmRender::DeleteMaterial(gui_context->m_RenderContext, gui_world->m_Material);
-        dmGraphics::DeleteVertexProgram(gui_world->m_VertexProgram);
-        dmGraphics::DeleteFragmentProgram(gui_world->m_FragmentProgram);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
@@ -143,6 +129,8 @@ namespace dmGameSystem
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
 
         bool result = true;
+
+        dmGui::SetMaterial(scene, scene_resource->m_Material);
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
         {
@@ -484,7 +472,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = vertex_count * node_count;
-        ro.m_Material = gui_world->m_Material;
+        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
         ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture
@@ -621,7 +609,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = 0;
-        ro.m_Material = gui_world->m_Material;
+        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
         ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
 
         // Set default texture

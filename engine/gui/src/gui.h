@@ -421,6 +421,19 @@ namespace dmGui
     void ClearFonts(HScene scene);
 
     /**
+     * Set scene material
+     * @param scene
+     * @param material
+     */
+    void SetMaterial(HScene scene, void* material);
+
+    /**
+     * Get scene material
+     * @param scene
+     */
+    void* GetMaterial(HScene scene);
+
+    /**
      * Adds a layer with the specified name to the scene.
      * @param scene Scene to add the layer to
      * @param layer_name Name of the layer that will be used in the gui scripts

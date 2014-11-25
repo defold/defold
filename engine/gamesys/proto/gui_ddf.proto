@@ -121,4 +121,6 @@ message SceneDesc
 
     repeated NodeDesc    nodes                   = 6;
     repeated LayerDesc   layers                  = 7;
+
+    optional string      material                = 8 [(resource)=true, default="/builtins/materials/gui.material"];
 }

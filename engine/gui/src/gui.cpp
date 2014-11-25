@@ -204,6 +204,7 @@ namespace dmGui
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
         scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
+        scene->m_Material = 0;
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_DefaultFont = 0;
@@ -423,6 +424,16 @@ namespace dmGui
         {
             scene->m_Nodes[i].m_Node.m_Font = 0;
         }
+    }
+
+    void SetMaterial(HScene scene, void* material)
+    {
+        scene->m_Material = material;
+    }
+
+    void* GetMaterial(HScene scene)
+    {
+        return scene->m_Material;
     }
 
     Result AddLayer(HScene scene, const char* layer_name)

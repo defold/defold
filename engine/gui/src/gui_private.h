@@ -193,6 +193,7 @@ namespace dmGui
         dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
+        void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_DeletedDynamicTextures;
         void*                   m_DefaultFont;

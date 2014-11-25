@@ -85,6 +85,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         SceneDesc sceneDesc = builder.build();
         GuiSceneNode node = new GuiSceneNode();
         node.setScript(sceneDesc.getScript());
+        node.setMaterial(sceneDesc.getMaterial());
         if (sceneDesc.hasBackgroundColor()) {
             node.setBackgroundColor(LoaderUtil.toRGB(sceneDesc.getBackgroundColor()));
         }
@@ -210,6 +211,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
                                                                                                     CoreException {
         Builder b = SceneDesc.newBuilder();
         b.setScript(node.getScript());
+        b.setMaterial(node.getMaterial());
         b.setBackgroundColor(LoaderUtil.toVector4(node.getBackgroundColor(), 1.0));
         for (Node n : node.getNodesNode().getChildren()) {
             collectNodes(b, (GuiNode) n, null);
