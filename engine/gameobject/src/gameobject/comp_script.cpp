@@ -181,6 +181,13 @@ namespace dmGameObject
         }
     }
 
+    CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params)
+    {
+        HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
+        script_instance->m_Update = 1;
+        return CREATE_RESULT_OK;
+    }
+
     UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params)
     {
         lua_State* L = GetLuaState(params.m_Context);
@@ -194,10 +201,12 @@ namespace dmGameObject
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
-            ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
-            if (ret == SCRIPT_RESULT_FAILED)
-            {
-                result = UPDATE_RESULT_UNKNOWN_ERROR;
+            if (script_instance->m_Update) {
+                ScriptResult ret = RunScript(L, script_instance->m_Script, SCRIPT_FUNCTION_UPDATE, script_instance, run_params);
+                if (ret == SCRIPT_RESULT_FAILED)
+                {
+                    result = UPDATE_RESULT_UNKNOWN_ERROR;
+                }
             }
         }
         assert(top == lua_gettop(L));

@@ -155,7 +155,7 @@ namespace dmGameObject
         uint16_t        m_NextToDelete : 16;
 
         // Index to next instance to add-to-update or INVALID_INSTANCE_INDEX
-        uint16_t        m_NextToAdd : 16;
+        uint16_t        m_NextToAdd;
 
         // Next sibling index. Index to Collection::m_Instances
         uint16_t        m_SiblingIndex : 15;

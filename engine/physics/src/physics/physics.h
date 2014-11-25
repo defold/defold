@@ -507,6 +507,8 @@ namespace dmPhysics
         uint16_t m_Mask;
         /// Locked rotation keeps the angular velocity at 0
         uint16_t m_LockedRotation : 1;
+        /// Whether the object is enabled from the start or not, default is 1
+        uint16_t m_Enabled : 1;
     };
 
     /**

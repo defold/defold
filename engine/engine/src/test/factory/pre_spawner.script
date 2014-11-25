@@ -1,0 +1,12 @@
+function init(self)
+    print("test1", msg.url())
+    self.factory_id = factory.create("#factory")
+    print("test2", msg.url())
+    msg.post(self.factory_id, "pre_hello")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("done") then
+        msg.post("main:/main#script", "done")
+    end
+end

@@ -334,6 +334,7 @@ namespace dmGameSystem
         }
         uint32_t index = world->m_ComponentIndices.Pop();
         SpineModelComponent* component = &world->m_Components[index];
+        memset(component, 0, sizeof(SpineModelComponent));
         component->m_Instance = params.m_Instance;
         component->m_Transform = dmTransform::Transform(Vector3(params.m_Position), params.m_Rotation, 1.0f);
         component->m_Resource = (SpineModelResource*)params.m_Resource;
@@ -410,7 +411,7 @@ namespace dmGameSystem
         {
             SpineModelComponent* c = &components[i];
             uint32_t index = c - first;
-            if (c->m_Resource && c->m_Enabled)
+            if (c->m_Resource && c->m_Enabled && c->m_AddedToUpdate)
             {
                 float z = (c->m_World.getElem(3, 2) - min_z) * range * 65535;
                 z = dmMath::Clamp(z, 0.0f, 65535.0f);
@@ -560,7 +561,7 @@ namespace dmGameSystem
         for (uint32_t i = start_index; i < n; ++i)
         {
             const SpineModelComponent* c = &components[sort_buffer[i]];
-            if (!c->m_Enabled || c->m_MixedHash != hash || c->m_SortKey.m_Z != z)
+            if (!c->m_Enabled || c->m_MixedHash != hash || c->m_SortKey.m_Z != z || !c->m_AddedToUpdate)
             {
                 end_index = i;
                 break;
@@ -646,7 +647,7 @@ namespace dmGameSystem
             SpineModelComponent* c = &components[i];
 
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
-            if (!c->m_Enabled)
+            if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
             if (c->m_MeshEntry != 0x0)
@@ -984,7 +985,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             SpineModelComponent* component = &components[i];
-            if (!component->m_Enabled || component->m_Pose.Empty())
+            if (!component->m_Enabled || component->m_Pose.Empty() || !component->m_AddedToUpdate)
                 continue;
 
             dmGameSystemDDF::Skeleton* skeleton = &component->m_Resource->m_Scene->m_SpineScene->m_Skeleton;
@@ -1081,6 +1082,12 @@ namespace dmGameSystem
         }
     }
 
+    dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        SpineModelComponent* component = (SpineModelComponent*)*params.m_UserData;
+        component->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         /*
@@ -1123,7 +1130,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpineModelComponent& component = components[i];
-            if (!component.m_Enabled)
+            if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
             uint32_t const_count = component.m_RenderConstants.Size();
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
@@ -1168,9 +1175,11 @@ namespace dmGameSystem
 
         uint32_t start_index = 0;
         uint32_t n = components.Size();
-        while (start_index < n && components[sort_buffer[start_index]].m_Enabled)
+        SpineModelComponent* component = &components[sort_buffer[start_index]];
+        while (start_index < n && component->m_Enabled && component->m_AddedToUpdate)
         {
             start_index = RenderBatch(world, render_context, vertex_buffer, start_index);
+            component = &components[sort_buffer[start_index]];
         }
 
         void* vertex_buffer_data = 0x0;

@@ -449,6 +449,8 @@ TEST_F(ComponentTest, TestComponentType)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_comp_type.goc");
     dmGameObject::SetIdentifier(m_Collection, go, "test_instance");
 
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_FALSE(ret);
 

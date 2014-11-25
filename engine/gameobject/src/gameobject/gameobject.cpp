@@ -325,6 +325,11 @@ namespace dmGameObject
         if (FindComponentType(regist, type.m_ResourceType, 0x0) != 0)
             return RESULT_ALREADY_REGISTERED;
 
+        if (type.m_UpdateFunction != 0x0 && type.m_AddToUpdateFunction == 0x0) {
+            dmLogWarning("Registering an Update function for '%s' requires the registration of an AddToUpdate function.", type.m_Name);
+            return RESULT_INVALID_OPERATION;
+        }
+
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
         regist->m_ComponentTypeCount++;
@@ -621,6 +626,9 @@ namespace dmGameObject
     static void AddToUpdate(HCollection collection, HInstance instance) {
         // NOTE: Do not add to update twice.
         assert(instance->m_ToBeAdded == 0);
+        if (instance->m_ToBeDeleted) {
+            return;
+        }
         instance->m_ToBeAdded = 1;
         uint16_t index = instance->m_Index;
         uint16_t tail = collection->m_InstancesToAddTail;
@@ -637,35 +645,37 @@ namespace dmGameObject
     static bool DoAddToUpdate(HCollection collection, HInstance instance) {
         if (instance)
         {
-            assert(collection->m_Instances[instance->m_Index] == instance);
-
             instance->m_ToBeAdded = 0;
-            uint32_t next_component_instance_data = 0;
-            Prototype* prototype = instance->m_Prototype;
-            for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
-            {
-                Prototype::Component* component = &prototype->m_Components[i];
-                ComponentType* component_type = component->m_Type;
+            if (instance->m_ToBeDeleted == 0) {
+                assert(collection->m_Instances[instance->m_Index] == instance);
 
-                uintptr_t* component_instance_data = 0;
-                if (component_type->m_InstanceHasUserData)
+                uint32_t next_component_instance_data = 0;
+                Prototype* prototype = instance->m_Prototype;
+                for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
                 {
-                    component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
-                }
-                assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+                    Prototype::Component* component = &prototype->m_Components[i];
+                    ComponentType* component_type = component->m_Type;
 
-                if (component_type->m_AddToUpdateFunction)
-                {
-                    ComponentAddToUpdateParams params;
-                    params.m_Collection = collection;
-                    params.m_Instance = instance;
-                    params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
-                    params.m_Context = component_type->m_Context;
-                    params.m_UserData = component_instance_data;
-                    CreateResult result = component_type->m_AddToUpdateFunction(params);
-                    if (result != CREATE_RESULT_OK)
+                    uintptr_t* component_instance_data = 0;
+                    if (component_type->m_InstanceHasUserData)
                     {
-                        return false;
+                        component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
+                    }
+                    assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
+
+                    if (component_type->m_AddToUpdateFunction)
+                    {
+                        ComponentAddToUpdateParams params;
+                        params.m_Collection = collection;
+                        params.m_Instance = instance;
+                        params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
+                        params.m_Context = component_type->m_Context;
+                        params.m_UserData = component_instance_data;
+                        CreateResult result = component_type->m_AddToUpdateFunction(params);
+                        if (result != CREATE_RESULT_OK)
+                        {
+                            return false;
+                        }
                     }
                 }
             }
@@ -701,6 +711,11 @@ namespace dmGameObject
             dmLogError("No prototype to spawn from.");
             return 0x0;
         }
+        if (collection->m_ToBeDeleted) {
+            dmLogWarning("Spawning is not allowed when the collection is being deleted.");
+            return 0x0;
+        }
+
         Prototype* proto = 0x0;
         dmResource::HFactory factory = collection->m_Factory;
         dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
@@ -783,16 +798,8 @@ namespace dmGameObject
                     success = false;
                 }
                 if (success) {
-                    if (collection->m_InUpdate) {
-                        // deferred add-to-update
-                        AddToUpdate(collection, instance);
-                    } else {
-                        // Immediate add-to-update
-                        if (!DoAddToUpdate(collection, instance)) {
-                            dmLogError("Could not add to update when spawning %s.", prototype_name);
-                            success = false;
-                        }
-                    }
+                    // deferred add-to-update
+                    AddToUpdate(collection, instance);
                 }
                 if (!success) {
                     Delete(collection, instance);
@@ -990,7 +997,11 @@ namespace dmGameObject
             Instance* instance = collection->m_Instances[i];
             if (!Init(collection, instance)) {
                 result = false;
-            } else if (!DoAddToUpdate(collection, instance)) {
+            }
+        }
+        for (uint32_t i = 0; i < count; ++i) {
+            Instance* instance = collection->m_Instances[i];
+            if (!DoAddToUpdate(collection, instance)) {
                 result = false;
             }
         }
@@ -1092,11 +1103,32 @@ namespace dmGameObject
             collection->m_InstancesToDeleteHead = index;
         }
         collection->m_InstancesToDeleteTail = index;
+
+    }
+
+    static void RemoveFromAddToUpdate(HCollection collection, HInstance instance) {
+        uint16_t index = instance->m_Index;
+        assert(collection->m_InstancesToAddTail == index || instance->m_NextToAdd != INVALID_INSTANCE_INDEX);
+        uint16_t* prev_index_ptr = &collection->m_InstancesToAddHead;
+        uint16_t prev_index = *prev_index_ptr;
+        while (prev_index != index) {
+            prev_index_ptr = &collection->m_Instances[prev_index]->m_NextToAdd;
+            if (collection->m_InstancesToAddTail == *prev_index_ptr) {
+                collection->m_InstancesToAddTail = prev_index;
+            }
+            prev_index = *prev_index_ptr;
+        }
+        *prev_index_ptr = instance->m_NextToAdd;
+        instance->m_NextToAdd = INVALID_INSTANCE_INDEX;
+        instance->m_ToBeAdded = false;
     }
 
     void DoDelete(HCollection collection, HInstance instance)
     {
         CancelAnimations(collection, instance);
+        if (instance->m_ToBeAdded) {
+            RemoveFromAddToUpdate(collection, instance);
+        }
         dmResource::HFactory factory = collection->m_Factory;
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;

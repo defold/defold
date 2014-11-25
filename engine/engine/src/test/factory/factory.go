@@ -12,4 +12,3 @@ embedded_components {
   type: "factory"
   data: "prototype: \"/factory/b.go\""
 }
-

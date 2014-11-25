@@ -1,7 +1,9 @@
 function init(self)
+    print("factory.create")
     self.id_a = factory.create("#factory_a", nil, nil, {test_value = 1})
     pprint(self.id_a)
     msg.post(self.id_a, "hello")
+    print("post done")
 end
 
 function update(self, dt)
@@ -13,9 +15,12 @@ function update(self, dt)
 end
 
 function on_message(self, message_id, message, sender)
-    if message_id == hash("hello") then
+    if message_id == hash("pre_hello") then
+        assert(sender.path == hash("/pre_spawner"), "unknown pre-spawner")
+        self.spawner = sender
+    elseif message_id == hash("hello") then
         self.a_hello = sender.path == self.id_a
     elseif message_id == hash("done") then
-        msg.post("main:/main#script", "done")
+        msg.post(self.spawner, "done")
     end
 end
