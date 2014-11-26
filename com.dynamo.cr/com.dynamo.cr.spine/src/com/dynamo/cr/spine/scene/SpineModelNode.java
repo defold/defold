@@ -320,9 +320,9 @@ public class SpineModelNode extends ComponentTypeNode {
                 SpineBoneNode node = nodes.get(b.name);
                 if (node == null) {
                     node = new SpineBoneNode(b.name);
-                    Matrix4d transform = new Matrix4d();
-                    b.localT.toMatrix4d(transform);
-                    node.setLocalTransform(transform);
+                    node.setTranslation(b.localT.position);
+                    node.setRotation(b.localT.rotation);
+                    node.setComponentScale(b.localT.scale);
                     nodes.put(b.name, node);
                 }
                 Node parent = this;
