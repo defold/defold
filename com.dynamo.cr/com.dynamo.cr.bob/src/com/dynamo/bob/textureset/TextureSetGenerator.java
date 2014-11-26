@@ -339,12 +339,22 @@ public class TextureSetGenerator {
             }
             int endIndex = quadIndex;
 
+            int animWidth;
+            int animHeight;
+
+            if (ref.rotated) {
+                animWidth = ref.height;
+                animHeight = ref.width;
+            } else {
+                animWidth = ref.width;
+                animHeight = ref.height;
+            }
+
             TextureSetAnimation anim = TextureSetAnimation.newBuilder().setId(animDesc.getId()).setStart(startIndex)
                     .setEnd(endIndex).setPlayback(animDesc.getPlayback()).setFps(animDesc.getFps())
                     .setFlipHorizontal(animDesc.isFlipHorizontally() ? 1 : 0)
                     .setFlipVertical(animDesc.isFlipVertically() ? 1 : 0)
-.setWidth(ref.width).setHeight(ref.height)
-                    .build();
+                    .setWidth(animWidth).setHeight(animHeight).build();
 
             textureSet.addAnimations(anim);
         }
