@@ -17,6 +17,8 @@ import java.awt.font.GlyphMetrics;
 import java.awt.font.GlyphVector;
 import java.awt.font.TextLayout;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.FlatteningPathIterator;
+import java.awt.geom.PathIterator;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ConvolveOp;
@@ -35,6 +37,7 @@ import java.util.Comparator;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
@@ -137,7 +140,7 @@ public class Fontc {
 
         image = new BufferedImage(this.imageWidth, this.imageHeight, Fontc.imageType);
         Graphics2D g = image.createGraphics();
-        g.setBackground(new Color(0.0f, 0.0f, 0.0f));
+        g.setBackground(this.fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? Color.WHITE : Color.BLACK);
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         setHighQuality(g);
 
@@ -180,8 +183,18 @@ public class Fontc {
         // Margin is set to 1 since the font map is an atlas, this removes sampling artifacts (neighbouring texels outside the sample-area being used)
         int margin = 1;
         int padding = 0;
+        float sdf_scale = 0;
+        float sdf_offset = 0;
         if (this.fontDesc.getAntialias() != 0)
             padding = Math.min(4, this.fontDesc.getShadowBlur()) + (int)Math.ceil(this.fontDesc.getOutlineWidth() * 0.5f);
+        if (this.fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+            padding++; // to give extra range for the outline.
+            // need sqrt(2) on either side of the range [0, outlineWidth + 1] to prevent clamped values being used
+            // for interpolation across texels in the output. The extra is for smoothstep room.
+            float sqrt2 = 1.4142f;
+            sdf_scale = 1.0f / (1 + 2.0f * sqrt2 + this.fontDesc.getOutlineWidth());
+            sdf_offset = sdf_scale * sqrt2; // where glyph ends
+        }
         Color faceColor = new Color(this.fontDesc.getAlpha(), 0.0f, 0.0f);
         Color outlineColor = new Color(0.0f, this.fontDesc.getOutlineAlpha(), 0.0f);
         ConvolveOp shadowConvolve = null;
@@ -222,9 +235,12 @@ public class Fontc {
                 g.translate(margin, 0);
 
                 if (glyph.width > 0.0f) {
-                    BufferedImage glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
+                    BufferedImage glyphImage;
+                    if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP)
+                        glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
+                    else
+                        glyphImage = makeDistanceField(glyph, padding, sdf_scale, sdf_offset, font);
                     g.drawImage(glyphImage, 0, 0, null);
-
                     glyph.x += g.getTransform().getTranslateX();
                     glyph.y += g.getTransform().getTranslateY();
 
@@ -248,8 +264,16 @@ public class Fontc {
             .setShadowX(this.fontDesc.getShadowX())
             .setShadowY(this.fontDesc.getShadowY())
             .setMaxAscent(maxAscent)
-            .setMaxDescent(maxDescent);
+            .setMaxDescent(maxDescent)
+            .setImageFormat(this.fontDesc.getOutputFormat());
 
+        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+            // sdf_scale has up until now been the value to scale with.
+            // Now recompute their inverses to be used for unpacking it.
+            builder.setSdfScale(1.0f / sdf_scale);
+            builder.setSdfOffset(-sdf_offset / sdf_scale);
+            builder.setSdfOutline(this.fontDesc.getOutlineWidth());
+        }
 
         i = 0;
         for (Glyph glyph : glyphs) {
@@ -282,6 +306,72 @@ public class Fontc {
         }
     }
 
+    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_scale, float sdf_offset, Font font) {
+        int width = glyph.width + padding * 2;
+        int height = glyph.ascent + glyph.descent + padding * 2;
+
+        Shape sh = glyph.vector.getGlyphOutline(0);
+        PathIterator pi = sh.getPathIterator(new AffineTransform(1,0,0,1,0,0));
+        pi = new FlatteningPathIterator(pi,  0.1);
+
+        double _x = 0, _y = 0;
+        DistanceFieldGenerator df = new DistanceFieldGenerator();
+        while (!pi.isDone()) {
+            double [] c = new double[100];
+            int res = pi.currentSegment(c);
+            switch (res) {
+              case PathIterator.SEG_MOVETO:
+                  _x = c[0];
+                  _y = c[1];
+                  break;
+              case PathIterator.SEG_LINETO:
+                  df.addLine(_x, _y, c[0], c[1]);
+                  _x = c[0];
+                  _y = c[1];
+                  break;
+              default:
+                  break;
+            }
+            pi.next();
+        }
+
+        glyph.x = -glyph.leftBearing + padding;
+        glyph.y =  glyph.ascent + padding;
+
+        // Glyph vector coordinates of the destination rect.
+        double u0 = -glyph.x;
+        double v0 = -glyph.y;
+        double u1 = u0 + width;
+        double v1 = v0 + height;
+
+        double[] res = new double[width*height];
+        df.render(res, u0, v0, u1, v1, width, height);
+
+        double kx = 1 / (double)width;
+        double ky = 1 / (double)height;
+
+        BufferedImage image = new BufferedImage(width, height, Fontc.imageType);
+        for (int v=0;v<height;v++) {
+            int ofs = v * width;
+            for (int u=0;u<width;u++) {
+                double gx = u0 + kx * u * (u1 - u0);
+                double gy = v0 + ky * v * (v1 - v0);
+                double value = res[ofs + u];
+                if (sh.contains(gx, gy))
+                    value = -value;
+                int oval = (int)(255 * (value * sdf_scale + sdf_offset));
+                if (oval < 0) {
+                    oval = 0;
+                } else if (oval > 255) {
+                    oval = 255;
+                }
+                image.setRGB(u, v, 0x10101 * oval);
+            }
+        }
+
+        return image;
+    }
+
     private BufferedImage drawGlyph(Glyph glyph, int padding, Font font, Composite blendComposite, Color faceColor, Color outlineColor, ConvolveOp shadowConvolve) {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
@@ -295,7 +385,7 @@ public class Fontc {
         BufferedImage image = new BufferedImage(width, height, Fontc.imageType);
         Graphics2D g = image.createGraphics();
         setHighQuality(g);
-        g.setBackground(new Color(0.0f, 0.0f, 0.0f));
+        g.setBackground(Color.BLACK);
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         g.translate(dx, dy);
 
