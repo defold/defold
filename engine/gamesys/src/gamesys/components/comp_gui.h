@@ -39,9 +39,6 @@ namespace dmGameSystem
     struct GuiWorld
     {
         dmArray<GuiComponent*>           m_Components;
-        dmRender::HMaterial              m_Material;
-        dmGraphics::HVertexProgram       m_VertexProgram;
-        dmGraphics::HFragmentProgram     m_FragmentProgram;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexBuffer        m_VertexBuffer;
         dmArray<BoxVertex>               m_ClientVertexBuffer;

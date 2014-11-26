@@ -1,16 +1,12 @@
 package com.dynamo.cr.editor.handlers;
 
-import java.io.IOException;
+import java.util.Map;
 
-import org.apache.commons.configuration.ConfigurationException;
 import org.eclipse.jface.dialogs.Dialog;
 
-import com.dynamo.cr.editor.core.ProjectProperties;
-import com.dynamo.cr.engine.Engine;
 import com.dynamo.cr.target.bundle.BundleiOSDialog;
 import com.dynamo.cr.target.bundle.BundleiOSPresenter;
 import com.dynamo.cr.target.bundle.IBundleiOSView;
-import com.dynamo.cr.target.bundle.IOSBundler;
 import com.dynamo.cr.target.sign.IIdentityLister;
 import com.dynamo.cr.target.sign.IdentityLister;
 import com.google.inject.AbstractModule;
@@ -48,16 +44,12 @@ public class BundleiOSHandler extends AbstractBundleHandler {
     }
 
     @Override
-    protected void bundleApp(ProjectProperties projectProperties,
-            String projectRoot, String contentRoot, String outputDir)
-            throws ConfigurationException, IOException {
-
-        String identity = presenter.getIdentity();
+    protected void setProjectOptions(Map<String, String> options) {
         String profile = presenter.getProvisioningProfile();
-
-        String exe = Engine.getDefault().getEnginePath("ios", true);
-        IOSBundler bundler = new IOSBundler(identity, profile,  projectProperties, exe, projectRoot, contentRoot, outputDir);
-        bundler.bundleApplication();
+        String identity = presenter.getIdentity();
+        options.put("mobileprovisioning", profile);
+        options.put("identity", identity);
+        options.put("platform", "armv7-darwin");
     }
 
 }

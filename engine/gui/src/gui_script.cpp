@@ -1410,6 +1410,108 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the node clipping mode
+     * Clipping mode defines how the node will clipping it's children nodes
+     *
+     * @name gui.get_clipping_mode
+     * @param node node from which to get the clipping mode (node)
+     * @return node clipping mode (constant)
+     * <ul>
+     *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
+     *   <li><code>gui.CLIPPING_MODE_SCISSOR</code></li>
+     *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
+     * </ul>
+     */
+    static int LuaGetClippingMode(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        lua_pushnumber(L, (lua_Number) n->m_Node.m_ClippingMode);
+        return 1;
+    }
+
+    /*# sets node clipping mode state
+     * Clipping mode defines how the node will clipping it's children nodes
+     *
+     * @name gui.set_clipping_mode
+     * @param node node to set clipping mode for (node)
+     * @param clipping_mode clipping mode to set (constant)
+     * <ul>
+     *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
+     *   <li><code>gui.CLIPPING_MODE_SCISSOR</code></li>
+     *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
+     * </ul>
+     */
+    static int LuaSetClippingMode(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int clipping_mode = (int) luaL_checknumber(L, 2);
+        n->m_Node.m_ClippingMode = (ClippingMode) clipping_mode;
+        return 0;
+    }
+
+    /*# gets node clipping visibility state
+     * If node is set as visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
+     *
+     * @name gui.is_clipping_visible
+     * @param node node from which to get the clipping visibility state (node)
+     * @return true or false
+     */
+    static int LuaIsClippingVisible(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        lua_pushboolean(L, n->m_Node.m_ClippingVisible);
+        return 1;
+    }
+
+    /*# sets node clipping visibility
+     * If node is set as an visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
+     *
+     * @name gui.set_clipping_visible
+     * @param node node to set clipping visibility for (node)
+     * @param visible true or false
+     */
+    static int LuaSetClippingVisible(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int visible = lua_toboolean(L, 2);
+        n->m_Node.m_ClippingVisible = visible;
+        return 0;
+    }
+
+    /*# gets node clipping inverted state
+     * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
+     *
+     * @name gui.is_clipping_inverted
+     * @param node node from which to get the clipping inverted state (node)
+     * @return true or false
+     */
+    static int LuaIsClippingInverted(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        lua_pushboolean(L, n->m_Node.m_ClippingInverted);
+        return 1;
+    }
+
+    /*# sets node clipping visibility
+     * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
+     *
+     * @name gui.set_clipping_inverted
+     * @param node node to set clipping inverted state for (node)
+     * @param visible true or false
+     */
+    static int LuaSetClippingInverted(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int inverted = lua_toboolean(L, 2);
+        n->m_Node.m_ClippingInverted = inverted;
+        return 0;
+    }
+
     static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break)
     {
         dmGui::TextMetrics metrics;
@@ -1629,15 +1731,15 @@ namespace dmGui
      * @param node node to get pivot from (node)
      * @return pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaGetPivot(lua_State* L)
@@ -1664,15 +1766,15 @@ namespace dmGui
      * @param node node to set pivot for (node)
      * @param pivot pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaSetPivot(lua_State* L)
@@ -2317,8 +2419,16 @@ namespace dmGui
 
     /*# display on-display keyboard if available
      *
+     * The specified type of keyboard is displayed, if it is available on
+     * the device.
+     *
      * @name gui.show_keyboard
-     * @param type keyboard type
+     * @param type keyboard type (constant)
+     * <ul>
+     *   <li><code>gui.KEYBOARD_TYPE_DEFAULT</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_EMAIL</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_NUMBER_PAD</code></li>
+     * </ul>
      * @param autoclose close keyboard automatically when clicking outside
      */
     static int LuaShowKeyboard(lua_State* L)
@@ -2332,6 +2442,8 @@ namespace dmGui
     }
 
     /*# hide on-display keyboard if available
+     *
+     * Hide the on-display keyboard on the device.
      *
      * @name gui.hide_keyboard
      */
@@ -2538,6 +2650,12 @@ namespace dmGui
         {"get_line_break",  LuaGetLineBreak},
         {"get_blend_mode",  LuaGetBlendMode},
         {"set_blend_mode",  LuaSetBlendMode},
+        {"get_clipping_mode",  LuaGetClippingMode},
+        {"set_clipping_mode",  LuaSetClippingMode},
+        {"get_is_clipping_visible", LuaIsClippingVisible},
+        {"set_clipping_visible",LuaSetClippingVisible},
+        {"get_is_clipping_inverted", LuaIsClippingInverted},
+        {"set_clipping_inverted",LuaSetClippingInverted},
         {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
         {"new_texture",     LuaNewTexture},
@@ -2660,6 +2778,24 @@ namespace dmGui
      * @variable
      */
 
+    /*# clipping mode none
+     *
+     * @name gui.CLIPPING_MODE_NONE
+     * @variable
+     */
+
+    /*# clipping mode scissor
+     *
+     * @name gui.CLIPPING_MODE_SCISSOR
+     * @variable
+     */
+
+    /*# clipping mode stencil
+     *
+     * @name gui.CLIPPING_MODE_STENCIL
+     * @variable
+     */
+
     /*# left x-anchor
      *
      * @name gui.ANCHOR_LEFT
@@ -2748,6 +2884,16 @@ namespace dmGui
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The stretch mode ensures that the node is displayed as is in the adjusted gui scene, which might scale it non-uniformally.
      * @name gui.ADJUST_STRETCH
+     * @variable
+     */
+
+    /*# elliptical pie node bounds
+     * @name gui.PIEBOUNDS_ELLIPSE
+     * @variable
+     */
+
+    /*# rectangular pie node bounds
+     * @name gui.PIEBOUNDS_RECTANGLE
      * @variable
      */
 
@@ -2849,6 +2995,16 @@ namespace dmGui
         SETBLEND(ADD)
         SETBLEND(ADD_ALPHA)
         SETBLEND(MULT)
+
+#undef SETBLEND
+
+#define SETCLIPPINGMODE(name) \
+        lua_pushnumber(L, (lua_Number) CLIPPING_MODE_##name); \
+        lua_setfield(L, -2, "CLIPPING_MODE_"#name);\
+
+        SETCLIPPINGMODE(NONE)
+        SETCLIPPINGMODE(SCISSOR)
+        SETCLIPPINGMODE(STENCIL)
 
 #undef SETBLEND
 

@@ -235,6 +235,26 @@
                   label="Add Layer"
                   style="push">
             </command>
+            <separator
+                  name="com.dynamo.cr.guied.separator1"
+                  visible="true">
+            </separator>
+            <menu
+                  label="Show">
+               <command
+                     commandId="com.dynamo.cr.guied.commands.showClippingNodes"
+                     label="Clipping Nodes Outline"
+                     style="toggle">
+               </command>
+               <visibleWhen
+                     checkEnabled="false">
+                  <or>
+                     <reference
+                           definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+                     </reference>
+                  </or>
+               </visibleWhen>
+            </menu>
             <visibleWhen
                   checkEnabled="false">
                <or>
@@ -455,12 +475,27 @@
             </and>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.ShowClippingNodesHandler"
+            commandId="com.dynamo.cr.guied.commands.showClippingNodes">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
       <command
             id="com.dynamo.cr.guied.commands.addLayer"
             name="Add Layer">
+      </command>
+      <command
+            id="com.dynamo.cr.guied.commands.showClippingNodes"
+            name="Show Clipping Nodes">
       </command>
    </extension>
 

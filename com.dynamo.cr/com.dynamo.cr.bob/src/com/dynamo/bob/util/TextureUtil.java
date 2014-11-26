@@ -49,6 +49,34 @@ public class TextureUtil {
         return type;
     }
 
+    public static List<BufferedImage> createPaddedImages(List<BufferedImage> srcImages, int paddingAmount, Color paddingColour) {
+        List<BufferedImage> result = srcImages;
+        if (0 < paddingAmount) {
+            result = new ArrayList<BufferedImage>(srcImages.size());
+            for (BufferedImage srcImage : srcImages) {
+                result.add(createPaddedImage(srcImage, paddingAmount, paddingColour));
+            }
+        }
+        return result;
+    }
+
+    public static BufferedImage createPaddedImage(BufferedImage src, int paddingAmount, Color paddingColour) {
+        int origWidth = src.getWidth();
+        int origHeight = src.getHeight();
+        int newWidth = origWidth + paddingAmount * 2;
+        int newHeight = origHeight + paddingAmount * 2;
+
+        BufferedImage result = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_4BYTE_ABGR);
+
+        Graphics2D graphics = result.createGraphics();
+        graphics.setBackground(paddingColour);
+        graphics.clearRect(0, 0, newWidth, newHeight);
+        graphics.drawImage(src, paddingAmount, paddingAmount, null);
+        graphics.dispose();
+
+        return result;
+    }
+
     public static List<BufferedImage> extrudeBorders(List<BufferedImage> srcImages, int extrudeBorders) {
         List<BufferedImage> result = srcImages;
         if (extrudeBorders > 0) {

@@ -1,11 +1,10 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileWriter;
-import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,14 +19,15 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
-import com.dynamo.script.proto.Lua.LuaSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.script.proto.Lua.LuaSource;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
 
@@ -65,23 +65,16 @@ public abstract class LuaBuilder extends Builder<Void> {
             fo.write(task.input(0).getContent());
             fo.close();
 
-            // Because the <copy> operation in build.xml does not understand
-            // to keep executable flags, set it here as we know it is an executable
-            // anyway.
-            File executable = new File(Bob.getLuajitBinPath());
-            if (!executable.canExecute())
-                executable.setExecutable(true);
-
             // Doing a bit of custom set up here as the path is required.
             //
             // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
             //       correct chunk name (the original original source file) already here.
             //
             // See implementation of luaO_chunkid and why a prefix '=' is used; it is to pass through the filename without modifications.
-            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getLuajitBinPath(), "-bgf", ("=" + task.input(0).getPath()), inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), "luajit"), "-bgf", ("=" + task.input(0).getPath()), inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
-            env.put("LUA_PATH", Bob.getLuajitSharePath() + "/?.lua");
+            env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
 
             Process p = pb.start();
             InputStream is = null;

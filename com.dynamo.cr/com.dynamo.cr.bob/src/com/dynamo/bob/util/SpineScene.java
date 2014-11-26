@@ -763,8 +763,9 @@ public class SpineScene {
         Point2d p = new Point2d();
         for (int i = 0; i < vertexCount; ++i) {
             int uvi = i*5+3;
-            p.set(mesh.vertices[uvi+0] * t.scale.x, mesh.vertices[uvi+1] * t.scale.y);
-            p.add(t.translation);
+            p.x = mesh.vertices[uvi+0];
+            p.y = mesh.vertices[uvi+1];
+            t.apply(p);
             mesh.vertices[uvi+0] = (float)p.x;
             mesh.vertices[uvi+1] = (float)p.y;
         }

@@ -106,6 +106,11 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
+        dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Material, (void**) &resource->m_Material);
+        if (fr != dmResource::RESULT_OK) {
+            return fr;
+        }
+
         if (resource->m_SceneDesc->m_Script != 0x0 && *resource->m_SceneDesc->m_Script != '\0')
         {
             dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Script, (void**) &resource->m_Script);
@@ -160,6 +165,8 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_SceneDesc);
         if (resource->m_Path)
             free((void*)resource->m_Path);
+        if (resource->m_Material)
+            dmResource::Release(factory, resource->m_Material);
     }
 
     dmResource::Result ResCreateSceneDesc(dmResource::HFactory factory,
@@ -214,6 +221,7 @@ namespace dmGameSystem
             scene_resource->m_Textures.Swap(tmp_scene_resource.m_Textures);
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
+            scene_resource->m_Material = tmp_scene_resource.m_Material;
         }
         else
         {

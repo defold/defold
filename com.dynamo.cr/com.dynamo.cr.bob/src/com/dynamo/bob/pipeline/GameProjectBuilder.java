@@ -108,7 +108,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc"));
-        if (project.option("build_disk_archive", "false").equals("true")) {
+        if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".darc"));
         }
 
@@ -132,7 +132,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder ab = new ArchiveBuilder(root);
-        boolean doCompress = project.option("compress_disk_archive_entries", "false").equals("true");
+        boolean doCompress = project.option("compress", "false").equals("true");
 
         for (String s : resources) {
             // 2:d argument is true to use compression.
@@ -223,7 +223,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         try {
-            if (project.option("build_disk_archive", "false").equals("true")) {
+            if (project.option("archive", "false").equals("true")) {
                 HashSet<String> resources = new HashSet<String>();
 
                 // Root nodes to follow

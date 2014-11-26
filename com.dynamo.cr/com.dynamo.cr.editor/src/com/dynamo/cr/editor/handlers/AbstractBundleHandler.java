@@ -1,29 +1,18 @@
 package com.dynamo.cr.editor.handlers;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
-import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.SerializationUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
-import org.eclipse.core.filesystem.EFS;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IncrementalProjectBuilder;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.NullProgressMonitor;
-import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.jface.dialogs.ErrorDialog;
@@ -39,7 +28,6 @@ import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
-import com.dynamo.cr.editor.core.ProjectProperties;
 
 /**
  * Bundle handler
@@ -55,57 +43,23 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
     private IProjectClient projectClient;
     private String outputDirectory;
 
-    protected abstract void bundleApp(ProjectProperties projectProperties, String projectRoot, String contentRoot, String outputDir) throws ConfigurationException, IOException;
+    protected abstract void setProjectOptions(Map<String, String> options);
 
     class BundleRunnable implements IRunnableWithProgress {
-        private ProjectProperties projectProperties = null;
-
         private void buildProject(IProject project, int kind, IProgressMonitor monitor) throws CoreException {
 
             HashMap<String, String> bobArgs = new HashMap<String, String>();
-            bobArgs.put("build_disk_archive", "true");
-            if (this.projectProperties.getBooleanValue("project", "compress_archive", true)) {
-                bobArgs.put("compress_disk_archive_entries", "true");
-            }
+            bobArgs.put("archive", "true");
+            bobArgs.put("bundle-output", outputDirectory);
+            setProjectOptions(bobArgs);
 
             Map<String, String> args = new HashMap<String, String>();
             args.put("location", "local");
             BobUtil.putBobArgs(bobArgs, args);
+            ArrayList<String> commands = new ArrayList<String>();
+            commands.add("bundle");
+            BobUtil.putBobCommands(commands, args);
             project.build(kind,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
-        }
-
-        private void bundle(IProgressMonitor monitor, IProject project)
-                throws CoreException, IOException, ConfigurationException, ParseException {
-
-            String projectRoot = getProjectRoot(project);
-            String contentRoot = getCompiledContent(project);
-            bundleApp(this.projectProperties, projectRoot, contentRoot, outputDirectory);
-            monitor.worked(1);
-        }
-
-        private void loadProjectProperties(IProject project) throws CoreException, IOException, ParseException {
-            URI projectPropertiesLocation = EditorUtil.getContentRoot(project).getFile("game.project").getRawLocationURI();
-            File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0, new NullProgressMonitor());
-
-            ProjectProperties projectProperties = new ProjectProperties();
-            FileInputStream in = new FileInputStream(localProjectPropertiesFile);
-            try {
-                projectProperties.load(in);
-                this.projectProperties = projectProperties;
-            } finally {
-                IOUtils.closeQuietly(in);
-            }
-        }
-
-        private String getProjectRoot(IProject project) throws CoreException {
-            URI projectLocation = EditorUtil.getContentRoot(project).getRawLocationURI();
-            File localProjectRoot = EFS.getStore(projectLocation).toLocalFile(0, new NullProgressMonitor());
-            String projectRoot = new Path(localProjectRoot.getAbsolutePath()).toPortableString();
-            return projectRoot;
-        }
-
-        private String getCompiledContent(IProject project) throws CoreException {
-            return new Path(getProjectRoot(project)).append("build").append("default").toPortableString();
         }
 
         @Override
@@ -114,9 +68,7 @@ public abstract class AbstractBundleHandler extends AbstractHandler {
             IProject project = EditorUtil.getProject();
             monitor.beginTask("Bundling Application...", 11);
             try {
-                loadProjectProperties(project);
                 buildProject(project, IncrementalProjectBuilder.FULL_BUILD, new SubProgressMonitor(monitor, 9));
-                bundle(monitor, project);
                 buildProject(project, IncrementalProjectBuilder.CLEAN_BUILD, new SubProgressMonitor(monitor, 1));
                 monitor.done();
             } catch (Exception e) {

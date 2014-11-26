@@ -59,6 +59,7 @@ message TileSet
     repeated string collision_groups    = 10;
     repeated Animation animations       = 11;
     optional uint32 extrude_borders     = 12 [default = 0];
+    optional uint32 inner_padding       = 13 [default = 0];
 }
 
 message TileCell
