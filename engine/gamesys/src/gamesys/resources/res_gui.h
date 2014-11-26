@@ -18,6 +18,7 @@ namespace dmGameSystem
         dmArray<dmGraphics::HTexture>   m_Textures;
         const char*                     m_Path;
         dmGui::HContext                 m_GuiContext;
+        dmRender::HMaterial             m_Material;
     };
 
     dmResource::Result ResCreateSceneDesc(dmResource::HFactory factory,

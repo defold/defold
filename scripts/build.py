@@ -468,9 +468,9 @@ class Configuration(object):
         # NOTE: A bit expensive to sync everything
         self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        self.exec_env_command("./scripts/copy_builtins_archive.sh",
-                          cwd = cwd,
-                          shell = True)
+
+        for s in ["copy.sh"]:
+            self.exec_env_command("./scripts/%s" % s, cwd = cwd, shell = True)
 
         self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                           cwd = cwd,

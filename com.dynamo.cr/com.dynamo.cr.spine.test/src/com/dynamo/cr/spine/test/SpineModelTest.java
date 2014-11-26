@@ -4,8 +4,11 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import java.io.IOException;
+
+import javax.vecmath.Quat4d;
 
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.runtime.CoreException;
@@ -36,12 +39,13 @@ public class SpineModelTest extends AbstractNodeTest {
 
         this.loader = new SpineModelLoader();
 
-        String[] paths = new String[] {"/default.spinescene", "/invalid_atlas.spinescene", "/empty_atlas.spinescene", "/empty_skeleton.spinescene"};
+        String[] paths = new String[] {"/default.spinescene", "/invalid_atlas.spinescene", "/empty_atlas.spinescene", "/empty_skeleton.spinescene", "/invalid_transform.spinescene"};
         String[] contents = new String[] {
                 "spine_json: \"/skeleton.json\" atlas: \"/default.atlas\"",
                 "spine_json: \"/skeleton.json\" atlas: \"/invalid.atlas\"",
                 "spine_json: \"/skeleton.json\" atlas: \"/empty.atlas\"",
                 "spine_json: \"/empty.json\" atlas: \"/default.atlas\"",
+                "spine_json: \"/invalid_transform.json\" atlas: \"/default.atlas\"",
         };
         for (int i = 0; i < paths.length; ++i) {
             String path = paths[i];
@@ -83,9 +87,13 @@ public class SpineModelTest extends AbstractNodeTest {
         assertThat(this.spineModelNode.getSkin(), is(""));
     }
 
-    private void create() throws Exception {
-        setProperty("spineScene", "/default.spinescene");
+    private void create(String scene) throws Exception {
+        setProperty("spineScene", scene);
         setProperty("defaultAnimation", "anim_pos");
+    }
+
+    private void create() throws Exception {
+        create("/default.spinescene");
     }
 
     @Test
@@ -171,6 +179,39 @@ public class SpineModelTest extends AbstractNodeTest {
 
         setProperty("skin", "test");
         assertPropertyStatus("skin", IStatus.ERROR, NLS.bind(Messages.SpineModelNode_skin_INVALID, "test"));
+    }
+
+    private SpineBoneNode findBone(String id, Node parent) {
+        for (Node n : parent.getChildren()) {
+            SpineBoneNode bone = (SpineBoneNode)n;
+            if (id.equals(bone.getId())) {
+                return bone;
+            } else {
+                bone = findBone(id, bone);
+                if (bone != null) {
+                    return bone;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The following test verifies that we handle transforms from Spine json that previously produced NaN in a quaternion when constructing the bone hierarchy of a skeleton.
+     * Specifically, the bone wing_2 yielded the invalid quaternion in the scene invalid_transform.json.
+     * @throws Exception
+     */
+    @Test
+    public void testInvalidTransform() throws Exception {
+        create("/invalid_transform.spinescene");
+
+        SpineBoneNode bone = findBone("wing_2", this.spineModelNode);
+        Quat4d q = bone.getRotation();
+        double[] elements = new double[4];
+        q.get(elements);
+        for (double elem : elements) {
+            assertFalse(Double.isNaN(elem));
+        }
     }
 
 }

@@ -239,7 +239,7 @@ namespace dmGameSystem
         SpineModelResource* resource = component->m_Resource;
         dmGameSystemDDF::SpineModelDesc* ddf = resource->m_Model;
         dmHashInit32(&state, reverse);
-        dmHashUpdateBuffer32(&state, &resource, sizeof(resource));
+        dmHashUpdateBuffer32(&state, &resource->m_Scene->m_TextureSet, sizeof(resource->m_Scene->m_TextureSet));
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
         dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
@@ -553,7 +553,6 @@ namespace dmGameSystem
         const SpineModelComponent* first = &components[sort_buffer[start_index]];
         assert(first->m_Enabled);
         TextureSetResource* texture_set = first->m_Resource->m_Scene->m_TextureSet;
-        uint64_t z = first->m_SortKey.m_Z;
         uint32_t hash = first->m_MixedHash;
 
         uint32_t vertex_count = 0;
@@ -561,7 +560,7 @@ namespace dmGameSystem
         for (uint32_t i = start_index; i < n; ++i)
         {
             const SpineModelComponent* c = &components[sort_buffer[i]];
-            if (!c->m_Enabled || c->m_MixedHash != hash || c->m_SortKey.m_Z != z || !c->m_AddedToUpdate)
+            if (!c->m_Enabled || c->m_MixedHash != hash || !c->m_AddedToUpdate)
             {
                 end_index = i;
                 break;

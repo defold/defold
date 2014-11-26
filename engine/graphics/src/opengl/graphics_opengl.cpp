@@ -1513,6 +1513,20 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
+    void SetDepthFunc(HContext context, CompareFunc func)
+    {
+        assert(context);
+        glDepthFunc((GLenum) func);
+        CHECK_GL_ERROR
+    }
+
+    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    {
+        assert(context);
+        glScissor((GLint)x, (GLint)y, (GLint)width, (GLint)height);
+        CHECK_GL_ERROR
+    }
+
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
@@ -1520,7 +1534,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask)
+    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
         glStencilFunc((GLenum) func, ref, mask);

@@ -6,6 +6,12 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Font";
 
+enum FontTextureFormat
+{
+    TYPE_BITMAP          = 0 [(displayName) = "Bitmap"];
+    TYPE_DISTANCE_FIELD  = 1 [(displayName) = "Distance Field"];
+}
+
 message FontDesc
 {
     required string font = 1 [(resource)=true];
@@ -20,6 +26,7 @@ message FontDesc
     optional float shadow_x = 10 [default = 0.0];
     optional float shadow_y = 11 [default = 0.0];
     optional string extra_characters = 12 [default = ""];
+    optional FontTextureFormat output_format = 13 [default = TYPE_BITMAP];
 }
 
 message FontMap
@@ -45,4 +52,8 @@ message FontMap
     optional float shadow_y = 7;
     required float max_ascent = 8;
     required float max_descent = 9;
+    optional FontTextureFormat image_format = 10 [default = TYPE_BITMAP];
+    optional float sdf_scale = 11 [default = 1];
+    optional float sdf_offset = 12 [default = 0];
+    optional float sdf_outline = 13 [default = 0];
 }

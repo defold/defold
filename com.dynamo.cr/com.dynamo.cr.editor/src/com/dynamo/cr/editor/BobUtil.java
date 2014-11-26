@@ -66,6 +66,20 @@ public class BobUtil {
         dstArgs.put("bobArgs", bobArgsEncoded);
     }
 
+    @SuppressWarnings("unchecked")
+    public static final ArrayList<String> getBobCommands(Map<String, String> commands) {
+        String bobCommandsEncoded = commands.get("bobCommands");
+        if (bobCommandsEncoded != null) {
+            return (ArrayList<String>) SerializationUtils.deserialize(Base64.decodeBase64(bobCommandsEncoded));
+        }
+        return null;
+    }
+
+    public static final void putBobCommands(ArrayList<String> commands, Map<String, String> dstArgs) {
+        String bobCommandsEncoded = Base64.encodeBase64String(SerializationUtils.serialize(commands));
+        dstArgs.put("bobCommands", bobCommandsEncoded);
+    }
+
     public static List<URL> getLibraryUrls(String rootPath) throws LibraryException {
         List<URL> urls = new ArrayList<URL>();
         ProjectProperties properties = new ProjectProperties();

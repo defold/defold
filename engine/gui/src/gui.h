@@ -92,6 +92,59 @@ namespace dmGui
      */
     typedef void (*GetTextMetricsCallback)(const void* font, const char* text, float width, bool line_break, TextMetrics* out_metrics);
 
+    /**
+     * Scissor clipping render state
+     */
+    struct ScissorClippingRenderState
+    {
+        /// Handle of start node of this scissor hierarchy
+        HNode       m_StartNode;
+        /// Handle of end node of this scissor hierarchy
+        HNode       m_EndNode;
+        /// Index into array of states to next sate to enter (EndNode visit)
+        uint16_t    m_NextStateNodeArrayIndex;
+        /// Index into array of states to this states parent state
+        uint16_t    m_ParentStateNodeArrayIndex;
+        /// Scissor rectangle in screen-space coordinates
+        int16_t     m_Rect[4];
+        /// Set if this is an ancestor node
+        uint8_t     m_IsAncestor : 1;
+        uint8_t     m_Padding : 7;
+        uint8_t     m_Padding2;
+    };
+
+    /**
+     * Stencil clipping render state
+     */
+    struct StencilClippingRenderState
+    {
+        /// Handle of start node of this stencil hierarchy
+        HNode       m_StartNode;
+        /// Handle of end node of this stencil hierarchy
+        HNode       m_EndNode;
+        /// Index into array of states to next sate to enter (EndNode visit)
+        uint16_t    m_NextStateNodeArrayIndex;
+        /// Stencil operation reference value
+        uint8_t     m_RefVal;
+        /// Stencil operation and test mask
+        uint8_t     m_Mask;
+        /// Parent stencil operation and test mask
+        uint8_t     m_ParentMask;
+        /// Bitmask able to hold the child count of this stencil
+        uint8_t     m_ChildNodesMask;
+        /// Number of bits in m_ChildNodesMask
+        uint8_t     m_ChildNodesBitRange;
+        /// Set if this is the beginning of a new batch (always set for first ancestor node)
+        uint8_t     m_NewBatch : 1;
+        /// Set if this is an ancestor node
+        uint8_t     m_IsAncestor : 1;
+        /// Inverted (exclusive) clipping
+        uint8_t     m_Inverted : 1;
+        /// Parent inverted (exclusive) clipping
+        uint8_t     m_ParentInverted : 1;
+        uint8_t     m_Padding : 4;
+    };
+
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 
@@ -162,6 +215,15 @@ namespace dmGui
         BLEND_MODE_ADD       = 1,
         BLEND_MODE_ADD_ALPHA = 2,
         BLEND_MODE_MULT      = 3,
+    };
+
+    // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
+    // Don't forget to change gui_ddf.proto if you change here
+    enum ClippingMode
+    {
+        CLIPPING_MODE_NONE    = 0,
+        CLIPPING_MODE_SCISSOR = 1,
+        CLIPPING_MODE_STENCIL = 2,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -273,6 +335,8 @@ namespace dmGui
      * @param node_transforms
      * @param node_colors
      * @param node_count
+     * @param scissor_clipping_render_states
+     * @param stencil_clipping_render_states
      * @param context
      */
     typedef void (*RenderNodes)(HScene scene,
@@ -280,6 +344,8 @@ namespace dmGui
                                const Vectormath::Aos::Matrix4* node_transforms,
                                const Vectormath::Aos::Vector4* node_colors,
                                uint32_t node_count,
+                               const ScissorClippingRenderState* scissor_clipping_render_states,
+                               const StencilClippingRenderState* stencil_clipping_render_states,
                                void* context);
 
     /**
@@ -419,6 +485,19 @@ namespace dmGui
      * @param scene Scene to clear from fonts
      */
     void ClearFonts(HScene scene);
+
+    /**
+     * Set scene material
+     * @param scene
+     * @param material
+     */
+    void SetMaterial(HScene scene, void* material);
+
+    /**
+     * Get scene material
+     * @param scene
+     */
+    void* GetMaterial(HScene scene);
 
     /**
      * Adds a layer with the specified name to the scene.
@@ -601,6 +680,54 @@ namespace dmGui
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
+
+    /**
+     * Set node clipping mode
+     * @param scene scene
+     * @param node node
+     * @param mode ClippingMode enumerated type
+     */
+    void SetNodeClippingMode(HScene scene, HNode node, ClippingMode mode);
+
+    /**
+     * Get node clipping state.
+     * @param scene scene
+     * @param node node
+     * @return mode
+     */
+    ClippingMode GetNodeClippingMode(HScene scene, HNode node);
+
+    /**
+     * Set node clipping visibilty
+     * @param scene scene
+     * @param node node
+     * @param visible true to show clipping node, false for invisible clipper
+     */
+    void SetNodeClippingVisible(HScene scene, HNode node, bool visible);
+
+    /**
+     * Get node clipping visibilty
+     * @param scene scene
+     * @param node node
+     * @return true if clipping node visible, false for invisible clipper
+     */
+    bool GetNodeClippingVisible(HScene scene, HNode node);
+
+    /**
+     * Set node clipping inverted
+     * @param scene scene
+     * @param node node
+     * @param inverted true to invert clipping node (exlusive), false for default (inclusive) clipping
+     */
+    void SetNodeClippingInverted(HScene scene, HNode node, bool inverted);
+
+    /**
+     * Get node clipping inverted setting
+     * @param scene scene
+     * @param node node
+     * @return true if clipping is inverted (exclusive), false for default (inclusive) clipping
+     */
+    bool GetNodeClippingInverted(HScene scene, HNode node);
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, TextMetrics* metrics);

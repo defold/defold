@@ -59,6 +59,12 @@ namespace dmRender
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+        /// Value to scale SDF texture values with
+        float m_SdfScale;
+        /// Value to offset SDF texture values with
+        float m_SdfOffset;
+        /// Distance value where outline should end
+        float m_SdfOutline;
     };
 
     /**

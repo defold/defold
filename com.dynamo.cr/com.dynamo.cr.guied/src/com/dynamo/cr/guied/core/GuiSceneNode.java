@@ -25,6 +25,9 @@ public class GuiSceneNode extends ComponentTypeNode {
     @Property(editorType = EditorType.RESOURCE, extensions = { "gui_script" })
     private String script;
 
+    @Property(editorType = EditorType.RESOURCE, extensions = { "material" })
+    private String material;
+
     private RGB backgroundColor = new RGB(0, 0, 0);
 
     private LabelNode nodesNode;
@@ -55,6 +58,14 @@ public class GuiSceneNode extends ComponentTypeNode {
 
     public void setScript(String script) {
         this.script = script;
+    }
+
+    public String getMaterial() {
+        return material;
+    }
+
+    public void setMaterial(String material) {
+        this.material = material;
     }
 
     public RGB getBackgroundColor() {

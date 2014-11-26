@@ -1083,6 +1083,9 @@ namespace dmGameObject
      */
     int Script_Delete(lua_State* L)
     {
+        if (lua_gettop(L) >= 1 && lua_type(L, 1) == LUA_TNIL) {
+            dmLogWarning("go.delete() invoked with nil and self will be deleted");
+        }
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance);

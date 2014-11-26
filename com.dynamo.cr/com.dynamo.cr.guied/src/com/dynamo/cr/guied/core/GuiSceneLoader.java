@@ -74,6 +74,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setAdjustMode(desc.getAdjustMode());
         node.setLayer(desc.getLayer());
         node.setInheritAlpha(desc.getInheritAlpha());
+        node.setClippingMode(desc.getClippingMode());
+        node.setClippingVisible(desc.getClippingVisible());
+        node.setClippingInverted(desc.getClippingInverted());
         return node;
     }
 
@@ -85,6 +88,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         SceneDesc sceneDesc = builder.build();
         GuiSceneNode node = new GuiSceneNode();
         node.setScript(sceneDesc.getScript());
+        node.setMaterial(sceneDesc.getMaterial());
         if (sceneDesc.hasBackgroundColor()) {
             node.setBackgroundColor(LoaderUtil.toRGB(sceneDesc.getBackgroundColor()));
         }
@@ -190,6 +194,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setAdjustMode(node.getAdjustMode());
         builder.setLayer(node.getLayer());
         builder.setInheritAlpha(node.isInheritAlpha());
+        builder.setClippingMode(node.getClippingMode());
+        builder.setClippingVisible(node.getClippingVisible());
+        builder.setClippingInverted(node.getClippingInverted());
         return builder;
     }
 
@@ -210,6 +217,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
                                                                                                     CoreException {
         Builder b = SceneDesc.newBuilder();
         b.setScript(node.getScript());
+        b.setMaterial(node.getMaterial());
         b.setBackgroundColor(LoaderUtil.toVector4(node.getBackgroundColor(), 1.0));
         for (Node n : node.getNodesNode().getChildren()) {
             collectNodes(b, (GuiNode) n, null);

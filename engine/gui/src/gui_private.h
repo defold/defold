@@ -53,6 +53,15 @@ namespace dmGui
         uint16_t        m_Version;
     };
 
+    struct InternalClippingNode
+    {
+        uint16_t m_StartNodeIndex;
+        uint16_t m_EndNodeIndex;
+        uint16_t m_NextStateNodeArrayIndex;
+        uint16_t m_ParentNodeIndex;
+        uint16_t m_NextAncestorNodeArrayIndex;
+    };
+
     struct Context
     {
         lua_State*                  m_LuaState;
@@ -68,6 +77,10 @@ namespace dmGui
         dmArray<HNode>              m_RenderNodes;
         dmArray<Matrix4>            m_RenderTransforms;
         dmArray<Vector4>            m_RenderColors;
+        dmArray<InternalClippingNode>       m_ScissorClippingNodes;
+        dmArray<ScissorClippingRenderState> m_ScissorStates;
+        dmArray<InternalClippingNode>       m_StencilClippingNodes;
+        dmArray<StencilClippingRenderState> m_StencilStates;
         dmHID::HContext             m_HidContext;
         void*                       m_DefaultFont;
         SceneTraversalCache         m_SceneTraversalCache;
@@ -97,7 +110,10 @@ namespace dmGui
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
                 uint32_t    m_DirtyLocal : 1;
                 uint32_t    m_InheritAlpha : 1;
-                uint32_t    m_Reserved : 10;
+                uint32_t    m_ClippingMode : 2;
+                uint32_t    m_ClippingVisible : 1;
+                uint32_t    m_ClippingInverted : 1;
+                uint32_t    m_Reserved : 6;
             };
 
             uint32_t m_State;
@@ -193,6 +209,7 @@ namespace dmGui
         dmHashTable64<void*>    m_Textures;
         dmHashTable64<void*>    m_Fonts;
         dmHashTable64<DynamicTexture> m_DynamicTextures;
+        void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_DeletedDynamicTextures;
         void*                   m_DefaultFont;

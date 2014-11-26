@@ -327,7 +327,7 @@ public class TileSetNode extends TextureSetNode {
         TileSetLoader loader = new TileSetLoader();
         try {
             TileSet tileSet = (TileSet) loader.buildMessage(null, this, new NullProgressMonitor());
-            TextureSetResult result = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true);
+            TextureSetResult result = TileSetGenerator.generate(tileSet, loadedImage, loadedCollision, true, true);
             if (result != null) {
                 Builder textureSetBuilder = result.builder;
                 TextureSet textureSet = textureSetBuilder.setTexture("").build();
