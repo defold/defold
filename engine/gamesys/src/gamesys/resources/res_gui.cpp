@@ -221,6 +221,7 @@ namespace dmGameSystem
             scene_resource->m_Textures.Swap(tmp_scene_resource.m_Textures);
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
+            scene_resource->m_Material = tmp_scene_resource.m_Material;
         }
         else
         {
