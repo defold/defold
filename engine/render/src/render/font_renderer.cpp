@@ -433,6 +433,13 @@ namespace dmRender
             float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
             float sdf_smoothing = 1.0f;
 
+            // There will be no hope for an outline smaller than a quarter than a pixel
+            // so effectively disable it.
+            if ((font_map->m_SdfOutline > 0) && (font_map->m_SdfOutline * sdf_world_scale < 0.25f))
+            {
+                outline_color = face_color;
+            }
+
             // Trade scale for smoothing when scaling down
             if (sdf_world_scale < 1.0f)
             {
@@ -444,12 +451,6 @@ namespace dmRender
             float sdf_scale   = sdf_world_scale * font_map->m_SdfScale;
             float sdf_outline = sdf_world_scale * font_map->m_SdfOutline;
 
-            // There will be no hope for an outline smaller than a quarter than a pixel
-            // so effectively disable it.
-            if (sdf_outline < 0.25f)
-            {
-                outline_color = face_color;
-            }
 
             for (int line = 0; line < line_count; ++line) {
                 TextLine& l = lines[line];
