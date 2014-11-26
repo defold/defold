@@ -157,10 +157,8 @@ public class Fontc {
             GlyphMetrics metrics = glyphVector.getGlyphMetrics(0);
 
             Glyph glyph = new Glyph();
-
-            TextLayout layout = new TextLayout(s, font, this.fontRendererContext);
-            glyph.ascent = (int)Math.ceil(layout.getAscent());
-            glyph.descent = (int)Math.ceil(layout.getDescent());
+            glyph.ascent = (int)Math.ceil(-visualBounds.getMinY());
+            glyph.descent = (int)Math.ceil(visualBounds.getMaxY());
 
             glyph.c = s.charAt(0);
             glyph.index = i;
@@ -368,7 +366,6 @@ public class Fontc {
                 image.setRGB(u, v, 0x10101 * oval);
             }
         }
-
         return image;
     }
 
@@ -423,7 +420,6 @@ public class Fontc {
             g.setFont(font);
             g.drawString(Character.toString(glyph.c), 0, 0);
         }
-
         return image;
     }
 
