@@ -207,7 +207,7 @@ namespace dmGameSystem
         SpriteResource* resource = component->m_Resource;
         dmGameSystemDDF::SpriteDesc* ddf = resource->m_DDF;
         dmHashInit32(&state, reverse);
-        dmHashUpdateBuffer32(&state, &resource, sizeof(resource));
+        dmHashUpdateBuffer32(&state, &resource->m_TextureSet, sizeof(resource->m_TextureSet));
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
         dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
@@ -460,7 +460,6 @@ namespace dmGameSystem
         const SpriteComponent* first = &components[sort_buffer[start_index]];
         assert(first->m_Enabled);
         TextureSetResource* texture_set = first->m_Resource->m_TextureSet;
-        uint64_t z = first->m_SortKey.m_Z;
         uint32_t hash = first->m_MixedHash;
 
         uint32_t end_index = n;
