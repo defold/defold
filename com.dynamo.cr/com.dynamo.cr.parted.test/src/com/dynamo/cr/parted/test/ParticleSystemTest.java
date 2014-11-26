@@ -114,8 +114,11 @@ public class ParticleSystemTest {
         final Pointer originalTileSource = new Pointer(2);
         ParticleLibrary.Particle_SetTileSource(prototype, 0, originalTileSource);
         final Pointer originalTexture = new Pointer(3);
-        final FloatBuffer texCoords = Buffers.newDirectFloatBuffer(4);
-        texCoords.put(1.0f/255.0f).put(2.0f/255.0f).put(3.0f/255.0f).put(4.0f/255.0f).flip();
+        final FloatBuffer texCoords = Buffers.newDirectFloatBuffer(8);
+        texCoords.put(1.0f/255.0f).put(4.0f/255.0f)
+            .put(1.0f/255.0f).put(2.0f/255.0f)
+            .put(3.0f/255.0f).put(2.0f/255.0f)
+            .put(3.0f/255.0f).put(4.0f/255.0f);
         IntByReference outSize = new IntByReference(1234);
         final int vertexBufferSize = ParticleLibrary.Particle_GetVertexBufferSize(MAX_PARTICLE_COUNT);
         final ByteBuffer vertexBuffer = Buffers.newDirectByteBuffer(vertexBufferSize);
@@ -144,13 +147,14 @@ public class ParticleSystemTest {
         assertTrue(fetchAnim[0]);
         int vertexSize = outSize.getValue();
         assertTrue(ParticleLibrary.Particle_GetVertexBufferSize(1) == vertexSize);
+
         int uvIdx[] = new int[] {
-                0, 3,
                 0, 1,
                 2, 3,
-                2, 3,
-                0, 1,
-                2, 1
+                4, 5,
+                4, 5,
+                6, 7,
+                0, 1
         };
         for (int i = 0; i < PARTICLE_VERTEX_COUNT; ++i) {
             // p

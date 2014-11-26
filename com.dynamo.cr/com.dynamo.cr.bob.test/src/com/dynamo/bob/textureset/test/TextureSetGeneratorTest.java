@@ -143,6 +143,28 @@ public class TextureSetGeneratorTest {
     }
 
     @Test
+    public void testRotatedAnimations() {
+        List<BufferedImage> images = Arrays.asList(newImage(64,32), newImage(64,32), newImage(32,64), newImage(32,64));
+
+        List<String> ids = Arrays.asList("1", "2", "3", "4");
+
+        List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
+        animations.add(newAnim("anim1", Arrays.asList("1","2")));
+        animations.add(newAnim("anim2", Arrays.asList("3","4")));
+
+        MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
+
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false);
+
+        TextureSet textureSet = result.builder.setTexture("").build();
+
+        assertUVTransform(0.0f, 0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 0));
+        assertUVTransform(0.25f,0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 1));
+        assertUVTransform(0.5f, 0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim2", 0));
+        assertUVTransform(0.75f, 0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim2", 1));
+    }
+
+    @Test
     public void testUvTransforms() throws Exception {
         List<BufferedImage> images = Arrays.asList(newImage(16, 16), newImage(16, 16), newImage(16, 16),
                 newImage(16, 16));

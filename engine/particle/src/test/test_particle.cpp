@@ -36,7 +36,7 @@ protected:
         delete [] m_VertexBuffer;
     }
 
-    void VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile);
+    void VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile, bool rotated_on_atlas);
     void VerifyVertexDims(dmParticle::Vertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height);
 
     dmParticle::HContext m_Context;
@@ -48,13 +48,26 @@ protected:
 static const float EPSILON = 0.000001f;
 
 // tile is 0-based
-void ParticleTest::VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile)
+void ParticleTest::VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile, bool rotated_on_atlas)
 {
     float* tc = &tex_coords[tile * 8];
-    uint16_t u0 = tc[0] * 65535.0f;
-    uint16_t v0 = tc[3] * 65535.0f;
-    uint16_t u1 = tc[4] * 65535.0f;
-    uint16_t v1 = tc[7] * 65535.0f;
+    uint16_t u0;
+    uint16_t v0;
+    uint16_t u1;
+    uint16_t v1;
+
+    if (rotated_on_atlas) {
+        u0 = tc[0] * 65535.0f;
+        v0 = tc[1] * 65535.0f;
+        u1 = tc[2] * 65535.0f;
+        v1 = tc[5] * 65535.0f;
+    } else {
+        u0 = tc[0] * 65535.0f;
+        v0 = tc[3] * 65535.0f;
+        u1 = tc[4] * 65535.0f;
+        v1 = tc[7] * 65535.0f;
+    }
+
     // The particle vertices are emitted in the following order:
     // 1 -- 2               3
     // |         then       |
@@ -285,7 +298,7 @@ TEST_F(ParticleTest, IncompleteParticleFX)
             ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
             ASSERT_EQ((void*)0x0, render_data.m_Material);
             ASSERT_EQ((void*)0x0, render_data.m_Texture);
-            VerifyVertexTexCoords((dmParticle::Vertex*)&((float*)vertex_buffer)[render_data.m_VertexIndex], g_UnitTexCoords, 0);
+            VerifyVertexTexCoords((dmParticle::Vertex*)&((float*)vertex_buffer)[render_data.m_VertexIndex], g_UnitTexCoords, 0, false);
             ASSERT_EQ(6u, render_data.m_VertexCount);
             ASSERT_EQ((void*)0x0, render_data.m_Texture);
         }
@@ -853,8 +866,9 @@ float g_TexCoords[] =
         0.75f,0.5f, 0.75f,0.0f, 1.0f,0.0f, 1.0f,0.5f,
         0.0f,1.0f, 0.0f,0.5f, 0.25f,0.5f, 0.25f,1.0f,
         0.25f,1.0f, 0.25f,0.5f, 0.5f,0.5f, 0.5f,1.0f,
-        0.5f,1.0f, 0.5f,0.5f, 0.75f,0.5f, 0.5f,1.0f,
-        0.75f,1.0f, 0.75f,0.5f, 1.0f,0.5f, 1.0f,1.0f
+        // Rotated sprites
+        0.5f,0.5f, 0.75f,0.5f, 0.75f,1.0f, 0.5f,1.0f,
+        0.75f,0.5f, 1.0f,0.5f, 1.0f,1.0f, 0.75f,1.0f
 };
 
 struct TileSource
@@ -944,7 +958,9 @@ TEST_F(ParticleTest, Animation)
             uint32_t tile = tiles[type][it];
             if (tile > 0)
             {
-                VerifyVertexTexCoords(vb, g_TexCoords, tile - 1);
+                int index = tile - 1;
+                bool rotated = 6 < index;
+                VerifyVertexTexCoords(vb, g_TexCoords, index, rotated);
                 VerifyVertexDims(vb, 1, 1.0f, 2, 3);
                 vb += 6;
             }
