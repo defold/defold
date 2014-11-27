@@ -1,17 +1,17 @@
 (ns suite
  (:require [clojure.test :as test]))
 
-(def test-namespaces ['internal.injection-test
+(def test-namespaces ['internal.either-test
+                      'internal.injection-test
+                      'internal.loader-test
                       'internal.node-test
                       'internal.scope-test
                       'internal.system-test
                       'internal.type-test
-                      'internal.either-test
                       'internal.value-test
                       'internal.graph.graph-test
                       'internal.render.pass-test
                       'dynamo.camera-test
-                      'dynamo.condition-test
                       'dynamo.geom-test
                       'dynamo.image-test
                       'dynamo.protobuf-test
