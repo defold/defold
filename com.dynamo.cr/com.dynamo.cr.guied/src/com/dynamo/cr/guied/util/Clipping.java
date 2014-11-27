@@ -17,6 +17,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 
 public class Clipping {
+    private static boolean colorMaskEnabled = true;
     public static boolean showClippingNodesEnabled = true;
 
     public static void showClippingNodes(boolean show) {
@@ -194,13 +195,20 @@ public class Clipping {
         }
 
         private static void setState(RenderContext renderContext,  GuiNode node) {
-            GuiNode scissorNode = getParentScissor(node);
             GL2 gl = renderContext.getGL();
+            if(!colorMaskEnabled) {
+                colorMaskEnabled = true;
+                gl.glColorMask(true, true, true, true);
+            }
 
+            GuiNode scissorNode = getParentScissor(node);
             if(node.getClippingMode() == ClippingMode.CLIPPING_MODE_SCISSOR) {
                 if (!node.getClippingVisible()) {
-                    // node is invisible scissor, disable color channels
-                    gl.glColorMask(false, false, false, false);
+                    // set color mask depending on visibility
+                    if(!node.getClippingVisible()) {
+                        gl.glColorMask(false, false, false, false);
+                        colorMaskEnabled = false;
+                    }
                 }
                 if(scissorNode == null) {
                     // primary scissor, setup child scissors hierarchy states (per frame caching)
@@ -290,12 +298,18 @@ public class Clipping {
         }
 
         private static void setState(RenderContext renderContext,  GuiNode node) {
+            GL2 gl = renderContext.getGL();
+            if(!colorMaskEnabled) {
+                colorMaskEnabled = true;
+                gl.glColorMask(true, true, true, true);
+            }
+
             boolean isStencilChild = hasParentStencil(node);
             if(node.getClippingMode() == ClippingMode.CLIPPING_MODE_STENCIL) {
-                GL2 gl = renderContext.getGL();
-                if (!node.getClippingVisible()) {
-                    // node is invisible stencil, disable color channels
+                // set color mask depending on visibility
+                if(!node.getClippingVisible()) {
                     gl.glColorMask(false, false, false, false);
+                    colorMaskEnabled = false;
                 }
                 gl.glEnable(GL2.GL_STENCIL_TEST);
                 gl.glStencilMask(0xFF);
@@ -318,7 +332,6 @@ public class Clipping {
                 // not a stencil, but masked by a parent stencil
                 ClippingState state = node.getClippingState();
                 if(state.stencilMask < 256) {
-                    GL2 gl = renderContext.getGL();
                     gl.glEnable(GL2.GL_STENCIL_TEST);
                     gl.glStencilMask(0x00);
                     gl.glStencilFunc(state.inverted ? GL2.GL_NOTEQUAL : GL2.GL_EQUAL, state.stencilRefVal, state.stencilMask);
