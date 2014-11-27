@@ -410,6 +410,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         ProjectExplorer view = findProjectExplorer();
         if (view != null) {
             view.getCommonViewer().setInput(container);
+            view.getCommonViewer().expandToLevel(3);
         }
     }
 
@@ -574,7 +575,8 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             }
         }
 
-        setProjectExplorerInput(p.getFolder("content"));
+        setProjectExplorerInput(p.getParent());
+
         IBranchService branchService = (IBranchService) PlatformUI.getWorkbench().getService(IBranchService.class);
         if (branchService != null) {
             branchService.updateBranchStatus(null);
