@@ -1496,12 +1496,12 @@ namespace dmGui
         return 1;
     }
 
-    /*# sets node clipping visibility
-     * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
+    /*# sets node clipping inverted
+     * If node is set as an inverted clipping node, its clipping mask will be inverted and it will clip anything inside as opposed to outside.
      *
      * @name gui.set_clipping_inverted
      * @param node node to set clipping inverted state for (node)
-     * @param visible true or false
+     * @param inverted true or false
      */
     static int LuaSetClippingInverted(lua_State* L)
     {
