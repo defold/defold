@@ -176,6 +176,14 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
         destroy_gl_surface(&_glfwWin);
         break;
     case APP_CMD_GAINED_FOCUS:
+        // We do not cancel iconified status when RESUME is received, as we can
+        // see the following order of commands when returning from a locked state:
+        // RESUME, TERM_WINDOW, INIT_WINDOW, GAINED_FOCUS
+        // We can also encounter this order of commands:
+        // RESUME, GAINED_FOCUS
+        // Between RESUME and INIT_WINDOW, the application could attempt to perform
+        // operations without a current GL context.
+        _glfwWin.iconified = 0;
         _glfwWin.active = 1;
         break;
     case APP_CMD_LOST_FOCUS:
@@ -189,7 +197,6 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_STOP:
         break;
     case APP_CMD_RESUME:
-        _glfwWin.iconified = 0;
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
