@@ -20,9 +20,6 @@
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
 
-(defprotocol NodeType
-  (descriptor [this] "Return a data structure describing the node type"))
-
 (defprotocol Node
   (properties [this]          "Produce a description of properties supported by this node.")
   (inputs     [this]          "Return a set of labels for the allowed inputs of the node.")
