@@ -14,6 +14,7 @@
                       'dynamo.camera-test
                       'dynamo.geom-test
                       'dynamo.image-test
+                      'dynamo.property-test
                       'dynamo.protobuf-test
                       'dynamo.texture-test
                       'dynamo.transaction-test
