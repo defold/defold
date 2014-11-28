@@ -58,3 +58,58 @@
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
         (eval '(defproperty BadProp Integer (default non-existent-symbol))))))
+
+(defproperty PropWithoutValidation Integer)
+
+(defproperty PropWithValidationFnInline Integer
+  (validation #(pos? %)))
+
+(defproperty PropWithValidationFnValue Integer
+  (validation (every-pred pos? even?)))
+
+(defproperty PropWithValidationLiteralTrue Integer
+  (validation true))
+
+(defproperty PropWithValidationLiteralFalse Integer
+  (validation false))
+
+(defproperty PropWithMultipleValidations Integer
+  (validation pos?)
+  (validation neg?))
+
+(defn ^:dynamic *validation-fn* [v] (= 42 v))
+
+(defproperty PropWithValidationVarAsSymbol Integer
+  (validation *validation-fn*))
+
+(defproperty PropWithValidationVarForm Integer
+  (validation #'*validation-fn*))
+
+(deftest property-type-validation
+  (is (true?  (t/valid-property-value? PropWithoutValidation nil)))
+  (is (true?  (t/valid-property-value? PropWithoutValidation 0)))
+  (is (true?  (t/valid-property-value? PropWithoutValidation 1)))
+  (is (false? (t/valid-property-value? PropWithValidationFnInline 0)))
+  (is (true?  (t/valid-property-value? PropWithValidationFnInline 1)))
+  (is (false? (t/valid-property-value? PropWithValidationFnValue 0)))
+  (is (false? (t/valid-property-value? PropWithValidationFnValue 1)))
+  (is (true?  (t/valid-property-value? PropWithValidationFnValue 2)))
+  (is (true?  (t/valid-property-value? PropWithValidationLiteralTrue 0)))
+  (is (true?  (t/valid-property-value? PropWithValidationLiteralTrue 1)))
+  (is (false? (t/valid-property-value? PropWithValidationLiteralFalse 0)))
+  (is (false? (t/valid-property-value? PropWithValidationLiteralFalse 1)))
+  (is (false? (t/valid-property-value? PropWithMultipleValidations +1)))
+  (is (true?  (t/valid-property-value? PropWithMultipleValidations -1)))
+  (is (false? (t/valid-property-value? PropWithValidationVarAsSymbol 23)))
+  (is (true?  (t/valid-property-value? PropWithValidationVarAsSymbol 42)))
+  (is (false? (t/valid-property-value? PropWithValidationVarForm 23)))
+  (is (true?  (t/valid-property-value? PropWithValidationVarForm 42)))
+  (binding [*validation-fn* #(= 23 %)]
+    (is (true?  (t/valid-property-value? PropWithValidationVarAsSymbol 23)))
+    (is (false? (t/valid-property-value? PropWithValidationVarAsSymbol 42)))
+    (is (true?  (t/valid-property-value? PropWithValidationVarForm 23)))
+    (is (false? (t/valid-property-value? PropWithValidationVarForm 42))))
+  ;; TODO: `eval` below does not work as expected when run as part of "JUnit Plug-in Test".
+  (is (thrown-with-msg?
+        clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
+        (eval '(defproperty BadProp Integer (validation non-existent-symbol))))))

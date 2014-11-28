@@ -73,7 +73,8 @@
 (defn has-schema? [v] (and (fn? (var-get-recursive v)) (:schema (meta v))))
 
 (defprotocol PropertyTypeDescriptor
-  (default-property-value [this]))
+  (default-property-value [this])
+  (valid-property-value?  [this v]))
 
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)

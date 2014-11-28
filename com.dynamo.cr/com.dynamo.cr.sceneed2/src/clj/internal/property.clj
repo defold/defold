@@ -14,20 +14,35 @@
       t/var-get-recursive
       t/apply-if-fn))
 
+(def ^:private default-validation-fn (constantly true))
+
+(defn- valid-value? [property-type-descriptor value]
+  (-> property-type-descriptor
+      (:validation default-validation-fn)
+      t/var-get-recursive
+      (t/apply-if-fn value)))
+
 (sm/defrecord PropertyTypeDescriptorImpl
   [name       :- String
    value-type :- s/Schema]
   t/PropertyTypeDescriptor
-  (default-property-value [this] (get-default-value this)))
+  (default-property-value [this] (get-default-value this))
+  (valid-property-value? [this v] (valid-value? this v)))
+
+(defn- resolve-if-symbol [sym]
+  (if (symbol? sym)
+    `(do
+       ~sym ; eval to generate CompilerException when symbol cannot be resolved
+       (resolve '~sym))
+    sym))
 
 (defn compile-defproperty-form [form]
   (match [form]
     [(['default default] :seq)]
-    {:default (if (symbol? default)
-                `(do
-                   ~default ; eval to generate CompilerException when symbol cannot be resolved
-                   (resolve '~default))
-                default)}
+    {:default (resolve-if-symbol default)}
+
+    [(['validation validation-fn] :seq)]
+    {:validation (resolve-if-symbol validation-fn)}
 
     :else
     (assert false (str "invalid form within property type definition: " (pr-str form)))))
