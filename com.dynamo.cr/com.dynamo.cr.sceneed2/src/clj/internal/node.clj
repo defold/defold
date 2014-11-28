@@ -74,29 +74,19 @@
         (assoc m k (get-inputs node g k))))
     {} input-schema))
 
-(defn- apply-if-fn [f & args]
-  (if (fn? f)
-    (apply f args)
-    f))
-
 (defn- perform-with-inputs [production-fn node g]
   (if (t/has-schema? production-fn)
-    (apply-if-fn production-fn (collect-inputs node g (pf/input-schema production-fn)))
-    (apply-if-fn production-fn node g)))
-
-(defn- var-get-recursive [var-or-value]
-  (if (var? var-or-value)
-    (recur (var-get var-or-value))
-    var-or-value))
+    (t/apply-if-fn production-fn (collect-inputs node g (pf/input-schema production-fn)))
+    (t/apply-if-fn production-fn node g)))
 
 (defn- default-substitute-value-fn [v]
   (throw (:exception v)))
 
 (defn perform* [transform node g]
-  (let [production-fn       (-> transform :production-fn var-get-recursive)
+  (let [production-fn       (-> transform :production-fn t/var-get-recursive)
         substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)]
     (-> (e/bind (perform-with-inputs production-fn node g))
-        (e/or-else (fn [e] (apply-if-fn substitute-value-fn {:exception e :node node}))))))
+        (e/or-else (fn [e] (t/apply-if-fn substitute-value-fn {:exception e :node node}))))))
 
 (def ^:dynamic *perform-depth* 200)
 
@@ -308,7 +298,7 @@
 
 (defn- inputs-for
   [transform]
-  (let [production-fn (-> transform :production-fn var-get-recursive)]
+  (let [production-fn (-> transform :production-fn t/var-get-recursive)]
     (if (t/has-schema? production-fn)
       (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
       #{})))

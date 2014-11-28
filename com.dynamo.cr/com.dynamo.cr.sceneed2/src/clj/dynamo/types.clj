@@ -59,14 +59,21 @@
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
+(defn apply-if-fn [f & args]
+  (if (fn? f)
+    (apply f args)
+    f))
+
+(defn var-get-recursive [var-or-value]
+  (if (var? var-or-value)
+    (recur (var-get var-or-value))
+    var-or-value))
+
 (defn as-schema   [x] (with-meta x {:schema true}))
-(defn has-schema? [v] (and (fn? (if (var? v) (var-get v) v)) (:schema (meta v))))
+(defn has-schema? [v] (and (fn? (var-get-recursive v)) (:schema (meta v))))
 
-(defprotocol PropertyTypeDescriptor)
-
-(sm/defrecord PropertyTypeDescriptorImpl
-  [value-type :- s/Schema]
-  PropertyTypeDescriptor)
+(defprotocol PropertyTypeDescriptor
+  (default-property-value [this]))
 
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)
