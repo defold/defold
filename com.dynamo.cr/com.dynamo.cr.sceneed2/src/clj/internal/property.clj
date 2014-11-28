@@ -17,6 +17,7 @@
 (def ^:private default-validation-fn (constantly true))
 
 (defn- valid-value? [property-type-descriptor value]
+  (s/validate (:value-type property-type-descriptor) value)
   (-> property-type-descriptor
       (:validation default-validation-fn)
       t/var-get-recursive

@@ -80,6 +80,9 @@
 (def Icon    s/Str)
 (def NodeRef s/Int)
 (def Color   [s/Num])
+(def Vec3    [(s/one s/Num "x")
+              (s/one s/Num "y")
+              (s/one s/Num "z")])
 
 (def MouseType (s/enum :one-button :three-button))
 

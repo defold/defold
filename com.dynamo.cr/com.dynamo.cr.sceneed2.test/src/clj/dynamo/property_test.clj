@@ -11,25 +11,25 @@
     (is (satisfies? t/PropertyTypeDescriptor (var-get property-defn)))
     (is (= s/Any (-> property-defn var-get :value-type)))))
 
-(defproperty PropWithDefaultValue Integer
+(defproperty PropWithDefaultValue s/Num
   (default 42))
 
-(defproperty PropWithDefaultValueNil Integer
+(defproperty PropWithDefaultValueNil s/Any
   (default nil))
 
-(defproperty PropWithMultipleDefaultValues Integer
+(defproperty PropWithMultipleDefaultValues s/Num
   (default 1)
   (default 2))
 
-(defproperty PropWithDefaultValueFn Integer
+(defproperty PropWithDefaultValueFn s/Num
   (default (constantly 23)))
 
 (defn ^:dynamic *default-value* [] -5)
 
-(defproperty PropWithDefaultValueVarAsSymbol Integer
+(defproperty PropWithDefaultValueVarAsSymbol s/Num
   (default *default-value*))
 
-(defproperty PropWithDefaultValueVarForm Integer
+(defproperty PropWithDefaultValueVarForm s/Num
   (default #'*default-value*))
 
 (defproperty PropWithTypeKeyword s/Keyword
@@ -38,7 +38,7 @@
 (defproperty PropWithTypeSymbol s/Any #_s/Symbol
   (default 'some-symbol))
 
-(defproperty PropWithoutDefaultValue Integer)
+(defproperty PropWithoutDefaultValue s/Num)
 
 (deftest property-type-default-value
   (is (= 42 (:default PropWithDefaultValue)))
@@ -57,32 +57,32 @@
   ;; TODO: `eval` below does not work as expected when run as part of "JUnit Plug-in Test".
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
-        (eval '(defproperty BadProp Integer (default non-existent-symbol))))))
+        (eval '(defproperty BadProp s/Num (default non-existent-symbol))))))
 
-(defproperty PropWithoutValidation Integer)
+(defproperty PropWithoutValidation s/Any)
 
-(defproperty PropWithValidationFnInline Integer
+(defproperty PropWithValidationFnInline s/Num
   (validation #(pos? %)))
 
-(defproperty PropWithValidationFnValue Integer
+(defproperty PropWithValidationFnValue s/Num
   (validation (every-pred pos? even?)))
 
-(defproperty PropWithValidationLiteralTrue Integer
+(defproperty PropWithValidationLiteralTrue s/Num
   (validation true))
 
-(defproperty PropWithValidationLiteralFalse Integer
+(defproperty PropWithValidationLiteralFalse s/Num
   (validation false))
 
-(defproperty PropWithMultipleValidations Integer
+(defproperty PropWithMultipleValidations s/Num
   (validation pos?)
   (validation neg?))
 
 (defn ^:dynamic *validation-fn* [v] (= 42 v))
 
-(defproperty PropWithValidationVarAsSymbol Integer
+(defproperty PropWithValidationVarAsSymbol s/Num
   (validation *validation-fn*))
 
-(defproperty PropWithValidationVarForm Integer
+(defproperty PropWithValidationVarForm s/Num
   (validation #'*validation-fn*))
 
 (deftest property-type-validation
@@ -112,17 +112,17 @@
   ;; TODO: `eval` below does not work as expected when run as part of "JUnit Plug-in Test".
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
-        (eval '(defproperty BadProp Integer (validation non-existent-symbol))))))
+        (eval '(defproperty BadProp s/Num (validation non-existent-symbol))))))
 
-(defproperty BaseProp Integer)
+(defproperty BaseProp s/Num)
 
-(defproperty BasePropWithDefault Integer
+(defproperty BasePropWithDefault s/Num
   (default 42))
 
-(defproperty BasePropWithValidation Integer
+(defproperty BasePropWithValidation s/Num
   (validation pos?))
 
-(defproperty BasePropWithDefaultAndValidation Integer
+(defproperty BasePropWithDefaultAndValidation s/Num
   (default 42)
   (validation pos?))
 
@@ -139,10 +139,10 @@
   (validation even?))
 
 (deftest property-type-inheritance
-  (is (= Integer (:value-type DerivedProp)))
-  (is (= Integer (:value-type DerivedPropOverrideDefaultInheritValidation)))
-  (is (= Integer (:value-type DerivedPropInheritDefaultOverrideValidation)))
-  (is (= Integer (:value-type DerivedPropInheritBothOverrideBoth)))
+  (is (= s/Num (:value-type DerivedProp)))
+  (is (= s/Num (:value-type DerivedPropOverrideDefaultInheritValidation)))
+  (is (= s/Num (:value-type DerivedPropInheritDefaultOverrideValidation)))
+  (is (= s/Num (:value-type DerivedPropInheritBothOverrideBoth)))
   (is (= 23 (t/default-property-value DerivedPropOverrideDefaultInheritValidation)))
   (is (= 42 (t/default-property-value DerivedPropInheritDefaultOverrideValidation)))
   (is (= 23 (t/default-property-value DerivedPropInheritBothOverrideBoth)))
