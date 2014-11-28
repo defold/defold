@@ -48,10 +48,12 @@
     (assert false (str "invalid form within property type definition: " (pr-str form)))))
 
 (defn property-type-descriptor [name-str value-type body-forms]
-  (let [props (->> body-forms
-                (map compile-defproperty-form)
-                (reduce merge {:name name-str :value-type value-type}))]
-    `(map->PropertyTypeDescriptorImpl ~props)))
+  `(let [value-type#     ~value-type
+         parent#         (when (satisfies? t/PropertyTypeDescriptor value-type#) value-type#)
+         base-props#     (merge {:name ~name-str :value-type value-type#} parent#)
+         override-props# ~(mapv compile-defproperty-form body-forms)
+         props#          (reduce merge base-props# override-props#)]
+     (map->PropertyTypeDescriptorImpl props#)))
 
 (defn def-property-type-descriptor [name-sym value-type & body-forms]
   `(def ~name-sym ~(property-type-descriptor (str name-sym) value-type body-forms)))

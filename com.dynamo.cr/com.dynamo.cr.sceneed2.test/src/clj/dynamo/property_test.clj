@@ -113,3 +113,45 @@
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
         (eval '(defproperty BadProp Integer (validation non-existent-symbol))))))
+
+(defproperty BaseProp Integer)
+
+(defproperty BasePropWithDefault Integer
+  (default 42))
+
+(defproperty BasePropWithValidation Integer
+  (validation pos?))
+
+(defproperty BasePropWithDefaultAndValidation Integer
+  (default 42)
+  (validation pos?))
+
+(defproperty DerivedProp BaseProp)
+
+(defproperty DerivedPropOverrideDefaultInheritValidation BasePropWithValidation
+  (default 23))
+
+(defproperty DerivedPropInheritDefaultOverrideValidation BasePropWithDefault
+  (validation even?))
+
+(defproperty DerivedPropInheritBothOverrideBoth BasePropWithDefaultAndValidation
+  (default 23)
+  (validation even?))
+
+(deftest property-type-inheritance
+  (is (= Integer (:value-type DerivedProp)))
+  (is (= Integer (:value-type DerivedPropOverrideDefaultInheritValidation)))
+  (is (= Integer (:value-type DerivedPropInheritDefaultOverrideValidation)))
+  (is (= Integer (:value-type DerivedPropInheritBothOverrideBoth)))
+  (is (= 23 (t/default-property-value DerivedPropOverrideDefaultInheritValidation)))
+  (is (= 42 (t/default-property-value DerivedPropInheritDefaultOverrideValidation)))
+  (is (= 23 (t/default-property-value DerivedPropInheritBothOverrideBoth)))
+  (is (false? (t/valid-property-value? DerivedPropOverrideDefaultInheritValidation 0)))
+  (is (true?  (t/valid-property-value? DerivedPropOverrideDefaultInheritValidation 1)))
+  (is (true?  (t/valid-property-value? DerivedPropOverrideDefaultInheritValidation 2)))
+  (is (true?  (t/valid-property-value? DerivedPropInheritDefaultOverrideValidation 0)))
+  (is (false? (t/valid-property-value? DerivedPropInheritDefaultOverrideValidation 1)))
+  (is (true?  (t/valid-property-value? DerivedPropInheritDefaultOverrideValidation 2)))
+  (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 0)))
+  (is (false? (t/valid-property-value? DerivedPropInheritBothOverrideBoth 1)))
+  (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 2))))
