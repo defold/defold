@@ -321,8 +321,8 @@ class Configuration(object):
                          ["org.clojure", "core.match", "0.2.1"],
                          ["org.clojure", "tools.namespace", "0.2.6"],
                          ["com.stuartsierra", "component", "0.2.2"],
-                         ["prismatic", "schema", "0.2.3"],
-                         ["prismatic", "plumbing", "0.3.1"],
+                         ["prismatic", "schema", "0.3.1"],
+                         ["prismatic", "plumbing", "0.3.5"],
                          ["inflections", "inflections", "0.9.10"]]
 
         ed2_test_artifacts = [["org.clojure", "test.check", "0.5.8"],

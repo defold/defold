@@ -13,9 +13,9 @@
 	<classpathentry exported="true" kind="lib" path="jars/data.priority-map-0.0.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/dependency-0.1.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/lazymap-3.1.0.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/plumbing-0.3.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/plumbing-0.3.5.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/potemkin-0.3.2.jar"/>
-	<classpathentry exported="true" kind="lib" path="jars/schema-0.2.3.jar"/>
+	<classpathentry exported="true" kind="lib" path="jars/schema-0.3.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/tools.analyzer-0.1.0-beta12.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/tools.analyzer.jvm-0.1.0-beta12.jar"/>
 	<classpathentry exported="true" kind="lib" path="jars/tools.namespace-0.2.6.jar"/>
