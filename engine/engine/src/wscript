@@ -16,7 +16,16 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     additional_libs = []
-    exported_symbols = ['DefaultSoundDevice']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav']
+
+    # Add stb_vorbis and/or tremolo depending on platform
+    if 'js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
+        exported_symbols.append('AudioDecoderStbVorbis')
+    else:
+        exported_symbols.append('AudioDecoderStbVorbis')
+        exported_symbols.append('AudioDecoderTremolo')
+        additional_libs.append('TREMOLO')
+
     mobile_service_symbols = ['IAPExt', 'PushExt', 'AdTruthExt']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
         additional_libs.append('FACEBOOK')
