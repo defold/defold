@@ -18,14 +18,15 @@
 
 (defn register-filetype
   [extension default?]
-  (let [reg ^EditorRegistry (.getEditorRegistry (PlatformUI/getWorkbench))
-        desc (.findEditor reg "com.dynamo.cr.sceneed2.scene-editor")
-        mapping (doto
-                  (FileEditorMapping. extension)
-                  (.addEditor desc))
-        all-mappings (.getFileEditorMappings reg)]
-    (when default? (.setDefaultEditor mapping desc))
-    (ui/swt-safe (.setFileEditorMappings reg (into-array (concat (seq all-mappings) [mapping]))))))
+  (ui/swt-safe
+    (let [reg ^EditorRegistry (.getEditorRegistry (PlatformUI/getWorkbench))
+          desc (.findEditor reg "com.dynamo.cr.sceneed2.scene-editor")
+          mapping (doto
+                    (FileEditorMapping. extension)
+                    (.addEditor desc))
+          all-mappings (.getFileEditorMappings reg)]
+      (when default? (.setDefaultEditor mapping desc))
+      (.setFileEditorMappings reg (into-array (concat (seq all-mappings) [mapping]))))))
 
 (defn- handle
   [key filetype handler]

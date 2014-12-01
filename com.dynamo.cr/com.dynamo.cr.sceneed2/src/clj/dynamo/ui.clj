@@ -25,10 +25,7 @@
 
 (defn swt-thread-safe*
   [f]
-  (when-let [d (display)]
-    (if (is-display-thread? d)
-      (f)
-      (.asyncExec d f))))
+  (.asyncExec (display) f))
 
 (defmacro swt-safe
   [& body]
