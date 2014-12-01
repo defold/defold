@@ -12,6 +12,14 @@
             [internal.query :as iq]
             [internal.transaction :as it]))
 
+(def ^:dynamic *calls*)
+
+(defn tally [node fn-symbol]
+  (swap! *calls* update-in [(:_id node) fn-symbol] (fnil inc 0)))
+
+(defn get-tally [node fn-symbol]
+  (get-in @*calls* [(:_id node) fn-symbol] 0))
+
 (def a-schema (as-schema {:names [java.lang.String]}))
 
 (def m1 {:cached #{:derived}   :inputs {:simple-number 18 :another [:a] :nested ['v1] :setvalued #{:x}}})
@@ -289,8 +297,8 @@
   (n/abort "Aborting..." {:some-key :some-value})
   :unreachable-code)
 
-(defnk throw-exception-defnk-with-invocation-count [invocation-count]
-  (swap! invocation-count inc)
+(defnk throw-exception-defnk-with-invocation-count [this]
+  (tally this :invocation-count)
   (throw (ex-info "Exception from production function" {})))
 
 (defnode SubstituteValueNode
@@ -304,12 +312,11 @@
   (output out-abort                    s/Any production-fn-with-abort)
   (output out-abort-with-substitute    s/Any :substitute-value (constantly :substitute) production-fn-with-abort)
   (output out-abort-with-substitute-f  s/Any :substitute-value (fn [_] (throw (ex-info "bailed" {}))) production-fn-with-abort)
-  (property invocation-count {:schema clojure.lang.Atom})
   (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
 
 (deftest node-output-substitute-value
   (with-clean-world
-    (let [n (ds/transactional (ds/add (make-substitute-value-node :invocation-count (atom 0))))]
+    (let [n (ds/transactional (ds/add (make-substitute-value-node)))]
       (testing "exceptions from get-node-value when no substitute value fn"
         (is (thrown? Throwable (in/get-node-value n :out-defn)))
         (is (thrown? Throwable (in/get-node-value n :out-defnk))))
@@ -331,11 +338,12 @@
             (is (= {:some-key :some-value} (ex-data e)))))
         (is (= :substitute (in/get-node-value n :out-abort-with-substitute))))
       (testing "interaction with cache"
-        (is (= 0 @(in/get-node-value n :invocation-count)))
-        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
-        (is (= 1 @(in/get-node-value n :invocation-count)))
-        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
-        (is (= 1 @(in/get-node-value n :invocation-count)))))))
+        (binding [*calls* (atom {})]
+          (is (= 0 (get-tally n :invocation-count)))
+          (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+          (is (= 1 (get-tally n :invocation-count)))
+          (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+          (is (= 1 (get-tally n :invocation-count))))))))
 
 (defnode ValueHolderNode
   (property value {:schema s/Int}))
