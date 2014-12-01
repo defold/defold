@@ -17,7 +17,7 @@
 (def ^:private default-validation-fn (constantly true))
 
 (defn- valid-value? [property-type-descriptor value]
-  (s/validate (:value-type property-type-descriptor) value)
+  (s/validate (t/property-value-type property-type-descriptor) value)
   (-> property-type-descriptor
       (:validation default-validation-fn)
       t/var-get-recursive
@@ -27,8 +27,9 @@
   [name       :- String
    value-type :- s/Schema]
   t/PropertyTypeDescriptor
-  (default-property-value [this] (get-default-value this))
-  (valid-property-value? [this v] (valid-value? this v)))
+  (property-value-type    [this]   (:value-type this))
+  (default-property-value [this]   (get-default-value this))
+  (valid-property-value?  [this v] (valid-value? this v)))
 
 (defn- resolve-if-symbol [sym]
   (if (symbol? sym)

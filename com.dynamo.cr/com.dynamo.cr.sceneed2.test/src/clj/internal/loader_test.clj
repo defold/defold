@@ -1,6 +1,7 @@
 (ns internal.loader-test
   (:require [clojure.test :refer :all]
             [dynamo.node :as n]
+            [dynamo.property :as dp]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
@@ -8,8 +9,8 @@
             [schema.core :as s]))
 
 (n/defnode DummyNode
-  (property project s/Any)
-  (property filename String))
+  (property project {:schema dp/NamingContext})
+  (property filename {:schema dp/Str}))
 
 (defn- dummy
   [proj file]

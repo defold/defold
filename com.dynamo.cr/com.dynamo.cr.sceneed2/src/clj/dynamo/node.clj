@@ -5,6 +5,7 @@
             [schema.core :as s]
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
+            [dynamo.property :as dp]
             [internal.node :as in]
             [internal.graph.lgraph :as lg]))
 
@@ -86,7 +87,8 @@ implement dynamo.types/MessageTarget."
        ~(in/generate-descriptor   name descriptor)
        ~(in/generate-defrecord    name descriptor)
        ~(in/generate-constructor  name descriptor)
-       ~(in/generate-print-method name))))
+       ~(in/generate-print-method name)
+       (in/validate-descriptor ~(str name) ~name))))
 
 (defn abort
   "Abort production function and use substitute value."
@@ -134,9 +136,9 @@ This function should mainly be used to create 'plumbing'."
 (defnode Scope
   (input nodes [s/Any])
 
-  (property tag      {:schema s/Keyword})
-  (property parent   {:schema s/Any})
-  (property triggers {:default [#'inject-new-nodes #'dispose-nodes]})
+  (property tag      {:schema dp/Keyword})
+  (property parent   {:schema dp/NamingContext})
+  (property triggers {:schema dp/Triggers :default [#'inject-new-nodes #'dispose-nodes]})
 
   (output dictionary s/Any in/scope-dictionary)
 
@@ -145,9 +147,8 @@ This function should mainly be used to create 'plumbing'."
 
 (defnode RootScope
   (inherits Scope)
-  (property tag {:schema s/Keyword :default :root}))
+  (property tag {:schema dp/Keyword :default :root}))
 
 (defmethod print-method RootScope__
   [^RootScope__ v ^java.io.Writer w]
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
-

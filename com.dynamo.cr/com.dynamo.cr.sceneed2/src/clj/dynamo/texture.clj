@@ -2,6 +2,7 @@
   (:require [dynamo.types :refer :all]
             [dynamo.image :refer :all]
             [dynamo.node :refer [defnode]]
+            [dynamo.property :as dp :refer [defproperty]]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]
             [internal.texture.engine :refer [texture-engine-format-generate]]
             [schema.core :as s]
@@ -22,14 +23,15 @@
           img (flood (blank-image w h) r g b)]
       (TextureSet. rct img [rct] [rct] []))))
 
+(defproperty AnimationPlaybackProp AnimationPlayback)
 
 (defnode AnimationBehavior
   (input images [Image])
 
-  (property fps             (non-negative-integer :default 30))
-  (property flip-horizontal (bool))
-  (property flip-vertical   (bool))
-  (property playback        (as-schema AnimationPlayback))
+  (property fps             {:schema dp/Long} #_(non-negative-integer :default 30))
+  (property flip-horizontal {:schema dp/Bool})
+  (property flip-vertical   {:schema dp/Bool})
+  (property playback        {:schema AnimationPlaybackProp})
 
   (output frames s/Any animation-frames))
 

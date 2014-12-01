@@ -4,6 +4,7 @@
             [plumbing.core :refer [defnk]]
             [dynamo.file :as file]
             [dynamo.node :as n]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.query :as iq]
@@ -38,11 +39,14 @@
           (markers/compile-error source-file compile-error)
           {:compile-error (.getMessage (.getCause compile-error))})))))
 
-(n/defnode ClojureSourceNode
-  (property resource IFile)
-  (property namespace UnloadableNamespace)
+(defproperty IFileProp IFile)
+(defproperty UnloadableNamespaceProp UnloadableNamespace)
 
-  (property triggers {:default [#'compile-at-load]}))
+(n/defnode ClojureSourceNode
+  (property resource {:schema IFileProp})
+  (property namespace {:schema UnloadableNamespaceProp})
+
+  (property triggers {:schema dp/Triggers :default [#'compile-at-load]}))
 
 (defn on-load-code
   [resource _]

@@ -4,6 +4,7 @@
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
+            [dynamo.property :as dp]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
@@ -42,7 +43,7 @@
   (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
 
 (defnode SimpleTestNode
-  (property foo (t/string :default "FOO!")))
+  (property foo {:schema dp/Str :default "FOO!"}))
 
 (definterface MyInterface$InnerInterface
   (^int bar []))
@@ -54,7 +55,7 @@
 (defnode NodeWithProtocols
   (inherits AncestorInterfaceImplementer)
 
-  (property foo (t/string :default "the user"))
+  (property foo {:schema dp/Str :default "the user"})
 
   clojure.lang.IDeref
   (deref [this] (:foo this))
@@ -118,7 +119,7 @@
   (input an-input String)
   (input unused-input String)
 
-  (property a-property String)
+  (property a-property {:schema dp/Str})
 
   (output depends-on-self s/Any depends-on-self)
   (output depends-on-input s/Any depends-on-input)
@@ -177,7 +178,7 @@
 (defnode ProductionFunctionInputsNode
   (input in       s/Keyword)
   (input in-multi [s/Keyword])
-  (property prop {:schema s/Keyword})
+  (property prop {:schema dp/Keyword})
   (output out s/Keyword [this g] :out-val)
   (output inline-fn-this   s/Any [this g] this)
   (output inline-fn-g      s/Any [this g] g)
@@ -346,7 +347,7 @@
           (is (= 1 (get-tally n :invocation-count))))))))
 
 (defnode ValueHolderNode
-  (property value {:schema s/Int}))
+  (property value {:schema dp/Long}))
 
 (def ^:dynamic *answer-call-count* (atom 0))
 

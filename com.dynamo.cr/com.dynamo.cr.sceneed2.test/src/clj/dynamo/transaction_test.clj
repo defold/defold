@@ -8,6 +8,7 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n :refer [Scope]]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
@@ -80,7 +81,7 @@
 
 (n/defnode CountingScope
   (inherits Scope)
-  (property triggers {:default [#'count-calls]}))
+  (property triggers {:schema dp/Triggers :default [#'count-calls]}))
 
 (deftest trigger-runs-once
   (testing "attach one node output to input on another node"
@@ -94,14 +95,16 @@
         (is (= 1 @trigger-called))))))
 
 (n/defnode NamedThing
-  (property name String))
+  (property name {:schema dp/Str}))
 
 (defnk friendly-name [first-name] first-name)
 (defnk full-name [first-name surname] (str first-name " " surname))
 (defnk age [date-of-birth] date-of-birth)
 
+(defproperty Date java.util.Date)
+
 (n/defnode Person
-  (property date-of-birth java.util.Date)
+  (property date-of-birth {:schema Date})
 
   (input first-name String)
   (input surname String)
@@ -114,7 +117,7 @@
 
 (n/defnode Receiver
   (input generic-input s/Any)
-  (property touched {:schema s/Bool :default false})
+  (property touched {:schema dp/Bool :default false})
   (output passthrough s/Any passthrough))
 
 (defnk aggregator [aggregator] aggregator)

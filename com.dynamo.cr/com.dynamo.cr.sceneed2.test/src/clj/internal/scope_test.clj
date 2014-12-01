@@ -9,6 +9,7 @@
             [schema.macros :as sm]
             [plumbing.core :refer [defnk]]
             [dynamo.node :refer :all]
+            [dynamo.property :as dp]
             [dynamo.project :refer [Project make-project]]
             [dynamo.system.test-support :refer :all]
             [dynamo.system :as ds :refer [transactional add in delete]]
@@ -39,9 +40,9 @@
   (inherits Scope))
 
 (defnode Emitter
-  (property name String))
+  (property name {:schema dp/Str}))
 (defnode Modifier
-  (property name String))
+  (property name {:schema dp/Str}))
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
 

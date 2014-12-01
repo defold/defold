@@ -73,6 +73,7 @@
 (defn has-schema? [v] (and (fn? (var-get-recursive v)) (:schema (meta v))))
 
 (defprotocol PropertyTypeDescriptor
+  (property-value-type    [this] "Prismatic schema for property value type")
   (default-property-value [this])
   (valid-property-value?  [this v]))
 

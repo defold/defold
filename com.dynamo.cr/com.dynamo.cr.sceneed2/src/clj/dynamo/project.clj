@@ -4,6 +4,7 @@
             [dynamo.system :as ds]
             [dynamo.file :as file]
             [dynamo.node :as n :refer [defnode Scope]]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.ui :as ui]
             [internal.clojure :as clojure]
             [internal.query :as iq]
@@ -76,13 +77,15 @@
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
 ; ---------------------------------------------------------------------------
+(defproperty IProjectProp IProject)
+
 (defnode Project
   (inherits Scope)
 
-  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-project-scope-message]})
-  (property tag {:schema s/Keyword :default :project})
-  (property eclipse-project IProject)
-  (property branch String)
+  (property triggers        {:schema dp/Triggers :default [#'n/inject-new-nodes #'send-project-scope-message]})
+  (property tag             {:schema dp/Keyword :default :project})
+  (property eclipse-project {:schema IProjectProp})
+  (property branch          {:schema dp/Str})
 
   (on :destroy
     (ds/delete self)))

@@ -19,6 +19,7 @@
             [dynamo.node :as n]
             [dynamo.outline :refer :all]
             [dynamo.project :as p]
+            [dynamo.property :as dp]
             [dynamo.system :as ds :refer [transactional in add connect]]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
@@ -52,12 +53,12 @@
   (input image-back   Image))
 
 (n/defnode CubemapImageProperties
-  (property right  String)
-  (property left   String)
-  (property top    String)
-  (property bottom String)
-  (property front  String)
-  (property back   String))
+  (property right  {:schema dp/Str})
+  (property left   {:schema dp/Str})
+  (property top    {:schema dp/Str})
+  (property bottom {:schema dp/Str})
+  (property front  {:schema dp/Str})
+  (property back   {:schema dp/Str}))
 
 (defnk produce-image-right  [image-right]  image-right)
 (defnk produce-image-left   [image-left]   image-left)

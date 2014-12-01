@@ -394,3 +394,8 @@
               node    nodes
               [o o-l] (node-output-types node)]
             [node o o-l target i i-l]))))
+
+(defn validate-descriptor [nm descriptor]
+  (doseq [[property-name {property-type :schema}] (:properties descriptor)]
+    (assert (satisfies? t/PropertyTypeDescriptor property-type)
+            (str "Node " nm ", property " (name property-name) " has type " property-type ". Expected instance of " `t/PropertyTypeDescriptor))))

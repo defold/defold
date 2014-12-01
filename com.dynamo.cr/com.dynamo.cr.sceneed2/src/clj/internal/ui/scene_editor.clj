@@ -6,6 +6,7 @@
             [dynamo.geom :as g]
             [dynamo.gl :refer :all]
             [dynamo.node :as n :refer [Scope]]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
@@ -98,15 +99,19 @@
   [aabb]
   aabb)
 
+(defproperty GLContextProp GLContext)
+(defproperty GLCanvasProp GLCanvas)
+(defproperty TextRendererProp TextRenderer)
+
 (n/defnode Renderer
   (input view-camera Camera)
   (input renderables [t/RenderData])
   (input controller  t/Node)
   (input aabb        AABB)
 
-  (property context GLContext)
-  (property canvas  GLCanvas)
-  (property text-renderer TextRenderer)
+  (property context {:schema GLContextProp})
+  (property canvas  {:schema GLCanvasProp})
+  (property text-renderer {:schema TextRendererProp})
 
   (output render-data t/RenderData produce-render-data)
   (output aabb AABB passthrough-aabb)
@@ -165,7 +170,7 @@
 
   (input controller  s/Any)
 
-  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-view-scope-message]})
+  (property triggers {:schema dp/Triggers :default [#'n/inject-new-nodes #'send-view-scope-message]})
 
   (on :create
     (let [canvas        (glcanvas (:parent event))

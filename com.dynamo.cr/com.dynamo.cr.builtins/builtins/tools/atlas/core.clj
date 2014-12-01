@@ -22,6 +22,7 @@
             [dynamo.file :refer :all]
             [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
             [dynamo.project :as p :refer [register-loader register-editor]]
+            [dynamo.property :as dp]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
@@ -103,9 +104,9 @@
   (input images [Image])
   (input animations [Animation])
 
-  (property margin          (non-negative-integer))
-  (property extrude-borders (non-negative-integer))
-  (property filename        (string))
+  (property margin          {:schema dp/Long} #_(non-negative-integer))
+  (property extrude-borders {:schema dp/Long} #_(non-negative-integer))
+  (property filename        {:schema dp/Str})
 
   (output textureset TextureSet :cached :substitute-value (blank-textureset) produce-textureset)
   (output aabb       AABB               produce-aabb))
@@ -470,9 +471,9 @@
 (defnode TextureSave
   (input textureset TextureSet)
 
-  (property texture-filename    {:schema s/Any :default ""})
-  (property texture-name        (string))
-  (property textureset-filename {:schema s/Any :default ""})
+  (property texture-filename    {:schema dp/Str :default ""})
+  (property texture-name        {:schema dp/Str})
+  (property textureset-filename {:schema dp/Str :default ""})
 
   (output   texturec s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))

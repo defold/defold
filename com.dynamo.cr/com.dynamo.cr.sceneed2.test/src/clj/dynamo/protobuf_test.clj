@@ -4,6 +4,7 @@
             [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
             [dynamo.node :refer [defnode]]
+            [dynamo.property :as dp]
             [dynamo.types :refer :all]
             [dynamo.outline :refer :all]
             [dynamo.texture :refer :all]
@@ -25,8 +26,8 @@
   (input images     [ImageSource])
   (input animations [Animation])
 
-  (property extrude-borders (non-negative-integer))
-  (property margin          (non-negative-integer)))
+  (property extrude-borders {:schema dp/Long})
+  (property margin          {:schema dp/Long}))
 
 (defnode AtlasAnimationNode
   (inherits OutlineNode)
