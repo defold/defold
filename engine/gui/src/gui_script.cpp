@@ -734,7 +734,24 @@ namespace dmGui
      *
      * @name gui.animate
      * @param node node to animate (node)
-     * @param property property to animate (constant)
+     * @param property property to animate (string|constant)
+     * <ul>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
+     * </ul>
+     * Composite properties of type vector3, vector4 or quaternion also expose their sub-components (x, y, z and w).
+     * You can address the components individually by suffixing the name with a dot '.' and the name of the component.
+     * For instance, "position.x" (the position x coordinate) or "color.w" (the color alpha value).
+     *
+     * The following property constants are also defined equalling the corresponding property string names.
      * <ul>
      *   <li><code>gui.PROP_POSITION</code></li>
      *   <li><code>gui.PROP_ROTATION</code></li>
@@ -745,7 +762,7 @@ namespace dmGui
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * <p>
-     * Single values can also be animated by specifying e.g. "position.x" as the property.
+     *
      * </p>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant). See gui.EASING_* constants
@@ -867,15 +884,18 @@ namespace dmGui
      *
      * @name gui.cancel_animation
      * @param node node that should have its animation canceled (node)
-     * @param property property for which the animation should be canceled (constant)
+     * @param property property for which the animation should be canceled (string|constant)
      * <ul>
-     *   <li><code>gui.PROP_POSITION</code></li>
-     *   <li><code>gui.PROP_ROTATION</code></li>
-     *   <li><code>gui.PROP_SCALE</code></li>
-     *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_OUTLINE</code></li>
-     *   <li><code>gui.PROP_SHADOW</code></li>
-     *   <li><code>gui.PROP_SIZE</code></li>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
      * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
