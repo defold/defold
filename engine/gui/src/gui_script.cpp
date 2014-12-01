@@ -728,7 +728,12 @@ namespace dmGui
      * can be animated simultaneously. Use <code>gui.cancel_animation</code> to stop the animation before it has completed.
      * </p>
      * <p>
-     * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
+     * Composite properties of type vector3, vector4 or quaternion also expose their sub-components (x, y, z and w).
+     * You can address the components individually by suffixing the name with a dot '.' and the name of the component.
+     * For instance, "position.x" (the position x coordinate) or "color.w" (the color alpha value).
+     * </p>
+     * <p>
+     * If a <code>complete_function</code> (Lua function) is specified, that function will be called when the animation has completed.
      * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
      * </p>
      *
@@ -747,10 +752,6 @@ namespace dmGui
      *   <li><code>"inner_radius"</code> (pie nodes)</li>
      *   <li><code>"slice9"</code> (slice9 nodes)</li>
      * </ul>
-     * Composite properties of type vector3, vector4 or quaternion also expose their sub-components (x, y, z and w).
-     * You can address the components individually by suffixing the name with a dot '.' and the name of the component.
-     * For instance, "position.x" (the position x coordinate) or "color.w" (the color alpha value).
-     *
      * The following property constants are also defined equalling the corresponding property string names.
      * <ul>
      *   <li><code>gui.PROP_POSITION</code></li>
