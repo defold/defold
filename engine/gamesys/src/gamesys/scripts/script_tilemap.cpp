@@ -140,6 +140,40 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# set a tile in a tile map
+     * Replace a tile in a tile map with a new tile. The coordinates of the tile is 1-indexed so a 4 by 4
+     * tile map has the following x,y coordinates:
+     * <pre>
+     * +-------+-------+------+------+
+     * | -2,1  | -1,1  | 0,1  | 1,1  |
+     * +-------+-------+------+------+
+     * | -2,0  | -1,0  | 0,0  | 1,0  |
+     * +-------+-------O------+------+
+     * | -2,-1 | -1,-1 | 0,-1 | 1,-1 |
+     * +-------+-------+------+------+
+     * | -2,-2 | -1,-2 | 0,-2 | 1,-2 |
+     * +-------+-------+------+------+
+     * </pre>
+     * The coordinates must be within the bounds of the tile map as it were created. That is, it is not
+     * possible to extend the size of a tile map by setting tiles outside the edges.
+     * The tile to set is identified by its index starting with 1 in the top left corner of the tile set.
+     * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by 
+     * the URL and the layer name parameters.
+     *
+     * @name tilemap.set_tile
+     * @param url the tile map (url)
+     * @param name of the layer (string|hash)
+     * @param x-coordinate of the tile (number)
+     * @param y-coordinate of the tile (number)
+     * @param new tile to set (number)
+     * @param optional if the tile should be horizontally flipped (boolean)
+     * @param optional i the tile should be vertically flipped (boolean)
+     * @examples
+     * <pre>
+     * -- Clear the tile under the player.
+     * tilemap.set_tile("/level#tilemap", "foreground", self.player_x, self.player_y, 0)
+     * </pre>
+     */
     int TileMap_SetTile(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -220,6 +254,24 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# get a tile from a tile map
+     * Get the tile set at the specified position in the tilemap. The returned tile to set is identified
+     * by its index starting with 1 in the top left corner of the tile set, or 0 if the tile is blank.
+     * The coordinates of the tile is 1-indexed (see <code>tilemap.set_tile()</code>) 
+     * Which tile map and layer to query is identified by the URL and the layer name parameters.
+     *
+     * @name tilemap.get_tile
+     * @param url the tile map (url)
+     * @param name of the layer (string|hash)
+     * @param x-coordinate of the tile (number)
+     * @param y-coordinate of the tile (number)
+     * @return index of the tile (number)
+     * @examples
+     * <pre>
+     * -- get the tile under the player.
+     * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
+     * </pre>
+     */
     int TileMap_GetTile(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -256,7 +308,25 @@ namespace dmGameSystem
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
-
+    
+    /*# get the bounds of a tile map
+     * Get the tile set at the specified position in the tilemap. The returned tile to set is identified
+     * by its index starting with 1 in the top left corner of the tile set. The coordinates of the tile is
+     * 1-indexed (see <code>tilemap.set_tile()</code>) Which tile map and layer to query is identified by
+     * the URL and the layer name parameters.
+     *
+     * @name tilemap.get_bounds
+     * @param url the tile map (url)
+     * @return x coordinate of the bottom left corner (number)
+     * @return y coordinate of the bottom left corner (number)
+     * @return number of columns in the tile map (number)
+     * @return number of rows in the tile map (number)
+     * @examples
+     * <pre>
+     * -- get the level bounds.
+     * local x, y, w, h = tilemap.get_bounds("/level#tilemap")
+     * </pre>
+     */
     int TileMap_GetBounds(lua_State* L)
     {
         int top = lua_gettop(L);
