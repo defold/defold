@@ -4,6 +4,7 @@
             [dynamo.system :as ds]
             [dynamo.file :as file]
             [dynamo.node :as n :refer [defnode Scope]]
+            [dynamo.types :as t]
             [dynamo.ui :as ui]
             [internal.clojure :as clojure]
             [internal.query :as iq]
@@ -61,7 +62,9 @@
   [project-scope file]
   (ds/transactional
     (ds/in project-scope
-      ((loader-for project-scope (file/extension file)) file (io/reader file)))))
+      (let [resource-node ((loader-for project-scope (file/extension file)) file (io/reader file))]
+        (assert (satisfies? t/Node resource-node) (str "Loader functions must return a node. Received " (type resource-node) "."))
+        resource-node))))
 
 (defn node-by-filename
   [world-ref project-scope file factory]
