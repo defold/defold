@@ -35,7 +35,7 @@
 (defproperty PropWithTypeKeyword s/Keyword
   (default :some-keyword))
 
-(defproperty PropWithTypeSymbol s/Any #_s/Symbol
+(defproperty PropWithTypeSymbol s/Symbol
   (default 'some-symbol))
 
 (defproperty PropWithoutDefaultValue s/Num)
@@ -54,10 +54,9 @@
   (is (= :some-keyword (t/default-property-value PropWithTypeKeyword)))
   (is (= 'some-symbol (t/default-property-value PropWithTypeSymbol)))
   (is (thrown? java.lang.AssertionError (t/default-property-value PropWithoutDefaultValue)))
-  ;; TODO: `eval` below does not work as expected when run as part of "JUnit Plug-in Test".
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
-        (eval '(defproperty BadProp s/Num (default non-existent-symbol))))))
+        (eval '(dynamo.property/defproperty BadProp schema.core/Num (default non-existent-symbol))))))
 
 (defproperty PropWithoutValidation s/Any)
 
@@ -109,10 +108,9 @@
     (is (false? (t/valid-property-value? PropWithValidationVarAsSymbol 42)))
     (is (true?  (t/valid-property-value? PropWithValidationVarForm 23)))
     (is (false? (t/valid-property-value? PropWithValidationVarForm 42))))
-  ;; TODO: `eval` below does not work as expected when run as part of "JUnit Plug-in Test".
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
-        (eval '(defproperty BadProp s/Num (validation non-existent-symbol))))))
+        (eval '(dynamo.property/defproperty BadProp schema.core/Num (validation non-existent-symbol))))))
 
 (defproperty BaseProp s/Num)
 
