@@ -28,6 +28,7 @@ def configure(conf):
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_TREMOLO'] = 'tremolo'
 
     platform = conf.env['PLATFORM']
 

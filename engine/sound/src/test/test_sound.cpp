@@ -508,71 +508,59 @@ TEST_F(dmSoundTest, DeletePlayingSound)
 TEST_F(dmSoundTest, OggDecompressionRate)
 {
     // Benchmark to test real performance on device
-    int error;
-    stb_vorbis* vorbis = stb_vorbis_open_memory((unsigned char*) TONE_MONO_22050_OGG, TONE_MONO_22050_OGG_SIZE, &error, NULL);
-    ASSERT_NE((stb_vorbis*) 0, vorbis);
+    dmSoundCodec::NewCodecContextParams params;
+    dmSoundCodec::HCodecContext codec = dmSoundCodec::New(&params);
+    ASSERT_NE((void*) 0, codec);
 
-    const uint32_t buffer_size = 2 * 4096;
-    void* buffer = malloc(buffer_size);
+    dmSoundCodec::Result r;
+    dmSoundCodec::Info info;
+    dmSoundCodec::HDecoder decoder;
 
-    stb_vorbis_info info = stb_vorbis_get_info(vorbis);
+    r = dmSoundCodec::NewDecoder(codec, dmSoundCodec::FORMAT_VORBIS, (unsigned char*) LAYER_GUITAR_A_OGG, LAYER_GUITAR_A_OGG_SIZE, &decoder);
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+
+    dmSoundCodec::GetInfo(codec, decoder, &info);
+
+    const int num_rounds = 5*1024*1024 / LAYER_GUITAR_A_OGG_SIZE;
+    char buf[2048];
+    uint32_t decoded;
+    uint32_t total;
 
     uint64_t start = dmTime::GetTime();
-    int total_read = 0;
-    while (total_read < (int) buffer_size)
-    {
-        int ret;
-        if (info.channels == 1)
-        {
-            ret = stb_vorbis_get_samples_short_interleaved(vorbis, 1, (short*) (((char*) buffer) + total_read), (buffer_size - total_read) / 2);
-        }
-        else if (info.channels == 2)
-        {
-            ret = stb_vorbis_get_samples_short_interleaved(vorbis, 2, (short*) (((char*) buffer) + total_read), (buffer_size - total_read) / 2);
-        }
-        else
-        {
-            assert(0);
-        }
+    total = 0;
 
-        if (ret < 0)
+    for (int i=0;i<num_rounds;i++)
+    {
+        do
         {
-            ASSERT_TRUE(false);
+            r = dmSoundCodec::Decode(codec, decoder, buf, sizeof(buf), &decoded);
+            total += decoded;
+            ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
         }
-        else if (ret == 0)
-        {
-            break;
-        }
-        else
-        {
-            if (info.channels == 1)
-            {
-                total_read += ret * 2;
-            }
-            else if (info.channels == 2)
-            {
-                total_read += ret * 4;
-            }
-            else
-            {
-                assert(0);
-            }
-        }
+        while (decoded > 0);
+
+        // This is (should) be a fairly cheap operation in comparison to decoding.
+        dmSoundCodec::Reset(codec, decoder);
     }
+
     uint64_t end = dmTime::GetTime();
+
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, r);
+
+    dmSoundCodec::DeleteDecoder(codec, decoder);
+    dmSoundCodec::Delete(codec);
+
     float elapsed = (float) (end - start);
 
-    printf("channels: %d\n", info.channels);
-    printf("sample rate: %d\n", info.sample_rate);
-    float rate = (1000000.0f * (buffer_size) / elapsed);
+    printf("channels: %d\n", info.m_Channels);
+    printf("sample rate: %d\n", info.m_Rate);
+    float rate = (1000000.0f * total / elapsed);
     printf("rate: %.2f kb/s\n", rate / 1024.0f);
-    float bytes_per_60_frame = info.channels * 2 * info.sample_rate / 60.0f;
+    float bytes_per_60_frame = info.m_Channels * 2 * info.m_Rate / 60.0f;
     printf("bytes required/60-frame: %.2f\n", bytes_per_60_frame);
     float time_per_60_frame = bytes_per_60_frame / rate;
     printf("time/60-frame: %.2f ms\n", 1000.0f * time_per_60_frame);
     printf("time for 8k buffer: %.2f ms\n", 1000.0f * 2 * 4096 / rate);
-    free(buffer);
-    stb_vorbis_close(vorbis);
 }
 
 TEST_F(dmSoundTest, WavCodec)

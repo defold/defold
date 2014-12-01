@@ -141,6 +141,7 @@ Licenses
 * **axTLS**: [http://axtls.sourceforge.net](http://axtls.sourceforge.net) - **BSD**
 * **stb_image** [http://nothings.org/](http://nothings.org) **Public domain**
 * **stb_vorbis** [http://nothings.org/](http://nothings.org) **Public domain**
+* **tremolo** [http://wss.co.uk/pinknoise/tremolo/](http://wss.co.uk/pinknoise/tremolo/) **BSD**
 * **facebook** [https://github.com/facebook/facebook-ios-sdk](https://github.com/facebook/facebook-ios-sdk) **Apache**
 * **glfw** [http://www.glfw.org](http://www.glfw.org) **zlib/libpng**
 * **lua** [http://www.lua.org](http://www.lua.org) **MIT**
