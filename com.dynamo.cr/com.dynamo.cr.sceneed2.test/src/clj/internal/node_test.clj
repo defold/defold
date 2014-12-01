@@ -165,12 +165,6 @@
 (defnk production-fnk-prop [prop] prop)
 (defnk production-fnk-in [in] in)
 (defnk production-fnk-in-multi [in-multi] in-multi)
-(defnk production-fnk-out [out] out)
-(defnk production-fnk-defnk-out [defnk-out] defnk-out)
-(defnk production-fnk-out-cached
-  [defnk-out-cached-invocation-count out]
-  (swap! defnk-out-cached-invocation-count inc)
-  out)
 
 (defnode ProductionFunctionInputsNode
   (input in       s/Keyword)
@@ -187,18 +181,14 @@
   (output defnk-project    s/Any production-fnk-project)
   (output defnk-prop       s/Any production-fnk-prop)
   (output defnk-in         s/Any production-fnk-in)
-  (output defnk-in-multi   s/Any production-fnk-in-multi)
-  (output defnk-out        s/Any production-fnk-out)
-  (output defnk-defnk-out  s/Any production-fnk-defnk-out)
-  (property defnk-out-cached-invocation-count {:schema clojure.lang.Atom})
-  (output defnk-out-cached s/Any :cached production-fnk-out-cached))
+  (output defnk-in-multi   s/Any production-fnk-in-multi))
 
 (deftest production-function-inputs
   (with-clean-world
     (let [project (ds/transactional (ds/add (p/make-project)))
           [node0 node1 node2] (ds/in project
                                 (tx-nodes
-                                  (make-production-function-inputs-node :prop :node0 :defnk-out-cached-invocation-count (atom 0))
+                                  (make-production-function-inputs-node :prop :node0)
                                   (make-production-function-inputs-node :prop :node1)
                                   (make-production-function-inputs-node :prop :node2)))
           _ (ds/transactional
@@ -228,15 +218,7 @@
         (is (#{:node0 :node1}  (in/get-node-value node2 :defnk-in)))
         (is (= []              (in/get-node-value node0 :defnk-in-multi)))
         (is (= [:node0]        (in/get-node-value node1 :defnk-in-multi)))
-        (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi))))
-      (testing "defnk inputs from node outputs"
-        (is (= :out-val (in/get-node-value node0 :defnk-out)))
-        (is (= :out-val (in/get-node-value node0 :defnk-defnk-out)))
-        (is (= 0 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
-        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
-        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
-        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
-        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))))))
+        (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi)))))))
 
 (deftest node-properties-as-node-outputs
   (with-clean-world
