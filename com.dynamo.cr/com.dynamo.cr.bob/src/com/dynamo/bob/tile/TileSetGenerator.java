@@ -99,7 +99,7 @@ public class TileSetGenerator {
 
         TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0,
                 tileSet.getInnerPadding(),
-                tileSet.getExtrudeBorders(), genOutlines, genAtlasVertices);
+                tileSet.getExtrudeBorders(), genOutlines, genAtlasVertices, false);
 
         TextureSet.Builder builder = result.builder;
 

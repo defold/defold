@@ -73,14 +73,14 @@ public class TextureSetLayout {
 
     }
 
-    public static Layout layout(int margin, List<Rect> rectangles) {
+    public static Layout layout(int margin, List<Rect> rectangles, boolean rotate) {
         if (rectangles.size() == 0) {
             return new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>());
         }
-        return createMaxRectsLayout(margin, rectangles);
+        return createMaxRectsLayout(margin, rectangles, rotate);
     }
 
-    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles) {
+    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate) {
         int defaultMaxPageSize = 1024;
         final int defaultMinPageSize = 16;
 
@@ -91,7 +91,7 @@ public class TextureSetLayout {
         settings.minPageWidth = defaultMinPageSize;
         settings.paddingX = margin;
         settings.paddingY = margin;
-        settings.rotation = true;
+        settings.rotation = rotate;
         settings.fast = false;
         settings.square = false;
 
