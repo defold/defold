@@ -8,7 +8,7 @@
   (let [property-defn (defproperty SomeProperty s/Any)]
     (is (var? property-defn))
     (is (identical? (resolve `SomeProperty) property-defn))
-    (is (satisfies? t/PropertyTypeDescriptor (var-get property-defn)))
+    (is (satisfies? t/PropertyType (var-get property-defn)))
     (is (= s/Any (-> property-defn var-get :value-type)))))
 
 (defproperty PropWithDefaultValue s/Num

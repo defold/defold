@@ -382,5 +382,5 @@
 
 (defn validate-descriptor [nm descriptor]
   (doseq [[property-name property-type] (:properties descriptor)]
-    (assert (satisfies? t/PropertyTypeDescriptor property-type)
-            (str "Node " nm ", property " (name property-name) " has type " property-type ". Expected instance of " `t/PropertyTypeDescriptor))))
+    (assert (satisfies? t/PropertyType property-type)
+            (str "Node " nm ", property " (name property-name) " has type " property-type ". Expected instance of " `t/PropertyType))))

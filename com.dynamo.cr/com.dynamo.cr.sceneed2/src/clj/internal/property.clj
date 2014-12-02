@@ -21,10 +21,10 @@
       t/var-get-recursive
       (t/apply-if-fn value)))
 
-(sm/defrecord PropertyTypeDescriptorImpl
+(sm/defrecord PropertyTypeImpl
   [name       :- String
    value-type :- s/Schema]
-  t/PropertyTypeDescriptor
+  t/PropertyType
   (property-value-type    [this]   (:value-type this))
   (default-property-value [this]   (get-default-value this))
   (valid-property-value?  [this v] (valid-value? this v)))
@@ -49,11 +49,11 @@
 
 (defn property-type-descriptor [value-type body-forms]
   `(let [value-type#     ~value-type
-         parent#         (when (satisfies? t/PropertyTypeDescriptor value-type#) value-type#)
+         parent#         (when (satisfies? t/PropertyType value-type#) value-type#)
          base-props#     (merge {:value-type value-type#} parent#)
          override-props# ~(mapv compile-defproperty-form body-forms)
          props#          (reduce merge base-props# override-props#)]
-     (map->PropertyTypeDescriptorImpl props#)))
+     (map->PropertyTypeImpl props#)))
 
 (defn def-property-type-descriptor [name-sym value-type & body-forms]
   `(def ~name-sym ~(property-type-descriptor value-type body-forms)))
