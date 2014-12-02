@@ -80,7 +80,7 @@
 
 (n/defnode CountingScope
   (inherits Scope)
-  (property triggers {:default [#'count-calls]}))
+  (property triggers t/Triggers (default [#'count-calls])))
 
 (deftest trigger-runs-once
   (testing "attach one node output to input on another node"
@@ -94,7 +94,7 @@
         (is (= 1 @trigger-called))))))
 
 (n/defnode NamedThing
-  (property name String))
+  (property name s/Str))
 
 (defnk friendly-name [first-name] first-name)
 (defnk full-name [first-name surname] (str first-name " " surname))
@@ -114,7 +114,7 @@
 
 (n/defnode Receiver
   (input generic-input s/Any)
-  (property touched {:schema s/Bool :default false})
+  (property touched s/Bool (default false))
   (output passthrough s/Any passthrough))
 
 (defnk aggregator [aggregator] aggregator)

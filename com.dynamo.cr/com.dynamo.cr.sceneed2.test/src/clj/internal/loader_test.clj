@@ -4,12 +4,13 @@
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
+            [dynamo.types :as t]
             [internal.query :as iq]
             [schema.core :as s]))
 
 (n/defnode DummyNode
-  (property project s/Any)
-  (property filename String))
+  (property project t/NamingContext)
+  (property filename s/Str))
 
 (defn- dummy
   [proj file]

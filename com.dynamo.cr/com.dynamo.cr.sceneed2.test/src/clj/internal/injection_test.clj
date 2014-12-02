@@ -63,7 +63,7 @@
   (output passthrough CommonValueType passthrough))
 
 (n/defnode ValueProducer
-  (property value {:schema CommonValueType})
+  (property value CommonValueType)
   (output local-name CommonValueType [this _] (:value this)))
 
 (deftest dependency-injection

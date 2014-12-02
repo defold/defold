@@ -9,9 +9,10 @@
             [dynamo.types :as t]
             [schema.core :as s]
             [schema.macros :as sm]
-            [internal.metrics :as metrics]
             [internal.graph.lgraph :as lg]
             [internal.graph.dgraph :as dg]
+            [internal.metrics :as metrics]
+            [internal.property :as ip]
             [internal.query :as iq]
             [internal.either :as e]
             [service.log :as log]
@@ -74,29 +75,19 @@
         (assoc m k (get-inputs node g k))))
     {} input-schema))
 
-(defn- apply-if-fn [f & args]
-  (if (fn? f)
-    (apply f args)
-    f))
-
 (defn- perform-with-inputs [production-fn node g]
   (if (t/has-schema? production-fn)
-    (apply-if-fn production-fn (collect-inputs node g (pf/input-schema production-fn)))
-    (apply-if-fn production-fn node g)))
-
-(defn- var-get-recursive [var-or-value]
-  (if (var? var-or-value)
-    (recur (var-get var-or-value))
-    var-or-value))
+    (t/apply-if-fn production-fn (collect-inputs node g (pf/input-schema production-fn)))
+    (t/apply-if-fn production-fn node g)))
 
 (defn- default-substitute-value-fn [v]
   (throw (:exception v)))
 
 (defn perform* [transform node g]
-  (let [production-fn       (-> transform :production-fn var-get-recursive)
+  (let [production-fn       (-> transform :production-fn t/var-get-recursive)
         substitute-value-fn (get transform :substitute-value-fn default-substitute-value-fn)]
     (-> (e/bind (perform-with-inputs production-fn node g))
-        (e/or-else (fn [e] (apply-if-fn substitute-value-fn {:exception e :node node}))))))
+        (e/or-else (fn [e] (t/apply-if-fn substitute-value-fn {:exception e :node node}))))))
 
 (def ^:dynamic *perform-depth* 200)
 
@@ -183,11 +174,9 @@
   (into [] (list* 'inputs 'transforms '_id (property-symbols behavior))))
 
 (defn defaults
-  [beh]
-  (reduce-kv (fn [m k v]
-               (let [v (if (seq? v) (eval v) v)]
-                 (if (not (nil? (:default v))) (assoc m k (:default v)) m)))
-             {} (:properties beh)))
+  [{:keys [properties] :as descriptor}]
+  (zipmap (keys properties)
+          (map t/default-property-value (vals properties))))
 
 (def ^:private property-flags #{:cached :on-update})
 (def ^:private option-flags #{:substitute-value})
@@ -212,8 +201,8 @@
        (assert super-descriptor (str "Cannot resolve " super " to a node definition."))
        (deref super-descriptor))
 
-     [(['property nm tp] :seq)]
-     {:properties {(keyword nm) tp}
+     [(['property nm tp & options] :seq)]
+     {:properties {(keyword nm) (eval (ip/property-type-descriptor tp options))}
       :transforms {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}}
 
      [(['input nm schema & flags] :seq)]
@@ -262,19 +251,6 @@
     val
     (throw (ex-info (str "Unable to resolve symbol " sym " in this context") {:symbol sym}))))
 
-(defn map-vals [m f]
-  (reduce-kv (fn [i k v] (assoc i k (f v))) {} m))
-
-(defn- eval-default-exprs
-  [prop]
-  (if (:default prop)
-    (update-in prop [:default] eval)
-    prop))
-
-(defn- resolve-defaults
-  [m]
-  (update-in m [:properties] map-vals eval-default-exprs))
-
 (defn generate-message-processor
   [name descriptor]
   (let [event-types (keys (:event-handlers descriptor))]
@@ -289,8 +265,7 @@
   [nm forms]
   (->> forms
     (map (partial compile-defnode-form nm))
-    (reduce deep-merge {:name nm :on-update #{}})
-    (resolve-defaults)))
+    (reduce deep-merge {:name nm :on-update #{}})))
 
 (defn- emit-quote [form]
   (list `quote form))
@@ -308,7 +283,7 @@
 
 (defn- inputs-for
   [transform]
-  (let [production-fn (-> transform :production-fn var-get-recursive)]
+  (let [production-fn (-> transform :production-fn t/var-get-recursive)]
     (if (t/has-schema? production-fn)
       (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
       #{})))
@@ -351,7 +326,7 @@
        [& {:as ~'property-values}]
        (~record-ctor (merge {:_id (tempid)}
                             ~{:descriptor nm}
-                            ~(defaults descriptor)
+                            (defaults ~nm)
                             ~'property-values)))))
 
 (defn generate-descriptor [nm descriptor]
@@ -404,3 +379,8 @@
               node    nodes
               [o o-l] (node-output-types node)]
             [node o o-l target i i-l]))))
+
+(defn validate-descriptor [nm descriptor]
+  (doseq [[property-name property-type] (:properties descriptor)]
+    (assert (satisfies? t/PropertyType property-type)
+            (str "Node " nm ", property " (name property-name) " has type " property-type ". Expected instance of " `t/PropertyType))))

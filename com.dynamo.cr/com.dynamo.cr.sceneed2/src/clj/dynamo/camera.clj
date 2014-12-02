@@ -315,9 +315,9 @@
     (camera-set-center aabb)))
 
 (n/defnode CameraController
-  (property camera {:schema Camera})
+  (property camera Camera)
 
-  (property movement {:schema s/Any :default :idle})
+  (property movement s/Keyword (default :idle))
 
   (on :mouse-down
     (ds/set-property self

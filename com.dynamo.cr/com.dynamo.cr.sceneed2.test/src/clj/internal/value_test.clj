@@ -17,8 +17,8 @@
 (defn tally [node fn-symbol]
   (swap! *calls* update-in [(:_id node) fn-symbol] (fnil inc 0)))
 
-(defn get-tally [resource fn-symbol]
-  (get-in @*calls* [(:_id resource) fn-symbol] 0))
+(defn get-tally [node fn-symbol]
+  (get-in @*calls* [(:_id node) fn-symbol] 0))
 
 (defmacro expect-call-when [node fn-symbol & body]
   `(let [calls-before# (get-tally ~node ~fn-symbol)]
@@ -36,7 +36,7 @@
   scalar)
 
 (n/defnode UncachedOutput
-  (property scalar (t/string :default "foo"))
+  (property scalar s/Str)
   (output uncached-value String produce-simple-value))
 
 (defn compute-expensive-value

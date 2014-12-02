@@ -4,6 +4,7 @@
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
@@ -11,6 +12,14 @@
             [internal.system :as is]
             [internal.query :as iq]
             [internal.transaction :as it]))
+
+(def ^:dynamic *calls*)
+
+(defn tally [node fn-symbol]
+  (swap! *calls* update-in [(:_id node) fn-symbol] (fnil inc 0)))
+
+(defn get-tally [node fn-symbol]
+  (get-in @*calls* [(:_id node) fn-symbol] 0))
 
 (def a-schema (as-schema {:names [java.lang.String]}))
 
@@ -33,8 +42,30 @@
   (is (= schema-merge (deep-merge s1 s2)))
   (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
 
+(defproperty StringWithDefault s/Str
+  (default "o rly?"))
+
+(defn string-value [] "uff-da")
+
+(defnode WithDefaults
+  (property default-value                 StringWithDefault)
+  (property overridden-literal-value      StringWithDefault (default "ya rly."))
+  (property overridden-function-value     StringWithDefault (default (constantly "vell den.")))
+  (property overridden-indirect           StringWithDefault (default string-value))
+  (property overridden-indirect-by-var    StringWithDefault (default #'string-value))
+  (property overridden-indirect-by-symbol StringWithDefault (default 'string-value)))
+
+(deftest node-property-defaults
+  (are [expected property] (= expected (get (make-with-defaults) property))
+    "o rly?"      :default-value
+    "ya rly."     :overridden-literal-value
+    "vell den."   :overridden-function-value
+    "uff-da"      :overridden-indirect
+    "uff-da"      :overridden-indirect-by-var
+    'string-value :overridden-indirect-by-symbol))
+
 (defnode SimpleTestNode
-  (property foo (t/string :default "FOO!")))
+  (property foo s/Str (default "FOO!")))
 
 (definterface MyInterface$InnerInterface
   (^int bar []))
@@ -46,7 +77,7 @@
 (defnode NodeWithProtocols
   (inherits AncestorInterfaceImplementer)
 
-  (property foo (t/string :default "the user"))
+  (property foo s/Str (default "the user"))
 
   clojure.lang.IDeref
   (deref [this] (:foo this))
@@ -110,7 +141,7 @@
   (input an-input String)
   (input unused-input String)
 
-  (property a-property String)
+  (property a-property s/Str)
 
   (output depends-on-self s/Any depends-on-self)
   (output depends-on-input s/Any depends-on-input)
@@ -165,17 +196,11 @@
 (defnk production-fnk-prop [prop] prop)
 (defnk production-fnk-in [in] in)
 (defnk production-fnk-in-multi [in-multi] in-multi)
-(defnk production-fnk-out [out] out)
-(defnk production-fnk-defnk-out [defnk-out] defnk-out)
-(defnk production-fnk-out-cached
-  [defnk-out-cached-invocation-count out]
-  (swap! defnk-out-cached-invocation-count inc)
-  out)
 
 (defnode ProductionFunctionInputsNode
   (input in       s/Keyword)
   (input in-multi [s/Keyword])
-  (property prop {:schema s/Keyword})
+  (property prop s/Keyword)
   (output out s/Keyword [this g] :out-val)
   (output inline-fn-this   s/Any [this g] this)
   (output inline-fn-g      s/Any [this g] g)
@@ -187,18 +212,14 @@
   (output defnk-project    s/Any production-fnk-project)
   (output defnk-prop       s/Any production-fnk-prop)
   (output defnk-in         s/Any production-fnk-in)
-  (output defnk-in-multi   s/Any production-fnk-in-multi)
-  (output defnk-out        s/Any production-fnk-out)
-  (output defnk-defnk-out  s/Any production-fnk-defnk-out)
-  (property defnk-out-cached-invocation-count {:schema clojure.lang.Atom})
-  (output defnk-out-cached s/Any :cached production-fnk-out-cached))
+  (output defnk-in-multi   s/Any production-fnk-in-multi))
 
 (deftest production-function-inputs
   (with-clean-world
     (let [project (ds/transactional (ds/add (p/make-project)))
           [node0 node1 node2] (ds/in project
                                 (tx-nodes
-                                  (make-production-function-inputs-node :prop :node0 :defnk-out-cached-invocation-count (atom 0))
+                                  (make-production-function-inputs-node :prop :node0)
                                   (make-production-function-inputs-node :prop :node1)
                                   (make-production-function-inputs-node :prop :node2)))
           _ (ds/transactional
@@ -228,15 +249,7 @@
         (is (#{:node0 :node1}  (in/get-node-value node2 :defnk-in)))
         (is (= []              (in/get-node-value node0 :defnk-in-multi)))
         (is (= [:node0]        (in/get-node-value node1 :defnk-in-multi)))
-        (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi))))
-      (testing "defnk inputs from node outputs"
-        (is (= :out-val (in/get-node-value node0 :defnk-out)))
-        (is (= :out-val (in/get-node-value node0 :defnk-defnk-out)))
-        (is (= 0 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
-        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
-        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))
-        (is (= :out-val (in/get-node-value node0 :defnk-out-cached)))
-        (is (= 1 @(in/get-node-value node0 :defnk-out-cached-invocation-count)))))))
+        (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi)))))))
 
 (deftest node-properties-as-node-outputs
   (with-clean-world
@@ -307,8 +320,8 @@
   (n/abort "Aborting..." {:some-key :some-value})
   :unreachable-code)
 
-(defnk throw-exception-defnk-with-invocation-count [invocation-count]
-  (swap! invocation-count inc)
+(defnk throw-exception-defnk-with-invocation-count [this]
+  (tally this :invocation-count)
   (throw (ex-info "Exception from production function" {})))
 
 (defnode SubstituteValueNode
@@ -322,12 +335,11 @@
   (output out-abort                    s/Any production-fn-with-abort)
   (output out-abort-with-substitute    s/Any :substitute-value (constantly :substitute) production-fn-with-abort)
   (output out-abort-with-substitute-f  s/Any :substitute-value (fn [_] (throw (ex-info "bailed" {}))) production-fn-with-abort)
-  (property invocation-count {:schema clojure.lang.Atom})
   (output out-defnk-with-invocation-count s/Any :cached throw-exception-defnk-with-invocation-count))
 
 (deftest node-output-substitute-value
   (with-clean-world
-    (let [n (ds/transactional (ds/add (make-substitute-value-node :invocation-count (atom 0))))]
+    (let [n (ds/transactional (ds/add (make-substitute-value-node)))]
       (testing "exceptions from get-node-value when no substitute value fn"
         (is (thrown? Throwable (in/get-node-value n :out-defn)))
         (is (thrown? Throwable (in/get-node-value n :out-defnk))))
@@ -349,14 +361,15 @@
             (is (= {:some-key :some-value} (ex-data e)))))
         (is (= :substitute (in/get-node-value n :out-abort-with-substitute))))
       (testing "interaction with cache"
-        (is (= 0 @(in/get-node-value n :invocation-count)))
-        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
-        (is (= 1 @(in/get-node-value n :invocation-count)))
-        (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
-        (is (= 1 @(in/get-node-value n :invocation-count)))))))
+        (binding [*calls* (atom {})]
+          (is (= 0 (get-tally n :invocation-count)))
+          (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+          (is (= 1 (get-tally n :invocation-count)))
+          (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
+          (is (= 1 (get-tally n :invocation-count))))))))
 
 (defnode ValueHolderNode
-  (property value {:schema s/Int}))
+  (property value s/Int))
 
 (def ^:dynamic *answer-call-count* (atom 0))
 

@@ -52,12 +52,12 @@
   (input image-back   Image))
 
 (n/defnode CubemapImageProperties
-  (property right  String)
-  (property left   String)
-  (property top    String)
-  (property bottom String)
-  (property front  String)
-  (property back   String))
+  (property right  s/Str)
+  (property left   s/Str)
+  (property top    s/Str)
+  (property bottom s/Str)
+  (property front  s/Str)
+  (property back   s/Str))
 
 (defnk produce-image-right  [image-right]  image-right)
 (defnk produce-image-left   [image-left]   image-left)

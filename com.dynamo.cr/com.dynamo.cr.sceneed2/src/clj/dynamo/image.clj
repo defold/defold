@@ -4,6 +4,7 @@
             [dynamo.file :refer [project-path local-path]]
             [dynamo.geom :refer :all]
             [dynamo.node :refer [defnode]]
+            [dynamo.property :as dp]
             [internal.cache :refer [caching]]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
@@ -68,7 +69,7 @@
 (defnode ImageSource
   ;; NOTE: Order is important here. `property` defines an
   ;; output that is overridden by the later `output` clause.
-  (property image (t/resource))
+  (property image dp/Resource)
   (output   image Image :cached :substitute-value placeholder-image image-from-resource))
 
 (sm/defn image-color-components :- long

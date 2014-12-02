@@ -30,8 +30,9 @@ Compose the behavior from the named node type
 (input    _symbol_ _schema_)
 Define an input with the name, whose values must match the schema.
 
-(property _symbol_ _property-spec_)
+(property _symbol_ _property-type_ & _options_)
 Define a property with schema and, possibly, default value and constraints.
+Property type and options have the same syntax as for `dynamo.property/defproperty`.
 
 (output   _symbol_ _type_ (:cached)? (:on-update)? _producer_)
 Define an output to produce values of type. Flags ':cached' and
@@ -50,12 +51,12 @@ Example (from [[atlas.core]]):
 
     (defnode TextureCompiler
       (input    textureset (as-schema TextureSet))
-      (property texture-filename (string :default \"\"))
+      (property texture-filename s/Str (default \"\"))
       (output   texturec s/Any compile-texturec)))
 
     (defnode TextureSetCompiler
       (input    textureset (as-schema TextureSet))
-      (property textureset-filename (string :default \"\"))
+      (property textureset-filename s/Str (default \"\"))
       (output   texturesetc s/Any compile-texturesetc)))
 
     (defnode AtlasCompiler
@@ -86,7 +87,8 @@ implement dynamo.types/MessageTarget."
        ~(in/generate-descriptor   name descriptor)
        ~(in/generate-defrecord    name descriptor)
        ~(in/generate-constructor  name descriptor)
-       ~(in/generate-print-method name))))
+       ~(in/generate-print-method name)
+       (in/validate-descriptor ~(str name) ~name))))
 
 (defn abort
   "Abort production function and use substitute value."
@@ -134,9 +136,9 @@ This function should mainly be used to create 'plumbing'."
 (defnode Scope
   (input nodes [s/Any])
 
-  (property tag      {:schema s/Keyword})
-  (property parent   {:schema s/Any})
-  (property triggers {:default [#'inject-new-nodes #'dispose-nodes]})
+  (property tag      s/Keyword)
+  (property parent   NamingContext)
+  (property triggers Triggers (default [#'inject-new-nodes #'dispose-nodes]))
 
   (output dictionary s/Any in/scope-dictionary)
 
@@ -145,9 +147,8 @@ This function should mainly be used to create 'plumbing'."
 
 (defnode RootScope
   (inherits Scope)
-  (property tag {:schema s/Keyword :default :root}))
+  (property tag s/Keyword (default :root)))
 
 (defmethod print-method RootScope__
   [^RootScope__ v ^java.io.Writer w]
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
-

@@ -83,10 +83,10 @@
 (defnode Project
   (inherits Scope)
 
-  (property triggers {:schema s/Any :default [#'n/inject-new-nodes #'send-project-scope-message]})
-  (property tag {:schema s/Keyword :default :project})
+  (property triggers        t/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
+  (property tag             s/Keyword (default :project))
   (property eclipse-project IProject)
-  (property branch String)
+  (property branch          s/Str)
 
   (on :destroy
     (ds/delete self)))

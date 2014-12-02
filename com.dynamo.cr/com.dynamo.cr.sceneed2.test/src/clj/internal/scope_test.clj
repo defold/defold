@@ -6,6 +6,7 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
+            [schema.core :as s]
             [schema.macros :as sm]
             [plumbing.core :refer [defnk]]
             [dynamo.node :refer :all]
@@ -39,9 +40,9 @@
   (inherits Scope))
 
 (defnode Emitter
-  (property name String))
+  (property name s/Str))
 (defnode Modifier
-  (property name String))
+  (property name s/Str))
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
 

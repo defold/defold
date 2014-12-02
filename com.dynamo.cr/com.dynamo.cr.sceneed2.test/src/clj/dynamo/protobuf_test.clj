@@ -1,5 +1,6 @@
 (ns dynamo.protobuf-test
   (:require [clojure.test :refer :all]
+            [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
@@ -25,8 +26,8 @@
   (input images     [ImageSource])
   (input animations [Animation])
 
-  (property extrude-borders (non-negative-integer))
-  (property margin          (non-negative-integer)))
+  (property extrude-borders s/Int)
+  (property margin          s/Int))
 
 (defnode AtlasAnimationNode
   (inherits OutlineNode)

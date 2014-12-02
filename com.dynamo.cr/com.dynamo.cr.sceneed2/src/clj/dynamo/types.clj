@@ -20,9 +20,6 @@
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
 
-(defprotocol NodeType
-  (descriptor [this] "Return a data structure describing the node type"))
-
 (defprotocol Node
   (properties [this]          "Produce a description of properties supported by this node.")
   (inputs     [this]          "Return a set of labels for the allowed inputs of the node.")
@@ -62,15 +59,35 @@
 ; ----------------------------------------
 ; Functions to create basic value types
 ; ----------------------------------------
+(defn apply-if-fn [f & args]
+  (if (fn? f)
+    (apply f args)
+    f))
+
+(defn var-get-recursive [var-or-value]
+  (if (var? var-or-value)
+    (recur (var-get var-or-value))
+    var-or-value))
+
 (defn as-schema   [x] (with-meta x {:schema true}))
-(defn has-schema? [v] (and (fn? (if (var? v) (var-get v) v)) (:schema (meta v))))
+(defn has-schema? [v] (and (fn? (var-get-recursive v)) (:schema (meta v))))
+
+(defprotocol PropertyType
+  (property-value-type    [this] "Prismatic schema for property value type")
+  (default-property-value [this])
+  (valid-property-value?  [this v]))
 
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)
 (def NodeRef s/Int)
 (def Color   [s/Num])
+(def Vec3    [(s/one s/Num "x")
+              (s/one s/Num "y")
+              (s/one s/Num "z")])
 
 (def MouseType (s/enum :one-button :three-button))
+
+(def Triggers [clojure.lang.IFn])
 
 (sm/defrecord Rect
   [path     :- s/Any
@@ -172,15 +189,6 @@
   Viewport
   (viewport [this] viewport))
 
-(defn bool                 [& {:as opts}] (merge {:schema s/Bool} opts))
-(defn number               [& {:as opts}] (merge {:schema s/Num} opts))
-(defn string               [& {:as opts}] (merge {:schema s/Str :default ""} opts))
-(defn icon                 [& {:as opts}] (merge {:schema Icon} opts))
-(defn resource             [& {:as opts}] (merge {:schema s/Str :default ""} opts))
-(defn texture-image        [& {:as opts}] (merge {:schema bytes} opts))
-(defn non-negative-integer [& {:as opts}] (merge (number :default 0) opts))
-(defn isotropic-scale      [& {:as opts}] (merge (number :default 1.0) opts))
-
 ; ----------------------------------------
 ; Type compatibility and inference
 ; ----------------------------------------
@@ -208,14 +216,7 @@
         #'has-schema?          "true if v has defined schema. That is, metadata includes a schema key."
         #'Icon                 "*schema* - schema for the representation of an Icon as s/Str"
         #'NodeRef              "*schema* - schema for the representation of a node reference as s/Int"
-        #'number               "creates a property definition for a numeric property"
-        #'string               "creates a property definition for a string property"
-        #'icon                 "creates a property definition for an [[Icon]] property"
-        #'resource             "creates a property definition for a resource (file)"
-        #'texture-image        "creates a property definition for a byte array property to be used as an image"
         #'Pass                 "value for a rendering pass"
         #'selection?           "Replies true when the pass is used during pick render."
-        #'model-transform?     "Replies true when the pass should apply the node transforms to the current model-view matrix. (Will be true in most cases, false for overlays.)"
-        #'non-negative-integer "creates a property definition for a numeric property that must be zero or greater"
-        #'isotropic-scale      "creates a property definition for a uniform scaling factor"}]
+        #'model-transform?     "Replies true when the pass should apply the node transforms to the current model-view matrix. (Will be true in most cases, false for overlays.)"}]
   (alter-meta! v assoc :doc doc))
