@@ -30,8 +30,9 @@ Compose the behavior from the named node type
 (input    _symbol_ _schema_)
 Define an input with the name, whose values must match the schema.
 
-(property _symbol_ _property-spec_)
+(property _symbol_ _property-type_ & _options_)
 Define a property with schema and, possibly, default value and constraints.
+Property type and options have the same syntax as for `dynamo.property/defproperty`.
 
 (output   _symbol_ _type_ (:cached)? (:on-update)? _producer_)
 Define an output to produce values of type. Flags ':cached' and
