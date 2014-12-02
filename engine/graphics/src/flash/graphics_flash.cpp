@@ -734,13 +734,6 @@ namespace dmGraphics
         context->m_Ctx3d->setDepthTest(mask, "LESS");
     }
 
-    void SetDepthFunc(HContext context, CompareFunc func)
-    {
-        assert(context);
-        context->m_DepthFunc = func;
-        // TODO:
-    }
-
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
@@ -748,7 +741,7 @@ namespace dmGraphics
         // TODO:
     }
 
-    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
         context->m_StencilFunc = func;

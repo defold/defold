@@ -33,61 +33,59 @@ public class RenderContext {
         /**
          * Background overlay pass
          */
-        BACKGROUND(false, false, false),
+        BACKGROUND(false, false),
 
         /**
          * Opaque pass
          */
-        OPAQUE(false, true, true),
+        OPAQUE(false, true),
 
         /**
          * Transparent pass
          */
-        TRANSPARENT(false, true, true),
+        TRANSPARENT(false, true),
 
         /**
          * Icon outline pass
          */
-        ICON_OUTLINE(false, false, false),
+        ICON_OUTLINE(false, false),
 
         /**
          * Outline pass
          */
-        OUTLINE(false, true, false),
+        OUTLINE(false, true),
 
         /**
          * Manipulator pass
          */
-        MANIPULATOR(false, true, false),
+        MANIPULATOR(false, true),
 
         /**
          * Overlay pass for marquee-box and such
          */
-        OVERLAY(false, false, false),
+        OVERLAY(false, false),
 
         /**
          * Generic selection pass
          */
-        SELECTION(true, true, false),
+        SELECTION(true, true),
 
         /**
          * Icon overlay pass
          */
-        ICON(false, false, false),
+        ICON(false, false),
 
         /**
          * Icon overlay selection pass
          */
-        ICON_SELECTION(true, false, false);
+        ICON_SELECTION(true, false);
 
         private final boolean isSelectionPass;
         private final boolean transformModel;
-        private final boolean clippingEnabled;
 
-        Pass(boolean isSelectionPass, boolean transformModel, boolean clippingEnabled) {
+        Pass(boolean isSelectionPass, boolean transformModel) {
             this.isSelectionPass = isSelectionPass;
             this.transformModel = transformModel;
-            this.clippingEnabled = clippingEnabled;
         }
 
         public static Pass[] getSelectionPasses() {
@@ -100,14 +98,6 @@ public class RenderContext {
          */
         public boolean isSelectionPass() {
             return isSelectionPass;
-        }
-
-        /**
-         * Is the pass enabled for clipped rendering
-         * @return true if the pass is enabled for clipped rendering
-         */
-        public boolean isClippingEnabled() {
-            return clippingEnabled;
         }
 
         /**
@@ -197,7 +187,7 @@ public class RenderContext {
     }
 
     // NOTE: We hard-code colors for now
-    private static float OBJECT_OUTLINE_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
+    private static float OBJECT_COLOR[] = new float[] { 43.0f/255, 25.0f/255, 116.0f/255 };
     private static float SELECTED_COLOR[] = new float[] { 69.0f/255, 255.0f/255, 162.0f/255 };
 
     public boolean isSelected(Node node) {
@@ -223,7 +213,7 @@ public class RenderContext {
             if (isSelected(node)) {
                 return SELECTED_COLOR;
             } else {
-                return OBJECT_OUTLINE_COLOR;
+                return OBJECT_COLOR;
             }
         case TRANSPARENT:
             return objectColor;

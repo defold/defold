@@ -227,9 +227,6 @@ namespace dmGameSystem
                 dmGui::SetNodeInnerRadius(scene, n, node_desc->m_Innerradius);
                 dmGui::SetNodeOuterBounds(scene, n, (dmGui::PieBounds) node_desc->m_Outerbounds);
                 dmGui::SetNodePieFillAngle(scene, n, node_desc->m_Piefillangle);
-                dmGui::SetNodeClippingMode(scene, n, (dmGui::ClippingMode) node_desc->m_ClippingMode);
-                dmGui::SetNodeClippingVisible(scene, n, node_desc->m_ClippingVisible);
-                dmGui::SetNodeClippingInverted(scene, n, node_desc->m_ClippingInverted);
             }
             else
             {
@@ -369,351 +366,6 @@ namespace dmGameSystem
         }
     }
 
-    static dmRender::RenderObject& GetRenderObject(dmGui::HScene scene, RenderGuiContext* gui_context)
-    {
-        GuiWorld* gui_world = gui_context->m_GuiWorld;
-        uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
-        gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
-        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
-        ro.Init();
-        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
-        ro.m_RenderKey.m_Depth = gui_context->m_NextZ++;
-        return ro;
-    }
-
-    enum ScissorClippingStatus
-    {
-        SCISSOR_CLIPPING_STATUS_DISABLED,
-        SCISSOR_CLIPPING_STATUS_NOP,
-        SCISSOR_CLIPPING_STATUS_BEGIN,
-        SCISSOR_CLIPPING_STATUS_BEGIN_TEST,
-        SCISSOR_CLIPPING_STATUS_END
-    };
-
-    struct ScissorClippingState
-    {
-        ScissorClippingStatus m_Status;
-        dmGui::HScene m_Scene;
-        RenderGuiContext* m_GuiContext;
-
-        uint16_t m_NextRenderStatesIndex;
-        dmGui::ScissorClippingRenderState* m_RenderStates;
-        dmGui::ScissorClippingRenderState m_RenderState;
-        dmGui::HNode m_NextNode;
-        Vectormath::Aos::Matrix4 m_ScissorTransform;
-    };
-
-    static void InitializeScissorClipping(ScissorClippingState& state, const dmGui::HScene scene, RenderGuiContext* gui_state, const dmGui::ScissorClippingRenderState* clipping_render_states)
-    {
-        state.m_Status = SCISSOR_CLIPPING_STATUS_DISABLED;
-        state.m_Scene = scene;
-        state.m_GuiContext = gui_state;
-        state.m_RenderStates = (dmGui::ScissorClippingRenderState*) clipping_render_states;
-        state.m_NextRenderStatesIndex = 0;
-        state.m_NextNode = clipping_render_states->m_StartNode;
-        state.m_RenderState.m_EndNode = dmGui::INVALID_HANDLE;
-    }
-
-    static inline bool UpdateScissorClipping(ScissorClippingState& state, const dmGui::HNode node)
-    {
-        if(state.m_NextNode == node)
-        {
-            // new scissor node
-            state.m_RenderState = state.m_RenderStates[state.m_NextRenderStatesIndex];
-            state.m_NextNode = state.m_RenderStates[++state.m_NextRenderStatesIndex].m_StartNode;
-            state.m_Status = SCISSOR_CLIPPING_STATUS_BEGIN;
-            return true;
-        }
-        if(state.m_RenderState.m_EndNode == node)
-        {
-            if(state.m_RenderState.m_NextStateNodeArrayIndex == 0xffff)
-            {
-                // disable scissor (no parent scissor)
-                state.m_RenderState.m_EndNode = dmGui::INVALID_HANDLE;
-                state.m_Status = SCISSOR_CLIPPING_STATUS_END;
-            }
-            else
-            {
-                // change to next scissor scope (parent scissor changed)
-                dmGui::ScissorClippingRenderState& current_state = state.m_RenderState;
-                const dmGui::ScissorClippingRenderState& next_state = state.m_RenderStates[current_state.m_NextStateNodeArrayIndex];
-                current_state.m_EndNode = next_state.m_EndNode;
-                current_state.m_NextStateNodeArrayIndex = next_state.m_NextStateNodeArrayIndex;
-                for(uint32_t i = 0; i < 4; i++)
-                    current_state.m_Rect[i] = next_state.m_Rect[i];
-                state.m_Status = SCISSOR_CLIPPING_STATUS_BEGIN_TEST;
-            }
-            return true;
-        }
-
-        return false;
-    }
-
-    static void ApplyScissorClipping(ScissorClippingState& state, const Matrix4* transform)
-    {
-        if(state.m_Status <= SCISSOR_CLIPPING_STATUS_NOP)
-            return;
-
-        dmRender::RenderObject& ro = GetRenderObject(state.m_Scene, state.m_GuiContext);
-        ro.m_SetScissorTest = 1;
-        dmGraphics::ScissorTestParams& stp = ro.m_ScissorTestParams;
-
-        if(state.m_Status == SCISSOR_CLIPPING_STATUS_BEGIN)
-        {
-            stp.m_TestEnable = 1;
-
-            Vector3 scale(length(transform->getCol0()), length(transform->getCol1()), length(transform->getCol3()));
-            Vector4 p0 = (*transform * Point3(0.0, 0.0, 0));
-            Vector4 p1 = (*transform * Point3(1.0, 1.0, 0));
-            Vector3 translation(((p0[0] + p1[0]) * 0.5f) - (scale[0] * 0.5), ((p0[1] + p1[1]) * 0.5f) - (scale[1] * 0.5), 0.0f);
-            Matrix4 mat(Matrix4::identity());
-            mat.setUpper3x3(Matrix3::scale(scale));
-            mat.setTranslation(translation);
-            state.m_ScissorTransform = mat;
-            p0 = (mat * Vector4(0.0f, 0.0f, 0.0f, 1.0f));
-            p1 = (mat * Vector4(1.0f, 1.0f, 0.0f, 1.0f));
-
-            // NOTE: Using GetViewProjectionMatrix at this point is expecting the last view and projection matrices set a renderscript
-            // before rendering the Gui to be intended for use by the Gui.
-            const Matrix4& view_proj = GetViewProjectionMatrix(state.m_GuiContext->m_RenderContext);
-            float screen_width = (1.0f/view_proj.getElem(0, 0))*2.0f;
-            float screen_height = (1.0f/view_proj.getElem(1, 1))*2.0f;
-            int16_t sc_rect[4];
-            p0 = view_proj * p0;
-            p0[0] /= p0[3];
-            sc_rect[0] = (int16_t) ((1.0f + p0.getX()) * screen_width / 2);
-            p0[1] /= p0[3];
-            sc_rect[1] = (int16_t) ((1.0f + p0.getY()) * screen_height / 2);
-            p1 = view_proj * p1;
-            p1[0] /= p1[3];
-            sc_rect[2] = (int16_t) ((1.0f + p1.getX()) * screen_width / 2);
-            p1[1] /= p1[3];
-            sc_rect[3] = (int16_t) ((1.0f + p1.getY()) * screen_height / 2);
-
-            int16_t* rect = state.m_RenderStates[state.m_NextRenderStatesIndex-1].m_Rect;
-            dmGui::ScissorClippingRenderState& render_state = state.m_RenderState;
-            if(render_state.m_IsAncestor)
-            {
-                for(uint32_t i = 0; i < 4; i++)
-                    rect[i] = sc_rect[i];
-            }
-            else
-            {
-                // child scissor
-                int16_t* parent_rect = state.m_RenderStates[render_state.m_ParentStateNodeArrayIndex].m_Rect;
-                rect[0] = dmMath::Max(parent_rect[0], sc_rect[0]);
-                rect[1] = dmMath::Max(parent_rect[1], sc_rect[1]);
-                rect[2] = dmMath::Min(parent_rect[2], sc_rect[2]);
-                rect[3] = dmMath::Min(parent_rect[3], sc_rect[3]);
-            }
-
-            stp.m_X = rect[0];
-            stp.m_Y = rect[1];
-            stp.m_Width = rect[2]-rect[0];
-            stp.m_Height = rect[3]-rect[1];
-            state.m_Status = SCISSOR_CLIPPING_STATUS_NOP;
-        }
-        else
-        {
-            if(state.m_Status == SCISSOR_CLIPPING_STATUS_BEGIN_TEST)
-            {
-                stp.m_TestEnable = 1;
-                int16_t* rect = state.m_RenderState.m_Rect;
-                stp.m_X = rect[0];
-                stp.m_Y = rect[1];
-                stp.m_Width = rect[2]-rect[0];
-                stp.m_Height = rect[3]-rect[1];
-                state.m_Status = SCISSOR_CLIPPING_STATUS_NOP;
-            }
-            else
-            {
-                stp.m_TestEnable = 0;
-                assert(state.m_Status == SCISSOR_CLIPPING_STATUS_END);
-                state.m_Status = SCISSOR_CLIPPING_STATUS_DISABLED;
-            }
-        }
-        dmRender::AddToRender(state.m_GuiContext->m_RenderContext, &ro);
-    }
-
-    static void ResetScissorClipping(ScissorClippingState& state)
-    {
-        if(state.m_Status == SCISSOR_CLIPPING_STATUS_DISABLED)
-            return;
-        dmRender::RenderObject& ro = GetRenderObject(state.m_Scene, state.m_GuiContext);
-        ro.m_SetScissorTest = 1;
-        ro.m_ScissorTestParams.m_TestEnable = 0;
-        dmRender::AddToRender(state.m_GuiContext->m_RenderContext, &ro);
-        state.m_Status = SCISSOR_CLIPPING_STATUS_DISABLED;
-    }
-
-    static inline Matrix4* GetScissorTransform(ScissorClippingState& state)
-    {
-        return &state.m_ScissorTransform;
-    }
-
-    enum StencilClippingStatus
-    {
-        STENCIL_CLIPPING_STATUS_DISABLED,
-        STENCIL_CLIPPING_STATUS_NOP,
-        STENCIL_CLIPPING_STATUS_BEGIN,
-        STENCIL_CLIPPING_STATUS_BEGIN_TEST,
-        STENCIL_CLIPPING_STATUS_END
-    };
-
-    struct StencilClippingState
-    {
-        StencilClippingStatus m_Status;
-        dmGui::HScene m_Scene;
-        RenderGuiContext* m_GuiContext;
-
-        uint16_t m_NextRenderStatesIndex;
-        const dmGui::StencilClippingRenderState* m_RenderStates;
-        dmGui::StencilClippingRenderState m_RenderState;
-        dmGui::HNode m_NextNode;
-        bool m_Visible;
-    };
-
-    static void InitializeStencilClipping(StencilClippingState& state, const dmGui::HScene scene, RenderGuiContext* gui_state, const dmGui::StencilClippingRenderState* clipping_render_states)
-    {
-        state.m_Status = STENCIL_CLIPPING_STATUS_DISABLED;
-        state.m_Scene = scene;
-        state.m_GuiContext = gui_state;
-        state.m_RenderStates = clipping_render_states;
-        state.m_NextRenderStatesIndex = 0;
-        state.m_NextNode = clipping_render_states->m_StartNode;
-        state.m_RenderState.m_EndNode = dmGui::INVALID_HANDLE;
-    }
-
-    static inline bool UpdateStencilClipping(StencilClippingState& state, const dmGui::HNode node)
-    {
-        if(state.m_NextNode == node)
-        {
-            // new stencil node
-            state.m_RenderState = state.m_RenderStates[state.m_NextRenderStatesIndex];
-            state.m_Visible = dmGui::GetNodeClippingVisible(state.m_Scene, node);
-            state.m_NextNode = state.m_RenderStates[++state.m_NextRenderStatesIndex].m_StartNode;
-            state.m_Status = STENCIL_CLIPPING_STATUS_BEGIN;
-            return true;
-        }
-        if(state.m_RenderState.m_EndNode == node)
-        {
-            if(state.m_RenderState.m_NextStateNodeArrayIndex == 0xffff)
-            {
-                // disable stencil (no parent stencil)
-                state.m_RenderState.m_EndNode = dmGui::INVALID_HANDLE;
-                state.m_Status = STENCIL_CLIPPING_STATUS_END;
-            }
-            else
-            {
-                // change to next stencil scope (parent stencil changed)
-                dmGui::StencilClippingRenderState& current_state = state.m_RenderState;
-                const dmGui::StencilClippingRenderState& next_state = state.m_RenderStates[current_state.m_NextStateNodeArrayIndex];
-                current_state.m_EndNode = next_state.m_EndNode;
-                current_state.m_NextStateNodeArrayIndex = next_state.m_NextStateNodeArrayIndex;
-                current_state.m_RefVal = next_state.m_RefVal;
-                current_state.m_Mask = next_state.m_Mask;
-                current_state.m_ParentMask = next_state.m_ParentMask;
-                current_state.m_Inverted = next_state.m_Inverted;
-                current_state.m_ParentInverted = next_state.m_ParentInverted;
-                state.m_Status = STENCIL_CLIPPING_STATUS_BEGIN_TEST;
-            }
-            return true;
-        }
-        // begin test, triggered by new stencil (child tests)
-        if(state.m_Status == STENCIL_CLIPPING_STATUS_BEGIN_TEST)
-            return true;
-
-        return false;
-    }
-
-    static void ApplyStencilClipping(StencilClippingState& state, ScissorClippingState& scissor_state)
-    {
-        if(state.m_Status <= STENCIL_CLIPPING_STATUS_NOP)
-            return;
-
-        if(state.m_RenderState.m_NewBatch)
-        {
-            state.m_RenderState.m_NewBatch = false;
-            assert(state.m_RenderState.m_IsAncestor);
-            dmRender::RenderObject& ro = GetRenderObject(state.m_Scene, state.m_GuiContext);
-            ro.m_SetClearBuffer = 1;
-            dmGraphics::ClearBufferParams& cbp = ro.m_ClearBufferParams;
-            cbp.m_Stencil = 1;
-            cbp.m_StencilValue = 0;
-            cbp.m_StencilMask = 0xff;
-            cbp.m_DisableScissor = scissor_state.m_Status != SCISSOR_CLIPPING_STATUS_DISABLED;
-            dmRender::AddToRender(state.m_GuiContext->m_RenderContext, &ro);
-        }
-
-        dmRender::RenderObject& ro = GetRenderObject(state.m_Scene, state.m_GuiContext);
-        ro.m_SetStencilTest = 1;
-        dmGraphics::StencilTestParams& stp = ro.m_StencilTestParams;
-        dmGui::StencilClippingRenderState& render_state = state.m_RenderState;
-
-        if(state.m_Status == STENCIL_CLIPPING_STATUS_BEGIN)
-        {
-            stp.m_TestEnable = 1;
-            stp.m_BufferMask = 0xff;
-            stp.m_ColorBufferMask = state.m_Visible ? 0xf : 0;
-
-            if(render_state.m_IsAncestor)
-            {
-                stp.m_Ref = render_state.m_RefVal;
-                stp.m_RefMask = 0xff;
-                stp.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
-                stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-                stp.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
-                stp.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
-            }
-            else
-            {
-                stp.m_Ref = render_state.m_RefVal;
-                stp.m_RefMask = render_state.m_ParentMask;
-                stp.m_Func = render_state.m_ParentInverted ? dmGraphics::COMPARE_FUNC_NOTEQUAL : dmGraphics::COMPARE_FUNC_EQUAL;
-                stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-                stp.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
-                stp.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
-            }
-            state.m_Status = STENCIL_CLIPPING_STATUS_BEGIN_TEST;
-        }
-        else
-        {
-            if(state.m_Status == STENCIL_CLIPPING_STATUS_END)
-            {
-                stp.m_ColorBufferMask = 0xf;
-                stp.m_TestEnable = 0;
-                state.m_Status = STENCIL_CLIPPING_STATUS_DISABLED;
-            }
-            else
-            {
-                assert(state.m_Status == STENCIL_CLIPPING_STATUS_BEGIN_TEST);
-                stp.m_Ref = render_state.m_RefVal;
-                stp.m_RefMask = render_state.m_Mask;
-                stp.m_Func = render_state.m_Inverted ? dmGraphics::COMPARE_FUNC_NOTEQUAL : dmGraphics::COMPARE_FUNC_EQUAL;
-                stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
-                stp.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
-                stp.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
-                stp.m_BufferMask = 0x00;
-                stp.m_ColorBufferMask = 0xf;
-                stp.m_TestEnable = 1;
-                state.m_Status = STENCIL_CLIPPING_STATUS_NOP;
-            }
-        }
-        dmRender::AddToRender(state.m_GuiContext->m_RenderContext, &ro);
-    }
-
-    static void ResetStencilClipping(StencilClippingState& state)
-    {
-        if(state.m_Status == STENCIL_CLIPPING_STATUS_DISABLED)
-            return;
-        dmRender::RenderObject& ro = GetRenderObject(state.m_Scene, state.m_GuiContext);
-        ro.m_SetStencilTest = 1;
-        ro.m_StencilTestParams.m_ColorBufferMask = 0xf;
-        ro.m_StencilTestParams.m_TestEnable = 0;
-        dmRender::AddToRender(state.m_GuiContext->m_RenderContext, &ro);
-        state.m_Status = STENCIL_CLIPPING_STATUS_DISABLED;
-    }
-
     void RenderTextNodes(dmGui::HScene scene,
                          dmGui::HNode* nodes,
                          const Matrix4* node_transforms,
@@ -794,30 +446,10 @@ namespace dmGameSystem
                         const Matrix4* node_transforms,
                         const Vector4* node_colors,
                         uint32_t node_count,
-                        ScissorClippingState& scissor_clipping_state,
                         void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
-
-        dmGui::ClippingMode clipping_mode = dmGui::GetNodeClippingMode(scene, nodes[0]);
-        Matrix4* scissor_transform = 0x0;
-        if(clipping_mode == dmGui::CLIPPING_MODE_SCISSOR)
-        {
-            if(dmGui::GetNodeClippingVisible(scene, nodes[0]))
-            {
-                scissor_transform = GetScissorTransform(scissor_clipping_state);
-            }
-            else
-            {
-                if(node_count <= 1)
-                    return;
-                --node_count;
-                ++nodes;
-                ++node_transforms;
-                ++node_colors;
-            }
-        }
 
         dmGui::HNode first_node = nodes[0];
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
@@ -909,18 +541,12 @@ namespace dmGameSystem
             vs[1] = 1 - sv * slice9.getW();
             vs[2] = sv * slice9.getY();
 
-            const Matrix4* transform = &node_transforms[i];
-            if(scissor_transform != 0x0)
-            {
-                transform = scissor_transform;
-                scissor_transform = 0x0;
-            }
             Vectormath::Aos::Vector4 pts[4][4];
             for (int y=0;y<4;y++)
             {
                 for (int x=0;x<4;x++)
                 {
-                    pts[y][x] = (*transform * Vectormath::Aos::Point3(xs[x], ys[y], 0));
+                    pts[y][x] = (node_transforms[i] * Vectormath::Aos::Point3(xs[x], ys[y], 0));
                 }
             }
 
@@ -1114,8 +740,6 @@ namespace dmGameSystem
                     const Matrix4* node_transforms,
                     const Vector4* node_colors,
                     uint32_t node_count,
-                    const dmGui::ScissorClippingRenderState* scissor_clipping_render_states,
-                    const dmGui::StencilClippingRenderState* stencil_clipping_render_states,
                     void* context)
     {
         if (node_count == 0)
@@ -1123,10 +747,6 @@ namespace dmGameSystem
 
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
-        ScissorClippingState scissor_clipping_state;
-        InitializeScissorClipping(scissor_clipping_state, scene, gui_context, scissor_clipping_render_states);
-        StencilClippingState stencil_clipping_state;
-        InitializeStencilClipping(stencil_clipping_state, scene, gui_context, stencil_clipping_render_states);
 
         dmGui::HNode first_node = nodes[0];
 
@@ -1137,18 +757,15 @@ namespace dmGameSystem
 
         uint32_t i = 0;
         uint32_t start = 0;
-
         while (i < node_count) {
             dmGui::HNode node = nodes[i];
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             void* texture = dmGui::GetNodeTexture(scene, node);
             void* font = dmGui::GetNodeFont(scene, node);
-            bool apply_clipping = UpdateScissorClipping(scissor_clipping_state, node);
-            apply_clipping |= UpdateStencilClipping(stencil_clipping_state, node);
 
             bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font);
-            bool flush = ((i > 0) && batch_change) || apply_clipping;
+            bool flush = (i > 0 && batch_change);
 
             if (flush) {
                 uint32_t n = i - start;
@@ -1159,7 +776,7 @@ namespace dmGameSystem
                         RenderTextNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
                         break;
                     case dmGui::NODE_TYPE_BOX:
-                        RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, scissor_clipping_state, context);
+                        RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
                         break;
                     case dmGui::NODE_TYPE_PIE:
                         RenderPieNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
@@ -1176,10 +793,8 @@ namespace dmGameSystem
                  * layer-rendering.
                  */
                 gui_context->m_NextZ++;
-
-                ApplyScissorClipping(scissor_clipping_state, node_transforms + start);
-                ApplyStencilClipping(stencil_clipping_state, scissor_clipping_state);
             }
+
             prev_node_type = node_type;
             prev_blend_mode = blend_mode;
             prev_texture = texture;
@@ -1199,21 +814,17 @@ namespace dmGameSystem
                     RenderPieNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
                     break;
                 case dmGui::NODE_TYPE_BOX:
-                    RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, scissor_clipping_state, context);
+                    RenderBoxNodes(scene, nodes + start, node_transforms + start, node_colors + start, n, context);
                     break;
                 default:
                     break;
             }
-            gui_context->m_NextZ++;
         }
 
         dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-        ResetScissorClipping(scissor_clipping_state);
-        ResetStencilClipping(stencil_clipping_state);
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {
@@ -1305,14 +916,12 @@ namespace dmGameSystem
             }
         }
 
-        uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);
-        if (gui_world->m_GuiRenderObjects.Capacity() < total_gui_render_objects_count)
+        if (gui_world->m_GuiRenderObjects.Capacity() < total_node_count)
         {
             // NOTE: m_GuiRenderObjects *before* rendering as pointers
             // to render-objects are passed to the render-system
             // Given batching the capacity is perhaps a bit over the top
-            // We also need to include one possible state per node + worst case batching every 8th
-            gui_world->m_GuiRenderObjects.SetCapacity(total_gui_render_objects_count);
+            gui_world->m_GuiRenderObjects.SetCapacity(total_node_count);
         }
         gui_world->m_GuiRenderObjects.SetSize(0);
         gui_world->m_ClientVertexBuffer.SetSize(0);

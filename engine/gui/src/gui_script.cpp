@@ -1431,108 +1431,6 @@ namespace dmGui
         return 0;
     }
 
-    /*# gets the node clipping mode
-     * Clipping mode defines how the node will clipping it's children nodes
-     *
-     * @name gui.get_clipping_mode
-     * @param node node from which to get the clipping mode (node)
-     * @return node clipping mode (constant)
-     * <ul>
-     *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
-     *   <li><code>gui.CLIPPING_MODE_SCISSOR</code></li>
-     *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
-     * </ul>
-     */
-    static int LuaGetClippingMode(lua_State* L)
-    {
-        InternalNode* n = LuaCheckNode(L, 1, 0);
-        lua_pushnumber(L, (lua_Number) n->m_Node.m_ClippingMode);
-        return 1;
-    }
-
-    /*# sets node clipping mode state
-     * Clipping mode defines how the node will clipping it's children nodes
-     *
-     * @name gui.set_clipping_mode
-     * @param node node to set clipping mode for (node)
-     * @param clipping_mode clipping mode to set (constant)
-     * <ul>
-     *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
-     *   <li><code>gui.CLIPPING_MODE_SCISSOR</code></li>
-     *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
-     * </ul>
-     */
-    static int LuaSetClippingMode(lua_State* L)
-    {
-        HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        int clipping_mode = (int) luaL_checknumber(L, 2);
-        n->m_Node.m_ClippingMode = (ClippingMode) clipping_mode;
-        return 0;
-    }
-
-    /*# gets node clipping visibility state
-     * If node is set as visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
-     *
-     * @name gui.is_clipping_visible
-     * @param node node from which to get the clipping visibility state (node)
-     * @return true or false
-     */
-    static int LuaIsClippingVisible(lua_State* L)
-    {
-        HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        lua_pushboolean(L, n->m_Node.m_ClippingVisible);
-        return 1;
-    }
-
-    /*# sets node clipping visibility
-     * If node is set as an visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
-     *
-     * @name gui.set_clipping_visible
-     * @param node node to set clipping visibility for (node)
-     * @param visible true or false
-     */
-    static int LuaSetClippingVisible(lua_State* L)
-    {
-        HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        int visible = lua_toboolean(L, 2);
-        n->m_Node.m_ClippingVisible = visible;
-        return 0;
-    }
-
-    /*# gets node clipping inverted state
-     * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
-     *
-     * @name gui.is_clipping_inverted
-     * @param node node from which to get the clipping inverted state (node)
-     * @return true or false
-     */
-    static int LuaIsClippingInverted(lua_State* L)
-    {
-        HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        lua_pushboolean(L, n->m_Node.m_ClippingInverted);
-        return 1;
-    }
-
-    /*# sets node clipping inverted
-     * If node is set as an inverted clipping node, its clipping mask will be inverted and it will clip anything inside as opposed to outside.
-     *
-     * @name gui.set_clipping_inverted
-     * @param node node to set clipping inverted state for (node)
-     * @param inverted true or false
-     */
-    static int LuaSetClippingInverted(lua_State* L)
-    {
-        HNode hnode;
-        InternalNode* n = LuaCheckNode(L, 1, &hnode);
-        int inverted = lua_toboolean(L, 2);
-        n->m_Node.m_ClippingInverted = inverted;
-        return 0;
-    }
-
     static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break)
     {
         dmGui::TextMetrics metrics;
@@ -2671,12 +2569,6 @@ namespace dmGui
         {"get_line_break",  LuaGetLineBreak},
         {"get_blend_mode",  LuaGetBlendMode},
         {"set_blend_mode",  LuaSetBlendMode},
-        {"get_clipping_mode",  LuaGetClippingMode},
-        {"set_clipping_mode",  LuaSetClippingMode},
-        {"get_is_clipping_visible", LuaIsClippingVisible},
-        {"set_clipping_visible",LuaSetClippingVisible},
-        {"get_is_clipping_inverted", LuaIsClippingInverted},
-        {"set_clipping_inverted",LuaSetClippingInverted},
         {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
         {"new_texture",     LuaNewTexture},
@@ -2799,24 +2691,6 @@ namespace dmGui
      * @variable
      */
 
-    /*# clipping mode none
-     *
-     * @name gui.CLIPPING_MODE_NONE
-     * @variable
-     */
-
-    /*# clipping mode scissor
-     *
-     * @name gui.CLIPPING_MODE_SCISSOR
-     * @variable
-     */
-
-    /*# clipping mode stencil
-     *
-     * @name gui.CLIPPING_MODE_STENCIL
-     * @variable
-     */
-
     /*# left x-anchor
      *
      * @name gui.ANCHOR_LEFT
@@ -2917,7 +2791,7 @@ namespace dmGui
      * @name gui.PIEBOUNDS_RECTANGLE
      * @variable
      */
-
+    
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = dmScript::GetLuaState(script_context);
@@ -3016,16 +2890,6 @@ namespace dmGui
         SETBLEND(ADD)
         SETBLEND(ADD_ALPHA)
         SETBLEND(MULT)
-
-#undef SETBLEND
-
-#define SETCLIPPINGMODE(name) \
-        lua_pushnumber(L, (lua_Number) CLIPPING_MODE_##name); \
-        lua_setfield(L, -2, "CLIPPING_MODE_"#name);\
-
-        SETCLIPPINGMODE(NONE)
-        SETCLIPPINGMODE(SCISSOR)
-        SETCLIPPINGMODE(STENCIL)
 
 #undef SETBLEND
 

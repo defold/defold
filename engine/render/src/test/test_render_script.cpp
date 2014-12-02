@@ -265,7 +265,7 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     "    render.set_color_mask(true, true, true, true)\n"
     "    render.set_depth_mask(true)\n"
     "    render.set_stencil_mask(1)\n"
-    "    render.set_stencil_func(render.COMPARE_FUNC_ALWAYS, 1, 2)\n"
+    "    render.set_stencil_func(render.STENCIL_FUNC_ALWAYS, 1, 2)\n"
     "    render.set_stencil_op(render.STENCIL_OP_REPLACE, render.STENCIL_OP_KEEP, render.STENCIL_OP_INVERT)\n"
     "    render.set_cull_face(render.FACE_BACK)\n"
     "    render.set_polygon_offset(1, 2)\n"
@@ -308,7 +308,7 @@ TEST_F(dmRenderScriptTest, TestLuaState)
 
     command = &commands[6];
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_STENCIL_FUNC, command->m_Type);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, (int32_t)command->m_Operands[0]);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_ALWAYS, (int32_t)command->m_Operands[0]);
     ASSERT_EQ(1, (int32_t)command->m_Operands[1]);
     ASSERT_EQ(2, (int32_t)command->m_Operands[2]);
 

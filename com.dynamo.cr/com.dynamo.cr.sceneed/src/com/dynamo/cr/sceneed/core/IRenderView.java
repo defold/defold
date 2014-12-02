@@ -33,7 +33,6 @@ public interface IRenderView  {
     void setSelection(IStructuredSelection selection);
     void viewToWorld(int x, int y, Vector4d clickPos, Vector4d clickDir);
     double[] worldToView(Point3d point);
-    double[] worldToScreen(Point3d point);
     Camera getCamera();
     void setCamera(Camera camera);
     Vector4d getCameraFocusPoint();

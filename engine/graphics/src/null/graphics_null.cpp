@@ -858,28 +858,13 @@ namespace dmGraphics
         context->m_DepthMask = mask;
     }
 
-    void SetDepthFunc(HContext context, CompareFunc func)
-    {
-        assert(context);
-        context->m_DepthFunc = func;
-    }
-
-    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
-    {
-        assert(context);
-        context->m_ScissorRect[0] = (int32_t) x;
-        context->m_ScissorRect[1] = (int32_t) y;
-        context->m_ScissorRect[2] = (int32_t) x+width;
-        context->m_ScissorRect[3] = (int32_t) y+height;
-    }
-
     void SetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
         context->m_StencilMask = mask;
     }
 
-    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
         context->m_StencilFunc = func;

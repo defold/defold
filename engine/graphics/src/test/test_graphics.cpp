@@ -499,17 +499,13 @@ TEST_F(dmGraphicsTest, TestMasks)
     ASSERT_EQ(0u, m_Context->m_StencilMask);
     dmGraphics::SetStencilMask(m_Context, ~0u);
     ASSERT_EQ(~0u, m_Context->m_StencilMask);
-    dmGraphics::SetDepthFunc(m_Context, dmGraphics::COMPARE_FUNC_ALWAYS);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, m_Context->m_DepthFunc);
-    dmGraphics::SetDepthFunc(m_Context, dmGraphics::COMPARE_FUNC_NEVER);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, m_Context->m_DepthFunc);
 
-    dmGraphics::SetStencilFunc(m_Context, dmGraphics::COMPARE_FUNC_ALWAYS, 0xffffffff, 0x0);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, m_Context->m_StencilFunc);
+    dmGraphics::SetStencilFunc(m_Context, dmGraphics::STENCIL_FUNC_ALWAYS, 0xffffffff, 0x0);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_ALWAYS, m_Context->m_StencilFunc);
     ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncRef);
     ASSERT_EQ(0x0, m_Context->m_StencilFuncMask);
-    dmGraphics::SetStencilFunc(m_Context, dmGraphics::COMPARE_FUNC_NEVER, 0x0, 0xffffffff);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, m_Context->m_StencilFunc);
+    dmGraphics::SetStencilFunc(m_Context, dmGraphics::STENCIL_FUNC_NEVER, 0x0, 0xffffffff);
+    ASSERT_EQ(dmGraphics::STENCIL_FUNC_NEVER, m_Context->m_StencilFunc);
     ASSERT_EQ(0x0, m_Context->m_StencilFuncRef);
     ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncMask);
 

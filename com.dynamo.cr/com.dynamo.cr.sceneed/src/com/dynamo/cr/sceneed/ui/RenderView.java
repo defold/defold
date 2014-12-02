@@ -127,7 +127,6 @@ IRenderView {
         GLData data = new GLData();
         data.doubleBuffer = true;
         data.depthSize = 24;
-        data.stencilSize = 8;
 
         this.canvas = new GLCanvas(parent, SWT.NO_REDRAW_RESIZE | SWT.NO_BACKGROUND, data);
         GridData gd = new GridData(SWT.FILL, SWT.FILL, true, true);
@@ -276,12 +275,6 @@ IRenderView {
     }
 
     @Override
-    public double[] worldToScreen(Point3d point) {
-        Point3d ret = camera.project(point.x, point.y, point.z);
-        return new double[] { ret.x, (double)(viewPort[3] - viewPort[1])-ret.y };
-    }
-
-    @Override
     public Matrix4d getViewTransform() {
         Matrix4d ret = new Matrix4d();
         camera.getViewMatrix(ret);
@@ -346,7 +339,7 @@ IRenderView {
 
             Point size = canvas.getSize();
             double aspect = ((double) size.x) / size.y;
-            camera.setOrthographic(camera.getFov(), aspect, -2048, 2048);
+            camera.setOrthographic(camera.getFov(), aspect, -100000, 100000);
             if (this.pendingFrameSelection) {
                 this.pendingFrameSelection = false;
                 doFrameSelection();
@@ -703,13 +696,10 @@ IRenderView {
             GL2 gl = this.context.getGL().getGL2();
             GLU glu = new GLU();
             try {
-                gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
                 gl.glDepthMask(true);
-                gl.glClearDepth(1.0);
-                gl.glStencilMask(0xFF);
-                gl.glClearStencil(0);
-                gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT | GL.GL_STENCIL_BUFFER_BIT);
-                gl.glDisable(GL.GL_STENCIL_TEST);
+                gl.glEnable(GL.GL_DEPTH_TEST);
+                gl.glClearColor(0.0f, 0.0f, 0.0f, 1);
+                gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
                 gl.glDisable(GL.GL_DEPTH_TEST);
                 gl.glDepthMask(false);
 
@@ -764,14 +754,6 @@ IRenderView {
             }
         }
 
-        gl.glDepthMask(true);
-        gl.glClearDepth(1.0);
-        gl.glStencilMask(0xFF);
-        gl.glClearStencil(0);
-        gl.glClear(GL.GL_STENCIL_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
-        gl.glStencilMask(0x0);
-        gl.glDepthMask(false);
-
         renderContext.sort();
 
         int nextName = 0;
@@ -790,7 +772,6 @@ IRenderView {
                 gl.glPushName(nextName++);
             }
             Node node = renderData.getNode();
-
             node.getWorldTransform(transform);
             gl.glPushMatrix();
             if (pass.transformModel()) {
@@ -848,11 +829,6 @@ IRenderView {
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
             break;
 
         case OPAQUE:
@@ -860,11 +836,6 @@ IRenderView {
             gl.glDisable(GL.GL_BLEND);
             gl.glEnable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(true);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
             break;
 
         case OUTLINE:
@@ -872,11 +843,6 @@ IRenderView {
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
             break;
 
         case TRANSPARENT:
@@ -884,13 +850,8 @@ IRenderView {
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             gl.glEnable(GL.GL_BLEND);
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
-            gl.glDisable(GL.GL_DEPTH_TEST);
+            gl.glEnable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
             break;
 
         case MANIPULATOR:
@@ -898,12 +859,7 @@ IRenderView {
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
-           break;
+            break;
 
         case OVERLAY:
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
@@ -911,12 +867,7 @@ IRenderView {
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
-           break;
+            break;
 
         case ICON:
         case ICON_SELECTION:
@@ -925,23 +876,13 @@ IRenderView {
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
-           break;
+            break;
 
         case ICON_OUTLINE:
             gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_LINE);
             gl.glDisable(GL.GL_BLEND);
             gl.glDisable(GL.GL_DEPTH_TEST);
             gl.glDepthMask(false);
-            gl.glDisable(GL.GL_SCISSOR_TEST);
-            gl.glDisable(GL.GL_STENCIL_TEST);
-            gl.glStencilMask(0xFF);
-            gl.glColorMask(true, true, true, true);
-            gl.glDisable(GL2.GL_LINE_STIPPLE);
             break;
 
         default:
@@ -962,7 +903,6 @@ IRenderView {
         // outlines are only render either when the node is selected or outlines are set to be shown
         boolean outlinePass = (renderContext.getPass() == Pass.OUTLINE || renderContext.getPass() == Pass.ICON_OUTLINE);
         boolean render = true;
-
         if (outlinePass && !renderContext.isSelected(node) && !isOutlineShown()) {
             render = false;
         }

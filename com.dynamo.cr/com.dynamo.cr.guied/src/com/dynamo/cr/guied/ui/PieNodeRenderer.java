@@ -7,14 +7,12 @@ import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.guied.core.PieNode;
-import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.gui.proto.Gui.NodeDesc;
-import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.jogamp.opengl.util.texture.Texture;
 
@@ -29,9 +27,6 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
     @Override
     public void setup(RenderContext renderContext, PieNode node) {
         if (passes.contains(renderContext.getPass())) {
-            if((renderContext.getPass() == Pass.OUTLINE) && (node.getClippingMode() != ClippingMode.CLIPPING_MODE_NONE) && (!Clipping.getShowClippingNodes())) {
-                return;
-            }
             RenderData<PieNode> data = renderContext.add(this, node, new Point3d(), null);
             data.setIndex(node.getRenderKey());
         }
@@ -94,8 +89,6 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
             texture = node.getTextureHandle().getTexture(gl);
         }
 
-        Clipping.setState(renderContext, node);
-
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
             if (texture != null) {
@@ -119,10 +112,6 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
                 gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
                 break;
             }
-        }
-
-        if(renderContext.getPass() == Pass.OUTLINE) {
-            Clipping.setOutLineState(renderContext, node);
         }
 
         double x0 = -pivotOffsetX(node, node.getSize().x);

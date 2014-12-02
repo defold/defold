@@ -104,8 +104,7 @@ public:
         dmGui::SetSceneScript(m_Scene, m_Script);
     }
 
-    static void RenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-            const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+    static void RenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
     {
         dmGuiTest* self = (dmGuiTest*) context;
         // The node is defined to completely cover the local space (0,1),(0,1)
@@ -310,8 +309,7 @@ static void DynamicSetTextureData(dmGui::HScene scene, void* texture, uint32_t w
 {
 }
 
-static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-        const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+static void DynamicRenderNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*) context;
     for (uint32_t i = 0; i < node_count; ++i) {
@@ -2204,8 +2202,7 @@ TEST_F(dmGuiTest, ScriptPicking)
 }
 
 // This render function simply flags a provided boolean when called
-static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-        const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+static void RenderEnabledNodes(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     if (node_count > 0)
     {
@@ -2277,8 +2274,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
     ASSERT_FALSE(node->m_Node.m_Enabled);
 }
 
-static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-        const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+static void RenderNodesOrder(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     std::map<dmGui::HNode, uint16_t>* order = (std::map<dmGui::HNode, uint16_t>*)context;
     order->clear();
@@ -2436,8 +2432,7 @@ TEST_F(dmGuiTest, MoveNodesScript)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
-static void RenderNodesCount(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-        const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+static void RenderNodesCount(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     uint32_t* count = (uint32_t*)context;
     *count = node_count;
@@ -2648,8 +2643,8 @@ TEST_F(dmGuiTest, Parenting)
     ASSERT_EQ(1u, order[n3]);
 }
 
-void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,  const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-        const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
+        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
     memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);
@@ -2749,8 +2744,8 @@ struct TransformColorData
     Vectormath::Aos::Vector4 m_Color;
 };
 
-void RenderNodesStoreColorAndTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-        const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+void RenderNodesStoreColorAndTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms,
+        const Vectormath::Aos::Vector4* node_colors, uint32_t node_count, void* context)
 {
     TransformColorData* out_data = (TransformColorData*) context;
     for(uint32_t i = 0; i < node_count; i++)

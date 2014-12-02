@@ -73,7 +73,6 @@ namespace dmGraphics
     enum State
     {
         STATE_DEPTH_TEST            = DMGRAPHICS_STATE_DEPTH_TEST,
-        STATE_SCISSOR_TEST          = DMGRAPHICS_STATE_SCISSOR_TEST,
         STATE_STENCIL_TEST          = DMGRAPHICS_STATE_STENCIL_TEST,
 #ifndef GL_ES_VERSION_2_0
         STATE_ALPHA_TEST            = DMGRAPHICS_STATE_ALPHA_TEST,
@@ -162,17 +161,17 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA   = DMGRAPHICS_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
     };
 
-    // Compare func
-    enum CompareFunc
+    // Stencil func
+    enum StencilFunc
     {
-        COMPARE_FUNC_NEVER      = DMGRAPHICS_COMPARE_FUNC_NEVER,
-        COMPARE_FUNC_LESS       = DMGRAPHICS_COMPARE_FUNC_LESS,
-        COMPARE_FUNC_LEQUAL     = DMGRAPHICS_COMPARE_FUNC_LEQUAL,
-        COMPARE_FUNC_GREATER    = DMGRAPHICS_COMPARE_FUNC_GREATER,
-        COMPARE_FUNC_GEQUAL     = DMGRAPHICS_COMPARE_FUNC_GEQUAL,
-        COMPARE_FUNC_EQUAL      = DMGRAPHICS_COMPARE_FUNC_EQUAL,
-        COMPARE_FUNC_NOTEQUAL   = DMGRAPHICS_COMPARE_FUNC_NOTEQUAL,
-        COMPARE_FUNC_ALWAYS     = DMGRAPHICS_COMPARE_FUNC_ALWAYS,
+        STENCIL_FUNC_NEVER      = DMGRAPHICS_STENCIL_FUNC_NEVER,
+        STENCIL_FUNC_LESS       = DMGRAPHICS_STENCIL_FUNC_LESS,
+        STENCIL_FUNC_LEQUAL     = DMGRAPHICS_STENCIL_FUNC_LEQUAL,
+        STENCIL_FUNC_GREATER    = DMGRAPHICS_STENCIL_FUNC_GREATER,
+        STENCIL_FUNC_GEQUAL     = DMGRAPHICS_STENCIL_FUNC_GEQUAL,
+        STENCIL_FUNC_EQUAL      = DMGRAPHICS_STENCIL_FUNC_EQUAL,
+        STENCIL_FUNC_NOTEQUAL   = DMGRAPHICS_STENCIL_FUNC_NOTEQUAL,
+        STENCIL_FUNC_ALWAYS     = DMGRAPHICS_STENCIL_FUNC_ALWAYS,
     };
 
     // Stencil operation
@@ -302,92 +301,6 @@ namespace dmGraphics
         uint16_t m_MipMap;
         uint16_t m_Width;
         uint16_t m_Height;
-    };
-
-    struct ClearBufferParams
-    {
-        ClearBufferParams()
-        : m_DepthValue(1.0f)
-        , m_ColorR(0)
-        , m_ColorG(0)
-        , m_ColorB(0)
-        , m_ColorA(0)
-        , m_StencilValue(0)
-        , m_StencilMask(0xff)
-        , m_ColorBufferMask(0xf)
-        , m_Color(1)
-        , m_Depth(1)
-        , m_Stencil(1)
-        , m_DisableScissor(0)   // If set, this will disable the scissor pre-clear and enable the scissor post-clear
-        {}
-
-        float   m_DepthValue;
-        uint8_t m_ColorR;
-        uint8_t m_ColorG;
-        uint8_t m_ColorB;
-        uint8_t m_ColorA;
-        uint8_t m_StencilValue;
-        uint8_t m_StencilMask;
-        uint8_t m_ColorBufferMask : 4;
-        uint8_t m_Color : 1;
-        uint8_t m_Depth : 1;
-        uint8_t m_Stencil : 1;
-        uint8_t m_DisableScissor : 1;
-    };
-
-    struct DepthTestParams
-    {
-        DepthTestParams()
-        : m_Func(COMPARE_FUNC_ALWAYS)
-        , m_BufferMask(1)
-        , m_TestEnable(0)
-        {}
-
-        CompareFunc m_Func;
-        uint32_t    m_BufferMask : 1;
-        uint8_t     m_TestEnable : 1;
-    };
-
-    struct ScissorTestParams
-    {
-        ScissorTestParams()
-        : m_X(0)
-        , m_Y(0)
-        , m_Width(0xffff)
-        , m_Height(0xffff)
-        , m_TestEnable(0)
-        {}
-
-        int16_t m_X;
-        int16_t m_Y;
-        uint16_t m_Width;
-        uint16_t m_Height;
-        uint8_t  m_TestEnable : 1;
-    };
-
-    struct StencilTestParams
-    {
-        StencilTestParams()
-        : m_Func(COMPARE_FUNC_ALWAYS)
-        , m_OpSFail(STENCIL_OP_KEEP)
-        , m_OpDPFail(STENCIL_OP_KEEP)
-        , m_OpDPPass(STENCIL_OP_KEEP)
-        , m_Ref(0)
-        , m_RefMask(0xff)
-        , m_BufferMask(0xff)
-        , m_ColorBufferMask(0xf)
-        , m_TestEnable(0)
-        {}
-
-        CompareFunc m_Func;
-        StencilOp m_OpSFail;
-        StencilOp m_OpDPFail;
-        StencilOp m_OpDPPass;
-        uint32_t m_Ref : 8;
-        uint32_t m_RefMask : 8;
-        uint32_t m_BufferMask : 8;
-        uint8_t m_ColorBufferMask : 4;
-        uint8_t m_TestEnable : 1;
     };
 
     // Parameters structure for OpenWindow
@@ -595,10 +508,8 @@ namespace dmGraphics
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
-    void SetDepthFunc(HContext context, CompareFunc func);
-    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     void SetStencilMask(HContext context, uint32_t mask);
-    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);
+    void SetStencilFunc(HContext context, StencilFunc func, uint32_t ref, uint32_t mask);
     void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
     void SetCullFace(HContext context, FaceType face_type);
     void SetPolygonOffset(HContext context, float factor, float units);
