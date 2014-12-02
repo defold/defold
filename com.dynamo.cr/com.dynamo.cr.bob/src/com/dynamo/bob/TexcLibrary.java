@@ -1,5 +1,6 @@
 package com.dynamo.bob;
 
+import java.io.File;
 import java.nio.Buffer;
 
 import com.sun.jna.Native;
@@ -8,9 +9,9 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         try {
-            String libDir = Bob.getTexcLibDir();
-            System.setProperty("jna.library.path", libDir);
-            Bob.verbose("Added '%s' to 'jna.library.path'", libDir);
+            File lib = new File(Bob.getLib("texc_shared"));
+            System.setProperty("jna.library.path", lib.getParent());
+            Bob.verbose("Added '%s' to 'jna.library.path'", lib.getParent());
             Native.register("texc_shared");
         } catch (Exception e) {
             System.out.println("FATAL: " + e.getMessage());

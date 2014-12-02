@@ -4,6 +4,14 @@
 /lib/*texc_shared*
 /lib/*/*texc_shared*
 /lib/builtins.zip
-/libexec
+/lib/classes.dex
+/lib/android.jar
+/lib/android-res.zip
+/lib/luajit-share.zip
+/libexec/*/*.so
+/libexec/*/*.js
+/libexec/*/*dmengine*
+/libexec/*/*luajit*
+/libexec/*/*apkc*
 /share/luajit
-
+/res

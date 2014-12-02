@@ -7,3 +7,4 @@ textures {
   name: "test_texture"
   texture: "/texture/valid_png.png"
 }
+material: "/gui/gui.material"

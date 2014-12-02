@@ -728,13 +728,31 @@ namespace dmGui
      * can be animated simultaneously. Use <code>gui.cancel_animation</code> to stop the animation before it has completed.
      * </p>
      * <p>
-     * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
+     * Composite properties of type vector3, vector4 or quaternion also expose their sub-components (x, y, z and w).
+     * You can address the components individually by suffixing the name with a dot '.' and the name of the component.
+     * For instance, "position.x" (the position x coordinate) or "color.w" (the color alpha value).
+     * </p>
+     * <p>
+     * If a <code>complete_function</code> (Lua function) is specified, that function will be called when the animation has completed.
      * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
      * </p>
      *
      * @name gui.animate
      * @param node node to animate (node)
-     * @param property property to animate (constant)
+     * @param property property to animate (string|constant)
+     * <ul>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
+     * </ul>
+     * The following property constants are also defined equalling the corresponding property string names.
      * <ul>
      *   <li><code>gui.PROP_POSITION</code></li>
      *   <li><code>gui.PROP_ROTATION</code></li>
@@ -745,7 +763,7 @@ namespace dmGui
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * <p>
-     * Single values can also be animated by specifying e.g. "position.x" as the property.
+     *
      * </p>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant). See gui.EASING_* constants
@@ -867,15 +885,18 @@ namespace dmGui
      *
      * @name gui.cancel_animation
      * @param node node that should have its animation canceled (node)
-     * @param property property for which the animation should be canceled (constant)
+     * @param property property for which the animation should be canceled (string|constant)
      * <ul>
-     *   <li><code>gui.PROP_POSITION</code></li>
-     *   <li><code>gui.PROP_ROTATION</code></li>
-     *   <li><code>gui.PROP_SCALE</code></li>
-     *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_OUTLINE</code></li>
-     *   <li><code>gui.PROP_SHADOW</code></li>
-     *   <li><code>gui.PROP_SIZE</code></li>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
      * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
@@ -1629,15 +1650,15 @@ namespace dmGui
      * @param node node to get pivot from (node)
      * @return pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaGetPivot(lua_State* L)
@@ -1664,15 +1685,15 @@ namespace dmGui
      * @param node node to set pivot for (node)
      * @param pivot pivot constant (constant)
      * <ul>
-     *   <li><code>gui.PIVOT_CENTER</code></lid>
-     *   <li><code>gui.PIVOT_N</code></lid>
-     *   <li><code>gui.PIVOT_NE</code></lid>
-     *   <li><code>gui.PIVOT_E</code></lid>
-     *   <li><code>gui.PIVOT_SE</code></lid>
-     *   <li><code>gui.PIVOT_S</code></lid>
-     *   <li><code>gui.PIVOT_SW</code></lid>
-     *   <li><code>gui.PIVOT_W</code></lid>
-     *   <li><code>gui.PIVOT_NW</code></lid>
+     *   <li><code>gui.PIVOT_CENTER</code></li>
+     *   <li><code>gui.PIVOT_N</code></li>
+     *   <li><code>gui.PIVOT_NE</code></li>
+     *   <li><code>gui.PIVOT_E</code></li>
+     *   <li><code>gui.PIVOT_SE</code></li>
+     *   <li><code>gui.PIVOT_S</code></li>
+     *   <li><code>gui.PIVOT_SW</code></li>
+     *   <li><code>gui.PIVOT_W</code></li>
+     *   <li><code>gui.PIVOT_NW</code></li>
      * </ul>
      */
     static int LuaSetPivot(lua_State* L)
@@ -2317,8 +2338,16 @@ namespace dmGui
 
     /*# display on-display keyboard if available
      *
+     * The specified type of keyboard is displayed, if it is available on
+     * the device.
+     *
      * @name gui.show_keyboard
-     * @param type keyboard type
+     * @param type keyboard type (constant)
+     * <ul>
+     *   <li><code>gui.KEYBOARD_TYPE_DEFAULT</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_EMAIL</code></li>
+     *   <li><code>gui.KEYBOARD_TYPE_NUMBER_PAD</code></li>
+     * </ul>
      * @param autoclose close keyboard automatically when clicking outside
      */
     static int LuaShowKeyboard(lua_State* L)
@@ -2332,6 +2361,8 @@ namespace dmGui
     }
 
     /*# hide on-display keyboard if available
+     *
+     * Hide the on-display keyboard on the device.
      *
      * @name gui.hide_keyboard
      */
@@ -2751,6 +2782,16 @@ namespace dmGui
      * @variable
      */
 
+    /*# elliptical pie node bounds
+     * @name gui.PIEBOUNDS_ELLIPSE
+     * @variable
+     */
+
+    /*# rectangular pie node bounds
+     * @name gui.PIEBOUNDS_RECTANGLE
+     * @variable
+     */
+    
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         lua_State* L = dmScript::GetLuaState(script_context);

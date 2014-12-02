@@ -20,6 +20,8 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
+import javax.ws.rs.HEAD;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
@@ -45,6 +47,13 @@ import org.eclipse.jgit.api.errors.InvalidRefNameException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevObject;
+import org.eclipse.jgit.revwalk.RevTag;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -155,11 +164,12 @@ public class ProjectResource extends BaseResource {
     /*
      * Project
      */
-    private static void zipFiles(File directory, File zipFile) throws IOException {
+    private static void zipFiles(File directory, File zipFile, String comment) throws IOException {
         ZipOutputStream zipOut = null;
 
         try {
             zipOut = new ZipOutputStream(new FileOutputStream(zipFile));
+            zipOut.setComment(comment);
             IOFileFilter dirFilter = new AbstractFileFilter() {
                 @Override
                 public boolean accept(File file) {
@@ -183,23 +193,88 @@ public class ProjectResource extends BaseResource {
         }
     }
 
+    static String getSHA1ForName(String repository, String name) throws IOException {
+
+        Repository repo = null;
+        RevWalk walk = null;
+
+        try {
+            FileRepositoryBuilder builder = new FileRepositoryBuilder();
+            repo = builder.setGitDir(new File(repository))
+                    .findGitDir()
+                    .build();
+
+            walk = new RevWalk(repo);
+            Ref p = repo.getRef(name);
+            if (p == null) {
+                return null;
+            }
+            RevObject object = walk.parseAny(p.getObjectId());
+            if (object instanceof RevTag) {
+                RevTag tag = (RevTag) object;
+                return tag.getObject().getName();
+            } else if (object instanceof RevCommit) {
+                RevCommit commit = (RevCommit) object;
+                return commit.getName();
+            } else {
+                throw new IllegalArgumentException(String.format("Unknown object: %s", object.toString()));
+            }
+        } finally {
+            if (walk != null) {
+                walk.dispose();
+            }
+            if (repo != null) {
+                repo.close();
+            }
+        }
+    }
+
+    @HEAD
+    @Path("/archive/{version}")
+    @RolesAllowed(value = { "member" })
+    public Response getArchiveHead(@PathParam("project") String project,
+                                      @PathParam("version") String version) throws IOException {
+
+        // TODO: Refactor this to a method and replace
+        String repository = String.format("%s/%s", server.getConfiguration().getRepositoryRoot(), project);
+        String sha1 = getSHA1ForName(repository, version);
+        if (sha1 == null) {
+            return Response.status(Status.NOT_FOUND).build();
+        } else {
+            return Response.ok()
+                    .header("ETag", sha1)
+                    .build();
+        }
+    }
+
     @GET
     @Path("/archive")
     @RolesAllowed(value = { "member" })
-    public Response getArchive(@PathParam("project") String project) throws IOException {
-        return getArchive(project, "HEAD");
+    public Response getArchive(@PathParam("project") String project,
+                               @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
+        return getArchive(project, "HEAD", ifNoneMatch);
     }
 
     @GET
     @Path("/archive/{version}")
     @RolesAllowed(value = { "member" })
     public Response getArchive(@PathParam("project") String project,
-                               @PathParam("version") String version) throws IOException {
+                               @PathParam("version") String version,
+                               @HeaderParam("If-None-Match") String ifNoneMatch) throws IOException {
 
         // NOTE: Currently neither caching of created zip-files nor appropriate cache-headers (ETag)
         // Appropriate ETag might be SHA1 of zip-file or even SHA1 from git (head commit)
 
         String repository = String.format("%s/%s", server.getConfiguration().getRepositoryRoot(), project);
+        String sha1 = getSHA1ForName(repository, version);
+        if (sha1 == null) {
+            return Response.status(Status.NOT_FOUND).build();
+        }
+
+        if (ifNoneMatch != null && sha1.equals(ifNoneMatch)) {
+            return Response.status(Status.NOT_MODIFIED).build();
+        }
+
         File cloneTo = null;
         final File zipFile = File.createTempFile("archive", ".zip");
 
@@ -224,7 +299,7 @@ public class ProjectResource extends BaseResource {
                 throw new ServerException(String.format("Version not found: %s", version), e, Status.INTERNAL_SERVER_ERROR);
             }
 
-            zipFiles(cloneTo, zipFile);
+            zipFiles(cloneTo, zipFile, sha1);
         } catch (IOException e) {
             // NOTE: Only delete zip-file on error as we need the file
             // when streaming. See .delete() in StreamingOutput below.
@@ -250,6 +325,7 @@ public class ProjectResource extends BaseResource {
 
         return Response.ok(output, MediaType.APPLICATION_OCTET_STREAM_TYPE)
                 .header("content-disposition", String.format("attachment; filename = archive_%s_%s", project, version))
+                .header("ETag", sha1)
                 .build();
     }
 
@@ -414,7 +490,7 @@ public class ProjectResource extends BaseResource {
                 try {
                     branchRepository.deleteBranch(projectId, memberId, branch);
                 } catch (BranchRepositoryException e) {
-                    this.throwWebApplicationException(Status.INTERNAL_SERVER_ERROR, e.getMessage());
+                    throwWebApplicationException(Status.INTERNAL_SERVER_ERROR, e.getMessage());
                 }
             }
         }

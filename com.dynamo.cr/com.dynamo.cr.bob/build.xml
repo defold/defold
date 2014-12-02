@@ -78,6 +78,13 @@
                          the copy -->
                     <globmapper from="*/luajit-2.0.3" to="*/luajit"/>
                     <globmapper from="*/luajit.exe" to="*/luajit.exe"/>
+
+                    <!-- NOTE:
+                         The follow are required to map unqualied paths to qualified
+                         See related comment when copying libtexc_shared -->
+                    <globmapper from="darwin/*" to="x86-darwin/*"/>
+                    <globmapper from="linux/*" to="x86-linux/*"/>
+                    <globmapper from="win32/*" to="x86-win32/*"/>
                 </compositemapper>
             </chainedmapper>
             <tarfileset includes="bin/linux/**">
@@ -96,11 +103,6 @@
                 </gzipresource>
             </tarfileset>
         </copy>
-         <copy todir="share" overwrite="true">
-            <fileset dir="${env.DYNAMO_HOME}/ext/share">
-                <include name="luajit/jit/*.lua"/>
-            </fileset>
-        </copy>
 
         <!-- extdirs="foo" is set to avoid automatic inclusion of ext-jars and
              specifically vecmath.jar on OSX -->
@@ -116,7 +118,8 @@
 
         <javac destdir="${classes.dir}"
                extdirs="foo"
-               includeantruntime="false">
+               includeantruntime="false"
+               debug="true">
             <src path="src"/>
             <include name="com/**"/>
             <exclude name="com/dynamo/bob/*Osgi*"/>
@@ -128,13 +131,42 @@
         </javac>
 
         <copy todir="${classes.dir}" overwrite="true">
-            <fileset dir="src" includes="**/*.properties" />
-        </copy>
-        <copy todir="lib" overwrite="true">
-            <fileset dir="${env.DYNAMO_HOME}/lib">
-                <include name="**/*texc_shared*"/>
+            <fileset dir="src" includes="**">
+                <exclude name="**/*.java"/>
             </fileset>
         </copy>
+
+        <!-- NOTE: Given that we don't (yet) use qualifed platforms
+             for "installed" libraries we can't do a general glob-copy here,
+             e.g. **/*texc_shared* -->
+        <copy todir="lib/x86_64-darwin" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="x86_64-darwin/*texc_shared*"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86-linux" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="linux/*texc_shared*"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86-win32" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="win32/*texc_shared*"/>
+            </fileset>
+        </copy>
+
+        <jar destfile="lib/luajit-share.zip">
+             <fileset dir="${env.DYNAMO_HOME}/ext/share">
+                 <include name="luajit/**"/>
+             </fileset>
+         </jar>
+
+        <jar destfile="lib/android-res.zip">
+             <fileset dir="${env.DYNAMO_HOME}/ext/share/java">
+                 <include name="res/**"/>
+             </fileset>
+         </jar>
+
     </target>
 
     <target name="dist" depends="compile">
@@ -158,13 +190,14 @@
                 <include name="lib/**/*texc_shared*"/>
             </fileset>
             <fileset dir=".">
-                <include name="libexec/*/*luajit*"/>
-                <include name="share/luajit/**"/>
+                <include name="libexec/**/*"/>
             </fileset>
             <zipfileset src="tmp/external-libs.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-
+            <fileset dir=".">
+                <include name="lib/*.zip"/>
+            </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
             </manifest>
@@ -182,7 +215,8 @@
               <include name="vecmath.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="lib">
-              <include name="*.jar"/>
+                <include name="*.jar"/>
+                <exclude name="android.jar"/>
             </zipgroupfileset>
          </jar>
 
@@ -192,18 +226,20 @@
                 <include name="lib/**/*texc_shared*"/>
             </fileset>
             <fileset dir=".">
-                <include name="libexec/*/*luajit*"/>
-                <include name="share/luajit/**"/>
+                <include name="libexec/**/*"/>
             </fileset>
             <zipfileset src="lib/builtins.zip"/>
             <zipfileset src="tmp/external-libs-builtins.jar">
               <exclude name="**/META-INF/**"/>
             </zipfileset>
-
+            <fileset dir=".">
+                <include name="lib/android.jar"/>
+                <include name="lib/classes.dex"/>
+                <include name="lib/*.zip"/>
+            </fileset>
             <manifest>
                 <attribute name="Main-Class" value="com.dynamo.bob.Bob"/>
             </manifest>
-
         </jar>
     </target>
 
