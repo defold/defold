@@ -2304,7 +2304,16 @@ namespace dmGui
         return 0;
     }
 
-    // Currently a private function
+    /*# set the render ordering for the current GUI scene
+     *
+     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words 
+     * in which order the scene will be rendered in relation to other currently rendered GUI scenes.
+     *
+     * The number must be in the range 0 to 7.
+     *
+     * @name gui.set_render_order
+     * @param order rendering order (number)
+     */
     static int LuaSetRenderOrder(lua_State* L)
     {
         Scene* scene = GuiScriptInstance_Check(L);
