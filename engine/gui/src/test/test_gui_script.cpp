@@ -356,8 +356,8 @@ TEST_F(dmGuiScriptTest, TestPieNodeScript)
             "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_RECTANGLE)\n"
             "    gui.set_outer_bounds(n, gui.PIEBOUNDS_ELLIPSE)\n"
             "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_ELLIPSE)\n"
-            "    gui.set_pie_fill_angle(n, 90)\n"
-            "    assert(gui.get_pie_fill_angle(n) == 90)\n"
+            "    gui.set_fill_angle(n, 90)\n"
+            "    assert(gui.get_fill_angle(n) == 90)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
