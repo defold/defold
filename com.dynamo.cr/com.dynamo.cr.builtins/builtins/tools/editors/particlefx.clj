@@ -60,12 +60,12 @@
 (defnode PropertyNode
   (property key s/Any)
   (property points [{:x s/Num :y s/Num :t-x s/Num :t-y s/Num}])
-  (input t float)
+  (input t s/Num)
   (output value s/Any :cached produce-property-value))
 
 (defnode SpreadPropertyNode
   (inherits PropertyNode)
-  (property spread float))
+  (property spread s/Num))
 
 (defnode EmitterPropertyNode
   (inherits SpreadPropertyNode))
@@ -173,19 +173,19 @@
 
 (defnode EmitterProperties
   (inherits Properties)
-  (property id string)
+  (property id s/Str)
   (property mode s/Any)
-  (property duration float)
+  (property duration s/Num)
   (property space s/Any)
-  (property tile-source string)
-  (property animation string)
-  (property material string)
+  (property tile-source s/Str)
+  (property animation s/Str)
+  (property material s/Str)
   (property blend-mode s/Any)
   (property particle-orientation s/Any)
-  (property inherit-velocity float)
-  (property max-particle-count int)
+  (property inherit-velocity s/Num)
+  (property max-particle-count s/Int)
   (property type s/Any)
-  (property start-delay float))
+  (property start-delay s/Num))
 
 (defnk produce-emitter-renderable :- RenderData
   [this project renderables]
