@@ -70,8 +70,7 @@
   (testing "attach node output to input on scope"
     (with-clean-world
       (let [scope (ds/transactional
-                   (ds/in
-                    (ds/add (make-injection-scope))
+                   (ds/in (ds/add (make-injection-scope))
                     (ds/add (make-value-producer :value (CommonValueType. "a known value")))
                     (ds/current-scope)))]
         (is (= "a known value" (-> scope (n/get-node-value :passthrough) :identifier))))))
@@ -79,8 +78,7 @@
   (testing "attach one node output to input on another node"
     (with-clean-world
       (let [consumer (ds/transactional
-                      (ds/in
-                       (ds/add (make-scope))
+                      (ds/in (ds/add (make-scope))
                        (ds/add (make-value-producer :value (CommonValueType. "a known value")))
                        (ds/add (make-value-consumer))))]
         (is (= "a known value" (-> consumer (n/get-node-value :concatenation)))))))

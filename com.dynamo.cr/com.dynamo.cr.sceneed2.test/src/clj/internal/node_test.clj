@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [schema.core :as s]
             [plumbing.core :refer [defnk fnk]]
-            [dynamo.types :as t :refer [as-schema]]
+            [dynamo.types :as t]
             [dynamo.node :as n :refer [defnode]]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.project :as p]
@@ -21,7 +21,7 @@
 (defn get-tally [node fn-symbol]
   (get-in @*calls* [(:_id node) fn-symbol] 0))
 
-(def a-schema (as-schema {:names [java.lang.String]}))
+(def a-schema (with-meta {:names [java.lang.String]} {:schema true}))
 
 (def m1 {:cached #{:derived}   :inputs {:simple-number 18 :another [:a] :nested ['v1] :setvalued #{:x}}})
 (def m2 {:cached #{:expensive} :inputs {:simple-number 99 :another [:a] :nested ['v3] :setvalued #{:z}}})

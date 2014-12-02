@@ -69,9 +69,6 @@
     (recur (var-get var-or-value))
     var-or-value))
 
-(defn as-schema   [x] (with-meta x {:schema true}))
-(defn has-schema? [v] (and (fn? (var-get-recursive v)) (:schema (meta v))))
-
 (defprotocol PropertyType
   (property-value-type    [this] "Prismatic schema for property value type")
   (default-property-value [this])
@@ -212,8 +209,6 @@
 
 (doseq [[v doc]
        {*ns*                   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."
-        #'as-schema            "applies schema metadata to x."
-        #'has-schema?          "true if v has defined schema. That is, metadata includes a schema key."
         #'Icon                 "*schema* - schema for the representation of an Icon as s/Str"
         #'NodeRef              "*schema* - schema for the representation of a node reference as s/Int"
         #'Pass                 "value for a rendering pass"

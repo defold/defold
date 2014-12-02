@@ -50,12 +50,12 @@ previous value is invalidated.
 Example (from [[atlas.core]]):
 
     (defnode TextureCompiler
-      (input    textureset (as-schema TextureSet))
+      (input    textureset TextureSet)
       (property texture-filename s/Str (default \"\"))
       (output   texturec s/Any compile-texturec)))
 
     (defnode TextureSetCompiler
-      (input    textureset (as-schema TextureSet))
+      (input    textureset TextureSet)
       (property textureset-filename s/Str (default \"\"))
       (output   texturesetc s/Any compile-texturesetc)))
 

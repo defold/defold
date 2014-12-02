@@ -75,9 +75,11 @@
         (assoc m k (get-inputs node g k))))
     {} input-schema))
 
+(defn- pfnk? [f] (contains? (meta f) :schema))
+
 (defn- perform-with-inputs [production-fn node g]
-  (if (t/has-schema? production-fn)
-    (t/apply-if-fn production-fn (collect-inputs node g (pf/input-schema production-fn)))
+  (if (pfnk? production-fn)
+    (production-fn (collect-inputs node g (pf/input-schema production-fn)))
     (t/apply-if-fn production-fn node g)))
 
 (defn- default-substitute-value-fn [v]
@@ -284,7 +286,7 @@
 (defn- inputs-for
   [transform]
   (let [production-fn (-> transform :production-fn t/var-get-recursive)]
-    (if (t/has-schema? production-fn)
+    (if (pfnk? production-fn)
       (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
       #{})))
 
