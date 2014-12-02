@@ -49,7 +49,7 @@
 
 (defn property-type-descriptor [value-type body-forms]
   `(let [value-type#     ~value-type
-         parent#         (when (satisfies? t/PropertyType value-type#) value-type#)
+         parent#         (when (t/property-type? value-type#) value-type#)
          base-props#     (merge {:value-type value-type#} parent#)
          override-props# ~(mapv compile-defproperty-form body-forms)
          props#          (reduce merge base-props# override-props#)]

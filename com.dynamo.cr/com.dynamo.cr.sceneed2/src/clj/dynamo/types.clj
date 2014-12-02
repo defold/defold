@@ -74,6 +74,8 @@
   (default-property-value [this])
   (valid-property-value?  [this v]))
 
+(defn property-type? [x] (satisfies? PropertyType x))
+
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)
 (def NodeRef s/Int)

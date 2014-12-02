@@ -166,7 +166,16 @@
 (deftest node-intrinsics
   (with-clean-world
     (let [[node] (tx-nodes (make-empty-node))]
-      (is (identical? node (in/get-node-value node :self))))))
+      (is (identical? node (in/get-node-value node :self)))))
+  (with-clean-world
+    (let [before   (ds/transactional (ds/add (make-simple-test-node)))
+          after    (ds/transactional (ds/set-property before :foo "quux"))
+          override (ds/transactional (ds/add (make-simple-test-node :foo "bar")))]
+      (are [expected-value node] (= expected-value (-> (in/get-node-value node :properties) :foo :value))
+           "FOO!" before
+           "quux" after
+           "bar"  override)
+      (is (every? t/property-type? (map :type (vals (in/get-node-value before :properties))))))))
 
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)

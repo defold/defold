@@ -227,8 +227,7 @@
                               (ds/update-property node :int-prop inc)
                               (ds/update-property node :int-prop inc)
                               (ds/update-property node :int-prop inc)
-                              (ds/update-property node :int-prop inc)
-                              node)]
+                              (ds/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
 (n/defnode ScopeReceiver

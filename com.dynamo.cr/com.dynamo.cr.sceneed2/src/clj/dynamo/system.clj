@@ -64,12 +64,14 @@
   [n & kvs]
   (it/tx-bind *transaction*
     (for [[pr v] (partition-all 2 kvs)]
-      (it/set-property n pr v))))
+      (it/set-property n pr v)))
+  n)
 
 (defn update-property
   [n p f & args]
   (it/tx-bind *transaction*
-    (it/update-property n p f args)))
+    (it/update-property n p f args))
+  n)
 
 (defn add
   [n]
