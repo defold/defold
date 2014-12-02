@@ -10,7 +10,6 @@
                       'internal.type-test
                       'internal.value-test
                       'internal.graph.graph-test
-                      'internal.render.pass-test
                       'dynamo.camera-test
                       'dynamo.geom-test
                       'dynamo.image-test
