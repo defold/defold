@@ -9,6 +9,9 @@
 (defmacro defproperty [name value-type & body-forms]
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
+(defproperty NonNegativeInt s/Int
+  (validation (comp not neg?)))
+
 (defproperty Resource IResource)
 
 (defproperty Vec3 t/Vec3

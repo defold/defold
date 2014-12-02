@@ -2,6 +2,7 @@
   (:require [dynamo.types :refer :all]
             [dynamo.image :refer :all]
             [dynamo.node :refer [defnode]]
+            [dynamo.property :as dp]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]
             [internal.texture.engine :refer [texture-engine-format-generate]]
             [schema.core :as s]
@@ -25,7 +26,7 @@
 (defnode AnimationBehavior
   (input images [Image])
 
-  (property fps             s/Int #_(non-negative-integer :default 30))
+  (property fps             dp/NonNegativeInt (default 30))
   (property flip-horizontal s/Bool)
   (property flip-vertical   s/Bool)
   (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))

@@ -4,6 +4,7 @@
             [dynamo.camera :as c]
             [dynamo.geom :as g]
             [dynamo.node :as n]
+            [dynamo.property :as dp]
             [dynamo.types :as t :refer [min-p max-p]]
             [dynamo.gl :refer :all]
             [internal.render.pass :as pass])
@@ -160,7 +161,7 @@
   (input camera Camera)
   (property grid-color t/Color)
   (property auto-grid  s/Bool)
-  (property fixed-grid-size s/Int #_(t/non-negative-integer))
+  (property fixed-grid-size dp/NonNegativeInt (default 0))
 
   (output grids      s/Any :cached update-grids)
   (output renderable t/RenderData  grid-renderable))

@@ -14,6 +14,7 @@
             [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
             [dynamo.node :as n :refer :all]
+            [dynamo.property :as dp]
             [dynamo.system :as ds :refer [transactional in add connect]]
             [internal.ui.scene-editor :refer :all]
             [internal.ui.background :refer :all]
@@ -103,8 +104,8 @@
   (input images [Image])
   (input animations [Animation])
 
-  (property margin          s/Int #_(non-negative-integer))
-  (property extrude-borders s/Int #_(non-negative-integer))
+  (property margin          dp/NonNegativeInt (default 0))
+  (property extrude-borders dp/NonNegativeInt (default 0))
   (property filename        s/Str)
 
   (output textureset TextureSet :cached :substitute-value (blank-textureset) produce-textureset)
