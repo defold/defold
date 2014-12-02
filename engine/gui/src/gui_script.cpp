@@ -1795,7 +1795,7 @@ namespace dmGui
 
     /*# sets the angle for the filled pie sector
      *
-     * @name gui.set_pie_fill_angle
+     * @name gui.set_fill_angle
      * @param sector angle
      */
     static int LuaSetPieFillAngle(lua_State* L)
@@ -1821,7 +1821,7 @@ namespace dmGui
 
     /*# gets the angle for the filled pie sector
      *
-     * @name gui.get_pie_fill_angle
+     * @name gui.get_fill_angle
      * @return sector angle
      */
     static int LuaGetPieFillAngle(lua_State* L)
@@ -2604,8 +2604,8 @@ namespace dmGui
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
-        {"set_pie_fill_angle", LuaSetPieFillAngle},
-        {"get_pie_fill_angle", LuaGetPieFillAngle},
+        {"set_fill_angle", LuaSetPieFillAngle},
+        {"get_fill_angle", LuaGetPieFillAngle},
         {"set_perimeter_vertices", LuaSetPerimeterVertices},
         {"get_perimeter_vertices", LuaGetPerimeterVertices},
         {"set_inner_radius", LuaSetInnerRadius},
