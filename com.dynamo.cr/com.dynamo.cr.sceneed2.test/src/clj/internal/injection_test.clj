@@ -5,7 +5,6 @@
             [schema.macros :as sm]
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n :refer [Scope make-scope]]
-            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds :refer [transactional add in]]
             [dynamo.system.test-support :refer :all]
             [internal.node :as in]))
@@ -63,10 +62,8 @@
   (input local-name CommonValueType :inject)
   (output passthrough CommonValueType passthrough))
 
-(defproperty CommonValueTypeProp CommonValueType)
-
 (n/defnode ValueProducer
-  (property value {:schema CommonValueTypeProp})
+  (property value CommonValueType)
   (output local-name CommonValueType [this _] (:value this)))
 
 (deftest dependency-injection

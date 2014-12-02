@@ -1,7 +1,6 @@
 (ns internal.fps
   (:require [dynamo.geom :as g]
             [dynamo.node :refer [defnode]]
-            [dynamo.property :refer [defproperty]]
             [dynamo.types :as t]
             [plumbing.core :refer [defnk]]
             [dynamo.gl :as gl]
@@ -41,10 +40,8 @@
      (fn [ctx gl glu text-renderer]
        (render-fps ctx gl text-renderer (:tracker this)))}]})
 
-(defproperty FpsTrackerProp FpsTracker)
-
 (defnode FpsTrackerNode
-  (property tracker {:schema FpsTrackerProp})
+  (property tracker FpsTracker)
 
   (output renderable t/RenderData render-overlay))
 

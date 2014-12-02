@@ -53,7 +53,7 @@
     (is (= 61 (t/default-property-value PropWithDefaultValueVarForm))))
   (is (= :some-keyword (t/default-property-value PropWithTypeKeyword)))
   (is (= 'some-symbol (t/default-property-value PropWithTypeSymbol)))
-  (is (thrown? java.lang.AssertionError (t/default-property-value PropWithoutDefaultValue)))
+  (is (nil? (t/default-property-value PropWithoutDefaultValue)))
   (is (thrown-with-msg?
         clojure.lang.Compiler$CompilerException #"Unable to resolve symbol: non-existent-symbol in this context"
         (eval '(dynamo.property/defproperty BadProp schema.core/Num (default non-existent-symbol))))))

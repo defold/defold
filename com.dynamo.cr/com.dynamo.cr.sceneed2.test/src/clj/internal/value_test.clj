@@ -4,7 +4,6 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n :refer [Scope]]
-            [dynamo.property :as dp]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
@@ -37,7 +36,7 @@
   scalar)
 
 (n/defnode UncachedOutput
-  (property scalar {:schema dp/Str})
+  (property scalar s/Str)
   (output uncached-value String produce-simple-value))
 
 (defn compute-expensive-value

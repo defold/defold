@@ -7,12 +7,10 @@
 (set! *warn-on-reflection* true)
 
 (defn- get-default-value [property-type-descriptor]
-  (assert (contains? property-type-descriptor :default)
-          (str "No default defined for property " (:name property-type-descriptor)))
-  (-> property-type-descriptor
-      :default
-      t/var-get-recursive
-      t/apply-if-fn))
+  (some-> property-type-descriptor
+          :default
+          t/var-get-recursive
+          t/apply-if-fn))
 
 (def ^:private default-validation-fn (constantly true))
 
@@ -49,13 +47,13 @@
     :else
     (assert false (str "invalid form within property type definition: " (pr-str form)))))
 
-(defn property-type-descriptor [name-str value-type body-forms]
+(defn property-type-descriptor [value-type body-forms]
   `(let [value-type#     ~value-type
          parent#         (when (satisfies? t/PropertyTypeDescriptor value-type#) value-type#)
-         base-props#     (merge {:name ~name-str :value-type value-type#} parent#)
+         base-props#     (merge {:value-type value-type#} parent#)
          override-props# ~(mapv compile-defproperty-form body-forms)
          props#          (reduce merge base-props# override-props#)]
      (map->PropertyTypeDescriptorImpl props#)))
 
 (defn def-property-type-descriptor [name-sym value-type & body-forms]
-  `(def ~name-sym ~(property-type-descriptor (str name-sym) value-type body-forms)))
+  `(def ~name-sym ~(property-type-descriptor value-type body-forms)))

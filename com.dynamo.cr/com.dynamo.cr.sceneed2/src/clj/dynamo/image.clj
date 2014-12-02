@@ -69,7 +69,7 @@
 (defnode ImageSource
   ;; NOTE: Order is important here. `property` defines an
   ;; output that is overridden by the later `output` clause.
-  (property image {:schema dp/Resource})
+  (property image dp/Resource)
   (output   image Image :cached :substitute-value placeholder-image image-from-resource))
 
 (sm/defn image-color-components :- long

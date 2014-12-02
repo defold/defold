@@ -4,7 +4,7 @@
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t :refer [as-schema]]
             [dynamo.node :as n :refer [defnode]]
-            [dynamo.property :as dp]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
@@ -42,8 +42,30 @@
   (is (= schema-merge (deep-merge s1 s2)))
   (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
 
+(defproperty StringWithDefault s/Str
+  (default "o rly?"))
+
+(defn string-value [] "uff-da")
+
+(defnode WithDefaults
+  (property default-value                 StringWithDefault)
+  (property overridden-literal-value      StringWithDefault (default "ya rly."))
+  (property overridden-function-value     StringWithDefault (default (constantly "vell den.")))
+  (property overridden-indirect           StringWithDefault (default string-value))
+  (property overridden-indirect-by-var    StringWithDefault (default #'string-value))
+  (property overridden-indirect-by-symbol StringWithDefault (default 'string-value)))
+
+(deftest node-property-defaults
+  (are [expected property] (= expected (get (make-with-defaults) property))
+    "o rly?"      :default-value
+    "ya rly."     :overridden-literal-value
+    "vell den."   :overridden-function-value
+    "uff-da"      :overridden-indirect
+    "uff-da"      :overridden-indirect-by-var
+    'string-value :overridden-indirect-by-symbol))
+
 (defnode SimpleTestNode
-  (property foo {:schema dp/Str :default "FOO!"}))
+  (property foo s/Str (default "FOO!")))
 
 (definterface MyInterface$InnerInterface
   (^int bar []))
@@ -55,7 +77,7 @@
 (defnode NodeWithProtocols
   (inherits AncestorInterfaceImplementer)
 
-  (property foo {:schema dp/Str :default "the user"})
+  (property foo s/Str (default "the user"))
 
   clojure.lang.IDeref
   (deref [this] (:foo this))
@@ -119,7 +141,7 @@
   (input an-input String)
   (input unused-input String)
 
-  (property a-property {:schema dp/Str})
+  (property a-property s/Str)
 
   (output depends-on-self s/Any depends-on-self)
   (output depends-on-input s/Any depends-on-input)
@@ -178,7 +200,7 @@
 (defnode ProductionFunctionInputsNode
   (input in       s/Keyword)
   (input in-multi [s/Keyword])
-  (property prop {:schema dp/Keyword})
+  (property prop s/Keyword)
   (output out s/Keyword [this g] :out-val)
   (output inline-fn-this   s/Any [this g] this)
   (output inline-fn-g      s/Any [this g] g)
@@ -347,7 +369,7 @@
           (is (= 1 (get-tally n :invocation-count))))))))
 
 (defnode ValueHolderNode
-  (property value {:schema dp/Long}))
+  (property value s/Int))
 
 (def ^:dynamic *answer-call-count* (atom 0))
 

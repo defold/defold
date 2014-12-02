@@ -4,7 +4,6 @@
             [plumbing.core :refer [defnk]]
             [dynamo.types :as t]
             [dynamo.node :as n]
-            [dynamo.property :as dp]
             [dynamo.ui :as ui]
             [dynamo.geom :as g]
             [dynamo.system :as ds]
@@ -316,9 +315,9 @@
     (camera-set-center aabb)))
 
 (n/defnode CameraController
-  (property camera {:schema dp/Camera})
+  (property camera Camera)
 
-  (property movement {:schema dp/Keyword :default :idle})
+  (property movement s/Keyword (default :idle))
 
   (on :mouse-down
     (ds/set-property self

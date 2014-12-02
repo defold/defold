@@ -5,7 +5,6 @@
             [schema.core :as s]
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
-            [dynamo.property :as dp]
             [internal.node :as in]
             [internal.graph.lgraph :as lg]))
 
@@ -51,12 +50,12 @@ Example (from [[atlas.core]]):
 
     (defnode TextureCompiler
       (input    textureset (as-schema TextureSet))
-      (property texture-filename (string :default \"\"))
+      (property texture-filename s/Str (default \"\"))
       (output   texturec s/Any compile-texturec)))
 
     (defnode TextureSetCompiler
       (input    textureset (as-schema TextureSet))
-      (property textureset-filename (string :default \"\"))
+      (property textureset-filename s/Str (default \"\"))
       (output   texturesetc s/Any compile-texturesetc)))
 
     (defnode AtlasCompiler
@@ -136,9 +135,9 @@ This function should mainly be used to create 'plumbing'."
 (defnode Scope
   (input nodes [s/Any])
 
-  (property tag      {:schema dp/Keyword})
-  (property parent   {:schema dp/NamingContext})
-  (property triggers {:schema dp/Triggers :default [#'inject-new-nodes #'dispose-nodes]})
+  (property tag      s/Keyword)
+  (property parent   NamingContext)
+  (property triggers Triggers (default [#'inject-new-nodes #'dispose-nodes]))
 
   (output dictionary s/Any in/scope-dictionary)
 
@@ -147,7 +146,7 @@ This function should mainly be used to create 'plumbing'."
 
 (defnode RootScope
   (inherits Scope)
-  (property tag {:schema dp/Keyword :default :root}))
+  (property tag s/Keyword (default :root)))
 
 (defmethod print-method RootScope__
   [^RootScope__ v ^java.io.Writer w]
