@@ -22,8 +22,7 @@
       (t/apply-if-fn value)))
 
 (sm/defrecord PropertyTypeImpl
-  [name       :- String
-   value-type :- s/Schema]
+  [value-type :- s/Schema]
   t/PropertyType
   (property-value-type    [this]   (:value-type this))
   (default-property-value [this]   (get-default-value this))
