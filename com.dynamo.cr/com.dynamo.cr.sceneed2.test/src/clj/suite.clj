@@ -13,6 +13,7 @@
                       'dynamo.camera-test
                       'dynamo.geom-test
                       'dynamo.image-test
+                      'dynamo.project-test
                       'dynamo.property-test
                       'dynamo.protobuf-test
                       'dynamo.texture-test
