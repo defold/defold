@@ -31,8 +31,8 @@ namespace dmGameSystem
         struct
         {
             uint64_t m_Index : 16;  // Index is used to ensure stable sort
-            uint64_t m_Z : 16; // Quantified relative z
             uint64_t m_MixedHash : 32;
+            uint64_t m_Z : 16; // Quantified relative z
         };
         uint64_t     m_Key;
     };
