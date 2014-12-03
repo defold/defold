@@ -7,6 +7,7 @@
             [dynamo.node :as n :refer [Scope make-scope]]
             [dynamo.system :as ds :refer [transactional add in]]
             [dynamo.system.test-support :refer :all]
+            [internal.graph.lgraph :as lg]
             [internal.node :as in]))
 
 (n/defnode Receiver
@@ -121,3 +122,14 @@
                           c)))]
         (is (= "a known value" (-> consumer (n/get-node-value :concatenation))))))))
 
+(n/defnode ReflexiveFeedback
+  (property port s/Keyword (default :no))
+  (input ports [s/Keyword] :inject))
+
+(deftest reflexive-injection
+  (testing "don't connect a node's own output to its input"
+    (with-clean-world
+      (let [scope (ds/transactional
+                    (ds/in (ds/add (make-scope))
+                      (ds/add (make-reflexive-feedback))))]
+        (is (not (lg/connected? (-> world-ref deref :graph) (:_id scope) :port (:_id scope) :ports)))))))
