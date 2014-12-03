@@ -1,5 +1,7 @@
 package internal.ui;
 
+import static clojure.osgi.ClojureHelper.*;
+
 import java.io.ByteArrayInputStream;
 
 import org.eclipse.core.resources.IFile;
@@ -22,10 +24,8 @@ import org.eclipse.ui.dialogs.SaveAsDialog;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.statushandlers.StatusManager;
+import org.eclipse.ui.views.properties.IPropertySheetPage;
 
-import clojure.lang.Keyword;
-import clojure.lang.RT;
-import clojure.osgi.ClojureHelper;
 import clojure.osgi.internal.ClojureOSGiActivator;
 
 /**
@@ -54,31 +54,16 @@ import clojure.osgi.internal.ClojureOSGiActivator;
  */
 public class GenericEditor extends EditorPart {
     private static final String INTERNAL_NS = "internal.ui.editors";
-    private static final String NODE_NS = "dynamo.node";
-
-    // Keywords that are event types
-    private static final Keyword INIT = RT.keyword(null, "init");
-    private static final Keyword SAVE = RT.keyword(null, "save");
-    private static final Keyword CREATE = RT.keyword(null, "create");
-    private static final Keyword FOCUS = RT.keyword(null, "focus");
-    private static final Keyword DESTROY = RT.keyword(null, "destroy");
-
-    // Keywords that go into the event maps
-    private static final Keyword PARENT = RT.keyword(null, "parent");
-    private static final Keyword SITE = RT.keyword(null, "site");
-    private static final Keyword INPUT = RT.keyword(null, "input");
-    private static final Keyword FILE = RT.keyword(null, "file");
-    private static final Keyword MONITOR = RT.keyword(null, "monitor");
 
     /**
      * This is a Clojure variable that provides the real implementation plugged
      * in to this generic editor.
      */
     private Object behavior;
+    private IPropertySheetPage propertySheetPage;
 
     static {
-        ClojureHelper.require(INTERNAL_NS);
-        ClojureHelper.require(NODE_NS);
+        require(INTERNAL_NS);
     }
 
     @Override
@@ -88,29 +73,32 @@ public class GenericEditor extends EditorPart {
         setPartName(input.getName());
 
         IFile file = ((IFileEditorInput) input).getFile();
-        behavior = ClojureHelper.invoke(INTERNAL_NS, "implementation-for", site, file);
+        behavior = invoke(INTERNAL_NS, "implementation-for", site, file);
 
-        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, INIT, SITE, site, INPUT, input);
+        propertySheetPage = new GenericPropertySheetPage(behavior);
+
+        dispatchMessage(behavior, INIT, SITE, site, INPUT, input);
     }
 
     @Override
     public void createPartControl(Composite parent) {
-        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, CREATE, PARENT, parent);
+        dispatchMessage(behavior, CREATE, PARENT, parent);
     }
 
     @Override
     public void doSave(IProgressMonitor monitor) {
-        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, SAVE, FILE, ((IFileEditorInput) getEditorInput()).getFile(), MONITOR, monitor);
+        dispatchMessage(behavior, SAVE, FILE, ((IFileEditorInput) getEditorInput()).getFile(), MONITOR, monitor);
+
     }
 
     @Override
     public void setFocus() {
-        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, FOCUS);
+        dispatchMessage(behavior, FOCUS);
     }
 
     @Override
     public void dispose() {
-        ClojureHelper.invoke(NODE_NS, "dispatch-message", behavior, DESTROY);
+        dispatchMessage(behavior, DESTROY);
         super.dispose();
     }
 
@@ -160,5 +148,14 @@ public class GenericEditor extends EditorPart {
 
     public Object getBehavior() {
         return behavior;
+    }
+
+    @Override
+    public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
+        if (adapter == IPropertySheetPage.class) {
+            return this.propertySheetPage;
+        } else {
+            return super.getAdapter(adapter);
+        }
     }
 }

@@ -26,6 +26,6 @@
 (deftest reuse-same-node
   (with-clean-world
     (let [project (ds/transactional (ds/add (p/make-project)))
-          node1   (p/node-by-filename world-ref project "test-resource.txt" dummy)
-          node2   (p/node-by-filename world-ref project "test-resource.txt" bomb)]
+          node1   (p/node-by-filename project "test-resource.txt" dummy)
+          node2   (p/node-by-filename project "test-resource.txt" bomb)]
       (is (= (:_id node1) (:_id node2))))))

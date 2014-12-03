@@ -248,7 +248,7 @@
               :blend-mode (automatic-protobuf-enum Particle$BlendMode "BLEND_MODE_")
               :particle-orientation (automatic-protobuf-enum Particle$ParticleOrientation "PARTICLE_ORIENTATION_")
               :type (automatic-protobuf-enum Particle$EmitterType "EMITTER_TYPE_")}}
- 
+
  Particle$Emitter$Property
  {:constructor #'editors.particlefx/make-emitter-property-node
   :basic-properties [:key :spread :points-list]
@@ -258,13 +258,13 @@
  {:constructor #'editors.particlefx/make-particle-property-node
   :basic-properties [:key :points-list]
   :enum-maps  {:key (automatic-protobuf-enum Particle$ParticleKey "PARTICLE_KEY_")}}
- 
+
  Particle$Modifier
  {:constructor #'editors.particlefx/make-modifier-node
   :basic-properties [:type :use-direction :position :rotation]
   :node-properties {:properties-list [:value -> :property-sources]}
   :enum-maps {:type (automatic-protobuf-enum Particle$ModifierType "MODIFIER_TYPE_")}}
- 
+
  Particle$Modifier$Property
  {:constructor #'editors.particlefx/make-modifier-property-node
   :basic-properties [:key :spread :points-list]
@@ -282,30 +282,30 @@
   (let [particlefx (message->node particlefx-message :filename path :_id -1)
         particlefx-save (add (make-particlefx-save))]
     (println "LOADING")
-    (ds/connect particlefx :self particlefx-save :particlefx-properties)))
+    (ds/connect particlefx :self particlefx-save :particlefx-properties)
+    particlefx))
 
 (defn on-edit
   [project-node editor-site particlefx-node]
-  (let [editor  (make-scene-editor :name "editor")]
-    (transactional
-      (in (add editor)
-        (let [particlefx-render (add (make-particlefx-render))
-              background (add (make-background))
-              grid       (add (make-grid))
-              camera     (add (make-camera-controller :camera (make-camera :orthographic)))
-              context (pl/create-context 64 256)]
-          (set-property particlefx-render :context context)
-          #_(connect particlefx-node   :renderables particlefx-render :renderables)
-          (connect camera            :camera      grid   :camera)
-          (connect camera            :camera      editor :view-camera)
-          (connect camera            :self        editor :controller)
-          (connect background        :renderable  editor :renderables)
-          (connect grid              :renderable  editor :renderables)
-          #_(connect particlefx-render :renderable  editor :renderables)
-          (connect particlefx-node   :aabb        editor :aabb)
-          #_(
-          ))
-        editor))))
+  (let [editor (make-scene-editor :name "editor")]
+    (in (add editor)
+      (let [particlefx-render (add (make-particlefx-render))
+            background (add (make-background))
+            grid       (add (make-grid))
+            camera     (add (make-camera-controller :camera (make-camera :orthographic)))
+            context (pl/create-context 64 256)]
+        (set-property particlefx-render :context context)
+        #_(connect particlefx-node   :renderables particlefx-render :renderables)
+        (connect camera            :camera      grid   :camera)
+        (connect camera            :camera      editor :view-camera)
+        (connect camera            :self        editor :controller)
+        (connect background        :renderable  editor :renderables)
+        (connect grid              :renderable  editor :renderables)
+        #_(connect particlefx-render :renderable  editor :renderables)
+        (connect particlefx-node   :aabb        editor :aabb)
+        #_(
+        ))
+      editor)))
 
 (p/register-editor "particlefx" #'on-edit)
 (p/register-loader "particlefx" (protocol-buffer-loader Particle$ParticleFX on-load))

@@ -55,22 +55,36 @@
     (get-in project-scope [:handlers key ext])
     (no-such-handler key ext)))
 
-(defn loader-for [project-scope ext] (handler project-scope :loader ext))
-(defn editor-for [project-scope ext] (handler project-scope :editor ext))
+(defn- loader-for [project-scope ext] (handler project-scope :loader ext))
+(defn- editor-for [project-scope ext] (handler project-scope :editor ext))
+
+(defn node?! [n kind]
+  (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) ".")))
 
 (defn load-resource
-  [project-scope file]
+  [project-node path]
   (ds/transactional
-    (ds/in project-scope
-      (let [resource-node ((loader-for project-scope (file/extension file)) file (io/reader file))]
-        (assert (satisfies? t/Node resource-node) (str "Loader functions must return a node. Received " (type resource-node) "."))
+    (ds/in project-node
+      (let [loader        (loader-for project-node (file/extension path))
+            resource-node (loader path (io/reader path))]
+        (node?! resource-node "Loader")
         resource-node))))
 
 (defn node-by-filename
-  [world-ref project-scope file factory]
-  (if-let [node (first (iq/query world-ref [[:filename file]]))]
+  [project-node path factory]
+  (if-let [node (first (iq/query (:world-ref project-node) [[:filename path]]))]
     node
-    (factory project-scope file)))
+    (factory project-node path)))
+
+(defn make-editor
+  [project-node path site]
+  (ds/transactional
+    (ds/in project-node
+      (let [content-root   (node-by-filename project-node path load-resource)
+            editor-factory (editor-for project-node (file/extension path))
+            editor-node    (editor-factory project-node site content-root)]
+        (node?! editor-node "Editor")
+        editor-node))))
 
 (defn- send-project-scope-message
   [graph self txn]
@@ -123,9 +137,6 @@
 used any time a file with that type is opened."
 
         #'register-editor
-        "TODO"
-
-        #'editor-for
         "TODO"
 
         #'load-resource

@@ -193,22 +193,21 @@
 (defn on-edit
   [project-node editor-site cubemap]
   (let [editor (ise/make-scene-editor :name "editor")]
-    (ds/transactional
-      (ds/in (ds/add editor)
-        (let [cubemap-render (ds/add (make-cubemap-render))
-              background     (ds/add (background/make-background))
-              grid           (ds/add (grid/make-grid))
-              camera         (ds/add (c/make-camera-controller :camera (c/make-camera :orthographic)))]
-          (connect-cubemap-inputs cubemap cubemap-render)
-          (ds/connect camera         :camera     grid           :camera)
-          (ds/connect camera         :camera     editor         :view-camera)
-          (ds/connect camera         :self       editor         :controller)
-          (ds/connect background     :renderable editor         :renderables)
-          (ds/connect cubemap-render :renderable editor         :renderables)
-          (ds/connect camera         :camera     cubemap-render :camera)
-          (ds/connect grid           :renderable editor         :renderables)
-          (ds/connect cubemap-render :aabb       editor         :aabb))
-        editor))))
+    (ds/in (ds/add editor)
+      (let [cubemap-render (ds/add (make-cubemap-render))
+            background     (ds/add (background/make-background))
+            grid           (ds/add (grid/make-grid))
+            camera         (ds/add (c/make-camera-controller :camera (c/make-camera :orthographic)))]
+        (connect-cubemap-inputs cubemap cubemap-render)
+        (ds/connect camera         :camera     grid           :camera)
+        (ds/connect camera         :camera     editor         :view-camera)
+        (ds/connect camera         :self       editor         :controller)
+        (ds/connect background     :renderable editor         :renderables)
+        (ds/connect cubemap-render :renderable editor         :renderables)
+        (ds/connect camera         :camera     cubemap-render :camera)
+        (ds/connect grid           :renderable editor         :renderables)
+        (ds/connect cubemap-render :aabb       editor         :aabb))
+      editor)))
 
 (p/register-editor "cubemap" #'on-edit)
 (p/register-loader "cubemap" (protocol-buffer-loader Graphics$Cubemap on-load))

@@ -39,14 +39,9 @@
   with the file type (registered with `register-editor`.)"
   [site ^IFile file]
   (let [world-ref (-> @is/the-system :world :state)
-        proj      (project-containing world-ref file)]
-    (ds/in proj
-      ((p/editor-for
-         proj
-         (.. file getFullPath getFileExtension))
-       proj site (p/node-by-filename world-ref proj
-                                     (file/project-path proj file)
-                                     p/load-resource)))))
+        proj      (project-containing world-ref file)
+        path      (file/project-path proj file)]
+    (p/make-editor proj path site)))
 
 (defn- dynamic-part
   [{:keys [id label closeable] :or {id "sceneed.view" label "Default part" closeable true}}]

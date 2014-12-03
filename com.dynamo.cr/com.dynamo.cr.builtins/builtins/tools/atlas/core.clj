@@ -504,21 +504,20 @@
 (defn on-edit
   [project-node editor-site atlas-node]
   (let [editor (make-scene-editor :name "editor")]
-    (transactional
-     (in (add editor)
-         (let [atlas-render (add (make-atlas-render))
-               background (add (make-background))
-               grid       (add (make-grid))
-               camera     (add (make-camera-controller :camera (make-camera :orthographic)))]
-           (connect atlas-node   :textureset atlas-render :textureset)
-           (connect camera       :camera     grid         :camera)
-           (connect camera       :camera     editor       :view-camera)
-           (connect camera       :self       editor       :controller)
-           (connect background   :renderable editor       :renderables)
-           (connect atlas-render :renderable editor       :renderables)
-           (connect grid         :renderable editor       :renderables)
-           (connect atlas-node   :aabb       editor       :aabb))
-         editor))))
+    (in (add editor)
+        (let [atlas-render (add (make-atlas-render))
+              background (add (make-background))
+              grid       (add (make-grid))
+              camera     (add (make-camera-controller :camera (make-camera :orthographic)))]
+          (connect atlas-node   :textureset atlas-render :textureset)
+          (connect camera       :camera     grid         :camera)
+          (connect camera       :camera     editor       :view-camera)
+          (connect camera       :self       editor       :controller)
+          (connect background   :renderable editor       :renderables)
+          (connect atlas-render :renderable editor       :renderables)
+          (connect grid         :renderable editor       :renderables)
+          (connect atlas-node   :aabb       editor       :aabb))
+        editor)))
 
 (register-editor "atlas" #'on-edit)
 (register-loader "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
