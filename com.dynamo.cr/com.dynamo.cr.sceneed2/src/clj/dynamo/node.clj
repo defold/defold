@@ -19,14 +19,14 @@
   {:value (get this prop)
    :type  (-> this :descriptor :properties prop)})
 
-(defnk gather-properties
+(defnk gather-properties :- Properties
   [this]
   (let [property-names (-> this :descriptor :properties keys)]
     (zipmap property-names (map (partial gather-property this) property-names))))
 
 (def node-intrinsics
   [(list 'output 'self `s/Any `selfie)
-   (list 'output 'properties `s/Any `gather-properties)])
+   (list 'output 'properties `Properties `gather-properties)])
 
 (defmacro defnode
   "Given a name and a specification of behaviors, creates a node,

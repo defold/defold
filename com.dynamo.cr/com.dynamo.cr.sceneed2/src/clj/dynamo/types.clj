@@ -76,6 +76,8 @@
 
 (defn property-type? [x] (satisfies? PropertyType x))
 
+(def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
+
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)
 (def NodeRef s/Int)
