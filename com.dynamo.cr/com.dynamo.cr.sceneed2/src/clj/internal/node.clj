@@ -204,8 +204,10 @@
        (deref super-descriptor))
 
      [(['property nm tp & options] :seq)]
-     {:properties {(keyword nm) (eval (ip/property-type-descriptor tp options))}
-      :transforms {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}}
+     (let [property-desc (eval (ip/property-type-descriptor tp options))]
+       {:properties {(keyword nm) property-desc}
+        :transforms {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}
+        :transform-types {(keyword nm) (:value-type property-desc)}})
 
      [(['input nm schema & flags] :seq)]
      (let [schema (if (coll? schema) (into [] schema) schema)

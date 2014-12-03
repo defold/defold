@@ -261,12 +261,16 @@
         (is (= [:node0 :node1] (in/get-node-value node2 :defnk-in-multi)))))))
 
 (deftest node-properties-as-node-outputs
-  (with-clean-world
-    (let [[node0 node1] (tx-nodes
-                          (make-production-function-inputs-node :prop :node0)
-                          (make-production-function-inputs-node :prop :node1))
-          _ (ds/transactional (ds/connect node0 :prop node1 :in))]
-      (is (= :node0 (in/get-node-value node1 :defnk-in))))))
+  (testing "every property automatically creates an output that produces the property's value"
+    (with-clean-world
+      (let [[node0 node1] (tx-nodes
+                            (make-production-function-inputs-node :prop :node0)
+                            (make-production-function-inputs-node :prop :node1))
+            _ (ds/transactional (ds/connect node0 :prop node1 :in))]
+        (is (= :node0 (in/get-node-value node1 :defnk-in))))))
+  (testing "the output has the same type as the property"
+    (let [node0 (make-production-function-inputs-node)]
+      (is (= s/Keyword (-> node0 :descriptor :transform-types :prop))))))
 
 (defnk out-from-self [out-from-self] out-from-self)
 (defnk out-from-in [in] in)
