@@ -40,3 +40,6 @@
   (ds/transactional
     (ds/in scope
       (ds/add (make-property-view)))))
+
+(defn get-control [property-view-node]
+  (:form (ds/refresh property-view-node)))

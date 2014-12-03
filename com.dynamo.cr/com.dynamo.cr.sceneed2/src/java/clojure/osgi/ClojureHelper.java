@@ -43,7 +43,7 @@ public class ClojureHelper {
     private static final IFn SEQ = var("clojure.core", "seq");
 
     static {
-        require(ClojureHelper.NODE_NS);
+        require(NODE_NS);
     }
 
     public static Var var(String pkg, String var) {

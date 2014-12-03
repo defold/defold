@@ -12,8 +12,9 @@
             [eclipse.resources :as resources]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IProject IResource]
-           [org.eclipse.ui PlatformUI]
-           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
+           [org.eclipse.ui PlatformUI IEditorSite]
+           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]
+           [org.eclipse.jface.viewers ISelectionProvider StructuredSelection]))
 
 (set! *warn-on-reflection* true)
 
@@ -76,14 +77,27 @@
     node
     (factory project-node path)))
 
+(defnode Selection
+  ISelectionProvider
+  (getSelection [this]
+    (StructuredSelection.))
+  (setSelection [this selection]
+    (prn "*** setSelection not implemented ***"))
+  (addSelectionChangedListener [this listener]
+    (prn "*** addSelectionChangedListener not implemented ***"))
+  (removeSelectionChangedListener [this listener]
+    (prn "*** removeSelectionChangedListener not implemented ***")))
+
 (defn make-editor
-  [project-node path site]
+  [project-node path ^IEditorSite site]
   (ds/transactional
     (ds/in project-node
       (let [content-root   (node-by-filename project-node path load-resource)
             editor-factory (editor-for project-node (file/extension path))
-            editor-node    (editor-factory project-node site content-root)]
+            editor-node    (editor-factory project-node site content-root)
+            selection-node (ds/in editor-node (ds/add (make-selection)))]
         (node?! editor-node "Editor")
+        (.setSelectionProvider site selection-node) ;; TODO: use injection for this?
         editor-node))))
 
 (defn- send-project-scope-message

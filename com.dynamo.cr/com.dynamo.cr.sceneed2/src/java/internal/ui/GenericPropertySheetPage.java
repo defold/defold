@@ -44,8 +44,7 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public void setActionBars(IActionBars actionBars) {
-        // TODO Auto-generated method stub
-
+        // Not supported
     }
 
     @Override
@@ -55,43 +54,35 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        // TODO Auto-generated method stub
-
+        System.out.println("**** TODO: GenericPropertySheetPage.selectionChanged ****");
     }
 
     @Override
     public Control getControl() {
-        // TODO Auto-generated method stub
-        return null;
+        return (Control)invoke(INTERNAL_NS, "get-control", behavior);
     }
 
     @Override
     public Object getInput() {
-        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public ISelection getSelection() {
-        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public void refresh() {
-        // TODO Auto-generated method stub
-
+        System.out.println("**** TODO: GenericPropertySheetPage.refresh ****");
     }
 
     @Override
     public void setInput(Object input) {
-        // TODO Auto-generated method stub
-
+        System.out.println("**** TODO: GenericPropertySheetPage.setInput ****");
     }
 
     @Override
     public void setSelection(ISelection selection, boolean reveal) {
-        // TODO Auto-generated method stub
-
     }
 }
