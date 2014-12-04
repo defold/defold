@@ -88,7 +88,6 @@ public class GenericEditor extends EditorPart {
     @Override
     public void doSave(IProgressMonitor monitor) {
         dispatchMessage(behavior, SAVE, FILE, ((IFileEditorInput) getEditorInput()).getFile(), MONITOR, monitor);
-
     }
 
     @Override

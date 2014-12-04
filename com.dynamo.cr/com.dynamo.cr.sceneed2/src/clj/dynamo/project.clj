@@ -78,6 +78,8 @@
     (factory project-node path)))
 
 (defnode Selection
+  (input properties [t/Properties] :inject)
+
   ISelectionProvider
   (getSelection [this]
     (StructuredSelection.))
@@ -88,17 +90,22 @@
   (removeSelectionChangedListener [this listener]
     (prn "*** removeSelectionChangedListener not implemented ***")))
 
+(defnode CannedProperties
+  (property rotation s/Str    (default "twenty degrees starboard"))
+  (property translation s/Str (default "Guten abend.")))
+
 (defn make-editor
   [project-node path ^IEditorSite site]
   (ds/transactional
     (ds/in project-node
       (let [content-root   (node-by-filename project-node path load-resource)
             editor-factory (editor-for project-node (file/extension path))
-            editor-node    (editor-factory project-node site content-root)
-            selection-node (ds/in editor-node (ds/add (make-selection)))]
+            editor-node    (editor-factory project-node site content-root)]
         (node?! editor-node "Editor")
-        (.setSelectionProvider site selection-node) ;; TODO: use injection for this?
-        editor-node))))
+        (let [selection-node (ds/in editor-node (ds/add (make-selection)))]
+          (ds/in editor-node (ds/add (make-canned-properties :rotation "e to the i pi")))
+          (.setSelectionProvider site selection-node) ;; TODO: use injection for this?
+          editor-node)))))
 
 (defn- send-project-scope-message
   [graph self txn]

@@ -147,15 +147,6 @@
     (every? sequential? vals) (apply concat vals)
     :else                     (last vals)))
 
-(defn merge-behaviors [behaviors]
-  (apply deep-merge
-         (map #(cond
-                 (symbol? %) (do (assert (resolve %) (str "Unable to resolve symbol " % " in this context")) (var-get (resolve %)))
-                 (var? %)    (var-get (resolve %))
-                 (map? %)    %
-                 :else       (throw (ex-info (str "Unacceptable behavior " %) :argument %)))
-              behaviors)))
-
 (defn classname-for [prefix]  (symbol (str prefix "__")))
 
 (defn fqsymbol
@@ -195,6 +186,9 @@
         :else {:properties properties :options options :remainder args})
       {:properties properties :options options :remainder args})))
 
+(defn- emit-quote [form]
+  (list `quote form))
+
 (defn- compile-defnode-form
   [prefix form]
   (match [form]
@@ -205,8 +199,8 @@
 
      [(['property nm tp & options] :seq)]
      (let [property-desc (eval (ip/property-type-descriptor tp options))]
-       {:properties {(keyword nm) property-desc}
-        :transforms {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}
+       {:properties      {(keyword nm) property-desc}
+        :transforms      {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}
         :transform-types {(keyword nm) (:value-type property-desc)}})
 
      [(['input nm schema & flags] :seq)]
@@ -270,9 +264,6 @@
   (->> forms
     (map (partial compile-defnode-form nm))
     (reduce deep-merge {:name nm :on-update #{}})))
-
-(defn- emit-quote [form]
-  (list `quote form))
 
 (defn- generate-record-methods [descriptor]
   (for [[defined-in method-name args] (:record-methods descriptor)]

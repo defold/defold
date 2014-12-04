@@ -1,6 +1,7 @@
 (ns internal.ui.property
   (:require [dynamo.node :as n]
-            [dynamo.system :as ds])
+            [dynamo.system :as ds]
+            [dynamo.types :as t])
   (:import [org.eclipse.swt SWT]
            [org.eclipse.swt.custom StackLayout]
            [org.eclipse.swt.widgets Composite]
@@ -11,6 +12,8 @@
 (set! *warn-on-reflection* true)
 
 (n/defnode PropertyView
+  (input properties [t/Properties])
+
   (on :create
     (let [parent       (:parent event)
           toolkit      (FormToolkit. (.getDisplay ^Composite parent))

@@ -149,7 +149,7 @@ This function should mainly be used to create 'plumbing'."
   (input nodes [s/Any])
 
   (property tag      s/Keyword)
-  (property parent   NamingContext)
+  (property parent   (s/protocol NamingContext))
   (property triggers Triggers (default [#'inject-new-nodes #'dispose-nodes]))
 
   (output dictionary s/Any in/scope-dictionary)
