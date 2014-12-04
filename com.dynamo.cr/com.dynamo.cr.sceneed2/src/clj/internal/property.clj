@@ -46,13 +46,16 @@
     :else
     (assert false (str "invalid form within property type definition: " (pr-str form)))))
 
-(defn property-type-descriptor [value-type body-forms]
+(defn property-type-descriptor [name-sym value-type body-forms]
   `(let [value-type#     ~value-type
          parent#         (when (t/property-type? value-type#) value-type#)
          base-props#     (merge {:value-type value-type#} parent#)
          override-props# ~(mapv compile-defproperty-form body-forms)
-         props#          (reduce merge base-props# override-props#)]
+         props#          (reduce merge base-props# override-props#)
+         ; protocol detection heuristic based on private function `clojure.core/protocol?`
+         protocol?#      (fn [~'p] (and (map? ~'p) (contains? ~'p :on-interface)))]
+     (assert (not (protocol?# value-type#)) (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))
      (map->PropertyTypeImpl props#)))
 
 (defn def-property-type-descriptor [name-sym value-type & body-forms]
-  `(def ~name-sym ~(property-type-descriptor value-type body-forms)))
+  `(def ~name-sym ~(property-type-descriptor name-sym value-type body-forms)))

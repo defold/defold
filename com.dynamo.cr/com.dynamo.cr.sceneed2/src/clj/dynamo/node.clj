@@ -128,13 +128,13 @@ This function should mainly be used to create 'plumbing'."
   (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
         out-from-new-connections (in/injection-candidates existing-nodes (:nodes-added transaction))
         in-to-new-connections    (in/injection-candidates (:nodes-added transaction) existing-nodes)
-        all-possible             (set/union out-from-new-connections in-to-new-connections)
-        not-already-connected    (remove (fn [[out out-label in in-label]]
+        candidates               (set/union out-from-new-connections in-to-new-connections)
+        candidates               (remove (fn [[out out-label in in-label]]
                                            (or
                                              (= (:_id out) (:_id in))
                                              (lg/connected? graph (:_id out) out-label (:_id in) in-label)))
-                                         all-possible)]
-    (doseq [connection not-already-connected]
+                                   candidates)]
+    (doseq [connection candidates]
       (apply ds/connect connection))))
 
 (defn dispose-nodes

@@ -129,7 +129,5 @@
 (deftest reflexive-injection
   (testing "don't connect a node's own output to its input"
     (with-clean-world
-      (let [scope (ds/transactional
-                    (ds/in (ds/add (make-scope))
-                      (ds/add (make-reflexive-feedback))))]
-        (is (not (lg/connected? (-> world-ref deref :graph) (:_id scope) :port (:_id scope) :ports)))))))
+      (let [node (ds/transactional (ds/add (make-reflexive-feedback)))]
+        (is (not (lg/connected? (-> world-ref deref :graph) (:_id node) :port (:_id node) :ports)))))))

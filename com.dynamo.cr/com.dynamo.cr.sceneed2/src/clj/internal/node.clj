@@ -134,19 +134,6 @@
 ; ---------------------------------------------------------------------------
 ; Definition handling
 ; ---------------------------------------------------------------------------
-(defn is-schema? [vals] (some :schema (map meta vals)))
-
-(defn deep-merge
-  "Recursively merges maps. If keys are not maps, the last value wins."
-  [& vals]
-  (cond
-    (is-schema? vals)         (last vals)
-    (every? map? vals)        (apply merge-with deep-merge vals)
-    (every? set? vals)        (apply union vals)
-    (every? vector? vals)     (into [] (apply concat vals))
-    (every? sequential? vals) (apply concat vals)
-    :else                     (last vals)))
-
 (defn classname-for [prefix]  (symbol (str prefix "__")))
 
 (defn fqsymbol
@@ -198,10 +185,10 @@
        (deref super-descriptor))
 
      [(['property nm tp & options] :seq)]
-     (let [property-desc (eval (ip/property-type-descriptor tp options))]
-       {:properties      {(keyword nm) property-desc}
+     (let [property-desc (eval (ip/property-type-descriptor nm tp options))]
+       {:properties      {(keyword nm) (emit-quote property-desc)}
         :transforms      {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}
-        :transform-types {(keyword nm) (:value-type property-desc)}})
+        :transform-types {(keyword nm) (emit-quote (:value-type property-desc))}})
 
      [(['input nm schema & flags] :seq)]
      (let [schema (if (coll? schema) (into [] schema) schema)
@@ -236,12 +223,12 @@
 
      [([nm [& args] & remainder] :seq)]
      {:methods        {nm `(fn ~args ~@remainder)}
-      :record-methods [[prefix nm args]]}
+      :record-methods #{[prefix nm args]}}
 
      [impl :guard symbol?]
      (if (class? (resolve impl))
-       {:interfaces [impl]}
-       {:impl [impl]})))
+       {:interfaces #{impl}}
+       {:impl #{impl}})))
 
 (defn resolve-or-else [sym]
   (assert (symbol? sym) (pr-str "Cannot resolve " sym))
@@ -259,11 +246,21 @@
          nil)
        :ok)))
 
+(defn- is-schema? [val] (boolean (:schema (meta val))))
+
+(defn- deep-merge
+  [& vals]
+  (cond
+    (every? is-schema? vals) (last vals)
+    (every? map? vals)       (apply merge vals)
+    (every? set? vals)       (apply union vals)
+    :else                    (last vals)))
+
 (defn compile-specification
   [nm forms]
-  (->> forms
-    (map (partial compile-defnode-form nm))
-    (reduce deep-merge {:name nm :on-update #{}})))
+  (let [behavior-fragments (map #(compile-defnode-form nm %) forms)
+        behavior           (apply merge-with deep-merge behavior-fragments)]
+    (assoc behavior :name nm)))
 
 (defn- generate-record-methods [descriptor]
   (for [[defined-in method-name args] (:record-methods descriptor)]
@@ -295,7 +292,7 @@
          `(properties [t#] (:properties ~nm))
          `(inputs [t#] (into #{} (keys (:inputs ~nm))))
          `(outputs [t#] (into #{} (keys (:transforms ~nm))))
-         `(auto-update? [t# l#] ((-> t# :descriptor :on-update) l#))
+         `(auto-update? [t# l#] (contains? (-> t# :descriptor :on-update) l#))
          `(cached-outputs [t#] (:cached ~nm))
          `(output-dependencies [t#] ~(descriptor->output-dependencies descriptor))
          `t/MessageTarget
@@ -305,13 +302,15 @@
           (map #(or (classname-sym %) %) (:interfaces descriptor))
           (generate-record-methods descriptor))))
 
+(defn- maps [f coll] (into #{} (map f coll)))
+
 (defn quote-functions
   [descriptor]
   (-> descriptor
     (update-in [:name]           emit-quote)
     (update-in [:methods]        (fn [ms] (zipmap (map emit-quote (keys ms)) (vals ms))))
-    (update-in [:record-methods] (partial mapv emit-quote))
-    (update-in [:impl]           (partial mapv (comp emit-quote fqsymbol)))))
+    (update-in [:record-methods] (partial maps emit-quote))
+    (update-in [:impl]           (partial maps (comp emit-quote fqsymbol)))))
 
 (defn generate-constructor [nm descriptor]
   (let [ctor             (symbol (str 'make- (->kebab-case (str nm))))

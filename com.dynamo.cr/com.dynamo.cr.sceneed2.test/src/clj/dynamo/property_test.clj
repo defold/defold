@@ -4,12 +4,16 @@
             [dynamo.types :as t]
             [schema.core :as s]))
 
+(defprotocol MyProtocol)
+
 (deftest property-type-definition
   (let [property-defn (defproperty SomeProperty s/Any)]
     (is (var? property-defn))
     (is (identical? (resolve `SomeProperty) property-defn))
     (is (satisfies? t/PropertyType (var-get property-defn)))
-    (is (= s/Any (-> property-defn var-get :value-type)))))
+    (is (= s/Any (-> property-defn var-get :value-type))))
+  (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"\(schema.core/protocol dynamo.property-test/MyProtocol\)"
+        (eval '(dynamo.property/defproperty BadProp dynamo.property-test/MyProtocol)))))
 
 (defproperty PropWithDefaultValue s/Num
   (default 42))

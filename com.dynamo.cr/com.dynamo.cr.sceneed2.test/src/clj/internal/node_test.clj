@@ -8,7 +8,7 @@
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
-            [internal.node :as in :refer [deep-merge]]
+            [internal.node :as in]
             [internal.system :as is]
             [internal.query :as iq]
             [internal.transaction :as it]))
@@ -20,27 +20,6 @@
 
 (defn get-tally [node fn-symbol]
   (get-in @*calls* [(:_id node) fn-symbol] 0))
-
-(def a-schema (with-meta {:names [java.lang.String]} {:schema true}))
-
-(def m1 {:cached #{:derived}   :inputs {:simple-number 18 :another [:a] :nested ['v1] :setvalued #{:x}}})
-(def m2 {:cached #{:expensive} :inputs {:simple-number 99 :another [:a] :nested ['v3] :setvalued #{:z}}})
-(def expected-merge {:cached #{:expensive :derived},
-                     :inputs {:simple-number 99
-                              :another [:a :a],
-                              :nested ['v1 'v3]
-                              :setvalued #{:x :z}}})
-
-(def s1           (assoc m1 :declared-type a-schema))
-(def s2           (assoc m2 :declared-type a-schema))
-(def schema-merge (assoc expected-merge :declared-type a-schema))
-
-(deftest merging-nested-maps
-  (is (= expected-merge (deep-merge m1 m2))))
-
-(deftest merging-maps-with-schemas
-  (is (= schema-merge (deep-merge s1 s2)))
-  (is (:schema (meta (get (deep-merge s1 s2) :declared-type)))))
 
 (defproperty StringWithDefault s/Str
   (default "o rly?"))
@@ -502,3 +481,62 @@
           (in/parse-output-flags '[:substitute-value subst-fn :cached production-fn])))
     (is (= {:properties #{} :options {:substitute-value :cached} :remainder '[production-fn]}
           (in/parse-output-flags '[:substitute-value :cached production-fn])))))
+
+(defnode BasicNode
+  (input basic-input s/Int)
+  (property string-property s/Str)
+  (property property-to-override s/Str)
+  (property multi-valued-property [s/Keyword] (default [:basic]))
+  (output basic-output s/Keyword :cached :on-update [this g] :keyword))
+
+(defproperty predefined-property-type s/Str
+  (default "a-default"))
+
+(defnode MultipleInheritance
+  (property property-from-multiple s/Str (default "multiple")))
+
+(defnode InheritsBasicNode
+  (inherits BasicNode)
+  (inherits MultipleInheritance)
+  (input another-input [s/Int])
+  (property property-to-override s/Str (default "override"))
+  (property property-from-type predefined-property-type)
+  (property multi-valued-property [s/Str] (default ["extra" "things"]))
+  (output another-output s/Keyword [this g] :keyword)
+  (output another-cached-output s/Keyword :cached :on-update [this g] :keyword))
+
+(deftest inheritance-merges-node-types
+  (testing "name"
+    (is (= 'BasicNode (-> (make-basic-node) :descriptor :name)))
+    (is (= 'InheritsBasicNode (-> (make-inherits-basic-node) :descriptor :name))))
+  (testing "properties"
+    (is (:string-property (t/properties (make-basic-node))))
+    (is (:string-property (t/properties (make-inherits-basic-node))))
+    (is (:property-to-override (t/properties (make-inherits-basic-node))))
+    (is (= nil         (-> (make-basic-node)          t/properties :property-to-override   t/default-property-value)))
+    (is (= "override"  (-> (make-inherits-basic-node) t/properties :property-to-override   t/default-property-value)))
+    (is (= "a-default" (-> (make-inherits-basic-node) t/properties :property-from-type     t/default-property-value)))
+    (is (= "multiple"  (-> (make-inherits-basic-node) t/properties :property-from-multiple t/default-property-value))))
+  (testing "transforms"
+    (is (every? (-> (make-basic-node) t/outputs)
+                #{:string-property :property-to-override :multi-valued-property :basic-output}))
+    (is (every? (-> (make-inherits-basic-node) t/outputs)
+                #{:string-property :property-to-override :multi-valued-property :basic-output :property-from-type :another-cached-output})))
+  (testing "transform-types"
+    (is (= [s/Keyword] (-> (make-basic-node)          :descriptor :transform-types :multi-valued-property)))
+    (is (= [s/Str]     (-> (make-inherits-basic-node) :descriptor :transform-types :multi-valued-property))))
+  (testing "inputs"
+    (is (every? (-> (make-basic-node) t/inputs)
+                #{:basic-input}))
+    (is (every? (-> (make-inherits-basic-node) t/inputs)
+                #{:basic-input :another-input})))
+  (testing "cached"
+    (is (:basic-output (t/cached-outputs (make-basic-node))))
+    (is (:basic-output (t/cached-outputs (make-inherits-basic-node))))
+    (is (:another-cached-output (t/cached-outputs (make-inherits-basic-node))))
+    (is (not (:another-output (t/cached-outputs (make-inherits-basic-node))))))
+  (testing "on-update"
+    (is (t/auto-update? (make-basic-node) :basic-output))
+    (is (t/auto-update? (make-inherits-basic-node) :basic-output))
+    (is (t/auto-update? (make-inherits-basic-node) :another-cached-output))
+    (is (not (t/auto-update? (make-inherits-basic-node) :another-output)))))
