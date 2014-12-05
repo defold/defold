@@ -55,12 +55,15 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        ((ISelectionListener) behavior).selectionChanged(part, selection);
+        System.out.println("**** selectionChanged: sourcePart = " + part);
+        if (behavior != null) {
+            ((ISelectionListener) behavior).selectionChanged(part, selection);
+        }
     }
 
     @Override
     public Control getControl() {
-        return (Control)invoke(INTERNAL_NS, "get-control", behavior);
+        return (Control) invoke(INTERNAL_NS, "get-control", behavior);
     }
 
     @Override
@@ -70,6 +73,7 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public ISelection getSelection() {
+        System.out.println("**** TODO: GenericPropertySheetPage.getSelection ****");
         return null;
     }
 
@@ -85,5 +89,6 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public void setSelection(ISelection selection, boolean reveal) {
+        System.out.println("**** TODO: GenericPropertySheetPage.setSelection ****");
     }
 }

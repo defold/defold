@@ -4,6 +4,8 @@
             [camel-snake-kebab :refer :all]
             [service.log :as log])
   (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
+            [org.eclipse.core.runtime SafeRunner]
+            [org.eclipse.jface.util SafeRunnable]
             [org.eclipse.swt.widgets Display Listener Widget]
             [org.eclipse.swt SWT]))
 
@@ -31,12 +33,16 @@
   [& body]
   `(swt-thread-safe* (bound-fn [] ~@body)))
 
+(defn swt-await*
+  [f]
+  (let [res (promise)]
+    (.syncExec (display)
+      #(deliver res (f)))
+    (deref res)))
+
 (defmacro swt-await
   [& body]
-  `(let [res# (promise)]
-     (.syncExec (display)
-       (bound-fn [] (deliver res# (do ~@body))))
-     (deref res#)))
+  `(swt-await* (bound-fn [] ~@body)))
 
 (defn swt-timed-exec*
   [after f]
@@ -65,6 +71,13 @@
   (let [keywords (map (comp keyword ->kebab-case str) evts)
         constants (map symbol (map #(str "SWT/" %) evts))]
     (zipmap keywords constants)))
+
+(defmacro run-safe
+  [& body]
+  `(SafeRunner/run
+     (proxy [SafeRunnable] []
+       (run []
+         ~@body))))
 
 (def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
                            MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect

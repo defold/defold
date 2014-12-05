@@ -5,7 +5,8 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [internal.node :as in])
+            [internal.node :as in]
+            [internal.query :as iq])
   (:import [org.eclipse.swt SWT]
            [org.eclipse.swt.custom StackLayout]
            [org.eclipse.swt.widgets Composite]
@@ -17,11 +18,21 @@
 (set! *warn-on-reflection* true)
 
 ;; TODO: This should actually **aggregate** something.
-(defnk aggregate-properties [properties] (first properties))
+(defnk aggregate-properties [properties] (count properties))
 
-(defn- refresh-property-page [node]
+(defn- show-no-properties
+  [{:keys [stack composite no-selection form] :as node}]
+  (set! (. stack topControl) no-selection)
+  (.reflow form true))
+
+(defn- refresh-property-page
+  [{:keys [form composite label] :as node}]
   (let [content (in/get-node-value node :content)]
-    (.setText (:label node) (pr-str content))))
+   (if (and false (empty? content))
+     (show-no-properties node)
+     (do
+       (.setText label (pr-str content))
+       (.reflow form true)))))
 
 (n/defnode PropertyView
   (input properties [t/Properties])
@@ -54,7 +65,10 @@
 
   ISelectionListener
   (selectionChanged [this part selection]
+    (prn "Property View: new selection " selection)
     (ds/transactional
+      (doseq [[source-node source-label] (iq/sources-of this :properties)]
+        (ds/disconnect source-node source-label this :properties))
       (doseq [n @selection]
         (ds/connect {:_id n} :properties this :properties)))
     (ui/after 100 (refresh-property-page (ds/refresh this)))))

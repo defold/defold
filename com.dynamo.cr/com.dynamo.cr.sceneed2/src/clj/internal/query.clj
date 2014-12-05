@@ -13,6 +13,12 @@
     (dg/node graph
       (ffirst (lg/sources graph (:_id node) label)))))
 
+(defn sources-of
+  [target-node target-label]
+  (let [graph (-> target-node :world-ref deref :graph)]
+    (for [[node-id label] (lg/sources graph (:_id target-node) target-label)]
+      [(dg/node graph node-id) label])))
+
 (defn node-consuming
   ([node label]
      (node-consuming (-> node :world-ref deref :graph) node label))

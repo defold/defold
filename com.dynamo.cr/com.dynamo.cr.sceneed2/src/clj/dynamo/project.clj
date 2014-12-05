@@ -15,7 +15,7 @@
   (:import [org.eclipse.core.resources IFile IProject IResource]
            [org.eclipse.ui PlatformUI IEditorSite ISelectionListener]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]
-           [org.eclipse.jface.viewers ISelection ISelectionProvider]))
+           [org.eclipse.jface.viewers ISelection ISelectionProvider ISelectionChangedListener SelectionChangedEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -79,33 +79,80 @@
     node
     (factory project-node path)))
 
+
 (defnk produce-selection [this selected-nodes]
   (let [node-ids (mapv :_id selected-nodes)]
-    ;; TODO - notify listeners
     (reify
       ISelection
       (isEmpty [this] (empty? node-ids))
       clojure.lang.IDeref
       (deref [this] node-ids))))
 
+(defprotocol EventRegistration
+  (add-listener [this key listener])
+  (remove-listener [this key]))
+
+(defprotocol EventSource
+  (send-event [this event]))
+
+(defrecord EventBroadcaster [listeners]
+  EventRegistration
+  (add-listener [this key listener] (swap! listeners assoc key listener))
+  (remove-listener [this key] (swap! listeners dissoc key))
+
+  EventSource
+  (send-event [this event]
+    (ui/swt-await
+      (doseq [l (vals @listeners)]
+       (ui/run-safe
+         (l event))))))
+
+(defn is-modified? [transaction node output]
+  (boolean (get-in transaction [:outputs-modified (:_id node) output])))
+
+(defn fire-selection-changed
+  [graph self transaction]
+  (when (is-modified? transaction self :selection)
+    (let [before  (n/get-node-value self :selection)
+          release (promise)]
+      (ds/send-after self {:type :release :latch release})
+      (ui/swt-thread-safe*
+        (fn []
+          (if (deref release 50 false)
+            (let [after (n/get-node-value self :selection)]
+              (when (not= @before @after)
+               (prn "fire-selection-changed: selection *has* changed from " @before " to " @after)
+               (.setSelection ^ISelectionProvider self after)))
+            (log/warn "Timed out waiting for transaction to finish.")))))))
+
 (defnode Selection
   (input selected-nodes [t/Node])
 
-  (output selection s/Any :cached :on-update produce-selection)
+  (property selection-listeners EventBroadcaster (default #(EventBroadcaster. (atom {}))))
+  (property triggers t/Triggers (default [#'fire-selection-changed]))
+
+  (output selection s/Any produce-selection)
+
+  (on :release
+    (deliver (:latch event) true))
 
   ISelectionListener
   (selectionChanged [this part selection]
     (prn "*** selectionChanged happened! ***" part selection))
 
   ISelectionProvider
-  (getSelection ^ISelection [this]
+  (^ISelection getSelection [this]
     (n/get-node-value this :selection))
   (setSelection [this selection]
-    (prn "*** setSelection not implemented ***"))
-  (addSelectionChangedListener [this listener]
-    (prn "*** addSelectionChangedListener not implemented ***"))
+    (send-event this (SelectionChangedEvent. this selection)))
+  (^void addSelectionChangedListener [this ^ISelectionChangedListener listener]
+    (add-listener (:selection-listeners this) listener #(.selectionChanged listener %)))
   (removeSelectionChangedListener [this listener]
-    (prn "*** removeSelectionChangedListener not implemented ***")))
+    (remove-listener (:selection-listeners this) listener))
+
+  EventSource
+  (send-event [this event]
+    (send-event (:selection-listeners this) event)))
 
 (defnode CannedProperties
   (property rotation s/Str    (default "twenty degrees starboard"))
