@@ -1,5 +1,6 @@
 (ns dynamo.project
   (:require [clojure.java.io :as io]
+            [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [dynamo.system :as ds]
             [dynamo.file :as file]
@@ -12,9 +13,9 @@
             [eclipse.resources :as resources]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IProject IResource]
-           [org.eclipse.ui PlatformUI IEditorSite]
+           [org.eclipse.ui PlatformUI IEditorSite ISelectionListener]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]
-           [org.eclipse.jface.viewers ISelectionProvider StructuredSelection]))
+           [org.eclipse.jface.viewers ISelection ISelectionProvider]))
 
 (set! *warn-on-reflection* true)
 
@@ -60,7 +61,8 @@
 (defn- editor-for [project-scope ext] (handler project-scope :editor ext))
 
 (defn node?! [n kind]
-  (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) ".")))
+  (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
+  n)
 
 (defn load-resource
   [project-node path]
@@ -77,12 +79,27 @@
     node
     (factory project-node path)))
 
+(defnk produce-selection [this selected-nodes]
+  (let [node-ids (mapv :_id selected-nodes)]
+    ;; TODO - notify listeners
+    (reify
+      ISelection
+      (isEmpty [this] (empty? node-ids))
+      clojure.lang.IDeref
+      (deref [this] node-ids))))
+
 (defnode Selection
-  (input properties [t/Properties] :inject)
+  (input selected-nodes [t/Node])
+
+  (output selection s/Any :cached :on-update produce-selection)
+
+  ISelectionListener
+  (selectionChanged [this part selection]
+    (prn "*** selectionChanged happened! ***" part selection))
 
   ISelectionProvider
-  (getSelection [this]
-    (StructuredSelection.))
+  (getSelection ^ISelection [this]
+    (n/get-node-value this :selection))
   (setSelection [this selection]
     (prn "*** setSelection not implemented ***"))
   (addSelectionChangedListener [this listener]
@@ -94,18 +111,29 @@
   (property rotation s/Str    (default "twenty degrees starboard"))
   (property translation s/Str (default "Guten abend.")))
 
+(defn- build-editor-node
+  [project-node path site]
+  (let [content-root   (node-by-filename project-node path load-resource)
+        editor-factory (editor-for project-node (file/extension path))]
+    (node?! (editor-factory project-node site content-root) "Editor")))
+
+(defn- build-selection-node
+  [editor-node]
+  (ds/in editor-node
+    (let [selection-node  (ds/add (make-selection))
+          properties-node (ds/add (make-canned-properties :rotation "e to the i pi"))]
+      (ds/connect properties-node :self selection-node :selected-nodes)
+      selection-node)))
+
 (defn make-editor
   [project-node path ^IEditorSite site]
-  (ds/transactional
-    (ds/in project-node
-      (let [content-root   (node-by-filename project-node path load-resource)
-            editor-factory (editor-for project-node (file/extension path))
-            editor-node    (editor-factory project-node site content-root)]
-        (node?! editor-node "Editor")
-        (let [selection-node (ds/in editor-node (ds/add (make-selection)))]
-          (ds/in editor-node (ds/add (make-canned-properties :rotation "e to the i pi")))
-          (.setSelectionProvider site selection-node) ;; TODO: use injection for this?
-          editor-node)))))
+  (let [[editor-node selection-node] (ds/transactional
+                                       (ds/in project-node
+                                         (let [editor-node    (build-editor-node project-node path site)
+                                               selection-node (build-selection-node editor-node)]
+                                           [editor-node selection-node])))]
+    (.setSelectionProvider site selection-node)
+    editor-node))
 
 (defn- send-project-scope-message
   [graph self txn]

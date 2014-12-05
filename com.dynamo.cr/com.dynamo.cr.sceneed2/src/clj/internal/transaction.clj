@@ -102,7 +102,7 @@
 
 (defn connect
   [from-node from-label to-node to-label]
-  [{:type          :connect
+  [{:type         :connect
     :source-id    (:_id from-node)
     :source-label from-label
     :target-id    (:_id to-node)
@@ -110,7 +110,7 @@
 
 (defn disconnect
   [from-node from-label to-node to-label]
-  [{:type          :disconnect
+  [{:type         :disconnect
     :source-id    (:_id from-node)
     :source-label from-label
     :target-id    (:_id to-node)

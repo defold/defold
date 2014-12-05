@@ -7,6 +7,7 @@ import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.ui.IActionBars;
+import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchPart;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
@@ -54,7 +55,7 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        System.out.println("**** TODO: GenericPropertySheetPage.selectionChanged ****");
+        ((ISelectionListener) behavior).selectionChanged(part, selection);
     }
 
     @Override
