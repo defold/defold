@@ -124,23 +124,15 @@
 
 (sm/defn camera-rotate :- Camera
   [camera :- Camera q :- Quat4d]
-  (assoc camera :rotation (.mul (t/rotation camera) (doto (Quat4d. q) (.normalize)))))
+  (assoc camera :rotation (doto (Quat4d. (t/rotation camera)) (.mul (doto (Quat4d. q) (.normalize))))))
 
 (sm/defn camera-move :- Camera
   [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
-  (let [p (t/position camera)]
-    (set! (. p x) (+ x (. p x)))
-    (set! (. p y) (+ y (. p y)))
-    (set! (. p z) (+ z (. p z)))
-    camera))
+  (assoc camera :position (doto (Point3d. x y z) (.add (t/position camera)))))
 
 (sm/defn camera-set-position :- Camera
   [camera :- Camera x :- s/Num y :- s/Num z :- s/Num]
-  (let [p (t/position camera)]
-    (set! (. p x) x)
-    (set! (. p y) y)
-    (set! (. p z) z)
-    camera))
+  (assoc camera :position (Point3d. x y z)))
 
 (sm/defn camera-set-center :- Camera
   [camera :- Camera bounds :- AABB]
