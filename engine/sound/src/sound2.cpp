@@ -20,7 +20,7 @@
 namespace dmSound
 {
     #define SOUND_MAX_MIX_CHANNELS (2)
-    #define SOUND_OUTBUFFER_COUNT (2)
+    #define SOUND_OUTBUFFER_COUNT (6)
 
     // TODO: How many bits?
     const uint32_t RESAMPLE_FRACTION_BITS = 31;
