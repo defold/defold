@@ -1,5 +1,6 @@
 (ns internal.node-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as str]
             [schema.core :as s]
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t]
@@ -134,7 +135,7 @@
           deps      (t/output-dependencies test-node)]
       (are [input affected-outputs] (and (contains? deps input) (= affected-outputs (get deps input)))
            :an-input           #{:depends-on-input :depends-on-several}
-           :a-property         #{:depends-on-property :depends-on-several :a-property}
+           :a-property         #{:depends-on-property :depends-on-several :a-property :properties}
            :project            #{:depends-on-several})
       (is (not (contains? deps :this)))
       (is (not (contains? deps :g)))
@@ -155,6 +156,19 @@
            "quux" after
            "bar"  override)
       (is (every? t/property-type? (map :type (vals (in/get-node-value before :properties))))))))
+
+(defn- expect-modified
+  [properties f]
+  (with-clean-world
+    (let [node (ds/transactional (ds/add (make-simple-test-node :foo "one")))]
+     (ds/transactional (f node))
+     (is (= properties (get-in @(:world-ref node) [:last-tx :outputs-modified (:_id node)] #{}))))))
+
+(deftest invalidating-properties-output
+  (expect-modified #{:properties :foo} (fn [node] (ds/set-property    node :foo "two")))
+  (expect-modified #{:properties :foo} (fn [node] (ds/update-property node :foo str/reverse)))
+  (expect-modified #{}                 (fn [node] (ds/set-property    node :foo "one")))
+  (expect-modified #{}                 (fn [node] (ds/update-property node :foo identity))))
 
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)

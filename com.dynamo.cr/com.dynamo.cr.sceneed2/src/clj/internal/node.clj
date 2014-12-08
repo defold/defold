@@ -281,9 +281,10 @@
       #{})))
 
 (defn- descriptor->output-dependencies
-   [{:keys [transforms]}]
+   [{:keys [transforms properties]}]
    (let [outs (dissoc transforms :self)
-         outs (zipmap (keys outs) (map inputs-for (vals outs)))]
+         outs (zipmap (keys outs) (map inputs-for (vals outs)))
+         outs (assoc outs :properties (set (keys properties)))]
      (invert-map outs)))
 
 (defn generate-defrecord [nm descriptor]

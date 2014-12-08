@@ -63,8 +63,8 @@
 (defn set-property
   [n & kvs]
   (it/tx-bind *transaction*
-    (for [[pr v] (partition-all 2 kvs)]
-      (it/set-property n pr v)))
+    (for [[p v] (partition-all 2 kvs)]
+      (it/update-property n p (constantly v) [])))
   n)
 
 (defn update-property

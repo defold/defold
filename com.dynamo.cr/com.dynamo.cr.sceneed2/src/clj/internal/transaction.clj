@@ -85,13 +85,6 @@
   [{:type    :delete-node
     :node-id (:_id node)}])
 
-(defn set-property
-  [node pr val]
-  [{:type     :set-property
-    :node-id  (:_id node)
-    :property pr
-    :value    val}])
-
 (defn update-property
   [node pr f args]
   [{:type     :update-property
@@ -167,19 +160,17 @@
       :graph         (dg/remove-node graph node-id)
       :nodes-removed (conj nodes-removed node))))
 
-(defmethod perform :set-property
-  [{:keys [graph] :as ctx} {:keys [node-id property value]}]
-  (let [node-id (resolve-tempid ctx node-id)]
-    (-> ctx
-        (mark-dirty node-id property)
-        (assoc :graph (dg/transform-node graph node-id assoc property value)))))
-
 (defmethod perform :update-property
   [{:keys [graph] :as ctx} {:keys [node-id property fn args]}]
-  (let [node-id (resolve-tempid ctx node-id)]
-    (-> ctx
-        (mark-dirty node-id property)
-        (assoc :graph (apply dg/transform-node graph node-id update-in [property] fn args)))))
+  (let [node-id   (resolve-tempid ctx node-id)
+        old-value (get (dg/node graph node-id) property)
+        new-graph (apply dg/transform-node graph node-id update-in [property] fn args)
+        new-value (get (dg/node new-graph node-id) property)]
+    (if (= old-value new-value)
+      ctx
+      (-> ctx
+         (mark-dirty node-id property)
+         (assoc :graph new-graph)))))
 
 (defmethod perform :connect
   [{:keys [graph] :as ctx} {:keys [source-id source-label target-id target-label]}]
@@ -390,10 +381,6 @@ such as [[connect]] and [[update-property]]."
 tempid if the resource will be referenced again in the same transaction. If supplied, _input_ and _output_ are sets of input and output labels, respectively.
 If not supplied as arguments, the `:input` and `:output` keys in the node may will be assigned as the resource's inputs and outputs."
 
-        #'set-property
-        "*transaction step* - Expects a node, a property label, and a value. That will become the new value of the property."
-
-
         #'update-property
         "*transaction step* - Expects a node, a property label, and a function f (with optional args) to be performed on the
 current value of the property. The node may be a uncommitted, in which case it will have a tempid."
@@ -404,6 +391,6 @@ a ref to the current world state, modifies it according to the transaction steps
 and returns a new world.
 
 The txs must have been created by the transaction step functions in this namespace: [[connect]],
-[[disconnect]], [[new-node]], [[set-property]], and [[update-property]]. The collection of txs can be nested."
+[[disconnect]], [[new-node]], and [[update-property]]. The collection of txs can be nested."
 }]
   (alter-meta! v assoc :doc doc))

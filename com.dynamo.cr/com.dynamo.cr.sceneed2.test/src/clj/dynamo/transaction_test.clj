@@ -159,10 +159,10 @@
   (with-clean-world
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network)]
       (are [update expected] (= (map-keys :_id expected) (affected-by (apply ds/set-property update)))
-        [calculator :touched true]                {calculator        #{:touched}}
-        [person :date-of-birth (java.util.Date.)] {person            #{:age :date-of-birth}
+        [calculator :touched true]                {calculator        #{:properties :touched}}
+        [person :date-of-birth (java.util.Date.)] {person            #{:properties :age :date-of-birth}
                                                    calculator        #{:passthrough}}
-        [first-name-cell :name "Sam"]             {first-name-cell   #{:name}
+        [first-name-cell :name "Sam"]             {first-name-cell   #{:properties :name}
                                                    person            #{:full-name :friendly-name}
                                                    greeter           #{:passthrough}
                                                    formal-greeter    #{:passthrough}
