@@ -20,12 +20,9 @@
       clojure.lang.IDeref
       (deref [this] node-ids))))
 
-(defn is-modified? [transaction node output]
-  (boolean (get-in transaction [:outputs-modified (:_id node) output])))
-
 (defn fire-selection-changed
   [graph self transaction]
-  (when (is-modified? transaction self :selection)
+  (when (ds/is-modified? transaction self :selection)
     (let [before  (n/get-node-value self :selection)
           release (promise)]
       (ds/send-after self {:type :release :latch release})
