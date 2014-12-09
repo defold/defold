@@ -1,13 +1,19 @@
 (ns dynamo.ui
   (:require [internal.ui.handlers :as h]
-            [internal.java :refer [bean-mapper]]
+            [internal.java :refer [bean-mapper map-beaner]]
             [camel-snake-kebab :refer :all]
             [service.log :as log])
   (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
             [org.eclipse.core.runtime SafeRunner]
             [org.eclipse.jface.util SafeRunnable]
-            [org.eclipse.swt.widgets Display Listener Widget]
-            [org.eclipse.swt SWT]))
+            [org.eclipse.swt.custom StackLayout]
+            [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Widget]
+            [org.eclipse.swt.graphics Color RGB]
+            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
+            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
+            [org.eclipse.swt.layout FillLayout GridData GridLayout]
+            [org.eclipse.swt SWT]
+            [com.dynamo.cr.properties StatusLabel]))
 
 (set! *warn-on-reflection* true)
 
@@ -100,6 +106,97 @@
     (proxy [Listener] []
       (handleEvent [evt]
         (apply callback-fn (event->map evt) args)))))
+
+(defprotocol EventRegistration
+  (add-listener [this key listener])
+  (remove-listener [this key]))
+
+(defprotocol EventSource
+  (send-event [this event]))
+
+(defrecord EventBroadcaster [listeners]
+  EventRegistration
+  (add-listener [this key listener] (swap! listeners assoc key listener))
+  (remove-listener [this key] (swap! listeners dissoc key))
+
+  EventSource
+  (send-event [this event]
+    (swt-await
+      (doseq [l (vals @listeners)]
+       (run-safe
+         (l event))))))
+
+(defn make-event-broadcaster [] (EventBroadcaster. (atom {})))
+
+(defn rgb [r g b] (Color. (display) r g b))
+
+(defmulti make-layout      (fn [_ {type :type}] type))
+(defmulti make-layout-data (fn [_ {type :type}] type))
+(defmulti make-control     (fn [_ _ [_ {type :type}]] type))
+
+(defmacro apply-properties [desiderata control props]
+  (let [m {:background   `(when-let [v# (:background ~props)]       (.setBackground ~control (apply rgb v#)))
+           :foreground   `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
+           :on-click     `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
+           :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
+           :layout-data  `(when-let [v# (:layout-data ~props)]      (.setLayoutData ~control (make-layout-data ~control v#)))
+           :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
+           :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
+           :tooltip-text `(when-let [v# (:tooltip-text ~props)]     (.setToolTipText ~control v#))
+           :underlined   `(when-let [v# (:underlined ~props false)] (.setUnderlined ~control v#))}]
+    `(do ~@(vals (select-keys m desiderata)))))
+
+(def swt-styles      {:none SWT/NONE :border SWT/BORDER})
+(def swt-grid-layout (map-beaner GridLayout))
+(def swt-grid-data   (map-beaner GridData))
+
+(defmethod make-layout :stack
+  [^Composite control _]
+  (let [stack (StackLayout.)]
+    (set! (. stack topControl) (first (.getChildren control)))
+    stack))
+
+(defmethod make-layout      :grid [control spec] (swt-grid-layout spec))
+(defmethod make-layout-data :grid [control spec] (swt-grid-data spec))
+
+(defmethod make-control :composite [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control ^Composite (.createComposite toolkit parent (swt-styles (:style props :none)))
+        child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
+    (apply-properties #{:foreground :background :layout :tooltip-text} control props)
+    {name (merge child-controls {::widget control})}))
+
+(defmethod make-control :label [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control ^Label (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
+    (apply-properties #{:text :foreground :background :layout-data :tooltip-text} control props)
+    {name {::widget control}}))
+
+(defmethod make-control :hyperlink [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control ^Hyperlink (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
+    (apply-properties #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text} control props)
+    {name {::widget control}}))
+
+(defmethod make-control :status-label [toolkit parent [name props :as spec]]
+  (let [control (StatusLabel. parent (swt-styles (:style props :none)))]
+    (apply-properties #{:status :foreground :background :layout-data :tooltip-text} control props)
+    {name {::widget control}}))
+
+(defn widget [widget-tree path] (get-in widget-tree (concat path [::widget])))
+
+(defn shell [] (doto (Shell.) (.setLayout (FillLayout.))))
+
+(defn bring-to-front
+  [^Control control]
+  (let [composite ^Composite (.getParent control)
+        stack ^StackLayout (.getLayout composite)]
+    (assert (instance? StackLayout stack) "bring-to-front only works on Composites with StackLayout as their layout")
+    (when (not= (. stack topControl) control)
+      (set! (. stack topControl) control)
+      (.layout composite))))
+
+(defn scroll-to-top
+  [^ScrolledForm form]
+  (.setOrigin form 0 0)
+  (.reflow form true))
 
 (defmacro defcommand
   [name category-id command-id label]

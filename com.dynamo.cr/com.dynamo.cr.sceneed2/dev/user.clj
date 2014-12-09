@@ -7,10 +7,12 @@
             [dynamo.image :refer :all]
             [dynamo.node :as n]
             [dynamo.system :as ds]
+            [dynamo.ui :as ui]
             [clojure.java.io :refer [file]]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.system :as is]
+            [internal.ui.property :as iip]
             [clojure.repl :refer :all]
             [schema.core :as s])
   (:import [java.awt Dimension]
@@ -85,6 +87,16 @@
         refs (.getServiceReferences bc IWorkbench nil)
         so   (.getServiceObjects bc (first refs))]
     (.getApplication (.getService so))))
+
+(defn popup-ui [widgets]
+  (let [r (promise)]
+    (ui/swt-safe
+      (let [shell (ui/shell)
+            widgets (ui/make-control shell widgets)]
+        (deliver r widgets)
+        (.pack shell)
+        (.open shell)))
+    r))
 
 (comment
   (import '[com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage])
