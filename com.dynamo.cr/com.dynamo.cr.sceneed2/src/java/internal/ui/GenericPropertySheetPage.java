@@ -55,7 +55,6 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public void selectionChanged(IWorkbenchPart part, ISelection selection) {
-        System.out.println("**** selectionChanged: sourcePart = " + part);
         if (behavior != null) {
             ((ISelectionListener) behavior).selectionChanged(part, selection);
         }
