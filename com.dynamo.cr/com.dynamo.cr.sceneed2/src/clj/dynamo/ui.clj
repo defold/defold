@@ -23,7 +23,7 @@
     :one-button
     :three-button))
 
-(defn display ^Display
+(defn ^Display display
   []
   (or (Display/getCurrent) (Display/getDefault)))
 
