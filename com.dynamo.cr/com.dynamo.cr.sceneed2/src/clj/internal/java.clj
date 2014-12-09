@@ -15,7 +15,6 @@
     (.setDaemon true)
     (.start)))
 
-
 (defrecord Field
   [public static final type ^String name java-field]
   clojure.lang.Named
@@ -44,14 +43,30 @@
   (let [flds (filter psf (fields cls))]
     (zipmap flds (map #(constant-value cls %) flds))))
 
-(defn- field-as-keyword [^Field f]   (keyword (->kebab-case (.name f))))
-(defn- field-getter     [s ^Field f] (list (symbol (str ".-" (.name f) )) s))
+(defn instance-fields [^java.lang.Class cls]
+  (filter #(not (:static %)) (fields cls)))
+
+(defn- field-as-keyword [^Field f]     (keyword (->kebab-case (.name f))))
+(defn- field-getter     [i ^Field f]   (list (symbol (str ".-" (.name f) )) i))
+(defn- field-set-sexp   [i ^Field f v] (list `set! (list `. i (symbol (.name f))) v))
 
 (defmacro bean-mapper [cls]
-  (let [tagged-arg (vary-meta (gensym "o") assoc :tag cls)
+  (let [tagged-arg (with-meta (gensym "o") {:tag cls})
         flds (fields (resolve cls))]
     `(fn [~tagged-arg]
        (hash-map ~@(mapcat identity
                            (for [f flds]
                              [(field-as-keyword f)
                               (field-getter tagged-arg f)]))))))
+
+(defmacro map-beaner [cls]
+  (let [inst      (with-meta (gensym "o") {:tag cls})
+        flds      (instance-fields (resolve cls))
+        set-sexps (for [f flds
+                        :let [kw (field-as-keyword f)]]
+                    (list `when (list `contains? 'm kw)
+                      (field-set-sexp 'inst f `(get ~'m ~kw))))]
+    `(fn [~'m]
+       (let [~'inst (new ~cls)]
+         ~@set-sexps
+         ~'inst))))
