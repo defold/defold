@@ -5,17 +5,16 @@
             [dynamo.system :as ds]
             [dynamo.file :as file]
             [dynamo.node :as n :refer [defnode Scope]]
+            [dynamo.selection :as selection]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [internal.clojure :as clojure]
             [internal.query :as iq]
-            [internal.system :as is]
             [eclipse.resources :as resources]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IProject IResource]
-           [org.eclipse.ui PlatformUI IEditorSite ISelectionListener]
-           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]
-           [org.eclipse.jface.viewers ISelection ISelectionProvider ISelectionChangedListener SelectionChangedEvent]))
+           [org.eclipse.ui PlatformUI IEditorSite]
+           [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
 
 (set! *warn-on-reflection* true)
 
@@ -79,81 +78,6 @@
     node
     (factory project-node path)))
 
-
-(defnk produce-selection [this selected-nodes]
-  (let [node-ids (mapv :_id selected-nodes)]
-    (reify
-      ISelection
-      (isEmpty [this] (empty? node-ids))
-      clojure.lang.IDeref
-      (deref [this] node-ids))))
-
-(defprotocol EventRegistration
-  (add-listener [this key listener])
-  (remove-listener [this key]))
-
-(defprotocol EventSource
-  (send-event [this event]))
-
-(defrecord EventBroadcaster [listeners]
-  EventRegistration
-  (add-listener [this key listener] (swap! listeners assoc key listener))
-  (remove-listener [this key] (swap! listeners dissoc key))
-
-  EventSource
-  (send-event [this event]
-    (ui/swt-await
-      (doseq [l (vals @listeners)]
-       (ui/run-safe
-         (l event))))))
-
-(defn is-modified? [transaction node output]
-  (boolean (get-in transaction [:outputs-modified (:_id node) output])))
-
-(defn fire-selection-changed
-  [graph self transaction]
-  (when (is-modified? transaction self :selection)
-    (let [before  (n/get-node-value self :selection)
-          release (promise)]
-      (ds/send-after self {:type :release :latch release})
-      (ui/swt-thread-safe*
-        (fn []
-          (if (deref release 50 false)
-            (let [after (n/get-node-value self :selection)]
-              (when (not= @before @after)
-               (prn "fire-selection-changed: selection *has* changed from " @before " to " @after)
-               (.setSelection ^ISelectionProvider self after)))
-            (log/warn "Timed out waiting for transaction to finish.")))))))
-
-(defnode Selection
-  (input selected-nodes [t/Node])
-
-  (property selection-listeners EventBroadcaster (default #(EventBroadcaster. (atom {}))))
-  (property triggers t/Triggers (default [#'fire-selection-changed]))
-
-  (output selection s/Any produce-selection)
-
-  (on :release
-    (deliver (:latch event) true))
-
-  ISelectionListener
-  (selectionChanged [this part selection]
-    (prn "*** selectionChanged happened! ***" part selection))
-
-  ISelectionProvider
-  (^ISelection getSelection [this]
-    (n/get-node-value this :selection))
-  (setSelection [this selection]
-    (send-event this (SelectionChangedEvent. this selection)))
-  (^void addSelectionChangedListener [this ^ISelectionChangedListener listener]
-    (add-listener (:selection-listeners this) listener #(.selectionChanged listener %)))
-  (removeSelectionChangedListener [this listener]
-    (remove-listener (:selection-listeners this) listener))
-
-  EventSource
-  (send-event [this event]
-    (send-event (:selection-listeners this) event)))
-
 (defnode CannedProperties
   (property rotation s/Str    (default "twenty degrees starboard"))
   (property translation s/Str (default "Guten abend.")))
@@ -167,7 +91,7 @@
 (defn- build-selection-node
   [editor-node]
   (ds/in editor-node
-    (let [selection-node  (ds/add (make-selection))
+    (let [selection-node  (ds/add (selection/make-selection))
           properties-node (ds/add (make-canned-properties :rotation "e to the i pi"))]
       (ds/connect properties-node :self selection-node :selected-nodes)
       selection-node)))
