@@ -128,7 +128,7 @@
 
 (defn make-event-broadcaster [] (EventBroadcaster. (atom {})))
 
-(defn rgb [r g b] (Color. (display) r g b))
+(defn- rgb [r g b] (Color. (display) r g b))
 
 (defmulti make-layout      (fn [_ {type :type}] type))
 (defmulti make-layout-data (fn [_ {type :type}] type))
@@ -146,7 +146,8 @@
            :underlined   `(when-let [v# (:underlined ~props false)] (.setUnderlined ~control v#))}]
     `(do ~@(vals (select-keys m desiderata)))))
 
-(def swt-styles      {:none SWT/NONE :border SWT/BORDER})
+(def swt-styles      {:none SWT/NONE
+                      :border SWT/BORDER})
 (def swt-grid-layout (map-beaner GridLayout))
 (def swt-grid-data   (map-beaner GridData))
 
@@ -159,38 +160,53 @@
 (defmethod make-layout      :grid [control spec] (swt-grid-layout spec))
 (defmethod make-layout-data :grid [control spec] (swt-grid-data spec))
 
-(defmethod make-control :composite [^FormToolkit toolkit parent [name props :as spec]]
+(defmethod make-control :form
+  [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control ^ScrolledForm (.createScrolledForm toolkit parent)
+        body    (.getBody control)
+        child-controls (reduce merge {} (map #(make-control toolkit body %) (:children props)))]
+    (apply-properties #{:text}   control props)
+    (apply-properties #{:layout} body props)
+    {name (merge child-controls {::widget control})}))
+
+(defmethod make-control :composite
+  [^FormToolkit toolkit parent [name props :as spec]]
   (let [control ^Composite (.createComposite toolkit parent (swt-styles (:style props :none)))
         child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
     (apply-properties #{:foreground :background :layout :tooltip-text} control props)
     {name (merge child-controls {::widget control})}))
 
-(defmethod make-control :label [^FormToolkit toolkit parent [name props :as spec]]
+(defmethod make-control :label
+  [^FormToolkit toolkit parent [name props :as spec]]
   (let [control ^Label (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
     (apply-properties #{:text :foreground :background :layout-data :tooltip-text} control props)
     {name {::widget control}}))
 
-(defmethod make-control :hyperlink [^FormToolkit toolkit parent [name props :as spec]]
+(defmethod make-control :hyperlink
+  [^FormToolkit toolkit parent [name props :as spec]]
   (let [control ^Hyperlink (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
     (apply-properties #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text} control props)
     {name {::widget control}}))
 
-(defmethod make-control :status-label [toolkit parent [name props :as spec]]
+(defmethod make-control :status-label
+  [_ parent [name props :as spec]]
   (let [control (StatusLabel. parent (swt-styles (:style props :none)))]
     (apply-properties #{:status :foreground :background :layout-data :tooltip-text} control props)
     {name {::widget control}}))
 
-(defn widget [widget-tree path] (get-in widget-tree (concat path [::widget])))
+(defn widget
+  [widget-tree path]
+  (get-in widget-tree (concat path [::widget])))
 
 (defn shell [] (doto (Shell.) (.setLayout (FillLayout.))))
 
 (defn bring-to-front
   [^Control control]
   (let [composite ^Composite (.getParent control)
-        stack ^StackLayout (.getLayout composite)]
-    (assert (instance? StackLayout stack) "bring-to-front only works on Composites with StackLayout as their layout")
-    (when (not= (. stack topControl) control)
-      (set! (. stack topControl) control)
+        layout ^StackLayout (.getLayout composite)]
+    (assert (instance? StackLayout layout) "bring-to-front only works on Composites with StackLayout as their layout")
+    (when (not= (. layout topControl) control)
+      (set! (. layout topControl) control)
       (.layout composite))))
 
 (defn scroll-to-top
