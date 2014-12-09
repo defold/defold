@@ -11,6 +11,7 @@
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
+            [dynamo.util :refer :all]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.transaction :as it]))
@@ -144,11 +145,6 @@
                [:formal-greeter  :passthrough   :multi-node-target :aggregator]]]
         (ds/connect (f nodes) f-l (t nodes) t-l)))
     nodes))
-
-(defn map-keys [f m]
-  (zipmap
-    (map f (keys m))
-    (vals m)))
 
 (defmacro affected-by [& forms]
   `(do
