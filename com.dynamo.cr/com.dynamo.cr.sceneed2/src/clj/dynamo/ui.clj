@@ -1,19 +1,20 @@
 (ns dynamo.ui
-  (:require [internal.ui.handlers :as h]
+  (:require [dynamo.types :as t]
+            [internal.ui.handlers :as h]
             [internal.java :refer [bean-mapper map-beaner]]
             [camel-snake-kebab :refer :all]
             [service.log :as log])
-  (:import  [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
-            [org.eclipse.core.runtime SafeRunner]
-            [org.eclipse.jface.util SafeRunnable]
-            [org.eclipse.swt.custom StackLayout]
-            [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Widget]
-            [org.eclipse.swt.graphics Color RGB]
-            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
-            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
-            [org.eclipse.swt.layout FillLayout GridData GridLayout]
-            [org.eclipse.swt SWT]
-            [com.dynamo.cr.properties StatusLabel]))
+  (:import [com.dynamo.cr.sceneed.core SceneUtil SceneUtil$MouseType]
+           [org.eclipse.core.runtime SafeRunner]
+           [org.eclipse.jface.util SafeRunnable]
+           [org.eclipse.swt.custom StackLayout]
+           [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Widget]
+           [org.eclipse.swt.graphics Color RGB]
+           [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
+           [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
+           [org.eclipse.swt.layout FillLayout GridData GridLayout]
+           [org.eclipse.swt SWT]
+           [com.dynamo.cr.properties StatusLabel]))
 
 (set! *warn-on-reflection* true)
 
@@ -213,6 +214,32 @@
   [^ScrolledForm form]
   (.setOrigin form 0 0)
   (.reflow form true))
+
+(defn now [] (System/currentTimeMillis))
+
+(deftype DisplayDebouncer [delay action ^:volatile-mutable signaled ^:volatile-mutable last-signaled]
+  t/Condition
+  (signal [this]
+    (set! last-signaled (now))
+    (set! signaled true)
+    (.asyncExec (display) this))
+
+  t/Cancelable
+  (cancel [this]
+    (set! signaled false))
+
+  Runnable
+  (run [this]
+    (when signaled
+      (if (< delay (- (now) last-signaled))
+        (do
+          (action)
+          (set! signaled false))
+        (.asyncExec (display) this)))))
+
+(defn display-debouncer
+  [when f]
+  (->DisplayDebouncer when f nil false))
 
 (defmacro defcommand
   [name category-id command-id label]

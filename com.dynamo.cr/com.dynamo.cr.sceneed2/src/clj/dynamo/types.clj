@@ -17,6 +17,12 @@
 
 (defn disposable? [x] (satisfies? IDisposable x))
 
+(defprotocol Condition
+  (signal [this] "Notify a deferred action of something"))
+
+(defprotocol Cancelable
+  (cancel [this] "Cancel a thing."))
+
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
 

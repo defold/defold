@@ -85,9 +85,8 @@
 
 (defn- refresh-after-a-while
   [graph this transaction]
-  (when (ds/is-modified? transaction this :content)
-    ;; TODO: coalesce refreshes
-    (ui/after 100 (refresh-property-page (ds/refresh this)))))
+  (when (and (ds/is-modified? transaction this :content) (:debouncer this))
+    (t/signal (:debouncer this))))
 
 (def gui
   [:form {:type   :form
@@ -117,7 +116,8 @@
       (ds/set-property self
         :sheet-cache  sheet-cache
         :toolkit      toolkit
-        :widget-tree  widget-tree)))
+        :widget-tree  widget-tree
+        :debouncer    (ui/display-debouncer 100 #(refresh-property-page (ds/refresh self))))))
 
   ISelectionListener
   (selectionChanged [this part selection]
