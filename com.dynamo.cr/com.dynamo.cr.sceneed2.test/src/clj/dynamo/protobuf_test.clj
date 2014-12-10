@@ -13,7 +13,7 @@
             [dynamo.system.test-support :refer [with-clean-world]]
             [internal.query :as iq]
             [internal.transaction :as it])
-  (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
+  (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]))
 
 (sm/defn produce-animation [this] nil)
@@ -41,7 +41,7 @@
   (output tree [OutlineItem] produce-tree))
 
 (protocol-buffer-converters
- AtlasProto$Atlas
+ TestAtlasProto$Atlas
  {:constructor      #'make-atlas-node
   :basic-properties [:extrude-borders :margin]
   :node-properties  {:images-list [:tree -> :children,
@@ -49,20 +49,20 @@
                      :animations-list [:tree -> :children,
                                        :animation -> :animations]}}
 
- AtlasProto$AtlasAnimation
+ TestAtlasProto$AtlasAnimation
  {:constructor      #'make-atlas-animation-node
   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
   :node-properties  {:images-list [:tree -> :children,
                                    :image -> :images]}}
 
- AtlasProto$AtlasImage
+ TestAtlasProto$AtlasImage
  {:constructor      #'make-atlas-image-node
   :basic-properties [:image]})
 
 (defn atlas-with-one-animation [anim-id]
-  (.build (doto (AtlasProto$Atlas/newBuilder)
+  (.build (doto (TestAtlasProto$Atlas/newBuilder)
             (.setMargin 7)
-            (.addAnimations (doto (AtlasProto$AtlasAnimation/newBuilder)
+            (.addAnimations (doto (TestAtlasProto$AtlasAnimation/newBuilder)
                               (.setId anim-id))))))
 
 (deftest node-connections-have-right-cardinality
