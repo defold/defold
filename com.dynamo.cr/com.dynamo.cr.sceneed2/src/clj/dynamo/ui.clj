@@ -8,7 +8,7 @@
            [org.eclipse.core.runtime SafeRunner]
            [org.eclipse.jface.util SafeRunnable]
            [org.eclipse.swt.custom StackLayout]
-           [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Widget]
+           [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Text Widget]
            [org.eclipse.swt.graphics Color RGB]
            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
@@ -131,20 +131,31 @@
 
 (defn- rgb [r g b] (Color. (display) r g b))
 
+
+(defn- annotate [^Widget control {:keys [type]}]
+  (.setData control type))
+(defn- annotation [^Widget control]
+  (.getData control))
+
 (defmulti make-layout      (fn [_ {type :type}] type))
 (defmulti make-layout-data (fn [_ {type :type}] type))
 (defmulti make-control     (fn [_ _ [_ {type :type}]] type))
+(defmulti apply-properties (fn [control _] (annotation control)))
 
-(defmacro apply-properties [desiderata control props]
+(defmacro gen-state-changes [desiderata control props]
   (let [m {:background   `(when-let [v# (:background ~props)]       (.setBackground ~control (apply rgb v#)))
+           :echo-char    `(when-let [v# (:echo-char ~props)]        (.setEchoChar ~control v#))
+           :editable     `(when-let [v# (:editable ~props)]         (.setEditable ~control v#))
            :foreground   `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
            :on-click     `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
            :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
            :layout-data  `(when-let [v# (:layout-data ~props)]      (.setLayoutData ~control (make-layout-data ~control v#)))
            :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
            :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
+           :text-limit   `(when-let [v# (:text-limit ~props)]       (.setTextLimit ~control v#))
+           :top-index    `(when-let [v# (:top-index ~props)]        (.setTopIndex ~control v#))
            :tooltip-text `(when-let [v# (:tooltip-text ~props)]     (.setToolTipText ~control v#))
-           :underlined   `(when-let [v# (:underlined ~props false)] (.setUnderlined ~control v#))}]
+           :underlined   `(when-let [v# (:underlined ~props)]       (.setUnderlined ~control v#))}]
     `(do ~@(vals (select-keys m desiderata)))))
 
 (def swt-styles      {:none SWT/NONE
@@ -166,34 +177,76 @@
   (let [control ^ScrolledForm (.createScrolledForm toolkit parent)
         body    (.getBody control)
         child-controls (reduce merge {} (map #(make-control toolkit body %) (:children props)))]
-    (apply-properties #{:text}   control props)
-    (apply-properties #{:layout} body props)
+    (annotate control props)
+    (apply-properties control props)
     {name (merge child-controls {::widget control})}))
+
+(defmethod apply-properties :form
+  [^ScrolledForm control props]
+  (gen-state-changes #{:text}   control props)
+  (gen-state-changes #{:layout} (.getBody control) props)
+  control)
 
 (defmethod make-control :composite
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control ^Composite (.createComposite toolkit parent (swt-styles (:style props :none)))
+  (let [control (.createComposite toolkit parent (swt-styles (:style props :none)))
         child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
-    (apply-properties #{:foreground :background :layout :tooltip-text} control props)
+    (annotate control props)
+    (apply-properties control props)
     {name (merge child-controls {::widget control})}))
+
+(defmethod apply-properties :composite
+  [^Composite control props]
+  (gen-state-changes #{:foreground :background :layout :tooltip-text} control props)
+  control)
 
 (defmethod make-control :label
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control ^Label (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
-    (apply-properties #{:text :foreground :background :layout-data :tooltip-text} control props)
+  (let [control (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
+    (annotate control props)
+    (apply-properties control props)
     {name {::widget control}}))
+
+(defmethod apply-properties :label
+  [^Label control props]
+  (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text} control props)
+  control)
 
 (defmethod make-control :hyperlink
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control ^Hyperlink (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
-    (apply-properties #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text} control props)
+  (let [control (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
+    (annotate control props)
+    (apply-properties control props)
     {name {::widget control}}))
+
+(defmethod apply-properties :hyperlink
+  [^Hyperlink control props]
+  (gen-state-changes #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text} control props)
+  control)
+
+(defmethod make-control :text
+  [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control (.createText toolkit parent nil (swt-styles (:style props :none)))]
+    (annotate control props)
+    (apply-properties control props)
+    {name {::widget control}}))
+
+(defmethod apply-properties :text
+  [^Text control props]
+  (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text :echo-char :text-limit :top-index :editable} control props)
+  control)
 
 (defmethod make-control :status-label
   [_ parent [name props :as spec]]
   (let [control (StatusLabel. parent (swt-styles (:style props :none)))]
-    (apply-properties #{:status :foreground :background :layout-data :tooltip-text} control props)
+    (annotate control props)
+    (apply-properties control props)
     {name {::widget control}}))
+
+(defmethod apply-properties :status-label
+  [^StatusLabel control props]
+  (gen-state-changes #{:status :foreground :background :layout-data :tooltip-text} control props)
+  control)
 
 (defn widget
   [widget-tree path]

@@ -33,35 +33,72 @@
     ->Camel_Snake_Case_String
     (str/replace "_" " ")))
 
+(defprotocol Presenter
+  (control-for-property [this])
+  (display-property [this editor value]))
+
+(defrecord StringPresenter []
+  Presenter
+  (control-for-property [_]
+    {:type :text})
+  (display-property [_ editor value]
+    (ui/apply-properties editor {:text (str value)})))
+
+(defrecord DefaultPresenter []
+  Presenter
+  (control-for-property [_]
+    {:type :label})
+  (display-property [_ editor value]
+    (ui/apply-properties editor {:text (str value)})))
+
+(defmulti presenter-for-property (comp :value-type :type))
+(defmethod presenter-for-property s/Str [_] (->StringPresenter))
+(defmethod presenter-for-property :default [_] (->DefaultPresenter))
+
 (defn- property-control-strip
-  [[prop-name {:keys [value]}]]
-  (let [label-text (niceify-label prop-name)
-        value-text (pr-str value)]
+  [[prop-name presenter]]
+  (let [label-text (niceify-label prop-name)]
     [[:label-composite {:type :composite
                         :layout {:type :stack}
                         :children [[:label      {:type :label :text label-text}]
                                    [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text Messages/FormPropertySheetViewer_RESET_VALUE}]]}]
-     [:label           {:type :label :text value-text :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL :width-hint 50}}]
+     [prop-name (merge {:layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL :width-hint 50}}
+                  (control-for-property presenter))]
      [:dummy           {:type :label :layout-data {:type :grid :exclude true}}]
      [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-fill SWT/HORIZONTAL :width-hint 50 :exclude true}}]]))
 
+(defn- make-property-page-ui
+  [toolkit parent presenters]
+  (ui/make-control toolkit (ui/widget parent [:form :composite])
+    [:page-content
+     {:type :composite
+      :layout {:type :grid :num-columns 2 :margin-width 0}
+      :children (mapcat property-control-strip presenters)}]))
+
 (defn- make-property-page
-  [toolkit widget-tree properties]
-  (-> (ui/make-control toolkit (ui/widget widget-tree [:form :composite])
-        [:grid-container
-         {:type :composite
-          :layout {:type :grid :num-columns 2 :margin-width 0}
-          :children (mapcat property-control-strip properties)}])
-    (ui/widget [:grid-container])))
+  [toolkit properties-form properties]
+  (let [presenters (map-vals presenter-for-property properties)
+        property-page-ui (make-property-page-ui toolkit properties-form presenters)]
+    [presenters property-page-ui]))
+
+(defn- make-empty-property-page-ui
+  [toolkit parent]
+  (ui/make-control toolkit (ui/widget parent [:form :composite])
+    [:page-content
+     {:type :composite
+      :layout {:type :grid}
+      :children [[:no-selection-label {:type :label :text Messages/FormPropertySheetViewer_NO_PROPERTIES}]]}]))
 
 (defn- make-empty-property-page
-  [toolkit widget-tree]
-  (-> (ui/make-control toolkit (ui/widget widget-tree [:form :composite])
-        [:no-selection
-         {:type :composite
-          :layout {:type :grid}
-          :children [[:no-selection-label {:type :label :text Messages/FormPropertySheetViewer_NO_PROPERTIES}]]}])
-    (ui/widget [:no-selection])))
+  [toolkit properties-form]
+  [[] (make-empty-property-page-ui toolkit properties-form)])
+
+(defn- update-property-page
+  [[presenters page-content] properties]
+  (doseq [[prop-name {:keys [value type]}] properties
+          :let [widget (ui/widget page-content [:page-content prop-name])]]
+    (display-property (get presenters prop-name) widget value))
+  page-content)
 
 (defn- cache-key
   [properties]
@@ -76,12 +113,14 @@
       (get key)))
 
 (defn- refresh-property-page
-  [{:keys [sheet-cache toolkit widget-tree] :as node}]
+  [{:keys [sheet-cache toolkit properties-form] :as node}]
   (let [properties (in/get-node-value node :content)]
     (-> sheet-cache
-        (lookup-or-create (cache-key properties) make-property-page toolkit widget-tree properties)
+        (lookup-or-create (cache-key properties) make-property-page toolkit properties-form properties)
+        (update-property-page properties)
+        (ui/widget [:page-content])
         (ui/bring-to-front)))
-  (ui/scroll-to-top (ui/widget widget-tree [:form])))
+  (ui/scroll-to-top (ui/widget properties-form [:form])))
 
 (defn- refresh-after-a-while
   [graph this transaction]
@@ -109,15 +148,15 @@
   (output content s/Any aggregate-properties)
 
   (on :create
-    (let [toolkit      (FormToolkit. (.getDisplay ^Composite (:parent event)))
-          widget-tree  (ui/make-control toolkit (:parent event) gui)
-          sheet-cache  (atom {})]
-      (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page toolkit widget-tree)
+    (let [toolkit         (FormToolkit. (.getDisplay ^Composite (:parent event)))
+          properties-form (ui/make-control toolkit (:parent event) gui)
+          sheet-cache     (atom {})]
+      (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page toolkit properties-form)
       (ds/set-property self
-        :sheet-cache  sheet-cache
-        :toolkit      toolkit
-        :widget-tree  widget-tree
-        :debouncer    (ui/display-debouncer 100 #(refresh-property-page (ds/refresh self))))))
+        :sheet-cache     sheet-cache
+        :toolkit         toolkit
+        :properties-form properties-form
+        :debouncer       (ui/display-debouncer 100 #(refresh-property-page (ds/refresh self))))))
 
   ISelectionListener
   (selectionChanged [this part selection]
@@ -138,5 +177,5 @@
   [property-view-node]
   (-> property-view-node
       ds/refresh
-      :widget-tree
+      :properties-form
       (ui/widget [:form])))
