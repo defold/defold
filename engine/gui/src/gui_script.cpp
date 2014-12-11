@@ -1164,7 +1164,7 @@ namespace dmGui
     }
 
     /*# sets the node texture
-     * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
+     * Set the texture on a box or pie node. The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_texture
      * @param node node to set texture for (node)
