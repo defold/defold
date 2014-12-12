@@ -9,25 +9,25 @@
 namespace dmSoundCodec
 {
     typedef void* HDecodeStream;
-    
+
     enum DecoderFlags
     {
         DECODER_FLOATING_POINT = 1,
         DECODER_FIXED_POINT    = 2
     };
-    
+
     struct DecoderInfo
     {
         /**
          * Implementation name
          */
         const char* m_Name;
-        
+
         /**
          * Format the decoder handles
          */
         Format m_Format;
-        
+
         /**
          * Performance score. Recommended range 0-10
          */
@@ -53,6 +53,11 @@ namespace dmSoundCodec
          * Seek to the beginning.
          */
         Result (*m_ResetStream)(HDecodeStream);
+
+        /**
+         * Skip in stream
+         */
+        Result (*m_SkipInStream)(HDecodeStream, uint32_t bytes, uint32_t* skipped);
 
         /**
          * Get samplerate and number of channels.
@@ -92,7 +97,7 @@ namespace dmSoundCodec
             __pragma(section(".CRT$XCU",read)) \
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## name)(void) = name ## Wrapper;
     #endif
-    
+
     #ifndef DM_SOUND_PASTE
     #define DM_SOUND_PASTE(x, y) x ## y
     #define DM_SOUND_PASTE2(x, y) DM_SOUND_PASTE(x, y)
@@ -101,7 +106,7 @@ namespace dmSoundCodec
     /**
      * Declare a new stream decoder
      */
-    #define DM_DECLARE_SOUND_DECODER(symbol, name, format, score, open, close, decode, reset, getinfo) \
+    #define DM_DECLARE_SOUND_DECODER(symbol, name, format, score, open, close, decode, reset, skip, getinfo) \
             dmSoundCodec::DecoderInfo DM_SOUND_PASTE2(symbol, __LINE__) = { \
                     name, \
                     format, \
@@ -110,6 +115,7 @@ namespace dmSoundCodec
                     close, \
                     decode, \
                     reset, \
+                    skip, \
                     getinfo, \
             };\
         DM_REGISTER_SOUND_DECODER(symbol, DM_SOUND_PASTE2(symbol, __LINE__))
