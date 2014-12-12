@@ -76,6 +76,15 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
+    Result StbVorbisSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
+    {
+        // Decode with buffer = null corresponding number of bytes.
+        // stb_vorbis has a special case for this skipping a lot of
+        // decoding work.
+        Result r = StbVorbisDecode(stream, 0, bytes, skipped);
+        return r;
+    }
+
     void StbVorbisCloseStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
@@ -90,5 +99,5 @@ namespace dmSoundCodec
 
     DM_DECLARE_SOUND_DECODER(AudioDecoderStbVorbis, "VorbisDecoderStb", FORMAT_VORBIS,
                              5, // baseline score (1-10)
-                             StbVorbisOpenStream, StbVorbisCloseStream, StbVorbisDecode, StbVorbisResetStream, StbVorbisGetInfo);
+                             StbVorbisOpenStream, StbVorbisCloseStream, StbVorbisDecode, StbVorbisResetStream, StbVorbisSkipInStream, StbVorbisGetInfo);
 }

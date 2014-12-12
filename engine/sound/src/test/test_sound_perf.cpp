@@ -40,7 +40,7 @@ public:
 
     char m_UnCache[4*1024*1024];
 
-    void DecodeAndTime(const dmSoundCodec::DecoderInfo *decoder, unsigned char *buf, uint32_t size, const char *decoder_name, const char *test_name)
+    void DecodeAndTime(const dmSoundCodec::DecoderInfo *decoder, unsigned char *buf, uint32_t size, const char *decoder_name, bool skip, const char *test_name)
     {
         int junk = 0;
         for (unsigned int i=0;i<size;i+=4096)
@@ -67,7 +67,11 @@ public:
 
             const uint64_t chunk_begin = dmTime::GetTime();
 
-            decoder->m_DecodeStream(stream, tmp, sizeof(tmp), &decoded);
+            if (skip)
+                decoder->m_SkipInStream(stream, sizeof(tmp), &decoded);
+            else
+                decoder->m_DecodeStream(stream, tmp, sizeof(tmp), &decoded);
+
             total_decoded += decoded;
 
             if (decoded != sizeof(tmp))
@@ -88,7 +92,7 @@ public:
         const uint32_t bytes_per_second = streamInfo.m_Channels * streamInfo.m_Rate * streamInfo.m_BitsPerSample / 8;
         const float audio_length = (float)total_decoded / (float)bytes_per_second;
 
-        printf("[%s - %s] Total: %.3f s", decoder_name, test_name, t2s * (time_done - time_beg));
+        printf("[%s - %s (%s)] Total: %.3f s", decoder_name, test_name, (skip ? "SKIPPING" : "DECODING"), t2s * (time_done - time_beg));
         printf(" | Chunks: %u, max: %.3f ms, avg: %.3f ms", (int)iterations, t2ms * max_chunk_time, (time_done - time_open) * t2ms / float(iterations));
         printf(" | Output: %d Kb, %.1f s\n", (int)(total_decoded / 1024), audio_length);
         printf("  * Per out second: %.3f ms", t2ms * (time_done - time_beg) / audio_length);
@@ -97,17 +101,17 @@ public:
         decoder->m_CloseStream(stream);
     }
 
-    void RunSuite(const char *decoder_name)
+    void RunSuite(const char *decoder_name, bool skip)
     {
         const dmSoundCodec::DecoderInfo *info = dmSoundCodec::FindDecoderByName(decoder_name);
         ASSERT_NE((void*) 0, info);
-        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, "Cymbal");
-        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, "Glockenspiel");
-        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, "Explosion");
-        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, "Explosion Low Mono");
-        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, "Music");
-        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, "Music Low");
-        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, "Cymbal");
+        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, skip, "Cymbal");
+        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, skip, "Glockenspiel");
+        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, skip, "Explosion");
+        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, skip, "Explosion Low Mono");
+        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, skip, "Music");
+        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, skip, "Music Low");
+        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, skip, "Cymbal");
 
         if (dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS) == info)
             printf("%s is used by default with current build settings on this platform\n", decoder_name);
@@ -118,12 +122,22 @@ public:
 
 TEST_F(dmSoundTest, MeasureStdb)
 {
-    RunSuite("VorbisDecoderStb");
+    RunSuite("VorbisDecoderStb", false);
+}
+
+TEST_F(dmSoundTest, MeasureStdbSkip)
+{
+    RunSuite("VorbisDecoderStb", true);
 }
 
 TEST_F(dmSoundTest, MeasureTremolo)
 {
-    RunSuite("VorbisDecoderTremolo");
+    RunSuite("VorbisDecoderTremolo", false);
+}
+
+TEST_F(dmSoundTest, MeasureTremoloSkip)
+{
+    RunSuite("VorbisDecoderTremolo", true);
 }
 
 int main(int argc, char **argv)

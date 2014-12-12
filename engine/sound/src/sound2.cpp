@@ -52,6 +52,11 @@ namespace dmSound
             }
         }
 
+        inline bool IsZero()
+        {
+            return m_Prev == 0.0f && m_Current == 0.0f && m_Next == 0.0f;
+        }
+
         /**
          * Set previous value to current and current to next, i.e. "sample"
          */
@@ -238,7 +243,7 @@ namespace dmSound
         DeviceType* device_type;
         r = OpenDevice(params->m_OutputDevice, &device_params, &device_type, &device);
         if (r != RESULT_OK) {
-        	dmLogError("Failed to Open device '%s'", params->m_OutputDevice);
+            dmLogError("Failed to Open device '%s'", params->m_OutputDevice);
             return r;
         }
 
@@ -873,18 +878,36 @@ namespace dmSound
             return;
         }
 
+        bool is_muted = false;
+
+        int* group_index = sound->m_GroupMap.Get(instance->m_Group);
+        if (group_index) {
+            SoundGroup* group = &sound->m_Groups[*group_index];
+            is_muted = group->m_Gain.IsZero();
+        }
+
+        is_muted |= instance->m_Gain.IsZero();
+
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
 
         if (instance->m_FrameCount < sound->m_FrameCount && instance->m_Playing) {
-            assert(instance->m_FrameCount < sound->m_FrameCount);
-            const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
 
+            const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
             uint32_t n = sound->m_FrameCount - instance->m_FrameCount;
-            r = dmSoundCodec::Decode(sound->m_CodecContext,
-                                     instance->m_Decoder,
-                                     ((char*) instance->m_Frames) + instance->m_FrameCount * stride,
-                                     n * stride,
-                                     &decoded);
+
+            if (!is_muted)
+            {
+                r = dmSoundCodec::Decode(sound->m_CodecContext,
+                                         instance->m_Decoder,
+                                         ((char*) instance->m_Frames) + instance->m_FrameCount * stride,
+                                         n * stride,
+                                         &decoded);
+            }
+            else
+            {
+                r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, n * stride, &decoded);
+                memset(((char*) instance->m_Frames) + instance->m_FrameCount * stride, 0x00, n * stride);
+            }
 
             assert(decoded % stride == 0);
             instance->m_FrameCount += decoded / stride;
@@ -895,11 +918,19 @@ namespace dmSound
                     dmSoundCodec::Reset(sound->m_CodecContext, instance->m_Decoder);
 
                     uint32_t n = sound->m_FrameCount - instance->m_FrameCount;
-                    r = dmSoundCodec::Decode(sound->m_CodecContext,
-                                             instance->m_Decoder,
-                                             ((char*) instance->m_Frames) + instance->m_FrameCount * stride,
-                                             n * stride,
-                                             &decoded);
+                    if (!is_muted)
+                    {
+                        r = dmSoundCodec::Decode(sound->m_CodecContext,
+                                                 instance->m_Decoder,
+                                                 ((char*) instance->m_Frames) + instance->m_FrameCount * stride,
+                                                 n * stride,
+                                                 &decoded);
+                    }
+                    else
+                    {
+                        r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, n * stride, &decoded);
+                        memset(((char*) instance->m_Frames) + instance->m_FrameCount * stride, 0x00, n * stride);
+                    }
 
                     assert(decoded % stride == 0);
                     instance->m_FrameCount += decoded / stride;

@@ -192,6 +192,16 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
+    Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
+    {
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
+        uint32_t n = dmMath::Min(bytes, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
+        *skipped = n;
+        streamInfo->m_Cursor += n;
+        return RESULT_OK;
+    }
+
     void WavGetInfo(HDecodeStream stream, struct Info* out)
     {
         *out = ((DecodeStreamInfo *)stream)->m_Info;
@@ -199,5 +209,5 @@ namespace dmSoundCodec
 
     DM_DECLARE_SOUND_DECODER(AudioDecoderWav, "WavDecoder", FORMAT_WAV,
                              0,
-                             WavOpenStream, WavCloseStream, WavDecodeStream, WavResetStream, WavGetInfo);
+                             WavOpenStream, WavCloseStream, WavDecodeStream, WavResetStream, WavSkipInStream, WavGetInfo);
 }
