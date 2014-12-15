@@ -13,6 +13,7 @@ import java.util.Map;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.filesystem.EFS;
+import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -74,6 +75,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         node.setAdjustMode(desc.getAdjustMode());
         node.setLayer(desc.getLayer());
         node.setInheritAlpha(desc.getInheritAlpha());
+        node.setClippingMode(desc.getClippingMode());
+        node.setClippingVisible(desc.getClippingVisible());
+        node.setClippingInverted(desc.getClippingInverted());
         return node;
     }
 
@@ -139,16 +143,20 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             layersNode.addChild(layer);
         }
 
-        URI projectPropertiesLocation = EditorUtil.getContentRoot(EditorUtil.getProject()).getFile("game.project")
-                .getRawLocationURI();
-        File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0,
-                new NullProgressMonitor());
-        if (localProjectPropertiesFile.isFile()) {
-            // in cr.integrationstest the root isn't /content and the
-            // file doesn't exists. That's the reason we accept missing game.project
-            FileInputStream in = new FileInputStream(localProjectPropertiesFile);
-            node.loadProjectProperties(in);
-            IOUtils.closeQuietly(in);
+        // Projects are not available when running tests
+        IProject project = EditorUtil.getProject();
+        if (project != null) {
+            URI projectPropertiesLocation = EditorUtil.getContentRoot(project).getFile("game.project")
+                    .getRawLocationURI();
+            File localProjectPropertiesFile = EFS.getStore(projectPropertiesLocation).toLocalFile(0,
+                    new NullProgressMonitor());
+            if (localProjectPropertiesFile.isFile()) {
+                // in cr.integrationstest the root isn't /content and the
+                // file doesn't exists. That's the reason we accept missing game.project
+                FileInputStream in = new FileInputStream(localProjectPropertiesFile);
+                node.loadProjectProperties(in);
+                IOUtils.closeQuietly(in);
+            }
         }
 
         return node;
@@ -191,6 +199,9 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         builder.setAdjustMode(node.getAdjustMode());
         builder.setLayer(node.getLayer());
         builder.setInheritAlpha(node.isInheritAlpha());
+        builder.setClippingMode(node.getClippingMode());
+        builder.setClippingVisible(node.getClippingVisible());
+        builder.setClippingInverted(node.getClippingInverted());
         return builder;
     }
 

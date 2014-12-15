@@ -127,11 +127,19 @@ namespace dmRender
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
+        dmGraphics::DepthTestParams     m_DepthTestParams;
+        dmGraphics::ScissorTestParams   m_ScissorTestParams;
+        dmGraphics::StencilTestParams   m_StencilTestParams;
+        dmGraphics::ClearBufferParams   m_ClearBufferParams;
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint8_t                         m_VertexConstantMask;
         uint8_t                         m_FragmentConstantMask;
         uint8_t                         m_SetBlendFactors : 1;
+        uint8_t                         m_SetDepthTest : 1;
+        uint8_t                         m_SetScissorTest : 1;
+        uint8_t                         m_SetStencilTest : 1;
+        uint8_t                         m_SetClearBuffer : 1;
         // Set to true if RenderKey.m_Depth should be filled in
         uint8_t                         m_CalculateDepthKey : 1;
     };
