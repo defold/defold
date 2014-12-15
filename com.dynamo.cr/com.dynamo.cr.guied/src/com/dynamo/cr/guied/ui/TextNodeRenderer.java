@@ -12,7 +12,10 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
+import com.dynamo.cr.guied.core.ClippingNode;
+import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
 import com.dynamo.cr.guied.core.TextNode;
+import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.guied.util.TextUtil;
 import com.dynamo.cr.guied.util.TextUtil.TextMetric;
 import com.dynamo.cr.sceneed.core.AABB;
@@ -59,7 +62,12 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     @Override
     public void setup(RenderContext renderContext, TextNode node) {
         if (passes.contains(renderContext.getPass())) {
-            RenderData<TextNode> data = renderContext.add(this, node, new Point3d(), null);
+            ClippingState state = null;
+            ClippingNode clipper = node.getClosestParentClippingNode();
+            if (clipper != null) {
+                state = clipper.getChildClippingState();
+            }
+            RenderData<TextNode> data = renderContext.add(this, node, new Point3d(), state);
             data.setIndex(node.getRenderKey());
         }
     }
@@ -125,6 +133,13 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
     public void render(RenderContext renderContext, TextNode node, RenderData<TextNode> renderData) {
         GL2 gl = renderContext.getGL();
 
+        boolean clipping = renderData.getUserData() != null;
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.beginClipping(gl);
+            ClippingState state = (ClippingState)renderData.getUserData();
+            Clipping.setupClipping(gl, state);
+        }
+
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
             switch (node.getBlendMode()) {
@@ -175,7 +190,7 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
             double y = y0;
             for (int i = 0; i < xOffsets.length; ++i) {
                 TextLine l = lines.get(i);
-                textRenderer.draw3D(l.text, (float) (x + xOffsets[i]), (float) y, 0, 1);
+                textRenderer.draw3D(l.text, (float) (x + xOffsets[i]), (float) y, 0.0f, 1);
                 y -= ascent + descent;
             }
 
@@ -217,6 +232,10 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
 
         if (transparent) {
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+        }
+
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.endClipping(gl);
         }
     }
 
