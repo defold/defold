@@ -19,17 +19,27 @@ typedef std::map<dmGui::HNode, uint32_t> ShapeMap;
 
 /* Conversions from intricate state structure. */
 
-uint8_t GetRefVal(const dmGui::StencilScope& scope) {
+static uint8_t GetRefVal(const dmGui::StencilScope& scope) {
     return scope.m_RefVal;
 }
 
-uint8_t GetTestMask(const dmGui::StencilScope& scope) {
+static uint8_t GetTestMask(const dmGui::StencilScope& scope) {
     return scope.m_TestMask;
 }
 
-uint8_t GetWriteMask(const dmGui::StencilScope& scope) {
+static uint8_t GetWriteMask(const dmGui::StencilScope& scope) {
     return scope.m_WriteMask;
 }
+
+static uint8_t BitArrayStr2Byte(const char *s)
+{
+    uint8_t v = 0;
+    for(uint32_t i = 0; i < 8; i++)
+        v |= s[7-i] == '0' ? 0 : 1<<i;
+    return v;
+}
+
+#define BITS(val) (BitArrayStr2Byte(#val))
 
 class Renderer {
     uint8_t m_StencilBuffer[8];
@@ -70,7 +80,7 @@ public:
                 uint8_t test_mask = GetTestMask(state);
                 uint8_t write_mask = GetWriteMask(state);
                 for (int i = 0; i < 8; ++i) {
-                    uint8_t fragment = ((shape >> i) & 0b1);
+                    uint8_t fragment = ((shape >> i) & 1);
                     if (fragment != 0) {
                         uint8_t pixel = m_StencilBuffer[i];
                         bool test = (ref_val & test_mask) == (pixel & test_mask);
@@ -89,7 +99,7 @@ public:
         uint8_t test_mask = GetTestMask(state);
         uint8_t write_mask = GetWriteMask(state);
         for (int i = 0; i < 8; ++i) {
-            uint8_t fragment = ((shape >> i) & 0b1);
+            uint8_t fragment = ((shape >> i) & 1);
             if (fragment != 0) {
                 uint8_t pixel = m_StencilBuffer[i];
                 bool test = (ref_val & test_mask) == (pixel & test_mask);
@@ -310,9 +320,9 @@ TEST_F(dmGuiClippingTest, TestMinimal) {
     Render();
 
     //             n, child,   ref,        mask,       write-mask, child-ref,  child-mask, child-write-mask
-    AssertClipping(a, a_child, 0b10000000, 0b00000000, 0b11111111, 0b00000000, 0b10000000, 0x0);
-    AssertClipping(b, b_child, 0b00000001, 0b10000000, 0b11111111, 0b00000001, 0b10000011, 0x0);
-    AssertClipping(c, c_child, 0b00000010, 0b00000000, 0b11111111, 0b00000010, 0b00000011, 0x0);
+    AssertClipping(a, a_child, BITS(10000000), BITS(00000000), BITS(11111111), BITS(00000000), BITS(10000000), 0x0);
+    AssertClipping(b, b_child, BITS(00000001), BITS(10000000), BITS(11111111), BITS(00000001), BITS(10000011), 0x0);
+    AssertClipping(c, c_child, BITS(00000010), BITS(00000000), BITS(11111111), BITS(00000010), BITS(00000011), 0x0);
 }
 
 /**
@@ -361,18 +371,18 @@ TEST_F(dmGuiClippingTest, TestSimpleHierarchy) {
     Render();
 
     //             n, child,   ref,        mask,       write-mask, child-ref,  child-mask, child-write-mask
-    AssertClipping(a, a_child, 0b00000001, 0b00000000, 0b11111111, 0b00000001, 0b00000011, 0x0);
-    AssertClipping(b, b_child, 0b00000101, 0b00000011, 0b11111111, 0b00000101, 0b00000111, 0x0);
-    AssertClipping(c, c_child, 0b00001101, 0b00000111, 0b11111111, 0b00001101, 0b00001111, 0x0);
-    AssertClipping(d, d_child, 0b00011101, 0b00001111, 0b11111111, 0b00011101, 0b00111111, 0x0);
-    AssertClipping(e, e_child, 0b00101101, 0b00001111, 0b11111111, 0b00101101, 0b00111111, 0x0);
-    AssertClipping(f, f_child, 0b00000010, 0b00000000, 0b11111111, 0b00000010, 0b00000011, 0x0);
-    AssertClipping(g, g_child, 0b00000110, 0b00000011, 0b11111111, 0b00000110, 0b00011111, 0x0);
-    AssertClipping(h, h_child, 0b00100110, 0b00011111, 0b11111111, 0b00100110, 0b00111111, 0x0);
-    AssertClipping(i, i_child, 0b00001010, 0b00000011, 0b11111111, 0b00001010, 0b00011111, 0x0);
-    AssertClipping(j, j_child, 0b00001110, 0b00000011, 0b11111111, 0b00001110, 0b00011111, 0x0);
-    AssertClipping(k, k_child, 0b00010010, 0b00000011, 0b11111111, 0b00010010, 0b00011111, 0x0);
-    AssertClipping(l, l_child, 0b00000011, 0b00000000, 0b11111111, 0b00000011, 0b00000011, 0x0);
+    AssertClipping(a, a_child, BITS(00000001), BITS(00000000), BITS(11111111), BITS(00000001), BITS(00000011), 0x0);
+    AssertClipping(b, b_child, BITS(00000101), BITS(00000011), BITS(11111111), BITS(00000101), BITS(00000111), 0x0);
+    AssertClipping(c, c_child, BITS(00001101), BITS(00000111), BITS(11111111), BITS(00001101), BITS(00001111), 0x0);
+    AssertClipping(d, d_child, BITS(00011101), BITS(00001111), BITS(11111111), BITS(00011101), BITS(00111111), 0x0);
+    AssertClipping(e, e_child, BITS(00101101), BITS(00001111), BITS(11111111), BITS(00101101), BITS(00111111), 0x0);
+    AssertClipping(f, f_child, BITS(00000010), BITS(00000000), BITS(11111111), BITS(00000010), BITS(00000011), 0x0);
+    AssertClipping(g, g_child, BITS(00000110), BITS(00000011), BITS(11111111), BITS(00000110), BITS(00011111), 0x0);
+    AssertClipping(h, h_child, BITS(00100110), BITS(00011111), BITS(11111111), BITS(00100110), BITS(00111111), 0x0);
+    AssertClipping(i, i_child, BITS(00001010), BITS(00000011), BITS(11111111), BITS(00001010), BITS(00011111), 0x0);
+    AssertClipping(j, j_child, BITS(00001110), BITS(00000011), BITS(11111111), BITS(00001110), BITS(00011111), 0x0);
+    AssertClipping(k, k_child, BITS(00010010), BITS(00000011), BITS(11111111), BITS(00010010), BITS(00011111), 0x0);
+    AssertClipping(l, l_child, BITS(00000011), BITS(00000000), BITS(11111111), BITS(00000011), BITS(00000011), 0x0);
 }
 
 /**
@@ -409,14 +419,14 @@ TEST_F(dmGuiClippingTest, TestSimpleInvertedHierarchy) {
     Render();
 
     //             n, ref,        mask,       write-mask, child-ref,  child-mask, child-write-mask
-    AssertClipping(a, a_child, 0b00000001, 0b00000000, 0b11111111, 0b00000001, 0b00000001, 0x0);
-    AssertClipping(b, b_child, 0b00000011, 0b00000001, 0b11111111, 0b00000011, 0b00000111, 0x0);
-    AssertClipping(c, c_child, 0b00000101, 0b00000001, 0b11111111, 0b00000101, 0b00000111, 0x0);
-    AssertClipping(d, d_child, 0b00000111, 0b00000001, 0b11111111, 0b00000111, 0b00000111, 0x0);
-    AssertClipping(e, e_child, 0b10000001, 0b00000001, 0b11111111, 0b00000001, 0b10000001, 0x0);
-    AssertClipping(f, f_child, 0b01000001, 0b00000001, 0b11111111, 0b00000001, 0b01000001, 0x0);
-    AssertClipping(g, g_child, 0b00100001, 0b00000001, 0b11111111, 0b00000001, 0b00100001, 0x0);
-    AssertClipping(h, h_child, 0b00010001, 0b00100001, 0b11111111, 0b00000001, 0b00110001, 0x0);
+    AssertClipping(a, a_child, BITS(00000001), BITS(00000000), BITS(11111111), BITS(00000001), BITS(00000001), 0x0);
+    AssertClipping(b, b_child, BITS(00000011), BITS(00000001), BITS(11111111), BITS(00000011), BITS(00000111), 0x0);
+    AssertClipping(c, c_child, BITS(00000101), BITS(00000001), BITS(11111111), BITS(00000101), BITS(00000111), 0x0);
+    AssertClipping(d, d_child, BITS(00000111), BITS(00000001), BITS(11111111), BITS(00000111), BITS(00000111), 0x0);
+    AssertClipping(e, e_child, BITS(10000001), BITS(00000001), BITS(11111111), BITS(00000001), BITS(10000001), 0x0);
+    AssertClipping(f, f_child, BITS(01000001), BITS(00000001), BITS(11111111), BITS(00000001), BITS(01000001), 0x0);
+    AssertClipping(g, g_child, BITS(00100001), BITS(00000001), BITS(11111111), BITS(00000001), BITS(00100001), 0x0);
+    AssertClipping(h, h_child, BITS(00010001), BITS(00100001), BITS(11111111), BITS(00000001), BITS(00110001), 0x0);
 }
 
 /**
@@ -443,14 +453,14 @@ TEST_F(dmGuiClippingTest, TestRefIdsAndBitCollision) {
 
     Render();
 
-    AssertRefVal(a, 0b10000000);
-    AssertRefVal(b, 0b01000000);
-    AssertRefVal(c, 0b00000001);
-    AssertRefVal(d, 0b00000011);
-    AssertRefVal(e, 0b00100000);
-    AssertRefVal(h, 0b00010000);
-    AssertRefVal(i, 0b00001000);
-    AssertRefVal(j, 0b00000100);
+    AssertRefVal(a, BITS(10000000));
+    AssertRefVal(b, BITS(01000000));
+    AssertRefVal(c, BITS(00000001));
+    AssertRefVal(d, BITS(00000011));
+    AssertRefVal(e, BITS(00100000));
+    AssertRefVal(h, BITS(00010000));
+    AssertRefVal(i, BITS(00001000));
+    AssertRefVal(j, BITS(00000100));
 }
 
 /**
@@ -504,13 +514,13 @@ TEST_F(dmGuiClippingTest, TestRender_NonInv_NonInv) {
     dmGui::HNode b = AddClipperBox("b", a);
     dmGui::HNode b_child = AddBox("b_child", b);
 
-    SetShape(a, 0b11111000);
-    SetShape(b, 0b00011100);
+    SetShape(a, BITS(11111000));
+    SetShape(b, BITS(00011100));
 
     Render();
 
-    AssertShapeClippedBy(0b11111111, a_child, 0b11111000);
-    AssertShapeClippedBy(0b11111111, b_child, 0b00011000);
+    AssertShapeClippedBy(BITS(11111111), a_child, BITS(11111000));
+    AssertShapeClippedBy(BITS(11111111), b_child, BITS(00011000));
 }
 
 /**
@@ -531,13 +541,13 @@ TEST_F(dmGuiClippingTest, TestRender_NonInv_Inv) {
     dmGui::HNode b = AddInvClipperBox("b", a);
     dmGui::HNode b_child = AddBox("b_child", b);
 
-    SetShape(a, 0b11111000);
-    SetShape(b, 0b00011000);
+    SetShape(a, BITS(11111000));
+    SetShape(b, BITS(00011000));
 
     Render();
 
-    AssertShapeClippedBy(0b11111111, a_child, 0b11111000);
-    AssertShapeClippedBy(0b11111111, b_child, 0b11100000);
+    AssertShapeClippedBy(BITS(11111111), a_child, BITS(11111000));
+    AssertShapeClippedBy(BITS(11111111), b_child, BITS(11100000));
 }
 
 /**
@@ -558,13 +568,13 @@ TEST_F(dmGuiClippingTest, TestRender_Inv_NonInv) {
     dmGui::HNode b = AddClipperBox("b", a);
     dmGui::HNode b_child = AddBox("b_child", b);
 
-    SetShape(a, 0b11111000);
-    SetShape(b, 0b00011110);
+    SetShape(a, BITS(11111000));
+    SetShape(b, BITS(00011110));
 
     Render();
 
-    AssertShapeClippedBy(0b11111111, a_child, 0b00000111);
-    AssertShapeClippedBy(0b11111111, b_child, 0b00000110);
+    AssertShapeClippedBy(BITS(11111111), a_child, BITS(00000111));
+    AssertShapeClippedBy(BITS(11111111), b_child, BITS(00000110));
 }
 
 /**
@@ -584,13 +594,13 @@ TEST_F(dmGuiClippingTest, TestRender_Inv_Inv) {
     dmGui::HNode b = AddInvClipperBox("b", a);
     dmGui::HNode b_child = AddBox("b_child", b);
 
-    SetShape(a, 0b11111000);
-    SetShape(b, 0b00001110);
+    SetShape(a, BITS(11111000));
+    SetShape(b, BITS(00001110));
 
     Render();
 
-    AssertShapeClippedBy(0b11111111, a_child, 0b00000111);
-    AssertShapeClippedBy(0b11111111, b_child, 0b00000001);
+    AssertShapeClippedBy(BITS(11111111), a_child, BITS(00000111));
+    AssertShapeClippedBy(BITS(11111111), b_child, BITS(00000001));
 }
 
 /**
@@ -611,13 +621,13 @@ TEST_F(dmGuiClippingTest, TestRender_Inv_Inv_Separate) {
     dmGui::HNode b = AddInvClipperBox("b", a);
     dmGui::HNode b_child = AddBox("b_child", b);
 
-    SetShape(a, 0b01100000);
-    SetShape(b, 0b00000110);
+    SetShape(a, BITS(01100000));
+    SetShape(b, BITS(00000110));
 
     Render();
 
-    AssertShapeClippedBy(0b11111111, a_child, 0b10011111);
-    AssertShapeClippedBy(0b11111111, b_child, 0b10011001);
+    AssertShapeClippedBy(BITS(11111111), a_child, BITS(10011111));
+    AssertShapeClippedBy(BITS(11111111), b_child, BITS(10011001));
 }
 
 /**
@@ -646,23 +656,23 @@ TEST_F(dmGuiClippingTest, TestRender_InvConsistency) {
     dmGui::HNode d = AddInvClipperBox("d", c);
     dmGui::HNode d_child = AddBox("d_child", d);
 
-    SetShape(a, 0b11100000);
-    SetShape(b, 0b11000000);
-    SetShape(c, 0b00110000);
-    SetShape(d, 0b00011000);
+    SetShape(a, BITS(11100000));
+    SetShape(b, BITS(11000000));
+    SetShape(c, BITS(00110000));
+    SetShape(d, BITS(00011000));
 
     Render();
 
     //             n, child,   ref,        mask,       write-mask, child-ref,  child-mask, child-write-mask
-    AssertClipping(a, a_child, 0b00000001, 0b00000000, 0b11111111, 0b00000001, 0b00000001, 0x0);
-    AssertClipping(b, b_child, 0b00000011, 0b00000001, 0b11111111, 0b00000011, 0b00000011, 0x0);
-    AssertClipping(c, c_child, 0b10000000, 0b00000000, 0b11111111, 0b00000000, 0b10000000, 0x0);
-    AssertClipping(d, d_child, 0b01000000, 0b10000000, 0b11111111, 0b00000000, 0b11000000, 0x0);
+    AssertClipping(a, a_child, BITS(00000001), BITS(00000000), BITS(11111111), BITS(00000001), BITS(00000001), 0x0);
+    AssertClipping(b, b_child, BITS(00000011), BITS(00000001), BITS(11111111), BITS(00000011), BITS(00000011), 0x0);
+    AssertClipping(c, c_child, BITS(10000000), BITS(00000000), BITS(11111111), BITS(00000000), BITS(10000000), 0x0);
+    AssertClipping(d, d_child, BITS(01000000), BITS(10000000), BITS(11111111), BITS(00000000), BITS(11000000), 0x0);
 
     AssertRenderOrder(a, b, c, d);
 
-    AssertShapeClippedBy(0b11111111, c_child, 0b11001111);
-    AssertShapeClippedBy(0b11111111, d_child, 0b11000111);
+    AssertShapeClippedBy(BITS(11111111), c_child, BITS(11001111));
+    AssertShapeClippedBy(BITS(11111111), d_child, BITS(11000111));
 }
 
 /* RENDER ORDER TESTS */
@@ -936,6 +946,7 @@ TEST_F(dmGuiClippingTest, TestOverflowInverteds) {
     assertTrue(last.getStatus().isOK());
 }
 */
+#undef BITS
 
 int main(int argc, char **argv)
 {

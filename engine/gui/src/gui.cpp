@@ -632,7 +632,7 @@ namespace dmGui
             }
         }
         if (inverted && node->m_Node.m_ClippingVisible) {
-            scope.m_ColorMask = 0b1111;
+            scope.m_ColorMask = 0xf;
         } else {
             scope.m_ColorMask = 0;
         }
@@ -650,7 +650,7 @@ namespace dmGui
                 child_scope.m_TestMask |= parent_scope->m_TestMask;
             }
         }
-        child_scope.m_ColorMask = 0b1111;
+        child_scope.m_ColorMask = 0xf;
         // Check for overflow
         int inverted_count = 0;
         if (inverted) {
