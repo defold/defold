@@ -396,7 +396,7 @@ namespace dmGameSystem
             ro.m_SetStencilTest = 1;
             dmGraphics::StencilTestParams& stp = ro.m_StencilTestParams;
             stp.m_TestEnable = 0;
-            stp.m_ColorBufferMask = 0b1111;
+            stp.m_ColorBufferMask = 0xf;
         }
         context->m_PrevStencilScope = state;
         context->m_PrevStencilScopeSet = true;
