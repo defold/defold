@@ -13,14 +13,14 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
     private Point3d position;
     private Object userData;
     private long key;
-    private int index;
+    // Index overrides distance if set
+    private Integer index = null;
 
     /*
      * NOTE: Do *NOT* use bit 63 in order to avoid signed numbers!
      */
     private final static long DISTANCE_SHIFT = 0;
     private final static long PASS_SHIFT = DISTANCE_SHIFT + 32;
-    private final static long INDEX_SHIFT = PASS_SHIFT + 4;
     private final static long MANIPULATOR_SHIFT = 62;
 
     public RenderData(Pass pass, INodeRenderer<T> nodeRenderer, T node,
@@ -52,27 +52,31 @@ public class RenderData<T extends Node> implements Comparable<RenderData<T>> {
         return key;
     }
 
-    public int getIndex() {
-        return index;
-    }
-
+    /**
+     * Setting the index overrides the distance calculation in the render key.
+     * @param index
+     */
     public void setIndex(int index) {
         this.index = index;
     }
 
     public void calculateKey(Camera camera, Matrix4d m, Point3d p) {
-        p.set(this.position);
-        this.node.getWorldTransform(m);
-        // world space
-        m.transform(p);
-        // device space
-        p = camera.project(p.getX(), p.getY(), p.getZ());
-        // transform z (0,1) => (1,0) for back-to-front
-        double z = 1.0 - p.getZ();
-        // scale z (1,0) to int-space
-        long distance = (long)(z * Integer.MAX_VALUE);
-        key = (distance << DISTANCE_SHIFT)
- | (((long) pass.ordinal()) << PASS_SHIFT) | (((long)index) << INDEX_SHIFT);
+        long distance = 0;
+        if (this.index == null) {
+            p.set(this.position);
+            this.node.getWorldTransform(m);
+            // world space
+            m.transform(p);
+            // device space
+            p = camera.project(p.getX(), p.getY(), p.getZ());
+            // transform z (0,1) => (1,0) for back-to-front
+            double z = 1.0 - p.getZ();
+            // scale z (1,0) to int-space
+            distance = (long)(z * Integer.MAX_VALUE);
+        } else {
+            distance = this.index;
+        }
+        key = (((long) pass.ordinal()) << PASS_SHIFT) | (distance << DISTANCE_SHIFT);
 
         if (node instanceof Manipulator) {
             key |= 1l << MANIPULATOR_SHIFT;

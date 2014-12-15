@@ -1197,42 +1197,42 @@ namespace dmRender
     }
 
     /*#
-     * @name render.STENCIL_FUNC_NEVER
+     * @name render.COMPARE_FUNC_NEVER
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_LESS
+     * @name render.COMPARE_FUNC_LESS
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_LEQUAL
+     * @name render.COMPARE_FUNC_LEQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_GREATER
+     * @name render.COMPARE_FUNC_GREATER
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_GEQUAL
+     * @name render.COMPARE_FUNC_GEQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_EQUAL
+     * @name render.COMPARE_FUNC_EQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_NOTEQUAL
+     * @name render.COMPARE_FUNC_NOTEQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_ALWAYS
+     * @name render.COMPARE_FUNC_ALWAYS
      * @variable
      */
 
@@ -1241,14 +1241,14 @@ namespace dmRender
     * @name render.set_stencil_func
     * @param func stencil test function (constant)
     * <ul>
-    *   <li><code>render.STENCIL_FUNC_NEVER</code></li>
-    *   <li><code>render.STENCIL_FUNC_LESS</code></li>
-    *   <li><code>render.STENCIL_FUNC_LEQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_GREATER</code></li>
-    *   <li><code>render.STENCIL_FUNC_GEQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_EQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_NOTEQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_ALWAYS</code></li>
+    *   <li><code>render.COMPARE_FUNC_NEVER</code></li>
+    *   <li><code>render.COMPARE_FUNC_LESS</code></li>
+    *   <li><code>render.COMPARE_FUNC_LEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_GREATER</code></li>
+    *   <li><code>render.COMPARE_FUNC_GEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_EQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_NOTEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_ALWAYS</code></li>
     * </ul>
     * @param ref reference value for the stencil test (number)
     * @param mask mask that is ANDed with both the reference value and the stored stencil value when the test is done (number)
@@ -1259,14 +1259,14 @@ namespace dmRender
         uint32_t func = luaL_checknumber(L, 1);
         switch (func)
         {
-            case dmGraphics::STENCIL_FUNC_NEVER:
-            case dmGraphics::STENCIL_FUNC_LESS:
-            case dmGraphics::STENCIL_FUNC_LEQUAL:
-            case dmGraphics::STENCIL_FUNC_GREATER:
-            case dmGraphics::STENCIL_FUNC_GEQUAL:
-            case dmGraphics::STENCIL_FUNC_EQUAL:
-            case dmGraphics::STENCIL_FUNC_NOTEQUAL:
-            case dmGraphics::STENCIL_FUNC_ALWAYS:
+            case dmGraphics::COMPARE_FUNC_NEVER:
+            case dmGraphics::COMPARE_FUNC_LESS:
+            case dmGraphics::COMPARE_FUNC_LEQUAL:
+            case dmGraphics::COMPARE_FUNC_GREATER:
+            case dmGraphics::COMPARE_FUNC_GEQUAL:
+            case dmGraphics::COMPARE_FUNC_EQUAL:
+            case dmGraphics::COMPARE_FUNC_NOTEQUAL:
+            case dmGraphics::COMPARE_FUNC_ALWAYS:
                 break;
             default:
                 return luaL_error(L, "Invalid stencil func: %s.set_stencil_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
@@ -1710,20 +1710,20 @@ namespace dmRender
 
 #undef REGISTER_BLEND_CONSTANT
 
-#define REGISTER_STENCIL_FUNC_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_FUNC_##name); \
-        lua_setfield(L, -2, "STENCIL_FUNC_"#name);
+#define REGISTER_COMPARE_FUNC_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::COMPARE_FUNC_##name); \
+        lua_setfield(L, -2, "COMPARE_FUNC_"#name);
 
-        REGISTER_STENCIL_FUNC_CONSTANT(NEVER);
-        REGISTER_STENCIL_FUNC_CONSTANT(LESS);
-        REGISTER_STENCIL_FUNC_CONSTANT(LEQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(GREATER);
-        REGISTER_STENCIL_FUNC_CONSTANT(GEQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(EQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(NOTEQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(ALWAYS);
+        REGISTER_COMPARE_FUNC_CONSTANT(NEVER);
+        REGISTER_COMPARE_FUNC_CONSTANT(LESS);
+        REGISTER_COMPARE_FUNC_CONSTANT(LEQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(GREATER);
+        REGISTER_COMPARE_FUNC_CONSTANT(GEQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(EQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(NOTEQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(ALWAYS);
 
-#undef REGISTER_STENCIL_FUNC_CONSTANT
+#undef REGISTER_COMPARE_FUNC_CONSTANT
 
 #define REGISTER_STENCIL_OP_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_OP_##name); \

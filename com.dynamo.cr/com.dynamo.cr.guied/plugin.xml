@@ -38,7 +38,7 @@
             node="com.dynamo.cr.guied.core.GuiSceneNode"
             presenter="com.dynamo.cr.guied.core.GuiScenePresenter"
             renderer="com.dynamo.cr.guied.ui.GuiSceneRenderer"
-            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Gui">
+            resource-type="com.dynamo.cr.guied.resourcetypes.gui">
       </node-type>
       <node-type
             id="com.dynamo.cr.guied.core.nodes.textNode"
@@ -235,6 +235,26 @@
                   label="Add Layer"
                   style="push">
             </command>
+            <separator
+                  name="com.dynamo.cr.guied.separator1"
+                  visible="true">
+            </separator>
+            <menu
+                  label="Show">
+               <command
+                     commandId="com.dynamo.cr.guied.commands.showClippingNodes"
+                     label="Clipping Nodes Outline"
+                     style="toggle">
+               </command>
+               <visibleWhen
+                     checkEnabled="false">
+                  <or>
+                     <reference
+                           definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+                     </reference>
+                  </or>
+               </visibleWhen>
+            </menu>
             <visibleWhen
                   checkEnabled="false">
                <or>
@@ -455,6 +475,17 @@
             </and>
          </activeWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.ShowClippingNodesHandler"
+            commandId="com.dynamo.cr.guied.commands.showClippingNodes">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -462,6 +493,33 @@
             id="com.dynamo.cr.guied.commands.addLayer"
             name="Add Layer">
       </command>
+      <command
+            id="com.dynamo.cr.guied.commands.showClippingNodes"
+            name="Show Clipping Nodes">
+      </command>
+   </extension>
+   <extension
+         point="com.dynamo.cr.resourcetypes">
+      <resource-type
+            file-extension="gui"
+            id="com.dynamo.cr.guied.resourcetypes.gui"
+            name="Gui"
+            proto-message-class="com.dynamo.gui.proto.Gui$SceneDesc"
+            resource-refactor-participant-class="com.dynamo.cr.guied.refactoring.GuiSceneRefactorParticipant"
+            template-data="script: &apos;&apos;"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="image">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="fontdesc">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="gui_script">
+            </reference-type-class>
+         </references>
+      </resource-type>
    </extension>
 
 </plugin>
