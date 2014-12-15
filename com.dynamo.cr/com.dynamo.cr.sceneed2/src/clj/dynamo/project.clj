@@ -79,8 +79,9 @@
     (factory project-node path)))
 
 (defnode CannedProperties
-  (property rotation s/Str    (default "twenty degrees starboard"))
-  (property translation s/Str (default "Guten abend.")))
+  (property rotation s/Str     (default "twenty degrees starboard"))
+  (property translation s/Str  (default "Guten abend."))
+  (property some-vector t/Vec3 (default [1 2 3])))
 
 (defn- build-editor-node
   [project-node path site]

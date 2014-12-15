@@ -16,7 +16,8 @@
 (defnk selfie [this] this)
 
 (defn- gather-property [this prop]
-  {:value (get this prop)
+  {:node-id (:_id this)
+   :value (get this prop)
    :type  (-> this :descriptor :properties prop)})
 
 (defnk gather-properties :- Properties
