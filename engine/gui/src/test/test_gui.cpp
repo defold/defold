@@ -2944,14 +2944,6 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 
 #undef ASSERT_COLOR_EQ
 
-uint8_t BitArrayStr2Byte(const char *s)
-{
-    uint8_t v = 0;
-    for(uint32_t i = 0; i < 8; i++)
-        v |= s[7-i] == '0' ? 0 : 1<<i;
-    return v;
-}
-
 TEST_F(dmGuiTest, ScriptClippingFunctions)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,0), dmGui::NODE_TYPE_BOX);
