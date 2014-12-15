@@ -292,7 +292,7 @@
 
 (defn display-debouncer
   [when f]
-  (->DisplayDebouncer when f nil false))
+  (->DisplayDebouncer when f nil nil))
 
 (defmacro defcommand
   [name category-id command-id label]
