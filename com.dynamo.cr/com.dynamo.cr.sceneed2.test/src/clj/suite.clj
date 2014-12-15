@@ -18,6 +18,7 @@
                       'dynamo.protobuf-test
                       'dynamo.texture-test
                       'dynamo.transaction-test
+                      'dynamo.util-test
                       'dynamo.gl.translate-test
                       'dynamo.gl.vertex-test
                       'docs])
