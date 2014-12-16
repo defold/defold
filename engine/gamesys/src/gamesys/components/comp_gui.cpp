@@ -341,8 +341,6 @@ namespace dmGameSystem
         dmRender::HRenderContext    m_RenderContext;
         GuiWorld*                   m_GuiWorld;
         uint32_t                    m_NextZ;
-        const dmGui::StencilScope*  m_PrevStencilScope;
-        bool                        m_PrevStencilScopeSet;
     };
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
@@ -372,45 +370,36 @@ namespace dmGameSystem
         }
     }
 
-    static void ApplyStencilClipping(RenderGuiContext* context, const dmGui::StencilScope* state, dmRender::RenderObject& ro) {
+    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::StencilTestParams& stp) {
         if (state != 0x0) {
-            if (state->m_Clear) {
-                ro.m_SetClearBuffer = 1;
-                dmGraphics::ClearBufferParams& cbp = ro.m_ClearBufferParams;
-                cbp.m_Stencil = 1;
-                cbp.m_StencilValue = 0;
-                cbp.m_StencilMask = 0xff;
-            }
-            ro.m_SetStencilTest = 1;
-            dmGraphics::StencilTestParams& stp = ro.m_StencilTestParams;
             stp.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
             stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
             stp.m_OpDPFail = dmGraphics::STENCIL_OP_REPLACE;
             stp.m_OpDPPass = dmGraphics::STENCIL_OP_REPLACE;
-            stp.m_TestEnable = 1;
             stp.m_Ref = state->m_RefVal;
             stp.m_RefMask = state->m_TestMask;
             stp.m_BufferMask = state->m_WriteMask;
             stp.m_ColorBufferMask = state->m_ColorMask;
-        } else if (context->m_PrevStencilScope != 0x0 || !context->m_PrevStencilScopeSet) {
-            ro.m_SetStencilTest = 1;
-            dmGraphics::StencilTestParams& stp = ro.m_StencilTestParams;
-            stp.m_TestEnable = 0;
+        } else {
+            stp.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+            stp.m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+            stp.m_Ref = 0;
+            stp.m_RefMask = 0xff;
+            stp.m_BufferMask = 0xff;
             stp.m_ColorBufferMask = 0xf;
         }
-        context->m_PrevStencilScope = state;
-        context->m_PrevStencilScopeSet = true;
     }
 
-    static dmRender::RenderObject& GetRenderObject(dmGui::HScene scene, RenderGuiContext* gui_context) {
-        GuiWorld* gui_world = gui_context->m_GuiWorld;
-        uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
-        gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
-        dmRender::RenderObject& ro = gui_world->m_GuiRenderObjects[ro_count];
-        ro.Init();
-        ro.m_RenderKey.m_Order = dmGui::GetRenderOrder(scene);
-        ro.m_RenderKey.m_Depth = gui_context->m_NextZ++;
-        return ro;
+    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::RenderObject& ro) {
+        ro.m_SetStencilTest = 1;
+        ApplyStencilClipping(state, ro.m_StencilTestParams);
+    }
+
+    static void ApplyStencilClipping(const dmGui::StencilScope* state, dmRender::DrawTextParams& params) {
+        params.m_StencilTestParamsSet = 1;
+        ApplyStencilClipping(state, params.m_StencilTestParams);
     }
 
     void RenderTextNodes(dmGui::HScene scene,
@@ -422,14 +411,6 @@ namespace dmGameSystem
                          void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
-
-        if (node_count > 0) {
-            dmRender::HFontMap font_map = (dmRender::HFontMap) dmGui::GetNodeFont(scene, entries[0].m_Node);
-            dmRender::RenderObject& ro = GetRenderObject(scene, gui_context);
-            ro.m_Material = dmRender::GetFontMapMaterial(font_map);
-            ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
-            dmRender::AddToRender(gui_context->m_RenderContext, &ro);
-        }
 
         for (uint32_t i = 0; i < node_count; ++i)
         {
@@ -448,12 +429,13 @@ namespace dmGameSystem
             params.m_ShadowColor = shadow;
             params.m_Text = dmGui::GetNodeText(scene, node);
             params.m_WorldTransform = node_transforms[i];
-            params.m_Depth = gui_context->m_NextZ++;
+            params.m_Depth = gui_context->m_NextZ;
             params.m_RenderOrder = dmGui::GetRenderOrder(scene);
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
+            ApplyStencilClipping(stencil_scopes[i], params);
             dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
             switch (pivot)
             {
@@ -520,7 +502,7 @@ namespace dmGameSystem
         // See case 2264
         ro.Init();
 
-        ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
+        ApplyStencilClipping(stencil_scopes[0], ro);
 
         const int vertex_count = 6*9;
 
@@ -555,7 +537,7 @@ namespace dmGameSystem
             const Vector4& color = node_colors[i];
             const dmGui::HNode node = entries[i].m_Node;
 
-            ro.m_RenderKey.m_Depth = gui_context->m_NextZ++;
+            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
             // Pre-multiplied alpha
             Vector4 pm_color(color);
             pm_color.setX(color.getX() * color.getW());
@@ -661,7 +643,7 @@ namespace dmGameSystem
         // See case 2264
         ro.Init();
 
-        ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
+        ApplyStencilClipping(stencil_scopes[0], ro);
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
@@ -705,7 +687,7 @@ namespace dmGameSystem
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
-            ro.m_RenderKey.m_Depth = gui_context->m_NextZ++;
+            ro.m_RenderKey.m_Depth = gui_context->m_NextZ;
 
             // Pre-multiplied alpha
             Vector4 pm_color(color);
@@ -859,6 +841,8 @@ namespace dmGameSystem
             prev_font = font;
             prev_stencil_scope = stencil_scope;
 
+            gui_context->m_NextZ++;
+
             ++i;
         }
 
@@ -963,8 +947,6 @@ namespace dmGameSystem
         render_gui_context.m_RenderContext = gui_context->m_RenderContext;
         render_gui_context.m_GuiWorld = gui_world;
         render_gui_context.m_NextZ = 0;
-        render_gui_context.m_PrevStencilScope = 0x0;
-        render_gui_context.m_PrevStencilScopeSet = false;
 
         uint32_t total_node_count = 0;
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)

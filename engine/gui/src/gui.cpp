@@ -612,7 +612,6 @@ namespace dmGui
 
     static void UpdateScope(InternalNode* node, StencilScope& scope, StencilScope& child_scope, const StencilScope* parent_scope, uint16_t index, uint16_t clipper_count, uint16_t bit_field_offset) {
         int bit_range = CalcBitRange(clipper_count);
-        scope.m_Clear = false;
         // state used for drawing the clipper
         scope.m_WriteMask = 0xff;
         scope.m_TestMask = 0;
@@ -637,7 +636,6 @@ namespace dmGui
             scope.m_ColorMask = 0;
         }
         // state used for drawing any sub non-clippers
-        child_scope.m_Clear = false;
         child_scope.m_WriteMask = 0;
         if (!inverted) {
             child_scope.m_RefVal = scope.m_RefVal;
@@ -823,9 +821,6 @@ namespace dmGui
     static void CollectNodes(HScene scene, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries)
     {
         CollectClippers(scene, scene->m_RenderHead, 0, 0, clippers, INVALID_INDEX);
-        if (!clippers.Empty()) {
-            clippers[0].m_Scope.m_Clear = 1;
-        }
         CollectRenderEntries(scene, scene->m_RenderHead, 0, clippers, render_entries);
     }
 
