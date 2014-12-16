@@ -171,8 +171,8 @@ namespace dmGui
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));
-        // 256 is a hard cap since only 8 bits is available in the render key
-        params->m_MaxNodes = 256;
+        // 512 is a hard cap since only 9 bits is available in the render key
+        params->m_MaxNodes = 512;
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
