@@ -156,6 +156,10 @@ namespace dmRender
         TextAlign m_Align;
         /// Vertical alignment
         TextVAlign m_VAlign;
+        /// Stencil parameters
+        StencilTestParams m_StencilTestParams;
+        /// Stencil parameters set or not
+        uint8_t m_StencilTestParamsSet : 1;
     };
 
     /**

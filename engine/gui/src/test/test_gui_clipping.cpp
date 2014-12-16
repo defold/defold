@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <gtest/gtest.h>
 #include <dlib/hash.h>
+#include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/dstrings.h>
 #include <script/script.h>
@@ -63,19 +64,12 @@ public:
         memset(m_StencilBuffer, 0x0, 8);
     }
 
-    void WipeBuffer() {
-        memset(m_StencilBuffer, 0xff, 8);
-    }
-
 public:
     void Render(dmGui::HScene scene, dmGui::HNode node, const dmGui::StencilScope& state) {
         if (dmGui::GetNodeClippingMode(scene, node) == dmGui::CLIPPING_MODE_STENCIL) {
             ShapeMap::iterator shape_it = m_NodeShapes.find(node);
             if (shape_it != m_NodeShapes.end()) {
                 uint8_t shape = shape_it->second;
-                if (state.m_Clear) {
-                    ClearBuffer();
-                }
                 uint8_t ref_val = GetRefVal(state);
                 uint8_t test_mask = GetTestMask(state);
                 uint8_t write_mask = GetWriteMask(state);
@@ -205,7 +199,7 @@ public:
     void Render() {
         m_NodeToClipping.clear();
         m_NodeToRenderOrder.clear();
-        m_Renderer.WipeBuffer();
+        m_Renderer.ClearBuffer();
         dmGui::RenderSceneParams params;
         params.m_RenderNodes = RenderNodes;
         dmGui::RenderScene(m_Scene, params, this);
@@ -836,60 +830,6 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_Complex2) {
 /* OVERFLOW TESTS */
 
 /**
- * Verify that the number of root nodes is infinite and clears the stencil buffer at overflow.
- *
- * - a (2 bits)
- * - b (2 bits)
- *   - c (1 bit)
- *     - d (1 bit)
- *       - e (1 bit)
- *         - f (1 bit)
- *           - g (1 bit)
- *             - h (1 bit)
- *               - i (1 bit)
- *
- * (i) will not fit, which should trigger b to be reevaluated after a clear, assigning 1 bit to b
- *
-TEST_F(dmGuiClippingTest, TestRootClear) {
-    AddClipperBox("a");
-    dmGui::HNode b = AddClipperBox("b");
-    dmGui::HNode last = b;
-    char buffer[3];
-    for (int i = 0; i < 7; ++i) {
-        DM_SNPRINTF(buffer, 2, "x%d", i);
-        last = AddClipperBox(buffer, last);
-    }
-    dmGui::StencilScope state;
-    GetStencilScope(b, state);
-    ASSERT_TRUE(state.m_Clear);
-    AssertRefVal(b, 1);
-}
-
-/**
- * Same as above, but with inverteds.
- *
- * - a (inv, 1 bit)
- * - b (inv, 1 bit)
- * - c (inv, 1 bit)
- * - d (inv, 1 bit)
- * - e (inv, 1 bit)
- * - f (inv, 1 bit)
- * - g (inv, 1 bit)
- * - h (inv, 1 bit)
- * - i (inv, 1 bit)
- *
-TEST_F(dmGuiClippingTest, TestRootClearInverteds) {
-    dmGui::HNode last = dmGui::INVALID_HANDLE;
-    for (int i = 0; i < 9; ++i) {
-        last = AddInvClipperBox("x");
-    }
-    dmGui::StencilScope state;
-    GetStencilScope(last, state);
-    ASSERT_TRUE(state.m_Clear);
-    AssertRefVal(last, 0b10000000);
-}
-
-/**
  * Verify that an overflow is handled with an error.
  *
  * - a (1 bits)
@@ -903,19 +843,15 @@ TEST_F(dmGuiClippingTest, TestRootClearInverteds) {
  *                 - i (1 bit)
  *
  * (i) will not fit, which should trigger i to be flagged with an error
- *
+ */
 TEST_F(dmGuiClippingTest, TestOverflow) {
     dmGui::HNode last = dmGui::INVALID_HANDLE;
-    Node secondLast = null;
     for (int i = 0; i < 9; ++i) {
-        secondLast = last;
-        last = AddClipperBox("box" + i, last);
+        last = AddClipperBox("x", last);
     }
-    assertTrue(!last.getStatus().isOK());
 
-    // Recover from the error by moving second last to the root
-    execute(new MoveChildrenOperation(Collections.singletonList(secondLast), this.sceneNode.getNodesNode(), 1, Collections.singletonList(secondLast), getPresenterContext()));
-    assertTrue(last.getStatus().isOK());
+    dmLogInfo("Expected warning in test");
+    Render();
 }
 
 /**
@@ -932,20 +868,17 @@ TEST_F(dmGuiClippingTest, TestOverflow) {
  *   - i (inv, 1 bit)
  *
  * (i) will not fit, which should trigger i to be flagged with an error
- *
+ */
 TEST_F(dmGuiClippingTest, TestOverflowInverteds) {
     dmGui::HNode a = AddInvClipperBox("a");
-    dmGui::HNode last = null;
     for (int i = 0; i < 8; ++i) {
-        last = AddInvClipperBox("box" + i, a);
+        AddInvClipperBox("x", a);
     }
-    assertTrue(!last.getStatus().isOK());
 
-    // recover from the error
-    setNodeProperty(last, "clippingMode", ClippingMode.CLIPPING_MODE_NONE);
-    assertTrue(last.getStatus().isOK());
+    dmLogInfo("Expected warning in test");
+    Render();
 }
-*/
+
 #undef BITS
 
 int main(int argc, char **argv)

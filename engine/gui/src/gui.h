@@ -105,9 +105,7 @@ namespace dmGui
         uint8_t     m_WriteMask;
         /// Color mask (R,G,B,A)
         uint8_t     m_ColorMask : 4;
-        /// Flag to clear stencil buffer or not before handling m_Clipper
-        uint8_t     m_Clear : 1;
-        uint8_t     m_Padding : 3;
+        uint8_t     m_Padding : 4;
     };
 
     struct NewContextParams;
