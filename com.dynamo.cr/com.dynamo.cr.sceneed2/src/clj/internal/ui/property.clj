@@ -1,6 +1,5 @@
 (ns internal.ui.property
   (:require [clojure.string :as str]
-            [clojure.zip :as zip]
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n]
@@ -96,51 +95,17 @@
 (defmethod presenter-for-property t/Vec3 [_] (->Vec3Presenter))
 (defmethod presenter-for-property :default [_] (->DefaultPresenter))
 
-#_(defn edit-widget-tree
-   [zipper editor]
-   (let [edit-node (fn [[nm node] loc] [nm (editor node (mapv first (zip/path loc)))])]
-     (loop [loc zipper]
-       (if (zip/end? loc)
-         (zip/root loc)
-         (recur (zip/next (zip/edit loc edit-node loc)))))))
-
-#_(defn widget-zipper
-   [spec]
-   (zip/zipper
-     (fn [[nm node]] (and (map? node) (contains? node :children)))
-     (fn [[nm node]] (:children node))
-     (fn [[nm node] children] [nm (assoc node :children children)])
-     spec))
-
-#_(defn attach-user-data
-   [spec prop-name presenter]
-   (edit-widget-tree (widget-zipper spec)
-     (fn [val path] (assoc val :user-data {:presenter presenter :prop-name prop-name :path path}))))
-
-#_(defn attach-user-data
-   [presenter prop-name val path]
-   (assoc val :user-data {:presenter presenter :prop-name prop-name :path path}))
-
-#_(defn attach-listener
-   [ui-event-listener val _]
-   (update-in val [:listen] zipmap (repeat ui-event-listener)))
-
-#_(defn- attach-listeners
-   [spec ui-event-listener]
-   (edit-widget-tree (widget-zipper spec)
-     (fn [val _] (update-in val [:listen] zipmap (repeat ui-event-listener)))))
-
 (defn- attach-user-data
-[spec prop-name presenter path]
-(assoc spec
-  :user-data {:presenter presenter :prop-name prop-name :path path}
-  :children  (mapv (fn [[child-name child-spec]] [child-name (attach-user-data child-spec prop-name presenter (conj path child-name))]) (:children spec))))
+  [spec prop-name presenter path]
+  (assoc spec
+    :user-data {:presenter presenter :prop-name prop-name :path path}
+    :children  (mapv (fn [[child-name child-spec]] [child-name (attach-user-data child-spec prop-name presenter (conj path child-name))]) (:children spec))))
 
 (defn- attach-listeners
- [spec ui-event-listener]
- (assoc spec
-   :listen   (zipmap (:listen spec) (repeat ui-event-listener))
-   :children (mapv (fn [[child-name child-spec]] [child-name (attach-listeners child-spec ui-event-listener)]) (:children spec))))
+  [spec ui-event-listener]
+  (assoc spec
+    :listen   (zipmap (:listen spec) (repeat ui-event-listener))
+    :children (mapv (fn [[child-name child-spec]] [child-name (attach-listeners child-spec ui-event-listener)]) (:children spec))))
 
 (def ^:private right-column-layout {:layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL :width-hint 50}})
 
@@ -148,11 +113,8 @@
   [ui-event-listener prop-name presenter]
   (-> right-column-layout
     (merge (control-for-property presenter))
-    #_(edit-widget-tree (partial attach-user-data presenter prop-name))
-    #_(edit-widget-tree (partial attach-listener ui-event-listener))
     (attach-user-data prop-name presenter [])
-    (attach-listeners ui-event-listener)
-    ))
+    (attach-listeners ui-event-listener)))
 
 (defn- property-control-strip
   [ui-event-listener [prop-name {:keys [presenter]}]]
