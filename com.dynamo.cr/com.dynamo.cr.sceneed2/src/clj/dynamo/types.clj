@@ -96,6 +96,8 @@
 
 (def Triggers [clojure.lang.IFn])
 
+(def Registry {s/Any s/Any})
+
 (sm/defrecord Rect
   [path     :- s/Any
    x        :- Int32

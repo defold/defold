@@ -159,11 +159,18 @@
   (doseq [n (:nodes-added txn)]
     (ds/send-after n {:type :view-scope :scope self})))
 
+(defnk passthrough-presenter-registry
+  [presenter-registry]
+  presenter-registry)
+
 (n/defnode SceneEditor
   (inherits Scope)
   (inherits Renderer)
 
   (input controller  s/Any)
+
+  (input  presenter-registry t/Registry)
+  (output presenter-registry t/Registry passthrough-presenter-registry)
 
   (property triggers t/Triggers (default [#'n/inject-new-nodes #'send-view-scope-message]))
 

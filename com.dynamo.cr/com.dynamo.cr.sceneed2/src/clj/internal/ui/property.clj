@@ -3,6 +3,7 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n]
+            [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
@@ -32,68 +33,12 @@
     ->Camel_Snake_Case_String
     (str/replace "_" " ")))
 
-(defprotocol Presenter
-  (control-for-property [this])
-  (settings-for-control [this value])
-  (on-event [this path event value]))
+(defnk passthrough-presenter-registry
+  [presenter-registry]
+  presenter-registry)
 
-(defn no-change [] nil)
-(defn intermediate-value [v] {:update-type :intermediate :value v})
-(defn final-value [v]        {:update-type :final :value v})
-(defn reset-default []       {:update-type :reset})
-
-(defn- is-enter-key? [event]
-  (#{\return \newline} (:character event)))
-
-(defrecord Vec3Presenter []
-  Presenter
-  (control-for-property [_]
-    {:type :composite
-     :layout {:type :grid :num-columns 3 :margin-width 0}
-     :children [[:x {:type :text :listen #{:key-down :focus-out}}]
-                [:y {:type :text :listen #{:key-down :focus-out}}]
-                [:z {:type :text :listen #{:key-down :focus-out}}]]})
-  (settings-for-control [_ value]
-    {:children [[:x {:text (str (nth value 0))}]
-                [:y {:text (str (nth value 1))}]
-                [:z {:text (str (nth value 2))}]]})
-  (on-event [_ path event value]
-    (when-let [index (get {:x 0 :y 1 :z 2} (first path))]
-      (let [current-value (assoc value index (parse-number (ui/get-text (:widget event))))]
-        (case (:type event)
-          :key-down (if (is-enter-key? event)
-                      (final-value current-value)
-                      (no-change))
-          :focus-out (final-value current-value)
-          (no-change))))))
-
-(defrecord StringPresenter []
-  Presenter
-  (control-for-property [this]
-    {:type :text :listen #{:key-down :focus-out}})
-  (settings-for-control [_ value]
-    {:text (str value)})
-
-  (on-event [_ _ event value]
-    (let [current-value (ui/get-text (:widget event))]
-      (case (:type event)
-        :key-down (if (is-enter-key? event)
-                    (final-value current-value)
-                    (no-change))
-        :focus-out (final-value current-value)
-        (no-change)))))
-
-(defrecord DefaultPresenter []
-  Presenter
-  (control-for-property [_]
-    {:type :label})
-  (settings-for-control [_ value]
-    {:text (str value)}))
-
-(defmulti presenter-for-property (comp :value-type :type))
-(defmethod presenter-for-property s/Str [_] (->StringPresenter))
-(defmethod presenter-for-property t/Vec3 [_] (->Vec3Presenter))
-(defmethod presenter-for-property :default [_] (->DefaultPresenter))
+(defn presenter-for-property [node property]
+  (dp/lookup-presenter (n/get-node-value node :presenter-registry) (:type property)))
 
 (defn- attach-user-data
   [spec prop-name presenter path]
@@ -112,7 +57,7 @@
 (defn- control-spec
   [ui-event-listener prop-name presenter]
   (-> right-column-layout
-    (merge (control-for-property presenter))
+    (merge (dp/control-for-property presenter))
     (attach-user-data prop-name presenter [])
     (attach-listeners ui-event-listener)))
 
@@ -153,7 +98,7 @@
   [properties]
   {:children
    (for [[prop-name {:keys [presenter value]}] properties]
-     [prop-name (settings-for-control presenter value)])})
+     [prop-name (dp/settings-for-control presenter value)])})
 
 (defn- cache-key
   [properties]
@@ -169,7 +114,7 @@
 
 (defn- attach-presenters
   [node content]
-  (map-vals #(assoc % :presenter (presenter-for-property %)) content))
+  (map-vals #(assoc % :presenter (presenter-for-property node %)) content))
 
 (defn- refresh-property-page
   [{:keys [sheet-cache toolkit properties-form ui-event-listener] :as node}]
@@ -199,11 +144,13 @@
                        :layout {:type :stack}}]]}])
 
 (n/defnode PropertyView
-  (input properties [t/Properties])
+  (input  properties [t/Properties])
+  (output content s/Any aggregate-properties)
+
+  (input  presenter-registry t/Registry :inject)
+  (output presenter-registry t/Registry passthrough-presenter-registry)
 
   (property triggers t/Triggers (default [#'refresh-after-a-while]))
-
-  (output content s/Any aggregate-properties)
 
   (on :create
     (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))
@@ -223,7 +170,7 @@
           {:keys [presenter prop-name path]} (ui/get-user-data (:widget ui-event))
           content (in/get-node-value self :content)
           prop (get content prop-name)
-          result (on-event presenter path ui-event (:value prop))]
+          result (dp/on-event presenter path ui-event (:value prop))]
       (prn :ui-event (:type ui-event) :prop-name prop-name :path path :result result)
       (when-let [new-value (:value result)]
         (ds/set-property {:_id (:node-id prop)} prop-name new-value))))

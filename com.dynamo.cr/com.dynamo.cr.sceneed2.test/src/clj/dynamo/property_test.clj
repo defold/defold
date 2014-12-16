@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.types :as t]
-            [schema.core :as s]))
+            [schema.core :as s])
+  (:import [dynamo.property DefaultPresenter]))
 
 (defprotocol MyProtocol)
 
@@ -157,3 +158,28 @@
   (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 0)))
   (is (false? (t/valid-property-value? DerivedPropInheritBothOverrideBoth 1)))
   (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 2))))
+
+(defproperty StringProp s/Str)
+
+(defproperty Vec3Prop t/Vec3)
+
+(defproperty InheritsFromVec3Prop Vec3Prop)
+
+(defproperty UnregisteredProp [s/Keyword s/Str s/Num])
+
+(defrecord CustomPresenter []
+  dp/Presenter)
+
+(deftest lookup-presenter
+  (testing "when the property is not registered, returns a default presenter"
+    (is (instance? DefaultPresenter (dp/lookup-presenter nil StringProp))))
+  (testing "overriding registry"
+    (are [schema-to-register property-to-look-up expected-presenter]
+      (let [registry (dp/register-presenter nil schema-to-register (->CustomPresenter))
+            actual-presenter (dp/lookup-presenter registry property-to-look-up)]
+        (instance? expected-presenter actual-presenter))
+      ;schema-to-register   property-to-look-up  expected-presenter
+      s/Str                 StringProp           CustomPresenter
+      s/Str                 UnregisteredProp     DefaultPresenter
+      t/Vec3                InheritsFromVec3Prop CustomPresenter
+      t/Vec3                Vec3Prop             CustomPresenter)))
