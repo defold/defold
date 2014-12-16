@@ -8,7 +8,7 @@
            [org.eclipse.core.runtime SafeRunner]
            [org.eclipse.jface.util SafeRunnable]
            [org.eclipse.swt.custom StackLayout]
-           [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Widget]
+           [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Text Widget]
            [org.eclipse.swt.graphics Color RGB]
            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
@@ -101,12 +101,15 @@
   [evt]
   (update-in (e->m evt) [:type] event-type-map))
 
+(defn make-listener [callback-fn args]
+  (proxy [Listener] []
+    (handleEvent [evt]
+      (apply callback-fn (event->map evt) args))))
+
 (defn listen
   [^Widget component type callback-fn & args]
   (.addListener component (event-map type)
-    (proxy [Listener] []
-      (handleEvent [evt]
-        (apply callback-fn (event->map evt) args)))))
+    (make-listener callback-fn args)))
 
 (defprotocol EventRegistration
   (add-listener [this key listener])
@@ -131,21 +134,69 @@
 
 (defn- rgb [r g b] (Color. (display) r g b))
 
+
+(defn set-user-data [^Widget control value]
+  (.setData control value))
+(defn get-user-data [^Widget control]
+  (.getData control))
+
 (defmulti make-layout      (fn [_ {type :type}] type))
 (defmulti make-layout-data (fn [_ {type :type}] type))
 (defmulti make-control     (fn [_ _ [_ {type :type}]] type))
 
-(defmacro apply-properties [desiderata control props]
+(defmacro ^:private gen-state-changes [desiderata control props]
   (let [m {:background   `(when-let [v# (:background ~props)]       (.setBackground ~control (apply rgb v#)))
+           :echo-char    `(when-let [v# (:echo-char ~props)]        (.setEchoChar ~control v#))
+           :editable     `(when-let [v# (:editable ~props)]         (.setEditable ~control v#))
            :foreground   `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
            :on-click     `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
            :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
            :layout-data  `(when-let [v# (:layout-data ~props)]      (.setLayoutData ~control (make-layout-data ~control v#)))
+           :listen       `(doseq [[e# t#] (:listen ~props)]         (.addListener ~control (event-map e#) t#))
            :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
            :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
+           :text-limit   `(when-let [v# (:text-limit ~props)]       (.setTextLimit ~control v#))
+           :top-index    `(when-let [v# (:top-index ~props)]        (.setTopIndex ~control v#))
            :tooltip-text `(when-let [v# (:tooltip-text ~props)]     (.setToolTipText ~control v#))
-           :underlined   `(when-let [v# (:underlined ~props false)] (.setUnderlined ~control v#))}]
+           :underlined   `(when-let [v# (:underlined ~props)]       (.setUnderlined ~control v#))
+           :user-data    `(when-let [v# (:user-data ~props)]        (set-user-data ~control v#))}]
     `(do ~@(vals (select-keys m desiderata)))))
+
+(defprotocol Mutable
+  (apply-properties [this props]))
+
+(extend-protocol Mutable
+  ScrolledForm
+  (apply-properties [this props]
+    (gen-state-changes #{:text :listen :user-data} this props)
+    (gen-state-changes #{:layout} (.getBody this) props)
+    this)
+
+  Composite
+  (apply-properties [this props]
+    (gen-state-changes #{:foreground :background :layout :tooltip-text :listen :user-data} this props)
+    this)
+
+  Hyperlink
+  (apply-properties [this props]
+    (gen-state-changes #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text :listen :user-data} this props)
+    this)
+
+  Label
+  (apply-properties [this props]
+    (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
+    this)
+
+  Text
+  (apply-properties [this props]
+    (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text :echo-char :text-limit :top-index :editable :listen :user-data} this props)
+    this)
+
+  StatusLabel
+  (apply-properties [this props]
+    (gen-state-changes #{:status :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
+    this))
+
 
 (def swt-styles      {:none SWT/NONE
                       :border SWT/BORDER})
@@ -161,59 +212,77 @@
 (defmethod make-layout      :grid [control spec] (swt-grid-layout spec))
 (defmethod make-layout-data :grid [control spec] (swt-grid-data spec))
 
+
+
 (defmethod make-control :form
   [^FormToolkit toolkit parent [name props :as spec]]
   (let [control ^ScrolledForm (.createScrolledForm toolkit parent)
         body    (.getBody control)
         child-controls (reduce merge {} (map #(make-control toolkit body %) (:children props)))]
-    (apply-properties #{:text}   control props)
-    (apply-properties #{:layout} body props)
+    (apply-properties control props)
     {name (merge child-controls {::widget control})}))
 
 (defmethod make-control :composite
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control ^Composite (.createComposite toolkit parent (swt-styles (:style props :none)))
+  (let [control (.createComposite toolkit parent (swt-styles (:style props :none)))
         child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
-    (apply-properties #{:foreground :background :layout :tooltip-text} control props)
+    (apply-properties control props)
     {name (merge child-controls {::widget control})}))
 
 (defmethod make-control :label
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control ^Label (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
-    (apply-properties #{:text :foreground :background :layout-data :tooltip-text} control props)
+  (let [control (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
+    (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :hyperlink
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control ^Hyperlink (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
-    (apply-properties #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text} control props)
+  (let [control (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
+    (apply-properties control props)
+    {name {::widget control}}))
+
+(defmethod make-control :text
+  [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control (.createText toolkit parent nil (swt-styles (:style props :none)))]
+    (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :status-label
   [_ parent [name props :as spec]]
   (let [control (StatusLabel. parent (swt-styles (:style props :none)))]
-    (apply-properties #{:status :foreground :background :layout-data :tooltip-text} control props)
+    (apply-properties control props)
     {name {::widget control}}))
 
 (defn widget
   [widget-tree path]
   (get-in widget-tree (concat path [::widget])))
 
+(defn update-ui! [widget-subtree settings]
+  (apply-properties (widget widget-subtree []) (dissoc settings :children))
+  (doseq [[child-name child-settings] (:children settings)]
+    (when-let [widget (get widget-subtree child-name)]
+      (update-ui! widget child-settings))))
+
+(defn get-text [^Text widget]
+  (.getText widget))
+
 (defn shell [] (doto (Shell.) (.setLayout (FillLayout.))))
 
-(defn bring-to-front
-  [^Control control]
-  (let [composite ^Composite (.getParent control)
-        layout ^StackLayout (.getLayout composite)]
+(defn bring-to-front!
+  [widget-tree]
+  (let [control   ^Control     (widget widget-tree [])
+        composite ^Composite   (.getParent control)
+        layout    ^StackLayout (.getLayout composite)]
     (assert (instance? StackLayout layout) "bring-to-front only works on Composites with StackLayout as their layout")
     (when (not= (. layout topControl) control)
       (set! (. layout topControl) control)
       (.layout composite))))
 
-(defn scroll-to-top
-  [^ScrolledForm form]
-  (.setOrigin form 0 0)
-  (.reflow form true))
+(defn scroll-to-top!
+  [widget-tree]
+  (let [form ^ScrolledForm (widget widget-tree [])]
+    (.setOrigin form 0 0)
+    (.reflow form true)))
 
 (defn now [] (System/currentTimeMillis))
 
@@ -239,7 +308,7 @@
 
 (defn display-debouncer
   [when f]
-  (->DisplayDebouncer when f nil false))
+  (->DisplayDebouncer when f nil nil))
 
 (defmacro defcommand
   [name category-id command-id label]

@@ -5,6 +5,7 @@
             [dynamo.system :as ds]
             [dynamo.file :as file]
             [dynamo.node :as n :refer [defnode Scope]]
+            [dynamo.property :as dp]
             [dynamo.selection :as selection]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
@@ -43,6 +44,10 @@
   (handle :editor filetype editor-builder)
   (register-filetype filetype true))
 
+(defn register-presenter
+  [property presenter]
+  (ds/update-property (ds/current-scope) :presenter-registry dp/register-presenter property presenter))
+
 (def default-handlers {:loader {"clj" clojure/on-load-code}})
 
 (def no-such-handler
@@ -79,8 +84,9 @@
     (factory project-node path)))
 
 (defnode CannedProperties
-  (property rotation s/Str    (default "twenty degrees starboard"))
-  (property translation s/Str (default "Guten abend.")))
+  (property rotation s/Str     (default "twenty degrees starboard"))
+  (property translation s/Str  (default "Guten abend."))
+  (property some-vector t/Vec3 (default [1 2 3])))
 
 (defn- build-editor-node
   [project-node path site]
@@ -102,6 +108,8 @@
                                        (ds/in project-node
                                          (let [editor-node    (build-editor-node project-node path site)
                                                selection-node (build-selection-node editor-node)]
+                                           (when ((t/inputs editor-node) :presenter-registry)
+                                             (ds/connect project-node :presenter-registry editor-node :presenter-registry))
                                            [editor-node selection-node])))]
     (.setSelectionProvider site selection-node)
     editor-node))
@@ -117,10 +125,11 @@
 (defnode Project
   (inherits Scope)
 
-  (property triggers        t/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
-  (property tag             s/Keyword (default :project))
-  (property eclipse-project IProject)
-  (property branch          s/Str)
+  (property triggers           t/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
+  (property tag                s/Keyword (default :project))
+  (property eclipse-project    IProject)
+  (property branch             s/Str)
+  (property presenter-registry t/Registry)
 
   (on :destroy
     (ds/delete self)))

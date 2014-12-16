@@ -3,6 +3,7 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n]
+            [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
@@ -21,7 +22,6 @@
 
 (set! *warn-on-reflection* true)
 
-;; TODO: This should actually **aggregate** something.
 (defnk aggregate-properties
   [properties]
   (apply merge {} properties))
@@ -33,35 +33,72 @@
     ->Camel_Snake_Case_String
     (str/replace "_" " ")))
 
+(defnk passthrough-presenter-registry
+  [presenter-registry]
+  presenter-registry)
+
+(defn presenter-for-property [node property]
+  (dp/lookup-presenter (n/get-node-value node :presenter-registry) (:type property)))
+
+(defn- attach-user-data
+  [spec prop-name presenter path]
+  (assoc spec
+    :user-data {:presenter presenter :prop-name prop-name :path path}
+    :children  (mapv (fn [[child-name child-spec]] [child-name (attach-user-data child-spec prop-name presenter (conj path child-name))]) (:children spec))))
+
+(defn- attach-listeners
+  [spec ui-event-listener]
+  (assoc spec
+    :listen   (zipmap (:listen spec) (repeat ui-event-listener))
+    :children (mapv (fn [[child-name child-spec]] [child-name (attach-listeners child-spec ui-event-listener)]) (:children spec))))
+
+(def ^:private right-column-layout {:layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL :width-hint 50}})
+
+(defn- control-spec
+  [ui-event-listener prop-name presenter]
+  (-> right-column-layout
+    (merge (dp/control-for-property presenter))
+    (attach-user-data prop-name presenter [])
+    (attach-listeners ui-event-listener)))
+
 (defn- property-control-strip
-  [[prop-name {:keys [value]}]]
-  (let [label-text (niceify-label prop-name)
-        value-text (pr-str value)]
+  [ui-event-listener [prop-name {:keys [presenter]}]]
+  (let [label-text (niceify-label prop-name)]
     [[:label-composite {:type :composite
                         :layout {:type :stack}
                         :children [[:label      {:type :label :text label-text}]
                                    [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text Messages/FormPropertySheetViewer_RESET_VALUE}]]}]
-     [:label           {:type :label :text value-text :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL :width-hint 50}}]
+     [prop-name (control-spec ui-event-listener prop-name presenter)]
      [:dummy           {:type :label :layout-data {:type :grid :exclude true}}]
      [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-fill SWT/HORIZONTAL :width-hint 50 :exclude true}}]]))
 
+(defn- property-page
+  [control-strips]
+  [:page-content
+   {:type :composite
+    :layout {:type :grid :num-columns 2 :margin-width 0}
+    :children control-strips}])
+
 (defn- make-property-page
-  [toolkit widget-tree properties]
-  (-> (ui/make-control toolkit (ui/widget widget-tree [:form :composite])
-        [:grid-container
-         {:type :composite
-          :layout {:type :grid :num-columns 2 :margin-width 0}
-          :children (mapcat property-control-strip properties)}])
-    (ui/widget [:grid-container])))
+  [toolkit ui-event-listener properties-form properties]
+  (ui/make-control toolkit (ui/widget properties-form [:form :composite])
+    (property-page (mapcat #(property-control-strip ui-event-listener %) properties))))
+
+(def empty-property-page
+  [:page-content
+   {:type :composite
+    :layout {:type :grid}
+    :children [[:no-selection-label {:type :label :text Messages/FormPropertySheetViewer_NO_PROPERTIES}]]}])
 
 (defn- make-empty-property-page
-  [toolkit widget-tree]
-  (-> (ui/make-control toolkit (ui/widget widget-tree [:form :composite])
-        [:no-selection
-         {:type :composite
-          :layout {:type :grid}
-          :children [[:no-selection-label {:type :label :text Messages/FormPropertySheetViewer_NO_PROPERTIES}]]}])
-    (ui/widget [:no-selection])))
+  [toolkit properties-form]
+  (ui/make-control toolkit (ui/widget properties-form [:form :composite]) empty-property-page))
+
+(defn- settings-for-page
+  [properties]
+  {:children
+   (for [[prop-name {:keys [presenter value]}] properties]
+     [prop-name (dp/settings-for-control presenter value)])})
 
 (defn- cache-key
   [properties]
@@ -75,13 +112,18 @@
                   (assoc cache key (apply f args)))))
       (get key)))
 
+(defn- attach-presenters
+  [node content]
+  (map-vals #(assoc % :presenter (presenter-for-property node %)) content))
+
 (defn- refresh-property-page
-  [{:keys [sheet-cache toolkit widget-tree] :as node}]
-  (let [properties (in/get-node-value node :content)]
-    (-> sheet-cache
-        (lookup-or-create (cache-key properties) make-property-page toolkit widget-tree properties)
-        (ui/bring-to-front)))
-  (ui/scroll-to-top (ui/widget widget-tree [:form])))
+  [{:keys [sheet-cache toolkit properties-form ui-event-listener] :as node}]
+  (let [content (attach-presenters node (in/get-node-value node :content))
+        key     (cache-key content)
+        page    (lookup-or-create sheet-cache key make-property-page toolkit ui-event-listener properties-form content)]
+    (ui/update-ui!      (get-in page [:page-content]) (settings-for-page content))
+    (ui/bring-to-front! (get-in page [:page-content]))
+    (ui/scroll-to-top!  (get-in properties-form [:form]))))
 
 (defn- refresh-after-a-while
   [graph this transaction]
@@ -102,22 +144,36 @@
                        :layout {:type :stack}}]]}])
 
 (n/defnode PropertyView
-  (input properties [t/Properties])
+  (input  properties [t/Properties])
+  (output content s/Any aggregate-properties)
+
+  (input  presenter-registry t/Registry :inject)
+  (output presenter-registry t/Registry passthrough-presenter-registry)
 
   (property triggers t/Triggers (default [#'refresh-after-a-while]))
 
-  (output content s/Any aggregate-properties)
-
   (on :create
-    (let [toolkit      (FormToolkit. (.getDisplay ^Composite (:parent event)))
-          widget-tree  (ui/make-control toolkit (:parent event) gui)
-          sheet-cache  (atom {})]
-      (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page toolkit widget-tree)
+    (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))
+          properties-form   (ui/make-control toolkit (:parent event) gui)
+          sheet-cache       (atom {})
+          ui-event-listener (ui/make-listener #(n/dispatch-message self :ui-event :ui-event %) [])]
+      (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page toolkit properties-form)
       (ds/set-property self
-        :sheet-cache  sheet-cache
-        :toolkit      toolkit
-        :widget-tree  widget-tree
-        :debouncer    (ui/display-debouncer 100 #(refresh-property-page (ds/refresh self))))))
+        :sheet-cache       sheet-cache
+        :toolkit           toolkit
+        :properties-form   properties-form
+        :ui-event-listener ui-event-listener
+        :debouncer         (ui/display-debouncer 100 #(refresh-property-page (ds/refresh self))))))
+
+  (on :ui-event
+    (let [ui-event (:ui-event event)
+          {:keys [presenter prop-name path]} (ui/get-user-data (:widget ui-event))
+          content (in/get-node-value self :content)
+          prop (get content prop-name)
+          result (dp/on-event presenter path ui-event (:value prop))]
+      (prn :ui-event (:type ui-event) :prop-name prop-name :path path :result result)
+      (when-let [new-value (:value result)]
+        (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
 
   ISelectionListener
   (selectionChanged [this part selection]
@@ -138,5 +194,5 @@
   [property-view-node]
   (-> property-view-node
       ds/refresh
-      :widget-tree
+      :properties-form
       (ui/widget [:form])))
