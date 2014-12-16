@@ -243,6 +243,7 @@ namespace dmRender
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
     {
+        m_StencilTestParams.Init();
     }
 
     struct LayoutMetrics
@@ -268,6 +269,9 @@ namespace dmRender
         dmHashUpdateBuffer64(&key_state, &font_map, sizeof(font_map));
         dmHashUpdateBuffer64(&key_state, &params.m_Depth, sizeof(params.m_Depth));
         dmHashUpdateBuffer64(&key_state, &params.m_RenderOrder, sizeof(params.m_RenderOrder));
+        if (params.m_StencilTestParamsSet) {
+            dmHashUpdateBuffer64(&key_state, &params.m_StencilTestParams, sizeof(params.m_StencilTestParams));
+        }
         uint64_t key = dmHashFinal64(&key_state);
 
         int32_t* head = text_context->m_Batches.Get(key);
@@ -315,6 +319,8 @@ namespace dmRender
         te.m_LineBreak = params.m_LineBreak;
         te.m_Align = params.m_Align;
         te.m_VAlign = params.m_VAlign;
+        te.m_StencilTestParams = params.m_StencilTestParams;
+        te.m_StencilTestParamsSet = params.m_StencilTestParamsSet;
 
         int32_t index = text_context->m_TextEntries.Size();
         if (head_entry) {
@@ -399,6 +405,8 @@ namespace dmRender
         ro->m_Material = font_map->m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
         ro->m_VertexStart = text_context.m_VertexIndex;
+        ro->m_StencilTestParams = first_te.m_StencilTestParams;
+        ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
         Vector4 texture_size_recip(im_recip, ih_recip, 0, 0);
         EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, texture_size_recip);

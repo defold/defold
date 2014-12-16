@@ -19,6 +19,22 @@ namespace dmRender
 
     const char* RENDER_SOCKET_NAME = "@render";
 
+    StencilTestParams::StencilTestParams() {
+        Init();
+    }
+
+    void StencilTestParams::Init() {
+        m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
+        m_OpSFail = dmGraphics::STENCIL_OP_KEEP;
+        m_OpDPFail = dmGraphics::STENCIL_OP_KEEP;
+        m_OpDPPass = dmGraphics::STENCIL_OP_KEEP;
+        m_Ref = 0;
+        m_RefMask = 0xff;
+        m_BufferMask = 0xff;
+        m_ColorBufferMask = 0xf;
+        m_Padding = 0;
+    }
+
     RenderObject::RenderObject()
     {
         Init();
@@ -227,73 +243,10 @@ namespace dmRender
         return a->m_RenderKey.m_Key < b->m_RenderKey.m_Key;
     }
 
-    static void ApplyClearBuffer(HRenderContext render_context, const RenderObject* ro)
-    {
-        const dmGraphics::ClearBufferParams& cbp = ro->m_ClearBufferParams;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        uint32_t clear_bits = 0;
-        if(cbp.m_Color)
-        {
-            dmGraphics::SetColorMask(graphics_context, (cbp.m_ColorBufferMask & (1<<0)) != 0, (cbp.m_ColorBufferMask & (1<<1)) != 0, (cbp.m_ColorBufferMask & (1<<2)) != 0, (cbp.m_ColorBufferMask & (1<<3)) != 0);
-            clear_bits |= dmGraphics::BUFFER_TYPE_COLOR_BIT;
-        }
-        if(cbp.m_Depth)
-        {
-            dmGraphics::SetDepthMask(graphics_context, true);
-            clear_bits |= dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-        }
-        if(cbp.m_Stencil)
-        {
-            dmGraphics::SetStencilMask(graphics_context, cbp.m_StencilMask);
-            clear_bits |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-        }
-        if(cbp.m_DisableScissor)
-            dmGraphics::DisableState(graphics_context, dmGraphics::STATE_SCISSOR_TEST);
-
-        dmGraphics::Clear(graphics_context, clear_bits, cbp.m_ColorR, cbp.m_ColorG, cbp.m_ColorB, cbp.m_ColorA, cbp.m_DepthValue, cbp.m_StencilValue);
-
-        if(cbp.m_DisableScissor)
-            dmGraphics::EnableState(graphics_context, dmGraphics::STATE_SCISSOR_TEST);
-    }
-
-    static void ApplyDepthTest(HRenderContext render_context, const RenderObject* ro)
-    {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        const dmGraphics::DepthTestParams& dtp = ro->m_DepthTestParams;
-        dmGraphics::SetDepthMask(graphics_context, dtp.m_BufferMask);
-        if(!dtp.m_TestEnable)
-        {
-            dmGraphics::DisableState(graphics_context, dmGraphics::STATE_DEPTH_TEST);
-            return;
-        }
-        dmGraphics::EnableState(graphics_context, dmGraphics::STATE_DEPTH_TEST);
-        dmGraphics::SetDepthFunc(graphics_context, dtp.m_Func);
-    }
-
-    static void ApplyScissorTest(HRenderContext render_context, const RenderObject* ro)
-    {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        const dmGraphics::ScissorTestParams& stp = ro->m_ScissorTestParams;
-        if(!stp.m_TestEnable)
-        {
-            dmGraphics::DisableState(graphics_context, dmGraphics::STATE_SCISSOR_TEST);
-            return;
-        }
-        dmGraphics::EnableState(graphics_context, dmGraphics::STATE_SCISSOR_TEST);
-        dmGraphics::SetScissor(graphics_context, (int32_t) stp.m_X, (int32_t) stp.m_Y, (int32_t) stp.m_Width, (int32_t) stp.m_Height);
-    }
-
     static void ApplyStencilTest(HRenderContext render_context, const RenderObject* ro)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        const dmGraphics::StencilTestParams& stp = ro->m_StencilTestParams;
-        if(!stp.m_TestEnable)
-        {
-            dmGraphics::DisableState(graphics_context, dmGraphics::STATE_STENCIL_TEST);
-            dmGraphics::SetColorMask(graphics_context, (stp.m_ColorBufferMask & (1<<3)) != 0, (stp.m_ColorBufferMask & (1<<2)) != 0, (stp.m_ColorBufferMask & (1<<1)) != 0, (stp.m_ColorBufferMask & (1<<0)) != 0);
-            return;
-        }
-        dmGraphics::EnableState(graphics_context, dmGraphics::STATE_STENCIL_TEST);
+        const StencilTestParams& stp = ro->m_StencilTestParams;
         dmGraphics::SetColorMask(graphics_context, stp.m_ColorBufferMask & (1<<3), stp.m_ColorBufferMask & (1<<2), stp.m_ColorBufferMask & (1<<1), stp.m_ColorBufferMask & (1<<0));
         dmGraphics::SetStencilMask(graphics_context, stp.m_BufferMask);
         dmGraphics::SetStencilFunc(graphics_context, stp.m_Func, stp.m_Ref, stp.m_RefMask);
@@ -340,12 +293,6 @@ namespace dmRender
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
 
-            if (ro->m_SetClearBuffer)
-                ApplyClearBuffer(render_context, ro);
-            if (ro->m_SetDepthTest)
-                ApplyDepthTest(render_context, ro);
-            if (ro->m_SetScissorTest)
-                ApplyScissorTest(render_context, ro);
             if (ro->m_SetStencilTest)
                 ApplyStencilTest(render_context, ro);
 
