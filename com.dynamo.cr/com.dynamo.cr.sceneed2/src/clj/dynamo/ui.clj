@@ -268,19 +268,21 @@
 
 (defn shell [] (doto (Shell.) (.setLayout (FillLayout.))))
 
-(defn bring-to-front
-  [^Control control]
-  (let [composite ^Composite (.getParent control)
-        layout ^StackLayout (.getLayout composite)]
+(defn bring-to-front!
+  [widget-tree]
+  (let [control   ^Control     (widget widget-tree [])
+        composite ^Composite   (.getParent control)
+        layout    ^StackLayout (.getLayout composite)]
     (assert (instance? StackLayout layout) "bring-to-front only works on Composites with StackLayout as their layout")
     (when (not= (. layout topControl) control)
       (set! (. layout topControl) control)
       (.layout composite))))
 
-(defn scroll-to-top
-  [^ScrolledForm form]
-  (.setOrigin form 0 0)
-  (.reflow form true))
+(defn scroll-to-top!
+  [widget-tree]
+  (let [form ^ScrolledForm (widget widget-tree [])]
+    (.setOrigin form 0 0)
+    (.reflow form true)))
 
 (defn now [] (System/currentTimeMillis))
 
