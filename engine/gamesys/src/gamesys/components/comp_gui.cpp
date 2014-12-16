@@ -270,8 +270,8 @@ namespace dmGameSystem
         gui_component->m_Enabled = 1;
 
         dmGui::NewSceneParams scene_params;
-        // 256 is a hard cap since the render key has 8 bits for node index
-        scene_params.m_MaxNodes = 256;
+        // 512 is a hard cap since the render key has 9 bits for node index
+        scene_params.m_MaxNodes = 512;
         scene_params.m_MaxAnimations = 1024;
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
