@@ -168,13 +168,13 @@
 (extend-protocol Mutable
   ScrolledForm
   (apply-properties [this props]
-    (gen-state-changes #{:text :listen :user-data} this props)
+    (gen-state-changes #{:text :foreground :background :tooltip-text :layout-data :listen :user-data} this props)
     (gen-state-changes #{:layout} (.getBody this) props)
     this)
 
   Composite
   (apply-properties [this props]
-    (gen-state-changes #{:foreground :background :layout :tooltip-text :listen :user-data} this props)
+    (gen-state-changes #{:foreground :background :layout :layout-data :tooltip-text :listen :user-data} this props)
     this)
 
   Hyperlink
