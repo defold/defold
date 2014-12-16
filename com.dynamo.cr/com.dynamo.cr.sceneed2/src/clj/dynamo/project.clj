@@ -75,39 +75,46 @@
       (let [loader        (loader-for project-node (file/extension path))
             resource-node (loader path (io/reader path))]
         (node?! resource-node "Loader")
+        (ds/set-property resource-node ::filename path)
         resource-node))))
 
 (defn node-by-filename
   [project-node path factory]
-  (if-let [node (first (iq/query (:world-ref project-node) [[:filename path]]))]
+  (if-let [node (first (iq/query (:world-ref project-node) [[::filename path]]))]
     node
     (factory project-node path)))
 
 (defnode CannedProperties
-  (property rotation s/Str     (default "twenty degrees starboard"))
-  (property translation s/Str  (default "Guten abend."))
-  (property some-vector t/Vec3 (default [1 2 3])))
+  (property rotation     s/Str  (default "twenty degrees starboard"))
+  (property translation  s/Str  (default "Guten abend."))
+  (property some-vector  t/Vec3 (default [1 2 3]))
+  (property some-integer s/Int  (default 42)))
+
+(defn- build-content-node
+  [project-node path]
+  (node-by-filename project-node path load-resource))
 
 (defn- build-editor-node
-  [project-node path site]
-  (let [content-root   (node-by-filename project-node path load-resource)
-        editor-factory (editor-for project-node (file/extension path))]
-    (node?! (editor-factory project-node site content-root) "Editor")))
+  [project-node site path content-node]
+  (let [editor-factory (editor-for project-node (file/extension path))]
+    (node?! (editor-factory project-node site content-node) "Editor")))
 
 (defn- build-selection-node
-  [editor-node]
+  [editor-node selected-nodes]
   (ds/in editor-node
     (let [selection-node  (ds/add (selection/make-selection))
           properties-node (ds/add (make-canned-properties :rotation "e to the i pi"))]
-      (ds/connect properties-node :self selection-node :selected-nodes)
+      (doseq [node selected-nodes]
+        (ds/connect node :self selection-node :selected-nodes))
       selection-node)))
 
 (defn make-editor
   [project-node path ^IEditorSite site]
   (let [[editor-node selection-node] (ds/transactional
                                        (ds/in project-node
-                                         (let [editor-node    (build-editor-node project-node path site)
-                                               selection-node (build-selection-node editor-node)]
+                                         (let [content-node   (build-content-node project-node path)
+                                               editor-node    (build-editor-node project-node site path content-node)
+                                               selection-node (build-selection-node editor-node [content-node])]
                                            (when ((t/inputs editor-node) :presenter-registry)
                                              (ds/connect project-node :presenter-registry editor-node :presenter-registry))
                                            [editor-node selection-node])))]
@@ -116,8 +123,8 @@
 
 (defn- send-project-scope-message
   [graph self txn]
-  (doseq [n (:nodes-added txn)]
-    (ds/send-after n {:type :project-scope :scope self})))
+  (doseq [id (:nodes-added txn)]
+    (ds/send-after {:_id id} {:type :project-scope :scope self})))
 
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse

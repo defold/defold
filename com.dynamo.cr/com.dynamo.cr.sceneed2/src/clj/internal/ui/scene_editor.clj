@@ -156,8 +156,8 @@
 
 (defn- send-view-scope-message
   [graph self txn]
-  (doseq [n (:nodes-added txn)]
-    (ds/send-after n {:type :view-scope :scope self})))
+  (doseq [id (:nodes-added txn)]
+    (ds/send-after {:_id id} {:type :view-scope :scope self})))
 
 (defnk passthrough-presenter-registry
   [presenter-registry]

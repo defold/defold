@@ -182,7 +182,7 @@
 
 (defn on-load
   [path ^Graphics$Cubemap cubemap-message]
-  (let [cubemap (message->node cubemap-message :filename path :_id -1)]
+  (let [cubemap (message->node cubemap-message)]
     (make-faces cubemap)
     cubemap))
 

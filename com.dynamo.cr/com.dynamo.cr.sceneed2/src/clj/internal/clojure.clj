@@ -23,20 +23,24 @@
     (when (list? ns-decl)
       (remove-ns (second ns-decl)))))
 
+(defn compile-source-node
+  [graph self]
+  (let [resource    (:resource self)
+        ns-decl     (read-file-ns-decl resource)
+        source-file (file/eclipse-file resource)]
+    (markers/remove-markers source-file)
+    (try
+      (ds/in (iq/node-consuming graph self :self)
+        (Compiler/load (io/reader resource) (file/local-path resource) (.getName source-file))
+        (ds/set-property self :namespace (UnloadableNamespace. ns-decl)))
+      (catch clojure.lang.Compiler$CompilerException compile-error
+        (markers/compile-error source-file compile-error)
+        {:compile-error (.getMessage (.getCause compile-error))}))))
+
 (defn compile-at-load
   [graph self transaction]
-  (when (some #{self} (:nodes-added transaction))
-    (let [resource    (:resource self)
-          ns-decl     (read-file-ns-decl resource)
-          source-file (file/eclipse-file resource)]
-      (markers/remove-markers source-file)
-      (try
-        (ds/in (iq/node-consuming graph self :self)
-          (Compiler/load (io/reader resource) (file/local-path resource) (.getName source-file))
-          (ds/set-property self :namespace (UnloadableNamespace. ns-decl)))
-        (catch clojure.lang.Compiler$CompilerException compile-error
-          (markers/compile-error source-file compile-error)
-          {:compile-error (.getMessage (.getCause compile-error))})))))
+  (when (ds/is-added? transaction self)
+    (compile-source-node graph self)))
 
 (n/defnode ClojureSourceNode
   (property resource IFile)

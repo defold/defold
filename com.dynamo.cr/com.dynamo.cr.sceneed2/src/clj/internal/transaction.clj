@@ -144,7 +144,7 @@
         full-node   (dg/node graph-after next-id)]
     (assoc ctx
       :graph               graph-after
-      :nodes-added         (conj nodes-added full-node)
+      :nodes-added         (conj nodes-added next-id)
       :tempids             (assoc tempids (:_id node) next-id)
       :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)

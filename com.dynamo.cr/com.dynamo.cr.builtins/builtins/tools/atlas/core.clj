@@ -106,7 +106,6 @@
 
   (property margin          dp/NonNegativeInt (default 0))
   (property extrude-borders dp/NonNegativeInt (default 0))
-  (property filename        s/Str)
 
   (output textureset TextureSet :cached :substitute-value (blank-textureset) produce-textureset)
   (output aabb       AABB               produce-aabb))
@@ -493,7 +492,7 @@
 
 (defn on-load
   [path ^AtlasProto$Atlas atlas-message]
-  (let [atlas    (message->node atlas-message :filename path :_id -1)
+  (let [atlas    (message->node atlas-message)
         compiler (add (make-texture-save
                        :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
                        :textureset-filename (in-build-directory (replace-extension path "texturesetc"))

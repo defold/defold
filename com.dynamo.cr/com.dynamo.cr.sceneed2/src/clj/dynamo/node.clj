@@ -6,6 +6,7 @@
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
             [internal.node :as in]
+            [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]))
 
 (set! *warn-on-reflection* true)
@@ -127,8 +128,9 @@ This function should mainly be used to create 'plumbing'."
 (defn inject-new-nodes
   [graph self transaction]
   (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
-        out-from-new-connections (in/injection-candidates existing-nodes (:nodes-added transaction))
-        in-to-new-connections    (in/injection-candidates (:nodes-added transaction) existing-nodes)
+        nodes-added              (map #(dg/node graph %) (:nodes-added transaction))
+        out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
+        in-to-new-connections    (in/injection-candidates nodes-added existing-nodes)
         candidates               (set/union out-from-new-connections in-to-new-connections)
         candidates               (remove (fn [[out out-label in in-label]]
                                            (or

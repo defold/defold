@@ -66,12 +66,6 @@
   (width [this] 800)
   (height [this] 600))
 
-(defnode NodeWithEvents
-  (on :mousedown
-    (let [nn (ds/add (make-node-with-protocols :_id -1))]
-      (ds/set-property {:_id -1} :foo "newly created")
-      (ds/set-property self :message-processed true))))
-
 (deftest node-definition
   (testing "properties"
     (is (= [:foo] (-> (make-simple-test-node) :descriptor :properties keys)))
@@ -84,9 +78,15 @@
     (is (satisfies? t/N2Extent (make-node-with-protocols)))
     (is (= 800 (t/width (make-node-with-protocols))))))
 
+(defnode NodeWithEvents
+  (on :mousedown
+    (let [nn (ds/add (make-node-with-protocols))]
+      (ds/set-property nn :foo "newly created")
+      (ds/set-property self :message-processed true))))
+
 (deftest event-delivery
   (with-clean-world
-    (let [evented (ds/transactional (ds/add (make-node-with-events :_id -1)))]
+    (let [evented (ds/transactional (ds/add (make-node-with-events)))]
       (is (= :ok (t/process-one-event evented {:type :mousedown})))
       (is (:message-processed (iq/node-by-id world-ref (:_id evented)))))))
 

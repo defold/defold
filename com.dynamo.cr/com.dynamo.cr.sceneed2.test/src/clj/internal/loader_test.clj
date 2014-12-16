@@ -15,9 +15,9 @@
 (defn- dummy
   [proj file]
   (ds/transactional
-   (ds/in proj
-     (ds/add
-      (make-dummy-node :project proj :filename file)))))
+    (ds/in proj
+      (ds/add
+        (make-dummy-node :project proj ::p/filename file)))))
 
 (defn- bomb
   [& _]

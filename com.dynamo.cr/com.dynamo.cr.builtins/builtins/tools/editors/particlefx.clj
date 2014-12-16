@@ -279,7 +279,7 @@
 
 (defn on-load
   [path ^Particle$ParticleFX particlefx-message]
-  (let [particlefx (message->node particlefx-message :filename path :_id -1)
+  (let [particlefx (message->node particlefx-message)
         particlefx-save (add (make-particlefx-save))]
     (println "LOADING")
     (ds/connect particlefx :self particlefx-save :particlefx-properties)
