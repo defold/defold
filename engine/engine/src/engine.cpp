@@ -781,11 +781,14 @@ bail:
         engine->m_RunResult.m_ExitCode = 0;
 
         uint64_t time = dmTime::GetTime();
-        uint64_t prev_time = engine->m_PreviousFrameTime;
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
         bool variable_dt = engine->m_UseVariableDt;
+        if (variable_dt) {
+            dt = (float)((time - engine->m_PreviousFrameTime) * 0.000001);
+        }
+        engine->m_PreviousFrameTime = time;
 
         if (engine->m_Alive)
         {
@@ -798,7 +801,7 @@ bail:
                 // Update time again after the sleep to avoid big leaps after iconified.
                 // In practice, it makes the delta time 1/freq even though we slept for long
                 time = dmTime::GetTime();
-                prev_time = time - fixed_dt * 1000000;
+                engine->m_PreviousFrameTime = time - fixed_dt * 1000000;
                 dt = fixed_dt;
                 return;
             }
@@ -914,23 +917,6 @@ bail:
             dmProfile::Release(profile);
 
             ++engine->m_Stats.m_FrameCount;
-
-            prev_time = time;
-            time = dmTime::GetTime();
-            engine->m_PreviousFrameTime = prev_time;
-
-            // set fps continuously in case it changes during runtime
-            fps = engine->m_UpdateFrequency;
-
-            if (variable_dt)
-            {
-                // go through double to save precision
-                dt = (float)((time - prev_time) * 0.000001);
-            }
-            else
-            {
-                dt = 1.0f / fps;
-            }
         }
     }
 
