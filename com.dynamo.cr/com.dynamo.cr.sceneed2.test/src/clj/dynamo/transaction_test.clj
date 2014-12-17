@@ -72,7 +72,7 @@
               after     (:graph tx-result)]
           (is (nil?   (dg/node    after (:_id resource2))))
           (is (empty? (lg/targets after (:_id resource1) :b)))
-          (is (= [(:_id resource2)] (map :_id (:nodes-removed tx-result)))))))))
+          (is (contains? (:nodes-removed tx-result) (:_id resource2))))))))
 
 (def trigger-called (atom 0))
 

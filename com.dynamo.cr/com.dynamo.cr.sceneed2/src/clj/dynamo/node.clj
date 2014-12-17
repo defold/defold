@@ -142,7 +142,7 @@ This function should mainly be used to create 'plumbing'."
 
 (defn dispose-nodes
   [graph self transaction]
-  (when (some #{(:_id self)} (map :_id (:nodes-removed transaction)))
+  (when (ds/is-removed? transaction self)
     (let [graph-before-deletion (-> transaction :world-ref deref :graph)
           nodes-to-delete       (:nodes (in/collect-inputs self graph-before-deletion {:nodes :ok}))]
       (doseq [n nodes-to-delete]

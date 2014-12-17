@@ -158,7 +158,7 @@
         ctx         (reduce (fn [ctx out] (mark-dirty ctx node-id out)) ctx all-outputs)]
     (assoc ctx
       :graph         (dg/remove-node graph node-id)
-      :nodes-removed (conj nodes-removed node))))
+      :nodes-removed (assoc nodes-removed node-id node))))
 
 (defmethod perform :update-property
   [{:keys [graph] :as ctx} {:keys [node-id property fn args]}]
@@ -236,7 +236,7 @@
   [{:keys [cache obsolete-cache-keys nodes-removed] :as ctx}]
   (let [candidates (concat
                      (filter t/disposable? (map #(get cache %) obsolete-cache-keys))
-                     (filter t/disposable? nodes-removed))]
+                     (filter t/disposable? (vals nodes-removed)))]
     (assoc ctx :values-to-dispose (keep identity candidates))))
 
 (defn- evict-obsolete-caches
@@ -278,7 +278,7 @@
 (defn- process-triggers
   [{:keys [graph outputs-modified previously-triggered] :as ctx}]
   (let [new-or-changed (zipmap (keys outputs-modified) (map #(dg/node graph %) (keys outputs-modified)))
-        all-activated  (merge new-or-changed (zipmap (map :_id (:nodes-removed ctx)) (:nodes-removed ctx)))
+        all-activated  (merge new-or-changed (:nodes-removed ctx))
         all-activated  (apply dissoc all-activated previously-triggered)
 
         next-ctx       (reduce (fn [csub [[n-id n] tr]]
@@ -316,6 +316,7 @@
      :tempids             {}
      :new-event-loops     #{}
      :nodes-added         #{}
+     :nodes-removed       {}
      :messages            []
      :pending             [txs]}))
 

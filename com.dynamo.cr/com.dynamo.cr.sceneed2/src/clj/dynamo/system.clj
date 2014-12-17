@@ -112,6 +112,9 @@
 (defn is-added? [transaction node]
   (contains? (:nodes-added transaction) (:_id node)))
 
+(defn is-removed? [transaction node]
+  (contains? (:nodes-removed transaction) (:_id node)))
+
 ; ---------------------------------------------------------------------------
 ; Documentation
 ; ---------------------------------------------------------------------------
