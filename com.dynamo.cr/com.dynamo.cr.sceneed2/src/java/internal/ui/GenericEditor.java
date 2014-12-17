@@ -62,6 +62,8 @@ public class GenericEditor extends EditorPart {
     private Object behavior;
     private IPropertySheetPage propertySheetPage;
 
+    private boolean dirty = false;
+
     static {
         require(INTERNAL_NS);
     }
@@ -137,7 +139,12 @@ public class GenericEditor extends EditorPart {
 
     @Override
     public boolean isDirty() {
-        return true;
+        return dirty;
+    }
+
+    protected void setDirty(boolean value) {
+        dirty = value;
+        firePropertyChange(PROP_DIRTY);
     }
 
     @Override

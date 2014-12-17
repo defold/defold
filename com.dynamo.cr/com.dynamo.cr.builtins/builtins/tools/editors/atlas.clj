@@ -1,4 +1,4 @@
-(ns atlas.core
+(ns editors.atlas
   (:require [dynamo.ui :refer :all]
             [clojure.set :refer [union]]
             [plumbing.core :refer [fnk defnk]]
