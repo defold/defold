@@ -37,6 +37,7 @@ public class ClojureHelper {
     public static final Keyword PARENT = RT.keyword(null, "parent");
     public static final Keyword SITE = RT.keyword(null, "site");
     public static final Keyword INPUT = RT.keyword(null, "input");
+    public static final Keyword DIRTY_TRACKER = RT.keyword(null, "dirty-tracker");
     public static final Keyword FILE = RT.keyword(null, "file");
     public static final Keyword MONITOR = RT.keyword(null, "monitor");
 

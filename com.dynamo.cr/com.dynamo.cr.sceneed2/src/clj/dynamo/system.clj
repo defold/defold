@@ -106,8 +106,11 @@
 ; ---------------------------------------------------------------------------
 ; For use by triggers
 ; ---------------------------------------------------------------------------
-(defn is-modified? [transaction node output]
-  (boolean (get-in transaction [:outputs-modified (:_id node) output])))
+(defn is-modified?
+  ([transaction node]
+    (boolean (contains? (:outputs-modified transaction) (:_id node))))
+  ([transaction node output]
+    (boolean (get-in transaction [:outputs-modified (:_id node) output]))))
 
 (defn is-added? [transaction node]
   (contains? (:nodes-added transaction) (:_id node)))

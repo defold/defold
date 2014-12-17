@@ -12,6 +12,7 @@
             [service.log :as log]
             [internal.metrics :as metrics]
             [internal.disposal :as disp]
+            [internal.node :as in]
             [internal.render.pass :as pass]
             [internal.repaint :as repaint]
             [internal.query :as iq])
@@ -22,7 +23,8 @@
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
            [org.eclipse.swt.opengl GLData GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]
-           [dynamo.types Camera Region AABB]))
+           [dynamo.types Camera Region AABB]
+           [internal.ui IDirtyable]))
 
 (set! *warn-on-reflection* true)
 
@@ -155,13 +157,23 @@
   (ui/listen component type #(t/process-one-event (iq/node-by-id world-ref _id) %)))
 
 (defn- send-view-scope-message
-  [graph self txn]
-  (doseq [id (:nodes-added txn)]
+  [graph self transaction]
+  (doseq [id (:nodes-added transaction)]
     (ds/send-after {:_id id} {:type :view-scope :scope self})))
+
+(defn- mark-editor-dirty
+  [graph self transaction]
+  (when (and (ds/is-modified? transaction self :dirty) (in/get-inputs self graph :dirty))
+    (when-let [tracker (:dirty-tracker self)]
+      (.markDirty ^IDirtyable tracker))))
 
 (defnk passthrough-presenter-registry
   [presenter-registry]
   presenter-registry)
+
+(defnk passthrough-dirty-flag
+  [dirty]
+  dirty)
 
 (n/defnode SceneEditor
   (inherits Scope)
@@ -172,7 +184,13 @@
   (input  presenter-registry t/Registry)
   (output presenter-registry t/Registry passthrough-presenter-registry)
 
-  (property triggers t/Triggers (default [#'n/inject-new-nodes #'send-view-scope-message]))
+  (input dirty s/Bool)
+  (output dirty s/Bool passthrough-dirty-flag)
+
+  (property triggers t/Triggers (default [#'n/inject-new-nodes #'send-view-scope-message #'mark-editor-dirty]))
+
+  (on :init
+    (ds/set-property self :dirty-tracker (:dirty-tracker event)))
 
   (on :create
     (let [canvas        (glcanvas (:parent event))

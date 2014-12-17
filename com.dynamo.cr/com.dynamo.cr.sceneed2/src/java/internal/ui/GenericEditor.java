@@ -52,7 +52,7 @@ import clojure.osgi.internal.ClojureOSGiActivator;
  * @author mtnygard
  *
  */
-public class GenericEditor extends EditorPart {
+public class GenericEditor extends EditorPart implements IDirtyable {
     private static final String INTERNAL_NS = "internal.ui.editors";
 
     /**
@@ -79,7 +79,7 @@ public class GenericEditor extends EditorPart {
 
         propertySheetPage = new GenericPropertySheetPage(behavior);
 
-        dispatchMessage(behavior, INIT, SITE, site, INPUT, input);
+        dispatchMessage(behavior, INIT, SITE, site, INPUT, input, DIRTY_TRACKER, this);
     }
 
     @Override
@@ -90,6 +90,7 @@ public class GenericEditor extends EditorPart {
     @Override
     public void doSave(IProgressMonitor monitor) {
         dispatchMessage(behavior, SAVE, FILE, ((IFileEditorInput) getEditorInput()).getFile(), MONITOR, monitor);
+        dirty = false;
     }
 
     @Override
@@ -142,8 +143,9 @@ public class GenericEditor extends EditorPart {
         return dirty;
     }
 
-    protected void setDirty(boolean value) {
-        dirty = value;
+    @Override
+    public void markDirty() {
+        dirty = true;
         firePropertyChange(PROP_DIRTY);
     }
 

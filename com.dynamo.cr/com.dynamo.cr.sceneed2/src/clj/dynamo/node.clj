@@ -167,3 +167,12 @@ This function should mainly be used to create 'plumbing'."
 (defmethod print-method RootScope__
   [^RootScope__ v ^java.io.Writer w]
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
+
+(defn mark-dirty
+  [graph self transaction]
+  (when (and (ds/is-modified? transaction self) (not (ds/is-added? transaction self)))
+    (ds/set-property self :dirty true)))
+
+(defnode DirtyTracking
+  (property triggers Triggers (default [#'mark-dirty]))
+  (property dirty s/Bool (default false)))

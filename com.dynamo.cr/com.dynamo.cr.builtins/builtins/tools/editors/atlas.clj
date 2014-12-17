@@ -95,11 +95,13 @@
     (assoc :animations animations)))
 
 (defnk produce-aabb :- AABB
-  [this project]
+  [this]
   (let [textureset (get-node-value this :textureset)]
     (g/rect->aabb (:aabb textureset))))
 
 (defnode AtlasProperties
+  (inherits DirtyTracking)
+
   (input assets [OutlineItem])
   (input images [Image])
   (input animations [Animation])
