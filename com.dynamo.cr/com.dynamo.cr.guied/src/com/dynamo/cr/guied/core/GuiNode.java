@@ -13,6 +13,7 @@ import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.Range;
+import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.validators.Unique;
 import com.dynamo.gui.proto.Gui.NodeDesc.AdjustMode;
@@ -23,7 +24,7 @@ import com.dynamo.gui.proto.Gui.NodeDesc.XAnchor;
 import com.dynamo.gui.proto.Gui.NodeDesc.YAnchor;
 
 @SuppressWarnings("serial")
-public class GuiNode extends Node {
+public class GuiNode extends Node implements Identifiable {
 
     // Fields of the render key
     private enum RenderKeyRange {
