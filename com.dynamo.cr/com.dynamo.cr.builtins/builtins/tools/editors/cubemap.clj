@@ -1,4 +1,4 @@
-(ns cubemap.core
+(ns editors.cubemap
   (:require [dynamo.ui :refer :all]
             [clojure.set :refer [union]]
             [plumbing.core :refer [fnk defnk]]
@@ -164,7 +164,7 @@
 
 (protocol-buffer-converters
  Graphics$Cubemap
- {:constructor #'cubemap.core/make-cubemap-node
+ {:constructor #'make-cubemap-node
   :basic-properties [:right :left :top :bottom :front :back]})
 
 (def ^:private cubemap-inputs
