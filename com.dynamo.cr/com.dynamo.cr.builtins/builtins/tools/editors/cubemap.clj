@@ -136,7 +136,7 @@
          (gl/gl-disable gl GL/GL_CULL_FACE)))
 
 (defnk produce-renderable :- RenderData
-  [this project]
+  [this project vertex-buffer]
   (let [world (Matrix4d. g/Identity4d)]
     {pass/transparent
      [{:world-transform world

@@ -157,9 +157,8 @@
     (overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
 (defnk produce-gpu-texture
-  [this gl]
-  (texture/image-texture gl (:packed-image (get-node-value this :textureset))))
-
+  [this gl textureset]
+  (texture/image-texture gl (:packed-image textureset)))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -191,7 +190,7 @@
     (gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
 (defnk produce-renderable :- RenderData
-  [this]
+  [this textureset]
   {pass/overlay
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this))}]
@@ -200,9 +199,8 @@
      :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]})
 
 (defnk produce-renderable-vertex-buffer
-  [this gl]
-  (let [textureset (get-node-value this :textureset)
-        shader     (get-node-value this :shader)
+  [this gl textureset]
+  (let [shader     (get-node-value this :shader)
         bounds     (:aabb textureset)
         coords     (:coords textureset)
         vbuf       (->texture-vtx (* 6 (count coords)))
