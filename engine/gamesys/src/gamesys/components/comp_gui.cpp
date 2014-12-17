@@ -532,6 +532,8 @@ namespace dmGameSystem
         // the possibly stretched texture.
         float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
         float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
+        assert(org_width > 0 && org_height > 0);
+
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const Vector4& color = node_colors[i];
@@ -548,10 +550,14 @@ namespace dmGameSystem
             Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
             Point3 size = dmGui::GetNodeSize(scene, node);
 
+            // disable slice9 computation below a certain dimension
+            // (avoid div by zero)
+            const float s9_min_dim = 0.001f;
+
             const float su = 1.0f / org_width;
             const float sv = 1.0f / org_height;
-            const float sx = 1.0f / size.getX();
-            const float sy = 1.0f / size.getY();
+            const float sx = size.getX() > s9_min_dim ? 1.0f / size.getX() : 0;
+            const float sy = size.getY() > s9_min_dim ? 1.0f / size.getY() : 0;
 
             float us[4], vs[4], xs[4], ys[4];
 
