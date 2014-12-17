@@ -242,6 +242,7 @@ namespace dmRender
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
+    , m_StencilTestParamsSet(0)
     {
         m_StencilTestParams.Init();
     }
