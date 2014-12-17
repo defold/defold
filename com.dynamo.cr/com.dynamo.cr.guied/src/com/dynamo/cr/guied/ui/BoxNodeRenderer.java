@@ -37,7 +37,7 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
                 RenderData<BoxNode> data = renderContext.add(this, node, new Point3d(), clippingState);
                 data.setIndex(node.getClippingKey());
             }
-            if (node.getClippingVisible()) {
+            if (!node.isClipping() || node.getClippingVisible()) {
                 ClippingState childState = null;
                 ClippingNode clipper = node.getClosestParentClippingNode();
                 if (clipper != null) {
