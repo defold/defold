@@ -3,7 +3,8 @@ set -e
 
 package () {
 	pushd target/products/com.dynamo.cr.editor.product/${1}/${2}/${3} > /dev/null
-	rm -f Defold eclipsec.exe
+	rm -f eclipsec.exe
+	[ $1 -eq "macosx" ] && rm -f Defold
 	rm -rf jre
 	echo "Unzipping ${4}"
 	unzip -q ../../../../../${4}
