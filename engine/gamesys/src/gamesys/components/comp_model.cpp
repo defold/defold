@@ -2,7 +2,7 @@
 
 #include <float.h>
 #include <dlib/array.h>
-#include <dlib/index_pool.h>
+#include <dlib/object_pool.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -39,8 +39,7 @@ namespace dmGameSystem
 
     struct ModelWorld
     {
-        dmArray<ModelComponent> m_Components;
-        dmIndexPool32           m_ComponentIndices;
+        dmObjectPool<ModelComponent> m_Components;
     };
 
     dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -50,9 +49,7 @@ namespace dmGameSystem
         // https://defold.fogbugz.com/default.asp?2115
         const uint32_t max_component_count = 128;
         model_world->m_Components.SetCapacity(max_component_count);
-        model_world->m_Components.SetSize(max_component_count);
-        memset(&model_world->m_Components[0], 0, sizeof(ModelComponent) * max_component_count);
-        model_world->m_ComponentIndices.SetCapacity(max_component_count);
+        memset(model_world->m_Components.m_Objects.Begin(), 0, sizeof(ModelComponent) * max_component_count);
         *params.m_World = model_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -66,13 +63,13 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompModelCreate(const dmGameObject::ComponentCreateParams& params)
     {
         ModelWorld* model_world = (ModelWorld*)params.m_World;
-        if (model_world->m_ComponentIndices.Remaining() == 0)
+        if (model_world->m_Components.Full())
         {
             dmLogError("Model could not be created since the model buffer is full (%d).", model_world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
-        uint32_t index = model_world->m_ComponentIndices.Pop();
-        ModelComponent* component = &model_world->m_Components[index];
+        uint32_t index = model_world->m_Components.Alloc();
+        ModelComponent* component = &model_world->m_Components.Get(index);
 
         Model* model = (Model*)params.m_Resource;
         component->m_Instance = params.m_Instance;
@@ -82,7 +79,7 @@ namespace dmGameSystem
         component->m_ModelWorld = model_world;
         component->m_RenderObject = dmRender::RenderObject();
         component->m_RenderObject.m_Material = model->m_Material;
-        *params.m_UserData = (uintptr_t)component;
+        *params.m_UserData = (uintptr_t)index;
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -90,10 +87,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompModelDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         ModelWorld* model_world = (ModelWorld*)params.m_World;
-        ModelComponent* component = (ModelComponent*)*params.m_UserData;
-        uint32_t index = component - &model_world->m_Components[0];
-        memset(component, 0, sizeof(ModelComponent));
-        model_world->m_ComponentIndices.Push(index);
+        uint32_t index = *params.m_UserData;
+        model_world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -101,7 +96,7 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
         ModelWorld* model_world = (ModelWorld*)params.m_World;
-        dmArray<ModelComponent>& components = model_world->m_Components;
+        dmArray<ModelComponent>& components = model_world->m_Components.m_Objects;
         uint32_t n = components.Size();
         Model* model;
         Mesh* mesh;
@@ -143,7 +138,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
-        ModelComponent* component = (ModelComponent*)*params.m_UserData;
+        ModelWorld* world = (ModelWorld*) params.m_World;
+        ModelComponent* component = &world->m_Components.Get(*params.m_UserData);
 
         dmRender::RenderObject* ro = &component->m_RenderObject;
 
@@ -226,13 +222,15 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
-        ModelComponent* component = (ModelComponent*)*params.m_UserData;
+        ModelWorld* world = (ModelWorld*) params.m_World;
+        ModelComponent* component = &world->m_Components.Get(*params.m_UserData);
         return GetMaterialConstant(component->m_Model->m_Material, params.m_PropertyId, out_value, CompModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
-        ModelComponent* component = (ModelComponent*)*params.m_UserData;
+        ModelWorld* world = (ModelWorld*) params.m_World;
+        ModelComponent* component = &world->m_Components.Get(*params.m_UserData);
         return SetMaterialConstant(component->m_Model->m_Material, params.m_PropertyId, params.m_Value, CompModelSetConstantCallback, component);
     }
 }
