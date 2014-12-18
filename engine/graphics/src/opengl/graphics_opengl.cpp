@@ -883,6 +883,33 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
+    // Bit of workaround to create the depth buffer with render buffer storage as creating them as textures
+    // fails on tegra.
+    GLuint CreateAndSetRenderBuffer(const TextureCreationParams& create, const TextureParams& params)
+    {
+        GLuint t;
+        glGenRenderbuffers( 1, &t );
+        CHECK_GL_ERROR
+
+        glBindRenderbuffer(GL_RENDERBUFFER, t);
+        CHECK_GL_ERROR
+
+        switch (params.m_Format)
+        {
+            case TEXTURE_FORMAT_DEPTH:
+                glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, params.m_Width, params.m_Height);
+                CHECK_GL_ERROR
+                break;
+            default:
+                assert(false);
+                break;
+        }
+
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        CHECK_GL_ERROR
+        return t;
+    }
+
     static uint32_t CreateShader(GLenum type, const void* program, uint32_t program_size)
     {
         GLuint s = glCreateShader(type);
@@ -1121,12 +1148,22 @@ static void LogFrameBufferError(GLenum status)
         GLenum buffer_attachments[MAX_BUFFER_TYPE_COUNT] = {GL_COLOR_ATTACHMENT0, GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            if (buffer_type_flags & BUFFER_TYPES[i])
+            if (!(buffer_type_flags & BUFFER_TYPES[i]))
+                continue;
+
+            if (buffer_attachments[i] == GL_COLOR_ATTACHMENT0)
             {
                 rt->m_BufferTextures[i] = NewTexture(context, creation_params[i]);
                 SetTexture(rt->m_BufferTextures[i], params[i]);
                 // attach the texture to FBO color attachment point
                 glFramebufferTexture2D(GL_FRAMEBUFFER, buffer_attachments[i], GL_TEXTURE_2D, rt->m_BufferTextures[i]->m_Texture, 0);
+                CHECK_GL_ERROR
+            }
+            else
+            {
+                // same as above but render buffers.
+                rt->m_RenderBuffers[i] = CreateAndSetRenderBuffer(creation_params[i], params[i]);
+                glFramebufferRenderbuffer(GL_FRAMEBUFFER, buffer_attachments[i], GL_RENDERBUFFER, rt->m_RenderBuffers[i]);
                 CHECK_GL_ERROR
             }
         }
@@ -1144,8 +1181,8 @@ static void LogFrameBufferError(GLenum status)
 #endif
         }
 
-		CHECK_GL_FRAMEBUFFER_ERROR
-		glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+        CHECK_GL_FRAMEBUFFER_ERROR
+        glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
         CHECK_GL_ERROR
 
         return rt;
@@ -1159,6 +1196,8 @@ static void LogFrameBufferError(GLenum status)
         {
             if (render_target->m_BufferTextures[i])
                 DeleteTexture(render_target->m_BufferTextures[i]);
+            if (render_target->m_RenderBuffers[i])
+                glDeleteFramebuffers(1, &render_target->m_RenderBuffers[i]);
         }
         delete render_target;
     }
@@ -1215,11 +1254,11 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Height = params.m_Height;
 
         if (params.m_OriginalWidth == 0){
-        	tex->m_OriginalWidth = params.m_Width;
-        	tex->m_OriginalHeight = params.m_Height;
+            tex->m_OriginalWidth = params.m_Width;
+            tex->m_OriginalHeight = params.m_Height;
         } else {
-        	tex->m_OriginalWidth = params.m_OriginalWidth;
-        	tex->m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_OriginalWidth = params.m_OriginalWidth;
+            tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
         return (HTexture) tex;
@@ -1415,7 +1454,6 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR
         }
     }
-
     uint16_t GetTextureWidth(HTexture texture)
     {
         return texture->m_Width;
