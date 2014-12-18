@@ -163,25 +163,47 @@ public class GuiSceneNode extends ComponentTypeNode {
         return invRefVal;
     }
 
-    private static int updateRenderOrderClipper(int parentLayer, int parentIndex, int offset, int invClipperId, List<Node> nodes, Map<String, Integer> layersToIndexMap) {
+    private static class ClipperId {
+        int id;
+        public ClipperId(int id) {
+            this.id = id;
+        }
+
+        public void increment(int base) {
+            this.id = Math.min(255, base + 1);
+        }
+
+        public void increment() {
+            increment(this.id + 1);
+        }
+    }
+
+    private static int updateRenderOrderClipper(int parentLayer, int parentIndex, int offset, ClipperId lastClipperId, List<Node> nodes, Map<String, Integer> layersToIndexMap) {
         int index = offset;
         for (Node n : nodes) {
             GuiNode node = (GuiNode)n;
             int subLayer = node.getLayerIndex(layersToIndexMap);
-            int subIndex = index;
-            ++index;
             if (node instanceof ClippingNode) {
                 ClippingNode clipper = (ClippingNode)node;
                 if (clipper.isClipping() && !clipper.getClippingInverted()) {
-                    int subInvClipperId = invertClipperId(clipper);
-                    clipper.setClippingKey(clipper.calcRenderKey(parentLayer, parentIndex, subInvClipperId, 0, 0));
-                    node.setRenderKey(parentLayer, parentIndex, subInvClipperId, clipper.getLayerIndex(layersToIndexMap), 1);
+                    ClipperId subInvClipperId = new ClipperId(invertClipperId(clipper));
+                    if (subInvClipperId.id == lastClipperId.id) {
+                        subInvClipperId.increment();
+                    }
+                    clipper.setClippingKey(clipper.calcRenderKey(parentLayer, parentIndex, subInvClipperId.id, 0, 0));
+                    node.setRenderKey(parentLayer, parentIndex, subInvClipperId.id, subLayer, 1);
                     updateRenderOrderClipper(parentLayer, parentIndex, 2, subInvClipperId, clipper.getChildren(), layersToIndexMap);
+                    if (subLayer > 0) {
+                        node.setRenderKey(parentLayer, parentIndex, subInvClipperId.id, subLayer, 1);
+                    }
+                    lastClipperId.increment(subInvClipperId.id);
                     continue;
+                } else {
+                    clipper.setClippingKey(clipper.calcRenderKey(parentLayer, parentIndex, lastClipperId.id, subLayer, index++));
                 }
             }
-            node.setRenderKey(parentLayer, parentIndex, invClipperId, subLayer, subIndex);
-            index = updateRenderOrderClipper(parentLayer, parentIndex, index, invClipperId, node.getChildren(), layersToIndexMap);
+            node.setRenderKey(parentLayer, parentIndex, lastClipperId.id, subLayer, index++);
+            index = updateRenderOrderClipper(parentLayer, parentIndex, index, lastClipperId, node.getChildren(), layersToIndexMap);
         }
         return index;
     }
@@ -197,10 +219,15 @@ public class GuiSceneNode extends ComponentTypeNode {
                 ClippingNode clipper = (ClippingNode)node;
                 if (clipper.isClipping() && !clipper.getClippingInverted()) {
                     clipper.setClippingKey(clipper.calcRenderKey(layer, parentIndex, 0, 0, 0));
-                    int invClipperId = invertClipperId(clipper);
-                    node.setRenderKey(layer, parentIndex, invClipperId, layer, 0);
+                    ClipperId invClipperId = new ClipperId(invertClipperId(clipper));
+                    node.setRenderKey(layer, parentIndex, invClipperId.id, layer, 0);
                     updateRenderOrderClipper(layer, parentIndex, 1, invClipperId, clipper.getChildren(), layersToIndexMap);
+                    if (layer > 0) {
+                        node.setRenderKey(layer, parentIndex, invClipperId.id, layer, 0);
+                    }
                     continue;
+                } else {
+                    clipper.setClippingKey(clipper.calcRenderKey(layer, parentIndex, 0, 0, 0));
                 }
             }
             node.setRenderKey(layer, parentIndex, 0, 0, 0);
