@@ -691,7 +691,7 @@ public class StencilTest extends AbstractNodeTest {
      *   - d (layer1)
      * - e
      *
-     * Expected order: e, d, a, c, b
+     * Expected order: e, c, b, d, a
      */
     @Test
     public void testRenderOrder_Complex() throws Exception {
@@ -710,12 +710,12 @@ public class StencilTest extends AbstractNodeTest {
 
         updateRenderOrder();
 
-        assertRenderOrder(e, d, a, c, b);
+        assertRenderOrder(e, c, b, d, a);
 
         // Verify clipping order (color-less stencil rendering)
         assertTrue(a.getClippingKey() > e.getRenderKey());
         assertTrue(a.getClippingKey() < d.getRenderKey());
-        assertTrue(b.getClippingKey() > d.getRenderKey());
+        assertTrue(b.getClippingKey() < d.getRenderKey());
         assertTrue(b.getClippingKey() < c.getRenderKey());
     }
 
@@ -742,6 +742,96 @@ public class StencilTest extends AbstractNodeTest {
         updateRenderOrder();
 
         assertRenderOrder(b, c, a);
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - a
+     *   - b
+     *   - c (clipper)
+     *   - d
+     *
+     * Expected order: a, b, c, d
+     */
+    @Test
+    public void testRenderOrder_NonClipperSiblings() throws Exception {
+        BoxNode a = addBox("a");
+        BoxNode b = addBox("b", a);
+        BoxNode c = addClipperBox("c", a);
+        BoxNode d = addBox("d", a);
+
+        updateRenderOrder();
+
+        assertRenderOrder(a, b, c, d);
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - a (clipper)
+     *   - b
+     *   - c (clipper)
+     *   - d
+     *
+     * Expected order: a, b, c, d
+     */
+    @Test
+    public void testRenderOrder_NonClipperSiblingsUnderClipper() throws Exception {
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addBox("b", a);
+        BoxNode c = addClipperBox("c", a);
+        BoxNode d = addBox("d", a);
+
+        updateRenderOrder();
+
+        assertRenderOrder(a, b, c, d);
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - a (clipper)
+     *   - b (inv-clipper)
+     *     - c (clipper)
+     *   - d (inv-clipper)
+     *
+     * Expected order: a, b, c, d
+     */
+    @Test
+    public void testRenderOrder_InvertedSiblings() throws Exception {
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addInvClipperBox("b", a);
+        BoxNode c = addClipperBox("c", b);
+        BoxNode d = addInvClipperBox("d", a);
+
+        updateRenderOrder();
+
+        assertRenderOrder(a, b, c, d);
+
+        assertTrue(a.getClippingKey() < b.getClippingKey());
+        assertTrue(b.getClippingKey() < c.getClippingKey());
+        assertTrue(c.getClippingKey() < d.getClippingKey());
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - a (clipper)
+     *   - b (inv)
+     *     - c (inv)
+     *       - d (inv)
+     *         - e (
+     *   - d (inv-clipper)
+     *
+     * Expected order: a, b, c, d
+     */
+    @Test
+    public void testRenderOrder_InvertedSiblingsComplex() throws Exception {
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addInvClipperBox("b", a);
+        BoxNode c = addClipperBox("c", b);
+        BoxNode d = addInvClipperBox("d", a);
+
+        updateRenderOrder();
+
+        assertRenderOrder(a, b, c, d);
     }
 
     /* OVERFLOW TESTS */
