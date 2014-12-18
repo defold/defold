@@ -118,10 +118,12 @@ public:
 
     std::map<dmGui::HNode, dmGui::StencilScope> m_NodeToClipping;
     std::map<dmGui::HNode, uint32_t> m_NodeToRenderOrder;
+    std::map<dmGui::HNode, uint32_t> m_NodeToClippingOrder;
 
     void Clear() {
         m_NodeToClipping.clear();
         m_NodeToRenderOrder.clear();
+        m_NodeToClippingOrder.clear();
         m_Renderer.Clear();
     }
 
@@ -154,7 +156,6 @@ public:
             const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
     {
         dmGuiClippingTest* self = (dmGuiClippingTest*) context;
-        uint32_t render_order = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -164,8 +165,13 @@ public:
                     self->m_NodeToClipping[node] = *scope;
                 }
                 self->m_Renderer.Render(self->m_Scene, node, *scope);
+                if (scope->m_WriteMask != 0) {
+                    self->m_NodeToClippingOrder[node] = entries[i].m_RenderKey;
+                }
             }
-            self->m_NodeToRenderOrder[node] = render_order++;
+            if (scope == 0x0 || scope->m_ColorMask != 0) {
+                self->m_NodeToRenderOrder[node] = entries[i].m_RenderKey;
+            }
         }
     }
 
@@ -237,6 +243,12 @@ public:
         order = it->second;
     }
 
+    void GetClippingOrder(dmGui::HNode node, uint32_t& order) {
+        RenderOrderMap::iterator it = m_NodeToClippingOrder.find(node);
+        ASSERT_TRUE(it != m_NodeToClippingOrder.end());
+        order = it->second;
+    }
+
     void AssertClipping(dmGui::HNode node, dmGui::HNode child, uint8_t ref, uint8_t mask, uint8_t write_mask, uint8_t child_ref, uint8_t child_mask, uint8_t child_write_mask) {
         dmGui::StencilScope state;
         GetStencilScope(node, state);
@@ -292,6 +304,14 @@ public:
     void AssertRenderOrder(dmGui::HNode a, dmGui::HNode b, dmGui::HNode c, dmGui::HNode d, dmGui::HNode e) {
         dmGui::HNode nodes[] = {a, b, c, d, e};
         AssertRenderOrder(nodes, 5);
+    }
+
+    void AssertClipperOrder(dmGui::HNode clipper, dmGui::HNode node) {
+        uint32_t clipping_order;
+        GetClippingOrder(clipper, clipping_order);
+        uint32_t render_order;
+        GetRenderOrder(node, render_order);
+        ASSERT_TRUE(clipping_order < render_order);
     }
 };
 
@@ -679,7 +699,7 @@ TEST_F(dmGuiClippingTest, TestRender_InvConsistency) {
  *
  * Expected order: a, b (b inherits layer1)
  */
-TEST_F(dmGuiClippingTest, TestRenderOrder_NullLayer) {
+TEST_F(dmGuiClippingTest, TestRenderOrder_InheritLayer) {
     dmGui::HNode a = AddBox("a");
     dmGui::HNode b = AddBox("b", a);
 
@@ -720,7 +740,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_Layers) {
  *
  * Expected order: a, b, c
  */
-TEST_F(dmGuiClippingTest, TestRenderOrder_Straight) {
+TEST_F(dmGuiClippingTest, TestRenderOrder_ClipperStraight) {
     dmGui::HNode a = AddClipperBox("a");
     dmGui::HNode b = AddBox("b", a);
     dmGui::HNode c = AddBox("c");
@@ -750,6 +770,9 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneLayer) {
     Render();
 
     AssertRenderOrder(a, b, c);
+
+    AssertClipperOrder(a, a);
+    AssertClipperOrder(a, b);
 }
 
 /**
@@ -758,7 +781,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneLayer) {
  *   - b
  * - c
  *
- * Expected order: c, a, b
+ * Expected order: a, b, c
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_OneClipperLayer) {
     dmGui::HNode a = AddClipperBox("a");
@@ -771,7 +794,116 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneClipperLayer) {
 
     Render();
 
-    AssertRenderOrder(c, a, b);
+    AssertRenderOrder(a, b, c);
+}
+
+/**
+ * Render order for the following hierarchy:
+ * - a (clipper, layer2)
+ *   - b (layer1)
+ * - c
+ *
+ * Expected order: b, a, c
+ */
+TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayers) {
+    dmGui::HNode a = AddClipperBox("a");
+    dmGui::HNode b = AddBox("b", a);
+    dmGui::HNode c = AddBox("c");
+
+    SetLayers("layer1", "layer2");
+
+    SetLayer(a, "layer2");
+    SetLayer(b, "layer1");
+
+    Render();
+
+    AssertRenderOrder(b, a, c);
+
+    AssertClipperOrder(a, a);
+    AssertClipperOrder(a, b);
+}
+
+/**
+ * Render order for the following hierarchy:
+ * - c
+ * - a (clipper, layer2)
+ *   - b (layer1)
+ *
+ * Expected order: c, b, a
+ */
+TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersAfter) {
+    dmGui::HNode c = AddBox("c");
+    dmGui::HNode a = AddClipperBox("a");
+    dmGui::HNode b = AddBox("b", a);
+
+    SetLayers("layer1", "layer2");
+
+    SetLayer(a, "layer2");
+    SetLayer(b, "layer1");
+
+    Render();
+
+    AssertRenderOrder(c, b, a);
+
+    AssertClipperOrder(a, a);
+    AssertClipperOrder(a, b);
+}
+
+/**
+ * Render order for the following hierarchy:
+ * - a (inv-clipper, layer2)
+ *   - b (layer1)
+ * - c
+ *
+ * Expected order: b, a, c
+ */
+TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersInvClipper) {
+    dmGui::HNode a = AddInvClipperBox("a");
+    dmGui::HNode b = AddBox("b", a);
+    dmGui::HNode c = AddBox("c");
+
+    SetLayers("layer1", "layer2");
+
+    SetLayer(a, "layer2");
+    SetLayer(b, "layer1");
+
+    Render();
+
+    AssertRenderOrder(b, a, c);
+
+    AssertClipperOrder(a, a);
+    AssertClipperOrder(a, b);
+}
+
+/**
+ * Render order for the following hierarchy:
+ * - z (clipper)
+ *   - a (clipper, layer2)
+ *     - b (layer1)
+ *   - c
+ *
+ * Expected order: z, b, a, c
+ */
+TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersSub) {
+    dmGui::HNode z = AddClipperBox("z");
+    dmGui::HNode a = AddClipperBox("a", z);
+    dmGui::HNode b = AddBox("b", a);
+    dmGui::HNode c = AddBox("c", z);
+
+    SetLayers("layer1", "layer2");
+
+    SetLayer(a, "layer2");
+    SetLayer(b, "layer1");
+
+    Render();
+
+    AssertRenderOrder(z, b, a, c);
+
+    AssertClipperOrder(z, a);
+    AssertClipperOrder(z, b);
+    AssertClipperOrder(z, c);
+    AssertClipperOrder(a, a);
+    AssertClipperOrder(a, b);
 }
 
 /**
@@ -782,9 +914,11 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneClipperLayer) {
  *   - d (layer1)
  * - e
  *
- * Expected order: e, d, a, c, b
+ * Expected order: c, b, d, a, e
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_Complex) {
+    SCOPED_TRACE("Complex");
+
     dmGui::HNode a = AddClipperBox("a");
     dmGui::HNode b = AddClipperBox("b", a);
     dmGui::HNode c = AddBox("c", b);
@@ -800,7 +934,13 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_Complex) {
 
     Render();
 
-    AssertRenderOrder(e, d, a, c, b);
+    AssertRenderOrder(c, b, d, a, e);
+
+    // Verify clipping order (color-less stencil rendering)
+    AssertClipperOrder(a, e);
+    AssertClipperOrder(a, d);
+    AssertClipperOrder(b, d);
+    AssertClipperOrder(b, c);
 }
 
 /**
