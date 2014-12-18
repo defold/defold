@@ -246,7 +246,7 @@ public class GuiNode extends Node implements Identifiable {
         }
     }
 
-    protected int calcRenderKey(int layer, int index, int invClipperId, int subLayer, int subIndex) {
+    protected static int calcRenderKey(int layer, int index, int invClipperId, int subLayer, int subIndex) {
         return RenderKeyRange.LAYER.shift(layer)
                 | RenderKeyRange.INDEX.shift(index)
                 | RenderKeyRange.INV_CLIPPER_ID.shift(invClipperId)
@@ -256,6 +256,10 @@ public class GuiNode extends Node implements Identifiable {
 
     public void setRenderKey(int layer, int index, int invClipperId, int subLayer, int subIndex) {
         this.renderKey = calcRenderKey(layer, index, invClipperId, subLayer, subIndex);
+    }
+
+    public void setRenderKey(int renderKey) {
+        this.renderKey = renderKey;
     }
 
     @Override

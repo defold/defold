@@ -154,90 +154,65 @@ public class GuiSceneNode extends ComponentTypeNode {
         }
     }
 
-    private static int invertClipperId(ClippingNode clipper) {
-        int refVal = clipper.getClippingState().stencilRefVal;
-        int invRefVal = 0;
-        for (int i = 0; i < 8; ++i) {
-            invRefVal |= ((refVal >> i) & 1) << (7-i);
-        }
-        return invRefVal;
-    }
+    private static class Scope {
+        int index;
+        int rootLayer;
+        int rootIndex;
 
-    private static class ClipperId {
-        int id;
-        public ClipperId(int id) {
-            this.id = id;
-        }
-
-        public void increment(int base) {
-            this.id = Math.min(255, base + 1);
+        public Scope(int layer, int index) {
+            this.index = 1;
+            this.rootLayer = layer;
+            this.rootIndex = index;
         }
 
         public void increment() {
-            increment(this.id + 1);
+            index = Math.min(255, index + 1);
         }
     }
 
-    private static int updateRenderOrderClipper(int parentLayer, int parentIndex, int offset, ClipperId lastClipperId, List<Node> nodes, Map<String, Integer> layersToIndexMap) {
-        int index = offset;
-        for (Node n : nodes) {
-            GuiNode node = (GuiNode)n;
-            int subLayer = node.getLayerIndex(layersToIndexMap);
-            if (node instanceof ClippingNode) {
-                ClippingNode clipper = (ClippingNode)node;
-                if (clipper.isClipping() && !clipper.getClippingInverted()) {
-                    ClipperId subInvClipperId = new ClipperId(invertClipperId(clipper));
-                    if (subInvClipperId.id == lastClipperId.id) {
-                        subInvClipperId.increment();
-                    }
-                    clipper.setClippingKey(clipper.calcRenderKey(parentLayer, parentIndex, subInvClipperId.id, 0, 0));
-                    node.setRenderKey(parentLayer, parentIndex, subInvClipperId.id, subLayer, 1);
-                    updateRenderOrderClipper(parentLayer, parentIndex, 2, subInvClipperId, clipper.getChildren(), layersToIndexMap);
-                    if (subLayer > 0) {
-                        node.setRenderKey(parentLayer, parentIndex, subInvClipperId.id, subLayer, 1);
-                    }
-                    lastClipperId.increment(subInvClipperId.id);
-                    continue;
-                } else {
-                    clipper.setClippingKey(clipper.calcRenderKey(parentLayer, parentIndex, lastClipperId.id, subLayer, index++));
-                }
-            }
-            node.setRenderKey(parentLayer, parentIndex, lastClipperId.id, subLayer, index++);
-            index = updateRenderOrderClipper(parentLayer, parentIndex, index, lastClipperId, node.getChildren(), layersToIndexMap);
+    private static int calcRenderKey(Scope scope, int layer, int index) {
+        if (scope != null) {
+            return GuiNode.calcRenderKey(scope.rootLayer, scope.rootIndex, scope.index, layer, index);
+        } else {
+            return GuiNode.calcRenderKey(layer, index, 0, 0, 0);
         }
-        return index;
     }
 
-    private static int updateRenderOrder(int offset, List<Node> nodes, Map<String, Integer> layersToIndexMap) {
+    private static int updateRenderOrder(int offset, Scope scope, List<Node> nodes, Map<String, Integer> layersToIndexMap) {
         int index = offset;
         for (Node n : nodes) {
             GuiNode node = (GuiNode)n;
             int layer = node.getLayerIndex(layersToIndexMap);
-            int parentIndex = index;
-            ++index;
             if (node instanceof ClippingNode) {
                 ClippingNode clipper = (ClippingNode)node;
-                if (clipper.isClipping() && !clipper.getClippingInverted()) {
-                    clipper.setClippingKey(clipper.calcRenderKey(layer, parentIndex, 0, 0, 0));
-                    ClipperId invClipperId = new ClipperId(invertClipperId(clipper));
-                    node.setRenderKey(layer, parentIndex, invClipperId.id, layer, 0);
-                    updateRenderOrderClipper(layer, parentIndex, 1, invClipperId, clipper.getChildren(), layersToIndexMap);
+                if (clipper.isClipping()) {
+                    boolean rootClipper = scope == null;
+                    Scope currentScope = scope;
+                    if (currentScope == null) {
+                        currentScope = new Scope(0, index++);
+                    } else {
+                        currentScope.increment();
+                    }
+                    clipper.setClippingKey(calcRenderKey(currentScope, 0, 0));
+                    node.setRenderKey(calcRenderKey(currentScope, layer, 1));
+                    updateRenderOrder(2, currentScope, clipper.getChildren(), layersToIndexMap);
                     if (layer > 0) {
-                        node.setRenderKey(layer, parentIndex, invClipperId.id, layer, 0);
+                        node.setRenderKey(calcRenderKey(currentScope, layer, 1));
+                    }
+                    if (!rootClipper) {
+                        currentScope.increment();
                     }
                     continue;
-                } else {
-                    clipper.setClippingKey(clipper.calcRenderKey(layer, parentIndex, 0, 0, 0));
                 }
             }
-            node.setRenderKey(layer, parentIndex, 0, 0, 0);
-            index = updateRenderOrder(index, node.getChildren(), layersToIndexMap);
+            node.setRenderKey(calcRenderKey(scope, layer, index++));
+            index = updateRenderOrder(index, scope, node.getChildren(), layersToIndexMap);
         }
         return index;
     }
 
     public void updateRenderOrder() {
         List<Node> children = this.nodesNode.getChildren();
-        updateRenderOrder(0, children, getLayerToIndexMap());
+        updateRenderOrder(0, null, children, getLayerToIndexMap());
     }
 }
