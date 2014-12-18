@@ -4,7 +4,8 @@
             [dynamo.property :refer :all]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [dynamo.util :refer :all]))
+            [dynamo.util :refer :all])
+  (:import [org.eclipse.swt SWT]))
 
 (defrecord StringPresenter []
   Presenter
@@ -43,9 +44,9 @@
   (control-for-property [_]
     {:type :composite
      :layout {:type :grid :num-columns 3 :margin-width 0}
-     :children [[:x {:type :text :listen #{:key-down :focus-out}}]
-                [:y {:type :text :listen #{:key-down :focus-out}}]
-                [:z {:type :text :listen #{:key-down :focus-out}}]]})
+     :children [[:x {:type :text :listen #{:key-down :focus-out} :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL}}]
+                [:y {:type :text :listen #{:key-down :focus-out} :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL}}]
+                [:z {:type :text :listen #{:key-down :focus-out} :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL}}]]})
   (settings-for-control [_ value]
     {:children [[:x {:text (str (nth value 0))}]
                 [:y {:text (str (nth value 1))}]
