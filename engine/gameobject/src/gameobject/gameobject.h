@@ -506,6 +506,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component world
+        void* m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -526,6 +528,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component world
+        void* m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
