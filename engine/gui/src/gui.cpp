@@ -660,15 +660,6 @@ namespace dmGui
         }
     }
 
-    static int InvertClipperId(InternalClippingNode* clipper) {
-        int ref_val = clipper->m_Scope.m_RefVal;
-        int inv_ref_val = 0;
-        for (int i = 0; i < 8; ++i) {
-            inv_ref_val |= ((ref_val >> i) & 1) << (7-i);
-        }
-        return inv_ref_val;
-    }
-
     static void CollectInvClippers(HScene scene, uint16_t start_index, dmArray<InternalClippingNode>& clippers, ScopeContext& scope_context, uint16_t parent_index) {
         uint32_t index = start_index;
         InternalClippingNode* parent = 0x0;
@@ -744,74 +735,70 @@ namespace dmGui
         }
     }
 
-    static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t root_layer, uint16_t root_index, uint8_t inv_clipper_id, uint16_t order, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
-        uint32_t index = start_index;
-        while (index != INVALID_INDEX)
-        {
-            InternalNode* n = &scene->m_Nodes[index];
-            if (n->m_Node.m_Enabled)
-            {
-                HNode node = GetNodeHandle(n);
-                RenderEntry entry;
-                entry.m_Node = node;
-                uint16_t layer_index = GetLayerIndex(scene, n);
-                assert(n->m_ClipperIndex != INVALID_INDEX);
-                InternalClippingNode* clipper = &clippers[n->m_ClipperIndex];
-                if (clipper->m_NodeIndex == index && !n->m_Node.m_ClippingInverted) {
-                    uint8_t sub_inv_clipper_id = InvertClipperId(clipper);
-                    entry.m_RenderKey = CalcRenderKey(root_layer, root_index, sub_inv_clipper_id, 0, 0);
-                    render_entries.Push(entry);
-                    if (n->m_Node.m_ClippingVisible) {
-                        entry.m_RenderKey = CalcRenderKey(root_layer, root_index, sub_inv_clipper_id, layer_index, 1);
-                        clipper->m_VisibleRenderKey = entry.m_RenderKey;
-                        render_entries.Push(entry);
-                    }
-                    CollectRenderEntries(scene, n->m_ChildHead, root_layer, root_index, sub_inv_clipper_id, 2, clippers, render_entries);
-                    ++order;
-                } else {
-                    entry.m_RenderKey = CalcRenderKey(root_layer, root_index, inv_clipper_id, layer_index, order++);
-                    render_entries.Push(entry);
-                    order = CollectRenderEntries(scene, n->m_ChildHead, root_layer, root_index, inv_clipper_id, order, clippers, render_entries);
-                }
-            }
-            index = n->m_NextIndex;
-        }
-        return order;
+    struct Scope {
+        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
+
+        uint16_t m_Index;
+        uint16_t m_RootLayer;
+        uint16_t m_RootIndex;
+    };
+
+    static void Increment(Scope* scope) {
+        scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
     }
 
-    static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
-        uint32_t index = start_index;
-        while (index != INVALID_INDEX)
-        {
+    static uint32_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
+        if (scope != 0x0) {
+            return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
+        } else {
+            return CalcRenderKey(layer, index, 0, 0, 0);
+        }
+    }
+
+    static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, Scope* scope, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
+        uint16_t index = start_index;
+        while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
-            if (n->m_Node.m_Enabled)
-            {
+            if (n->m_Node.m_Enabled) {
                 HNode node = GetNodeHandle(n);
-                RenderEntry entry;
-                entry.m_Node = node;
-                uint16_t layer_index = GetLayerIndex(scene, n);
-                bool handled = false;
+                uint16_t layer = GetLayerIndex(scene, n);
                 if (n->m_ClipperIndex != INVALID_INDEX) {
-                    InternalClippingNode* clipper = &clippers[n->m_ClipperIndex];
-                    if (clipper->m_NodeIndex == index && !n->m_Node.m_ClippingInverted) {
-                        handled = true;
-                        uint8_t inv_clipper_id = InvertClipperId(clipper);
-                        entry.m_RenderKey = CalcRenderKey(layer_index, order, 0, 0, 0);
-                        render_entries.Push(entry);
-                        if (n->m_Node.m_ClippingVisible) {
-                            entry.m_RenderKey = CalcRenderKey(layer_index, order, inv_clipper_id, layer_index, 1);
-                            clipper->m_VisibleRenderKey = entry.m_RenderKey;
-                            render_entries.Push(entry);
+                    InternalClippingNode& clipper = clippers[n->m_ClipperIndex];
+                    if (clipper.m_NodeIndex == index) {
+                        bool root_clipper = scope == 0x0;
+                        Scope tmp_scope(0, order);
+                        Scope* current_scope = scope;
+                        if (current_scope == 0x0) {
+                            current_scope = &tmp_scope;
+                            ++order;
+                        } else {
+                            Increment(current_scope);
                         }
-                        CollectRenderEntries(scene, n->m_ChildHead, layer_index, order, inv_clipper_id, 2, clippers, render_entries);
-                        ++order;
+                        uint32_t clipping_key = CalcRenderKey(current_scope, 0, 0);
+                        uint32_t render_key = CalcRenderKey(current_scope, layer, 1);
+                        CollectRenderEntries(scene, n->m_ChildHead, 2, current_scope, clippers, render_entries);
+                        if (layer > 0) {
+                            render_key = CalcRenderKey(current_scope, layer, 1);
+                        }
+                        clipper.m_VisibleRenderKey = render_key;
+                        RenderEntry entry;
+                        entry.m_Node = node;
+                        entry.m_RenderKey = clipping_key;
+                        render_entries.Push(entry);
+                        entry.m_RenderKey = render_key;
+                        render_entries.Push(entry);
+                        if (!root_clipper) {
+                            Increment(current_scope);
+                        }
+                        index = n->m_NextIndex;
+                        continue;
                     }
                 }
-                if (!handled) {
-                    entry.m_RenderKey = CalcRenderKey(layer_index, order++, 0, 0, 0);
-                    render_entries.Push(entry);
-                    order = CollectRenderEntries(scene, n->m_ChildHead, order, clippers, render_entries);
-                }
+                RenderEntry entry;
+                entry.m_Node = node;
+                entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
+                render_entries.Push(entry);
+                order = CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
             }
             index = n->m_NextIndex;
         }
@@ -821,7 +808,7 @@ namespace dmGui
     static void CollectNodes(HScene scene, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries)
     {
         CollectClippers(scene, scene->m_RenderHead, 0, 0, clippers, INVALID_INDEX);
-        CollectRenderEntries(scene, scene->m_RenderHead, 0, clippers, render_entries);
+        CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
     }
 
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)

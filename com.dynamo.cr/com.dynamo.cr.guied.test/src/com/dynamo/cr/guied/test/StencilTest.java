@@ -198,6 +198,10 @@ public class StencilTest extends AbstractNodeTest {
         }
     }
 
+    private void assertClipperOrder(ClippingNode clipper, GuiNode subNode) {
+        assertTrue(clipper.getClippingKey() < subNode.getRenderKey());
+    }
+
     private void assertClipping(ClippingNode node, int ref, int mask, int writeMask, int childRef, int childMask, int childWriteMask) {
         ClippingState state = node.getClippingState();
         assertThat(state.stencilRefVal, equalTo(ref));
@@ -584,7 +588,7 @@ public class StencilTest extends AbstractNodeTest {
      * Expected order: a, b (b inherits layer1)
      */
     @Test
-    public void testRenderOrder_NullLayer() throws Exception {
+    public void testRenderOrder_InheritLayer() throws Exception {
         BoxNode a = addBox("a");
         BoxNode b = addBox("b", a);
 
@@ -627,7 +631,7 @@ public class StencilTest extends AbstractNodeTest {
      * Expected order: a, b, c
      */
     @Test
-    public void testRenderOrder_Straight() throws Exception {
+    public void testRenderOrder_ClipperStraight() throws Exception {
         BoxNode a = addClipperBox("a");
         BoxNode b = addBox("b", a);
         BoxNode c = addBox("c");
@@ -635,6 +639,9 @@ public class StencilTest extends AbstractNodeTest {
         updateRenderOrder();
 
         assertRenderOrder(a, b, c);
+
+        assertClipperOrder(a, a);
+        assertClipperOrder(a, b);
     }
 
     /**
@@ -658,6 +665,9 @@ public class StencilTest extends AbstractNodeTest {
         updateRenderOrder();
 
         assertRenderOrder(a, b, c);
+
+        assertClipperOrder(a, a);
+        assertClipperOrder(a, b);
     }
 
     /**
@@ -666,7 +676,7 @@ public class StencilTest extends AbstractNodeTest {
      *   - b
      * - c
      *
-     * Expected order: c, a, b
+     * Expected order: a, b, c
      */
     @Test
     public void testRenderOrder_OneClipperLayer() throws Exception {
@@ -680,7 +690,123 @@ public class StencilTest extends AbstractNodeTest {
 
         updateRenderOrder();
 
-        assertRenderOrder(c, a, b);
+        assertRenderOrder(a, b, c);
+
+        assertClipperOrder(a, a);
+        assertClipperOrder(a, b);
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - a (clipper, layer2)
+     *   - b (layer1)
+     * - c
+     *
+     * Expected order: b, a, c
+     */
+    @Test
+    public void testRenderOrder_BothLayers() throws Exception {
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addBox("b", a);
+        BoxNode c = addBox("c");
+
+        setLayers("layer1", "layer2");
+
+        a.setLayer("layer2");
+        b.setLayer("layer1");
+
+        updateRenderOrder();
+
+        assertRenderOrder(b, a, c);
+
+        assertClipperOrder(a, a);
+        assertClipperOrder(a, b);
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - c
+     * - a (clipper, layer2)
+     *   - b (layer1)
+     *
+     * Expected order: c, b, a
+     */
+    @Test
+    public void testRenderOrder_BothLayersAfter() throws Exception {
+        BoxNode c = addBox("c");
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addBox("b", a);
+
+        setLayers("layer1", "layer2");
+
+        a.setLayer("layer2");
+        b.setLayer("layer1");
+
+        updateRenderOrder();
+
+        assertRenderOrder(c, b, a);
+
+        assertClipperOrder(a, a);
+        assertClipperOrder(a, b);
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - a (inv-clipper, layer2)
+     *   - b (layer1)
+     * - c
+     *
+     * Expected order: b, a, c
+     */
+    @Test
+    public void testRenderOrder_BothLayersInvClipper() throws Exception {
+        BoxNode a = addInvClipperBox("a");
+        BoxNode b = addBox("b", a);
+        BoxNode c = addBox("c");
+
+        setLayers("layer1", "layer2");
+
+        a.setLayer("layer2");
+        b.setLayer("layer1");
+
+        updateRenderOrder();
+
+        assertRenderOrder(b, a, c);
+
+        assertClipperOrder(a, a);
+        assertClipperOrder(a, b);
+    }
+
+    /**
+     * Render order for the following hierarchy:
+     * - z (clipper)
+     *   - a (clipper, layer2)
+     *     - b (layer1)
+     *   - c
+     *
+     * Expected order: z, b, a, c
+     */
+    @Test
+    public void testRenderOrder_BothLayersSub() throws Exception {
+        BoxNode z = addClipperBox("z");
+        BoxNode a = addClipperBox("a", z);
+        BoxNode b = addBox("b", a);
+        BoxNode c = addBox("c", z);
+
+        setLayers("layer1", "layer2");
+
+        a.setLayer("layer2");
+        b.setLayer("layer1");
+
+        updateRenderOrder();
+
+        assertRenderOrder(z, b, a, c);
+
+        assertClipperOrder(z, a);
+        assertClipperOrder(z, b);
+        assertClipperOrder(z, c);
+        assertClipperOrder(a, a);
+        assertClipperOrder(a, b);
     }
 
     /**
@@ -691,7 +817,7 @@ public class StencilTest extends AbstractNodeTest {
      *   - d (layer1)
      * - e
      *
-     * Expected order: e, c, b, d, a
+     * Expected order: c, b, d, a, e
      */
     @Test
     public void testRenderOrder_Complex() throws Exception {
@@ -710,13 +836,13 @@ public class StencilTest extends AbstractNodeTest {
 
         updateRenderOrder();
 
-        assertRenderOrder(e, c, b, d, a);
+        assertRenderOrder(c, b, d, a, e);
 
         // Verify clipping order (color-less stencil rendering)
-        assertTrue(a.getClippingKey() > e.getRenderKey());
-        assertTrue(a.getClippingKey() < d.getRenderKey());
-        assertTrue(b.getClippingKey() < d.getRenderKey());
-        assertTrue(b.getClippingKey() < c.getRenderKey());
+        assertClipperOrder(a, e);
+        assertClipperOrder(a, d);
+        assertClipperOrder(b, d);
+        assertClipperOrder(b, c);
     }
 
     /**
