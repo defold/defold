@@ -42,7 +42,6 @@
             [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-            [org.eclipse.swt.opengl GLData GLCanvas]
             [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
             [org.eclipse.core.commands ExecutionEvent]
             [com.sun.jna Pointer Native Callback]))

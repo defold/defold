@@ -3,8 +3,8 @@
             [dynamo.ui :refer :all]
             [clojure.test :refer :all])
   (:import [org.eclipse.swt SWT]
-           [org.eclipse.swt.widgets Event Composite Shell]
-           [org.eclipse.swt.events  MouseEvent]))
+           [org.eclipse.swt.widgets Event Shell]
+           [org.eclipse.swt.events MouseEvent]))
 
 (defn- mouse-event
   [modifiers button]
