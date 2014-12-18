@@ -19,6 +19,11 @@
 (defproperty Vec3 t/Vec3
   (default [0.0 0.0 0.0]))
 
+; TODO: this should be a tagged Vec3
+(defproperty Color [(s/one s/Int "r")
+                    (s/one s/Int "g")
+                    (s/one s/Int "b")])
+
 (defprotocol Presenter
   (control-for-property [this])
   (settings-for-control [this value])

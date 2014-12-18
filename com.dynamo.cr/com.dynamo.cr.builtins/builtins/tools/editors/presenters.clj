@@ -1,7 +1,7 @@
 (ns editors.presenters
   (:require [schema.core :as s]
             [dynamo.project :as p]
-            [dynamo.property :refer :all]
+            [dynamo.property :as dp :refer :all]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all])
@@ -61,6 +61,22 @@
           :focus-out (final-value new-value)
           (no-change))))))
 
+(defrecord ColorPresenter []
+  Presenter
+  (control-for-property [_]
+    {:type :composite
+     :layout {:type :grid :num-columns 2 :margin-width 0 :margin-height 0 :horizontal-spacing 0}
+     :children [[:label {:type :label}]
+                [:selector {:type :color-selector :listen #{:selection}}]]})
+  (settings-for-control [_ [r g b :as value]]
+    {:children [[:label {:text (format "#%02x%02x%02x" r g b)}]
+                [:selector {:color value}]]})
+  (on-event [_ path event value]
+    (case (:type event)
+      :selection (final-value (ui/get-color (:widget event)))
+      (no-change))))
+
 (p/register-presenter s/Str  (->StringPresenter))
 (p/register-presenter s/Int  (->IntPresenter))
 (p/register-presenter t/Vec3 (->Vec3Presenter))
+(p/register-presenter (t/property-value-type dp/Color) (->ColorPresenter))

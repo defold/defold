@@ -14,7 +14,8 @@
            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
            [org.eclipse.swt.layout FillLayout GridData GridLayout]
            [org.eclipse.swt SWT]
-           [com.dynamo.cr.properties StatusLabel]))
+           [com.dynamo.cr.properties StatusLabel]
+           [internal.ui ColorSelector]))
 
 (set! *warn-on-reflection* true)
 
@@ -88,7 +89,8 @@
 
 (def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
                            MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect
-                           FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse))
+                           FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse
+                           Selection DefaultSelection))
 
 (def event-type-map (clojure.set/map-invert event-map))
 
@@ -177,6 +179,13 @@
     (gen-state-changes #{:foreground :background :layout :layout-data :tooltip-text :listen :user-data} this props)
     this)
 
+  ColorSelector
+  (apply-properties [this props]
+    (gen-state-changes #{:layout-data :listen :user-data} this props)
+    (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
+    (when-let [[^int r ^int g ^int b] (:color props)] (.setColorValue this (RGB. r g b)))
+    this)
+
   Hyperlink
   (apply-properties [this props]
     (gen-state-changes #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text :listen :user-data} this props)
@@ -211,8 +220,6 @@
 
 (defmethod make-layout      :grid [control spec] (swt-grid-layout spec))
 (defmethod make-layout-data :grid [control spec] (swt-grid-data spec))
-
-
 
 (defmethod make-control :form
   [^FormToolkit toolkit parent [name props :as spec]]
@@ -253,6 +260,12 @@
     (apply-properties control props)
     {name {::widget control}}))
 
+(defmethod make-control :color-selector
+  [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control (ColorSelector. toolkit parent (swt-styles (:style props :none)))]
+    (apply-properties control props)
+    {name {::widget control}}))
+
 (defn widget
   [widget-tree path]
   (get-in widget-tree (concat path [::widget])))
@@ -265,6 +278,10 @@
 
 (defn get-text [^Text widget]
   (.getText widget))
+
+(defn get-color [^ColorSelector widget]
+  (let [c (.getColorValue widget)]
+    [(.-red c) (.-green c) (.-blue c)]))
 
 (defn shell [] (doto (Shell.) (.setLayout (FillLayout.))))
 
