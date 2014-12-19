@@ -126,7 +126,7 @@
                  sink (PipedInputStream. pipe)]
              (future
                (try
-                 (.create x sink IResource/FORCE nil)
+                 (.setContents x sink true false nil)
                  (catch Throwable t
                    (log/error :exception t :message (str "Cannot write output to " x)))))
              pipe))))
@@ -149,8 +149,8 @@
 
 (defmethod write-native-file ProjectPath
   [path ^bytes contents]
-  (ensure-parents (local-path (in-build-directory path)))
-  (with-open [out (io/output-stream (local-path (in-build-directory path)))]
+  (ensure-parents path)
+  (with-open [out (io/output-stream path)]
    (.write out contents)
    (.flush out)))
 

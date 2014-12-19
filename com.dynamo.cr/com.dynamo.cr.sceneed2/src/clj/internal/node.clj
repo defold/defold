@@ -31,6 +31,14 @@
 (defn node-output-types [v]      (-> v :descriptor :transform-types))
 (defn node-cached-outputs [v]    (-> v :descriptor :cached))
 
+(defn- abstract-function
+  [nodetype label type]
+  (fn [this g]
+    (throw (AssertionError.
+             (format "Node %d (type %s) inherits %s, but does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
+               (:_id this) (some-> this :descriptor :name) nodetype label
+               label type (some-> this :descriptor :name))))))
+
 (defn- find-enclosing-scope
   [tag node]
   (when-let [scope (iq/node-consuming node :self)]
@@ -109,6 +117,7 @@
 (defn- produce-value [node g label]
   (let [transform (get-in node [:descriptor :transforms label])]
     (assert transform (str "There is no transform " label " on node " (:_id node)))
+    (assert (not= ::abstract transform) )
     (metrics/node-value node label)
     (perform transform node g)))
 
@@ -158,7 +167,7 @@
   (zipmap (keys properties)
           (map t/default-property-value (vals properties))))
 
-(def ^:private property-flags #{:cached :on-update})
+(def ^:private property-flags #{:cached :on-update :abstract})
 (def ^:private option-flags #{:substitute-value})
 
 (defn parse-output-flags [args]
@@ -168,8 +177,8 @@
     (if-let [[arg & remainder] (seq args)]
       (cond
         (contains? property-flags arg) (recur (conj properties arg) options remainder)
-        (contains? option-flags arg) (do (assert remainder (str "Expected value for option " arg))
-                                       (recur properties (assoc options arg (first remainder)) (rest remainder)))
+        (contains? option-flags arg)   (do (assert remainder (str "Expected value for option " arg))
+                                         (recur properties (assoc options arg (first remainder)) (rest remainder)))
         :else {:properties properties :options options :remainder args})
       {:properties properties :options options :remainder args})))
 
@@ -207,12 +216,13 @@
            {:keys [properties options remainder]} (parse-output-flags remainder)
            [args-or-ref & remainder] remainder]
        (assert (not (keyword? output-type)) "The output type seems to be missing")
-       (assert (or (and (vector? args-or-ref) (seq remainder))
-                   (and (symbol? args-or-ref) (var? (resolve args-or-ref)) (empty? remainder)))
+       (assert (or (:abstract properties) (and (vector? args-or-ref) (seq remainder))
+                 (and (symbol? args-or-ref) (var? (resolve args-or-ref)) (empty? remainder)))
          (str "An output clause must have a name, optional flags, and type, before the fn-tail or function name."))
-       (let [production-fn (if (vector? args-or-ref)
-                             `(fn ~args-or-ref ~@remainder)
-                             (resolve args-or-ref))
+       (let [production-fn (cond
+                             (:abstract properties) (abstract-function prefix nm output-type)
+                             (vector? args-or-ref)  `(fn ~args-or-ref ~@remainder)
+                             :else                  (resolve args-or-ref))
              tform (merge {:production-fn production-fn}
                      (when (contains? options :substitute-value) {:substitute-value-fn (:substitute-value options)}))]
          (reduce

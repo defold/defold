@@ -138,12 +138,16 @@
              (set-if-present  :extrude-borders this)))))
 
 (defnk save-atlas-file
-  [this filename]
+  [this path]
   (let [text (get-node-value this :text-format)]
-    (write-native-text-file filename text)
+    (write-native-text-file path text)
     :ok))
 
 (defnode AtlasSave
+  (inherits Saveable)
+
+  (property path (s/protocol PathManipulation))
+
   (output save s/Keyword save-atlas-file)
   (output text-format s/Str get-text-format))
 
@@ -491,7 +495,7 @@
 
 (defn on-load
   [path ^AtlasProto$Atlas atlas-message]
-  (let [atlas    (message->node atlas-message)
+  (let [atlas    (message->node atlas-message :path path)
         compiler (add (make-texture-save
                        :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
                        :textureset-filename (in-build-directory (replace-extension path "texturesetc"))

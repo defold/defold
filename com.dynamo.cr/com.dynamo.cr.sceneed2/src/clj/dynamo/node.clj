@@ -113,7 +113,7 @@ it a message.
 
 This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
-  (process-one-event node (assoc body :type type)))
+  (process-one-event (ds/refresh node) (assoc body :type type)))
 
 (defn get-node-inputs
   "Sometimes a production function needs direct access to an input source.
@@ -176,3 +176,6 @@ This function should mainly be used to create 'plumbing'."
 (defnode DirtyTracking
   (property triggers Triggers (default [#'mark-dirty]))
   (property dirty s/Bool (default false)))
+
+(defnode Saveable
+  (output save s/Keyword :abstract))

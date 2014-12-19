@@ -117,6 +117,8 @@
                                                selection-node (build-selection-node editor-node [content-node])]
                                            (when ((t/inputs editor-node) :presenter-registry)
                                              (ds/connect project-node :presenter-registry editor-node :presenter-registry))
+                                           (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
+                                             (ds/connect content-node :save editor-node :saveable))
                                            (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
                                              (ds/connect content-node :dirty editor-node :dirty))
                                            [editor-node selection-node])))]

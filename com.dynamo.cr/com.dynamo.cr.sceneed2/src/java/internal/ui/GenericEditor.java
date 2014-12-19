@@ -90,7 +90,6 @@ public class GenericEditor extends EditorPart implements IDirtyable {
     @Override
     public void doSave(IProgressMonitor monitor) {
         dispatchMessage(behavior, SAVE, FILE, ((IFileEditorInput) getEditorInput()).getFile(), MONITOR, monitor);
-        dirty = false;
     }
 
     @Override
@@ -146,6 +145,12 @@ public class GenericEditor extends EditorPart implements IDirtyable {
     @Override
     public void markDirty() {
         dirty = true;
+        firePropertyChange(PROP_DIRTY);
+    }
+
+    @Override
+    public void markClean() {
+        dirty = false;
         firePropertyChange(PROP_DIRTY);
     }
 

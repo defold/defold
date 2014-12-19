@@ -172,11 +172,18 @@
   [presenter-registry]
   presenter-registry)
 
+(defnk passthrough-saveable
+  [saveable]
+  saveable)
+
 (n/defnode SceneEditor
   (inherits Scope)
   (inherits Renderer)
 
-  (input controller  s/Any)
+  (input controller s/Any)
+
+  (input  saveable  s/Keyword)
+  (output saveable  s/Keyword passthrough-saveable)
 
   (input  presenter-registry t/Registry)
   (output presenter-registry t/Registry passthrough-presenter-registry)
@@ -208,4 +215,10 @@
         :text-renderer (text-renderer Font/SANS_SERIF Font/BOLD 12))))
 
   (on :destroy
-    (ds/delete self)))
+    (ds/delete self))
+
+  (on :save
+    (let [result (n/get-node-value self :saveable)]
+      (when (= :ok result)
+        (when-let [tracker (:dirty-tracker self)]
+          (.markClean ^IDirtyable tracker))))))
