@@ -293,9 +293,6 @@ namespace dmRender
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
 
-            if (ro->m_SetStencilTest)
-                ApplyStencilTest(render_context, ro);
-
             if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
                 HMaterial material = ro->m_Material;
@@ -312,6 +309,9 @@ namespace dmRender
 
                 if (ro->m_SetBlendFactors)
                     dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
+
+                if (ro->m_SetStencilTest)
+                    ApplyStencilTest(render_context, ro);
 
                 for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
                 {
