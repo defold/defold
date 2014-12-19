@@ -9,8 +9,7 @@
             [schema.core :as s]))
 
 (n/defnode DummyNode
-  (property project (s/protocol t/NamingContext))
-  (property filename s/Str))
+  (property project (s/protocol t/NamingContext)))
 
 (defn- dummy
   [proj file]

@@ -13,6 +13,20 @@
     (keys m)
     (map f (vals m))))
 
+(defn map-diff
+  [m1 m2 sub-fn]
+  (reduce-kv
+    (fn [result k v]
+      (if (contains? result k)
+        (let [ov (get result k)]
+          (let [nv (sub-fn ov v)]
+            (if (empty? nv)
+              (dissoc result k)
+              (assoc result k nv))))
+        result))
+    m1
+    m2))
+
 (defn parse-number
   "Reads a number from a string. Returns nil if not a number."
   [s]

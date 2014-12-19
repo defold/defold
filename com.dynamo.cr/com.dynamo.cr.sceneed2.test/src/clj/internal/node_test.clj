@@ -283,26 +283,29 @@
         (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-world
-       (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))
-             _ (ds/transactional (ds/connect node0 :out-from-self node1 :in))]
+       (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))]
+         (ds/transactional
+           (ds/connect node0 :out-from-self node1 :in))
          (is (thrown? java.lang.AssertionError (in/get-node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-world
       (let [[node] (tx-nodes (make-dependency-node))]
-        (is (thrown? java.lang.AssertionError (ds/transactional
-                                                (ds/connect node :out-from-in node :in)))))))
+        (ds/transactional
+          (ds/connect node :out-from-in node :in))
+        (is (thrown? java.lang.AssertionError (in/get-node-value node :out-from-in))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-world
       (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))]
-        (is (thrown? java.lang.AssertionError (ds/transactional
-                                                (ds/connect node0 :out-from-in node1 :in)
-                                                (ds/connect node1 :out-from-in node0 :in)))))))
+        (ds/transactional
+          (ds/connect node0 :out-from-in node1 :in)
+          (ds/connect node1 :out-from-in node0 :in))
+        (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in))))))
   (testing "cycle of period 2 (multiple transactions)"
     (with-clean-world
-      (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))
-            _ (ds/transactional (ds/connect node0 :out-from-in node1 :in))]
-        (is (thrown? java.lang.AssertionError (ds/transactional
-                                                (ds/connect node1 :out-from-in node0 :in))))))))
+      (let [[node0 node1] (tx-nodes (make-dependency-node) (make-dependency-node))]
+        (ds/transactional (ds/connect node0 :out-from-in node1 :in))
+        (ds/transactional (ds/connect node1 :out-from-in node0 :in))
+        (is (thrown? java.lang.AssertionError (in/get-node-value node0 :out-from-in)))))))
 
 (deftest production-function-dependency-limit
   (with-clean-world

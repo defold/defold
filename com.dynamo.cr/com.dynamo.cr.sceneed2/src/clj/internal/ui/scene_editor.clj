@@ -163,17 +163,14 @@
 
 (defn- mark-editor-dirty
   [graph self transaction]
-  (when (and (ds/is-modified? transaction self :dirty) (in/get-inputs self graph :dirty))
+  (when (and (ds/is-modified? transaction self)
+          (in/get-inputs self graph :dirty))
     (when-let [tracker (:dirty-tracker self)]
       (.markDirty ^IDirtyable tracker))))
 
 (defnk passthrough-presenter-registry
   [presenter-registry]
   presenter-registry)
-
-(defnk passthrough-dirty-flag
-  [dirty]
-  dirty)
 
 (n/defnode SceneEditor
   (inherits Scope)
@@ -185,12 +182,14 @@
   (output presenter-registry t/Registry passthrough-presenter-registry)
 
   (input dirty s/Bool)
-  (output dirty s/Bool passthrough-dirty-flag)
 
   (property triggers t/Triggers (default [#'n/inject-new-nodes #'send-view-scope-message #'mark-editor-dirty]))
 
   (on :init
-    (ds/set-property self :dirty-tracker (:dirty-tracker event)))
+    (let [tracker (:dirty-tracker event)]
+      (when (in/get-inputs self (-> self :world-ref deref :graph) :dirty)
+        (.markDirty ^IDirtyable tracker))
+      (ds/set-property self :dirty-tracker tracker)))
 
   (on :create
     (let [canvas        (glcanvas (:parent event))

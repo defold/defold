@@ -18,9 +18,12 @@
 
 (defn dummy-output [& _] :ok)
 
+(defnk upcase-a [a] (.toUpperCase a))
+
 (n/defnode Resource
   (input a String)
-  (output b s/Keyword dummy-output))
+  (output b s/Keyword dummy-output)
+  (output c String upcase-a))
 
 (n/defnode Downstream
   (input consumer String))
@@ -74,25 +77,116 @@
           (is (empty? (lg/targets after (:_id resource1) :b)))
           (is (contains? (:nodes-removed tx-result) (:_id resource2))))))))
 
-(def trigger-called (atom 0))
+(defn track-trigger-activity [graph self transaction]
+  (swap! (:tracking self)
+    (fn [m]
+      {:was-added?    (ds/is-added? transaction self)
+       :was-modified? (ds/is-modified? transaction self)
+       :was-removed?  (ds/is-removed? transaction self)
+       :call-count    (inc (get m :call-count 0))})))
 
-(defn count-calls [& _]
-  (swap! trigger-called inc))
+(n/defnode StringSource
+  (property label s/Str (default "a-string")))
 
-(n/defnode CountingScope
-  (inherits Scope)
-  (property triggers t/Triggers (default [#'count-calls])))
+(defnk passthrough-label
+  [label]
+  label)
 
-(deftest trigger-runs-once
-  (testing "attach one node output to input on another node"
+(n/defnode Relay
+  (input label s/Str)
+  (output label s/Str passthrough-label))
+
+(n/defnode TriggerExecutionCounter
+  (input downstream s/Any)
+  (property any-property s/Bool)
+  (property triggers t/Triggers (default [#'track-trigger-activity])))
+
+(defn alter-output [graph self transaction]
+  (when (and (ds/is-modified? transaction self) (> 5 (:automatic-property self)))
+    (ds/update-property self :automatic-property inc)))
+
+(n/defnode MutatesByTrigger
+  (property automatic-property s/Int (default 0))
+  (property triggers t/Triggers (default [#'alter-output])))
+
+(deftest trigger-activation
+  (testing "runs when node is added"
     (with-clean-world
-      (reset! trigger-called 0)
-      (let [consumer (ds/transactional
-                      (ds/in
-                       (ds/add (make-counting-scope))
-                       (ds/add (make-downstream))
-                       (ds/add (make-resource))))]
-        (is (= 1 @trigger-called))))))
+      (let [tracker      (atom {})
+            counter      (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            after-adding @tracker]
+        (is (= {:call-count 1 :was-added? true :was-modified? true :was-removed? false} after-adding)))))
+
+  (testing "runs when node is altered in a way that affects an output"
+    (with-clean-world
+      (let [tracker          (atom {})
+            counter          (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            before-updating  @tracker
+            _                (ds/transactional (ds/set-property counter :any-property true))
+            after-updating   @tracker]
+        (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-updating))
+        (is (= {:call-count 2 :was-added? false :was-modified? true :was-removed? false} after-updating)))))
+
+  (testing "runs when node is altered in a way that doesn't affects an output"
+    (with-clean-world
+      (let [tracker          (atom {})
+            counter          (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            before-updating  @tracker
+            _                (ds/transactional (ds/set-property counter :dynamic-property true))
+            after-updating   @tracker]
+        (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-updating))
+        (is (= {:call-count 2 :was-added? false :was-modified? true :was-removed? false} after-updating)))))
+
+  (testing "runs when node is removed"
+    (with-clean-world
+      (let [tracker         (atom {})
+            counter         (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            before-removing @tracker
+            _               (ds/transactional (ds/delete counter))
+            after-removing  @tracker]
+        (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-removing))
+        (is (= {:call-count 2 :was-added? false :was-modified? true :was-removed? true} after-removing)))))
+
+  (testing "runs when an upstream output changes"
+    (with-clean-world
+      (let [tracker         (atom {})
+            counter         (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            before-updating @tracker
+            [s r1 r2 r3]    (tx-nodes (make-string-source) (make-relay) (make-relay) (make-relay))
+            _               (ds/transactional
+                              (ds/connect s :label r1 :label)
+                              (ds/connect r1 :label r2 :label)
+                              (ds/connect r2 :label r3 :label)
+                              (ds/connect r3 :label counter :downstream))
+            _               (ds/transactional (ds/set-property s :label "a different label"))
+            after-updating  @tracker]
+        (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-updating))
+        (is (= {:call-count 3 :was-added? false :was-modified? true :was-removed? false} after-updating)))))
+
+  (testing "One node may activate another node in a trigger"
+    (with-clean-world
+      (let [tracker            (atom {})
+            counter            (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            mutator            (ds/transactional (ds/add (make-mutates-by-trigger)))
+            before-transaction @tracker]
+
+        (is (= 1 (:call-count before-transaction)))
+
+        (ds/transactional (ds/connect mutator :automatic-property counter :downstream))
+
+        (let [after-transaction  @tracker]
+          (is (= 2 (:call-count after-transaction)))
+          (is (not (:was-added? after-transaction)))
+          (is (:was-modified? after-transaction))
+
+          (ds/transactional
+            (ds/set-property counter :dynamic-property true)
+            (ds/set-property mutator :any-change true))
+
+          (let [after-trigger @tracker]
+            (is (= 3 (:call-count after-trigger)))
+            (is (not (:was-added? after-trigger)))
+            (is (:was-modified? after-trigger))))))))
 
 (n/defnode NamedThing
   (property name s/Str))

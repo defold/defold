@@ -3,11 +3,22 @@
             [clojure.core.async :as a]
             [clojure.core.cache :as cache]
             [dynamo.types :as t]
+            [dynamo.util :refer :all]
             [internal.bus :as bus]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [service.log :as log]))
 
+
+; ---------------------------------------------------------------------------
+; Configuration parameters
+; ---------------------------------------------------------------------------
+(def maximum-retrigger-count 50)
+(def maximum-graph-coloring-recursion 1000)
+
+; ---------------------------------------------------------------------------
+; Internal state
+; ---------------------------------------------------------------------------
 (def ^:dynamic *scope* nil)
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger
@@ -126,17 +137,15 @@
 ; ---------------------------------------------------------------------------
 (defn- pairs [m] (for [[k vs] m v vs] [k v]))
 
-(defn- mark-dirty
+(defn- mark-activated
   [{:keys [graph] :as ctx} node-id input-label]
   (let [dirty-deps (get (t/output-dependencies (dg/node graph node-id)) input-label)]
-    (if (empty? dirty-deps)
-      ctx
-      (update-in ctx [:outputs-modified node-id] set/union dirty-deps))))
+    (update-in ctx [:nodes-triggered node-id] set/union dirty-deps)))
 
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys outputs-modified world-ref new-event-loops nodes-added] :as ctx}
+  [{:keys [graph tempids cache-keys nodes-triggered world-ref new-event-loops nodes-added] :as ctx}
    {:keys [node]}]
   (let [next-id     (dg/next-node graph)
         full-node   (assoc node :_id next-id :world-ref world-ref) ;; TODO: can we remove :world-ref from nodes?
@@ -148,14 +157,16 @@
       :tempids             (assoc tempids (:_id node) next-id)
       :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
-      :outputs-modified    (merge-with set/union outputs-modified {next-id (t/outputs full-node)}))))
+      :nodes-triggered     (merge-with set/union nodes-triggered {next-id (t/outputs full-node)}))))
 
 (defmethod perform :delete-node
-  [{:keys [graph outputs-modified nodes-removed] :as ctx} {:keys [node-id]}]
+  [{:keys [graph nodes-removed] :as ctx} {:keys [node-id]}]
+  (when-not (dg/node graph (resolve-tempid ctx node-id))
+    (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
         node        (dg/node graph node-id)
         all-outputs (concat (t/outputs node) (keys (t/properties node)))
-        ctx         (reduce (fn [ctx out] (mark-dirty ctx node-id out)) ctx all-outputs)]
+        ctx         (reduce (fn [ctx out] (mark-activated ctx node-id out)) ctx all-outputs)]
     (assoc ctx
       :graph         (dg/remove-node graph node-id)
       :nodes-removed (assoc nodes-removed node-id node))))
@@ -169,7 +180,7 @@
     (if (= old-value new-value)
       ctx
       (-> ctx
-         (mark-dirty node-id property)
+         (mark-activated node-id property)
          (assoc :graph new-graph)))))
 
 (defmethod perform :connect
@@ -177,7 +188,7 @@
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
-        (mark-dirty target-id target-label)
+        (mark-activated target-id target-label)
         (assoc :graph (lg/connect graph source-id source-label target-id target-label)))))
 
 (defmethod perform :disconnect
@@ -185,7 +196,7 @@
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
-        (mark-dirty target-id target-label)
+        (mark-activated target-id target-label)
         (assoc :graph (lg/disconnect graph source-id source-label target-id target-label)))))
 
 (defmethod perform :message
@@ -207,25 +218,22 @@
         x (f n)]
     [n x]))
 
-(defn- downstream-dirties
+(defn- downstream-activation
   [{:keys [graph] :as ctx} outputs]
   (->> (pairs outputs)
        (mapcat #(apply lg/targets graph %))
-       (reduce #(apply mark-dirty %1 %2) ctx)
-       :outputs-modified))
+       (reduce #(apply mark-activated %1 %2) ctx)))
 
-(defn- trace-dirty-outputs
-  [ctx]
-  (loop [ctx                  ctx
-         next-batch           (:outputs-modified ctx)
-         iterations-remaining 1000]
-    (let [next-batch (downstream-dirties (select-keys ctx [:graph]) next-batch)
-          ctx        (update-in ctx [:outputs-modified] #(merge-with set/union % next-batch))]
+(defn- trace-trigger-activation
+  ([ctx]
+    (trace-trigger-activation ctx (:nodes-triggered ctx) maximum-graph-coloring-recursion))
+  ([ctx next-batch iterations-remaining]
+    (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
+    (let [new-ctx    (downstream-activation ctx next-batch)
+          next-batch (map-diff (:nodes-triggered new-ctx) (:nodes-triggered ctx) set/difference)]
       (if (empty? next-batch)
-        ctx
-        (do
-          (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
-          (recur ctx next-batch (dec iterations-remaining)))))))
+        new-ctx
+        (recur new-ctx next-batch (dec iterations-remaining))))))
 
 (defn- determine-obsoletes
   [{:keys [graph outputs-modified cache-keys] :as ctx}]
@@ -252,55 +260,61 @@
                    :when (t/auto-update? node v)]
                [node v])))
 
-(defn start-event-loop!
-  [world-ref graph id]
-  (let [in (bus/subscribe (:message-bus @world-ref) id)]
-    (binding [*transaction* (->TransactionSeed world-ref)]
-      (a/go-loop []
-        (when-let [msg (a/<! in)]
-          (try
-            (t/process-one-event (dg/node graph id) msg)
-            (catch Exception ex
-              (log/error :message "Error in node event loop" :exception ex)))
-          (recur))))))
-
-(defn- start-event-loops
-  [{:keys [world-ref graph new-event-loops previously-started] :as ctx}]
-  (let [loops-to-start (set/difference new-event-loops previously-started)]
-    (doseq [l loops-to-start]
-      (start-event-loop! world-ref graph l))
-  (update-in ctx [:previously-started] set/union loops-to-start)))
-
 (deftype TriggerReceiver [transaction-context]
   TransactionReceiver
-  (tx-merge [this steps] (update-in transaction-context [:pending] conj steps)))
+  (tx-merge [this steps]
+    (cond-> transaction-context
+      (seq steps)
+      (update-in [:pending] conj steps))))
 
 (defn- process-triggers
-  [{:keys [graph outputs-modified previously-triggered] :as ctx}]
-  (let [new-or-changed (zipmap (keys outputs-modified) (map #(dg/node graph %) (keys outputs-modified)))
-        all-activated  (merge new-or-changed (:nodes-removed ctx))
-        all-activated  (apply dissoc all-activated previously-triggered)
+  [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-removed] :as ctx}]
+  (let [all-activated  (concat (filter identity (map #(dg/node graph %) (keys nodes-triggered))) (vals nodes-removed))
+        invoke-trigger (fn [csub [n tr]]
+                         (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
+                           (tr (:graph csub) n csub)
+                           (tx-apply *transaction*)))
+        trigger-ctx    (-> ctx
+                         (update-in [:nodes-added]      set/intersection (into #{} (keys nodes-triggered)))
+                         (update-in [:nodes-removed]    select-keys (keys nodes-triggered))
+                         (update-in [:outputs-modified] select-keys (keys nodes-triggered)))
+        trigger-ctx    (reduce invoke-trigger trigger-ctx (pairwise :triggers all-activated))]
+    (assoc ctx :pending (:pending trigger-ctx))))
 
-        next-ctx       (reduce (fn [csub [[n-id n] tr]]
-                                 (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
-                                   (tr (:graph csub) n csub)
-                                   (tx-apply *transaction*)))
-                         ctx
-                         (pairwise (comp :triggers second) all-activated))]
-    (update-in next-ctx [:previously-triggered] set/union (into #{} (keys all-activated)))))
-
-(defn- transact*
+(defn- mark-outputs-modified
   [ctx]
-  (let [tx-list (first (:pending ctx))]
-    (-> (update-in ctx [:pending] next)
-      (apply-tx tx-list)
-      trace-dirty-outputs
-      determine-obsoletes
-      dispose-obsoletes
-      evict-obsolete-caches
-      determine-autoupdates
-      start-event-loops
-      process-triggers)))
+  (update-in ctx [:outputs-modified] #(merge-with set/union % (:nodes-triggered ctx))))
+
+(defn- one-transaction-pass
+  [ctx tx-list]
+  (-> (assoc ctx :nodes-triggered {})
+    (apply-tx tx-list)
+    trace-trigger-activation
+    mark-outputs-modified
+    process-triggers
+    (dissoc :nodes-triggered)))
+
+(defn- exhaust-actions-and-triggers
+  ([ctx]
+    (exhaust-actions-and-triggers ctx maximum-retrigger-count))
+  ([{[tx-list & txs] :pending :as ctx} retrigger-count]
+    (assert (< 0 retrigger-count) "Maximum number of trigger executions reached; probable infinite recursion.")
+    (if (empty? tx-list)
+      ctx
+      (recur (one-transaction-pass (assoc ctx :pending txs) tx-list) (dec retrigger-count)))))
+
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-removed :outputs-modified])
+
+(defn- finalize-update
+  "Makes the transacted graph the new value of the world-state graph.
+   Likewise for cache and cache-keys."
+  [{:keys [graph cache cache-keys world-time] :as ctx}]
+  (update-in ctx [:world] assoc
+    :graph      graph
+    :cache      cache
+    :cache-keys cache-keys
+    :world-time (inc world-time)
+    :last-tx    (assoc (select-keys ctx tx-report-keys) :status :ok)))
 
 (defn- new-transaction-context
   [world-ref txs]
@@ -310,46 +324,53 @@
      :graph               (:graph current-world)
      :cache               (:cache current-world)
      :cache-keys          (:cache-keys current-world)
-     :outputs-modified    {}
      :world-time          (:world-time current-world)
      :expired-outputs     []
      :tempids             {}
      :new-event-loops     #{}
      :nodes-added         #{}
+     :nodes-modified      #{}
      :nodes-removed       {}
      :messages            []
      :pending             [txs]}))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-removed :outputs-modified])
+(defn start-event-loop!
+  [world-ref id]
+  (let [in (bus/subscribe (:message-bus @world-ref) id)]
+    (binding [*transaction* (->TransactionSeed world-ref)]
+      (a/go-loop []
+        (when-let [msg (a/<! in)]
+          (try
+            (let [n (dg/node (:graph @world-ref) id)]
+              (when-not n
+                (log/error :message "Nil node in event loop"  :id id :chan-msg msg)))
+            (t/process-one-event (dg/node (:graph @world-ref) id) msg)
+            (catch Exception ex
+              (log/error :message "Error in node event loop" :exception ex)))
+          (recur))))))
 
-(defn- finalize-update
-  "Makes the transacted graph the new value of the world-state graph.
-   Likewise for cache and cache-keys."
-  [{:keys [graph cache cache-keys world-time] :as ctx} completed?]
-  (if-not completed?
-    (update-in ctx [:world] assoc :last-tx {:status :aborted})
-    (update-in ctx [:world] assoc
-            :graph      graph
-            :cache      cache
-            :cache-keys cache-keys
-            :world-time (inc world-time)
-            :last-tx    (assoc (select-keys ctx tx-report-keys) :status :ok))))
-
-(defn- run-to-completion
-  [w ctx depth]
-  (if (and (seq (:pending ctx)) (< depth 50))
-    (recur w (transact* ctx) (inc depth))
-    (finalize-update ctx (< depth 50))))
+(defn- transact*
+  [world-ref ctx]
+  (dosync
+    (let [txr (-> ctx
+                 exhaust-actions-and-triggers
+                 determine-obsoletes
+                 dispose-obsoletes
+                 evict-obsolete-caches
+                 determine-autoupdates
+                 finalize-update)]
+      (ref-set world-ref (:world txr))
+      txr)))
 
 (defn transact
   [world-ref txs]
-  (dosync
-    (let [{:keys [world messages]} (run-to-completion @world-ref (new-transaction-context world-ref txs) 0)]
-      (ref-set world-ref world)
-      (when (= :ok (-> world :last-tx :status))
-        (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false)
-        (bus/publish-all (:message-bus world) messages))
-      (:last-tx world))))
+  (let [{:keys [world messages new-event-loops] :as tx-result} (transact* world-ref (new-transaction-context world-ref txs))]
+    (doseq [l new-event-loops]
+      (start-event-loop! world-ref l))
+    (when (= :ok (-> world :last-tx :status))
+      (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false)
+      (bus/publish-all (:message-bus world) messages))
+    (:last-tx world)))
 
 ; ---------------------------------------------------------------------------
 ; Documentation
