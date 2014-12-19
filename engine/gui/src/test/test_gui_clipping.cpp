@@ -1019,6 +1019,108 @@ TEST_F(dmGuiClippingTest, TestOverflowInverteds) {
     Render();
 }
 
+/**
+ * Verify an overflow.
+ *
+ * - a (2 bit)
+ *   - b (inv, 1 bits)
+ *     - c (inv, 1 bit)
+ *       - d (2 bit)
+ *       - e (inv, 1 bit)
+ *         - f (2 bit)
+ *           - g (inv, 1 bit)
+ *     - h (inv, 1 bit)
+ * - i (2 bit)
+ *   - j (inv, 1 bit)
+ *     - k (inv, 1 bit)
+ *
+ * (g) will not fit
+ */
+TEST_F(dmGuiClippingTest, TestOverflowClearStart) {
+    dmGui::HNode a = AddClipperBox("a");
+    dmGui::HNode b = AddInvClipperBox("b", a);
+    dmGui::HNode c = AddInvClipperBox("c", b);
+    dmGui::HNode d = AddClipperBox("d", c);
+    dmGui::HNode e = AddInvClipperBox("e", c);
+    dmGui::HNode f = AddClipperBox("f", e);
+    dmGui::HNode g = AddInvClipperBox("g", f);
+    dmGui::HNode h = AddInvClipperBox("h", b);
+    dmGui::HNode i = AddClipperBox("i");
+    dmGui::HNode j = AddInvClipperBox("j", i);
+    dmGui::HNode k = AddInvClipperBox("k", j);
+
+    dmLogInfo("Expected warning in test");
+    Render();
+}
+
+/**
+ * Verify an overflow.
+ *
+ * - a (2 bit)
+ *   - b (inv, 1 bits)
+ *     - c (inv, 1 bit)
+ *       - d (2 bit)
+ *       - e (inv, 1 bit)
+ *         - f (2 bit)
+ *           - g (1 bit)
+ *     - h (inv, 1 bit)
+ * - i (2 bit)
+ *   - j (inv, 1 bit)
+ *     - k (inv, 1 bit)
+ *
+ * (g) will not fit.
+ */
+TEST_F(dmGuiClippingTest, TestOverflowClearStart2) {
+    dmGui::HNode a = AddClipperBox("a");
+    dmGui::HNode b = AddInvClipperBox("b", a);
+    dmGui::HNode c = AddInvClipperBox("c", b);
+    dmGui::HNode d = AddClipperBox("d", c);
+    dmGui::HNode e = AddInvClipperBox("e", c);
+    dmGui::HNode f = AddClipperBox("f", e);
+    dmGui::HNode g = AddClipperBox("g", f);
+    dmGui::HNode h = AddInvClipperBox("h", b);
+    dmGui::HNode i = AddClipperBox("i");
+    dmGui::HNode j = AddInvClipperBox("j", i);
+    dmGui::HNode k = AddInvClipperBox("k", j);
+
+    dmLogInfo("Expected warning in test");
+    Render();
+}
+
+/**
+ * Verify an overflow.
+ *
+ * - i (2 bit)
+ *   - j (inv, 1 bit)
+ *     - k (inv, 1 bit)
+ * - a (2 bit)
+ *   - b (inv, 1 bits)
+ *     - c (inv, 1 bit)
+ *       - d (2 bit)
+ *       - e (inv, 1 bit)
+ *         - f (2 bit)
+ *           - g (inv, 1 bit)
+ *     - h (inv, 1 bit)
+ *
+ * (g) will not fit
+ */
+TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
+    dmGui::HNode i = AddClipperBox("i");
+    dmGui::HNode j = AddInvClipperBox("j", i);
+    dmGui::HNode k = AddInvClipperBox("k", j);
+    dmGui::HNode a = AddClipperBox("a");
+    dmGui::HNode b = AddInvClipperBox("b", a);
+    dmGui::HNode c = AddInvClipperBox("c", b);
+    dmGui::HNode d = AddClipperBox("d", c);
+    dmGui::HNode e = AddInvClipperBox("e", c);
+    dmGui::HNode f = AddClipperBox("f", e);
+    dmGui::HNode g = AddInvClipperBox("g", f);
+    dmGui::HNode h = AddInvClipperBox("h", b);
+
+    dmLogInfo("Expected warning in test");
+    Render();
+}
+
 #undef BITS
 
 int main(int argc, char **argv)

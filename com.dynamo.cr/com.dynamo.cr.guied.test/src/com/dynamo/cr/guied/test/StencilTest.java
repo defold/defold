@@ -1069,4 +1069,121 @@ public class StencilTest extends AbstractNodeTest {
         setNodeProperty(last, "clippingMode", ClippingMode.CLIPPING_MODE_NONE);
         assertTrue(last.getStatus().isOK());
     }
+
+    /**
+     * Verify that an overflow is handled with a clear.
+     *
+     * *NOTE* This is an editor specific test.
+     *
+     * - a (2 bit)
+     *   - b (inv, 1 bits)
+     *     - c (inv, 1 bit)
+     *       - d (2 bit)
+     *       - e (inv, 1 bit)
+     *         - f (2 bit)
+     *           - g (inv, 1 bit)
+     *     - h (inv, 1 bit)
+     * - i (2 bit)
+     *   - j (inv, 1 bit)
+     *     - k (inv, 1 bit)
+     *
+     * (g) will not fit, but should trigger a clear between (a) and (i), thus making it fit.
+     * This is a feature of the editor, assuming that nodes will be enabled/disabled at run-time.
+     * Otherwise the user will see a warning.
+     */
+    @SuppressWarnings("unused")
+    @Test
+    public void testOverflowClearStart() throws Exception {
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addInvClipperBox("b", a);
+        BoxNode c = addInvClipperBox("c", b);
+        BoxNode d = addClipperBox("d", c);
+        BoxNode e = addInvClipperBox("e", c);
+        BoxNode f = addClipperBox("f", e);
+        BoxNode g = addInvClipperBox("g", f);
+        BoxNode h = addInvClipperBox("h", b);
+        BoxNode i = addClipperBox("i");
+        BoxNode j = addInvClipperBox("j", i);
+        BoxNode k = addInvClipperBox("k", j);
+
+        assertTrue(g.getStatus().isOK());
+    }
+
+    /**
+     * Verify that an overflow is handled with a clear.
+     *
+     * *NOTE* This is an editor specific test.
+     *
+     * - a (2 bit)
+     *   - b (inv, 1 bits)
+     *     - c (inv, 1 bit)
+     *       - d (2 bit)
+     *       - e (inv, 1 bit)
+     *         - f (2 bit)
+     *           - g (1 bit)
+     *     - h (inv, 1 bit)
+     * - i (2 bit)
+     *   - j (inv, 1 bit)
+     *     - k (inv, 1 bit)
+     *
+     * (g) will not fit, but should trigger a clear between (a) and (i), thus making it fit.
+     * This is a feature of the editor, assuming that nodes will be enabled/disabled at run-time.
+     * Otherwise the user will see a warning.
+     */
+    @SuppressWarnings("unused")
+    @Test
+    public void testOverflowClearStart2() throws Exception {
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addInvClipperBox("b", a);
+        BoxNode c = addInvClipperBox("c", b);
+        BoxNode d = addClipperBox("d", c);
+        BoxNode e = addInvClipperBox("e", c);
+        BoxNode f = addClipperBox("f", e);
+        BoxNode g = addClipperBox("g", f);
+        BoxNode h = addInvClipperBox("h", b);
+        BoxNode i = addClipperBox("i");
+        BoxNode j = addInvClipperBox("j", i);
+        BoxNode k = addInvClipperBox("k", j);
+
+        assertTrue(g.getStatus().isOK());
+    }
+
+    /**
+     * Verify that an overflow is handled with a clear.
+     *
+     * *NOTE* This is an editor specific test.
+     *
+     * - i (2 bit)
+     *   - j (inv, 1 bit)
+     *     - k (inv, 1 bit)
+     * - a (2 bit)
+     *   - b (inv, 1 bits)
+     *     - c (inv, 1 bit)
+     *       - d (2 bit)
+     *       - e (inv, 1 bit)
+     *         - f (2 bit)
+     *           - g (inv, 1 bit)
+     *     - h (inv, 1 bit)
+     *
+     * (g) will not fit, but should trigger a clear between (a) and (i), thus making it fit.
+     * This is a feature of the editor, assuming that nodes will be enabled/disabled at run-time.
+     * Otherwise the user will see a warning.
+     */
+    @SuppressWarnings("unused")
+    @Test
+    public void testOverflowClearEnd() throws Exception {
+        BoxNode i = addClipperBox("i");
+        BoxNode j = addInvClipperBox("j", i);
+        BoxNode k = addInvClipperBox("k", j);
+        BoxNode a = addClipperBox("a");
+        BoxNode b = addInvClipperBox("b", a);
+        BoxNode c = addInvClipperBox("c", b);
+        BoxNode d = addClipperBox("d", c);
+        BoxNode e = addInvClipperBox("e", c);
+        BoxNode f = addClipperBox("f", e);
+        BoxNode g = addInvClipperBox("g", f);
+        BoxNode h = addInvClipperBox("h", b);
+
+        assertTrue(g.getStatus().isOK());
+    }
 }

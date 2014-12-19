@@ -610,8 +610,8 @@ namespace dmGui
                 | (sub_index << SUB_INDEX_SHIFT);
     }
 
-    static void UpdateScope(InternalNode* node, StencilScope& scope, StencilScope& child_scope, const StencilScope* parent_scope, uint16_t index, uint16_t clipper_count, uint16_t bit_field_offset) {
-        int bit_range = CalcBitRange(clipper_count);
+    static void UpdateScope(InternalNode* node, StencilScope& scope, StencilScope& child_scope, const StencilScope* parent_scope, uint16_t index, uint16_t non_inv_clipper_count, uint16_t inv_clipper_count, uint16_t bit_field_offset) {
+        int bit_range = CalcBitRange(non_inv_clipper_count);
         // state used for drawing the clipper
         scope.m_WriteMask = 0xff;
         scope.m_TestMask = 0;
@@ -653,6 +653,8 @@ namespace dmGui
         int inverted_count = 0;
         if (inverted) {
             inverted_count = index + 1;
+        } else {
+            inverted_count = inv_clipper_count;
         }
         int bit_count = inverted_count + bit_field_offset + bit_range;
         if (bit_count > 8) {
@@ -687,7 +689,7 @@ namespace dmGui
                             if (parent != 0x0) {
                                 parent_scope = &parent->m_ChildScope;
                             }
-                            UpdateScope(n, clipper.m_Scope, clipper.m_ChildScope, parent_scope, scope_context.m_InvClipperCount, scope_context.m_ClipperCount, scope_context.m_BitFieldOffset);
+                            UpdateScope(n, clipper.m_Scope, clipper.m_ChildScope, parent_scope, scope_context.m_InvClipperCount, 0, 0, scope_context.m_BitFieldOffset);
                             ++scope_context.m_InvClipperCount;
                             CollectInvClippers(scene, n->m_ChildHead, clippers, scope_context, clipper_index);
                         } else {
@@ -727,7 +729,7 @@ namespace dmGui
                 parent_scope = &clippers[non_inv_clipper->m_ParentIndex].m_ChildScope;
             }
             InternalNode* node = &scene->m_Nodes[non_inv_clipper->m_NodeIndex];
-            UpdateScope(node, non_inv_clipper->m_Scope, non_inv_clipper->m_ChildScope, parent_scope, index, context.m_ClipperCount, bit_field_offset);
+            UpdateScope(node, non_inv_clipper->m_Scope, non_inv_clipper->m_ChildScope, parent_scope, index, context.m_ClipperCount, context.m_InvClipperCount, bit_field_offset);
             uint16_t bit_range = CalcBitRange(context.m_ClipperCount);
             CollectClippers(scene, node->m_ChildHead, context.m_BitFieldOffset + bit_range, context.m_InvClipperCount, clippers, non_inv_clipper_index);
             non_inv_clipper_index = non_inv_clipper->m_NextNonInvIndex;

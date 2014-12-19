@@ -2,6 +2,7 @@ package com.dynamo.cr.guied.util;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import javax.media.opengl.GL;
@@ -18,9 +19,11 @@ public class Clipping {
     @SuppressWarnings("serial")
     private static class BitOverflowException extends Exception {
         ClippingNode offender;
+        int overflow;
 
-        public BitOverflowException(ClippingNode offender) {
+        public BitOverflowException(ClippingNode offender, int overflow) {
             this.offender = offender;
+            this.overflow = overflow;
         }
     }
 
@@ -50,11 +53,11 @@ public class Clipping {
         return (1 << bits) - 1;
     }
 
-    private static void updateStencilStates(ClippingNode clipper, int index, int clipperCount, int bitFieldOffset, ClippingState parentState) throws BitOverflowException {
+    private static void updateStencilStates(ClippingNode clipper, int index, int nonInvClipperCount, int invClipperCount, int bitFieldOffset, ClippingState parentState) throws BitOverflowException {
         if (clipper.isStencil()) {
             ClippingState state = new ClippingState();
             ClippingState childState = new ClippingState();
-            int bitRange = calcBitRange(clipperCount);
+            int bitRange = calcBitRange(nonInvClipperCount);
             // state used for drawing the clipper
             state.stencilWriteMask = 0xff;
             state.stencilMask = 0;
@@ -94,10 +97,12 @@ public class Clipping {
             int invertedCount = 0;
             if (inverted) {
                 invertedCount = index + 1;
+            } else {
+                invertedCount = invClipperCount;
             }
             int bitCount = invertedCount + bitFieldOffset + bitRange;
             if (bitCount > 8) {
-                throw new BitOverflowException(clipper);
+                throw new BitOverflowException(clipper, bitCount - 8);
             }
         }
     }
@@ -113,7 +118,7 @@ public class Clipping {
                         if (parentClipper != null) {
                             parentState = parentClipper.getChildClippingState();
                         }
-                        updateStencilStates(clipper, newOffset++, 0, bitFieldOffset, parentState);
+                        updateStencilStates(clipper, newOffset++, 0, 0, bitFieldOffset, parentState);
                         newOffset += updateInvStencilStates(node.getChildren(), newOffset, bitFieldOffset, clipper, outNonInvClippers);
                     } else {
                         outNonInvClippers.add(clipper);
@@ -141,7 +146,7 @@ public class Clipping {
             if (p != null) {
                 parentState = p.getChildClippingState();
             }
-            updateStencilStates(clipper, nonInvIndex, nonInvClipperCount, bitFieldOffset, parentState);
+            updateStencilStates(clipper, nonInvIndex, nonInvClipperCount, invClipperCount + invStencilCount, bitFieldOffset, parentState);
             updateChildren(clipper.getChildren(), calcBitRange(nonInvClipperCount) + bitFieldOffset, invClipperCount, clipper);
             ++nonInvIndex;
         }
@@ -182,28 +187,30 @@ public class Clipping {
         List<Node> rootClippers = new ArrayList<Node>();
         List<ClippingNode> clearClippers = new ArrayList<ClippingNode>();
         collectRootClippers(node.getNodesNode(), rootClippers);
-        while (!rootClippers.isEmpty()) {
-            try {
-                updateChildren(rootClippers, 0, 0, null);
-                rootClippers.clear();
-            } catch (BitOverflowException e) {
-                ClippingNode root = getRootClipper(e.offender);
-                boolean recovered = true;
-                int startIndex = 0;
-                if (root != null) {
-                    startIndex = rootClippers.indexOf(root);
-                    if (startIndex == 0) {
-                        recovered = false;
+        List<List<Node>> rootIntervals = new ArrayList<List<Node>>();
+        rootIntervals.add(rootClippers);
+        while (!rootIntervals.isEmpty()) {
+            List<Node> rootInterval = rootIntervals.remove(0);
+            if (!rootInterval.isEmpty()) {
+                try {
+                    updateChildren(rootInterval, 0, 0, null);
+                } catch (BitOverflowException e) {
+                    ClippingNode root = getRootClipper(e.offender);
+                    int rootCount = rootInterval.size();
+                    int rootBitRange = calcBitRange(rootCount);
+                    boolean recoverable = root != null && rootBitRange - 1 >= e.overflow;
+                    if (recoverable) {
+                        clearClippers.add(root);
+                        rootIntervals.add(Collections.singletonList((Node)root));
+                        List<Node> remainders = rootClippers.subList(rootClippers.indexOf(root) + 1, rootClippers.size());
+                        if (!remainders.isEmpty()) {
+                            clearClippers.add((ClippingNode)remainders.get(0));
+                            rootIntervals.add(remainders);
+                        }
+                    } else {
+                        e.offender.getClippingState().overflow = true;
+                        return;
                     }
-                } else {
-                    recovered = false;
-                }
-                if (recovered) {
-                    clearClippers.add(root);
-                    rootClippers = rootClippers.subList(startIndex, rootClippers.size());
-                } else {
-                    e.offender.getClippingState().overflow = true;
-                    return;
                 }
             }
         }
