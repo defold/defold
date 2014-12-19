@@ -171,8 +171,9 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver);
-        SpineModelComponent* component = (SpineModelComponent*) user_data;
+        SpineModelWorld* world = 0;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
+        SpineModelComponent* component = world->m_Components.Get(user_data);
 
         dmhash_t bone_id;
         if (lua_isstring(L, 2))
