@@ -312,6 +312,7 @@ namespace dmGameSystem
         dmGameSystemDDF::MeshSet* mesh_set = &component->m_Resource->m_Scene->m_SpineScene->m_MeshSet;
         AllocateMeshProperties(mesh_set, component->m_MeshProperties);
         component->m_MeshEntry = FindMeshEntry(&component->m_Resource->m_Scene->m_SpineScene->m_MeshSet, component->m_Skin);
+        component->m_World = Matrix4::identity();
 
         dmGameObject::CreateResult result = CreatePose(world, component);
         if (result != dmGameObject::CREATE_RESULT_OK) {
