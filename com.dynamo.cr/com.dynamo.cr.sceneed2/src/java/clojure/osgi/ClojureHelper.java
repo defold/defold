@@ -77,10 +77,12 @@ public class ClojureHelper {
     }
 
     public static void dispatchMessage(Object behavior, Keyword messageType, Object... args) {
-        Object[] messageArgs = new Object[args.length + 2];
-        messageArgs[0] = behavior;
-        messageArgs[1] = messageType;
-        System.arraycopy(args, 0, messageArgs, 2, args.length);
-        invoke(NODE_NS, "dispatch-message", messageArgs);
+        if (behavior != null) {
+            Object[] messageArgs = new Object[args.length + 2];
+            messageArgs[0] = behavior;
+            messageArgs[1] = messageType;
+            System.arraycopy(args, 0, messageArgs, 2, args.length);
+            invoke(NODE_NS, "dispatch-message", messageArgs);
+        }
     }
 }
