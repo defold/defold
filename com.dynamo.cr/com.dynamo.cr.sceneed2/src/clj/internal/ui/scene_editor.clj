@@ -183,7 +183,7 @@
 
   (input dirty s/Bool)
 
-  (property triggers t/Triggers (default [#'n/inject-new-nodes #'send-view-scope-message #'mark-editor-dirty]))
+  (property triggers t/Triggers (default [#'n/inject-new-nodes #'n/dispose-nodes #'send-view-scope-message #'mark-editor-dirty]))
 
   (on :init
     (let [tracker (:dirty-tracker event)]

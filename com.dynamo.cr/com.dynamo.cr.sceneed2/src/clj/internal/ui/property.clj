@@ -127,7 +127,9 @@
 
 (defn- refresh-after-a-while
   [graph this transaction]
-  (when (and (ds/is-modified? transaction this :content) (:debouncer this))
+  (when (and (ds/is-modified? transaction this :content)
+             (not (ds/is-removed? transaction this))
+             (:debouncer this))
     (t/signal (:debouncer this))))
 
 (def gui
@@ -171,17 +173,18 @@
           content (in/get-node-value self :content)
           prop (get content prop-name)
           result (dp/on-event presenter path ui-event (:value prop))]
-      (prn :ui-event (:type ui-event) :prop-name prop-name :path path :result result)
       (when-let [new-value (:value result)]
         (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
 
   ISelectionListener
   (selectionChanged [this part selection]
-    (ds/transactional
-      (doseq [[source-node source-label] (iq/sources-of this :properties)]
-        (ds/disconnect source-node source-label this :properties))
-      (doseq [n @selection]
-        (ds/connect {:_id n} :properties this :properties)))))
+    (let [current-inputs (iq/sources-of this :properties)]
+      (when (not= @selection (map (comp :_id first) current-inputs))
+        (ds/transactional
+          (doseq [[source-node source-label] current-inputs]
+            (ds/disconnect source-node source-label this :properties))
+          (doseq [n @selection]
+            (ds/connect {:_id n} :properties this :properties)))))))
 
 (defn implementation-for
   [scope]
