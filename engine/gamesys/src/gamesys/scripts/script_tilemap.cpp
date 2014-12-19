@@ -157,7 +157,7 @@ namespace dmGameSystem
      * The coordinates must be within the bounds of the tile map as it were created. That is, it is not
      * possible to extend the size of a tile map by setting tiles outside the edges.
      * The tile to set is identified by its index starting with 1 in the top left corner of the tile set.
-     * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by 
+     * To clear a tile, set the tile to number 0. Which tile map and layer to manipulate is identified by
      * the URL and the layer name parameters.
      *
      * @name tilemap.set_tile
@@ -180,7 +180,7 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, &receiver);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, &receiver, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -257,7 +257,7 @@ namespace dmGameSystem
     /*# get a tile from a tile map
      * Get the tile set at the specified position in the tilemap. The returned tile to set is identified
      * by its index starting with 1 in the top left corner of the tile set, or 0 if the tile is blank.
-     * The coordinates of the tile is 1-indexed (see <code>tilemap.set_tile()</code>) 
+     * The coordinates of the tile is 1-indexed (see <code>tilemap.set_tile()</code>)
      * Which tile map and layer to query is identified by the URL and the layer name parameters.
      *
      * @name tilemap.get_tile
@@ -277,7 +277,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 
@@ -308,7 +308,7 @@ namespace dmGameSystem
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
-    
+
     /*# get the bounds of a tile map
      * Get the tile set at the specified position in the tilemap. The returned tile to set is identified
      * by its index starting with 1 in the top left corner of the tile set. The coordinates of the tile is
@@ -332,7 +332,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, TILE_MAP_EXT, &user_data, 0, 0);
         TileGridComponent* component = (TileGridComponent*) user_data;
         TileGridResource* resource = component->m_TileGridResource;
 

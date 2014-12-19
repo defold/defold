@@ -2,6 +2,7 @@
 #define DM_GAMESYS_COMP_SPINE_MODEL_H
 
 #include <stdint.h>
+#include <dlib/object_pool.h>
 #include <gameobject/gameobject.h>
 
 #include "../resources/res_spine_model.h"
@@ -75,6 +76,35 @@ namespace dmGameSystem
         uint8_t                     m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
         uint8_t                     m_Blending : 1;
+    };
+
+    struct SpineModelVertex
+    {
+        float x;
+        float y;
+        float z;
+        uint16_t u;
+        uint16_t v;
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+        uint8_t a;
+    };
+
+    struct SpineModelWorld
+    {
+        dmObjectPool<SpineModelComponent*>  m_Components;
+        dmArray<dmRender::RenderObject>     m_RenderObjects;
+        dmGraphics::HVertexDeclaration      m_VertexDeclaration;
+        dmGraphics::HVertexBuffer           m_VertexBuffer;
+        dmArray<SpineModelVertex>           m_VertexBufferData;
+
+        dmArray<uint32_t>                   m_RenderSortBuffer;
+        dmArray<uint32_t>                   m_DrawOrderToMesh;
+        // Temporary scratch array for instances, only used during the creation phase of components
+        dmArray<dmGameObject::HInstance>    m_ScratchInstances;
+        float                               m_MinZ;
+        float                               m_MaxZ;
     };
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);

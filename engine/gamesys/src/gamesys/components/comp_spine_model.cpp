@@ -35,35 +35,6 @@ namespace dmGameSystem
     static const dmhash_t PROP_SKIN = dmHashString64("skin");
     static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
 
-    struct SpineModelVertex
-    {
-        float x;
-        float y;
-        float z;
-        uint16_t u;
-        uint16_t v;
-        uint8_t r;
-        uint8_t g;
-        uint8_t b;
-        uint8_t a;
-    };
-
-    struct SpineModelWorld
-    {
-        dmObjectPool<SpineModelComponent*>  m_Components;
-        dmArray<dmRender::RenderObject>     m_RenderObjects;
-        dmGraphics::HVertexDeclaration      m_VertexDeclaration;
-        dmGraphics::HVertexBuffer           m_VertexBuffer;
-        dmArray<SpineModelVertex>           m_VertexBufferData;
-
-        dmArray<uint32_t>                   m_RenderSortBuffer;
-        dmArray<uint32_t>                   m_DrawOrderToMesh;
-        // Temporary scratch array for instances, only used during the creation phase of components
-        dmArray<dmGameObject::HInstance>    m_ScratchInstances;
-        float                               m_MinZ;
-        float                               m_MaxZ;
-    };
-
     static void ResourceReloadedCallback(void* user_data, dmResource::SResourceDescriptor* descriptor, const char* name);
     static void DestroyComponent(SpineModelWorld* world, uint32_t index);
 

@@ -319,7 +319,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url)
+    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** world)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
@@ -347,6 +347,10 @@ namespace dmGameObject
             {
                 luaL_error(L, "The component could not be found");
                 return; // Actually never reached
+            }
+
+            if (world != 0) {
+                *world = GetWorld(instance->m_Collection, component_type_index);
             }
 
             if (component_ext != 0x0)
