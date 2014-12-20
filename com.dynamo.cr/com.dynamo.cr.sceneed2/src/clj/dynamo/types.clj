@@ -78,7 +78,8 @@
 (defprotocol PropertyType
   (property-value-type    [this] "Prismatic schema for property value type")
   (default-property-value [this])
-  (valid-property-value?  [this v]))
+  (valid-property-value?  [this v])
+  (property-visible       [this] "If true, this property appears in the UI"))
 
 (defn property-type? [x] (satisfies? PropertyType x))
 
@@ -94,7 +95,7 @@
 
 (def MouseType (s/enum :one-button :three-button))
 
-(def Triggers [clojure.lang.IFn])
+(def Callbacks [clojure.lang.IFn])
 
 (def Registry {s/Any s/Any})
 

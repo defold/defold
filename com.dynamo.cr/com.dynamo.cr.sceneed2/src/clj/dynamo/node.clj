@@ -3,6 +3,7 @@
   (:require [clojure.set :as set]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
+            [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
             [internal.node :as in]
@@ -148,12 +149,14 @@ This function should mainly be used to create 'plumbing'."
       (doseq [n nodes-to-delete]
         (ds/delete n)))))
 
+(defproperty Triggers Callbacks (visible false))
+
 (defnode Scope
   (input nodes [s/Any])
 
   (property tag      s/Keyword)
   (property parent   (s/protocol NamingContext))
-  (property triggers Triggers (default [#'inject-new-nodes #'dispose-nodes]))
+  (property triggers Triggers (visible false) (default [#'inject-new-nodes #'dispose-nodes]))
 
   (output dictionary s/Any in/scope-dictionary)
 
@@ -175,7 +178,9 @@ This function should mainly be used to create 'plumbing'."
 
 (defnode DirtyTracking
   (property triggers Triggers (default [#'mark-dirty]))
-  (property dirty s/Bool (default false)))
+  (property dirty s/Bool
+    (default false)
+    (visible false)))
 
 (defnode Saveable
   (output save s/Keyword :abstract))

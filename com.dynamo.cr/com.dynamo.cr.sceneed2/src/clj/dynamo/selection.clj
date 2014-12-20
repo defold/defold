@@ -39,7 +39,7 @@
   (input selected-nodes [t/Node])
 
   (property selection-listeners EventBroadcaster (default #(ui/make-event-broadcaster)))
-  (property triggers t/Triggers (default [#'fire-selection-changed]))
+  (property triggers n/Triggers (default [#'fire-selection-changed]))
 
   (output selection s/Any produce-selection)
 

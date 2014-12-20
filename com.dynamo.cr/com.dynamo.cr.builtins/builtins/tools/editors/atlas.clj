@@ -146,7 +146,7 @@
 (defnode AtlasSave
   (inherits Saveable)
 
-  (property path (s/protocol PathManipulation))
+  (property path (s/protocol PathManipulation) (visible false))
 
   (output save s/Keyword save-atlas-file)
   (output text-format s/Str get-text-format))

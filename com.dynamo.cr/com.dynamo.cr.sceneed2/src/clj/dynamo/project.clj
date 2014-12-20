@@ -136,7 +136,7 @@
 (defnode Project
   (inherits Scope)
 
-  (property triggers           t/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
+  (property triggers           n/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
   (property tag                s/Keyword (default :project))
   (property eclipse-project    IProject)
   (property branch             s/Str)

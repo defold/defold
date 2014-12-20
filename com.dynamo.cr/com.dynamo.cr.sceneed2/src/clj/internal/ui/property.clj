@@ -24,7 +24,10 @@
 
 (defnk aggregate-properties
   [properties]
-  (apply merge {} properties))
+  (into {} (for [node-prop-map        properties
+                 [prop-name prop]     node-prop-map
+                 :when (some-> prop :type t/property-visible)]
+             [prop-name prop])))
 
 (defn- niceify-label
   [k]
@@ -152,7 +155,7 @@
   (input  presenter-registry t/Registry :inject)
   (output presenter-registry t/Registry passthrough-presenter-registry)
 
-  (property triggers t/Triggers (default [#'refresh-after-a-while]))
+  (property triggers n/Triggers (default [#'refresh-after-a-while]))
 
   (on :create
     (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))

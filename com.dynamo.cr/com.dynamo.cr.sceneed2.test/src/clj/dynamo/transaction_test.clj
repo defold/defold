@@ -99,7 +99,7 @@
 (n/defnode TriggerExecutionCounter
   (input downstream s/Any)
   (property any-property s/Bool)
-  (property triggers t/Triggers (default [#'track-trigger-activity])))
+  (property triggers n/Triggers (default [#'track-trigger-activity])))
 
 (defn alter-output [graph self transaction]
   (when (and (ds/is-modified? transaction self) (> 5 (:automatic-property self)))
@@ -107,7 +107,7 @@
 
 (n/defnode MutatesByTrigger
   (property automatic-property s/Int (default 0))
-  (property triggers t/Triggers (default [#'alter-output])))
+  (property triggers n/Triggers (default [#'alter-output])))
 
 (deftest trigger-activation
   (testing "runs when node is added"

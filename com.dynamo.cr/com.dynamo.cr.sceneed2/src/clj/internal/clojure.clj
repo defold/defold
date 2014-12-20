@@ -46,7 +46,7 @@
   (property resource IFile)
   (property namespace UnloadableNamespace)
 
-  (property triggers t/Triggers (default [#'compile-at-load])))
+  (property triggers n/Triggers (default [#'compile-at-load])))
 
 (defn on-load-code
   [resource _]

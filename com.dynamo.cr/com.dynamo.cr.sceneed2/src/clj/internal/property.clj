@@ -26,7 +26,8 @@
   t/PropertyType
   (property-value-type    [this]   (:value-type this))
   (default-property-value [this]   (get-default-value this))
-  (valid-property-value?  [this v] (valid-value? this v)))
+  (valid-property-value?  [this v] (valid-value? this v))
+  (property-visible       [this]   (if (contains? this :visible) (:visible this) true)))
 
 (defn- resolve-if-symbol [sym]
   (if (symbol? sym)
@@ -42,6 +43,9 @@
 
     [(['validation validation-fn] :seq)]
     {:validation (resolve-if-symbol validation-fn)}
+
+    [(['visible visibility] :seq)]
+    {:visible (resolve-if-symbol visibility)}
 
     :else
     (assert false (str "invalid form within property type definition: " (pr-str form)))))
