@@ -9,6 +9,7 @@ import org.junit.runner.notification.RunNotifier;
 
 import clojure.lang.AFn;
 import clojure.lang.ExceptionInfo;
+import clojure.osgi.ClojureHelper;
 
 class NamespaceTester {
     public Description d;
@@ -17,11 +18,15 @@ class NamespaceTester {
 
     public ArrayList<VarTester> children = new ArrayList<VarTester>();
 
+    private static final String CLJUNIT_CORE = "mikera.cljunit.core";
+
     public NamespaceTester(String ns) {
         this.namespace = ns;
         d = Description.createSuiteDescription(namespace);
         try {
-            Collection<String> testVars = Clojure.getTestVars(namespace);
+            ClojureHelper.require(CLJUNIT_CORE);
+            @SuppressWarnings("unchecked")
+            Collection<String> testVars = (Collection<String>) ClojureHelper.invoke(CLJUNIT_CORE, "get-test-var-names", namespace);
 
             for (String v : testVars) {
                 VarTester vt = new VarTester(namespace, v);
@@ -41,7 +46,7 @@ class NamespaceTester {
         if (failOnCompile != null) {
             n.fireTestFailure(new Failure(d, failOnCompile));
         } else {
-            Clojure.invokeNamespaceTests(n, d, namespace, new AFn() {
+            ClojureHelper.invoke(CLJUNIT_CORE, "invoke-ns-tests", n, d, namespace, new AFn() {
                 @Override
                 public Object invoke() {
                     for (VarTester vt : children) {

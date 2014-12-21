@@ -14,7 +14,7 @@
             [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
             [dynamo.node :as n :refer :all]
-            [dynamo.system :as ds :refer [transactional in add connect set-property]]
+            [dynamo.system :as ds :refer [transactional in add connect set-property in-transaction?]]
             [internal.ui.scene-editor :refer :all]
             [internal.ui.background :refer :all]
             [internal.ui.grid :refer :all]
@@ -79,7 +79,7 @@
   [this property-sources]
   (merge (select-keys this (-> this :descriptor :properties keys)) (apply merge-with concat property-sources)))
 
-(defnode Properties
+(defnode PropertiesNode
   (input property-sources [s/Any])
   (output properties s/Any produce-properties))
 
@@ -154,7 +154,7 @@
   #_(output compiled-particlefx s/Any :on-update compile-particlefx))
 
 (defnode ParticlefxProperties
-  (inherits Properties))
+  (inherits PropertiesNode))
 
 (defnk passthrough-renderables
   [renderables]
@@ -171,7 +171,7 @@
           (render-particles)))
 
 (defnode EmitterProperties
-  (inherits Properties)
+  (inherits PropertiesNode)
   (property id s/Str)
   (property mode s/Any)
   (property duration s/Num)
@@ -206,7 +206,7 @@
   (inherits EmitterRender))
 
 (defnode ModifierProperties
-  (inherits Properties)
+  (inherits PropertiesNode)
   (property type s/Any)
   (property use-direction int))
 
@@ -306,5 +306,6 @@
         ))
       editor)))
 
-(p/register-editor "particlefx" #'on-edit)
-(p/register-loader "particlefx" (protocol-buffer-loader Particle$ParticleFX on-load))
+(when (in-transaction?)
+  (p/register-editor "particlefx" #'on-edit)
+  (p/register-loader "particlefx" (protocol-buffer-loader Particle$ParticleFX on-load)))

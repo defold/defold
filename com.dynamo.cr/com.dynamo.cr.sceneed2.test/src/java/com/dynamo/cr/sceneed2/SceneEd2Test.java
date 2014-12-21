@@ -16,6 +16,8 @@ public class SceneEd2Test extends ClojureTest {
     public List<String> namespaces() {
         ClojureHelper.require("suite");
 
+        ClojureHelper.invoke("suite", "compile-builtins");
+
         String[] nsArr = (String[]) ClojureHelper.var("suite", "test-namespaces-for-junit").deref();
         return Arrays.asList(nsArr);
     }

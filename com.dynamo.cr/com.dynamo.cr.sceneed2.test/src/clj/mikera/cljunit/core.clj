@@ -78,11 +78,16 @@
       (fn []
         (inner-loop)))))
 
+(defn- is-loaded? [nm]
+  (contains? (loaded-libs) (symbol nm)))
+
 (defn get-test-var-names
   "Gets the names of all vars for a given namespace name"
   ([ns-name]
   (try
-    (require (symbol ns-name))
+    (when-not (is-loaded? ns-name)
+      (println "cljunit.core: not loaded " ns-name)
+      (require (symbol ns-name)))
     (mapv
       #(str (first %))
       (filter

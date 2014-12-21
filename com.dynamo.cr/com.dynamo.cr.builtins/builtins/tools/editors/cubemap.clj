@@ -19,7 +19,7 @@
             [dynamo.node :as n]
             [dynamo.outline :refer :all]
             [dynamo.project :as p]
-            [dynamo.system :as ds :refer [transactional in add connect]]
+            [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer [defcommand defhandler]]
@@ -209,5 +209,6 @@
         (ds/connect cubemap-render :aabb       editor         :aabb))
       editor)))
 
-(p/register-editor "cubemap" #'on-edit)
-(p/register-loader "cubemap" (protocol-buffer-loader Graphics$Cubemap on-load))
+(when (in-transaction?)
+  (p/register-editor "cubemap" #'on-edit)
+  (p/register-loader "cubemap" (protocol-buffer-loader Graphics$Cubemap on-load)))

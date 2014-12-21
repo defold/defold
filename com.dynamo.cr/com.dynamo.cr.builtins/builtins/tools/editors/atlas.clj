@@ -15,7 +15,7 @@
             [dynamo.gl.vertex :as vtx]
             [dynamo.node :as n :refer :all]
             [dynamo.property :as dp]
-            [dynamo.system :as ds :refer [transactional in add connect]]
+            [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
             [internal.ui.scene-editor :refer :all]
             [internal.ui.background :refer :all]
             [internal.ui.grid :refer :all]
@@ -521,5 +521,6 @@
           (connect atlas-node   :aabb       editor       :aabb))
         editor)))
 
-(register-editor "atlas" #'on-edit)
-(register-loader "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load))
+(when (in-transaction?)
+  (register-editor "atlas" #'on-edit)
+  (register-loader "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))

@@ -9,19 +9,22 @@ import org.junit.runner.notification.RunNotifier;
 import clojure.lang.Keyword;
 import clojure.lang.RT;
 import clojure.lang.Var;
+import clojure.osgi.ClojureHelper;
 
 public class VarTester {
     Var testVar;
     Description desc;
 
-    private static Keyword FILE = Keyword.intern("file");
-    private static Keyword LINE = Keyword.intern("line");
+    private static final String CLJUNIT_CORE = "mikera.cljunit.core";
+    private static final Var META = RT.var("clojure.core", "meta");
+    private static final Keyword FILE = Keyword.intern("file");
+    private static final Keyword LINE = Keyword.intern("line");
 
     @SuppressWarnings("unchecked")
     public VarTester(String ns, String name) {
-        Clojure.require(ns);
+        ClojureHelper.require(ns);
         testVar = RT.var(ns, name);
-        Map<Keyword, Object> meta = (Map<Keyword, Object>) Clojure.META.invoke(testVar);
+        Map<Keyword, Object> meta = (Map<Keyword, Object>) META.invoke(testVar);
         String file = meta.get(FILE).toString();
         String line = meta.get(LINE).toString();
 
@@ -32,7 +35,7 @@ public class VarTester {
         n.fireTestStarted(desc);
 
         try {
-            Clojure.invokeTest(n, desc, testVar);
+            ClojureHelper.invoke(CLJUNIT_CORE, "invoke-test", n, desc, testVar);
             n.fireTestFinished(desc);
         } catch (Throwable t) {
             n.fireTestFailure(new Failure(desc, t));

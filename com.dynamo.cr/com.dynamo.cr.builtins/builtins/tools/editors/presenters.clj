@@ -2,6 +2,7 @@
   (:require [schema.core :as s]
             [dynamo.project :as p]
             [dynamo.property :refer :all]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all])
@@ -61,6 +62,7 @@
           :focus-out (final-value new-value)
           (no-change))))))
 
-(p/register-presenter s/Str  (->StringPresenter))
-(p/register-presenter s/Int  (->IntPresenter))
-(p/register-presenter t/Vec3 (->Vec3Presenter))
+(when (ds/in-transaction?)
+  (p/register-presenter s/Str  (->StringPresenter))
+  (p/register-presenter s/Int  (->IntPresenter))
+  (p/register-presenter t/Vec3 (->Vec3Presenter)))
