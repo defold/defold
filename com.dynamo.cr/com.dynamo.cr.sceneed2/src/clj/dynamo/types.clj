@@ -141,8 +141,8 @@
   [id              :- s/Str
    images          :- [Image]
    fps             :- Int32
-   flip-horizontal :- s/Bool
-   flip-vertical   :- s/Bool
+   flip-horizontal :- s/Int
+   flip-vertical   :- s/Int
    playback        :- Tile$Playback])
 
 (sm/defrecord TextureSet
