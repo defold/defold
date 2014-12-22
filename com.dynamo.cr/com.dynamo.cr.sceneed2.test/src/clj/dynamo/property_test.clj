@@ -159,6 +159,31 @@
   (is (false? (t/valid-property-value? DerivedPropInheritBothOverrideBoth 1)))
   (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 2))))
 
+(defproperty UntaggedProp s/Keyword)
+
+(defproperty TaggedProp s/Keyword
+  (tag :tag))
+
+(defproperty ChildOfTaggedProp TaggedProp)
+
+(defproperty GrandchildOfTaggedProp ChildOfTaggedProp)
+
+(defproperty TaggedChild TaggedProp
+  (tag :another-tag))
+
+(defproperty MultipleTags TaggedProp
+  (tag :first-tag)
+  (tag :second-tag))
+
+(deftest property-tags
+  (are [property tags] (= tags (t/property-tags property))
+    UntaggedProp           []
+    TaggedProp             [:tag]
+    ChildOfTaggedProp      [:tag]
+    GrandchildOfTaggedProp [:tag]
+    TaggedChild            [:another-tag :tag]
+    MultipleTags           [:second-tag :first-tag :tag]))
+
 (defproperty StringProp s/Str)
 
 (defproperty Vec3Prop t/Vec3)

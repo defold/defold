@@ -78,7 +78,8 @@
 (defprotocol PropertyType
   (property-value-type    [this] "Prismatic schema for property value type")
   (default-property-value [this])
-  (valid-property-value?  [this v]))
+  (valid-property-value?  [this v])
+  (property-tags          [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))
 
