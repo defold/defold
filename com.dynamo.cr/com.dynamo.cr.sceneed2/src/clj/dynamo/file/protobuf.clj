@@ -38,17 +38,6 @@
        ~@(map subordinate-mapper (:node-properties spec))
        ~'this)))
 
-(comment
-
-  (doseq [images_389383 (map message->node (. protobuf getImagesList))]
-    (connect images_389383 :tree this :children)
-    (connect images_389383 :image this :images))
-  (doseq [anim (map message->node (. protobuf getAnimationsList))]
-    (connect anim :tree this :children)
-    (connect anim :animation this :animations))
-
-  )
-
 (defmacro protocol-buffer-converters
   [& class+specs]
   (let [converters (map (partial cons `protocol-buffer-converter) (partition 2 class+specs))]
