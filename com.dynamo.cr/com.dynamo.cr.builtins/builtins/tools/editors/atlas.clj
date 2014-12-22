@@ -20,7 +20,7 @@
             [internal.ui.background :refer :all]
             [internal.ui.grid :refer :all]
             [dynamo.camera :refer :all]
-            [dynamo.file :refer :all]
+            [dynamo.file :as file]
             [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
             [dynamo.project :as p :refer [register-loader register-editor]]
             [dynamo.types :refer :all]
@@ -140,13 +140,13 @@
 (defnk save-atlas-file
   [this path]
   (let [text (get-node-value this :text-format)]
-    (write-native-text-file path text)
+    (file/write-file path (.getBytes text))
     :ok))
 
 (defnode AtlasSave
   (inherits Saveable)
 
-  (property path (s/protocol PathManipulation) (visible false))
+  (property path (s/protocol file/PathManipulation) (visible false))
 
   (output save s/Keyword save-atlas-file)
   (output text-format s/Str get-text-format))
@@ -444,8 +444,8 @@
 
 (defnk compile-texturesetc :- s/Bool
   [this g project textureset :- TextureSet]
-  (write-native-file (:textureset-filename this)
-                     (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset))))
+  (file/write-file (:textureset-filename this)
+    (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset))))
 
 (defn- texturec-protocol-buffer
   [engine-format]
@@ -466,8 +466,8 @@
 
 (defnk compile-texturec :- s/Bool
   [this g project textureset :- TextureSet]
-  (write-native-file (:texture-filename this)
-                     (.toByteArray (texturec-protocol-buffer (->engine-format (:packed-image textureset)))))
+  (file/write-file (:texture-filename this)
+    (.toByteArray (texturec-protocol-buffer (->engine-format (:packed-image textureset)))))
   :ok)
 
 (defnode TextureSave
@@ -495,11 +495,11 @@
 
 (defn on-load
   [path ^AtlasProto$Atlas atlas-message]
-  (let [atlas    (message->node atlas-message :path path)
+  (let [atlas    (file/message->node atlas-message :path path)
         compiler (add (make-texture-save
-                       :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
-                       :textureset-filename (in-build-directory (replace-extension path "texturesetc"))
-                       :texture-filename    (in-build-directory (replace-extension path "texturec"))))]
+                       :texture-name        (clojure.string/replace (file/local-path (file/replace-extension path "texturesetc")) "content/" "")
+                       :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (file/replace-extension path "texturesetc")) path)
+                       :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (file/replace-extension path "texturec")) path)))]
     (connect atlas :textureset compiler :textureset)
     atlas))
 
@@ -523,4 +523,4 @@
 
 (when (in-transaction?)
   (register-editor "atlas" #'on-edit)
-  (register-loader "atlas" (protocol-buffer-loader AtlasProto$Atlas on-load)))
+  (register-loader "atlas" (file/protocol-buffer-loader AtlasProto$Atlas on-load)))

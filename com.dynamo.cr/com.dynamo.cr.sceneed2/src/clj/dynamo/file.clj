@@ -1,10 +1,11 @@
 (ns dynamo.file
   (:refer-clojure :exclude [load])
-  (:require [clojure.java.io :as io]
+  (:require [clojure.string :as str]
+            [clojure.java.io :as io]
             [clojure.osgi.core :refer [get-bundle]]
             [internal.java :as j]
             [service.log :as log])
-  (:import [java.io PipedOutputStream PipedInputStream Reader]
+  (:import [java.io OutputStream PipedOutputStream PipedInputStream Reader]
            [com.google.protobuf TextFormat GeneratedMessage$Builder]
            [org.osgi.framework Bundle]
            [org.eclipse.core.internal.resources File]
@@ -25,6 +26,17 @@
   (^PathManipulation alter-path        [this f]
                                        [this f args]))
 
+(defprotocol FileWriter
+  (write-file [this ^bytes contents]))
+
+(defn- ensure-parents
+  [path]
+  (-> path
+    local-path
+    java.io.File.
+    (.getParentFile)
+    (.mkdirs)))
+
 (defrecord ProjectPath [project ^String path ^String ext]
   PathManipulation
   (extension         [this]         ext)
@@ -32,6 +44,13 @@
   (local-path        [this]         (str path "." ext))
   (alter-path        [this f]       (ProjectPath. project (f path) ext))
   (alter-path        [this f args]  (ProjectPath. project (apply f path args) ext))
+
+  FileWriter
+  (write-file        [path contents]
+    (ensure-parents path)
+    (with-open [out ^OutputStream (io/output-stream path)]
+      (.write out ^bytes contents)
+      (.flush out)))
 
   ProjectRelative
   (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile (eproj project) path)) ext))
@@ -62,6 +81,13 @@
   (alter-path        [this f]       (NativePath. (f path) ext))
   (alter-path        [this f args]  (NativePath. (apply f path args) ext))
 
+  FileWriter
+  (write-file        [path contents]
+    (ensure-parents path)
+    (with-open [out ^OutputStream (io/output-stream (local-path path))]
+      (.write out ^bytes contents)
+      (.flush out)))
+
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (.toString this) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
@@ -73,7 +99,14 @@
 
 (defmethod print-method NativePath
   [^NativePath v ^java.io.Writer w]
-  (.write w (str "<NativePath \"" (.path v) "." (.ext v) "\">")))
+  (if (.ext v)
+    (.write w (str "<NativePath \"" (.path v) "." (.ext v) "\">"))
+    (.write w (str "<NativePath \"" (.path v) "\">"))))
+
+(defn native-path [p]
+  (let [[with-dot ext]  (re-find #"\.([^\./]*)$" p)
+        path            (subs p 0 (- (count p) (count with-dot)))]
+    (NativePath. path ext)))
 
 (alter-meta! #'->NativePath update-in [:doc] str "\n\n Takes a path and extension. See also [[in-build-directory]].")
 
@@ -131,33 +164,6 @@
                    (log/error :exception t :message (str "Cannot write output to " x)))))
              pipe))))
 
-(defn- ensure-parents
-  [path]
-  (-> path
-    local-path
-    java.io.File.
-    (.getParentFile)
-    (.mkdirs)))
-
-(defmulti write-native-file (fn [path _] (class path)))
-
-(defmethod write-native-file NativePath
-  [path ^bytes contents]
-  (ensure-parents path)
-  (with-open [out (io/output-stream (local-path path))]
-    (.write out contents)))
-
-(defmethod write-native-file ProjectPath
-  [path ^bytes contents]
-  (ensure-parents path)
-  (with-open [out (io/output-stream path)]
-   (.write out contents)
-   (.flush out)))
-
-(defn write-native-text-file
-  [path ^String text]
-  (write-native-file path (.getBytes text)))
-
 (doseq [[v doc]
        {*ns*
         "Contains functions for loading and saving files. This includes the definitions
@@ -177,8 +183,9 @@ Both `ProjectPath` and `NativePath` satisfy the `clojure.java.io/IOFactory` prot
 and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
 `make-output-stream` functions."
 
-        #'write-native-file
-        "Given a NativePath and contents, writes the contents to the build path"
+        #'write-file
+        "Given a path and contents, writes the contents to file. This will overwrite any
+existing contents."
 
         #'new-builder
         "Dynamically construct a protocol buffer builder, given a class as a variable."
