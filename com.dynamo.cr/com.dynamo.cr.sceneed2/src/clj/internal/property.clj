@@ -52,7 +52,7 @@
 
 (defn merge-props [props new-props]
   (-> (merge props new-props)
-      (assoc :tags (concat (:tags new-props) (:tags props)))))
+      (assoc :tags (into (vec (:tags new-props)) (:tags props)))))
 
 (defn property-type-descriptor [name-sym value-type body-forms]
   `(let [value-type#     ~value-type

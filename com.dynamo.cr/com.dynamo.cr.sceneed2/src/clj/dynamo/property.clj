@@ -19,10 +19,8 @@
 (defproperty Vec3 t/Vec3
   (default [0.0 0.0 0.0]))
 
-; TODO: this should be a tagged Vec3
-(defproperty Color [(s/one s/Int "r")
-                    (s/one s/Int "g")
-                    (s/one s/Int "b")])
+(defproperty Color Vec3
+  (tag :color))
 
 (defprotocol Presenter
   (control-for-property [this])
@@ -47,10 +45,19 @@
 (def default-presenter
   (->DefaultPresenter))
 
-(defn register-presenter
-  [registry value-type presenter]
-  (assoc registry value-type presenter))
+(s/defn register-presenter :- t/Registry
+  [registry   :- t/Registry
+   type       :- {:value-type s/Any (s/optional-key :tag) s/Keyword}
+   presenter  :- (s/protocol Presenter)]
+  (assoc registry (merge {:tag nil} type) presenter))
 
-(defn lookup-presenter
-  [registry property]
-  (get registry (:value-type property) default-presenter))
+(s/defn lookup-presenter :- (s/protocol Presenter)
+  [registry :- t/Registry
+   property :- (s/protocol t/PropertyType)]
+  (loop [tags (conj (t/property-tags property) nil)]
+    (if (empty? tags)
+      default-presenter
+      (let [key {:value-type (t/property-value-type property) :tag (first tags)}]
+        (if (contains? registry key)
+          (get registry key)
+          (recur (rest tags)))))))

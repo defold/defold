@@ -69,14 +69,14 @@
      :children [[:label {:type :label}]
                 [:selector {:type :color-selector :listen #{:selection}}]]})
   (settings-for-control [_ [r g b :as value]]
-    {:children [[:label {:text (format "#%02x%02x%02x" r g b)}]
-                [:selector {:color value}]]})
+    {:children [[:label {:text (format "#%02x%02x%02x" (int r) (int g) (int b))}]
+                [:selector {:color (mapv int value)}]]})
   (on-event [_ path event value]
     (case (:type event)
       :selection (final-value (ui/get-color (:widget event)))
       (no-change))))
 
-(p/register-presenter s/Str  (->StringPresenter))
-(p/register-presenter s/Int  (->IntPresenter))
-(p/register-presenter t/Vec3 (->Vec3Presenter))
-(p/register-presenter (t/property-value-type dp/Color) (->ColorPresenter))
+(p/register-presenter {:value-type s/Str}              (->StringPresenter))
+(p/register-presenter {:value-type s/Int}              (->IntPresenter))
+(p/register-presenter {:value-type t/Vec3}             (->Vec3Presenter))
+(p/register-presenter {:value-type t/Vec3 :tag :color} (->ColorPresenter))
