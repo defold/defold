@@ -51,10 +51,10 @@
     img))
 
 (def load-image
-    (caching
-      (fn [src]
-        (if-let [img (ImageIO/read (io/input-stream src))]
-          (make-image src img)))))
+  (caching
+    (fn [src reference]
+      (if-let [img (ImageIO/read (io/input-stream src))]
+        (make-image reference img)))))
 
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
@@ -63,7 +63,8 @@
 (defnk image-from-resource :- Image
   [this project]
   (let [src (project-path project (:image this))]
-    (load-image src)))
+	  (println :image-from-resource (:image this) src)
+    (load-image src (:image this))))
 
 ;; Behavior
 (defnode ImageSource
