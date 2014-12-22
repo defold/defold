@@ -86,7 +86,6 @@
   ([ns-name]
   (try
     (when-not (is-loaded? ns-name)
-      (println "cljunit.core: not loaded " ns-name)
       (require (symbol ns-name)))
     (mapv
       #(str (first %))
