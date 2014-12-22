@@ -3,6 +3,8 @@ package internal.ui;
 import org.eclipse.jface.util.IPropertyChangeListener;
 import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.DisposeEvent;
+import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Button;
@@ -27,12 +29,14 @@ public class ColorSelector extends Composite {
                 notifyListeners(SWT.Selection, null);
             }
         };
-        myColorSelector.addListener(listener);
-    }
 
-    @Override
-    public void dispose() {
-        myColorSelector.removeListener(listener);
+        myColorSelector.addListener(listener);
+
+        addDisposeListener(new DisposeListener() {
+            public void widgetDisposed(DisposeEvent e) {
+                myColorSelector.removeListener(listener);
+            }
+        });
     }
 
     public void setColorValue(RGB rgb) {
