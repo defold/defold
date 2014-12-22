@@ -5,7 +5,27 @@
             [aws.sdk.s3 :as s3])
   (:import [java.io File]))
 
-; NOTE: The source-folder is absolute and root isn't set due to a bug 
+(def public-namespaces ['dynamo.buffers
+                        'dynamo.camera
+                        'dynamo.editors
+                        'dynamo.env
+                        'dynamo.file
+                        'dynamo.geom
+                        'dynamo.gl
+                        'dynamo.image
+                        'dynamo.node
+                        'dynamo.outline
+                        'dynamo.particle-lib
+                        'dynamo.project
+                        'dynamo.property
+                        'dynamo.selection
+                        'dynamo.system
+                        'dynamo.texture
+                        'dynamo.types
+                        'dynamo.ui
+                        'dynamo.util])
+
+; NOTE: The source-folder is absolute and root isn't set due to a bug
 ; in codex (root isn't used when locating files). For the time being and until codox
 ; is fixed we've to have it this way.
 (def codox-options
@@ -17,7 +37,7 @@
                   (.resolve "com.dynamo.cr.sceneed2/src")
                   (.toString))]
    :output-dir "doc"
-   :include ['dynamo.file 'dynamo.node 'dynamo.project 'dynamo.ui 'dynamo.outline 'dynamo.texture 'dynamo.types]
+   :include public-namespaces
    :src-dir-uri "https://github.com/relevance/defold/blob/clojure-sceneed/com.dynamo.cr/com.dynamo.cr.sceneed2/"
    :src-linenum-anchor-prefix "L"
    :defaults {:doc/format :markdown}})
