@@ -24,7 +24,8 @@ Require-Bundle: org.eclipse.core.runtime;visibility:=reexport,
  com.dynamo.cr.parted;bundle-version="1.0.0",
  org.eclipse.ui.views,
  org.eclipse.ui.forms,
- com.dynamo.cr.properties
+ com.dynamo.cr.properties,
+ com.ibm.icu;bundle-version="52.1.0"
 Bundle-RequiredExecutionEnvironment: JavaSE-1.6
 Bundle-ActivationPolicy: lazy
 Export-Package: clojure,

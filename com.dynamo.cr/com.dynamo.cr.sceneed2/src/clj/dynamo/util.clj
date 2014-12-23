@@ -38,3 +38,18 @@
   [s]
   (when (re-find #"^-?\d+\.?0*$" s)
     (read-string (str/replace s #"^(-?)0*(\d+)\.?0*$" "$1$2"))))
+
+
+(defmacro doseq-monitored [monitor task-name bindings & body]
+  (assert (= 2 (count bindings)) "Monitored doseq only allows one binding")
+  `(let [items# ~(second bindings)]
+     (.beginTask ~monitor ~task-name (count items#))
+     (loop [continue# true
+            items#     items#]
+       (when continue#
+         (when (seq items#)
+           (let [~(first bindings) (first items#)]
+             ~@body)
+           (.worked ~monitor 1)
+           (recur (.isCanceled ~monitor) (rest items#)))))
+     (.done ~monitor)))

@@ -23,7 +23,7 @@
 (defn method->function [m]
   (list (symbol (.getName m)) (into ['this] (.getParameterTypes m))))
 
-(defn all-types [cls ]
+(defn all-types [cls]
   (cons cls (supers cls)))
 
 (defn skeletor [iface]
