@@ -343,7 +343,7 @@
     `(defmethod print-method ~classname
        [~tagged-arg w#]
        (.write ^java.io.Writer w# (str "<" ~(str nm)
-                                       (merge (select-keys ~tagged-arg [:_id :inputs :outputs])
+                                       (merge (select-keys ~tagged-arg [:_id])
                                               (select-keys ~tagged-arg (-> ~tagged-arg :descriptor :properties keys)))
                                        ">")))))
 

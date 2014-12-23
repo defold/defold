@@ -50,6 +50,22 @@
   [id]
   (dg/node (the-graph) id))
 
+(defn inputs-to
+  ([id]
+    (group-by first
+      (for [a (dg/arcs-to (the-graph) id)]
+        [(get-in a [:target-attributes :label]) (:source a) (get-in a [:source-attributes :label]) ])))
+  ([id label]
+    (lg/sources (the-graph) id label)))
+
+(defn outputs-from
+  ([id]
+    (group-by first
+      (for [a (dg/arcs-from (the-graph) id)]
+       [(get-in a [:source-attributes :label]) (:target a) (get-in a [:target-attributes :label])])))
+  ([id label]
+    (lg/targets (the-graph) id label)))
+
 (defn get-value
   [id label & {:as opt-map}]
   (n/get-node-value (merge (node id) opt-map) label))

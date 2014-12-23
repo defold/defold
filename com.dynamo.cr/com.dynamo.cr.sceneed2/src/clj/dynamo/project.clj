@@ -11,9 +11,10 @@
             [dynamo.ui :as ui]
             [internal.clojure :as clojure]
             [internal.query :as iq]
+            [internal.ui.dialogs :as dialogs]
             [eclipse.resources :as resources]
             [service.log :as log])
-  (:import [org.eclipse.core.resources IFile IProject IResource]
+  (:import [org.eclipse.core.resources IContainer IFile IProject IResource]
            [org.eclipse.ui PlatformUI IEditorSite]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
 
@@ -130,6 +131,14 @@
   (doseq [id (:nodes-added txn)]
     (ds/send-after {:_id id} {:type :project-scope :scope self})))
 
+(defn project-enclosing
+  [node]
+  node)
+
+(defn select-resources
+  [shell-provider node extensions]
+  (dialogs/resource-selection-dialog shell-provider (project-enclosing node) "Add Images" ["png" "jpg"]))
+
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
 ; ---------------------------------------------------------------------------
@@ -139,6 +148,7 @@
   (property triggers           n/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
   (property tag                s/Keyword (default :project))
   (property eclipse-project    IProject)
+  (property content-root       IContainer)
   (property branch             s/Str)
   (property presenter-registry t/Registry)
 
@@ -148,7 +158,8 @@
 (defn load-project-and-tools
   [eclipse-project branch]
   (ds/transactional
-    (let [project-node    (ds/add (make-project :eclipse-project eclipse-project :branch branch :handlers default-handlers))
+    (let [content-root    (.getFolder eclipse-project "content")
+          project-node    (ds/add (make-project :eclipse-project eclipse-project :content-root content-root :branch branch :handlers default-handlers))
           clojure-sources (filter clojure/clojure-source? (resources/resource-seq eclipse-project))]
       (ds/in project-node
         (doseq [source clojure-sources]
