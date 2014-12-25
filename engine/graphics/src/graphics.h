@@ -110,11 +110,12 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_DXT3            = 5,
         TEXTURE_FORMAT_RGBA_DXT5            = 6,
         TEXTURE_FORMAT_DEPTH                = 7,
+        TEXTURE_FORMAT_STENCIL              = 9,
         TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
-        TEXTURE_FORMAT_RGB_ETC1             = 12,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 11,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 12,
+        TEXTURE_FORMAT_RGB_ETC1             = 13,
     };
 
     // Texture type
