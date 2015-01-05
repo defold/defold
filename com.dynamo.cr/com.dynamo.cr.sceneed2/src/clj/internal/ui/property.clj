@@ -55,7 +55,7 @@
     :listen   (zipmap (:listen spec) (repeat ui-event-listener))
     :children (mapv (fn [[child-name child-spec]] [child-name (attach-listeners child-spec ui-event-listener)]) (:children spec))))
 
-(def ^:private right-column-layout {:layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL :width-hint 50}})
+(def ^:private right-column-layout {:layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL}})
 
 (defn- control-spec
   [ui-event-listener prop-name presenter]
