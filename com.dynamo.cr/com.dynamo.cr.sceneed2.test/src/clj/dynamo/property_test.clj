@@ -159,6 +159,37 @@
   (is (false? (t/valid-property-value? DerivedPropInheritBothOverrideBoth 1)))
   (is (true?  (t/valid-property-value? DerivedPropInheritBothOverrideBoth 2))))
 
+(defproperty UntaggedProp s/Keyword)
+
+(defproperty TaggedProp s/Keyword
+  (tag :first))
+
+(defproperty ChildOfTaggedProp TaggedProp)
+
+(defproperty ChildOfTaggedPropWithOverride TaggedProp)
+
+(defproperty GrandchildOfTaggedProp ChildOfTaggedProp)
+
+(defproperty TaggedChild TaggedProp
+  (tag :second))
+
+(defproperty MultipleTags TaggedProp
+  (tag :second)
+  (tag :third))
+
+(defproperty ChildOfTaggedPropWithOverride TaggedProp
+  (default :some-keyword))
+
+(deftest property-tags
+  (are [property tags] (= tags (t/property-tags property))
+    UntaggedProp           []
+    TaggedProp             [:first]
+    ChildOfTaggedProp      [:first]
+    GrandchildOfTaggedProp [:first]
+    TaggedChild            [:second :first]
+    MultipleTags           [:third :second :first])
+  (is (vector? (t/property-tags ChildOfTaggedPropWithOverride))))
+
 (defproperty StringProp s/Str)
 
 (defproperty Vec3Prop t/Vec3)
@@ -170,16 +201,59 @@
 (defrecord CustomPresenter []
   dp/Presenter)
 
+(defrecord FirstCustomPresenter []
+  dp/Presenter)
+
+(defrecord SecondCustomPresenter []
+  dp/Presenter)
+
+(defrecord ThirdCustomPresenter []
+  dp/Presenter)
+
 (deftest lookup-presenter
   (testing "when the property is not registered, returns a default presenter"
-    (is (instance? DefaultPresenter (dp/lookup-presenter nil StringProp))))
+    (is (instance? DefaultPresenter (dp/lookup-presenter {} StringProp)))
+    (is (instance? DefaultPresenter (dp/lookup-presenter {} TaggedProp))))
   (testing "overriding registry"
-    (are [schema-to-register property-to-look-up expected-presenter]
-      (let [registry (dp/register-presenter nil schema-to-register (->CustomPresenter))
+    (are [type-to-register property-to-look-up expected-presenter]
+      (let [registry (dp/register-presenter {} type-to-register (->CustomPresenter))
             actual-presenter (dp/lookup-presenter registry property-to-look-up)]
         (instance? expected-presenter actual-presenter))
-      ;schema-to-register   property-to-look-up  expected-presenter
-      s/Str                 StringProp           CustomPresenter
-      s/Str                 UnregisteredProp     DefaultPresenter
-      t/Vec3                InheritsFromVec3Prop CustomPresenter
-      t/Vec3                Vec3Prop             CustomPresenter)))
+      ;type-to-register    property-to-look-up  expected-presenter
+      {:value-type s/Str}  StringProp           CustomPresenter
+      {:value-type s/Str}  UnregisteredProp     DefaultPresenter
+      {:value-type t/Vec3} InheritsFromVec3Prop CustomPresenter
+      {:value-type t/Vec3} Vec3Prop             CustomPresenter))
+  (testing "presenters with tags"
+    (are [type-to-register property-to-look-up expected-presenter]
+      (let [registry (dp/register-presenter {} type-to-register (->CustomPresenter))
+            actual-presenter (dp/lookup-presenter registry property-to-look-up)]
+        (instance? expected-presenter actual-presenter))
+      ;type-to-register                    property-to-look-up  expected-presenter
+      {:value-type s/Keyword}              UntaggedProp         CustomPresenter
+      {:value-type s/Keyword}              TaggedProp           CustomPresenter
+      {:value-type s/Keyword :tag :first}  UntaggedProp         DefaultPresenter
+      {:value-type s/Keyword :tag :first}  TaggedProp           CustomPresenter
+      {:value-type s/Str}                  UntaggedProp         DefaultPresenter
+      {:value-type s/Str     :tag :first}  UntaggedProp         DefaultPresenter
+      {:value-type s/Str     :tag :first}  TaggedProp           DefaultPresenter
+      {:value-type s/Keyword :tag :second} TaggedProp           DefaultPresenter
+      {:value-type s/Keyword :tag :second} TaggedChild          CustomPresenter
+      {:value-type s/Keyword :tag :second} MultipleTags         CustomPresenter
+      {:value-type s/Keyword :tag :third}  TaggedChild          DefaultPresenter
+      {:value-type s/Keyword :tag :third}  MultipleTags         CustomPresenter))
+  (testing "tag precedence"
+    (let [registry (-> {}
+                       (dp/register-presenter {:value-type s/Keyword}              (->CustomPresenter))
+                       (dp/register-presenter {:value-type s/Keyword :tag :first}  (->FirstCustomPresenter))
+                       (dp/register-presenter {:value-type s/Keyword :tag :second} (->SecondCustomPresenter))
+                       (dp/register-presenter {:value-type s/Keyword :tag :third}  (->ThirdCustomPresenter)))]
+      (are [property-to-look-up expected-presenter] (instance? expected-presenter (dp/lookup-presenter registry property-to-look-up))
+        ;property-to-look-up          expected-presenter
+        UntaggedProp                  CustomPresenter
+        TaggedProp                    FirstCustomPresenter
+        ChildOfTaggedProp             FirstCustomPresenter
+        GrandchildOfTaggedProp        FirstCustomPresenter
+        ChildOfTaggedPropWithOverride FirstCustomPresenter
+        TaggedChild                   SecondCustomPresenter
+        MultipleTags                  ThirdCustomPresenter))))

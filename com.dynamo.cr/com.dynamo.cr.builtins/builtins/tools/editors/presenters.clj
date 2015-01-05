@@ -62,7 +62,23 @@
           :focus-out (final-value new-value)
           (no-change))))))
 
+(defrecord ColorPresenter []
+  Presenter
+  (control-for-property [_]
+    {:type :composite
+     :layout {:type :grid :num-columns 2 :margin-width 0 :margin-height 0 :horizontal-spacing 0}
+     :children [[:label {:type :label :layout-data {:type :grid :width-hint 55}}]
+                [:selector {:type :color-selector :listen #{:selection}}]]})
+  (settings-for-control [_ [r g b :as value]]
+    {:children [[:label {:text (format "#%02x%02x%02x" (int r) (int g) (int b))}]
+                [:selector {:color (mapv int value)}]]})
+  (on-event [_ path event value]
+    (case (:type event)
+      :selection (final-value (ui/get-color (:widget event)))
+      (no-change))))
+
 (when (ds/in-transaction?)
-  (p/register-presenter s/Str  (->StringPresenter))
-  (p/register-presenter s/Int  (->IntPresenter))
-  (p/register-presenter t/Vec3 (->Vec3Presenter)))
+  (p/register-presenter {:value-type s/Str}              (->StringPresenter))
+  (p/register-presenter {:value-type s/Int}              (->IntPresenter))
+  (p/register-presenter {:value-type t/Vec3}             (->Vec3Presenter))
+  (p/register-presenter {:value-type t/Vec3 :tag :color} (->ColorPresenter)))

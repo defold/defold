@@ -79,7 +79,8 @@
   (property-value-type    [this] "Prismatic schema for property value type")
   (default-property-value [this])
   (valid-property-value?  [this v])
-  (property-visible       [this] "If true, this property appears in the UI"))
+  (property-visible       [this] "If true, this property appears in the UI")
+  (property-tags          [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))
 

@@ -85,10 +85,11 @@
     (factory project-node path)))
 
 (defnode CannedProperties
-  (property rotation     s/Str  (default "twenty degrees starboard"))
-  (property translation  s/Str  (default "Guten abend."))
-  (property some-vector  t/Vec3 (default [1 2 3]))
-  (property some-integer s/Int  (default 42)))
+  (property rotation     s/Str    (default "twenty degrees starboard"))
+  (property translation  s/Str    (default "Guten abend."))
+  (property some-vector  t/Vec3   (default [1 2 3]))
+  (property some-integer s/Int    (default 42))
+  (property background   dp/Color (default [0x4d 0xc0 0xca])))
 
 (defn- build-content-node
   [project-node path]
