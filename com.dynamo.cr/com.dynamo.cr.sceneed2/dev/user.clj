@@ -121,7 +121,6 @@
     (ui/swt-safe
      (deliver p
        (p/select-resources
-        (.getModalDialogShellProvider (PlatformUI/getWorkbench))
         node
         extensions)))
     p))

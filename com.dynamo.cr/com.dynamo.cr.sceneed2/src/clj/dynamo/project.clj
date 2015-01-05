@@ -151,8 +151,12 @@
         (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)])))))
 
 (defn select-resources
-  [shell-provider node extensions]
-  (dialogs/resource-selection-dialog shell-provider "Add Images" (nodes-with-extensions (project-enclosing node) extensions)))
+  ([node extensions]
+    (select-resources node extensions "Select resource" false))
+  ([node extensions title]
+    (select-resources node extensions title false))
+  ([node extensions title multiselect?]
+    (dialogs/resource-selection-dialog title multiselect? (nodes-with-extensions (project-enclosing node) extensions))))
 
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse

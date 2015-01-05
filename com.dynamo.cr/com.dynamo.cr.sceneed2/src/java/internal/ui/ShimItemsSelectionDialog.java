@@ -4,8 +4,8 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.dialogs.FilteredItemsSelectionDialog;
 
 public abstract class ShimItemsSelectionDialog extends FilteredItemsSelectionDialog {
-    public ShimItemsSelectionDialog(Shell shell) {
-        super(shell);
+    public ShimItemsSelectionDialog(Shell shell, boolean multi) {
+        super(shell, multi);
     }
 
     /**

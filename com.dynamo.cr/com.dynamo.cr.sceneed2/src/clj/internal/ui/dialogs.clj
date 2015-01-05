@@ -1,12 +1,11 @@
 (ns internal.ui.dialogs
   (:require [dynamo.file :as file]
-            [dynamo.project :as p]
-            [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [eclipse.markers :as markers]
             [internal.query :as iq])
-  (:import [org.eclipse.ui.dialogs FilteredItemsSelectionDialog FilteredItemsSelectionDialog$AbstractContentProvider FilteredItemsSelectionDialog$ItemsFilter]
+  (:import [org.eclipse.ui PlatformUI]
+           [org.eclipse.ui.dialogs FilteredItemsSelectionDialog FilteredItemsSelectionDialog$AbstractContentProvider FilteredItemsSelectionDialog$ItemsFilter]
            [org.eclipse.ui.model WorkbenchLabelProvider]
            [org.eclipse.core.runtime IProgressMonitor]
            [org.eclipse.core.resources IFile]
@@ -93,8 +92,8 @@
     item-provider))
 
 (defn- make-resource-selection-dialog
-  [shell resource-seq]
-  (proxy [ShimItemsSelectionDialog] [shell]
+  [shell multiselect? resource-seq]
+  (proxy [ShimItemsSelectionDialog] [shell multiselect?]
     (createFilter []
       (let [dlg this]
         (proxy [FilteredItemsSelectionDialog$ItemsFilter] [this]
@@ -127,14 +126,17 @@
     (validateItem [item]
       markers/ok-status)))
 
+(defn- modal-dialog-shell []
+  (.getShell (.getModalDialogShellProvider (PlatformUI/getWorkbench))))
+
 (defn resource-selection-dialog
-  [^IShellProvider shell-provider title resource-seq]
-  (let [dlg ^FilteredItemsSelectionDialog (make-resource-selection-dialog (.getShell shell-provider) resource-seq)]
+  [title multiselect? resource-seq]
+  (let [dlg ^FilteredItemsSelectionDialog (make-resource-selection-dialog (modal-dialog-shell) multiselect? resource-seq)]
     (.setTitle dlg title)
     (.setListLabelProvider dlg (resource-item-label-provider dlg))
     (.setDetailsLabelProvider dlg (resource-item-detail-provider dlg))
     (.setInitialPattern dlg "**")
     (.open dlg)
-    (.getResult dlg)))
+    (seq (.getResult dlg))))
 
 ;(dialogs/resource-selection-dialog "Add Images" ["png" "jpg"])
