@@ -13,6 +13,7 @@
             [internal.graph.lgraph :as lg]
             [internal.system :as is]
             [internal.ui.property :as iip]
+            [internal.java :as j]
             [clojure.repl :refer :all]
             [schema.core :as s])
   (:import [java.awt Dimension]
@@ -50,6 +51,10 @@
 (defn node
   [id]
   (dg/node (the-graph) id))
+
+(defn image-nodes
+  []
+  (map (comp node first) (filter #(= "editors.image_node.ImageResourceNode__" (.getName (second %))) (nodes-and-classes))))
 
 (defn inputs-to
   ([id]
@@ -104,6 +109,16 @@
         refs (.getServiceReferences bc IWorkbench nil)
         so   (.getServiceObjects bc (first refs))]
     (.getApplication (.getService so))))
+
+(defn protobuf-fields
+  [protobuf-msg-cls]
+  (for [fld (.getFields (internal.java/invoke-no-arg-class-method protobuf-msg-cls "getDescriptor"))]
+    {:name (.getName fld)
+     :type (let [t (.getJavaType fld)]
+             (if (not= com.google.protobuf.Descriptors$FieldDescriptor$JavaType/MESSAGE t)
+               (str t)
+               (.. fld getMessageType getName)))
+     :resource? (.getExtension (.getOptions fld) com.dynamo.proto.DdfExtensions/resource)}))
 
 (defn popup-ui [widgets]
   (let [r (promise)]
