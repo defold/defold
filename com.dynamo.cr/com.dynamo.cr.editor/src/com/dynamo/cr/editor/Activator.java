@@ -586,12 +586,9 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
             service.runInUI(service, new IRunnableWithProgress() {
                 @Override
                 public void run(IProgressMonitor monitor) throws InvocationTargetException, InterruptedException {
-                    monitor.beginTask("Loading editor tools", 1);
                     try {
                         ClojureHelper.require("dynamo.project");
-                        ClojureHelper.invoke("dynamo.project", "open-project", p, branch);
-                        monitor.worked(1);
-                        monitor.done();
+                        ClojureHelper.invoke("dynamo.project", "open-project", p, branch, monitor);
                     } catch (Exception e) {
                         showError("Unable to start editor tools", e);
                     }

@@ -9,12 +9,14 @@
             [dynamo.selection :as selection]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [dynamo.util :refer :all]
             [internal.clojure :as clojure]
             [internal.query :as iq]
             [internal.ui.dialogs :as dialogs]
             [eclipse.resources :as resources]
             [service.log :as log])
   (:import [org.eclipse.core.resources IContainer IFile IProject IResource]
+           [org.eclipse.core.runtime IProgressMonitor]
            [org.eclipse.ui PlatformUI IEditorSite]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
 
@@ -51,19 +53,23 @@
 
 (def default-handlers {:loader {"clj" clojure/on-load-code}})
 
-(def no-such-handler
-  (memoize
-    (fn [key ext]
-      (fn [& _] (throw (ex-info (str "No " (name key) " has been registered that can handle " ext) {}))))))
+(defn load-placeholder
+  [resource path]
+  (ds/add (n/make-placeholder)))
 
-(defn- handler
-  [project-scope key ext]
+(defn no-such-handler
+  [key ext]
+  (fn [& _] (throw (ex-info (str "No " (name key) " has been registered that can handle " ext) {}))))
+
+(defn- loader-for [project-scope ext]
   (or
-    (get-in project-scope [:handlers key ext])
-    (no-such-handler key ext)))
+    (get-in project-scope [:handlers :loader ext])
+    load-placeholder))
 
-(defn- loader-for [project-scope ext] (handler project-scope :loader ext))
-(defn- editor-for [project-scope ext] (handler project-scope :editor ext))
+(defn- editor-for [project-scope ext]
+  (or
+    (get-in project-scope [:handlers :editor ext])
+    (no-such-handler key ext)))
 
 (defn node?! [n kind]
   (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
@@ -71,7 +77,6 @@
 
 (defn load-resource
   [project-node path]
-  (println "load-resource " :path path)
   (ds/transactional
     (ds/in project-node
       (let [loader        (loader-for project-node (file/extension path))
@@ -165,20 +170,43 @@
   (on :destroy
     (ds/delete self)))
 
-(defn load-project-and-tools
-  [^IProject eclipse-project branch]
+(defn load-resource-nodes
+  [project-node resources ^IProgressMonitor monitor]
   (ds/transactional
-    (let [content-root    (.getFolder eclipse-project "content")
-          project-node    (ds/add (make-project :eclipse-project eclipse-project :content-root content-root :branch branch :handlers default-handlers))
-          clojure-sources (filter clojure/clojure-source? (resources/resource-seq eclipse-project))]
+    (let [eclipse-project ^IProject (:eclipse-project project-node)]
       (ds/in project-node
-        (doseq [source clojure-sources]
-          (load-resource project-node (file/project-path project-node source))))
-      project-node)))
+        (doseq [resource resources]
+          (let [p (file/project-path project-node resource)]
+            (monitored-work monitor (str "Scanning " (file/local-name p))
+              (prn :load-resource-nodes p)
+              (load-resource project-node p)))))
+      (monitored-work monitor (str "Compiling tools")
+        project-node))))
+
+(defn load-project
+  [^IProject eclipse-project branch ^IProgressMonitor monitor]
+  (ds/transactional
+    (ds/add
+      (make-project
+        :eclipse-project eclipse-project
+        :content-root (.getFolder eclipse-project "content")
+        :branch branch
+        :handlers default-handlers))))
+
+(defn load-project-and-tools
+  [^IProject eclipse-project branch ^IProgressMonitor monitor]
+  (let [project-node    (load-project eclipse-project branch monitor)
+        resources       (group-by clojure/clojure-source? (filter #(instance? IFile %) (resources/resource-seq eclipse-project)))
+        clojure-sources (get resources true)
+        non-sources     (get resources false)]
+    (monitored-task monitor "Scanning project" (inc (count resources))
+      (-> project-node
+        (load-resource-nodes (get resources true) monitor)
+        (load-resource-nodes (get resources false) monitor)))))
 
 (defn open-project
-  [eclipse-project branch]
-  (resources/listen-for-close (load-project-and-tools eclipse-project branch)))
+  [eclipse-project branch ^IProgressMonitor monitor]
+  (resources/listen-for-close (load-project-and-tools eclipse-project branch monitor)))
 
 ; ---------------------------------------------------------------------------
 ; Documentation

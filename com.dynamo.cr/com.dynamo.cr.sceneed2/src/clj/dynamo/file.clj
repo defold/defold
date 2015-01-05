@@ -46,7 +46,7 @@
   PathManipulation
   (extension         [this]         ext)
   (replace-extension [this new-ext] (ProjectPath. project path new-ext))
-  (local-path        [this]         (str path "." ext))
+  (local-path        [this]         (if ext (str path "." ext) path))
   (local-name        [this]         (str (last-component path) "." ext))
   (alter-path        [this f]       (ProjectPath. project (f path) ext))
   (alter-path        [this f args]  (ProjectPath. project (apply f path args) ext))
@@ -73,7 +73,7 @@
 
 (defmethod print-method ProjectPath
   [^ProjectPath v ^java.io.Writer w]
-  (.write w (str "<ProjectPath \"" (.path v) "." (.ext v) "\">")))
+  (.write w (str "<ProjectPath \"" (local-path v) "\">")))
 
 (alter-meta! #'->ProjectPath update-in [:doc] str "\n\n Takes a project, a string path, and a file extension.")
 
@@ -128,8 +128,12 @@
           file  (if (instance? IFile resource)
                   resource
                   (.getFile ep (str "content/" resource)))
-          pr    (.removeFirstSegments (.getFullPath ^IFile file) 1)]
-      (ProjectPath. project-scope (.toString (.removeFileExtension pr)) (.getFileExtension pr)))))
+          pr    (.removeFirstSegments (.getFullPath ^IFile file) 1)
+          ext   (.getFileExtension pr)
+          p     (.toString pr)
+          p     (if-not ext p (subs p 0 (- (count p) (count ext) 1)))]
+      (when-not p (println :project-path :null-result :input resource))
+      (ProjectPath. project-scope p ext))))
 
 (defn in-build-directory
   [^ProjectPath p]

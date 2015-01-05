@@ -18,6 +18,7 @@
   (:import [java.awt Dimension]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
            [javax.swing JFrame JPanel]
+           [org.eclipse.ui PlatformUI]
            [org.eclipse.e4.ui.workbench IWorkbench]))
 
 (defn method->function [m]
@@ -116,11 +117,14 @@
 
 (defn popup-resource-selector
   [node & extensions]
-  (ui/swt-safe
-    (p/select-resources
-      (.getModalDialogShellProvider (PlatformUI/getWorkbench))
-      node
-      extensions)))
+  (let [p (promise)]
+    (ui/swt-safe
+     (deliver p
+       (p/select-resources
+        (.getModalDialogShellProvider (PlatformUI/getWorkbench))
+        node
+        extensions)))
+    p))
 
 (comment
   (import '[com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage])

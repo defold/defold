@@ -6,12 +6,15 @@
             [dynamo.util :refer :all]
             [eclipse.markers :as markers]
             [internal.query :as iq])
-  (:import [org.eclipse.ui.dialogs FilteredItemsSelectionDialog FilteredItemsSelectionDialog$ItemsFilter]
+  (:import [org.eclipse.ui.dialogs FilteredItemsSelectionDialog FilteredItemsSelectionDialog$AbstractContentProvider FilteredItemsSelectionDialog$ItemsFilter]
            [org.eclipse.ui.model WorkbenchLabelProvider]
            [org.eclipse.jface.window IShellProvider]
            [org.eclipse.jface.viewers DelegatingStyledCellLabelProvider$IStyledLabelProvider ILabelProviderListener LabelProvider LabelProviderChangedEvent StyledString]
            [com.ibm.icu.text Collator]
-           [com.dynamo.cr.sceneed Activator]))
+           [com.dynamo.cr.sceneed Activator]
+           [internal.ui ShimItemsSelectionDialog]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private resource-selection-dialog-settings "com.dynamo.cr.dialogs.ResourcesSelectionDialog")
 
@@ -25,10 +28,11 @@
   (reify java.util.Comparator
     (^int compare [this o1 o2]
       (.compare (Collator/getInstance)
-        (.. o1 getFullPath toOSString)
-        (.. o2 getFullPath toOSString)))))
+        (file/local-path (:filename o1))
+        (file/local-path (:filename o2))))))
 
-(def resource-item-label-provider
+(defn resource-item-label-provider
+  [dlg]
   (let [listeners          (ui/make-event-broadcaster)
         workbench-provider (WorkbenchLabelProvider.)
         item-provider      (proxy [LabelProvider ILabelProviderListener DelegatingStyledCellLabelProvider$IStyledLabelProvider] []
@@ -38,11 +42,12 @@
                                  (.getImage workbench-provider (file/eclipse-file (:filename element)))))
 
                              (getText [element]
+                               (prn "label provider getText " element)
                                (if-not (:filename element)
                                  (proxy-super getText element)
                                  (let [efile (file/eclipse-file (:filename element))
                                        name  (.getName efile)]
-                                   (if (.isDuplicateElement this element)
+                                   (if (.isDuplicateElement dlg element)
                                      (str name " - " (.. efile getParent getFullPath makeRelative))
                                      name))))
 
@@ -51,7 +56,7 @@
                                  (StyledString. (proxy-super getText element))
                                  (let [efile (file/eclipse-file (:filename element))
                                        name  (.getName efile)]
-                                   (if (.isDuplicateElement this element)
+                                   (if (.isDuplicateElement dlg element)
                                      (doto (StyledString. name)
                                        (.append " - " StyledString/QUALIFIER_STYLER)
                                        (.append (.. efile getParent getFullPath makeRelative) StyledString/QUALIFIER_STYLER))
@@ -75,11 +80,17 @@
 
 (defn- make-resource-selection-dialog
   [shell resource-seq]
-  (proxy [FilteredItemsSelectionDialog] [shell]
+  (proxy [ShimItemsSelectionDialog] [shell]
     (createFilter []
-      (proxy [FilteredItemsSelectionDialog$ItemsFilter] [this]
-        (matchItem [item] true)
-        (isConsistentItem [item] true)))
+      (let [dlg this]
+        (proxy [FilteredItemsSelectionDialog$ItemsFilter] [this]
+          (matchItem [item]
+            (let [nm (:filename item)]
+              (or
+                (.matches this (file/local-name nm))
+                (.matches this (file/local-path nm)))))
+
+          (isConsistentItem [item] (not (nil? (:filename item)))))))
 
     (createExtendedContentArea [parent] nil)
 
@@ -87,16 +98,15 @@
       (dialog-settings resource-selection-dialog-settings))
 
     (getElementName [o]
-      (.getName (:filename o)))
+      (file/local-name (:filename o)))
 
     (getItemsComparator [] item-comparator)
 
     (fillContentProvider [content-provider items-filter progress-monitor]
-      (println :fillContentProvider :resource-seq resource-seq)
-      (doseq-monitored progress-monitor "Searching"
-        [node resource-seq]
-        (println :fillContentProvider :node node)
-        (.add content-provider node items-filter)))
+      (monitored-task progress-monitor "Searching" (count resource-seq)
+        (doseq [node resource-seq]
+          (monitored-work progress-monitor ""
+            (.addToContentProvider ^ShimItemsSelectionDialog this content-provider node items-filter)))))
 
     (validateItem [item]
       markers/ok-status)))
@@ -105,7 +115,8 @@
   [^IShellProvider shell-provider title resource-seq]
   (let [dlg (make-resource-selection-dialog (.getShell shell-provider) resource-seq)]
     (.setTitle dlg title)
-    (.setListLabelProvider dlg resource-item-label-provider)
+    (.setListLabelProvider dlg (resource-item-label-provider dlg))
+    (.setInitialPattern dlg "**")
     (.open dlg)
     (.getResult dlg)))
 
