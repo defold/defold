@@ -8,6 +8,8 @@
             [internal.query :as iq])
   (:import [org.eclipse.ui.dialogs FilteredItemsSelectionDialog FilteredItemsSelectionDialog$AbstractContentProvider FilteredItemsSelectionDialog$ItemsFilter]
            [org.eclipse.ui.model WorkbenchLabelProvider]
+           [org.eclipse.core.runtime IProgressMonitor]
+           [org.eclipse.core.resources IFile]
            [org.eclipse.jface.window IShellProvider]
            [org.eclipse.jface.viewers DelegatingStyledCellLabelProvider$IStyledLabelProvider ILabelProviderListener LabelProvider LabelProviderChangedEvent StyledString]
            [com.ibm.icu.text Collator]
@@ -31,44 +33,56 @@
         (file/local-path (:filename o1))
         (file/local-path (:filename o2))))))
 
+(defn resource-item-detail-provider
+  [^FilteredItemsSelectionDialog dlg]
+  (proxy [LabelProvider] []
+    (getText [element]
+      (let [^LabelProvider this this]
+        (if-not (:filename element)
+         (proxy-super getText element)
+         (file/local-path (:filename element)))))))
+
 (defn resource-item-label-provider
-  [dlg]
+  [^FilteredItemsSelectionDialog dlg]
   (let [listeners          (ui/make-event-broadcaster)
         workbench-provider (WorkbenchLabelProvider.)
         item-provider      (proxy [LabelProvider ILabelProviderListener DelegatingStyledCellLabelProvider$IStyledLabelProvider] []
                              (getImage [element]
-                               (if-not (:filename element)
-                                 (proxy-super getImage element)
-                                 (.getImage workbench-provider (file/eclipse-file (:filename element)))))
+                               (let [^LabelProvider this this]
+                                 (if-not (:filename element)
+                                   (proxy-super getImage element)
+                                   (.getImage workbench-provider (file/eclipse-file (:filename element))))))
 
                              (getText [element]
-                               (prn "label provider getText " element)
-                               (if-not (:filename element)
-                                 (proxy-super getText element)
-                                 (let [efile (file/eclipse-file (:filename element))
-                                       name  (.getName efile)]
-                                   (if (.isDuplicateElement dlg element)
-                                     (str name " - " (.. efile getParent getFullPath makeRelative))
-                                     name))))
+                               (let [^LabelProvider this this]
+                                 (if-not (:filename element)
+                                  (proxy-super getText element)
+                                  (let [efile ^IFile (file/eclipse-file (:filename element))
+                                        name  (.getName efile)]
+                                    (if (.isDuplicateElement dlg element)
+                                      (str name " - " (.. efile getParent getFullPath makeRelative))
+                                      name)))))
 
                              (getStyledText [element]
-                               (if-not (:filename element)
-                                 (StyledString. (proxy-super getText element))
-                                 (let [efile (file/eclipse-file (:filename element))
-                                       name  (.getName efile)]
-                                   (if (.isDuplicateElement dlg element)
-                                     (doto (StyledString. name)
-                                       (.append " - " StyledString/QUALIFIER_STYLER)
-                                       (.append (.. efile getParent getFullPath makeRelative) StyledString/QUALIFIER_STYLER))
-                                     (StyledString. name)))))
+                               (let [^LabelProvider this this]
+                                 (if-not (:filename element)
+                                  (StyledString. (proxy-super getText element))
+                                  (let [efile ^IFile (file/eclipse-file (:filename element))
+                                        name  (.getName efile)]
+                                    (if (.isDuplicateElement dlg element)
+                                      (doto (StyledString. name)
+                                        (.append " - " StyledString/QUALIFIER_STYLER)
+                                        (.append (.. efile getParent getFullPath makeRelative toString) StyledString/QUALIFIER_STYLER))
+                                      (StyledString. name))))))
 
                              (dispose []
-                               (.removeListener workbench-provider this)
-                               (.dispose workbench-provider)
-                               (proxy-super dispose))
+                               (let [^LabelProvider this this]
+                                 (.removeListener workbench-provider this)
+                                 (.dispose workbench-provider)
+                                 (proxy-super dispose)))
 
                              (addListener [listener]
-                               (ui/add-listener listeners listener #(.labelProviderChanged listener %)))
+                               (ui/add-listener listeners listener #(.labelProviderChanged ^ILabelProviderListener listener %)))
 
                              (removeListener [listener]
                                (ui/remove-listener listeners listener))
@@ -85,10 +99,11 @@
       (let [dlg this]
         (proxy [FilteredItemsSelectionDialog$ItemsFilter] [this]
           (matchItem [item]
-            (let [nm (:filename item)]
+            (let [nm (:filename item)
+                  filter ^FilteredItemsSelectionDialog$ItemsFilter this]
               (or
-                (.matches this (file/local-name nm))
-                (.matches this (file/local-path nm)))))
+                (.matches filter ^String (file/local-name nm))
+                (.matches filter ^String (file/local-path nm)))))
 
           (isConsistentItem [item] (not (nil? (:filename item)))))))
 
@@ -102,20 +117,22 @@
 
     (getItemsComparator [] item-comparator)
 
-    (fillContentProvider [content-provider items-filter progress-monitor]
-      (monitored-task progress-monitor "Searching" (count resource-seq)
-        (doseq [node resource-seq]
-          (monitored-work progress-monitor ""
-            (.addToContentProvider ^ShimItemsSelectionDialog this content-provider node items-filter)))))
+    (fillContentProvider [^FilteredItemsSelectionDialog$AbstractContentProvider content-provider ^FilteredItemsSelectionDialog$ItemsFilter items-filter ^IProgressMonitor progress-monitor]
+      (let [^ShimItemsSelectionDialog this this]
+        (monitored-task progress-monitor "Searching" (count resource-seq)
+          (doseq [node resource-seq]
+            (monitored-work progress-monitor ""
+              (.addToContentProvider this content-provider node items-filter))))))
 
     (validateItem [item]
       markers/ok-status)))
 
 (defn resource-selection-dialog
   [^IShellProvider shell-provider title resource-seq]
-  (let [dlg (make-resource-selection-dialog (.getShell shell-provider) resource-seq)]
+  (let [dlg ^FilteredItemsSelectionDialog (make-resource-selection-dialog (.getShell shell-provider) resource-seq)]
     (.setTitle dlg title)
     (.setListLabelProvider dlg (resource-item-label-provider dlg))
+    (.setDetailsLabelProvider dlg (resource-item-detail-provider dlg))
     (.setInitialPattern dlg "**")
     (.open dlg)
     (.getResult dlg)))

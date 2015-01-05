@@ -14,7 +14,7 @@ public abstract class ShimItemsSelectionDialog extends FilteredItemsSelectionDia
      * 'proxy' function doesn't allow access to protected members from the
      * proxy.
      */
-    protected void addToContentProvider(AbstractContentProvider contentProvider, Object item, ItemsFilter itemsFilter) {
+    public void addToContentProvider(AbstractContentProvider contentProvider, Object item, ItemsFilter itemsFilter) {
         contentProvider.add(item, itemsFilter);
     }
 }
