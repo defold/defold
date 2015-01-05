@@ -54,20 +54,20 @@
       (ProtocolClause. prot)
       (bomb "Cannot resolve " (second clause)))))
 
-(defn- make-neighbors-clause 
+(defn- make-neighbors-clause
   [dir-fn label]
   (NeighborsClause. dir-fn label))
 
 (defn- clause-instance
   [clause]
-  (cond 
+  (cond
     (vector? clause)  (ScanningClause. (first clause) (second clause))
     (list? clause)    (let [directive (first clause)]
-                        (cond 
+                        (cond
                          (= directive 'protocol) (make-protocol-clause clause)
                          (= directive 'input)    (make-neighbors-clause sources (second clause))
                          (= directive 'output)   (make-neighbors-clause targets (second clause))
-                         :else                   (bomb "Unrecognized query function: " clause))) 
+                         :else                   (bomb "Unrecognized query function: " clause)))
     :else             (bomb "Unrecognized clause: " clause)))
 
 (defn- add-clause
@@ -84,7 +84,7 @@
 ;; Both (any order):
 ;; [(protocol symbol) [:attr value]]
 
-(defn query 
+(defn query
   [g clauses]
   (let [qfn (reduce add-clause tail (reverse clauses))]
     (trampoline qfn g (into #{} (node-ids g)))))

@@ -28,7 +28,10 @@
                       'dynamo.gl.vertex-test
                       'docs])
 
-(def builtins-files ["/builtins/tools/editors/atlas.clj"
+;; TODO - Once we support dependencies among tool code better, put this in alpha order.
+;; For now, editors.image-node must be loaded before editors.atlas (ick)
+(def builtins-files ["/builtins/tools/editors/image_node.clj"
+                     "/builtins/tools/editors/atlas.clj"
                      "/builtins/tools/editors/cubemap.clj"
                      "/builtins/tools/editors/particlefx.clj"
                      "/builtins/tools/editors/presenters.clj"])

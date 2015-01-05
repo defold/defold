@@ -23,6 +23,7 @@
   (^String           extension         [this])
   (^PathManipulation replace-extension [this new-ext])
   (^String           local-path        [this])
+  (^String           local-name        [this])
   (^PathManipulation alter-path        [this f]
                                        [this f args]))
 
@@ -37,11 +38,16 @@
     (.getParentFile)
     (.mkdirs)))
 
+(defn- last-component
+  [p]
+  (last (str/split p (java.util.regex.Pattern/compile java.io.File/separator))))
+
 (defrecord ProjectPath [project ^String path ^String ext]
   PathManipulation
   (extension         [this]         ext)
   (replace-extension [this new-ext] (ProjectPath. project path new-ext))
   (local-path        [this]         (str path "." ext))
+  (local-name        [this]         (str (last-component path) "." ext))
   (alter-path        [this f]       (ProjectPath. project (f path) ext))
   (alter-path        [this f args]  (ProjectPath. project (apply f path args) ext))
 
@@ -78,6 +84,7 @@
   (extension         [this]         ext)
   (replace-extension [this new-ext] (NativePath. path new-ext))
   (local-path        [this]         (str path "." ext))
+  (local-name        [this]         (str (last-component path) "." ext))
   (alter-path        [this f]       (NativePath. (f path) ext))
   (alter-path        [this f args]  (NativePath. (apply f path args) ext))
 

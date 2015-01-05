@@ -63,7 +63,6 @@
 (defnk image-from-resource :- Image
   [this project]
   (let [src (project-path project (:image this))]
-	  (println :image-from-resource (:image this) src)
     (load-image src (:image this))))
 
 ;; Behavior
@@ -153,6 +152,7 @@
       (doseq [^Rect rect placements]
         (.drawImage graphics (:contents (get src-by-path (.path rect))) (int (.x rect)) (int (.y rect)) nil)))
     onto))
+
 
 (doseq [[v doc]
        {#'extrude-borders

@@ -71,6 +71,7 @@
 
 (defn load-resource
   [project-node path]
+  (println "load-resource " :path path)
   (ds/transactional
     (ds/in project-node
       (let [loader        (loader-for project-node (file/extension path))
@@ -135,9 +136,18 @@
   [node]
   node)
 
+(defn nodes-with-extensions
+  [project-node extensions]
+  (let [extensions (into #{} extensions)
+        pred (fn [node] (and (:filename node)
+                          (some #{(file/extension (:filename node))} extensions)))]
+    (into #{}
+      (filter pred
+        (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)])))))
+
 (defn select-resources
   [shell-provider node extensions]
-  (dialogs/resource-selection-dialog shell-provider (project-enclosing node) "Add Images" ["png" "jpg"]))
+  (dialogs/resource-selection-dialog shell-provider "Add Images" (nodes-with-extensions (project-enclosing node) extensions)))
 
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
@@ -156,7 +166,7 @@
     (ds/delete self)))
 
 (defn load-project-and-tools
-  [eclipse-project branch]
+  [^IProject eclipse-project branch]
   (ds/transactional
     (let [content-root    (.getFolder eclipse-project "content")
           project-node    (ds/add (make-project :eclipse-project eclipse-project :content-root content-root :branch branch :handlers default-handlers))

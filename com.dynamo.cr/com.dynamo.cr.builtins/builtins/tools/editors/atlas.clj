@@ -26,7 +26,6 @@
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
-            [dynamo.outline :refer :all]
             [dynamo.ui :as ui :refer [defcommand defhandler]]
             [internal.ui.menus :as menus]
             [internal.ui.handlers :as handlers]
@@ -43,6 +42,8 @@
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
             [javax.vecmath Matrix4d]
             [org.eclipse.core.commands ExecutionEvent]))
+
+(require '[editors.image-node :as i])
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -68,9 +69,9 @@
       `(when-let [value# (get ~props ~k)]
          (. ~inst ~setter (~xform value#))))))
 
-(defnode ImageNode
-  (inherits OutlineNode)
-  (inherits ImageSource))
+#_(defnode ImageNode
+   (inherits OutlineNode)
+   (inherits ImageSource))
 
 (defnk produce-animation :- Animation
   [this images :- [Image] id fps flip-horizontal flip-vertical playback]
@@ -293,7 +294,7 @@
                                     :image -> :images]}}
 
   AtlasProto$AtlasImage
-  {:constructor      #'make-image-node
+  {:constructor      #'i/make-image-resource-node
    :basic-properties [:image]})
 
 (def ^:private outline-vertices-per-placement 4)

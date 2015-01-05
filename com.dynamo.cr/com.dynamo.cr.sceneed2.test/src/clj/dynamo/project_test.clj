@@ -37,3 +37,18 @@
                              (ds/current-scope)))]
         (is (thrown-with-msg? AssertionError #"must return a node"
               (p/make-editor project-node (ExtensionHolder. "dummy") nil)))))))
+
+(deftest find-nodes-by-extension
+  (with-clean-world
+    (let [d1           (make-dummy-node :filename (f/native-path "foo.png"))
+          d2           (make-dummy-node :filename (f/native-path "/var/tmp/foo.png"))
+          d3           (make-dummy-node :filename (f/native-path "foo.script"))
+          d4           (make-dummy-node :is-a-file-node? false)
+          [project-node d1 d2 d3 d4] (ds/transactional
+                                         (ds/in (ds/add (p/make-project))
+                                           [(ds/current-scope) (ds/add d1) (ds/add d2) (ds/add d3) (ds/add d4)]))]
+      (is (= #{d1 d2}    (p/nodes-with-extensions project-node ["png"])))
+      (is (= #{d3}       (p/nodes-with-extensions project-node ["script"])))
+      (is (= #{d1 d2 d3} (p/nodes-with-extensions project-node ["png" "script"]))))))
+
+((:test (meta #'find-nodes-by-extension)))

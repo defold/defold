@@ -6,9 +6,10 @@
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
-            [internal.node :as in]
             [internal.graph.dgraph :as dg]
-            [internal.graph.lgraph :as lg]))
+            [internal.graph.lgraph :as lg]
+            [internal.node :as in]
+            [internal.outline :as outline]))
 
 (set! *warn-on-reflection* true)
 
@@ -184,3 +185,7 @@ This function should mainly be used to create 'plumbing'."
 
 (defnode Saveable
   (output save s/Keyword :abstract))
+
+(defnode OutlineNode
+  (input  children [OutlineItem])
+  (output tree     [OutlineItem] outline/outline-tree-producer))

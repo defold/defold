@@ -17,7 +17,6 @@
             [dynamo.gl.vertex :as vtx]
             [dynamo.image :as img :refer :all]
             [dynamo.node :as n]
-            [dynamo.outline :refer :all]
             [dynamo.project :as p]
             [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
             [dynamo.texture :refer :all]

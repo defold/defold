@@ -114,6 +114,14 @@
         (.open shell)))
     r))
 
+(defn popup-resource-selector
+  [node & extensions]
+  (ui/swt-safe
+    (p/select-resources
+      (.getModalDialogShellProvider (PlatformUI/getWorkbench))
+      node
+      extensions)))
+
 (comment
   (import '[com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage])
   (p/register-loader (current-project) "atlas" (f/protocol-buffer-loader AtlasProto$Atlas atlas.core/on-load))

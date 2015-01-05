@@ -199,6 +199,12 @@
   Viewport
   (viewport [this] viewport))
 
+(def OutlineItem
+  {:label    s/Str
+   :icon     Icon
+   :node-ref NodeRef
+   :children [(s/recursive #'OutlineItem)]})
+
 ; ----------------------------------------
 ; Type compatibility and inference
 ; ----------------------------------------
