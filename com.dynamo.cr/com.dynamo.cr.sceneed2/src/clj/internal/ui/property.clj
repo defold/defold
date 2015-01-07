@@ -168,7 +168,8 @@
           widget-subtree (get-in page [:page-content prop-name])]
       (if (identical? (:widget ui-event) (ui/widget widget-subtree path))
         (let [prop (get content prop-name)
-              result (dp/on-event presenter widget-subtree path ui-event (:value prop))]
+              presenter-event (dp/presenter-event-map ui-event)
+              result (dp/on-event presenter widget-subtree path presenter-event (:value prop))]
           (when-let [new-value (:value result)]
             (ds/set-property {:_id (:node-id prop)} prop-name new-value)))
         (log/warn :message "Expected event from widget on active property page"))))

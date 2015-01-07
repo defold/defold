@@ -32,8 +32,17 @@
 (defn final-value [v]        {:update-type :final :value v})
 (defn reset-default []       {:update-type :reset})
 
+(defn presenter-event-map
+  "Translate event map (from `dynamo.ui/event->map`) to stable external event map exposed to property presenters."
+  [event-map]
+  (let [whitelist #{:type}
+        qualified #{:character}]
+    (merge
+      (select-keys event-map whitelist)
+      (map-keys #(keyword (namespace ::_) (name %)) (select-keys event-map qualified)))))
+
 (defn is-enter-key? [event]
-  (#{\return \newline} (:character event)))
+  (#{\return \newline} (::character event)))
 
 (defrecord DefaultPresenter []
   Presenter

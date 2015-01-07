@@ -257,3 +257,12 @@
         ChildOfTaggedPropWithOverride FirstCustomPresenter
         TaggedChild                   SecondCustomPresenter
         MultipleTags                  ThirdCustomPresenter))))
+
+(deftest presenter-event-map
+  (are [event-map expected-presenter-event-map] (= expected-presenter-event-map (dp/presenter-event-map event-map))
+    {}                                     {}
+    {:widget "FILTER ME"}                  {}
+    {:type :some-type}                     {:type :some-type}
+    {:type :some-type :widget "FILTER ME"} {:type :some-type}
+    {:character \d}                        {::dp/character \d}
+    {:type :some-type :character \d}       {:type :some-type ::dp/character \d}))
