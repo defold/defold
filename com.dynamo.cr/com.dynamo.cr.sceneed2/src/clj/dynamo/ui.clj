@@ -213,9 +213,10 @@
     (gen-state-changes #{:status :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
     this))
 
+(def swt-style
+  {:none   SWT/NONE
+   :border SWT/BORDER})
 
-(def swt-styles      {:none SWT/NONE
-                      :border SWT/BORDER})
 (def swt-grid-layout (map-beaner GridLayout))
 (def swt-grid-data   (map-beaner GridData))
 
@@ -238,38 +239,38 @@
 
 (defmethod make-control :composite
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createComposite toolkit parent (swt-styles (:style props :none)))
+  (let [control (.createComposite toolkit parent (swt-style (:style props :none)))
         child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
     (apply-properties control props)
     {name (merge child-controls {::widget control})}))
 
 (defmethod make-control :label
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
+  (let [control (.createLabel toolkit parent nil (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :hyperlink
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
+  (let [control (.createHyperlink toolkit parent nil (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :text
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createText toolkit parent nil (swt-styles (:style props :none)))]
+  (let [control (.createText toolkit parent nil (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :status-label
   [_ parent [name props :as spec]]
-  (let [control (StatusLabel. parent (swt-styles (:style props :none)))]
+  (let [control (StatusLabel. parent (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :color-selector
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (ColorSelector. toolkit parent (swt-styles (:style props :none)))]
+  (let [control (ColorSelector. toolkit parent (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
