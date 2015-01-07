@@ -451,11 +451,6 @@ namespace dmRender
      */
 
     /*#
-     * @name render.FORMAT_STENCIL
-     * @variable
-     */
-
-    /*#
      * @name render.FILTER_LINEAR
      * @variable
      */
@@ -499,7 +494,6 @@ namespace dmRender
      *      render.FORMAT_RGBA_DXT3<br/>
      *      render.FORMAT_RGBA_DXT5<br/>
      *      render.FORMAT_DEPTH<br/>
-     *      render.FORMAT_STENCIL<br/>
      *     </td></tr>
      *   <tr><td>"width"</td><td>number</td></tr>
      *   <tr><td>"height"</td><td>number</td></tr>
@@ -1671,7 +1665,6 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(RGBA_DXT3);
         REGISTER_FORMAT_CONSTANT(RGBA_DXT5);
         REGISTER_FORMAT_CONSTANT(DEPTH);
-        REGISTER_FORMAT_CONSTANT(STENCIL);
 
 #undef REGISTER_FORMAT_CONSTANT
 
