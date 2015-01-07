@@ -18,7 +18,8 @@
   (:import [java.awt Dimension]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
            [javax.swing JFrame JPanel]
-           [org.eclipse.e4.ui.workbench IWorkbench]))
+           [org.eclipse.e4.ui.workbench IWorkbench]
+           [org.eclipse.ui.forms.widgets FormToolkit]))
 
 (defn method->function [m]
   (list (symbol (.getName m)) (into ['this] (.getParameterTypes m))))
@@ -92,7 +93,8 @@
   (let [r (promise)]
     (ui/swt-safe
       (let [shell (ui/shell)
-            widgets (ui/make-control shell widgets)]
+            toolkit (FormToolkit. (.getDisplay shell))
+            widgets (ui/make-control toolkit shell widgets)]
         (deliver r widgets)
         (.pack shell)
         (.open shell)))
