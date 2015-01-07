@@ -119,8 +119,8 @@
         key     (cache-key content)
         page    (lookup-or-create sheet-cache key make-property-page toolkit ui-event-listener properties-form content)]
     (ui/update-ui!      (get-in page [:page-content]) (settings-for-page content))
-    (ui/bring-to-front! (get-in page [:page-content]))
-    (ui/scroll-to-top!  (get-in properties-form [:form]))))
+    (ui/bring-to-front! (ui/widget page [:page-content]))
+    (ui/scroll-to-top!  (ui/widget properties-form [:form]))))
 
 (defn- refresh-after-a-while
   [graph this transaction]
