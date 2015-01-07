@@ -38,7 +38,6 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_STENCIL;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
     }
 
