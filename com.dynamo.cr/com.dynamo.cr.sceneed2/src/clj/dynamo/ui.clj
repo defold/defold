@@ -8,7 +8,7 @@
            [org.eclipse.core.runtime SafeRunner]
            [org.eclipse.jface.util SafeRunnable]
            [org.eclipse.swt.custom StackLayout]
-           [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Text Widget]
+           [org.eclipse.swt.widgets Control Composite Display Event Label Listener Shell Text Widget]
            [org.eclipse.swt.graphics Color RGB]
            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
@@ -94,10 +94,10 @@
 
 (def event-type-map (clojure.set/map-invert event-map))
 
-(defn event-type [^org.eclipse.swt.widgets.Event evt]
+(defn event-type [^Event evt]
   (event-type-map (.type evt)))
 
-(def ^:private e->m (bean-mapper org.eclipse.swt.widgets.Event))
+(def ^:private e->m (bean-mapper Event))
 
 (defn event->map
   [evt]
