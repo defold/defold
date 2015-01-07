@@ -137,10 +137,17 @@
 (defn- rgb [r g b] (Color. (display) r g b))
 
 
+(defn- set-widget-data [^Widget control key value]
+  (.setData control (assoc (.getData control) key value)))
+
+(defn- get-widget-data [^Widget control key]
+  (get (.getData control) key))
+
 (defn set-user-data [^Widget control value]
-  (.setData control value))
+  (set-widget-data control ::user-data value))
+
 (defn get-user-data [^Widget control]
-  (.getData control))
+  (get-widget-data control ::user-data))
 
 (defmulti make-layout      (fn [_ {type :type}] type))
 (defmulti make-layout-data (fn [_ {type :type}] type))
