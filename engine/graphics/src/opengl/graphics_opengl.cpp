@@ -1124,13 +1124,8 @@ static void LogFrameBufferError(GLenum status)
         {
             if(BUFFER_TYPES[i] == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
             {
-                // do not create a depth buffer if we also want a stencil buffer, we do this as a combined depth/stencil buffer explicitly
+                // do not create a depth buffer if we also want a stencil buffer, we do this as a combined depth/stencil buffer
                 if(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-                    continue;
-            }
-            if(BUFFER_TYPES[i] == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-            {
-                // do not create a stencil buffer, we do this as a combined depth/stencil buffer explicitly
                     continue;
             }
 
@@ -1146,35 +1141,21 @@ static void LogFrameBufferError(GLenum status)
 
         if(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
-            // create a combined depth stencil buffer using a depth buffer that is a clone of the stencil buffer
+            // create a combined depth stencil buffer
             uint32_t depth_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
             uint32_t stencil_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
 
-            // create a (depth) stencil buffer attachment
-            rt->m_BufferTextures[stencil_buffer_index] = NewTexture(context, creation_params[stencil_buffer_index]);
-            SetTexture(rt->m_BufferTextures[stencil_buffer_index], params[stencil_buffer_index]);
-            // attach the texture to FBO color attachment point
-
-#ifdef GL_DEPTH_STENCIL_ATTACHMENT
-            // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, use a single combined depth-stencil buffer
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, rt->m_BufferTextures[stencil_buffer_index]->m_Texture, 0);
-#else
-            // use a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
-            glFramebufferTexture2D(GL_FRAMEBUFFER, buffer_attachments[stencil_buffer_index], GL_TEXTURE_2D, rt->m_BufferTextures[stencil_buffer_index]->m_Texture, 0);
-#endif
-            CHECK_GL_ERROR
-
-            // clone the depth (stencil) attachment to be used as the depth buffer
             TextureParams depth_params;
-            memcpy(&rt->m_BufferTextureParams[depth_buffer_index], &rt->m_BufferTextureParams[stencil_buffer_index], sizeof(TextureParams));
+            if (!(buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT))
+            {
+                memcpy(&rt->m_BufferTextureParams[depth_buffer_index], &rt->m_BufferTextureParams[stencil_buffer_index], sizeof(TextureParams));
+            }
+            rt->m_BufferTextureParams[depth_buffer_index].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
 
             rt->m_BufferTextures[depth_buffer_index] = rt->m_BufferTextures[stencil_buffer_index];
-#ifndef GL_DEPTH_STENCIL_ATTACHMENT
-            // if using separate GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT attachment points
             SetTexture(rt->m_BufferTextures[depth_buffer_index], rt->m_BufferTextureParams[depth_buffer_index]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, buffer_attachments[depth_buffer_index], GL_TEXTURE_2D, rt->m_BufferTextures[stencil_buffer_index]->m_Texture, 0);
             CHECK_GL_ERROR
-#endif
         }
 
         // Disable color buffer
