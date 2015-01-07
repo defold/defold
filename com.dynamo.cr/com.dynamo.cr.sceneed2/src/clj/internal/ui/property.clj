@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
+            [service.log :as log]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
@@ -163,10 +164,14 @@
     (let [ui-event (:ui-event event)
           {:keys [presenter prop-name path]} (ui/get-user-data (:widget ui-event))
           content (in/get-node-value self :content)
-          prop (get content prop-name)
-          result (dp/on-event presenter path ui-event (:value prop))]
-      (when-let [new-value (:value result)]
-        (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
+          page (get @(:sheet-cache self) (cache-key content))
+          widget-subtree (get-in page [:page-content prop-name])]
+      (if (identical? (:widget ui-event) (ui/widget widget-subtree path))
+        (let [prop (get content prop-name)
+              result (dp/on-event presenter widget-subtree path ui-event (:value prop))]
+          (when-let [new-value (:value result)]
+            (ds/set-property {:_id (:node-id prop)} prop-name new-value)))
+        (log/warn :message "Expected event from widget on active property page"))))
 
   ISelectionListener
   (selectionChanged [this part selection]

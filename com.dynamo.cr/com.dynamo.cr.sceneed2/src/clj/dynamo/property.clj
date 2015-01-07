@@ -25,7 +25,7 @@
 (defprotocol Presenter
   (control-for-property [this])
   (settings-for-control [this value])
-  (on-event [this path event value]))
+  (on-event [this widget-subtree path event value]))
 
 (defn no-change [] nil)
 (defn intermediate-value [v] {:update-type :intermediate :value v})

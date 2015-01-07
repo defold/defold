@@ -14,8 +14,8 @@
   (settings-for-control [_ value]
     {:text (str value)})
 
-  (on-event [_ _ event value]
-    (let [new-value (ui/get-text (:widget event))]
+  (on-event [_ widget-subtree path event _]
+    (let [new-value (ui/get-text (ui/widget widget-subtree path))]
       (case (:type event)
         :key-down (if (is-enter-key? event)
                     (final-value new-value)
@@ -30,8 +30,8 @@
   (settings-for-control [_ value]
     {:text (str value)})
 
-  (on-event [_ _ event value]
-    (let [new-value (parse-int (ui/get-text (:widget event)))]
+  (on-event [_ widget-subtree path event _]
+    (let [new-value (parse-int (ui/get-text (ui/widget widget-subtree path)))]
       (case (:type event)
         :key-down (if (is-enter-key? event)
                     (final-value new-value)
@@ -53,9 +53,10 @@
     {:children [[:x {:text (str (nth value 0))}]
                 [:y {:text (str (nth value 1))}]
                 [:z {:text (str (nth value 2))}]]})
-  (on-event [_ path event value]
+  (on-event [_ widget-subtree path event value]
     (when-let [index (get {:x 0 :y 1 :z 2} (first path))]
-      (let [new-value (assoc value index (parse-number (ui/get-text (:widget event))))]
+      (let [widget (ui/widget widget-subtree path)
+            new-value (assoc value index (parse-number (ui/get-text widget)))]
         (case (:type event)
           :key-down (if (is-enter-key? event)
                       (final-value new-value)
@@ -73,9 +74,9 @@
   (settings-for-control [_ [r g b :as value]]
     {:children [[:label {:text (format "#%02x%02x%02x" (int r) (int g) (int b))}]
                 [:selector {:color (mapv int value)}]]})
-  (on-event [_ path event value]
+  (on-event [_ widget-subtree path event _]
     (case (:type event)
-      :selection (final-value (ui/get-color (:widget event)))
+      :selection (final-value (ui/get-color (ui/widget widget-subtree path)))
       (no-change))))
 
 (when (ds/in-transaction?)
