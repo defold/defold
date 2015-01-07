@@ -159,8 +159,12 @@
            :editable     `(when-let [v# (:editable ~props)]         (.setEditable ~control v#))
            :foreground   `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
            :on-click     `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
-           :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
-           :layout-data  `(when-let [v# (:layout-data ~props)]      (.setLayoutData ~control (make-layout-data ~control v#)))
+           :layout       `(when-let [v# (:layout ~props)]           (do
+                                                                      (.setLayout ~control (make-layout ~control v#))
+                                                                      (set-widget-data ~control ::layout v#)))
+           :layout-data  `(let [v# (:layout-data ~props)]
+                            (when-let [parent-type# (:type (get-widget-data (.getParent ~control) ::layout))]
+                              (.setLayoutData ~control (make-layout-data ~control (assoc v# :type parent-type#)))))
            :listen       `(doseq [[e# t#] (:listen ~props)]         (.addListener ~control (event-map e#) t#))
            :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
            :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
@@ -217,6 +221,18 @@
   {:none   SWT/NONE
    :border SWT/BORDER})
 
+(def swt-horizontal-alignment
+  {:left   SWT/BEGINNING
+   :center SWT/CENTER
+   :right  SWT/END
+   :fill   SWT/FILL})
+
+(def swt-vertical-alignment
+  {:top    SWT/BEGINNING
+   :center SWT/CENTER
+   :bottom SWT/END
+   :fill   SWT/FILL})
+
 (def swt-grid-layout (map-beaner GridLayout))
 (def swt-grid-data   (map-beaner GridData))
 
@@ -226,12 +242,40 @@
     (set! (. stack topControl) (first (.getChildren control)))
     stack))
 
-(defmethod make-layout      :grid [control spec] (swt-grid-layout spec))
-(defmethod make-layout-data :grid [control spec] (swt-grid-data spec))
+(defmethod make-layout-data :stack [^Composite control spec]
+  nil)
+
+(defmethod make-layout :grid [^Composite control spec]
+  (let [columns (:columns spec)
+        spec (assoc spec :num-columns (count columns))]
+    (swt-grid-layout spec)))
+
+(defmethod make-layout-data :grid [^Composite control spec]
+  (let [parent (.getParent control)
+        children (vec (.getChildren parent))
+        columns (:columns (get-widget-data parent ::layout))
+        ; assume no colspan/rowspan
+        child-index (.indexOf children control)
+        column-index (mod child-index (count columns))
+        column-layout (nth columns column-index)
+        spec (merge column-layout spec)
+        defaults (merge {}
+                   (when (= :fill (:horizontal-alignment spec)) {:grab-excess-horizontal-space true})
+                   (when (= :fill (:vertical-alignment   spec)) {:grab-excess-vertical-space   true}))
+        spec (into defaults
+               (for [[k v] spec]
+                (case k
+                  :horizontal-alignment [k (swt-horizontal-alignment v)]
+                  :vertical-alignment   [k (swt-vertical-alignment   v)]
+                  :min-width  [:width-hint  v]
+                  :min-height [:height-hint v]
+                  [k v])))]
+    (swt-grid-data spec)))
 
 (defmethod make-control :form
   [^FormToolkit toolkit parent [name props :as spec]]
   (let [control ^ScrolledForm (.createScrolledForm toolkit parent)
+        _ (apply-properties control props)
         body    (.getBody control)
         child-controls (reduce merge {} (map #(make-control toolkit body %) (:children props)))]
     (apply-properties control props)
@@ -240,6 +284,7 @@
 (defmethod make-control :composite
   [^FormToolkit toolkit parent [name props :as spec]]
   (let [control (.createComposite toolkit parent (swt-style (:style props :none)))
+        _ (apply-properties control props)
         child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
     (apply-properties control props)
     {name (merge child-controls {::widget control})}))
