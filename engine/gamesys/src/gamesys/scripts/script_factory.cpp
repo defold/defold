@@ -66,7 +66,7 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
         FactoryComponent* component = (FactoryComponent*) user_data;
 
         Vectormath::Aos::Point3 position;

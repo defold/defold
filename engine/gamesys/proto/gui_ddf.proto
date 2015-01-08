@@ -29,7 +29,6 @@ message NodeDesc
     enum ClippingMode
     {
         CLIPPING_MODE_NONE    = 0 [(displayName) = "None"];
-        CLIPPING_MODE_SCISSOR = 1 [(displayName) = "Scissor"];
         CLIPPING_MODE_STENCIL = 2 [(displayName) = "Stencil"];
     }
 

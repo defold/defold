@@ -23,17 +23,16 @@ void OnWindowResize(int width, int height)
 }
 
 void MyRenderNodes(dmGui::HScene scene,
-                  dmGui::HNode* nodes,
+                  const dmGui::RenderEntry* nodes,
                   const Vectormath::Aos::Matrix4* node_transforms,
                   const Vectormath::Aos::Vector4* node_colors,
+                  const dmGui::StencilScope** stencil_scopes,
                   uint32_t node_count,
-                  const dmGui::ScissorClippingRenderState* scissor_clipping_render_states,
-                  const dmGui::StencilClippingRenderState* stencil_clipping_render_states,
                   void* context)
 {
     for (uint32_t i = 0; i < node_count; ++i)
     {
-        dmGui::HNode node = nodes[i];
+        dmGui::HNode node = nodes[i].m_Node;
         Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
         glColor4fv((const GLfloat*)&color);
 

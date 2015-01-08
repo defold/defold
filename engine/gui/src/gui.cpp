@@ -28,6 +28,16 @@ namespace dmGui
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
+    const uint32_t LAYER_RANGE = 3;
+    const uint32_t INDEX_RANGE = 9;
+    const uint32_t CLIPPER_RANGE = 8;
+
+    const uint32_t SUB_INDEX_SHIFT = 0;
+    const uint32_t SUB_LAYER_SHIFT = INDEX_RANGE;
+    const uint32_t CLIPPER_SHIFT = SUB_LAYER_SHIFT + LAYER_RANGE;
+    const uint32_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
+    const uint32_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
+
     inline void CalculateNodeTransformAndColorCached(HScene scene, InternalNode* n, const Vector4& reference_scale, const CalculateNodeTransformFlags flags, Matrix4& out_transform, Vector4& out_color);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
@@ -161,10 +171,12 @@ namespace dmGui
     void SetDefaultNewSceneParams(NewSceneParams* params)
     {
         memset(params, 0, sizeof(*params));
-        params->m_MaxNodes = 128;
+        // 512 is a hard cap since only 9 bits is available in the render key
+        params->m_MaxNodes = 512;
         params->m_MaxAnimations = 128;
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
+        // 8 is hard cap for the same reason as above
         params->m_MaxLayers = 8;
     }
 
@@ -553,375 +565,252 @@ namespace dmGui
         }
     }
 
-    static void UpdateRenderKey(HScene scene, InternalNode* node, uint16_t order)
+    struct RenderEntrySortPred
     {
-        uint16_t layer_index = GetLayerIndex(scene, node);
-        node->m_RenderKey = (layer_index << 10) | (order);
+        HScene m_Scene;
+        RenderEntrySortPred(HScene scene) : m_Scene(scene) {}
+
+        bool operator ()(const RenderEntry& a, const RenderEntry& b) const
+        {
+            return a.m_RenderKey < b.m_RenderKey;
+        }
+    };
+
+    struct ScopeContext {
+        ScopeContext() {
+            memset(this, 0, sizeof(*this));
+            m_NonInvClipperHead = INVALID_INDEX;
+            m_NonInvClipperTail = INVALID_INDEX;
+        }
+        uint16_t m_NonInvClipperHead;
+        uint16_t m_NonInvClipperTail;
+        uint16_t m_BitFieldOffset;
+        uint16_t m_ClipperCount;
+        uint16_t m_InvClipperCount;
+    };
+
+    static uint16_t CalcBitRange(uint16_t val) {
+        uint16_t bit_range = 0;
+        while (val != 0) {
+            bit_range++;
+            val >>= 1;
+        }
+        return bit_range;
     }
 
-    static uint16_t CollectNodes(HScene scene, uint16_t start_index, uint16_t order, dmArray<HNode>& nodes)
-    {
+    static uint16_t CalcMask(uint16_t bits) {
+        return (1 << bits) - 1;
+    }
+
+    static uint32_t CalcRenderKey(uint16_t layer, uint16_t index, uint8_t inv_clipper_id, uint16_t sub_layer, uint16_t sub_index) {
+        return (layer << LAYER_SHIFT)
+                | (index << INDEX_SHIFT)
+                | (inv_clipper_id << CLIPPER_SHIFT)
+                | (sub_layer << SUB_LAYER_SHIFT)
+                | (sub_index << SUB_INDEX_SHIFT);
+    }
+
+    static void UpdateScope(InternalNode* node, StencilScope& scope, StencilScope& child_scope, const StencilScope* parent_scope, uint16_t index, uint16_t non_inv_clipper_count, uint16_t inv_clipper_count, uint16_t bit_field_offset) {
+        int bit_range = CalcBitRange(non_inv_clipper_count);
+        // state used for drawing the clipper
+        scope.m_WriteMask = 0xff;
+        scope.m_TestMask = 0;
+        if (parent_scope != 0x0) {
+            scope.m_TestMask = parent_scope->m_TestMask;
+        }
+        bool inverted = node->m_Node.m_ClippingInverted;
+        if (!inverted) {
+            scope.m_RefVal = (index + 1) << bit_field_offset;
+            if (parent_scope != 0x0) {
+                scope.m_RefVal |= parent_scope->m_RefVal;
+            }
+        } else {
+            scope.m_RefVal = 1 << (7 - index);
+            if (parent_scope != 0x0) {
+                scope.m_RefVal |= (CalcMask(bit_field_offset) & parent_scope->m_RefVal);
+            }
+        }
+        if (inverted && node->m_Node.m_ClippingVisible) {
+            scope.m_ColorMask = 0xf;
+        } else {
+            scope.m_ColorMask = 0;
+        }
+        // state used for drawing any sub non-clippers
+        child_scope.m_WriteMask = 0;
+        if (!inverted) {
+            child_scope.m_RefVal = scope.m_RefVal;
+            child_scope.m_TestMask = (CalcMask(bit_range) << bit_field_offset) | scope.m_TestMask;
+        } else {
+            child_scope.m_RefVal = 0;
+            child_scope.m_TestMask = scope.m_RefVal;
+            if (parent_scope != 0x0) {
+                child_scope.m_RefVal |= parent_scope->m_RefVal;
+                child_scope.m_TestMask |= parent_scope->m_TestMask;
+            }
+        }
+        child_scope.m_ColorMask = 0xf;
+        // Check for overflow
+        int inverted_count = 0;
+        if (inverted) {
+            inverted_count = index + 1;
+        } else {
+            inverted_count = inv_clipper_count;
+        }
+        int bit_count = inverted_count + bit_field_offset + bit_range;
+        if (bit_count > 8) {
+            dmLogWarning("Stencil buffer exceeded, clipping will not work as expected.");
+        }
+    }
+
+    static void CollectInvClippers(HScene scene, uint16_t start_index, dmArray<InternalClippingNode>& clippers, ScopeContext& scope_context, uint16_t parent_index) {
         uint32_t index = start_index;
+        InternalClippingNode* parent = 0x0;
+        if (parent_index != INVALID_INDEX) {
+            parent = &clippers[parent_index];
+        }
         while (index != INVALID_INDEX)
         {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled)
             {
-                UpdateRenderKey(scene, n, order++);
+                switch (n->m_Node.m_ClippingMode) {
+                case CLIPPING_MODE_STENCIL:
+                    {
+                        uint32_t clipper_index = clippers.Size();
+                        clippers.SetSize(clipper_index + 1);
+                        InternalClippingNode& clipper = clippers.Back();
+                        clipper.m_NodeIndex = index;
+                        clipper.m_ParentIndex = parent_index;
+                        clipper.m_NextNonInvIndex = INVALID_INDEX;
+                        clipper.m_VisibleRenderKey = ~0;
+                        n->m_ClipperIndex = clipper_index;
+                        if (n->m_Node.m_ClippingInverted) {
+                            StencilScope* parent_scope = 0x0;
+                            if (parent != 0x0) {
+                                parent_scope = &parent->m_ChildScope;
+                            }
+                            UpdateScope(n, clipper.m_Scope, clipper.m_ChildScope, parent_scope, scope_context.m_InvClipperCount, 0, 0, scope_context.m_BitFieldOffset);
+                            ++scope_context.m_InvClipperCount;
+                            CollectInvClippers(scene, n->m_ChildHead, clippers, scope_context, clipper_index);
+                        } else {
+                            // append to linked list
+                            uint16_t* pointer = &scope_context.m_NonInvClipperHead;
+                            if (*pointer != INVALID_INDEX) {
+                                pointer = &clippers[scope_context.m_NonInvClipperTail].m_NextNonInvIndex;
+                            }
+                            *pointer = clipper_index;
+                            scope_context.m_NonInvClipperTail = clipper_index;
+                            ++scope_context.m_ClipperCount;
+                        }
+                    }
+                    break;
+                case CLIPPING_MODE_NONE:
+                    n->m_ClipperIndex = parent_index;
+                    CollectInvClippers(scene, n->m_ChildHead, clippers, scope_context, parent_index);
+                    break;
+                }
+            }
+            index = n->m_NextIndex;
+        }
+    }
+
+    static void CollectClippers(HScene scene, uint16_t start_index, uint16_t bit_field_offset, uint16_t inv_clipper_count, dmArray<InternalClippingNode>& clippers, uint16_t parent_index)
+    {
+        ScopeContext context;
+        context.m_BitFieldOffset = bit_field_offset;
+        context.m_InvClipperCount = inv_clipper_count;
+        CollectInvClippers(scene, start_index, clippers, context, parent_index);
+        uint16_t non_inv_clipper_index = context.m_NonInvClipperHead;
+        uint16_t index = 0;
+        while (non_inv_clipper_index != INVALID_INDEX) {
+            InternalClippingNode* non_inv_clipper = &clippers[non_inv_clipper_index];
+            StencilScope* parent_scope = 0x0;
+            if (non_inv_clipper->m_ParentIndex != INVALID_INDEX) {
+                parent_scope = &clippers[non_inv_clipper->m_ParentIndex].m_ChildScope;
+            }
+            InternalNode* node = &scene->m_Nodes[non_inv_clipper->m_NodeIndex];
+            UpdateScope(node, non_inv_clipper->m_Scope, non_inv_clipper->m_ChildScope, parent_scope, index, context.m_ClipperCount, context.m_InvClipperCount, bit_field_offset);
+            uint16_t bit_range = CalcBitRange(context.m_ClipperCount);
+            CollectClippers(scene, node->m_ChildHead, context.m_BitFieldOffset + bit_range, context.m_InvClipperCount, clippers, non_inv_clipper_index);
+            non_inv_clipper_index = non_inv_clipper->m_NextNonInvIndex;
+            ++index;
+        }
+    }
+
+    struct Scope {
+        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
+
+        uint16_t m_Index;
+        uint16_t m_RootLayer;
+        uint16_t m_RootIndex;
+    };
+
+    static void Increment(Scope* scope) {
+        scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
+    }
+
+    static uint32_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
+        if (scope != 0x0) {
+            return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
+        } else {
+            return CalcRenderKey(layer, index, 0, 0, 0);
+        }
+    }
+
+    static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, Scope* scope, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
+        uint16_t index = start_index;
+        while (index != INVALID_INDEX) {
+            InternalNode* n = &scene->m_Nodes[index];
+            if (n->m_Node.m_Enabled) {
                 HNode node = GetNodeHandle(n);
-                nodes.Push(node);
-                order = CollectNodes(scene, n->m_ChildHead, order, nodes);
+                uint16_t layer = GetLayerIndex(scene, n);
+                if (n->m_ClipperIndex != INVALID_INDEX) {
+                    InternalClippingNode& clipper = clippers[n->m_ClipperIndex];
+                    if (clipper.m_NodeIndex == index) {
+                        bool root_clipper = scope == 0x0;
+                        Scope tmp_scope(0, order);
+                        Scope* current_scope = scope;
+                        if (current_scope == 0x0) {
+                            current_scope = &tmp_scope;
+                            ++order;
+                        } else {
+                            Increment(current_scope);
+                        }
+                        uint32_t clipping_key = CalcRenderKey(current_scope, 0, 0);
+                        uint32_t render_key = CalcRenderKey(current_scope, layer, 1);
+                        CollectRenderEntries(scene, n->m_ChildHead, 2, current_scope, clippers, render_entries);
+                        if (layer > 0) {
+                            render_key = CalcRenderKey(current_scope, layer, 1);
+                        }
+                        clipper.m_VisibleRenderKey = render_key;
+                        RenderEntry entry;
+                        entry.m_Node = node;
+                        entry.m_RenderKey = clipping_key;
+                        render_entries.Push(entry);
+                        entry.m_RenderKey = render_key;
+                        render_entries.Push(entry);
+                        if (!root_clipper) {
+                            Increment(current_scope);
+                        }
+                        index = n->m_NextIndex;
+                        continue;
+                    }
+                }
+                RenderEntry entry;
+                entry.m_Node = node;
+                entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
+                render_entries.Push(entry);
+                order = CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
             }
             index = n->m_NextIndex;
         }
         return order;
     }
 
-    struct NodeSortPred
+    static void CollectNodes(HScene scene, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries)
     {
-        HScene m_Scene;
-        NodeSortPred(HScene scene) : m_Scene(scene) {}
-
-        bool operator ()(const HNode a, const HNode b) const
-        {
-            return m_Scene->m_Nodes[a & 0xffff].m_RenderKey < m_Scene->m_Nodes[b & 0xffff].m_RenderKey;
-        }
-    };
-
-    static inline uint16_t NodeClippingGetEndNode(HScene scene, const InternalNode *node)
-    {
-        for(;;)
-        {
-            uint16_t node_index = node->m_NextIndex;
-            if(node_index != INVALID_INDEX)
-                return node_index;
-            node_index = node->m_ParentIndex;
-            if(node_index == INVALID_INDEX)
-                return INVALID_INDEX;
-            node = &scene->m_Nodes[node_index];
-        }
-        return INVALID_INDEX;
-    }
-
-    static inline void NodeClippingCalculateScope(HScene scene, dmArray<InternalClippingNode>& node_array, uint32_t array_index, uint32_t clipping_mode)
-    {
-        // Find end node of scope, which is the node rendered next after the clipper
-        InternalClippingNode &clipping_node = node_array[array_index];
-
-        // get first node outside scope
-        const InternalNode *node = &scene->m_Nodes[clipping_node.m_StartNodeIndex];
-        uint16_t end_node_index = NodeClippingGetEndNode(scene, node);
-        clipping_node.m_EndNodeIndex = end_node_index;
-        clipping_node.m_NextStateNodeArrayIndex = 0xffff;
-        if(end_node_index == INVALID_INDEX)
-            return;
-
-        // find parent clipper of that node
-        uint16_t parent_index = scene->m_Nodes[end_node_index].m_ParentIndex;
-        while(parent_index != INVALID_INDEX)
-        {
-            InternalNode *parent_node = &scene->m_Nodes[parent_index];
-            if(parent_node->m_Node.m_ClippingMode == clipping_mode)
-                break;
-            parent_index = parent_node->m_ParentIndex;
-        }
-        if(parent_index == INVALID_INDEX)
-            return;
-
-        // find array index of the parent stencil
-        int32_t parent_array_index = array_index-1;
-        for(;;)
-        {
-            InternalClippingNode* i = &node_array[parent_array_index];
-            if(i->m_StartNodeIndex == parent_index)
-                break;
-            if(--parent_array_index < 0)
-                return;
-        }
-
-        // set the array item for the parent stencil of the first node outside the scope
-        clipping_node.m_NextStateNodeArrayIndex = parent_array_index;
-    }
-
-    static void NodeClippingAddNode(HScene scene, const InternalNode *node, dmArray<InternalClippingNode>& node_array, uint16_t& prev_ancestor_index)
-    {
-        // increase array, no item initialization(!)
-        uint16_t current_index = (uint16_t) node_array.Size();
-        node_array.SetSize(current_index+1);
-        InternalClippingNode &clipping_node = node_array[current_index];
-        clipping_node.m_StartNodeIndex = node->m_Index;
-
-       // find clipping parent node in array
-       uint32_t clipping_mode = node->m_Node.m_ClippingMode;
-       uint16_t parent_index =  node->m_ParentIndex;
-       while(parent_index != INVALID_INDEX)
-       {
-           const InternalNode* parent_node = &scene->m_Nodes[parent_index];
-           if(clipping_mode == parent_node->m_Node.m_ClippingMode)
-               break;
-           parent_index = parent_node->m_ParentIndex;
-       }
-       if(parent_index == INVALID_INDEX)
-       {
-           // ancestor clipper. Find node exiting clipper scope (node that isn't a child of ancestor clipper)
-           clipping_node.m_EndNodeIndex = NodeClippingGetEndNode(scene, node);
-           clipping_node.m_NextStateNodeArrayIndex = 0xffff;
-
-           // link ancestor node list
-           clipping_node.m_ParentNodeIndex = INVALID_INDEX;
-           if(prev_ancestor_index == INVALID_INDEX)
-           {
-               // hierarchy head ancestor clipper
-               prev_ancestor_index = 0;
-               clipping_node.m_NextAncestorNodeArrayIndex = INVALID_INDEX;
-           }
-           else
-           {
-               // sibling ancestor clipper
-               InternalClippingNode &crs_prev_ancestor = node_array[prev_ancestor_index];
-               crs_prev_ancestor.m_NextAncestorNodeArrayIndex = current_index;
-               clipping_node.m_NextAncestorNodeArrayIndex = INVALID_INDEX;
-               prev_ancestor_index = current_index;
-           }
-       }
-       else
-       {
-           // child clipper
-           clipping_node.m_ParentNodeIndex = parent_index;
-           clipping_node.m_NextAncestorNodeArrayIndex = INVALID_INDEX;
-           NodeClippingCalculateScope(scene, node_array, current_index, clipping_mode);
-       }
-    }
-
-    static inline void NodeClippingAddNode(HScene scene, const InternalNode *node, dmArray<InternalClippingNode>& scissor_node_array, uint16_t& prev_ancestor_scissor_index, dmArray<InternalClippingNode>& stencil_node_array, uint16_t& prev_ancestor_stencil_index)
-    {
-        switch(node->m_Node.m_ClippingMode)
-        {
-            case CLIPPING_MODE_NONE:
-                return;
-
-            case CLIPPING_MODE_SCISSOR:
-                NodeClippingAddNode(scene, node, scissor_node_array, prev_ancestor_scissor_index);
-                return;
-
-            case CLIPPING_MODE_STENCIL:
-                NodeClippingAddNode(scene, node, stencil_node_array, prev_ancestor_stencil_index);
-                return;
-
-            default:
-                // unsupported clipping mode
-                assert(node->m_Node.m_ClippingMode == CLIPPING_MODE_NONE);
-            break;
-        }
-    }
-
-    static inline uint16_t NodeClippingCalculateScissorHierarchyRenderStates(HScene scene, dmArray<InternalClippingNode>& node_array, dmArray<ScissorClippingRenderState>& scissor_clipping_states, uint16_t array_index, uint16_t parent_array_index)
-    {
-        // set render state values
-        InternalClippingNode &clipping_node = node_array[array_index];
-        ScissorClippingRenderState &state = scissor_clipping_states[array_index];
-        state.m_StartNode = clipping_node.m_StartNodeIndex == INVALID_INDEX ? INVALID_HANDLE : GetNodeHandle(&scene->m_Nodes[clipping_node.m_StartNodeIndex]);
-        state.m_EndNode = clipping_node.m_EndNodeIndex == INVALID_INDEX ? INVALID_HANDLE : GetNodeHandle(&scene->m_Nodes[clipping_node.m_EndNodeIndex]);
-        state.m_NextStateNodeArrayIndex = clipping_node.m_NextStateNodeArrayIndex;
-        state.m_ParentStateNodeArrayIndex = parent_array_index;
-        state.m_IsAncestor = false;
-
-        // iterate children calculating stencil masks
-        uint16_t array_index_end = (uint16_t) node_array.Size();
-        parent_array_index = array_index;
-        if(++array_index == array_index_end)
-            return array_index;
-        const uint16_t clipping_node_index = clipping_node.m_StartNodeIndex;
-        const InternalClippingNode* child_clipping_node = &node_array[array_index];
-        while(child_clipping_node->m_ParentNodeIndex == clipping_node_index)
-        {
-            array_index = NodeClippingCalculateScissorHierarchyRenderStates(scene, node_array, scissor_clipping_states, array_index, parent_array_index);
-            if(array_index == array_index_end)
-                break;
-            child_clipping_node = &node_array[array_index];
-        }
-        return array_index;
-    }
-
-    static void NodeClippingCalculateScissorNodeStates(HScene scene, dmArray<InternalClippingNode>& node_array, dmArray<ScissorClippingRenderState>& scissor_clipping_states)
-    {
-        if(!node_array.Empty())
-        {
-            // create hierarchy out of a range of ancestor scissors and child hierarchies
-            scissor_clipping_states.SetSize(node_array.Size());
-            uint16_t ancestor_start_index = 0;
-            while(ancestor_start_index != INVALID_INDEX)
-            {
-                NodeClippingCalculateScissorHierarchyRenderStates(scene, node_array, scissor_clipping_states, ancestor_start_index, INVALID_INDEX);
-                scissor_clipping_states[ancestor_start_index].m_IsAncestor = true;
-                ancestor_start_index = node_array[ancestor_start_index].m_NextAncestorNodeArrayIndex;
-            }
-        }
-
-        // tail node. We have allocated capacity + 1 for this purpose
-        ScissorClippingRenderState& scissor_clipping_state_tail = *scissor_clipping_states.End();
-        scissor_clipping_state_tail.m_StartNode = INVALID_HANDLE;
-        scissor_clipping_state_tail.m_EndNode = INVALID_HANDLE;
-    }
-
-    static inline uint32_t NodeClippingCalculateStencilBitRangeAndMask(int32_t value, uint8_t& out_mask)
-    {
-        uint32_t range = 0;
-        out_mask = 0;
-        while (value > 0)
-        {
-            ++range;
-            out_mask |= value;
-            value = value >> 1;
-        }
-        return range;
-    }
-
-    static inline uint32_t NodeClippingCalculateStencilHierarchyBitRange(HScene scene, dmArray<InternalClippingNode>& node_array, dmArray<StencilClippingRenderState>& stencil_clipping_states, uint32_t array_index, uint32_t& bit_range_out)
-    {
-        // get node, if we're end of leaf, set 0 range/mask
-        StencilClippingRenderState &state = stencil_clipping_states[array_index];
-        InternalClippingNode &clipping_node = node_array[array_index];
-        uint32_t array_index_end = node_array.Size();
-        if(++array_index == array_index_end)
-        {
-            state.m_ChildNodesBitRange = 0;
-            state.m_ChildNodesMask = 0;
-            bit_range_out = 0;
-            return array_index;
-        }
-
-        // iterate children calculating ranges and summing up a total bit range and mask
-        const uint16_t node_index = clipping_node.m_StartNodeIndex;
-        const InternalClippingNode* child_state = &node_array[array_index];
-        int32_t child_count = 0;
-        uint32_t child_hierarchy_bit_range = 0;
-        while(child_state->m_ParentNodeIndex == node_index)
-        {
-            uint32_t bit_range;
-            array_index = NodeClippingCalculateStencilHierarchyBitRange(scene, node_array, stencil_clipping_states, array_index, bit_range);
-            child_hierarchy_bit_range = dmMath::Max(child_hierarchy_bit_range, bit_range);
-            ++child_count;
-            if(array_index == array_index_end)
-                break;
-            child_state = &node_array[array_index];
-        }
-
-        // set current state and return sum of how many bits are required for this node and it's child hierarchy
-        state.m_ChildNodesBitRange = NodeClippingCalculateStencilBitRangeAndMask(child_count, state.m_ChildNodesMask);
-        bit_range_out = state.m_ChildNodesBitRange + child_hierarchy_bit_range;
-        return array_index;
-    }
-
-    static inline uint16_t NodeClippingCalculateStencilHierarchyRenderStates(HScene scene, dmArray<InternalClippingNode>& node_array, dmArray<StencilClippingRenderState>& stencil_clipping_states, uint16_t array_index, uint8_t bit_range, uint8_t ref_val, uint8_t mask, uint8_t parent_mask, bool parent_inverted)
-    {
-        // set render state values
-        InternalClippingNode &clipping_node = node_array[array_index];
-        StencilClippingRenderState &state = stencil_clipping_states[array_index];
-        InternalNode* start_node = clipping_node.m_StartNodeIndex == INVALID_INDEX ? 0x0 : &scene->m_Nodes[clipping_node.m_StartNodeIndex];
-
-        state.m_StartNode = start_node == 0x0 ? INVALID_HANDLE : GetNodeHandle(start_node);
-        state.m_EndNode = clipping_node.m_EndNodeIndex == INVALID_INDEX ? INVALID_HANDLE : GetNodeHandle(&scene->m_Nodes[clipping_node.m_EndNodeIndex]);
-        state.m_NextStateNodeArrayIndex = clipping_node.m_NextStateNodeArrayIndex;
-        state.m_RefVal = ref_val;
-        state.m_Mask = mask;
-        state.m_ParentMask = parent_mask;
-        state.m_NewBatch = false;
-        state.m_IsAncestor = false;
-        state.m_ParentInverted = parent_inverted;
-        state.m_Inverted = (start_node == 0x0 ? false : start_node->m_Node.m_ClippingInverted);
-
-        // iterate children calculating stencil masks
-        uint16_t array_index_end = (uint16_t) node_array.Size();
-        if(++array_index == array_index_end)
-            return array_index;
-        const uint16_t clipping_node_index = clipping_node.m_StartNodeIndex;
-        const InternalClippingNode* child_clipping_node = &node_array[array_index];
-        uint8_t child_bit_range = state.m_ChildNodesBitRange + bit_range;
-        mask |= state.m_ChildNodesMask << bit_range;
-        ref_val = 0;
-
-        while(child_clipping_node->m_ParentNodeIndex == clipping_node_index)
-        {
-            ++ref_val;
-            array_index = NodeClippingCalculateStencilHierarchyRenderStates(scene, node_array, stencil_clipping_states, array_index, child_bit_range, (ref_val << bit_range) | state.m_RefVal, mask, state.m_Mask, state.m_Inverted);
-            if(array_index == array_index_end)
-                break;
-            child_clipping_node = &node_array[array_index];
-        }
-        return array_index;
-    }
-
-    static void NodeClippingCalculateStencilRenderStateBatch(HScene scene, dmArray<InternalClippingNode>& node_array, dmArray<StencilClippingRenderState>& stencil_clipping_states, uint16_t ancestor_start_index, uint16_t ancestor_end_index, uint32_t ancestor_clipper_bit_range, uint32_t ancestor_clipper_mask)
-    {
-        // create a single hierarchy (batch) out of a range of ancestor stencils and child hierarchies
-        uint32_t ancestor_ref_val = 1;
-        while(ancestor_start_index != ancestor_end_index)
-        {
-            NodeClippingCalculateStencilHierarchyRenderStates(scene, node_array, stencil_clipping_states, ancestor_start_index, ancestor_clipper_bit_range, ancestor_ref_val, ancestor_clipper_mask, 0, false);
-            StencilClippingRenderState &state = stencil_clipping_states[ancestor_start_index];
-            state.m_NewBatch = ancestor_ref_val == 1;
-            state.m_IsAncestor = true;
-
-            ++ancestor_ref_val;
-            ancestor_start_index = node_array[ancestor_start_index].m_NextAncestorNodeArrayIndex;
-        }
-    }
-
-    static void NodeClippingCalculateStencilNodeStates(HScene scene, dmArray<InternalClippingNode>& node_array, dmArray<StencilClippingRenderState>& stencil_clipping_states)
-    {
-        if(!node_array.Empty())
-        {
-            // merge as many ancestor stencils into a batch (single hierarchy) as possible without exceeding nesting depth (keeping stencil buffer clears to an absolule minimum)
-            stencil_clipping_states.SetSize(node_array.Size());
-            uint16_t ancestor_stencil_index = 0;
-            uint16_t ancestor_stencil_array_index_offset = 0;
-            uint16_t ancestor_stencil_array_index = 0;
-            uint32_t ancestor_stencil_count = 0;
-            uint32_t hierarchy_bit_range  = 0;
-            uint8_t  ancestor_stencil_mask = 1;
-            uint32_t ancestor_stencil_bit_range = 1;
-            while(ancestor_stencil_array_index != INVALID_INDEX)
-            {
-                // calculate union of ancestor clippers to get info to determine batching
-                ++ancestor_stencil_index;
-                InternalClippingNode &ancestor_stencil_node = node_array[ancestor_stencil_array_index];
-                ancestor_stencil_bit_range = NodeClippingCalculateStencilBitRangeAndMask(++ancestor_stencil_count, ancestor_stencil_mask);
-                uint32_t bit_range;
-                NodeClippingCalculateStencilHierarchyBitRange(scene, node_array, stencil_clipping_states, ancestor_stencil_array_index, bit_range);
-                hierarchy_bit_range = dmMath::Max(hierarchy_bit_range, ancestor_stencil_bit_range + bit_range);
-
-                if(hierarchy_bit_range > 8)
-                {
-                    // last ancestor exceeded 8 bits, flush batch
-                    NodeClippingCalculateStencilRenderStateBatch(scene, node_array, stencil_clipping_states, ancestor_stencil_array_index_offset, ancestor_stencil_array_index, ancestor_stencil_bit_range, ancestor_stencil_mask);
-                    if(ancestor_stencil_array_index_offset == ancestor_stencil_array_index)
-                    {
-                        dmLogError("Stencil clipping hierarchy nesting depth exceeded (ancestor stencil #%d).", ancestor_stencil_index);
-                        ancestor_stencil_array_index = ancestor_stencil_node.m_NextAncestorNodeArrayIndex;
-                    }
-                    ancestor_stencil_array_index_offset = ancestor_stencil_array_index;
-                    ancestor_stencil_count = 0;
-                    hierarchy_bit_range = 0;
-                }
-                else
-                {
-                    // continue batching
-                    ancestor_stencil_array_index = ancestor_stencil_node.m_NextAncestorNodeArrayIndex;
-                }
-            }
-
-            // tail batch
-            if(ancestor_stencil_array_index_offset != ancestor_stencil_array_index)
-            {
-                NodeClippingCalculateStencilRenderStateBatch(scene, node_array, stencil_clipping_states, ancestor_stencil_array_index_offset, ancestor_stencil_array_index, ancestor_stencil_bit_range, ancestor_stencil_mask);
-            }
-        }
-
-        // tail node. We have allocated capacity + 1 for this purpose
-        StencilClippingRenderState& stencil_clipping_state_tail = *stencil_clipping_states.End();
-        stencil_clipping_state_tail.m_StartNode = INVALID_HANDLE;
-        stencil_clipping_state_tail.m_EndNode = INVALID_HANDLE;
+        CollectClippers(scene, scene->m_RenderHead, 0, 0, clippers, INVALID_INDEX);
+        CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
     }
 
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
@@ -935,11 +824,10 @@ namespace dmGui
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
         c->m_RenderColors.SetSize(0);
-        c->m_ScissorClippingNodes.SetSize(0);
-        c->m_ScissorStates.SetSize(0);
         c->m_StencilClippingNodes.SetSize(0);
-        c->m_StencilStates.SetSize(0);
-        uint32_t capacity = scene->m_NodePool.Size();
+        c->m_StencilScopes.SetSize(0);
+        c->m_StencilScopeIndices.SetSize(0);
+        uint32_t capacity = scene->m_NodePool.Size() * 2;
         if (capacity > c->m_RenderNodes.Capacity())
         {
             c->m_RenderNodes.SetCapacity(capacity);
@@ -947,15 +835,9 @@ namespace dmGui
             c->m_RenderColors.SetCapacity(capacity);
             c->m_SceneTraversalCache.m_Data.SetCapacity(capacity);
             c->m_SceneTraversalCache.m_Data.SetSize(capacity);
-            c->m_ScissorClippingNodes.SetCapacity(capacity);
-            c->m_ScissorStates.SetCapacity(capacity+1);
             c->m_StencilClippingNodes.SetCapacity(capacity);
-            c->m_StencilStates.SetCapacity(capacity+1);
-        }
-        else if(c->m_RenderNodes.Capacity() == 0)
-        {
-            c->m_ScissorStates.SetCapacity(capacity+1);
-            c->m_StencilStates.SetCapacity(capacity+1);
+            c->m_StencilScopes.SetCapacity(capacity);
+            c->m_StencilScopeIndices.SetCapacity(capacity);
         }
 
         c->m_SceneTraversalCache.m_NodeIndex = 0;
@@ -965,25 +847,41 @@ namespace dmGui
         }
 
         Matrix4 node_transform;
-        CollectNodes(scene, scene->m_RenderHead, 0, c->m_RenderNodes);
-        std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), NodeSortPred(scene));
+        CollectNodes(scene, c->m_StencilClippingNodes, c->m_RenderNodes);
         uint32_t node_count = c->m_RenderNodes.Size();
+        std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));
         Matrix4 transform;
         Vector4 color;
-        uint16_t clipping_node_primary_index[] = {INVALID_INDEX, INVALID_INDEX};
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            InternalNode* n = &scene->m_Nodes[c->m_RenderNodes[i] & 0xffff];
-            NodeClippingAddNode(scene, n, c->m_ScissorClippingNodes, clipping_node_primary_index[0], c->m_StencilClippingNodes, clipping_node_primary_index[1]);
+            const RenderEntry& entry = c->m_RenderNodes[i];
+            uint16_t index = entry.m_Node & 0xffff;
+            InternalNode* n = &scene->m_Nodes[index];
             CalculateNodeTransformAndColorCached(scene, n, scale, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, color);
             c->m_RenderTransforms.Push(transform);
             c->m_RenderColors.Push(color);
+            if (n->m_ClipperIndex != INVALID_INDEX) {
+                InternalClippingNode* clipper = &c->m_StencilClippingNodes[n->m_ClipperIndex];
+                if (clipper->m_NodeIndex == index) {
+                    if (clipper->m_VisibleRenderKey == entry.m_RenderKey) {
+                        StencilScope* scope = 0x0;
+                        if (clipper->m_ParentIndex != INVALID_INDEX) {
+                            scope = &c->m_StencilClippingNodes[clipper->m_ParentIndex].m_ChildScope;
+                        }
+                        c->m_StencilScopes.Push(scope);
+                    } else {
+                        c->m_StencilScopes.Push(&clipper->m_Scope);
+                    }
+                } else {
+                    c->m_StencilScopes.Push(&clipper->m_ChildScope);
+                }
+            } else {
+                c->m_StencilScopes.Push(0x0);
+            }
         }
-        NodeClippingCalculateScissorNodeStates(scene, c->m_ScissorClippingNodes, c->m_ScissorStates);
-        NodeClippingCalculateStencilNodeStates(scene, c->m_StencilClippingNodes, c->m_StencilStates);
 
         scene->m_ResChanged = 0;
-        params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderColors.Begin(), c->m_RenderNodes.Size(), c->m_ScissorStates.Begin(), c->m_StencilStates.Begin(), context);
+        params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderColors.Begin(), (const StencilScope**)c->m_StencilScopes.Begin(), c->m_RenderNodes.Size(), context);
     }
 
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
@@ -1520,6 +1418,7 @@ namespace dmGui
             node->m_ChildHead = INVALID_INDEX;
             node->m_ChildTail = INVALID_INDEX;
             node->m_SceneTraversalCacheVersion = INVALID_INDEX;
+            node->m_ClipperIndex = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
             MoveNodeAbove(scene, hnode, INVALID_HANDLE);
 

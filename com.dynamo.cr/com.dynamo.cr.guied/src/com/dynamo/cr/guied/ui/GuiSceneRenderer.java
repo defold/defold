@@ -1,16 +1,13 @@
 package com.dynamo.cr.guied.ui;
 
 import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
 
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
-import com.dynamo.cr.guied.core.GuiNode;
 import com.dynamo.cr.guied.core.GuiSceneNode;
+import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
-import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
@@ -26,24 +23,14 @@ public class GuiSceneRenderer implements INodeRenderer<GuiSceneNode> {
     @Override
     public void dispose(GL2 gl) { }
 
-    private int updateRenderOrder(int order, List<Node> nodes, Map<String, Integer> layersToIndexMap) {
-        for (Node n : nodes) {
-            GuiNode node = (GuiNode)n;
-            node.setRenderKey(order, layersToIndexMap);
-            order += 1;
-            order = updateRenderOrder(order, node.getChildren(), layersToIndexMap);
-        }
-        return order;
-    }
-
     @Override
     public void setup(RenderContext renderContext, GuiSceneNode node) {
         if (passes.contains(renderContext.getPass())) {
             renderContext.add(this, node, new Point3d(), null);
         }
         if (renderContext.getPass().equals(Pass.BACKGROUND)) {
-            Node nodesNode = node.getNodesNode();
-            updateRenderOrder(0, nodesNode.getChildren(), node.getLayerToIndexMap());
+            Clipping.updateClippingStates(node);
+            node.updateRenderOrder();
         }
     }
 

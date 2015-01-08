@@ -148,7 +148,6 @@ public class Bob {
         options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("h", "help", false, "This help directory");
         options.addOption("a", "archive", false, "Build archive");
-        options.addOption("c", "compress", false, "Compress archive entries (if -a/--archive)");
         options.addOption("e", "email", true, "User email");
         options.addOption("u", "auth", true, "User auth token");
 
@@ -162,8 +161,6 @@ public class Bob {
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
         options.addOption("re", "release", false, "Release mode (when bundling)");
-        //options.addOption(OptionBuilder.withArgName("release").withDescription("Release mode (when bundling)").create("release"));
-        //
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
