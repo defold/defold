@@ -6,7 +6,9 @@ import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
+import com.dynamo.cr.guied.core.ClippingNode;
 import com.dynamo.cr.guied.core.PieNode;
+import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
 import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
@@ -14,7 +16,6 @@ import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
 import com.dynamo.gui.proto.Gui.NodeDesc;
-import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.jogamp.opengl.util.texture.Texture;
 
@@ -29,11 +30,23 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
     @Override
     public void setup(RenderContext renderContext, PieNode node) {
         if (passes.contains(renderContext.getPass())) {
-            if((renderContext.getPass() == Pass.OUTLINE) && (node.getClippingMode() != ClippingMode.CLIPPING_MODE_NONE) && (!Clipping.getShowClippingNodes())) {
+            if((renderContext.getPass() == Pass.OUTLINE) && (node.isClipping()) && (!Clipping.getShowClippingNodes())) {
                 return;
             }
-            RenderData<PieNode> data = renderContext.add(this, node, new Point3d(), null);
-            data.setIndex(node.getRenderKey());
+            ClippingState clippingState = node.getClippingState();
+            if (clippingState != null) {
+                RenderData<PieNode> data = renderContext.add(this, node, new Point3d(), clippingState);
+                data.setIndex(node.getClippingKey());
+            }
+            if (!node.isClipping() || node.getClippingVisible()) {
+                ClippingState childState = null;
+                ClippingNode clipper = node.getClosestParentClippingNode();
+                if (clipper != null) {
+                    childState = clipper.getChildClippingState();
+                }
+                RenderData<PieNode> data = renderContext.add(this, node, new Point3d(), childState);
+                data.setIndex(node.getRenderKey());
+            }
         }
     }
 
@@ -94,7 +107,12 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
             texture = node.getTextureHandle().getTexture(gl);
         }
 
-        Clipping.setState(renderContext, node);
+        boolean clipping = renderData.getUserData() != null;
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.beginClipping(gl);
+            ClippingState state = (ClippingState)renderData.getUserData();
+            Clipping.setupClipping(gl, state);
+        }
 
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
@@ -119,10 +137,6 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
                 gl.glBlendFunc(GL.GL_ZERO, GL.GL_SRC_COLOR);
                 break;
             }
-        }
-
-        if(renderContext.getPass() == Pass.OUTLINE) {
-            Clipping.setOutLineState(renderContext, node);
         }
 
         double x0 = -pivotOffsetX(node, node.getSize().x);
@@ -206,15 +220,22 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
             }
         }
 
-
         NodeDesc.PieBounds pb = node.getOuterBounds();
 
         // use x dimension for radius.
         double ref = Math.abs(x1-x0);
         double innerRadiusMultiplier = ref > 0 ? 2.0 * (node.getInnerRadius() / ref) : 0;
 
-        float[] color = node.calcNormRGBA();
-        gl.glColor4fv(renderContext.selectColor(node, color), 0);
+        if (renderContext.getPass() == Pass.OUTLINE && node.isClipping()) {
+            if (renderContext.isSelected(node)) {
+                gl.glColor4fv(Clipping.OUTLINE_SELECTED_COLOR, 0);
+            } else {
+                gl.glColor4fv(Clipping.OUTLINE_COLOR, 0);
+            }
+        } else {
+            float[] color = node.calcNormRGBA();
+            gl.glColor4fv(renderContext.selectColor(node, color), 0);
+        }
         gl.glBegin(GL2.GL_TRIANGLE_STRIP);
 
         // Generate strip.
@@ -252,6 +273,10 @@ public class PieNodeRenderer implements INodeRenderer<PieNode> {
                 texture.disable(gl);
             }
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+        }
+
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.endClipping(gl);
         }
     }
 

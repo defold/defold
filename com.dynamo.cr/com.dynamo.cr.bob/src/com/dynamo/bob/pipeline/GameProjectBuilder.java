@@ -132,7 +132,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder ab = new ArchiveBuilder(root);
-        boolean doCompress = project.option("compress", "false").equals("true");
+        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
 
         for (String s : resources) {
             // 2:d argument is true to use compression.

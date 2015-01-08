@@ -103,7 +103,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false);
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage image = result.image;
         assertThat(image.getWidth(), is(64));
@@ -127,7 +127,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false);
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true);
         BufferedImage image = result.image;
         assertThat(image.getWidth(), is(64));
         assertThat(image.getHeight(), is(16));
@@ -154,7 +154,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false);
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true);
 
         TextureSet textureSet = result.builder.setTexture("").build();
 
@@ -176,7 +176,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false);
+        TextureSetResult result = TextureSetGenerator.generate(images, iterator, 0, 0, 0, false, false, true);
 
         TextureSet textureSet = result.builder.setTexture("").build();
         assertUVTransform(0.0f, 0.0f, 0.25f, 1.0f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 0));

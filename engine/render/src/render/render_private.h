@@ -90,21 +90,23 @@ namespace dmRender
 
     struct TextEntry
     {
-        Matrix4  m_Transform;
-        uint32_t m_StringOffset;
-        HFontMap m_FontMap;
-        uint32_t m_FaceColor;
-        uint32_t m_OutlineColor;
-        uint32_t m_ShadowColor;
-        uint32_t m_Depth;
-        uint16_t m_RenderOrder;
-        float    m_Width;
-        float    m_Height;
-        bool     m_LineBreak;
-        int32_t  m_Next;
-        int32_t  m_Tail;
-        uint32_t m_Align : 2;
-        uint32_t m_VAlign : 2;
+        StencilTestParams   m_StencilTestParams;
+        Matrix4             m_Transform;
+        uint32_t            m_StringOffset;
+        HFontMap            m_FontMap;
+        uint32_t            m_FaceColor;
+        uint32_t            m_OutlineColor;
+        uint32_t            m_ShadowColor;
+        uint32_t            m_Depth;
+        uint16_t            m_RenderOrder;
+        float               m_Width;
+        float               m_Height;
+        bool                m_LineBreak;
+        int32_t             m_Next;
+        int32_t             m_Tail;
+        uint32_t            m_Align : 2;
+        uint32_t            m_VAlign : 2;
+        uint32_t            m_StencilTestParamsSet : 1;
     };
 
     struct TextContext

@@ -80,7 +80,7 @@ namespace dmGameSystem
      * The velocity is measured as a rotation around the vector with a speed equivalent to the vector length
      * in radians/s.
      *
-     * @name linear_velocity
+     * @name angular_velocity
      * @property
      *
      * @examples
