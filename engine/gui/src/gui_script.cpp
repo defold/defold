@@ -728,13 +728,31 @@ namespace dmGui
      * can be animated simultaneously. Use <code>gui.cancel_animation</code> to stop the animation before it has completed.
      * </p>
      * <p>
-     * If a <code>complete_function</code> (lua function) is specified, that function will be called when the animation has completed.
+     * Composite properties of type vector3, vector4 or quaternion also expose their sub-components (x, y, z and w).
+     * You can address the components individually by suffixing the name with a dot '.' and the name of the component.
+     * For instance, "position.x" (the position x coordinate) or "color.w" (the color alpha value).
+     * </p>
+     * <p>
+     * If a <code>complete_function</code> (Lua function) is specified, that function will be called when the animation has completed.
      * By starting a new animation in that function, several animations can be sequenced together. See the examples for more information.
      * </p>
      *
      * @name gui.animate
      * @param node node to animate (node)
-     * @param property property to animate (constant)
+     * @param property property to animate (string|constant)
+     * <ul>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
+     * </ul>
+     * The following property constants are also defined equalling the corresponding property string names.
      * <ul>
      *   <li><code>gui.PROP_POSITION</code></li>
      *   <li><code>gui.PROP_ROTATION</code></li>
@@ -745,7 +763,7 @@ namespace dmGui
      *   <li><code>gui.PROP_SIZE</code></li>
      * </ul>
      * <p>
-     * Single values can also be animated by specifying e.g. "position.x" as the property.
+     *
      * </p>
      * @param to target property value (vector3|vector4)
      * @param easing easing to use during animation (constant). See gui.EASING_* constants
@@ -867,15 +885,18 @@ namespace dmGui
      *
      * @name gui.cancel_animation
      * @param node node that should have its animation canceled (node)
-     * @param property property for which the animation should be canceled (constant)
+     * @param property property for which the animation should be canceled (string|constant)
      * <ul>
-     *   <li><code>gui.PROP_POSITION</code></li>
-     *   <li><code>gui.PROP_ROTATION</code></li>
-     *   <li><code>gui.PROP_SCALE</code></li>
-     *   <li><code>gui.PROP_COLOR</code></li>
-     *   <li><code>gui.PROP_OUTLINE</code></li>
-     *   <li><code>gui.PROP_SHADOW</code></li>
-     *   <li><code>gui.PROP_SIZE</code></li>
+     *   <li><code>"position"</code></li>
+     *   <li><code>"rotation"</code></li>
+     *   <li><code>"scale"</code></li>
+     *   <li><code>"color"</code></li>
+     *   <li><code>"outline"</code></li>
+     *   <li><code>"shadow"</code></li>
+     *   <li><code>"size"</code></li>
+     *   <li><code>"fill_angle"</code> (pie nodes)</li>
+     *   <li><code>"inner_radius"</code> (pie nodes)</li>
+     *   <li><code>"slice9"</code> (slice9 nodes)</li>
      * </ul>
      */
     int LuaCancelAnimation(lua_State* L)
@@ -1143,7 +1164,7 @@ namespace dmGui
     }
 
     /*# sets the node texture
-     * This is currently only useful for box nodes. The texture must be mapped to the gui scene in the gui editor.
+     * Set the texture on a box or pie node. The texture must be mapped to the gui scene in the gui editor.
      *
      * @name gui.set_texture
      * @param node node to set texture for (node)
@@ -1418,7 +1439,6 @@ namespace dmGui
      * @return node clipping mode (constant)
      * <ul>
      *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
-     *   <li><code>gui.CLIPPING_MODE_SCISSOR</code></li>
      *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
      * </ul>
      */
@@ -1437,7 +1457,6 @@ namespace dmGui
      * @param clipping_mode clipping mode to set (constant)
      * <ul>
      *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
-     *   <li><code>gui.CLIPPING_MODE_SCISSOR</code></li>
      *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
      * </ul>
      */
@@ -1453,11 +1472,11 @@ namespace dmGui
     /*# gets node clipping visibility state
      * If node is set as visible clipping node, it will be shown as well as clipping. Otherwise, it will only clip but not show visually.
      *
-     * @name gui.is_clipping_visible
+     * @name gui.get_clipping_visible
      * @param node node from which to get the clipping visibility state (node)
      * @return true or false
      */
-    static int LuaIsClippingVisible(lua_State* L)
+    static int LuaGetClippingVisible(lua_State* L)
     {
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1484,11 +1503,11 @@ namespace dmGui
     /*# gets node clipping inverted state
      * If node is set as an inverted clipping node, it will clip anything inside as opposed to outside.
      *
-     * @name gui.is_clipping_inverted
+     * @name gui.get_clipping_inverted
      * @param node node from which to get the clipping inverted state (node)
      * @return true or false
      */
-    static int LuaIsClippingInverted(lua_State* L)
+    static int LuaGetClippingInverted(lua_State* L)
     {
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
@@ -1876,7 +1895,7 @@ namespace dmGui
 
     /*# sets the angle for the filled pie sector
      *
-     * @name gui.set_pie_fill_angle
+     * @name gui.set_fill_angle
      * @param sector angle
      */
     static int LuaSetPieFillAngle(lua_State* L)
@@ -1902,7 +1921,7 @@ namespace dmGui
 
     /*# gets the angle for the filled pie sector
      *
-     * @name gui.get_pie_fill_angle
+     * @name gui.get_fill_angle
      * @return sector angle
      */
     static int LuaGetPieFillAngle(lua_State* L)
@@ -2385,7 +2404,16 @@ namespace dmGui
         return 0;
     }
 
-    // Currently a private function
+    /*# set the render ordering for the current GUI scene
+     *
+     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words 
+     * in which order the scene will be rendered in relation to other currently rendered GUI scenes.
+     *
+     * The number must be in the range 0 to 7.
+     *
+     * @name gui.set_render_order
+     * @param order rendering order (number)
+     */
     static int LuaSetRenderOrder(lua_State* L)
     {
         Scene* scene = GuiScriptInstance_Check(L);
@@ -2652,9 +2680,9 @@ namespace dmGui
         {"set_blend_mode",  LuaSetBlendMode},
         {"get_clipping_mode",  LuaGetClippingMode},
         {"set_clipping_mode",  LuaSetClippingMode},
-        {"get_is_clipping_visible", LuaIsClippingVisible},
+        {"get_clipping_visible", LuaGetClippingVisible},
         {"set_clipping_visible",LuaSetClippingVisible},
-        {"get_is_clipping_inverted", LuaIsClippingInverted},
+        {"get_clipping_inverted", LuaGetClippingInverted},
         {"set_clipping_inverted",LuaSetClippingInverted},
         {"get_texture",     LuaGetTexture},
         {"set_texture",     LuaSetTexture},
@@ -2691,8 +2719,8 @@ namespace dmGui
         {"get_screen_position", LuaGetScreenPosition},
         {"reset_nodes",     LuaResetNodes},
         {"set_render_order",LuaSetRenderOrder},
-        {"set_pie_fill_angle", LuaSetPieFillAngle},
-        {"get_pie_fill_angle", LuaGetPieFillAngle},
+        {"set_fill_angle", LuaSetPieFillAngle},
+        {"get_fill_angle", LuaGetPieFillAngle},
         {"set_perimeter_vertices", LuaSetPerimeterVertices},
         {"get_perimeter_vertices", LuaGetPerimeterVertices},
         {"set_inner_radius", LuaSetInnerRadius},
@@ -2781,12 +2809,6 @@ namespace dmGui
     /*# clipping mode none
      *
      * @name gui.CLIPPING_MODE_NONE
-     * @variable
-     */
-
-    /*# clipping mode scissor
-     *
-     * @name gui.CLIPPING_MODE_SCISSOR
      * @variable
      */
 
@@ -3003,7 +3025,6 @@ namespace dmGui
         lua_setfield(L, -2, "CLIPPING_MODE_"#name);\
 
         SETCLIPPINGMODE(NONE)
-        SETCLIPPINGMODE(SCISSOR)
         SETCLIPPINGMODE(STENCIL)
 
 #undef SETBLEND

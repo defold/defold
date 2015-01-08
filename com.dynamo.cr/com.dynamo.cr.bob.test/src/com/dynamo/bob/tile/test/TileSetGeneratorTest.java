@@ -168,13 +168,13 @@ public class TileSetGeneratorTest {
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage texture = result.image;
 
-        assertEquals(32, texture.getWidth());
-        assertEquals(4, texture.getHeight());
+        assertEquals(4, texture.getWidth());
+        assertEquals(32, texture.getHeight());
 
         ByteBuffer uv = ByteBuffer.wrap(textureSet.getTexCoords().toByteArray());
         // Vertex buffers is in little endian (java big)
         uv.order(ByteOrder.LITTLE_ENDIAN);
-        assertQuadTexCoords(uv, 1.0f / 32, (16.0f + 1.0f) / 32, 1.0f / 4f, (1.0f + 1.0f) / 4f, true);
+        assertQuadTexCoords(uv, 1.0f / 4, 2.0f / 4, 1.0f / 32, 0.5f + 1.0f / 32, false);
     }
 
     @Test

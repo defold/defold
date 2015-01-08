@@ -814,10 +814,14 @@ unsigned char %s[] =
     cpp_out_file.write('{\n    ')
 
     data = in_file.read()
+
+    tmp = ''
     for i,x in enumerate(data):
-        cpp_out_file.write('0x%X, ' % ord(x))
+        tmp += hex(ord(x)) + ', '
         if i > 0 and i % 4 == 0:
-            cpp_out_file.write('\n    ')
+            tmp += '\n    '
+    cpp_out_file.write(tmp)
+
     cpp_out_file.write('\n};\n')
     cpp_out_file.write('uint32_t %s_SIZE = sizeof(%s);\n' % (symbol, symbol))
 

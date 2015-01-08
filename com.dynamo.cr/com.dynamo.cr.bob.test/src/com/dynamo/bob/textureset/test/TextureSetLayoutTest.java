@@ -25,12 +25,16 @@ public class TextureSetLayoutTest {
         assertThat(r.id, is(id));
     }
 
+    private static Layout layout(int margin, List<Rect> rectangles) {
+        return TextureSetLayout.layout(margin, rectangles, true);
+    }
+
     @Test
     public void testEmpty() {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList();
 
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
         assertThat(layout.getWidth(), is(1));
         assertThat(layout.getHeight(), is(1));
         assertThat(layout.getRectangles().size(), is(0));
@@ -44,7 +48,7 @@ public class TextureSetLayoutTest {
                             rect(2, 16, 16),
                             rect(3, 16, 16));
 
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(16));
         assertRect(layout, 0, 0, 0, 0);
@@ -64,7 +68,7 @@ public class TextureSetLayoutTest {
                             rect(5, 8, 8),
                             rect(6, 8, 8));
 
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(16));
         assertRect(layout, 0, 0, 0, 0);
@@ -81,7 +85,7 @@ public class TextureSetLayoutTest {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect(0, 512, 128));
 
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
         assertThat(layout.getWidth(), is(512));
         assertThat(layout.getHeight(), is(128));
         assertRect(layout, 0, 0, 0, 0);
@@ -94,7 +98,7 @@ public class TextureSetLayoutTest {
                             rect(1, 16, 2),
                             rect(2, 16, 2));
 
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
         assertThat(layout.getWidth(), is(32));
         assertThat(layout.getHeight(), is(16));
         assertRect(layout, 0, 0, 0, 0);
@@ -110,7 +114,7 @@ public class TextureSetLayoutTest {
                             rect(2, 16, 16),
                             rect(3, 16, 16));
 
-        Layout layout = TextureSetLayout.layout(2, rectangles);
+        Layout layout = layout(2, rectangles);
         assertThat(layout.getWidth(), is(128));
         assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
@@ -127,7 +131,7 @@ public class TextureSetLayoutTest {
                             rect(2, 15, 15),
                             rect(3, 15, 15));
 
-        Layout layout = TextureSetLayout.layout(2, rectangles);
+        Layout layout = layout(2, rectangles);
         assertThat(layout.getWidth(), is(128));
         assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
@@ -140,7 +144,7 @@ public class TextureSetLayoutTest {
     public void testThinStrip() {
         List<TextureSetLayout.Rect> rectangles = Arrays.asList(rect(0, 1, 16));
 
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
         assertThat(layout.getWidth(), is(1));
         assertThat(layout.getHeight(), is(16));
         assertRect(layout, 0, 0, 0, 0);
@@ -179,7 +183,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testAllIncluded() {
         List<Rect> rectangles = createSampleRectangles(1);
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
 
         HashSet<Integer> recordedIds = new HashSet<Integer>();
 
@@ -211,7 +215,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testNoOverlaps() {
         List<Rect> rectangles = createSampleRectangles(1);
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
         List<Rect> outputRectangles = layout.getRectangles();
         int numRectangles = outputRectangles.size();
 
@@ -225,7 +229,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testLargeLayout() {
         List<Rect> rectangles = Arrays.asList(rect(0, 1000, 800), rect(1, 800, 1000), rect(2, 1000, 100), rect(3, 800, 100));
-        Layout layout = TextureSetLayout.layout(0, rectangles);
+        Layout layout = layout(0, rectangles);
 
         assertEquals(layout.getWidth(), 2048);
         assertEquals(layout.getHeight(), 1024);

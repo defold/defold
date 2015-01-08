@@ -55,35 +55,35 @@ namespace dmGui
 
     struct InternalClippingNode
     {
-        uint16_t m_StartNodeIndex;
-        uint16_t m_EndNodeIndex;
-        uint16_t m_NextStateNodeArrayIndex;
-        uint16_t m_ParentNodeIndex;
-        uint16_t m_NextAncestorNodeArrayIndex;
+        StencilScope            m_Scope;
+        StencilScope            m_ChildScope;
+        uint32_t                m_VisibleRenderKey;
+        uint16_t                m_ParentIndex;
+        uint16_t                m_NextNonInvIndex;
+        uint16_t                m_NodeIndex;
     };
 
     struct Context
     {
-        lua_State*                  m_LuaState;
-        GetURLCallback              m_GetURLCallback;
-        GetUserDataCallback         m_GetUserDataCallback;
-        ResolvePathCallback         m_ResolvePathCallback;
-        GetTextMetricsCallback      m_GetTextMetricsCallback;
-        uint32_t                    m_Width;
-        uint32_t                    m_Height;
-        uint32_t                    m_PhysicalWidth;
-        uint32_t                    m_PhysicalHeight;
-        dmArray<HScene>             m_Scenes;
-        dmArray<HNode>              m_RenderNodes;
-        dmArray<Matrix4>            m_RenderTransforms;
-        dmArray<Vector4>            m_RenderColors;
-        dmArray<InternalClippingNode>       m_ScissorClippingNodes;
-        dmArray<ScissorClippingRenderState> m_ScissorStates;
-        dmArray<InternalClippingNode>       m_StencilClippingNodes;
-        dmArray<StencilClippingRenderState> m_StencilStates;
-        dmHID::HContext             m_HidContext;
-        void*                       m_DefaultFont;
-        SceneTraversalCache         m_SceneTraversalCache;
+        lua_State*                      m_LuaState;
+        GetURLCallback                  m_GetURLCallback;
+        GetUserDataCallback             m_GetUserDataCallback;
+        ResolvePathCallback             m_ResolvePathCallback;
+        GetTextMetricsCallback          m_GetTextMetricsCallback;
+        uint32_t                        m_Width;
+        uint32_t                        m_Height;
+        uint32_t                        m_PhysicalWidth;
+        uint32_t                        m_PhysicalHeight;
+        dmArray<HScene>                 m_Scenes;
+        dmArray<RenderEntry>            m_RenderNodes;
+        dmArray<Matrix4>                m_RenderTransforms;
+        dmArray<Vector4>                m_RenderColors;
+        dmArray<InternalClippingNode>   m_StencilClippingNodes;
+        dmArray<StencilScope*>          m_StencilScopes;
+        dmArray<uint16_t>               m_StencilScopeIndices;
+        dmHID::HContext                 m_HidContext;
+        void*                           m_DefaultFont;
+        SceneTraversalCache             m_SceneTraversalCache;
     };
 
     struct Node
@@ -140,9 +140,9 @@ namespace dmGui
         uint16_t        m_ParentIndex;
         uint16_t        m_ChildHead;
         uint16_t        m_ChildTail;
-        uint16_t        m_RenderKey;
         uint16_t        m_SceneTraversalCacheIndex;
         uint16_t        m_SceneTraversalCacheVersion;
+        uint16_t        m_ClipperIndex;
         uint16_t        m_Deleted : 1; // Set to true for deferred deletion
         uint16_t        m_Padding : 15;
     };

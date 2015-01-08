@@ -7,13 +7,14 @@ import javax.media.opengl.GL2;
 import javax.vecmath.Point3d;
 
 import com.dynamo.cr.guied.core.BoxNode;
+import com.dynamo.cr.guied.core.ClippingNode;
+import com.dynamo.cr.guied.core.ClippingNode.ClippingState;
 import com.dynamo.cr.guied.util.Clipping;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
-import com.dynamo.gui.proto.Gui.NodeDesc.ClippingMode;
 import com.dynamo.gui.proto.Gui.NodeDesc.Pivot;
 import com.jogamp.opengl.util.texture.Texture;
 
@@ -28,11 +29,23 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
     @Override
     public void setup(RenderContext renderContext, BoxNode node) {
         if (passes.contains(renderContext.getPass())) {
-            if((renderContext.getPass() == Pass.OUTLINE) && (node.getClippingMode() != ClippingMode.CLIPPING_MODE_NONE) && (!Clipping.getShowClippingNodes())) {
+            if((renderContext.getPass() == Pass.OUTLINE) && (node.isClipping()) && (!Clipping.getShowClippingNodes())) {
                 return;
             }
-            RenderData<BoxNode> data = renderContext.add(this, node, new Point3d(), null);
-            data.setIndex(node.getRenderKey());
+            ClippingState clippingState = node.getClippingState();
+            if (clippingState != null) {
+                RenderData<BoxNode> data = renderContext.add(this, node, new Point3d(), clippingState);
+                data.setIndex(node.getClippingKey());
+            }
+            if (!node.isClipping() || node.getClippingVisible()) {
+                ClippingState childState = null;
+                ClippingNode clipper = node.getClosestParentClippingNode();
+                if (clipper != null) {
+                    childState = clipper.getChildClippingState();
+                }
+                RenderData<BoxNode> data = renderContext.add(this, node, new Point3d(), childState);
+                data.setIndex(node.getRenderKey());
+            }
         }
     }
 
@@ -93,7 +106,12 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             texture = node.getTextureHandle().getTexture(gl);
         }
 
-        Clipping.setState(renderContext, node);
+        boolean clipping = renderData.getUserData() != null;
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.beginClipping(gl);
+            ClippingState state = (ClippingState)renderData.getUserData();
+            Clipping.setupClipping(gl, state);
+        }
 
         boolean transparent = renderData.getPass() == Pass.TRANSPARENT;
         if (transparent) {
@@ -120,8 +138,15 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             }
         }
 
-        if(renderContext.getPass() == Pass.OUTLINE) {
-            Clipping.setOutLineState(renderContext, node);
+        if (renderContext.getPass() == Pass.OUTLINE && node.isClipping()) {
+            if (renderContext.isSelected(node)) {
+                gl.glColor4fv(Clipping.OUTLINE_SELECTED_COLOR, 0);
+            } else {
+                gl.glColor4fv(Clipping.OUTLINE_COLOR, 0);
+            }
+        } else {
+            float[] color = node.calcNormRGBA();
+            gl.glColor4fv(renderContext.selectColor(node, color), 0);
         }
 
         double us[] = new double[4];
@@ -163,8 +188,6 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
         vs[2] = sV * node.getSlice9().y;
         vs[3] = 0.0f;
 
-        float[] color = node.calcNormRGBA();
-        gl.glColor4fv(renderContext.selectColor(node, color), 0);
         gl.glBegin(GL2.GL_QUADS);
 
         for (int i=0;i<3;i++)
@@ -197,6 +220,10 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
                 texture.disable(gl);
             }
             gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+        }
+
+        if (clipping && renderData.getPass() == Pass.TRANSPARENT) {
+            Clipping.endClipping(gl);
         }
     }
 

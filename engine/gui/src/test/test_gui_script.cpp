@@ -356,8 +356,8 @@ TEST_F(dmGuiScriptTest, TestPieNodeScript)
             "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_RECTANGLE)\n"
             "    gui.set_outer_bounds(n, gui.PIEBOUNDS_ELLIPSE)\n"
             "    assert(gui.get_outer_bounds(n) == gui.PIEBOUNDS_ELLIPSE)\n"
-            "    gui.set_pie_fill_angle(n, 90)\n"
-            "    assert(gui.get_pie_fill_angle(n) == 90)\n"
+            "    gui.set_fill_angle(n, 90)\n"
+            "    assert(gui.get_fill_angle(n) == 90)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
@@ -370,8 +370,8 @@ TEST_F(dmGuiScriptTest, TestPieNodeScript)
     dmGui::DeleteScript(script);
 }
 
-void RenderNodesStoreTransform(dmGui::HScene scene, dmGui::HNode* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors, uint32_t node_count,
-        const dmGui::ScissorClippingRenderState* scissor_clipping_render_states, const dmGui::StencilClippingRenderState* stencil_clipping_render_states, void* context)
+void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const Vectormath::Aos::Vector4* node_colors,
+        const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
     Vectormath::Aos::Matrix4* out_transforms = (Vectormath::Aos::Matrix4*)context;
     memcpy(out_transforms, node_transforms, sizeof(Vectormath::Aos::Matrix4) * node_count);

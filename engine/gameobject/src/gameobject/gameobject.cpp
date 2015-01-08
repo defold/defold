@@ -2365,6 +2365,7 @@ namespace dmGameObject
                     }
                     ComponentGetPropertyParams p;
                     p.m_Context = type->m_Context;
+                    p.m_World = instance->m_Collection->m_ComponentWorlds[component.m_TypeIndex];
                     p.m_Instance = instance;
                     p.m_PropertyId = property_id;
                     p.m_UserData = user_data;
@@ -2534,6 +2535,7 @@ namespace dmGameObject
                     }
                     ComponentSetPropertyParams p;
                     p.m_Context = type->m_Context;
+                    p.m_World = instance->m_Collection->m_ComponentWorlds[component.m_TypeIndex];
                     p.m_Instance = instance;
                     p.m_PropertyId = property_id;
                     p.m_UserData = user_data;

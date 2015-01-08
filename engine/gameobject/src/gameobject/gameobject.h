@@ -530,6 +530,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component world
+        void* m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -550,6 +552,8 @@ namespace dmGameObject
     {
         /// Context for the component type
         void* m_Context;
+        /// Component world
+        void* m_World;
         /// Game object instance
         HInstance m_Instance;
         /// Id of the property
@@ -765,8 +769,9 @@ namespace dmGameObject
      * @param component_ext when specified, the call will fail if the found component does not have the specified extension
      * @param user_data will be overwritten component user-data output if available
      * @param url will be overwritten with a URL to the component when specified
+     * @param world world associated when specified
      */
-    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url);
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
     /**
      * Get current game object instance from the lua state, if any.
