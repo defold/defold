@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
+            [service.log :as log]
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
@@ -12,9 +13,6 @@
             [internal.query :as iq]
             [camel-snake-kebab :refer :all])
   (:import [org.eclipse.core.runtime IStatus Status]
-           [org.eclipse.swt SWT]
-           [org.eclipse.swt.custom StackLayout]
-           [org.eclipse.swt.layout FillLayout GridData GridLayout]
            [org.eclipse.swt.widgets Composite]
            [org.eclipse.ui ISelectionListener]
            [org.eclipse.ui.forms.widgets FormToolkit]
@@ -55,14 +53,11 @@
     :listen   (zipmap (:listen spec) (repeat ui-event-listener))
     :children (mapv (fn [[child-name child-spec]] [child-name (attach-listeners child-spec ui-event-listener)]) (:children spec))))
 
-(def ^:private right-column-layout {:layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL :width-hint 50}})
-
 (defn- control-spec
   [ui-event-listener prop-name presenter]
-  (-> right-column-layout
-    (merge (dp/control-for-property presenter))
-    (attach-user-data prop-name presenter [])
-    (attach-listeners ui-event-listener)))
+  (-> (merge (dp/control-for-property presenter))
+      (attach-user-data prop-name presenter [])
+      (attach-listeners ui-event-listener)))
 
 (defn- property-control-strip
   [ui-event-listener [prop-name {:keys [presenter]}]]
@@ -72,14 +67,14 @@
                         :children [[:label      {:type :label :text label-text}]
                                    [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text Messages/FormPropertySheetViewer_RESET_VALUE}]]}]
      [prop-name (control-spec ui-event-listener prop-name presenter)]
-     [:dummy           {:type :label :layout-data {:type :grid :exclude true}}]
-     [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-fill SWT/HORIZONTAL :width-hint 50 :exclude true}}]]))
+     [:dummy           {:type :label :layout-data {:exclude true}}]
+     [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:min-width 50 :exclude true}}]]))
 
 (defn- property-page
   [control-strips]
   [:page-content
    {:type :composite
-    :layout {:type :grid :num-columns 2 :margin-width 0}
+    :layout {:type :grid :margin-width 0 :columns [{:horizontal-alignment :left} {:horizontal-alignment :fill}]}
     :children control-strips}])
 
 (defn- make-property-page
@@ -90,7 +85,7 @@
 (def empty-property-page
   [:page-content
    {:type :composite
-    :layout {:type :grid}
+    :layout {:type :grid :columns [{:horizontal-alignment :left}]}
     :children [[:no-selection-label {:type :label :text Messages/FormPropertySheetViewer_NO_PROPERTIES}]]}])
 
 (defn- make-empty-property-page
@@ -125,8 +120,8 @@
         key     (cache-key content)
         page    (lookup-or-create sheet-cache key make-property-page toolkit ui-event-listener properties-form content)]
     (ui/update-ui!      (get-in page [:page-content]) (settings-for-page content))
-    (ui/bring-to-front! (get-in page [:page-content]))
-    (ui/scroll-to-top!  (get-in properties-form [:form]))))
+    (ui/bring-to-front! (ui/widget page [:page-content]))
+    (ui/scroll-to-top!  (ui/widget properties-form [:form]))))
 
 (defn- refresh-after-a-while
   [graph this transaction]
@@ -138,14 +133,9 @@
 (def gui
   [:form {:type   :form
           :text   "Properties"
-          :layout {:type :grid}
+          :layout {:type :grid :columns [{:horizontal-alignment :fill :vertical-alignment :fill}]}
           :children [[:composite
                       {:type :composite
-                       :layout-data {:type :grid
-                                     :horizontal-alignment SWT/FILL
-                                     :vertical-alignment SWT/FILL
-                                     :grab-excess-vertical-space true
-                                     :grab-excess-horizontal-space true}
                        :layout {:type :stack}}]]}])
 
 (n/defnode PropertyView
@@ -174,10 +164,15 @@
     (let [ui-event (:ui-event event)
           {:keys [presenter prop-name path]} (ui/get-user-data (:widget ui-event))
           content (in/get-node-value self :content)
-          prop (get content prop-name)
-          result (dp/on-event presenter path ui-event (:value prop))]
-      (when-let [new-value (:value result)]
-        (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
+          page (get @(:sheet-cache self) (cache-key content))
+          widget-subtree (get-in page [:page-content prop-name])]
+      (if (identical? (:widget ui-event) (ui/widget widget-subtree path))
+        (let [prop (get content prop-name)
+              presenter-event (dp/presenter-event-map ui-event)
+              result (dp/on-event presenter widget-subtree path presenter-event (:value prop))]
+          (when-let [new-value (:value result)]
+            (ds/set-property {:_id (:node-id prop)} prop-name new-value)))
+        (log/warn :message "Expected event from widget on active property page"))))
 
   ISelectionListener
   (selectionChanged [this part selection]

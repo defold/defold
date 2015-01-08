@@ -5,8 +5,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
-            [dynamo.util :refer :all])
-  (:import [org.eclipse.swt SWT]))
+            [dynamo.util :refer :all]))
 
 (defrecord StringPresenter []
   Presenter
@@ -15,8 +14,8 @@
   (settings-for-control [_ value]
     {:text (str value)})
 
-  (on-event [_ _ event value]
-    (let [new-value (ui/get-text (:widget event))]
+  (on-event [_ widget-subtree path event _]
+    (let [new-value (ui/get-text (ui/widget widget-subtree path))]
       (case (:type event)
         :key-down (if (is-enter-key? event)
                     (final-value new-value)
@@ -31,8 +30,8 @@
   (settings-for-control [_ value]
     {:text (str value)})
 
-  (on-event [_ _ event value]
-    (let [new-value (parse-int (ui/get-text (:widget event)))]
+  (on-event [_ widget-subtree path event _]
+    (let [new-value (parse-int (ui/get-text (ui/widget widget-subtree path)))]
       (case (:type event)
         :key-down (if (is-enter-key? event)
                     (final-value new-value)
@@ -44,17 +43,20 @@
   Presenter
   (control-for-property [_]
     {:type :composite
-     :layout {:type :grid :num-columns 3 :margin-width 0}
-     :children [[:x {:type :text :listen #{:key-down :focus-out} :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL}}]
-                [:y {:type :text :listen #{:key-down :focus-out} :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL}}]
-                [:z {:type :text :listen #{:key-down :focus-out} :layout-data {:type :grid :grab-excess-horizontal-space true :horizontal-alignment SWT/FILL}}]]})
+     :layout {:type :grid :margin-width 0 :columns [{:horizontal-alignment :fill}
+                                                    {:horizontal-alignment :fill}
+                                                    {:horizontal-alignment :fill}]}
+     :children [[:x {:type :text :listen #{:key-down :focus-out}}]
+                [:y {:type :text :listen #{:key-down :focus-out}}]
+                [:z {:type :text :listen #{:key-down :focus-out}}]]})
   (settings-for-control [_ value]
     {:children [[:x {:text (str (nth value 0))}]
                 [:y {:text (str (nth value 1))}]
                 [:z {:text (str (nth value 2))}]]})
-  (on-event [_ path event value]
+  (on-event [_ widget-subtree path event value]
     (when-let [index (get {:x 0 :y 1 :z 2} (first path))]
-      (let [new-value (assoc value index (parse-number (ui/get-text (:widget event))))]
+      (let [widget (ui/widget widget-subtree path)
+            new-value (assoc value index (parse-number (ui/get-text widget)))]
         (case (:type event)
           :key-down (if (is-enter-key? event)
                       (final-value new-value)
@@ -66,15 +68,15 @@
   Presenter
   (control-for-property [_]
     {:type :composite
-     :layout {:type :grid :num-columns 2 :margin-width 0 :margin-height 0 :horizontal-spacing 0}
-     :children [[:label {:type :label :layout-data {:type :grid :width-hint 55}}]
+     :layout {:type :grid :margin-width 0 :margin-height 0 :horizontal-spacing 0 :columns [{:min-width 55} {}]}
+     :children [[:label {:type :label}]
                 [:selector {:type :color-selector :listen #{:selection}}]]})
   (settings-for-control [_ [r g b :as value]]
     {:children [[:label {:text (format "#%02x%02x%02x" (int r) (int g) (int b))}]
                 [:selector {:color (mapv int value)}]]})
-  (on-event [_ path event value]
+  (on-event [_ widget-subtree path event _]
     (case (:type event)
-      :selection (final-value (ui/get-color (:widget event)))
+      :selection (final-value (ui/get-color (ui/widget widget-subtree path)))
       (no-change))))
 
 (when (ds/in-transaction?)
