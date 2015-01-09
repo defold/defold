@@ -135,12 +135,12 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate) {
+            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean compress_layout) {
 
         images = createInnerPadding(images, innerPadding);
         images = extrudeBorders(images, extrudeBorders);
 
-        Layout layout = layout(margin, images, rotate);
+        Layout layout = layout(margin, images, rotate, compress_layout);
 
         rotateImages(layout, images);
 
@@ -205,14 +205,14 @@ public class TextureSetGenerator {
         return images;
     }
 
-    private static Layout layout(int margin, List<BufferedImage> images, boolean rotate) {
+    private static Layout layout(int margin, List<BufferedImage> images, boolean rotate, boolean compress_layout) {
         List<Rect> rectangles = new ArrayList<Rect>(images.size());
         int index = 0;
         for (BufferedImage image : images) {
             rectangles.add(new Rect(index++, image.getWidth(), image.getHeight()));
         }
 
-        Layout layout = TextureSetLayout.layout(margin, rectangles, rotate);
+        Layout layout = TextureSetLayout.layout(margin, rectangles, rotate, compress_layout);
         Collections.sort(layout.getRectangles(), new Comparator<Rect>() {
             @Override
             public int compare(Rect r1, Rect r2) {
