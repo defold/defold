@@ -26,7 +26,7 @@ public class TextureSetLayoutTest {
     }
 
     private static Layout layout(int margin, List<Rect> rectangles) {
-        return TextureSetLayout.layout(margin, rectangles, true);
+        return TextureSetLayout.layout(margin, rectangles, true, true);
     }
 
     @Test
