@@ -397,8 +397,6 @@ bail:
         ssdp->m_Port = sock_port;
         ssdp->m_MCastSocket = mcast_sock;
 
-        dmLogInfo("Connected SSDP");
-
         return RESULT_OK;
 
 bail:
