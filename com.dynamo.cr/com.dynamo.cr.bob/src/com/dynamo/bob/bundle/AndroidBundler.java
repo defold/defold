@@ -6,8 +6,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -16,13 +16,12 @@ import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.pipeline.GameProjectBuilder;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -147,12 +146,12 @@ public class AndroidBundler implements IBundler {
                 inE = zipIn.getNextEntry();
             }
 
-            Collection<File> resources = FileUtils.listFiles(new File(projectRoot, contentRoot),
-                                                             new RegexFileFilter("^(.*?)"),
-                                                             DirectoryFileFilter.DIRECTORY);
+            HashSet<String> resources = GameProjectBuilder.findResources(project);
+            resources.add(new File(new File(projectRoot, contentRoot), "game.projectc").getAbsolutePath());
 
             int prefixLen = normalize(new File(projectRoot, contentRoot).getPath(), true).length();
-            for (File r : resources) {
+            for (String path : resources) {
+                File r = new File(path);
                 String p = normalize(r.getPath(), true).substring(prefixLen);
                 if (!(p.startsWith("/builtins") || p.equals("/game.darc"))) {
                     String ap = normalize("assets" + p, true);
