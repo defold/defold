@@ -84,7 +84,7 @@ namespace dmSSDP
             m_DeviceDesc = device_desc;
             // NOTE: We set expires to such that announce messages
             // will be sent in one second (if enabled)
-            m_Expires = dmTime::GetTime() + uint64_t(1000000U);
+            m_Expires = dmTime::GetTime();
         }
     };
 
