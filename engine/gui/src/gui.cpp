@@ -787,8 +787,10 @@ namespace dmGui
                         entry.m_Node = node;
                         entry.m_RenderKey = clipping_key;
                         render_entries.Push(entry);
-                        entry.m_RenderKey = render_key;
-                        render_entries.Push(entry);
+                        if (n->m_Node.m_ClippingVisible) {
+                            entry.m_RenderKey = render_key;
+                            render_entries.Push(entry);
+                        }
                         if (!root_clipper) {
                             Increment(current_scope);
                         }
