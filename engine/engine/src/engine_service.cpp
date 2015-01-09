@@ -280,7 +280,7 @@ namespace dmEngineService
             m_DeviceDesc.m_DeviceDescription = m_DeviceDescXml;
 
             dmSSDP::NewParams ssdp_params;
-            ssdp_params.m_MaxAge = 5;
+            ssdp_params.m_MaxAge = 3;
             dmSSDP::HSSDP ssdp;
             dmSSDP::Result sr = dmSSDP::New(&ssdp_params, &ssdp);
             if (sr != dmSSDP::RESULT_OK)
