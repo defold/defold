@@ -42,12 +42,6 @@
   []
   it/*scope*)
 
-(defn enclosing-scopes
-  ([]
-    (enclosing-scopes it/*scope*))
-  ([s]
-    (take-while identity (iterate :parent s))))
-
 (defmacro transactional
   [& forms]
   `(transactional* (fn [] ~@forms)))

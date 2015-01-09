@@ -8,7 +8,7 @@
             [dynamo.camera :as c]
             [dynamo.env :as e]
             [dynamo.file :refer :all]
-            [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
+            [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
             [dynamo.geom :as g :refer [to-short-uv unit-sphere-pos-nrm]]
             [dynamo.gl :as gl :refer [do-gl]]
             [dynamo.gl.shader :as shader]
@@ -164,7 +164,10 @@
 (protocol-buffer-converters
  Graphics$Cubemap
  {:constructor #'make-cubemap-node
-  :basic-properties [:right :left :top :bottom :front :back]})
+  :basic-properties [:right :left :top :bottom :front :back]
+  :right       (fn [parent-node val]
+                 (ds/connect (ds/add (img/make-image-source :image val)) :image parent-node :right))
+  })
 
 (def ^:private cubemap-inputs
   {:right  :image-right
@@ -180,8 +183,9 @@
     (ds/connect (ds/add (img/make-image-source :image (get cubemap side))) :image cubemap input)))
 
 (defn on-load
-  [path ^Graphics$Cubemap cubemap-message]
-  (let [cubemap (message->node cubemap-message)]
+  [project-node path reader]
+  (let [cubemap-message (protobuf/read-text Graphics$Cubemap reader)
+        cubemap         (protobuf/message->node cubemap-message)]
     (make-faces cubemap)
     cubemap))
 
@@ -210,4 +214,4 @@
 
 (when (in-transaction?)
   (p/register-editor "cubemap" #'on-edit)
-  (p/register-loader "cubemap" (protocol-buffer-loader Graphics$Cubemap on-load)))
+  (p/register-loader "cubemap" #'on-load))

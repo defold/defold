@@ -30,6 +30,7 @@
   (properties [this]          "Produce a description of properties supported by this node.")
   (inputs     [this]          "Return a set of labels for the allowed inputs of the node.")
   (outputs    [this]          "Return a set of labels for the outputs of this node.")
+  (events     [this]          "Return a set of labels for events this node responds to.")
   (auto-update? [this label]  "Return true if the output label should be updated whenever it gets invalidated.")
   (cached-outputs [this]      "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
   (output-dependencies [this] "Return a map of labels for the inputs and properties to outputs that depend on them."))
@@ -61,6 +62,12 @@
 
 (defprotocol Frame
   (frame [this] "Notified one frame after being altered."))
+
+(defprotocol PathManipulation
+  (^String           extension         [this]         "Returns the extension represented by this path.")
+  (^PathManipulation replace-extension [this new-ext] "Returns a new path with the desired extension.")
+  (^String           local-path        [this]         "Returns a string representation of the path and extension.")
+  (^String           local-name        [this]         "Returns the last segment of the path"))
 
 ; ----------------------------------------
 ; Functions to create basic value types

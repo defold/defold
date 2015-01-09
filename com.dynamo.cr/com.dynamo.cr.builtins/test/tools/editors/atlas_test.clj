@@ -46,13 +46,13 @@
 
 (defn <-text
   [loader text-format]
-  (ds/transactional (loader (file/native-path "/var/tmp/dummy-path.atlas") (StringReader. text-format))))
+  (ds/transactional (loader nil (file/native-path "/var/tmp/dummy-path.atlas") (StringReader. text-format))))
 
 (defn ->text
   [atlas]
   (n/get-node-value atlas :text-format))
 
-(def loader (file/protocol-buffer-loader AtlasProto$Atlas atlas/on-load))
+(def loader atlas/on-load)
 
 (defn round-trip
   [random-atlas]

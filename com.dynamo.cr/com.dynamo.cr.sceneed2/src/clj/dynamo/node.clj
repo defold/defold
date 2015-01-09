@@ -1,11 +1,13 @@
 (ns dynamo.node
   "Define new node types"
   (:require [clojure.set :as set]
+            [clojure.tools.macro :as ctm]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
+            [dynamo.util :refer :all]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.node :as in]
@@ -104,6 +106,73 @@ implement dynamo.types/MessageTarget."
        ~(in/generate-print-method name)
        (in/validate-descriptor ~(str name) ~name))))
 
+(defprotocol Builder
+  (construct [this args])
+  (defaults [this]))
+
+(defrecord NodeTypeImpl [supers constructor inputs properties transforms transform-types event-handlers methods record-methods impls interfaces]
+  Builder
+  (defaults [this]       (map-vals default-property-value properties))
+  (construct [this args] (apply constructor :_id (in/tempid) :descriptor this (mapcat identity (merge (defaults this) args)))))
+
+(defn attribute-merge [m [k v]]
+  (merge-with in/deep-merge m {k v}))
+
+(defmacro defnode3
+  [symb & args]
+  (let [[symb body-forms] (ctm/name-with-attributes symb args)
+        base-attrs        (mapcat (partial in/compile-defnode-form symb) node-intrinsics)
+        override-attrs    (mapcat (partial in/compile-defnode-form symb) body-forms)
+        ]
+    (println :override-attrs override-attrs)
+    `(do
+       (declare ~symb)
+       (let [record-ctor#   (ns-resolve *ns* (in/record-constructor-name '~symb))
+
+             supers#            (mapcat #(when (= :supers (first %)) (second %)) ~override-attrs)
+             _# (println :supers supers#)
+             super-attrs#       (map (comp var-get resolve) supers#)
+             _# (println :super-attrs super-attrs#)
+             ctor#              {:constructor (fn [& {:as property-values#}]
+                                                (assert record-ctor# (str "Internal error, no record for " '~symb " node. Try redefining the node."))
+                                                (record-ctor# property-values#))}
+             _# (println :ctor ctor#)
+             attrs#             (reduce attribute-merge ctor# (list ~@base-attrs super-attrs# ~@override-attrs))
+             _# (println :attrs attrs#)
+             ]
+        #_(in/emit-defrecord (in/classname-for ~symb) attrs#)
+        (def ~symb (map->NodeTypeImpl attrs#))
+        #_(defn ~(in/constructor-name symb) [& {:as args#}] (construct ~`~symb args#))
+        #_(var ~symb)))))
+
+;; TODO - evaluate property and output types in the generated code instead of compile-defnode-form
+;; TODO - create function wrappers for event handlers in the generated code
+;; TODO - reimplement protocol and interface methods
+
+(defnode3 BasicNode)
+
+(make-basic-node)
+
+(defnode3 BasicNode2
+  (inherits BasicNode)
+  (property foo s/Str))
+
+(defnode3 GChildNode (inherits BasicNode2))
+
+(construct BasicNode2 {})
+
+(make-basic-node-2)
+
+(ns-unmap 'dynamo.node 'BasicNode)
+(ns-unmap 'dynamo.node 'make-basic-node)
+(ns-unmap 'dynamo.node 'make-basic-node-2)
+(ns-unmap 'dynamo.node 'BasicNode2)
+
+(satisfies? Builder BasicNode)
+
+(macroexpand '(defnode3 BasicNode))
+(macroexpand '(defnode3 BasicNode2 (inherits BasicNode)))
+
 (defn abort
   "Abort production function and use substitute value."
   [msg & args]
@@ -164,6 +233,13 @@ This function should mainly be used to create 'plumbing'."
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
 
+(defn find-node
+  ([attr val]
+    (find-node (ds/current-scope) attr val))
+  ([scope attr val]
+    (when scope
+      (filter #(= val (get % attr)) (flatten (get-node-inputs scope :nodes))))))
+
 (defnode RootScope
   (inherits Scope)
   (property tag s/Keyword (default :root)))
@@ -186,7 +262,10 @@ This function should mainly be used to create 'plumbing'."
 (defnode Saveable
   (output save s/Keyword :abstract))
 
-(defnode Placeholder)
+(defnode ResourceNode
+  (property filename (s/protocol PathManipulation) (visible false)))
+
+
 
 (defnode OutlineNode
   (input  children [OutlineItem])

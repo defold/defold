@@ -5,7 +5,7 @@
 
 (defn address-to
   [node body]
-  (merge body {::node-id (subscriber-id node)}))
+  (assoc body ::node-id (subscriber-id node)))
 
 (defn publish
   [{publish-to :publish-to} msg]

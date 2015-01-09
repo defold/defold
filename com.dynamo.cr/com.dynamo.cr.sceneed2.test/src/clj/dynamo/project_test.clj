@@ -5,13 +5,14 @@
             [dynamo.file :as f]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world]]
+            [dynamo.types :as t]
             [clojure.java.io :as io])
   (:import [java.io StringReader]))
 
 (n/defnode DummyNode)
 
 (defrecord ExtensionHolder [ext]
-  f/PathManipulation
+  t/PathManipulation
   (extension [this] ext)
 
   io/IOFactory

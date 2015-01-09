@@ -13,7 +13,7 @@
             [dynamo.gl.texture :as texture]
             [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
-            [dynamo.node :as n :refer :all]
+            [dynamo.node :as n :refer [defnode]]
             [dynamo.property :as dp]
             [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
             [internal.ui.scene-editor :refer :all]
@@ -21,7 +21,7 @@
             [internal.ui.grid :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.file :as file]
-            [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
+            [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
             [dynamo.project :as p :refer [register-loader register-editor]]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
@@ -78,10 +78,12 @@
   (->Animation id images fps flip-horizontal flip-vertical playback))
 
 (defnode AnimationGroupNode
-  (inherits OutlineNode)
+  (inherits n/OutlineNode)
   (inherits AnimationBehavior)
 
-  (output animation Animation produce-animation))
+  (output animation Animation produce-animation)
+
+  (property id s/Str))
 
 (sm/defn ^:private consolidate :- [Image]
   [images :- [Image] containers :- [{:images [Image]}]]
@@ -96,11 +98,11 @@
 
 (defnk produce-aabb :- AABB
   [this]
-  (let [textureset (get-node-value this :textureset)]
+  (let [textureset (n/get-node-value this :textureset)]
     (g/rect->aabb (:aabb textureset))))
 
 (defnode AtlasProperties
-  (inherits DirtyTracking)
+  (inherits n/DirtyTracking)
 
   (input assets [OutlineItem])
   (input images [Image])
@@ -140,14 +142,14 @@
 
 (defnk save-atlas-file
   [this path]
-  (let [text (get-node-value this :text-format)]
+  (let [text (n/get-node-value this :text-format)]
     (file/write-file path (.getBytes text))
     :ok))
 
 (defnode AtlasSave
-  (inherits Saveable)
+  (inherits n/Saveable)
 
-  (property path (s/protocol file/PathManipulation) (visible false))
+  (property path (s/protocol PathManipulation) (visible false))
 
   (output save s/Keyword save-atlas-file)
   (output text-format s/Str get-text-format))
@@ -157,7 +159,7 @@
 
 (defn render-overlay
   [ctx ^GL2 gl ^TextRenderer text-renderer this]
-  (let [textureset ^TextureSet (get-node-value this :textureset)
+  (let [textureset ^TextureSet (n/get-node-value this :textureset)
         image      ^BufferedImage (.packed-image textureset)]
     (overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
@@ -186,10 +188,10 @@
 (defn render-textureset
   [ctx gl this]
   (do-gl [this            (assoc this :gl gl :ctx ctx)
-          textureset      (get-node-value this :textureset)
-          texture         (get-node-value this :gpu-texture)
-          shader          (get-node-value this :shader)
-          vbuf            (get-node-value this :vertex-buffer)
+          textureset      (n/get-node-value this :textureset)
+          texture         (n/get-node-value this :gpu-texture)
+          shader          (n/get-node-value this :shader)
+          vbuf            (n/get-node-value this :vertex-buffer)
           vertex-binding  (vtx/use-with gl vbuf shader)]
     (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
     (gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
@@ -205,7 +207,7 @@
 
 (defnk produce-renderable-vertex-buffer
   [this gl textureset]
-  (let [shader     (get-node-value this :shader)
+  (let [shader     (n/get-node-value this :shader)
         bounds     (:aabb textureset)
         coords     (:coords textureset)
         vbuf       (->texture-vtx (* 6 (count coords)))
@@ -234,8 +236,8 @@
 
 (defnk produce-outline-vertex-buffer
   [this gl]
-  (let [textureset (get-node-value this :textureset)
-        shader     (get-node-value this :shader)
+  (let [textureset (n/get-node-value this :textureset)
+        shader     (n/get-node-value this :shader)
         bounds     (:aabb textureset)
         coords     (:coords textureset)
         vbuf       (->texture-vtx (* 6 (count coords)))
@@ -274,28 +276,34 @@
   (output renderable RenderData       produce-renderable))
 
 (defnode AtlasNode
-  (inherits OutlineNode)
+  (inherits n/OutlineNode)
   (inherits AtlasProperties)
-  (inherits AtlasSave))
+  (inherits AtlasSave)
 
-(protocol-buffer-converters
-  AtlasProto$Atlas
-  {:constructor      #'make-atlas-node
-   :basic-properties [:extrude-borders :margin]
-   :node-properties  {:images-list [:tree -> :children,
-                                    :image -> :images]
-                      :animations-list [:tree -> :children,
-                                        :animation -> :animations]}}
-
-  AtlasProto$AtlasAnimation
-  {:constructor      #'make-animation-group-node
-   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
-   :node-properties  {:images-list [:tree -> :children,
-                                    :image -> :images]}}
-
-  AtlasProto$AtlasImage
-  {:constructor      #'i/make-image-resource-node
-   :basic-properties [:image]})
+  (on :after-load
+    (let [path          (:path self)
+          project       (:project event)
+          atlas         (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas path))
+          compiler      (ds/add (make-texture-save
+                                  :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
+                                  :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturesetc")) path)
+                                  :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturec")) path)))]
+      (ds/set-property self :margin (:margin atlas))
+      (ds/set-property self :extrude-borders (:extrude-borders atlas))
+      (doseq [anim (:animations atlas)
+              :let [anim-node (apply make-animation-group-node (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id])))]]
+        (doseq [img (:images anim)
+                :let [img-node (p/node-by-filename project (:image img))]]
+          (ds/connect img-node :image anim-node :images)
+          (ds/connect img-node :tree  anim-node :children))
+        (ds/connect anim-node :animation self :animations)
+        (ds/connect anim-node :tree      self :children))
+      (doseq [img  (:images atlas)
+              :let [img-node (p/node-by-filename project (:image img))]]
+        (ds/connect img-node :image self :images)
+        (ds/connect img-node :tree  self :children))
+      (ds/connect self :textureset compiler :textureset)
+      (ds/set-property self :dirty false))))
 
 (def ^:private outline-vertices-per-placement 4)
 (def ^:private vertex-size (.getNumber TextureSetProto$Constants/VERTEX_SIZE))
@@ -495,14 +503,9 @@
 (defhandler frame-objects-handler frame-objects-cmd frame-objects)
 
 (defn on-load
-  [path ^AtlasProto$Atlas atlas-message]
-  (let [atlas    (file/message->node atlas-message :path path)
-        compiler (add (make-texture-save
-                       :texture-name        (clojure.string/replace (file/local-path (file/replace-extension path "texturesetc")) "content/" "")
-                       :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (file/replace-extension path "texturesetc")) path)
-                       :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (file/replace-extension path "texturec")) path)))]
-    (connect atlas :textureset compiler :textureset)
-    atlas))
+  [project-node atlas-node path reader]
+  
+  (ds/add (make-atlas-node :path path)))
 
 (defn on-edit
   [project-node editor-site atlas-node]
@@ -524,4 +527,4 @@
 
 (when (in-transaction?)
   (register-editor "atlas" #'on-edit)
-  (register-loader "atlas" (file/protocol-buffer-loader AtlasProto$Atlas on-load)))
+  (register-loader "atlas" AtlasNode #'on-load))

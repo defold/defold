@@ -1,11 +1,11 @@
 (ns internal.java
   (:require [camel-snake-kebab :refer :all])
-  (:import [java.lang.reflect Method Modifier]))
+  (:import [java.lang.reflect Modifier]))
 
 (set! *warn-on-reflection* true)
 
 (defn invoke-no-arg-class-method
-  [^Class class ^Method method]
+  [^Class class method]
   (-> class (.getDeclaredMethod method (into-array Class []))
       (.invoke nil (into-array Object []))))
 

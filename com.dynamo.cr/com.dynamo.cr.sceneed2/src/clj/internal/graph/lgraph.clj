@@ -28,8 +28,8 @@
   [g source source-label target target-label]
   (let [from (dg/node g source)
         to   (dg/node g target)]
-    (assert (not (nil? from)))
-    (assert (not (nil? to)))
+    (assert (not (nil? from)) (str "Attempt to connect " (pr-str source source-label target target-label)))
+    (assert (not (nil? to)) (str "Attempt to connect " (pr-str source source-label target target-label)))
     (assert (some #{source-label} (outputs from)) (str "No label " source-label " exists on node " from))
     (assert (some #{target-label} (inputs to))    (str "No label " target-label " exists on node " to))
     (dg/add-arc g source {:label source-label} target {:label target-label})))

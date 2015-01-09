@@ -20,7 +20,7 @@
             [internal.ui.grid :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.file :refer :all]
-            [dynamo.file.protobuf :refer [protocol-buffer-converters pb->str]]
+            [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
             [dynamo.project :as p :refer [register-loader register-editor]]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
@@ -268,7 +268,7 @@
   :basic-properties [:key :spread :points-list]
   :enum-maps  {:key (automatic-protobuf-enum Particle$ModifierKey "MODIFIER_KEY_")}})
 
-(defmethod message->node Particle$SplinePoint
+(defmethod protobuf/message->node Particle$SplinePoint
   [msg]
   {:x (.getX msg)
    :y (.getY msg)
@@ -276,10 +276,10 @@
    :t-y (.getTY msg)})
 
 (defn on-load
-  [path ^Particle$ParticleFX particlefx-message]
-  (let [particlefx (message->node particlefx-message)
-        particlefx-save (add (make-particlefx-save))]
-    (println "LOADING")
+  [project-node path reader]
+  (let [particlefx-message (protobuf/read-text Particle$ParticleFX reader)
+        particlefx         (protobuf/message->node particlefx-message)
+        particlefx-save    (ds/add (make-particlefx-save))]
     (ds/connect particlefx :self particlefx-save :particlefx-properties)
     particlefx))
 
@@ -307,4 +307,4 @@
 
 (when (in-transaction?)
   (p/register-editor "particlefx" #'on-edit)
-  (p/register-loader "particlefx" (protocol-buffer-loader Particle$ParticleFX on-load)))
+  (p/register-loader "particlefx" #'on-load))

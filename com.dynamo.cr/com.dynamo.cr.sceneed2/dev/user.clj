@@ -141,9 +141,6 @@
     p))
 
 (comment
-  (import '[com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage])
-  (p/register-loader (current-project) "atlas" (f/protocol-buffer-loader AtlasProto$Atlas atlas.core/on-load))
-
   (use 'criterium-core)
   (require '[dynamo.geom :refer [aabb-union]])
   (require '[clojure.test.check.generators :as gen])

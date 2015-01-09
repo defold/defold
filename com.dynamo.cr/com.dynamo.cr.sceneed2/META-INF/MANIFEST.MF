@@ -67,4 +67,5 @@ Bundle-ClassPath: jars/asm-all-4.1.jar,
  sceneed2.jar,
  jars/commons-codec-1.9.jar,
  jars/inflections-0.9.10.jar,
- jars/noencore-0.1.15.jar
+ jars/noencore-0.1.15.jar,
+ jars/tools.macro-0.1.2.jar

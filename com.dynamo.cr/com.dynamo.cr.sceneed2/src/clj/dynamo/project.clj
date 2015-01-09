@@ -42,6 +42,14 @@
   [filetype loader]
   (handle :loader filetype loader))
 
+(defn load-placeholder
+  [& _]
+  (ds/add (n/make-placeholder)))
+
+(defn register-node-type
+  [filetype node-type]
+  (ds/update-property (ds/current-scope) :node-types assoc filetype node-type))
+
 (defn register-editor
   [filetype editor-builder]
   (handle :editor filetype editor-builder)
@@ -53,18 +61,9 @@
 
 (def default-handlers {:loader {"clj" clojure/on-load-code}})
 
-(defn load-placeholder
-  [resource path]
-  (ds/add (n/make-placeholder)))
-
 (defn no-such-handler
   [key ext]
   (fn [& _] (throw (ex-info (str "No " (name key) " has been registered that can handle " ext) {}))))
-
-(defn- loader-for [project-scope ext]
-  (or
-    (get-in project-scope [:handlers :loader ext])
-    load-placeholder))
 
 (defn- editor-for [project-scope ext]
   (or
@@ -75,21 +74,26 @@
   (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
   n)
 
+(defnode Placeholder
+  (inherits n/ResourceNode))
+
 (defn load-resource
   [project-node path]
   (ds/transactional
     (ds/in project-node
-      (let [loader        (loader-for project-node (file/extension path))
-            resource-node (loader path (io/reader path))]
-        (node?! resource-node "Loader")
-        (ds/set-property resource-node ::filename path)
+      (let [type          (get-in project-node [:node-types (t/extension path)] Placeholder)
+            resource-node (ds/add ((:constructor type) ::filename path))]
+        (when (:load (t/events resource-node))
+          (ds/send-after project-node {:type :load :path path}))
         resource-node))))
 
 (defn node-by-filename
-  [project-node path factory]
-  (if-let [node (first (iq/query (:world-ref project-node) [[::filename path]]))]
-    node
-    (factory project-node path)))
+  ([project-node path]
+    (node-by-filename project-node path load-resource))
+  ([project-node path factory]
+    (if-let [node (first (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes) [::filename path]]))]
+      node
+      (factory project-node path))))
 
 (defnode CannedProperties
   (property rotation     s/Str  (default "twenty degrees starboard"))
@@ -103,7 +107,7 @@
 
 (defn- build-editor-node
   [project-node site path content-node]
-  (let [editor-factory (editor-for project-node (file/extension path))]
+  (let [editor-factory (editor-for project-node (t/extension path))]
     (node?! (editor-factory project-node site content-node) "Editor")))
 
 (defn- build-selection-node
@@ -137,26 +141,22 @@
   (doseq [id (:nodes-added txn)]
     (ds/send-after {:_id id} {:type :project-scope :scope self})))
 
-(defn project-enclosing
-  [node]
-  node)
-
 (defn nodes-with-extensions
   [project-node extensions]
   (let [extensions (into #{} extensions)
         pred (fn [node] (and (:filename node)
-                          (some #{(file/extension (:filename node))} extensions)))]
+                          (some #{(t/extension (:filename node))} extensions)))]
     (into #{}
       (filter pred
         (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)])))))
 
 (defn select-resources
-  ([node extensions]
-    (select-resources node extensions "Select resource" false))
-  ([node extensions title]
-    (select-resources node extensions title false))
-  ([node extensions title multiselect?]
-    (dialogs/resource-selection-dialog title multiselect? (nodes-with-extensions (project-enclosing node) extensions))))
+  ([project-node extensions]
+    (select-resources project-node extensions "Select resource" false))
+  ([project-node extensions title]
+    (select-resources project-node extensions title false))
+  ([project-node extensions title multiselect?]
+    (dialogs/resource-selection-dialog title multiselect? (nodes-with-extensions project-node extensions))))
 
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
@@ -181,8 +181,7 @@
       (ds/in project-node
         (doseq [resource resources]
           (let [p (file/project-path project-node resource)]
-            (monitored-work monitor (str "Scanning " (file/local-name p))
-              (prn :load-resource-nodes p)
+            (monitored-work monitor (str "Scanning " (t/local-name p))
               (load-resource project-node p)))))
       (monitored-work monitor (str "Compiling tools")
         project-node))))

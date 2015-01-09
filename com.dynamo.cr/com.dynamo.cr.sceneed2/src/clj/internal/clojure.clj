@@ -31,7 +31,7 @@
     (markers/remove-markers source-file)
     (try
       (ds/in (iq/node-consuming graph self :self)
-        (Compiler/load (io/reader resource) (file/local-path resource) (.getName source-file))
+        (Compiler/load (io/reader resource) (t/local-path resource) (.getName source-file))
         (ds/set-property self :namespace (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (markers/compile-error source-file compile-error)
@@ -49,5 +49,5 @@
   (property triggers n/Triggers (default [#'compile-at-load])))
 
 (defn on-load-code
-  [resource _]
+  [project-node resource _]
   (ds/add (make-clojure-source-node :resource resource)))

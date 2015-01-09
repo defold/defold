@@ -3,13 +3,11 @@
             [clojure.string :as string]
             [dynamo.buffers :refer [bbuf->string]]
             [dynamo.geom :as g]
-            [dynamo.file :refer [replace-extension]]
-            [dynamo.types :refer [IDisposable dispose]]
+            [dynamo.types :as t]
             [dynamo.gl.protocols :refer :all])
   (:import [java.nio IntBuffer ByteBuffer]
            [javax.media.opengl GL GL2 GLContext]
-           [javax.vecmath Matrix4d Vector4f Point3d]
-           [dynamo.file PathManipulation]))
+           [javax.vecmath Matrix4d Vector4f Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -288,7 +286,7 @@
       ShaderProgram
       (shader-program [this] program)
 
-      IDisposable
+      t/IDisposable
       (dispose [this]
         (when (not= 0 program)
           (.glDeleteProgram gl program)))
@@ -307,10 +305,10 @@
           (set-uniform-at-index gl program loc val))))))
 
 (defn load-shaders
-  [^GLContext ctx ^GL2 gl ^PathManipulation sdef]
+  [^GLContext ctx ^GL2 gl sdef]
   (make-shader ctx gl
-    (slurp (replace-extension sdef "vp"))
-    (slurp (replace-extension sdef "fp"))))
+    (slurp (t/replace-extension sdef "vp"))
+    (slurp (t/replace-extension sdef "fp"))))
 
 (doseq [[v doc]
         {*ns*

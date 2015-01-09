@@ -68,7 +68,7 @@
   (testing "Children of the atlas node should be created exactly once."
     (with-clean-world
       (let [message    (atlas-with-one-animation "the-animation")
-            atlas-node (ds/transactional (f/message->node message))
+            atlas-node (ds/transactional (message->node message))
             anim-node  (iq/node-feeding-into atlas-node :animations)]
         (is (not (nil? atlas-node)))
         (is (= 7 (:margin atlas-node)))

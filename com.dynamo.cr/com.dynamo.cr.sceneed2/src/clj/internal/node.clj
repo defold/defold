@@ -7,6 +7,7 @@
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
             [dynamo.types :as t]
+            [dynamo.util :refer :all]
             [schema.core :as s]
             [schema.macros :as sm]
             [internal.graph.lgraph :as lg]
@@ -143,7 +144,9 @@
 ; ---------------------------------------------------------------------------
 ; Definition handling
 ; ---------------------------------------------------------------------------
-(defn classname-for [prefix]  (symbol (str prefix "__")))
+(defn classname-for            [prefix]  (symbol (str prefix "__")))
+(defn record-constructor-name  [prefix]  (symbol (str 'map-> (classname-for prefix))))
+(defn constructor-name         [prefix]  (symbol (str 'make- (->kebab-case (str prefix)))))
 
 (defn fqsymbol
   [s]
@@ -160,7 +163,11 @@
   (map (comp symbol name) (keys (:properties behavior))))
 
 (defn state-vector [behavior]
-  (into [] (list* 'inputs 'transforms '_id (property-symbols behavior))))
+  (vec (list* '_id (property-symbols behavior))))
+
+(defn defaults2
+  [properties]
+  (map-vals t/default-property-value properties))
 
 (defn defaults
   [{:keys [properties] :as descriptor}]
@@ -185,31 +192,33 @@
 (defn- emit-quote [form]
   (list `quote form))
 
-(defn- compile-defnode-form
+(defn compile-defnode-form
   [prefix form]
   (match [form]
      [(['inherits super] :seq)]
-     (let [super-descriptor (resolve super)]
-       (assert super-descriptor (str "Cannot resolve " super " to a node definition."))
-       (deref super-descriptor))
+     [[:supers [super]]]
+     #_(let [super-descriptor (resolve super)]
+        (assert super-descriptor (str "Cannot resolve " super " to a node definition."))
+        (when (deref super-descriptor) (println (deref super-descriptor)))
+        (-> (deref super-descriptor)
+          (dissoc :constructor)
+          (update-in [:supers] conj (emit-quote super))))
 
      [(['property nm tp & options] :seq)]
-     (let [property-desc (eval (ip/property-type-descriptor nm tp options))]
-       {:properties      {(keyword nm) (emit-quote property-desc)}
-        :transforms      {(keyword nm) {:production-fn (eval `(fnk [~nm] ~nm))}}
-        :transform-types {(keyword nm) (emit-quote (:value-type property-desc))}})
+     (let [property-desc (ip/property-type-descriptor nm tp options)]
+       [[:properties      {(keyword nm) property-desc}]])
 
      [(['input nm schema & flags] :seq)]
      (let [schema (if (coll? schema) (into [] schema) schema)
            label  (keyword nm)]
        (if (some #{:inject} flags)
-         {:inputs {label schema} :injectable-inputs #{label}}
-         {:inputs {label schema}}))
+         [:inputs {label schema} :injectable-inputs #{label}]
+         [:inputs {label schema}]))
 
      [(['on evt & fn-body] :seq)]
-     {:event-handlers {(keyword evt)
+     [:event-handlers {(keyword evt)
                        `(fn [~'self ~'event]
-                          (dynamo.system/transactional ~@fn-body))}}
+                          (dynamo.system/transactional ~@fn-body))}]
 
      [(['output nm output-type & remainder] :seq)]
      (let [oname (keyword nm)
@@ -225,20 +234,20 @@
                              :else                  (resolve args-or-ref))
              tform (merge {:production-fn production-fn}
                      (when (contains? options :substitute-value) {:substitute-value-fn (:substitute-value options)}))]
-         (reduce
-           (fn [m f] (assoc m f #{oname}))
-           {:transforms {oname tform}
-            :transform-types {oname output-type}}
-           properties)))
+         (into [] (reduce
+                    (fn [m f] (assoc m f #{oname}))
+                    {:transforms {oname tform}
+                     :transform-types {oname output-type}}
+                    properties))))
 
      [([nm [& args] & remainder] :seq)]
-     {:methods        {nm `(fn ~args ~@remainder)}
-      :record-methods #{[prefix nm args]}}
+     [:methods        {nm `(fn ~args ~@remainder)}
+      :record-methods #{[prefix nm args]}]
 
      [impl :guard symbol?]
      (if (class? (resolve impl))
-       {:interfaces #{impl}}
-       {:impl #{impl}})))
+       [:interfaces #{impl}]
+       [:impl #{impl}])))
 
 (defn resolve-or-else [sym]
   (assert (symbol? sym) (pr-str "Cannot resolve " sym))
@@ -246,6 +255,7 @@
     val
     (throw (ex-info (str "Unable to resolve symbol " sym " in this context") {:symbol sym}))))
 
+;; TODO - remove
 (defn generate-message-processor
   [name descriptor]
   (let [event-types (keys (:event-handlers descriptor))]
@@ -256,9 +266,11 @@
          nil)
        :ok)))
 
+
+
 (defn- is-schema? [val] (boolean (:schema (meta val))))
 
-(defn- deep-merge
+(defn deep-merge
   [& vals]
   (cond
     (every? is-schema? vals) (last vals)
@@ -290,12 +302,50 @@
       (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
       #{})))
 
-(defn- descriptor->output-dependencies
+(defn descriptor->output-dependencies
    [{:keys [transforms properties]}]
    (let [outs (dissoc transforms :self)
-         outs (zipmap (keys outs) (map inputs-for (vals outs)))
+         outs (map-vals inputs-for outs)
          outs (assoc outs :properties (set (keys properties)))]
      (invert-map outs)))
+
+
+
+(comment
+
+
+  (defn- generate-record-methods [descriptor]
+   (for [[defined-in method-name args] (:record-methods descriptor)]
+     `(~method-name ~args ((get-in ~defined-in [:methods ~(emit-quote method-name)]) ~@args)))))
+
+(defn message-processor
+  [event-handlers]
+  (when-let [event-types (keys event-handlers)]
+    (let [clauses (mapcat (fn [e] [e `((-> ~'self :descriptor :event-handlers ~e) ~'self ~'event)]) event-types)]
+      (list `t/MessageTarget
+        `(dynamo.types/process-one-event [self# event#]
+           (case (:type event#)
+             ~@clauses
+             nil)
+           :ok)))))
+
+(defn emit-defrecord
+  [clsname attrs]
+  (letfn [(inode [[i m]]
+            [(conj i 'dynamo.types/Node)
+             (conj m
+               `(properties [t#]          (-> t# :descriptor :properties))
+               `(inputs [t#] (into #{}    (keys (-> t# :descriptor :inputs))))
+               `(outputs [t#] (into #{}   (keys (-> t# :descriptor :transforms))))
+               `(events [t#]  (into #{}   (keys (-> t# :descriptor :event-handlers))))
+               `(auto-update? [t# l#]     (contains? (-> t# :descriptor :on-update) l#))
+               `(cached-outputs [t#]      (-> t# :descriptor :cached))
+               `(output-dependencies [t#] ~(descriptor->output-dependencies attrs)))])]
+   (let [[i m]     (-> [] inode)
+         state-vec (state-vector attrs)]
+     `(defrecord ~clsname ~state-vec
+        ~@i
+        ~@m))))
 
 (defn generate-defrecord [nm descriptor]
   (list* `defrecord (classname-for nm) (state-vector descriptor)
@@ -303,6 +353,7 @@
          `(properties [t#] (:properties ~nm))
          `(inputs [t#] (into #{} (keys (:inputs ~nm))))
          `(outputs [t#] (into #{} (keys (:transforms ~nm))))
+         `(events [t#]  (into #{} (keys (:event-handlers ~nm))))
          `(auto-update? [t# l#] (contains? (-> t# :descriptor :on-update) l#))
          `(cached-outputs [t#] (:cached ~nm))
          `(output-dependencies [t#] ~(descriptor->output-dependencies descriptor))
@@ -346,6 +397,11 @@
                                        (merge (select-keys ~tagged-arg [:_id])
                                               (select-keys ~tagged-arg (-> ~tagged-arg :descriptor :properties keys)))
                                        ">")))))
+
+(defn node-type-descriptor
+  [name-sym body-forms]
+  {}
+  )
 
 ; ---------------------------------------------------------------------------
 ; Dependency Injection

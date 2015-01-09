@@ -1,11 +1,46 @@
 (ns dynamo.file.protobuf
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [dynamo.file :as f]
             [dynamo.system :as ds]
+            [internal.java :as j]
             [camel-snake-kebab :refer :all])
-  (:import [com.google.protobuf Message TextFormat]))
+  (:import [java.io Reader]
+           [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]))
 
 (set! *warn-on-reflection* true)
+
+(defmulti message->node
+  "This is an extensible function that you implement to help load a specific file
+type. Most of the time, these will be created for you by the
+dynamo.file.protobuf/protocol-buffer-converter macro.
+
+Create an implementation by adding something like this to your namespace:
+
+    (defmethod message->node message-classname
+      [message-instance]
+      (,,,) ;; implementation
+    )
+
+You'll replace _message-classname_ with the Java class that matches the message
+type to convert. The _message-instance_ argument will contain an instance of the
+class specified in _message-classname_.
+
+Your implementation is responsible for calling `dyanmo.system/add` on any nodes
+it creates. Likewise, it is responsible for making connections as desired."
+  (fn [message & _] (class message)))
+
+(defn- new-builder ^GeneratedMessage$Builder
+  [class]
+  (j/invoke-no-arg-class-method class "newBuilder"))
+
+(defn read-text
+  [^java.lang.Class class input & {:as opts}]
+  (println dynamo.file.protobuf/read-text input)
+  (let [input   (if (instance? Reader input) input (io/reader input))
+        builder (new-builder class)]
+    (TextFormat/merge ^Reader input builder)
+    (.build builder)))
 
 (defn getter
   [fld]
@@ -24,18 +59,24 @@
 
 (defn subordinate-mapper
   [[from-property connections]]
-  `(doseq [~'node (map f/message->node (. ~'protobuf ~(getter from-property)))]
+  `(doseq [~'node (map message->node (. ~'protobuf ~(getter from-property)))]
      ~@(map connection (partition-all 3 connections))))
+
+(defn callback-field-mapper
+  [[from-property callback]]
+  `(doseq [~'msg (. ~'protobuf ~(getter from-property))]
+      (~callback ~'this ~'msg)))
 
 (defmacro protocol-buffer-converter
   [class spec]
-  `(defmethod f/message->node ~class
+  `(defmethod message->node ~class
      [~'protobuf & {:as ~'overrides}]
      (let [~'message-mapper ~(message-mapper class (:basic-properties spec))
            ~'basic-props    (~'message-mapper ~'protobuf)
            ~'this           (apply ~(:constructor spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
        (ds/add ~'this)
        ~@(map subordinate-mapper (:node-properties spec))
+       ~@(map callback-field-mapper (:field-mappers spec))
        ~'this)))
 
 (defmacro protocol-buffer-converters
@@ -46,3 +87,13 @@
 (defn pb->str
   [^Message pb]
   (TextFormat/printToString pb))
+
+(defn pb->map
+  [^Message pb]
+  (let [fld->map (fn [m [^Descriptors$FieldDescriptor descriptor value]]
+                   (let [prop      (keyword (->kebab-case (.getName descriptor)))
+                         repeated? (.isRepeated descriptor)]
+                     (if (not= Descriptors$FieldDescriptor$Type/MESSAGE (.getType descriptor))
+                       (assoc m prop value)
+                       (assoc m prop (if repeated? (map pb->map value) (pb->map value))))))]
+    (reduce fld->map {} (.getAllFields pb))))

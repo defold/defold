@@ -1,5 +1,6 @@
 (ns internal.ui.dialogs
   (:require [dynamo.file :as file]
+            [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [eclipse.markers :as markers]
@@ -29,8 +30,8 @@
   (reify java.util.Comparator
     (^int compare [this o1 o2]
       (.compare (Collator/getInstance)
-        (file/local-path (:filename o1))
-        (file/local-path (:filename o2))))))
+        (t/local-path (:filename o1))
+        (t/local-path (:filename o2))))))
 
 (defn resource-item-detail-provider
   [^FilteredItemsSelectionDialog dlg]
@@ -39,7 +40,7 @@
       (let [^LabelProvider this this]
         (if-not (:filename element)
          (proxy-super getText element)
-         (file/local-path (:filename element)))))))
+         (t/local-path (:filename element)))))))
 
 (defn resource-item-label-provider
   [^FilteredItemsSelectionDialog dlg]
@@ -101,8 +102,8 @@
             (let [nm (:filename item)
                   filter ^FilteredItemsSelectionDialog$ItemsFilter this]
               (or
-                (.matches filter ^String (file/local-name nm))
-                (.matches filter ^String (file/local-path nm)))))
+                (.matches filter ^String (t/local-name nm))
+                (.matches filter ^String (t/local-path nm)))))
 
           (isConsistentItem [item] (not (nil? (:filename item)))))))
 
@@ -112,7 +113,7 @@
       (dialog-settings resource-selection-dialog-settings))
 
     (getElementName [o]
-      (file/local-name (:filename o)))
+      (t/local-name (:filename o)))
 
     (getItemsComparator [] item-comparator)
 

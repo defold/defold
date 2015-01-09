@@ -1,10 +1,10 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
-            [dynamo.types :as t]
-            [dynamo.file :refer [project-path local-path]]
+            [dynamo.file :refer [project-path]]
             [dynamo.geom :refer :all]
-            [dynamo.node :refer [defnode]]
+            [dynamo.node :refer [defnode ResourceNode]]
             [dynamo.property :as dp]
+            [dynamo.types :as t]
             [internal.cache :refer [caching]]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
@@ -61,15 +61,18 @@
 
 ;; Transform produces value
 (defnk image-from-resource :- Image
-  [this project]
-  (let [src (project-path project (:image this))]
-    (load-image src (:image this))))
+  [this filename project]
+  (prn :image-from-resource :is-it-a-project-path? (type filename))
+  (load-image filename (t/local-name filename))
+  #_(let [src (project-path project filename)]
+     (load-image src (:image this))))
 
 ;; Behavior
 (defnode ImageSource
+  (inherits ResourceNode)
   ;; NOTE: Order is important here. `property` defines an
   ;; output that is overridden by the later `output` clause.
-  (property image dp/Resource)
+  #_(property image dp/Resource)
   (output   image Image :cached :substitute-value placeholder-image image-from-resource))
 
 (sm/defn image-color-components :- long

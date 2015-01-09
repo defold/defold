@@ -201,7 +201,8 @@
 
 (defmethod perform :message
   [ctx {:keys [to-node body]}]
-  (update-in ctx [:messages] conj (bus/address-to to-node body)))
+  (let [target-id (resolve-tempid ctx to-node)]
+    (update-in ctx [:messages] conj (bus/address-to target-id body))))
 
 (defn- apply-tx
   [ctx actions]
