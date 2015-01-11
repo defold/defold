@@ -1,12 +1,16 @@
 (ns dynamo.node
   "Define new node types"
   (:require [clojure.set :as set]
-            [plumbing.core :refer [defnk]]
+            [clojure.core.match :refer [match]]
+            [clojure.tools.macro :refer [name-with-attributes]]
+            [plumbing.core :refer [defnk fnk]]
             [schema.core :as s]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
-            [dynamo.types :refer :all]
+            [dynamo.types :as t :refer :all]
+            [dynamo.util :refer :all]
             [internal.node :as in]
+            [internal.property :as ip]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]))
 
@@ -184,3 +188,220 @@ This function should mainly be used to create 'plumbing'."
 
 (defnode Saveable
   (output save s/Keyword :abstract))
+
+; ------------------------------------------------------
+; New defnode starts here
+; ------------------------------------------------------
+
+(defrecord NodeTypeImpl
+  [supertypes interfaces protocols functions properties inputs injectable-inputs transforms transform-types cached event-handlers]
+
+  t/NodeType
+  (supertypes  [_] supertypes)
+  (interfaces  [_] interfaces)
+  (protocols   [_] protocols)
+  (functions   [_] functions)
+  (properties' [_] properties)
+  (inputs'     [_] inputs)
+  (outputs'    [_] (set (keys transforms)))
+  (events'     [_] (set (keys event-handlers))))
+
+(defn construct [node-type & {:as args}]
+  ((:ctor node-type) (merge {:_id (in/tempid)} args)))
+
+(defn- from-supertypes [local op]                (map op (:supertypes local)))
+(defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
+
+(defn make-node-type
+  [description]
+  (-> description
+    (update-in [:inputs]            combine-with set/union #{} (from-supertypes description t/inputs'))
+    (update-in [:injectable-inputs] combine-with set/union #{} (from-supertypes description :injectable-inputs))
+    (update-in [:input-types]       combine-with merge      {} (from-supertypes description :input-types))
+    (update-in [:properties]        combine-with merge      {} (from-supertypes description t/properties'))
+    (update-in [:transforms]        combine-with merge      {} (from-supertypes description :transforms))
+    (update-in [:transform-types]   combine-with merge      {} (from-supertypes description :transform-types))
+    (update-in [:cached]            combine-with set/union #{} (from-supertypes description :cached))
+    (update-in [:event-handlers]    combine-with set/union #{} (from-supertypes description :event-handlers))
+    (update-in [:interfaces]        combine-with set/union #{} (from-supertypes description t/interfaces))
+    (update-in [:protocols]         combine-with set/union #{} (from-supertypes description t/protocols))
+    (update-in [:functions]         combine-with merge      {} (from-supertypes description t/functions))
+    map->NodeTypeImpl))
+
+(defn attach-supertype
+  [description supertype]
+  (assoc description :supertypes (conj (:supertypes description []) supertype)))
+
+(defn attach-input
+  [description label schema flags]
+  (cond-> (update-in description [:inputs] #(conj (or % #{}) label))
+
+    true
+    (update-in [:input-types] assoc label schema)
+
+    (some #{:inject} flags)
+    (update-in [:injectable-inputs] #(conj (or % #{}) label))))
+
+(defn- abstract-function
+  [label type]
+  (fn [this g]
+    (throw (AssertionError.
+             (format "Node %d does not supply a production function for the abstract '%s' output. Add (output %s %s your-function) to the definition of %s"
+               (:_id this) label
+               label type this)))))
+
+(defn attach-output
+  [description label schema properties options & [args]]
+  (cond-> (update-in description [:transform-types] assoc label schema)
+
+    (:substitute-value options)
+    (update-in [:transforms] assoc-in [label :substitute-value-fn] (:substitute-value options))
+
+    (:abstract properties)
+    (update-in [:transforms] assoc-in [label :production-fn] (abstract-function label schema))
+
+    (:cached properties)
+    (update-in [:cached] #(conj (or % #{}) label))
+
+    (not (:abstract properties))
+    (update-in [:transforms] assoc-in [label :production-fn] args)))
+
+(defn attach-property
+  [description label property-type passthrough]
+  (-> description
+    (update-in [:properties] assoc label property-type)
+    (update-in [:transforms] assoc-in [label :production-fn] passthrough)
+    (update-in [:transform-types] assoc label (:value-type property-type))))
+
+(defn attach-event-handler
+  [description label handler]
+  (assoc-in description [:event-handlers label] handler))
+
+(defn attach-interface
+  [description interface]
+  (update-in description [:interfaces] #(conj (or % #{}) interface)))
+
+(defn attach-protocol
+  [description protocol]
+  (update-in description [:protocols] #(conj (or % #{}) protocol)))
+
+(defn attach-function
+  [description sym argv fn-def]
+  (assoc-in description [:functions sym] [argv fn-def]))
+
+(def ^:private property-flags #{:cached :on-update :abstract})
+(def ^:private option-flags #{:substitute-value})
+
+(defn parse-output-options [args]
+  (loop [properties #{}
+         options {}
+         args args]
+    (if-let [[arg & remainder] (seq args)]
+      (cond
+        (contains? property-flags arg) (recur (conj properties arg) options remainder)
+        (contains? option-flags arg)   (do (assert remainder (str "Expected value for option " arg))
+                                         (recur properties (assoc options arg (first remainder)) (rest remainder)))
+        :else [properties options args])
+      [properties options args])))
+
+(defn node-type-form
+  [form]
+  (match [form]
+    [(['inherits supertype] :seq)]
+    `(attach-supertype ~supertype)
+
+    [(['input label schema & flags] :seq)]
+    `(attach-input ~(keyword label) ~schema #{~@flags})
+
+    [(['output label schema & remainder] :seq)]
+    (let [[properties options args] (parse-output-options remainder)]
+      `(attach-output ~(keyword label) ~schema ~properties ~options ~@args))
+
+    [(['property label tp & options] :seq)]
+    `(attach-property ~(keyword label) ~(ip/property-type-descriptor label tp options) (fnk [~label] ~label))
+
+    [(['on label & fn-body] :seq)]
+    `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.system/transactional ~@fn-body)))
+
+    ;; Interface or protocol function
+    [([nm [& argvec] & remainder] :seq)]
+    `(attach-function '~nm '~argvec (fn ~argvec ~@remainder))
+
+    [impl :guard symbol?]
+    `(cond->
+        (class? ~impl)
+        (attach-interface '~impl)
+
+        (not (class? ~impl))
+        (attach-protocol '~impl))))
+
+(defn node-type [forms]
+  (list* `-> {}
+    (map node-type-form forms)))
+
+(defn state-vector
+  [node-type]
+  (vec (map (comp symbol name) (keys (t/properties' node-type)))))
+
+(defn message-processors
+  [node-type]
+  []
+  )
+
+(defn generate-node-record-sexps
+  [record-name node-type-name node-type]
+  `(defrecord ~record-name ~(state-vector node-type)
+     t/Node
+     (inputs [_]     ~(t/inputs' node-type))
+     (outputs [_]    ~(t/outputs' node-type))
+     (cached-outputs [_] ~(:cached node-type))
+     (properties [_] ~(set (keys (t/properties' node-type))))
+     ~@(map #(symbol %) (t/interfaces node-type))
+     ~@(map #(symbol %) (t/protocols node-type))
+     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get-in ~node-type-name [:functions '~fname])) ~@argv))) (t/functions node-type))
+     ~@(if (not-empty (t/events' node-type)) `[t/MessageTarget])
+     ~@(when (not-empty (t/events' node-type)) (message-processors node-type))))
+
+(defn define-node-record
+  [record-name node-type-name node-type]
+  ;(println (generate-node-record-sexps record-name node-type-name node-type))
+  (eval (generate-node-record-sexps record-name node-type-name node-type)))
+
+(defn interpose-every
+  [n elt coll]
+  (mapcat (fn [l r] (conj l r)) (partition-all n coll) (repeat elt)))
+
+(defn- print-method-sexps
+  [record-name node-type-name node-type]
+  (let [tagged-arg (vary-meta (gensym "v") assoc :tag (resolve record-name))]
+    `(defmethod print-method ~record-name
+       [~tagged-arg w#]
+       (.write
+         ^java.io.Writer w#
+         (str "#" '~node-type-name "{:_id " (:_id ~tagged-arg)
+           ~@(interpose-every 3 ", " (mapcat (fn [prop] `[~prop " " (pr-str (get ~tagged-arg ~prop))]) (keys (t/properties' node-type))))
+           "}>")))))
+
+(defn define-print-method
+  [record-name node-type-name node-type]
+  ;(prn (print-method-sexps record-name node-type-name node-type))
+  (eval (print-method-sexps record-name node-type-name node-type)))
+
+(defn- classname-for [prefix]  (symbol (str prefix "__")))
+
+(defn defaults
+  [node-type]
+  (map-vals t/default-property-value (t/properties' node-type)))
+
+(defmacro defnode4
+  [symb & body]
+  (let [[symb forms] (name-with-attributes symb body)
+        record-name  (classname-for symb)
+        ctor-name    (symbol (str 'map-> record-name))]
+    `(let [description# ~(node-type forms)
+           ctor#        (fn [args#] ((var-get (resolve '~ctor-name)) (merge (defaults (var-get (resolve '~symb))) args#)))
+           node-type#   (make-node-type (assoc description# :ctor ctor#))]
+       (def ~symb node-type#)
+       (define-node-record '~record-name '~symb ~symb)
+       (define-print-method '~record-name '~symb ~symb)
+       (var ~symb))))

@@ -26,13 +26,24 @@
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
 
+(defprotocol NodeType
+  (supertypes      [this])
+  (interfaces      [this])
+  (protocols       [this])
+  (functions       [this])
+  (transform-types [this])
+  (properties'     [this])
+  (inputs'         [this])
+  (outputs'        [this])
+  (events'         [this]))
+
 (defprotocol Node
-  (properties [this]          "Produce a description of properties supported by this node.")
-  (inputs     [this]          "Return a set of labels for the allowed inputs of the node.")
-  (outputs    [this]          "Return a set of labels for the outputs of this node.")
-  (auto-update? [this label]  "Return true if the output label should be updated whenever it gets invalidated.")
-  (cached-outputs [this]      "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
-  (output-dependencies [this] "Return a map of labels for the inputs and properties to outputs that depend on them."))
+  (properties          [this]        "Produce a description of properties supported by this node.")
+  (inputs              [this]        "Return a set of labels for the allowed inputs of the node.")
+  (outputs             [this]        "Return a set of labels for the outputs of this node.")
+  (auto-update?        [this label]  "Return true if the output label should be updated whenever it gets invalidated.")
+  (cached-outputs      [this]        "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
+  (output-dependencies [this]        "Return a map of labels for the inputs and properties to outputs that depend on them."))
 
 (defprotocol MessageTarget
   (process-one-event [this event]))
