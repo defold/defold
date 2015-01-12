@@ -379,7 +379,7 @@ namespace dmGameSystem
         {
             SpineModelComponent* c = components[i];
             uint32_t index = &components[i] - first;
-            if (c->m_Resource && c->m_Enabled)
+            if (c->m_Resource && c->m_Enabled && c->m_AddedToUpdate)
             {
                 float z = (c->m_World.getElem(3, 2) - min_z) * range * 65535;
                 z = dmMath::Clamp(z, 0.0f, 65535.0f);
