@@ -23,7 +23,7 @@ Depending on the components that have acquired input focus, and whether they con
 
 == Input bindings
 
-The input bindings is a project wide table that allows you to specify how raw input should translated into meaningful *actions* before they are dispatched to your Lua scripts. The input bindings is by default named "game.input_binding" and and is found in the "input" folder at the root of your project. You can, however, easily change its name and location and update the project settings so the engine will find the bindings (see link:http://www.defold.com/doc/game_project[Project settings]).
+The input bindings is a project wide table that allows you to specify how raw input should translated into meaningful *actions* before they are dispatched to your Lua scripts. The input bindings is by default named "game.input_binding" and and is found in the "input" folder at the root of your project. You can, however, easily change its name and location and update the project settings so the engine will find the bindings (see link:http://doc.defold.com/doc/project_settings[Project settings]).
 
 image::images/input/input_set_bindings.png["Input set bindings", align="center"]
 
