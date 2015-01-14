@@ -48,7 +48,14 @@
 
 (declare get-node-value)
 
-(defn get-inputs [target-node g target-label]
+(defn get-inputs
+  "Gets an input (maybe with multiple values) needed to invoke a production function for a node.
+The input to the production function may be one of three things:
+
+1. A property of the node. In this case, the property is retrieved directly from the node.
+2. An output of the node. The node is asked to supply a value for this output. (This recurses back into get-node-value.)
+3. An input of the node. In this case, the nodes connected to this input are asked to supply their values."
+  [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
     (let [schema (some-> target-node t/input-types target-label)
@@ -65,7 +72,17 @@
                                (service.log/warn :missing-input missing)
                                missing)))))
 
-(defn collect-inputs [node g input-schema]
+(defn collect-inputs
+  "Return a map of all inputs needed for the input-schema. The schema will usually
+come from a production-function. Some keys on the schema are handled specially:
+
+:g - Attach the input graph directly to the map.
+:this - Attach the input node to the map.
+:world - Attach the node's world-ref to the map.
+:project - Look up through enclosing scopes to find a Project node, and attach it to the map
+
+All other keys are passed along to get-inputs for resolution."
+  [node g input-schema]
   (reduce-kv
     (fn [m k v]
       (condp = k
@@ -108,7 +125,10 @@
   (dosync (alter world-state update-in [:cache] cache/miss cache-key value))
   value)
 
-(defn- produce-value [node g label]
+(defn- produce-value
+  "Pull a value from a node. This is called when there is no cached value.
+If the given label does not exist on the node, this will throw an AssertionError."
+  [node g label]
   (assert (contains? (t/outputs node) label) (str "There is no transform " label " on node " (:_id node)))
   (let [transform (some-> node t/transforms label)]
     (assert (not= ::abstract transform) )
@@ -126,6 +146,10 @@
       (produce-value node (:graph @world-state) label))))
 
 (defn get-node-value
+  "Get a value, possibly cached, from a node. This is the entry point to the \"plumbing\".
+If the value is cacheable and exists in the cache, then return that value. Otherwise,
+produce the value by gathering inputs to call a production function, invoke the function,
+maybe cache the value that was produced, and return it."
   [node label]
   (e/result (get-node-value-internal node label)))
 
@@ -181,6 +205,9 @@
        (invert-map outs))))
 
 (defn make-node-type
+  "Create a node type object from a maplike description of the node.
+This is really meant to be used during macro expansion of `defnode`,
+not called directly."
   [description]
   (-> description
     (update-in [:inputs]              combine-with merge      {} (from-supertypes description t/inputs'))
@@ -199,10 +226,12 @@
 
 
 (defn attach-supertype
+  "Update the node type description with the given supertype."
   [description supertype]
   (assoc description :supertypes (conj (:supertypes description []) supertype)))
 
 (defn attach-input
+  "Update the node type description with the given input."
   [description label schema flags]
   (cond->
     (assoc-in description [:inputs label] schema)
@@ -219,6 +248,7 @@
                label type this)))))
 
 (defn attach-output
+  "Update the node type description with the given output."
   [description label schema properties options & [args]]
   (cond-> (update-in description [:transform-types] assoc label schema)
 
@@ -238,6 +268,7 @@
     (update-in [:transforms] assoc-in [label :production-fn] args)))
 
 (defn attach-property
+  "Update the node type description with the given property."
   [description label property-type passthrough]
   (-> description
     (update-in [:properties] assoc label property-type)
@@ -245,18 +276,23 @@
     (update-in [:transform-types] assoc label (:value-type property-type))))
 
 (defn attach-event-handler
+  "Update the node type description with the given event handler."
   [description label handler]
   (assoc-in description [:event-handlers label] handler))
 
 (defn attach-interface
+  "Update the node type description with the given interface."
   [description interface]
   (update-in description [:interfaces] #(conj (or % #{}) interface)))
 
 (defn attach-protocol
+  "Update the node type description with the given protocol."
   [description protocol]
   (update-in description [:protocols] #(conj (or % #{}) protocol)))
 
 (defn attach-function
+  "Update the node type description with the given function, which
+must be part of a protocol or interface attached to the description."
   [description sym argv fn-def]
   (assoc-in description [:functions sym] [argv fn-def]))
 
@@ -283,6 +319,9 @@
       (symbol (str ns) (str name)))))
 
 (defn node-type-form
+  "Translate the sugared `defnode` forms into function calls that
+build the node type description (map). These are emitted where you invoked
+`defnode` so that symbols and vars resolve correctly."
   [form]
   (match [form]
     [(['inherits supertype] :seq)]
@@ -313,11 +352,14 @@
         (not (class? ~impl))
         (attach-protocol (fqsymbol '~impl)))))
 
-(defn node-type-sexps [forms]
+(defn node-type-sexps
+  "Given all the forms in a defnode macro, emit the forms that will build the node type description."
+  [forms]
   (list* `-> {}
     (map node-type-form forms)))
 
 (defn defaults
+  "Return a map of default values for the node type."
   [node-type]
   (map-vals t/default-property-value (t/properties' node-type)))
 
@@ -357,6 +399,9 @@
      ~@(message-processors node-type-name node-type)))
 
 (defn define-node-record
+  "Create a new class for the node type. This builds a defrecord with
+the node's properties as fields. The record will implement all the interfaces
+and protocols that the node type requires."
   [record-name node-type-name node-type]
   ;(println (generate-node-record-sexps record-name node-type-name node-type))
   (eval (generate-node-record-sexps record-name node-type-name node-type)))
@@ -377,49 +422,10 @@
            "}>")))))
 
 (defn define-print-method
+  "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
   [record-name node-type-name node-type]
   ;(println (print-method-sexps record-name node-type-name node-type))
   (eval (print-method-sexps record-name node-type-name node-type)))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ; ---------------------------------------------------------------------------
 ; Dependency Injection
