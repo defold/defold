@@ -19,7 +19,7 @@ PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 nvidi
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 nvidia-texture-tools-2.0.6 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5 luajit-2.0.3".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3 luajit-2.0.3".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5 luajit-2.0.3".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -362,7 +362,7 @@ class Configuration(object):
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.target_platform
 
-        if self.target_platform != 'x86_64-darwin':
+        if True or self.target_platform != 'x86_64-darwin':
             # NOTE: Temporary check as we don't build the entire engine to 64-bit
             for n in ['dmengine', 'dmengine_release', 'dmengine_headless']:
                 engine = join(bin_dir, exe_prefix + n + exe_ext)
@@ -408,7 +408,7 @@ class Configuration(object):
 
         eclipse = '--eclipse' if self.eclipse else ''
 
-        if self.target_platform.startswith('x86_64'):
+        if False and self.target_platform.startswith('x86_64'):
             # Only partial support for 64-bit
             libs="dlib ddf particle".split()
         else:
@@ -1096,7 +1096,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         parser.error('No command specified')
 
     target_platform = options.target_platform if options.target_platform else get_host_platform()
-    if target_platform == 'darwin':
+    if False and target_platform == 'darwin':
         # NOTE: Darwin is currently mixed 32 and 64-bit.
         # That's why we have this temporary hack
         # NOTE: Build 64-bit first as 32-bit is the current default

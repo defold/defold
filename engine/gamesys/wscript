@@ -29,7 +29,7 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin":
+    if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif re.match('arm.*?darwin', platform):
         pass

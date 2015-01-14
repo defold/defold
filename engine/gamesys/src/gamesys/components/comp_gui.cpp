@@ -100,6 +100,8 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiContext* gui_context = (GuiContext*)params.m_Context;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
+
         for (uint32_t i = 0; i < gui_context->m_Worlds.Size(); ++i)
         {
             if (gui_world == gui_context->m_Worlds[i])
@@ -116,7 +118,7 @@ namespace dmGameSystem
             }
         }
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
+        dmGraphics::DeleteVertexBuffer(gcontext, gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
 
         delete gui_world;
@@ -870,7 +872,10 @@ namespace dmGameSystem
             }
         }
 
-        dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
+
+        dmGraphics::SetVertexBufferData(gcontext,
+                                        gui_world->m_VertexBuffer,
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);

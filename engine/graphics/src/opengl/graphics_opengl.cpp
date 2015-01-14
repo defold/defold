@@ -620,19 +620,21 @@ static void LogFrameBufferError(GLenum status)
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
         CHECK_GL_ERROR
-        SetVertexBufferData(buffer, size, data, buffer_usage);
+        SetVertexBufferData(context, buffer, size, data, buffer_usage);
         return buffer;
     }
 
-    void DeleteVertexBuffer(HVertexBuffer buffer)
+    void DeleteVertexBuffer(HContext context, HVertexBuffer buffer)
     {
+        (void) context;
         glDeleteBuffersARB(1, &buffer);
         CHECK_GL_ERROR
     }
 
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    void SetVertexBufferData(HContext context, HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(Graphics, "SetVertexBufferData");
+        (void) context;
         // NOTE: Android doesn't seem to like zero-sized vertex buffers
         if (size == 0) {
             return;
@@ -645,9 +647,10 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    void SetVertexBufferSubData(HContext context, HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetVertexBufferSubData");
+        (void) context;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
@@ -661,7 +664,7 @@ static void LogFrameBufferError(GLenum status)
         uint32_t buffer = 0;
         glGenBuffersARB(1, &buffer);
         CHECK_GL_ERROR
-        SetIndexBufferData(buffer, size, data, buffer_usage);
+        SetIndexBufferData(context, buffer, size, data, buffer_usage);
         return buffer;
     }
 
@@ -671,7 +674,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    void SetIndexBufferData(HContext, HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(Graphics, "SetIndexBufferData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
@@ -682,7 +685,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    void SetIndexBufferSubData(HContext, HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(Graphics, "SetIndexBufferSubData");
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
@@ -972,7 +975,7 @@ static void LogFrameBufferError(GLenum status)
         glDeleteProgram(program);
     }
 
-    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    void ReloadVertexProgram(HContext, HVertexProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
 
@@ -983,7 +986,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    void ReloadFragmentProgram(HContext, HFragmentProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
 
@@ -994,14 +997,14 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    void DeleteVertexProgram(HVertexProgram program)
+    void DeleteVertexProgram(HContext, HVertexProgram program)
     {
         assert(program);
         glDeleteShader(program);
         CHECK_GL_ERROR
     }
 
-    void DeleteFragmentProgram(HFragmentProgram program)
+    void DeleteFragmentProgram(HContext, HFragmentProgram program)
     {
         assert(program);
         glDeleteShader(program);
@@ -1044,7 +1047,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
     }
 
-    uint32_t GetUniformCount(HProgram prog)
+    uint32_t GetUniformCount(HContext, HProgram prog)
     {
         GLint count;
         glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &count);
@@ -1052,7 +1055,7 @@ static void LogFrameBufferError(GLenum status)
         return count;
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    void GetUniformName(HContext, HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         GLint uniform_size;
         GLenum uniform_type;
@@ -1061,7 +1064,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    int32_t GetUniformLocation(HProgram prog, const char* name)
+    int32_t GetUniformLocation(HContext, HProgram prog, const char* name)
     {
         GLint location = glGetUniformLocation(prog, name);
         if (location == -1)

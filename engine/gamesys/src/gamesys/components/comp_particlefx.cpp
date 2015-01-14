@@ -86,6 +86,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompParticleFXDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         ParticleFXWorld* emitter_world = (ParticleFXWorld*)params.m_World;
+        ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(ctx->m_RenderContext);
         for (uint32_t i = 0; i < emitter_world->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &emitter_world->m_Components[i];
@@ -94,7 +96,7 @@ namespace dmGameSystem
         }
         dmParticle::DestroyContext(emitter_world->m_ParticleContext);
         delete [] (char*)emitter_world->m_ClientBuffer;
-        dmGraphics::DeleteVertexBuffer(emitter_world->m_VertexBuffer);
+        dmGraphics::DeleteVertexBuffer(gcontext, emitter_world->m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(emitter_world->m_VertexDeclaration);
         delete emitter_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -142,6 +144,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
+
         dmArray<ParticleFXComponent>& components = w->m_Components;
         if (components.Empty())
             return dmGameObject::UPDATE_RESULT_OK;
@@ -166,6 +169,7 @@ namespace dmGameSystem
         }
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(ctx->m_RenderContext);
 
         // NOTE: Objects are added in RenderEmitterCallback
         w->m_RenderObjects.SetSize(0);
@@ -174,8 +178,8 @@ namespace dmGameSystem
         uint32_t vertex_buffer_size;
         dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, w->m_ClientBuffer, max_vertex_buffer_size, &vertex_buffer_size, FetchAnimationCallback);
         dmParticle::Render(particle_context, w, RenderInstanceCallback);
-        dmGraphics::SetVertexBufferData(w->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        dmGraphics::SetVertexBufferData(w->m_VertexBuffer, vertex_buffer_size, w->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, w->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, w->m_VertexBuffer, vertex_buffer_size, w->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmRender::HRenderContext render_context = ctx->m_RenderContext;
         uint32_t n = w->m_RenderObjects.Size();
         dmArray<dmRender::RenderObject>& render_objects = w->m_RenderObjects;

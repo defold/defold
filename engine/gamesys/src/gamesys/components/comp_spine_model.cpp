@@ -79,8 +79,11 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpineModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        SpineModelContext* context = (SpineModelContext*)params.m_Context;
+        dmRender::HRenderContext render_context = context->m_RenderContext;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+        dmGraphics::DeleteVertexBuffer(gcontext, world->m_VertexBuffer);
         world->m_ScratchInstances.SetCapacity(0);
 
         dmResource::UnregisterResourceReloadedCallback(((SpineModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
@@ -1089,8 +1092,9 @@ namespace dmGameSystem
         SpineModelContext* context = (SpineModelContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(render_context);
 
-        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 6 * sizeof(SpineModelVertex) * world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, world->m_VertexBuffer, 6 * sizeof(SpineModelVertex) * world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         dmArray<SpineModelVertex>& vertex_buffer = world->m_VertexBufferData;
         vertex_buffer.SetSize(0);
 
@@ -1152,7 +1156,7 @@ namespace dmGameSystem
         void* vertex_buffer_data = 0x0;
         if (!vertex_buffer.Empty())
             vertex_buffer_data = (void*)&(vertex_buffer[0]);
-        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_buffer.Size() * sizeof(SpineModelVertex), vertex_buffer_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, world->m_VertexBuffer, vertex_buffer.Size() * sizeof(SpineModelVertex), vertex_buffer_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
         DM_COUNTER("SpineVertexBuffer", vertex_buffer.Size() * sizeof(SpineModelVertex));
 

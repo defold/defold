@@ -226,7 +226,7 @@ namespace dmRender
     {
         TextContext& text_context = render_context->m_TextContext;
         delete [] (char*)text_context.m_ClientBuffer;
-        dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
+        dmGraphics::DeleteVertexBuffer(render_context->m_GraphicsContext, text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
 
@@ -556,8 +556,8 @@ namespace dmRender
             text_context.m_Batches.Clear();
 
             uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
-            dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-            dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            dmGraphics::SetVertexBufferData(render_context->m_GraphicsContext, text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            dmGraphics::SetVertexBufferData(render_context->m_GraphicsContext, text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
     }
 

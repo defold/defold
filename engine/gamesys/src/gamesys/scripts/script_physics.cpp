@@ -31,7 +31,7 @@ namespace dmGameSystem
         dmMessage::HSocket m_Socket;
         uint32_t m_ComponentIndex;
     };
-    
+
     /*# collision object mass (number)
      *
      * [READ ONLY] Returns the defined physical mass of the collision object component as a number.
@@ -245,7 +245,7 @@ namespace dmGameSystem
             dmLogError("Could not retrieve the physics socket '%s': %d.", dmPhysics::PHYSICS_SOCKET_NAME, socket_result);
             result = false;
         }
-        uint32_t co_resource_type;
+        dmResource::ResourceType co_resource_type;
         if (result)
         {
             dmResource::Result fact_result = dmResource::GetTypeFromExtension(context.m_Factory, COLLISION_OBJECT_EXT, &co_resource_type);

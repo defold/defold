@@ -15,7 +15,7 @@ namespace dmGameSystem
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        resource->m_Resource = (void*) prog;
+        resource->m_Resource = (void*) (uintptr_t) prog;
         return dmResource::RESULT_OK;
     }
 
@@ -23,7 +23,9 @@ namespace dmGameSystem
                                                     void* context,
                                                     dmResource::SResourceDescriptor* resource)
     {
-        dmGraphics::DeleteFragmentProgram((dmGraphics::HFragmentProgram) resource->m_Resource);
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
+        uintptr_t r = (uintptr_t) resource->m_Resource;
+        dmGraphics::DeleteFragmentProgram(graphics_context, (dmGraphics::HFragmentProgram) r);
         return dmResource::RESULT_OK;
     }
 
@@ -33,11 +35,12 @@ namespace dmGameSystem
                                                  dmResource::SResourceDescriptor* resource,
                                                  const char* filename)
     {
-        dmGraphics::HFragmentProgram prog = (dmGraphics::HFragmentProgram)resource->m_Resource;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
+        dmGraphics::HFragmentProgram prog = (dmGraphics::HFragmentProgram) (uintptr_t) resource->m_Resource;
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmGraphics::ReloadFragmentProgram(prog, buffer, buffer_size);
+        dmGraphics::ReloadFragmentProgram(graphics_context, prog, buffer, buffer_size);
         return dmResource::RESULT_OK;
     }
 }

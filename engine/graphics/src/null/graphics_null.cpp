@@ -32,6 +32,7 @@ namespace dmGraphics
     Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
+        m_HandleMap.SetCapacity(1024, 1024 * 2);
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
@@ -231,6 +232,23 @@ namespace dmGraphics
         // NOP
     }
 
+    uint32_t AddHandle(HContext context, void* ptr)
+    {
+        uint32_t id = context->m_NextHandleID++;
+        assert(context->m_HandleMap.Get(id) == 0);
+        context->m_HandleMap.Put(id, ptr);
+        return id;
+    }
+
+    template <typename T>
+    T* GetRemovePtr(HContext context, uint32_t id)
+    {
+        T** ptr = (T**) context->m_HandleMap.Get(id);
+        assert(ptr);
+        context->m_HandleMap.Erase(id);
+        return *ptr;
+    }
+
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();
@@ -239,20 +257,20 @@ namespace dmGraphics
         vb->m_Size = size;
         if (size > 0 && data != 0x0)
             memcpy(vb->m_Buffer, data, size);
-        return (uint32_t)vb;
+        return AddHandle(context, vb);
     }
 
-    void DeleteVertexBuffer(HVertexBuffer buffer)
+    void DeleteVertexBuffer(HContext context, HVertexBuffer buffer)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
+        VertexBuffer* vb = GetRemovePtr<VertexBuffer>(context, buffer);
         assert(vb->m_Copy == 0x0);
         delete [] vb->m_Buffer;
         delete vb;
     }
 
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    void SetVertexBufferData(HContext context, HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
+        VertexBuffer* vb = GetPtr<VertexBuffer>(context, buffer);
         assert(vb->m_Copy == 0x0);
         delete [] vb->m_Buffer;
         vb->m_Buffer = new char[size];
@@ -261,24 +279,24 @@ namespace dmGraphics
             memcpy(vb->m_Buffer, data, size);
     }
 
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    void SetVertexBufferSubData(HContext context, HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
+        VertexBuffer* vb = GetPtr<VertexBuffer>(context, buffer);
         if (offset + size <= vb->m_Size && data != 0x0)
             memcpy(&(vb->m_Buffer)[offset], data, size);
     }
 
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access)
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
+        VertexBuffer* vb = GetPtr<VertexBuffer>(context, buffer);
         vb->m_Copy = new char[vb->m_Size];
         memcpy(vb->m_Copy, vb->m_Buffer, vb->m_Size);
         return vb->m_Copy;
     }
 
-    bool UnmapVertexBuffer(HVertexBuffer buffer)
+    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
-        VertexBuffer* vb = (VertexBuffer*)buffer;
+        VertexBuffer* vb = GetPtr<VertexBuffer>(context, buffer);
         memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
         delete [] vb->m_Copy;
         vb->m_Copy = 0x0;
@@ -292,20 +310,20 @@ namespace dmGraphics
         ib->m_Copy = 0x0;
         ib->m_Size = size;
         memcpy(ib->m_Buffer, data, size);
-        return (uint32_t)ib;
+        return AddHandle(context, ib);
     }
 
-    void DeleteIndexBuffer(HIndexBuffer buffer)
+    void DeleteIndexBuffer(HContext context, HIndexBuffer buffer)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
+        IndexBuffer* ib = GetRemovePtr<IndexBuffer>(context, buffer);
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;
         delete ib;
     }
 
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    void SetIndexBufferData(HContext context, HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
+        IndexBuffer* ib = GetPtr<IndexBuffer>(context, buffer);
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;
         ib->m_Buffer = new char[size];
@@ -314,24 +332,24 @@ namespace dmGraphics
             memcpy(ib->m_Buffer, data, size);
     }
 
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    void SetIndexBufferSubData(HContext context, HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
+        IndexBuffer* ib = GetPtr<IndexBuffer>(context, buffer);
         if (offset + size <= ib->m_Size && data != 0x0)
             memcpy(&(ib->m_Buffer)[offset], data, size);
     }
 
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access)
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
+        IndexBuffer* ib = GetPtr<IndexBuffer>(context, buffer);
         ib->m_Copy = new char[ib->m_Size];
         memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
         return ib->m_Copy;
     }
 
-    bool UnmapIndexBuffer(HIndexBuffer buffer)
+    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
-        IndexBuffer* ib = (IndexBuffer*)buffer;
+        IndexBuffer* ib = GetPtr<IndexBuffer>(context, buffer);
         memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
         delete [] ib->m_Copy;
         ib->m_Copy = 0x0;
@@ -384,8 +402,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_declaration);
-        assert(vertex_buffer);
-        VertexBuffer* vb = (VertexBuffer*)vertex_buffer;
+        VertexBuffer* vb = GetPtr<VertexBuffer>(context, vertex_buffer);
         uint16_t stride = 0;
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
             stride += vertex_declaration->m_Elements[i].m_Size * TYPE_SIZE[vertex_declaration->m_Elements[i].m_Type - dmGraphics::TYPE_BYTE];
@@ -415,9 +432,9 @@ namespace dmGraphics
                 DisableVertexStream(context, i);
     }
 
-    static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
+    static uint32_t GetIndex(HContext context, Type type, HIndexBuffer ib, uint32_t index)
     {
-        const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
+        const void* index_buffer = GetPtr<IndexBuffer>(context, ib)->m_Buffer;
         uint32_t result = ~0;
         switch (type)
         {
@@ -452,7 +469,6 @@ namespace dmGraphics
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
-        assert(index_buffer);
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
         {
             VertexStream& vs = context->m_VertexStreams[i];
@@ -463,7 +479,7 @@ namespace dmGraphics
         }
         for (uint32_t i = 0; i < count; ++i)
         {
-            uint32_t index = GetIndex(type, index_buffer, i);
+            uint32_t index = GetIndex(context, type, index_buffer, i);
             for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
             {
                 VertexStream& vs = context->m_VertexStreams[j];
@@ -528,15 +544,15 @@ namespace dmGraphics
         VertexProgram* vertex = 0x0;
         FragmentProgram* fragment = 0x0;
         if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
-            vertex = (VertexProgram*) vertex_program;
+            vertex = GetPtr<VertexProgram>(context, vertex_program);
         if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
-            fragment = (FragmentProgram*) fragment_program;
-        return (HProgram) new Program(vertex, fragment);
+            fragment = GetPtr<FragmentProgram>(context, fragment_program);
+        return AddHandle(context, new Program(vertex, fragment));
     }
 
     void DeleteProgram(HContext context, HProgram program)
     {
-        delete (Program*) program;
+        delete GetRemovePtr<Program>(context, program);
     }
 
     HVertexProgram NewVertexProgram(HContext context, const void* program, uint32_t program_size)
@@ -546,7 +562,7 @@ namespace dmGraphics
         p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
         p->m_Data[program_size] = '\0';
-        return (uint32_t)p;
+        return AddHandle(context, p);
     }
 
     HFragmentProgram NewFragmentProgram(HContext context, const void* program, uint32_t program_size)
@@ -556,39 +572,39 @@ namespace dmGraphics
         p->m_Data = new char[program_size+1];
         memcpy(p->m_Data, program, program_size);
         p->m_Data[program_size] = '\0';
-        return (uint32_t)p;
+        return AddHandle(context, p);
     }
 
-    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    void ReloadVertexProgram(HContext context, HVertexProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
-        VertexProgram* p = (VertexProgram*)prog;
+
+        VertexProgram* p = GetPtr<VertexProgram>(context, prog);
         delete [] (char*)p->m_Data;
         p->m_Data = new char[program_size];
         memcpy((char*)p->m_Data, program, program_size);
     }
 
-    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    void ReloadFragmentProgram(HContext context, HFragmentProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
-        FragmentProgram* p = (FragmentProgram*)prog;
+        FragmentProgram* p = GetPtr<FragmentProgram>(context, prog);
         delete [] (char*)p->m_Data;
         p->m_Data = new char[program_size];
         memcpy((char*)p->m_Data, program, program_size);
     }
 
-    void DeleteVertexProgram(HVertexProgram program)
+    void DeleteVertexProgram(HContext context, HVertexProgram program)
     {
-        assert(program);
-        VertexProgram* p = (VertexProgram*)program;
+        VertexProgram* p = GetRemovePtr<VertexProgram>(context, program);
         delete [] (char*)p->m_Data;
         delete p;
     }
 
-    void DeleteFragmentProgram(HFragmentProgram program)
+    void DeleteFragmentProgram(HContext context, HFragmentProgram program)
     {
         assert(program);
-        FragmentProgram* p = (FragmentProgram*)program;
+        FragmentProgram* p = GetRemovePtr<FragmentProgram>(context, program);
         delete [] (char*)p->m_Data;
         delete p;
     }
@@ -596,7 +612,8 @@ namespace dmGraphics
     void EnableProgram(HContext context, HProgram program)
     {
         assert(context);
-        context->m_Program = (void*)program;
+        Program* p = GetPtr<Program>(context, program);
+        context->m_Program = p;
     }
 
     void DisableProgram(HContext context)
@@ -611,14 +628,15 @@ namespace dmGraphics
         (void) program;
     }
 
-    uint32_t GetUniformCount(HProgram prog)
+    uint32_t GetUniformCount(HContext context, HProgram prog)
     {
-        return ((Program*)prog)->m_Uniforms.size();
+        Program* p = GetPtr<Program>(context, prog);
+        return p->m_Uniforms.size();
     }
 
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
+    void GetUniformName(HContext context, HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
-        Program* program = (Program*)prog;
+        Program* program = GetPtr<Program>(context, prog);
         assert(index < program->m_Uniforms.size());
         Uniform& uniform = program->m_Uniforms[index];
         *buffer = '\0';
@@ -626,9 +644,9 @@ namespace dmGraphics
         *type = uniform.m_Type;
     }
 
-    int32_t GetUniformLocation(HProgram prog, const char* name)
+    int32_t GetUniformLocation(HContext context, HProgram prog, const char* name)
     {
-        Program* program = (Program*)prog;
+        Program* program = GetPtr<Program>(context, prog);
         uint32_t count = program->m_Uniforms.size();
         for (uint32_t i = 0; i < count; ++i)
         {

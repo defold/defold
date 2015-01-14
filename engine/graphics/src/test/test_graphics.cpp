@@ -176,39 +176,39 @@ TEST_F(dmGraphicsTest, VertexBuffer)
     char data[16];
     memset(data, 1, sizeof(data));
     dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(m_Context, 16, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    dmGraphics::VertexBuffer* vb = (dmGraphics::VertexBuffer*)vertex_buffer;
+    dmGraphics::VertexBuffer* vb = dmGraphics::GetPtr<dmGraphics::VertexBuffer>(m_Context, vertex_buffer);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     memset(data, 2, sizeof(data));
-    dmGraphics::SetVertexBufferData(vertex_buffer, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetVertexBufferData(m_Context, vertex_buffer, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     memset(&data[4], 3, 4);
-    dmGraphics::SetVertexBufferSubData(vertex_buffer, 4, 4, &data[4]);
+    dmGraphics::SetVertexBufferSubData(m_Context, vertex_buffer, 4, 4, &data[4]);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     // Invalid range
     memset(&data[14], 4, 1);
-    dmGraphics::SetVertexBufferSubData(vertex_buffer, 14, 4, data);
+    dmGraphics::SetVertexBufferSubData(m_Context, vertex_buffer, 14, 4, data);
     ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     memset(data, 4, 4);
-    void* copy = dmGraphics::MapVertexBuffer(vertex_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+    void* copy = dmGraphics::MapVertexBuffer(m_Context, vertex_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
-    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(vertex_buffer));
+    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(m_Context, vertex_buffer));
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     // Smaller size
-    dmGraphics::SetVertexBufferData(vertex_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetVertexBufferData(m_Context, vertex_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     ASSERT_EQ(1u, vb->m_Size);
 
     // Bigger size
-    dmGraphics::SetVertexBufferData(vertex_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetVertexBufferData(m_Context, vertex_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     ASSERT_EQ(4u, vb->m_Size);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, 4));
 
-    dmGraphics::DeleteVertexBuffer(vertex_buffer);
+    dmGraphics::DeleteVertexBuffer(m_Context, vertex_buffer);
 }
 
 TEST_F(dmGraphicsTest, IndexBuffer)
@@ -216,39 +216,39 @@ TEST_F(dmGraphicsTest, IndexBuffer)
     char data[16];
     memset(data, 1, sizeof(data));
     dmGraphics::HIndexBuffer index_buffer = dmGraphics::NewIndexBuffer(m_Context, 16, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    dmGraphics::IndexBuffer* ib = (dmGraphics::IndexBuffer*)index_buffer;
+    dmGraphics::IndexBuffer* ib = dmGraphics::GetPtr<dmGraphics::IndexBuffer>(m_Context, index_buffer);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     memset(data, 2, sizeof(data));
-    dmGraphics::SetIndexBufferData(index_buffer, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetIndexBufferData(m_Context, index_buffer, sizeof(data), data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     memset(&data[4], 3, 4);
-    dmGraphics::SetIndexBufferSubData(index_buffer, 4, 4, &data[4]);
+    dmGraphics::SetIndexBufferSubData(m_Context, index_buffer, 4, 4, &data[4]);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     // Invalid range
     memset(&data[14], 4, 1);
-    dmGraphics::SetIndexBufferSubData(index_buffer, 14, 4, data);
+    dmGraphics::SetIndexBufferSubData(m_Context, index_buffer, 14, 4, data);
     ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     memset(data, 4, 4);
-    void* copy = dmGraphics::MapIndexBuffer(index_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+    void* copy = dmGraphics::MapIndexBuffer(m_Context, index_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
-    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(index_buffer));
+    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(m_Context, index_buffer));
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     // Smaller size
-    dmGraphics::SetIndexBufferData(index_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetIndexBufferData(m_Context, index_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     ASSERT_EQ(1u, ib->m_Size);
 
     // Bigger size
-    dmGraphics::SetIndexBufferData(index_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    dmGraphics::SetIndexBufferData(m_Context, index_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     ASSERT_EQ(4u, ib->m_Size);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, 4));
 
-    dmGraphics::DeleteIndexBuffer(index_buffer);
+    dmGraphics::DeleteIndexBuffer(m_Context, index_buffer);
 }
 
 TEST_F(dmGraphicsTest, VertexDeclaration)
@@ -278,7 +278,7 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     ASSERT_EQ(0u, m_Context->m_VertexStreams[1].m_Size);
 
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
-    dmGraphics::DeleteVertexBuffer(vertex_buffer);
+    dmGraphics::DeleteVertexBuffer(m_Context, vertex_buffer);
 }
 
 TEST_F(dmGraphicsTest, Drawing)
@@ -303,8 +303,8 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
-    dmGraphics::DeleteIndexBuffer(ib);
-    dmGraphics::DeleteVertexBuffer(vb);
+    dmGraphics::DeleteIndexBuffer(m_Context, ib);
+    dmGraphics::DeleteVertexBuffer(m_Context, vb);
     dmGraphics::DeleteVertexDeclaration(vd);
 }
 
@@ -342,23 +342,23 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, 1024);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, 1024);
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
-    ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
-    ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
-    ASSERT_EQ(1, dmGraphics::GetUniformLocation(program, "world"));
-    ASSERT_EQ(2, dmGraphics::GetUniformLocation(program, "DIFFUSE_TEXTURE"));
-    ASSERT_EQ(3, dmGraphics::GetUniformLocation(program, "tint"));
+    ASSERT_EQ(4u, dmGraphics::GetUniformCount(m_Context, program));
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(m_Context, program, "view_proj"));
+    ASSERT_EQ(1, dmGraphics::GetUniformLocation(m_Context, program, "world"));
+    ASSERT_EQ(2, dmGraphics::GetUniformLocation(m_Context, program, "DIFFUSE_TEXTURE"));
+    ASSERT_EQ(3, dmGraphics::GetUniformLocation(m_Context, program, "tint"));
     char buffer[64];
     dmGraphics::Type type;
-    dmGraphics::GetUniformName(program, 0, buffer, 64, &type);
+    dmGraphics::GetUniformName(m_Context, program, 0, buffer, 64, &type);
     ASSERT_STREQ("view_proj", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
-    dmGraphics::GetUniformName(program, 1, buffer, 64, &type);
+    dmGraphics::GetUniformName(m_Context, program, 1, buffer, 64, &type);
     ASSERT_STREQ("world", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
-    dmGraphics::GetUniformName(program, 2, buffer, 64, &type);
+    dmGraphics::GetUniformName(m_Context, program, 2, buffer, 64, &type);
     ASSERT_STREQ("DIFFUSE_TEXTURE", buffer);
     ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, type);
-    dmGraphics::GetUniformName(program, 3, buffer, 64, &type);
+    dmGraphics::GetUniformName(m_Context, program, 3, buffer, 64, &type);
     ASSERT_STREQ("tint", buffer);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
 
@@ -368,16 +368,16 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::SetConstantM4(m_Context, &constant, 1);
     char* program_data = new char[1024];
     *program_data = 0;
-    dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
+    dmGraphics::ReloadVertexProgram(m_Context, vp, program_data, 1024);
     delete [] program_data;
     program_data = new char[1024];
     *program_data = 0;
-    dmGraphics::ReloadFragmentProgram(fp, program_data, 1024);
+    dmGraphics::ReloadFragmentProgram(m_Context, fp, program_data, 1024);
     delete [] program_data;
     dmGraphics::DisableProgram(m_Context);
     dmGraphics::DeleteProgram(m_Context, program);
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
+    dmGraphics::DeleteVertexProgram(m_Context, vp);
+    dmGraphics::DeleteFragmentProgram(m_Context, fp);
 }
 
 TEST_F(dmGraphicsTest, TestViewport)

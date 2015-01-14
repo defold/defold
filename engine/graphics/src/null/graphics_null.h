@@ -1,6 +1,8 @@
 #ifndef GRAPHICS_DEVICE_NULL
 #define GRAPHICS_DEVICE_NULL
 
+#include <dlib/hashtable.h>
+
 namespace dmGraphics
 {
     struct Texture
@@ -40,6 +42,8 @@ namespace dmGraphics
         VertexElement m_Elements[MAX_VERTEX_STREAM_COUNT];
     };
 
+    struct Context;
+
     struct VertexBuffer
     {
         char* m_Buffer;
@@ -65,6 +69,8 @@ namespace dmGraphics
     {
         Context(const ContextParams& params);
 
+        dmHashTable<uint32_t, void*> m_HandleMap;
+        uint32_t                    m_NextHandleID;
         VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         Vectormath::Aos::Vector4    m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];
@@ -100,6 +106,15 @@ namespace dmGraphics
         // Only use for testing
         uint32_t                    m_RequestWindowClose : 1;
     };
+
+    template <typename T>
+    static T* GetPtr(HContext context, uint32_t id)
+    {
+        T** ptr = (T**) context->m_HandleMap.Get(id);
+        assert(ptr);
+        return *ptr;
+    }
+
 }
 
 #endif // __GRAPHICS_DEVICE_NULL__

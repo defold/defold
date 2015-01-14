@@ -71,8 +71,8 @@ protected:
 
     virtual void TearDown()
     {
-        dmGraphics::DeleteVertexProgram(m_VertexProgram);
-        dmGraphics::DeleteFragmentProgram(m_FragmentProgram);
+        dmGraphics::DeleteVertexProgram(m_GraphicsContext, m_VertexProgram);
+        dmGraphics::DeleteFragmentProgram(m_GraphicsContext, m_FragmentProgram);
         dmRender::DeleteMaterial(m_Context, m_FontMaterial);
 
         dmGraphics::CloseWindow(m_GraphicsContext);

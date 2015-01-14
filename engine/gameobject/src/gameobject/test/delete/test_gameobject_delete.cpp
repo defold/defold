@@ -33,7 +33,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "deleteself", this, ResDeleteSelfCreate, ResDeleteSelfDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        uint32_t resource_type;
+        dmResource::ResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType ds_type;

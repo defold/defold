@@ -199,6 +199,8 @@ namespace dmGameSystem
     {
         TileGridComponent* tile_grid = (TileGridComponent*) *params.m_UserData;
         TileGridWorld* world = (TileGridWorld*) params.m_World;
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(render_context);
         for (uint32_t i = 0; i < world->m_TileGrids.Size(); ++i)
         {
             if (world->m_TileGrids[i] == tile_grid)
@@ -210,7 +212,7 @@ namespace dmGameSystem
                     dmRender::RenderObject* ro = &regions[ir].m_RenderObject;
                     if (ro->m_VertexBuffer)
                     {
-                        dmGraphics::DeleteVertexBuffer(ro->m_VertexBuffer);
+                        dmGraphics::DeleteVertexBuffer(gcontext, ro->m_VertexBuffer);
                     }
                     delete[] (char*) regions[ir].m_ClientBuffer;
                 }
@@ -383,17 +385,17 @@ namespace dmGameSystem
         }
 
         dmRender::RenderObject* ro = &region->m_RenderObject;
-
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(render_context);
         if (ro->m_VertexBuffer == 0)
         {
-            ro->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            ro->m_VertexBuffer = dmGraphics::NewVertexBuffer(gcontext, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
         ro->m_VertexStart = 0;
         ro->m_VertexCount = vertex_count;
 
         // Clear the data to avoid locks (according to internet rumors)
-        dmGraphics::SetVertexBufferData(ro->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        dmGraphics::SetVertexBufferData(ro->m_VertexBuffer, vertex_count * sizeof(Vertex), region->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, ro->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, ro->m_VertexBuffer, vertex_count * sizeof(Vertex), region->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params)

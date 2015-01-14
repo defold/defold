@@ -36,7 +36,7 @@ namespace dmRender
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         m->m_Program = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
 
-        uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
+        uint32_t total_constants_count = dmGraphics::GetUniformCount(graphics_context, m->m_Program);
         char buffer[128];
         dmGraphics::Type type;
 
@@ -44,7 +44,7 @@ namespace dmRender
         uint32_t samplers_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
+            dmGraphics::GetUniformName(graphics_context, m->m_Program, i, buffer, sizeof(buffer), &type);
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
@@ -73,8 +73,8 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
-            int32_t location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
+            dmGraphics::GetUniformName(graphics_context, m->m_Program, i, buffer, sizeof(buffer), &type);
+            int32_t location = dmGraphics::GetUniformLocation(graphics_context, m->m_Program, buffer);
             assert(location != -1);
             dmhash_t name_hash = dmHashString64(buffer);
 

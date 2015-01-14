@@ -89,6 +89,8 @@ namespace dmResource
      */
     typedef struct SResourceFactory* HFactory;
 
+    typedef uintptr_t ResourceType;
+
     /**
      * Resource create function
      * @param factory Factory handle
@@ -245,7 +247,7 @@ namespace dmResource
      * @param type Returned type
      * @return RESULT_OK on success
      */
-    Result GetType(HFactory factory, void* resource, uint32_t* type);
+    Result GetType(HFactory factory, void* resource, ResourceType* type);
 
     /**
      * Get type from extension
@@ -254,7 +256,7 @@ namespace dmResource
      * @param type Returned type
      * @return RESULT_OK on success
      */
-    Result GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type);
+    Result GetTypeFromExtension(HFactory factory, const char* extension, ResourceType* type);
 
     /**
      * Get extension from type
@@ -263,7 +265,7 @@ namespace dmResource
      * @param extension Returned extension
      * @return RESULT_OK on success
      */
-    Result GetExtensionFromType(HFactory factory, uint32_t type, const char** extension);
+    Result GetExtensionFromType(HFactory factory, ResourceType type, const char** extension);
 
     /**
      * Get resource descriptor from resource (name)

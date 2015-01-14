@@ -163,8 +163,12 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        SpriteContext* context = (SpriteContext*)params.m_Context;
+        dmRender::HRenderContext render_context = context->m_RenderContext;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(render_context);
+
         dmGraphics::DeleteVertexDeclaration(sprite_world->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
+        dmGraphics::DeleteVertexBuffer(gcontext, sprite_world->m_VertexBuffer);
         free(sprite_world->m_VertexBufferData);
 
         delete sprite_world;
@@ -744,8 +748,9 @@ namespace dmGameSystem
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(render_context);
 
-        dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * sprite_world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * sprite_world->m_Components.Size(), 0x0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         void* vertex_buffer = sprite_world->m_VertexBufferData;
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
@@ -783,7 +788,7 @@ namespace dmGameSystem
             start_index = RenderBatch(sprite_world, render_context, vertex_buffer, start_index);
         }
 
-        dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * start_index, sprite_world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::SetVertexBufferData(gcontext, sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * start_index, sprite_world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
         PostMessages(sprite_world);
 

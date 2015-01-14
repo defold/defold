@@ -65,9 +65,10 @@ namespace dmGameSystem
                                       void* context,
                                       dmResource::SResourceDescriptor* resource)
     {
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         Mesh* mesh = (Mesh*)resource->m_Resource;
         dmGraphics::DeleteVertexDeclaration(mesh->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(mesh->m_VertexBuffer);
+        dmGraphics::DeleteVertexBuffer(graphics_context, mesh->m_VertexBuffer);
         delete mesh;
 
         return dmResource::RESULT_OK;
@@ -79,6 +80,7 @@ namespace dmGameSystem
             dmResource::SResourceDescriptor* resource,
             const char* filename)
     {
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
         dmMeshDDF::MeshDesc* mesh_desc;
         dmDDF::Result e = dmDDF::LoadMessage(buffer, buffer_size, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &mesh_desc);
         if ( e != dmDDF::RESULT_OK )
@@ -97,7 +99,7 @@ namespace dmGameSystem
 
         void* vertex_buffer = (float*) malloc(vertex_count * sizeof(MeshVertex));
         CopyVertexData(mesh_desc, (MeshVertex*) vertex_buffer);
-        dmGraphics::SetVertexBufferData(mesh->m_VertexBuffer, vertex_count * sizeof(MeshVertex), vertex_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::SetVertexBufferData(graphics_context, mesh->m_VertexBuffer, vertex_count * sizeof(MeshVertex), vertex_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         mesh->m_VertexCount = vertex_count;
         free((void*) vertex_buffer);
         dmDDF::FreeMessage(mesh_desc);

@@ -79,13 +79,14 @@ namespace dmRender
     {
         DebugRenderer& debug_renderer = context->m_DebugRenderer;
         HMaterial material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D].m_RenderObject.m_Material;
+        dmGraphics::HContext graphics_context = context->m_GraphicsContext;
 
         dmGraphics::HVertexProgram vp = GetMaterialVertexProgram(material);
         if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
-            dmGraphics::DeleteVertexProgram(vp);
+            dmGraphics::DeleteVertexProgram(graphics_context, vp);
         dmGraphics::HFragmentProgram fp = GetMaterialFragmentProgram(material);
         if (fp != dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE)
-            dmGraphics::DeleteFragmentProgram(fp);
+            dmGraphics::DeleteFragmentProgram(graphics_context, fp);
 
         DeleteMaterial(context, material);
         material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D].m_RenderObject.m_Material;
@@ -95,7 +96,7 @@ namespace dmRender
         {
             delete [] (char*)debug_renderer.m_TypeData[i].m_ClientBuffer;
         }
-        dmGraphics::DeleteVertexBuffer(debug_renderer.m_VertexBuffer);
+        dmGraphics::DeleteVertexBuffer(graphics_context, debug_renderer.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(debug_renderer.m_VertexDeclaration);
     }
 
@@ -226,8 +227,9 @@ namespace dmRender
     void FlushDebug(HRenderContext render_context)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
+        dmGraphics::HContext graphics_context = render_context->m_GraphicsContext;
         uint32_t total_vertex_count = 0;
-        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(graphics_context, debug_renderer.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
@@ -239,7 +241,7 @@ namespace dmRender
                 total_vertex_count += vertex_count;
             }
         }
-        dmGraphics::SetVertexBufferData(debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::SetVertexBufferData(graphics_context, debug_renderer.m_VertexBuffer, total_vertex_count * sizeof(DebugVertex), 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             DebugRenderTypeData& type_data = debug_renderer.m_TypeData[i];
@@ -247,7 +249,7 @@ namespace dmRender
             uint32_t vertex_count = ro.m_VertexCount;
             if (vertex_count > 0)
             {
-                dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
+                dmGraphics::SetVertexBufferSubData(graphics_context, debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
             }
         }
     }

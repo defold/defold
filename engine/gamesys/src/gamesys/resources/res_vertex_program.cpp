@@ -15,7 +15,7 @@ namespace dmGameSystem
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        resource->m_Resource = (void*) prog;
+        resource->m_Resource = (void*) (uintptr_t) prog;
         return dmResource::RESULT_OK;
     }
 
@@ -23,7 +23,8 @@ namespace dmGameSystem
                                                   void* context,
                                                   dmResource::SResourceDescriptor* resource)
     {
-        dmGraphics::DeleteVertexProgram((dmGraphics::HVertexProgram) resource->m_Resource);
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
+        dmGraphics::DeleteVertexProgram(graphics_context, (dmGraphics::HVertexProgram) (uintptr_t) resource->m_Resource);
         return dmResource::RESULT_OK;
     }
 
@@ -33,11 +34,12 @@ namespace dmGameSystem
                                                  dmResource::SResourceDescriptor* resource,
                                                  const char* filename)
     {
-        dmGraphics::HVertexProgram prog = (dmGraphics::HVertexProgram)resource->m_Resource;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)context;
+        dmGraphics::HVertexProgram prog = (dmGraphics::HVertexProgram) (uintptr_t)resource->m_Resource;
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmGraphics::ReloadVertexProgram(prog, buffer, buffer_size);
+        dmGraphics::ReloadVertexProgram(graphics_context, prog, buffer, buffer_size);
         return dmResource::RESULT_OK;
     }
 }

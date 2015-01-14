@@ -458,18 +458,18 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void DeleteVertexBuffer(HVertexBuffer buffer);
-    void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
-    bool UnmapVertexBuffer(HVertexBuffer buffer);
+    void DeleteVertexBuffer(HContext context, HVertexBuffer buffer);
+    void SetVertexBufferData(HContext context, HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+    void SetVertexBufferSubData(HContext context, HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
 
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void DeleteIndexBuffer(HIndexBuffer buffer);
-    void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
-    void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
-    bool UnmapIndexBuffer(HIndexBuffer buffer);
+    void DeleteIndexBuffer(HContext context, HIndexBuffer buffer);
+    void SetIndexBufferData(HContext context, HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+    void SetIndexBufferSubData(HContext context, HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
@@ -485,18 +485,18 @@ namespace dmGraphics
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void DeleteProgram(HContext context, HProgram program);
 
-    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
-    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
-    void DeleteVertexProgram(HVertexProgram prog);
-    void DeleteFragmentProgram(HFragmentProgram prog);
+    void ReloadVertexProgram(HContext context, HVertexProgram prog, const void* program, uint32_t program_size);
+    void ReloadFragmentProgram(HContext context, HFragmentProgram prog, const void* program, uint32_t program_size);
+    void DeleteVertexProgram(HContext context, HVertexProgram prog);
+    void DeleteFragmentProgram(HContext context, HFragmentProgram prog);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
     void ReloadProgram(HContext context, HProgram program);
 
-    uint32_t GetUniformCount(HProgram prog);
-    void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
-    int32_t GetUniformLocation(HProgram prog, const char* name);
+    uint32_t GetUniformCount(HContext context, HProgram prog);
+    void GetUniformName(HContext context, HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);
+    int32_t GetUniformLocation(HContext context, HProgram prog, const char* name);
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);

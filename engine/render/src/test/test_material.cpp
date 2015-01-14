@@ -26,8 +26,8 @@ TEST(dmMaterialTest, TestTags)
     mask = dmRender::ConvertMaterialTagsToMask(tags, 2);
     ASSERT_EQ(mask, dmRender::GetMaterialTagMask(material));
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
+    dmGraphics::DeleteVertexProgram(context, vp);
+    dmGraphics::DeleteFragmentProgram(context, fp);
 
     dmRender::DeleteMaterial(render_context, material);
 

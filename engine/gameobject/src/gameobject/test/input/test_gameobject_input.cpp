@@ -36,7 +36,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "it", this, ResInputTargetCreate, ResInputTargetDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        uint32_t resource_type;
+        dmResource::ResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "it", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType it_type;
