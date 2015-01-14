@@ -84,7 +84,7 @@
     node
     (factory project-node path)))
 
-(n/defnode4 CannedProperties
+(n/defnode CannedProperties
   (property rotation     s/Str    (default "twenty degrees starboard"))
   (property translation  s/Str    (default "Guten abend."))
   (property some-vector  t/Vec3   (default [1 2 3]))
@@ -134,7 +134,7 @@
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
 ; ---------------------------------------------------------------------------
-(n/defnode4 Project
+(n/defnode Project
   (inherits n/Scope)
 
   (property triggers           n/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))

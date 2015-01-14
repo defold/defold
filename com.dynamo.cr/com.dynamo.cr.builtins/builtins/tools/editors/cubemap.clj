@@ -43,7 +43,7 @@
             [org.eclipse.core.commands ExecutionEvent]
             [dynamo.types AABB Camera]))
 
-(n/defnode4 CubemapImageInputs
+(n/defnode CubemapImageInputs
   (input image-right  Image)
   (input image-left   Image)
   (input image-top    Image)
@@ -51,7 +51,7 @@
   (input image-front  Image)
   (input image-back   Image))
 
-(n/defnode4 CubemapImageProperties
+(n/defnode CubemapImageProperties
   (property right  s/Str)
   (property left   s/Str)
   (property top    s/Str)
@@ -66,7 +66,7 @@
 (defnk produce-image-front  [image-front]  image-front)
 (defnk produce-image-back   [image-back]   image-back)
 
-(n/defnode4 CubemapImageOutputs
+(n/defnode CubemapImageOutputs
   (output image-right  Image produce-image-right)
   (output image-left   Image produce-image-left)
   (output image-top    Image produce-image-top)
@@ -148,7 +148,7 @@
     (g/aabb-incorporate  1  1  1)
     (g/aabb-incorporate -1 -1 -1)))
 
-(n/defnode4 CubemapRender
+(n/defnode CubemapRender
   (inherits CubemapImageInputs)
   (input  camera        Camera)
   (output shader        s/Any      :cached produce-shader)
@@ -157,7 +157,7 @@
   (output renderable    RenderData :cached produce-renderable)
   (output aabb          AABB               unit-bounding-box))
 
-(n/defnode4 CubemapNode
+(n/defnode CubemapNode
   (inherits CubemapImageProperties)
   (inherits CubemapImageInputs)
   (inherits CubemapImageOutputs))

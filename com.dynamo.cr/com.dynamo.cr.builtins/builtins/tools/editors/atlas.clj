@@ -68,7 +68,7 @@
       `(when-let [value# (get ~props ~k)]
          (. ~inst ~setter (~xform value#))))))
 
-(n/defnode4 ImageNode
+(n/defnode ImageNode
   (inherits OutlineNode)
   (inherits ImageSource))
 
@@ -76,7 +76,7 @@
   [this images :- [Image] id fps flip-horizontal flip-vertical playback]
   (->Animation id images fps flip-horizontal flip-vertical playback))
 
-(n/defnode4 AnimationGroupNode
+(n/defnode AnimationGroupNode
   (inherits OutlineNode)
   (inherits AnimationBehavior)
 
@@ -98,7 +98,7 @@
   (let [textureset (n/get-node-value this :textureset)]
     (g/rect->aabb (:aabb textureset))))
 
-(n/defnode4 AtlasProperties
+(n/defnode AtlasProperties
   (inherits n/DirtyTracking)
 
   (input assets [OutlineItem])
@@ -143,7 +143,7 @@
     (file/write-file path (.getBytes text))
     :ok))
 
-(n/defnode4 AtlasSave
+(n/defnode AtlasSave
   (inherits n/Saveable)
 
   (property path (s/protocol file/PathManipulation) (visible false))
@@ -262,7 +262,7 @@
   [textureset]
   textureset)
 
-(n/defnode4 AtlasRender
+(n/defnode AtlasRender
   (input  textureset s/Any)
 
   (output textureset s/Any            :cached passthrough-textureset)
@@ -272,7 +272,7 @@
   (output gpu-texture s/Any           :cached produce-gpu-texture)
   (output renderable RenderData       produce-renderable))
 
-(n/defnode4 AtlasNode
+(n/defnode AtlasNode
   (inherits OutlineNode)
   (inherits AtlasProperties)
   (inherits AtlasSave))
@@ -470,7 +470,7 @@
     (.toByteArray (texturec-protocol-buffer (->engine-format (:packed-image textureset)))))
   :ok)
 
-(n/defnode4 TextureSave
+(n/defnode TextureSave
   (input textureset TextureSet)
 
   (property texture-filename    s/Str (default ""))

@@ -10,7 +10,7 @@
             [internal.graph.lgraph :as lg]
             [internal.node :as in]))
 
-(n/defnode4 Receiver
+(n/defnode Receiver
   (input surname String :inject)
   (input samples [s/Num] :inject)
   (input label s/Any :inject))
@@ -19,21 +19,21 @@
   []
   "nachname")
 
-(n/defnode4 Sender1
+(n/defnode Sender1
   (output surname String produce-string))
 
 (defnk produce-sample :- Integer
   []
   42)
 
-(n/defnode4 Sampler
+(n/defnode Sampler
   (output sample Integer produce-sample))
 
 (defnk produce-label :- s/Keyword
   []
   :a-keyword)
 
-(n/defnode4 Labeler
+(n/defnode Labeler
   (output label s/Keyword produce-label))
 
 (deftest compatible-inputs-and-outputs
@@ -52,18 +52,18 @@
   [local-names :- [CommonValueType]]
   (str/join (map :identifier local-names)))
 
-(n/defnode4 ValueConsumer
+(n/defnode ValueConsumer
   (input local-names [CommonValueType] :inject)
   (output concatenation CommonValueType concat-all))
 
 (defnk passthrough [local-name] local-name)
 
-(n/defnode4 InjectionScope
+(n/defnode InjectionScope
   (inherits n/Scope)
   (input local-name CommonValueType :inject)
   (output passthrough CommonValueType passthrough))
 
-(n/defnode4 ValueProducer
+(n/defnode ValueProducer
   (property value CommonValueType)
   (output local-name CommonValueType (fn [this _] (:value this))))
 
@@ -122,7 +122,7 @@
                            c)))]
         (is (= "a known value" (-> consumer (n/get-node-value :concatenation))))))))
 
-(n/defnode4 ReflexiveFeedback
+(n/defnode ReflexiveFeedback
   (property port s/Keyword (default :no))
   (input ports [s/Keyword] :inject))
 

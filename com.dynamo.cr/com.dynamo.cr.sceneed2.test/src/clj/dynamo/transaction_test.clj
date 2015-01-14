@@ -20,12 +20,12 @@
 
 (defnk upcase-a [a] (.toUpperCase a))
 
-(n/defnode4 Resource
+(n/defnode Resource
   (input a String)
   (output b s/Keyword dummy-output)
   (output c String upcase-a))
 
-(n/defnode4 Downstream
+(n/defnode Downstream
   (input consumer String))
 
 (def gen-node (gen/fmap (fn [n] (n/construct Resource :_id n :original-id n)) (gen/such-that #(< % 0) gen/neg-int)))
@@ -85,18 +85,18 @@
        :was-removed?  (ds/is-removed? transaction self)
        :call-count    (inc (get m :call-count 0))})))
 
-(n/defnode4 StringSource
+(n/defnode StringSource
   (property label s/Str (default "a-string")))
 
 (defnk passthrough-label
   [label]
   label)
 
-(n/defnode4 Relay
+(n/defnode Relay
   (input label s/Str)
   (output label s/Str passthrough-label))
 
-(n/defnode4 TriggerExecutionCounter
+(n/defnode TriggerExecutionCounter
   (input downstream s/Any)
   (property any-property s/Bool)
   (property triggers n/Triggers (default [#'track-trigger-activity])))
@@ -105,7 +105,7 @@
   (when (and (ds/is-modified? transaction self) (> 5 (:automatic-property self)))
     (ds/update-property self :automatic-property inc)))
 
-(n/defnode4 MutatesByTrigger
+(n/defnode MutatesByTrigger
   (property automatic-property s/Int (default 0))
   (property triggers n/Triggers (default [#'alter-output])))
 
@@ -188,14 +188,14 @@
             (is (not (:was-added? after-trigger)))
             (is (:was-modified? after-trigger))))))))
 
-(n/defnode4 NamedThing
+(n/defnode NamedThing
   (property name s/Str))
 
 (defnk friendly-name [first-name] first-name)
 (defnk full-name [first-name surname] (str first-name " " surname))
 (defnk age [date-of-birth] date-of-birth)
 
-(n/defnode4 Person
+(n/defnode Person
   (property date-of-birth java.util.Date)
 
   (input first-name String)
@@ -207,14 +207,14 @@
 
 (defnk passthrough [generic-input] generic-input)
 
-(n/defnode4 Receiver
+(n/defnode Receiver
   (input generic-input s/Any)
   (property touched s/Bool (default false))
   (output passthrough s/Any passthrough))
 
 (defnk aggregator [aggregator] aggregator)
 
-(n/defnode4 FocalNode
+(n/defnode FocalNode
   (input aggregator [s/Any])
   (output aggregated [s/Any] aggregator))
 
@@ -258,7 +258,7 @@
                                                    formal-greeter    #{:passthrough}
                                                    multi-node-target #{:aggregated}}))))
 
-(n/defnode4 EventReceiver
+(n/defnode EventReceiver
   (on :custom-event
     (deliver (:latch self) true)))
 
@@ -272,7 +272,7 @@
 
 (defnk say-hello [first-name] (str "Hello, " first-name))
 
-(n/defnode4 AutoUpdateOutput
+(n/defnode AutoUpdateOutput
   (input first-name String)
 
   (output ordinary String (fn [this g] "a-string"))
@@ -287,7 +287,7 @@
         (is (= 1 (count (:expired-outputs tx-result))))
         (is (= [real-updater :updating] (first (:expired-outputs tx-result))))))))
 
-(n/defnode4 DisposableNode
+(n/defnode DisposableNode
   t/IDisposable
   (dispose [this] true))
 

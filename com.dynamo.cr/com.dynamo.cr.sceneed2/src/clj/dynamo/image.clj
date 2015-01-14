@@ -67,7 +67,7 @@
     (load-image src (:image this))))
 
 ;; Behavior
-(n/defnode4 ImageSource
+(n/defnode ImageSource
   ;; NOTE: Order is important here. `property` defines an
   ;; output that is overridden by the later `output` clause.
   (property image dp/Resource)

@@ -23,7 +23,7 @@
           img (flood (blank-image w h) r g b)]
       (TextureSet. rct img [rct] [rct] []))))
 
-(n/defnode4 AnimationBehavior
+(n/defnode AnimationBehavior
   (input images [Image])
 
   (property fps             dp/NonNegativeInt (default 30))

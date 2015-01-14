@@ -4,7 +4,7 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk fnk]]
             [dynamo.types :as t]
-            [dynamo.node :as n :refer [defnode4 construct]]
+            [dynamo.node :as n :refer [defnode construct]]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.project :as p]
             [dynamo.system :as ds]
@@ -27,7 +27,7 @@
 
 (defn string-value [] "uff-da")
 
-(defnode4 WithDefaults
+(defnode WithDefaults
   (property default-value                 StringWithDefault)
   (property overridden-literal-value      StringWithDefault (default "ya rly."))
 ;; SAMDISCUSS  (property overridden-function-value     StringWithDefault (default (constantly "vell den.")))
@@ -44,10 +44,10 @@
     "uff-da"      :overridden-indirect-by-var
     'string-value :overridden-indirect-by-symbol))
 
-(defnode4 SimpleTestNode
+(defnode SimpleTestNode
   (property foo s/Str (default "FOO!")))
 
-(defnode4 NodeWithEvents
+(defnode NodeWithEvents
   (on :mousedown
     (ds/set-property self :message-processed true)
     :ok))
@@ -64,7 +64,7 @@
 (definterface IInterface
   (allGood []))
 
-(defnode4 MyNode
+(defnode MyNode
   AProtocol
   (complainer [this] :owie)
   IInterface
@@ -82,7 +82,7 @@
 (defnk depends-on-several [this project g an-input a-property] [this project g an-input a-property])
 (defn  depends-on-default-params [this g] [this g])
 
-(defnode4 DependencyTestNode
+(defnode DependencyTestNode
   (input an-input String)
   (input unused-input String)
 
@@ -106,7 +106,7 @@
       (is (not (contains? deps :g)))
       (is (not (contains? deps :unused-input))))))
 
-(defnode4 EmptyNode)
+(defnode EmptyNode)
 
 (deftest node-intrinsics
   (with-clean-world
@@ -138,7 +138,7 @@
 (defn ^:dynamic production-fn [this g] :defn)
 (def ^:dynamic production-val :def)
 
-(defnode4 ProductionFunctionTypesNode
+(defnode ProductionFunctionTypesNode
   (output inline-fn      s/Keyword (fn [this g] :fn))
   (output defn-as-symbol s/Keyword production-fn)
   (output def-as-symbol  s/Keyword production-val))
@@ -160,7 +160,7 @@
 (defnk production-fnk-in [in] in)
 (defnk production-fnk-in-multi [in-multi] in-multi)
 
-(defnode4 ProductionFunctionInputsNode
+(defnode ProductionFunctionInputsNode
   (input in       s/Keyword)
   (input in-multi [s/Keyword])
   (property prop s/Keyword)
@@ -231,7 +231,7 @@
 (defnk out-from-in [in] in)
 (defnk out-from-in-multi [in-multi] in-multi)
 
-(defnode4 DependencyNode
+(defnode DependencyNode
   (input in s/Any)
   (input in-multi [s/Any])
   (output out-from-self     s/Any out-from-self)
@@ -295,7 +295,7 @@
   (tally this :invocation-count)
   (throw (ex-info "Exception from production function" {})))
 
-(defnode4 SubstituteValueNode
+(defnode SubstituteValueNode
   (output out-defn                     s/Any throw-exception-defn)
   (output out-defnk                    s/Any throw-exception-defnk)
   (output out-defn-with-substitute-fn  s/Any :substitute-value (constantly :substitute) throw-exception-defn)
@@ -339,7 +339,7 @@
           (is (thrown? Throwable (in/get-node-value n :out-defnk-with-invocation-count)))
           (is (= 1 (get-tally n :invocation-count))))))))
 
-(defnode4 ValueHolderNode
+(defnode ValueHolderNode
   (property value s/Int))
 
 (def ^:dynamic *answer-call-count* (atom 0))
@@ -349,7 +349,7 @@
   (assert (= 42 in))
   in)
 
-(defnode4 AnswerNode
+(defnode AnswerNode
   (input in s/Int)
   (output out                        s/Int                                      the-answer)
   (output out-cached                 s/Int :cached                              the-answer)
@@ -397,7 +397,7 @@
 (defnk always-fail []
   (assert false "I always fail :-("))
 
-(defnode4 FailureNode
+(defnode FailureNode
   (output out s/Any always-fail))
 
 (deftest production-fn-input-failure
@@ -438,30 +438,8 @@
         (is (= 42 (in/get-node-value answer-node :out-cached-with-substitute)))
         (is (= 1 @*answer-call-count*))))))
 
-(deftest test-parse-output-flags
-  (testing "degenerate cases"
-    (is (= {:properties #{} :options {} :remainder nil} (in/parse-output-flags nil)))
-    (is (= {:properties #{} :options {} :remainder []}  (in/parse-output-flags []))))
-  (testing "preserves production function tail"
-    (is (= '[production-fn] (:remainder (in/parse-output-flags '[production-fn]))))
-    (is (= '[[a b] c (d e)] (:remainder (in/parse-output-flags '[[a b] c (d e)])))))
-  (testing "boolean flags"
-    (is (= #{:cached}            (:properties (in/parse-output-flags '[:cached production-fn]))))
-    (is (= #{:cached :on-update} (:properties (in/parse-output-flags '[:cached :on-update :cached production-fn]))))
-    (is (= #{}                   (:properties (in/parse-output-flags '[:unrecognized :cached production-fn])))))
-  (testing "options with parameters"
-    (is (= {:substitute-value 'subst-fn} (:options (in/parse-output-flags '[:substitute-value subst-fn production-fn]))))
-    (is (thrown? java.lang.AssertionError (in/parse-output-flags '[:substitute-value])))
-    (is (thrown? java.lang.AssertionError (in/parse-output-flags '[:cached :substitute-value]))))
-  (testing "interactions among flags, options, and tail"
-    (is (= {:properties #{:cached} :options {:substitute-value 'subst-fn} :remainder '[production-fn]}
-          (in/parse-output-flags '[:cached :substitute-value subst-fn production-fn])))
-    (is (= {:properties #{:cached} :options {:substitute-value 'subst-fn} :remainder '[production-fn]}
-          (in/parse-output-flags '[:substitute-value subst-fn :cached production-fn])))
-    (is (= {:properties #{} :options {:substitute-value :cached} :remainder '[production-fn]}
-          (in/parse-output-flags '[:substitute-value :cached production-fn])))))
 
-(defnode4 BasicNode
+(defnode BasicNode
   (input basic-input s/Int)
   (property string-property s/Str)
   (property property-to-override s/Str)
@@ -471,10 +449,10 @@
 (defproperty predefined-property-type s/Str
   (default "a-default"))
 
-(defnode4 MultipleInheritance
+(defnode MultipleInheritance
   (property property-from-multiple s/Str (default "multiple")))
 
-(defnode4 InheritsBasicNode
+(defnode InheritsBasicNode
   (inherits BasicNode)
   (inherits MultipleInheritance)
   (input another-input [s/Int])

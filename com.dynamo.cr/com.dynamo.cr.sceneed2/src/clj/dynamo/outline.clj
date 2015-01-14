@@ -19,6 +19,6 @@
   {:label "my name" :icon "my type of icon" :node-ref this :children children})
 
 ;; Behavior
-(n/defnode4 OutlineNode
+(n/defnode OutlineNode
   (input  children [OutlineItem])
   (output tree     [OutlineItem] outline-tree-producer))

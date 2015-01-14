@@ -100,7 +100,7 @@
   [aabb]
   aabb)
 
-(n/defnode4 Renderer
+(n/defnode Renderer
   (input view-camera Camera)
   (input renderables [t/RenderData])
   (input controller  't/Node)
@@ -176,7 +176,7 @@
   [saveable]
   saveable)
 
-(n/defnode4 SceneEditor
+(n/defnode SceneEditor
   (inherits Scope)
   (inherits Renderer)
 

@@ -287,7 +287,7 @@
   [node-type]
   (map-vals t/default-property-value (t/properties' node-type)))
 
-(defmacro defnode4
+(defmacro defnode
     "Given a name and a specification of behaviors, creates a node,
 and attendant functions.
 
@@ -369,16 +369,15 @@ implement dynamo.types/MessageTarget."
 ; Old defnode
 ; ---------------------------------------------------------------------------
 
-(defmacro defnode
-
-  [name & specs]
-  (let [descriptor (in/compile-specification name (concat node-intrinsics specs))]
-    `(do
-       ~(in/generate-descriptor   name descriptor)
-       ~(in/generate-defrecord    name descriptor)
-       ~(in/generate-constructor  name descriptor)
-       ~(in/generate-print-method name)
-       (in/validate-descriptor ~(str name) ~name))))
+#_(defmacro defnode-old
+   [name & specs]
+   (let [descriptor (in/compile-specification name (concat node-intrinsics specs))]
+     `(do
+        ~(in/generate-descriptor   name descriptor)
+        ~(in/generate-defrecord    name descriptor)
+        ~(in/generate-constructor  name descriptor)
+        ~(in/generate-print-method name)
+        (in/validate-descriptor ~(str name) ~name))))
 
 (defn abort
   "Abort production function and use substitute value."
@@ -433,7 +432,7 @@ This function should mainly be used to create 'plumbing'."
 
 (defproperty Triggers Callbacks (visible false))
 
-(defnode4 Scope
+(defnode Scope
   (input nodes [s/Any])
 
   (property tag      s/Keyword)
@@ -445,7 +444,7 @@ This function should mainly be used to create 'plumbing'."
   NamingContext
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
 
-(defnode4 RootScope
+(defnode RootScope
   (inherits Scope)
   (property tag s/Keyword (default :root)))
 
@@ -458,13 +457,13 @@ This function should mainly be used to create 'plumbing'."
   (when (and (ds/is-modified? transaction self) (not (ds/is-added? transaction self)))
     (ds/set-property self :dirty true)))
 
-(defnode4 DirtyTracking
+(defnode DirtyTracking
   (property triggers Triggers (default [#'mark-dirty]))
   (property dirty s/Bool
     (default false)
     (visible false)))
 
-(defnode4 Saveable
+(defnode Saveable
   (output save s/Keyword :abstract))
 
 

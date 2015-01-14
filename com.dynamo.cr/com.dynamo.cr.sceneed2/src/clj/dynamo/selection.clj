@@ -35,7 +35,7 @@
                (.setSelection ^ISelectionProvider self after)))
             (log/warn "Timed out waiting for transaction to finish.")))))))
 
-(n/defnode4 Selection
+(n/defnode Selection
   (input selected-nodes ['t/Node])
 
   (property selection-listeners EventBroadcaster (default #(ui/make-event-broadcaster)))

@@ -35,7 +35,7 @@
   (tally this 'produce-simple-value)
   scalar)
 
-(n/defnode4 UncachedOutput
+(n/defnode UncachedOutput
   (property scalar s/Str)
   (output uncached-value String produce-simple-value))
 
@@ -44,20 +44,20 @@
   (tally node 'compute-expensive-value)
   "this took a long time to produce")
 
-(n/defnode4 CachedOutputNoInputs
+(n/defnode CachedOutputNoInputs
   (output expensive-value String :cached
     (fn [node g]
       (tally node 'compute-expensive-value)
       "this took a long time to produce"))
   (input operand String))
 
-(n/defnode4 UpdatesExpensiveValue
+(n/defnode UpdatesExpensiveValue
   (output expensive-value String :cached :on-update
     (fn [node g]
       (tally node 'compute-expensive-value)
       "this took a long time to produce")))
 
-(n/defnode4 SecondaryCachedValue
+(n/defnode SecondaryCachedValue
   (output another-value String :cached
     (fn [node g]
       "this is distinct from the other outputs")))
@@ -72,14 +72,14 @@
   (tally this 'passthrough-first-name)
   first-name)
 
-(n/defnode4 CachedOutputFromInputs
+(n/defnode CachedOutputFromInputs
   (input first-name String)
   (input last-name  String)
 
   (output nickname String :cached passthrough-first-name)
   (output derived-value String :cached compute-derived-value))
 
-(n/defnode4 CacheTestNode
+(n/defnode CacheTestNode
   (inherits UncachedOutput)
   (inherits CachedOutputNoInputs)
   (inherits CachedOutputFromInputs)
@@ -160,7 +160,7 @@
       (tally this 'dispose)
       (>!! (:channel (dg/node g this)) :gone))))
 
-(n/defnode4 DisposableValueNode
+(n/defnode DisposableValueNode
   (output disposable-value 't/IDisposable :cached compute-disposable-value))
 
 (defnk produce-input-from-node
@@ -171,7 +171,7 @@
   [an-input]
   an-input)
 
-(n/defnode4 OverrideValueNode
+(n/defnode OverrideValueNode
   (input overridden s/Str)
   (output output s/Str produce-input-from-node)
   (output foo    s/Str derive-value-from-inputs))
@@ -204,7 +204,7 @@
   [project]
   (:name project))
 
-(n/defnode4 ProjectAwareNode
+(n/defnode ProjectAwareNode
   (inherits Scope)
   (output testable-output s/Str produce-output-with-project))
 
@@ -231,7 +231,7 @@
                               (ds/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
-(n/defnode4 ScopeReceiver
+(n/defnode ScopeReceiver
   (on :project-scope
     (ds/set-property self :message-received event)))
 

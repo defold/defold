@@ -19,8 +19,8 @@
             [internal.node :as in])
   (:import [dynamo.types Image AABB]))
 
-(n/defnode4 N1)
-(n/defnode4 N2)
+(n/defnode N1)
+(n/defnode N2)
 
 (deftest input-compatibility
   (let [n1 (n/construct N1)
@@ -36,12 +36,12 @@
       n1 :names [String] n2 :names  [String]  [n1 :names n2 :names]  "ok"
       n1 :name  String   n2 :name   [String]  nil                    "singular name, plural type")))
 
-(n/defnode4 ParticleEditor
+(n/defnode ParticleEditor
   (inherits n/Scope))
 
-(n/defnode4 Emitter
+(n/defnode Emitter
   (property name s/Str))
-(n/defnode4 Modifier
+(n/defnode Modifier
   (property name s/Str))
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
@@ -61,7 +61,7 @@
                  "emitter"
                  "vortex")))))
 
-(n/defnode4 DisposableNode
+(n/defnode DisposableNode
   t/IDisposable
   (dispose [this] (deliver (:latch this) true)))
 

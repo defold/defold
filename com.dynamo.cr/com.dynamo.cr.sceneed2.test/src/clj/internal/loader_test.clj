@@ -8,7 +8,7 @@
             [internal.query :as iq]
             [schema.core :as s]))
 
-(n/defnode4 DummyNode
+(n/defnode DummyNode
   (property project (s/protocol t/NamingContext)))
 
 (defn- dummy

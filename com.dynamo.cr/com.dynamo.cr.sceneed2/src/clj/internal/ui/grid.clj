@@ -157,7 +157,7 @@
      :sizes  [grid-size-small                         grid-size-large]
      :aabbs  [(snap-out-to-grid aabb grid-size-small) (snap-out-to-grid aabb grid-size-large)]}))
 
-(n/defnode4 Grid
+(n/defnode Grid
   (input camera Camera)
   (property grid-color t/Color)
   (property auto-grid  s/Bool)

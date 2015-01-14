@@ -46,7 +46,7 @@
             [org.eclipse.core.commands ExecutionEvent]
             [com.sun.jna Pointer Native Callback]))
 
-(defnode4 TransformNode
+(defnode TransformNode
   (property position {:schema Point3d})
   (property rotation {:schema Quat4d})
   (property scale    {:schema Vector3d}))
@@ -56,30 +56,30 @@
   ;; For now, return first value
   {(:key this) (:y (first points))})
 
-(defnode4 PropertyNode
+(defnode PropertyNode
   (property key s/Any)
   (property points [{:x s/Num :y s/Num :t-x s/Num :t-y s/Num}])
   (input t s/Num)
   (output value s/Any :cached produce-property-value))
 
-(defnode4 SpreadPropertyNode
+(defnode SpreadPropertyNode
   (inherits PropertyNode)
   (property spread s/Num))
 
-(defnode4 EmitterPropertyNode
+(defnode EmitterPropertyNode
   (inherits SpreadPropertyNode))
 
-(defnode4 ParticlePropertyNode
+(defnode ParticlePropertyNode
   (inherits PropertyNode))
 
-(defnode4 ModifierPropertyNode
+(defnode ModifierPropertyNode
   (inherits SpreadPropertyNode))
 
 (defnk produce-properties
   [this property-sources]
   (merge (select-keys this (-> this :descriptor :properties keys)) (apply merge-with concat property-sources)))
 
-(defnode4 PropertiesNode
+(defnode PropertiesNode
   (input property-sources [s/Any])
   (output properties s/Any produce-properties))
 
@@ -139,7 +139,7 @@
 (defn render-particles []
   (println "I'm rendering particles!"))
 
-(defnode4 ParticlefxRender
+(defnode ParticlefxRender
   (property context     Pointer)
   (input    renderables [RenderData])
   (output   renderable  RenderData :cached produce-renderable))
@@ -149,18 +149,18 @@
   #_(.toByteArray (particlefx-protocol-buffer (:texture-name this) textureset))
   )
 
-(defnode4 ParticlefxSave
+(defnode ParticlefxSave
   (input particlefx-properties s/Any)
   #_(output compiled-particlefx s/Any :on-update compile-particlefx))
 
-(defnode4 ParticlefxProperties
+(defnode ParticlefxProperties
   (inherits PropertiesNode))
 
 (defnk passthrough-renderables
   [renderables]
   renderables)
 
-(defnode4 ParticlefxNode
+(defnode ParticlefxNode
   (inherits OutlineNode)
   (inherits ParticlefxProperties)
   (input    renderables s/Any)
@@ -170,7 +170,7 @@
   #_(invoke [this user-context material texture world-transform blend-mode vertex-index vertex-count constants constant-count]
           (render-particles)))
 
-(defnode4 EmitterProperties
+(defnode EmitterProperties
   (inherits PropertiesNode)
   (property id s/Str)
   (property mode s/Any)
@@ -195,17 +195,17 @@
     (apply merge-with concat renderable renderables)
     ))
 
-(defnode4 EmitterRender
+(defnode EmitterRender
   (input renderables    [RenderData])
   (output renderable    RenderData :cached produce-emitter-renderable))
 
-(defnode4 EmitterNode
+(defnode EmitterNode
   (inherits TransformNode)
   (inherits OutlineNode)
   (inherits EmitterProperties)
   (inherits EmitterRender))
 
-(defnode4 ModifierProperties
+(defnode ModifierProperties
   (inherits PropertiesNode)
   (property type s/Any)
   (property use-direction int))
@@ -217,10 +217,10 @@
      [{:world-transform world
        :render-fn       (fn [ctx gl glu text-renderer] (render-modifier-outlines ctx gl this))}]}))
 
-(defnode4 ModifierRender
+(defnode ModifierRender
     (output renderable    RenderData :cached produce-modifier-renderable))
 
-(defnode4 ModifierNode
+(defnode ModifierNode
   (inherits TransformNode)
   (inherits OutlineNode)
   (inherits ModifierProperties)

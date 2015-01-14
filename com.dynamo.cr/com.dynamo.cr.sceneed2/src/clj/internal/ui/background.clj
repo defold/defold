@@ -30,5 +30,5 @@
   [this]
   {p/background [{:world-transform g/Identity4d :render-fn #'render-background}]})
 
-(n/defnode4 Background
+(n/defnode Background
   (output renderable t/RenderData background-renderable))

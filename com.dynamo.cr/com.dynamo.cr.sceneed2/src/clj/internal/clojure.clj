@@ -42,7 +42,7 @@
   (when (ds/is-added? transaction self)
     (compile-source-node graph self)))
 
-(n/defnode4 ClojureSourceNode
+(n/defnode ClojureSourceNode
   (property resource IFile)
   (property namespace UnloadableNamespace)
 

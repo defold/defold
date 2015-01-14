@@ -27,18 +27,18 @@
           node-type        (n/make-node-type {:supertypes [parent-type]})]
       (is (= {:parent-input s/Str :grandparent-input s/Str} (t/inputs' node-type))))))
 
-(n/defnode4 BasicNode)
+(n/defnode BasicNode)
 
 (deftest basic-node-definition
   (is (satisfies? t/NodeType BasicNode)))
 
-(n/defnode4 IRootNode)
-(n/defnode4 ChildNode
+(n/defnode IRootNode)
+(n/defnode ChildNode
   (inherits IRootNode))
-(n/defnode4 GChild
+(n/defnode GChild
   (inherits ChildNode))
-(n/defnode4 MixinNode)
-(n/defnode4 GGChild
+(n/defnode MixinNode)
+(n/defnode GGChild
   (inherits ChildNode)
   (inherits MixinNode))
 
@@ -47,13 +47,13 @@
  (is (= [ChildNode] (t/supertypes GChild)))
  (is (= [ChildNode MixinNode] (t/supertypes GGChild))))
 
-(n/defnode4 OneInputNode
+(n/defnode OneInputNode
   (input an-input s/Str))
 
-(n/defnode4 InheritedInputNode
+(n/defnode InheritedInputNode
   (inherits OneInputNode))
 
-(n/defnode4 InjectableInputNode
+(n/defnode InjectableInputNode
   (input for-injection s/Int :inject))
 
 (deftest nodes-can-have-inputs
@@ -75,14 +75,14 @@
 (definterface MarkerInterface)
 (definterface SecondaryInterface)
 
-(n/defnode4 SingleInterfaceNode
+(n/defnode SingleInterfaceNode
   MarkerInterface)
 
-(n/defnode4 TwoInterfaceNode
+(n/defnode TwoInterfaceNode
   MarkerInterface
   SecondaryInterface)
 
-(n/defnode4 InheritedInterfaceNode
+(n/defnode InheritedInterfaceNode
  (inherits SingleInterfaceNode))
 
 (definterface OneMethodInterface
@@ -90,13 +90,13 @@
 
 (defn- private-function [x] [x :ok])
 
-(n/defnode4 OneMethodNode
+(n/defnode OneMethodNode
   (input an-input s/Str)
 
   OneMethodInterface
   (oneMethod [this x] (private-function x)))
 
-(n/defnode4 InheritedMethodNode
+(n/defnode InheritedMethodNode
   (inherits OneMethodNode))
 
 (deftest nodes-can-implement-interfaces
@@ -124,14 +124,14 @@
 (defprotocol LocalProtocol
   (protocol-method [this x y]))
 
-(n/defnode4 LocalProtocolNode
+(n/defnode LocalProtocolNode
   LocalProtocol
   (protocol-method [this x y] [:ok x y]))
 
-(n/defnode4 InheritedLocalProtocol
+(n/defnode InheritedLocalProtocol
   (inherits LocalProtocolNode))
 
-(n/defnode4 InheritedProtocolOverride
+(n/defnode InheritedProtocolOverride
   (inherits LocalProtocolNode)
   (protocol-method [this x y] [:override-ok x y]))
 
@@ -147,14 +147,14 @@
       (is (satisfies? LocalProtocol node))
       (is (= [:override-ok 5 10] (protocol-method node 5 10))))))
 
-(n/defnode4 SinglePropertyNode
+(n/defnode SinglePropertyNode
   (property a-property s/Str))
 
-(n/defnode4 TwoPropertyNode
+(n/defnode TwoPropertyNode
  (property a-property s/Str (default "default value"))
  (property another-property s/Int))
 
-(n/defnode4 InheritedPropertyNode
+(n/defnode InheritedPropertyNode
   (inherits TwoPropertyNode)
   (property another-property s/Int (default -1)))
 
@@ -198,7 +198,7 @@
 
 (dp/defproperty IntegerProperty s/Int (validation (fn [x] (not (neg? x)))))
 
-(n/defnode4 MultipleOutputNode
+(n/defnode MultipleOutputNode
   (input integer-input s/Int)
   (input string-input s/Str)
 
@@ -209,10 +209,10 @@
   (output schemaless-production s/Str                                                 schemaless-production-fn)
   (output with-substitute       s/Str           :substitute-value substitute-value-fn string-production-fnk))
 
-(n/defnode4 AbstractOutputNode
+(n/defnode AbstractOutputNode
   (output abstract-output s/Str :abstract))
 
-(n/defnode4 InheritedOutputNode
+(n/defnode InheritedOutputNode
   (inherits MultipleOutputNode)
   (inherits AbstractOutputNode)
 
@@ -250,17 +250,17 @@
               :integer-input #{:string-output :abstract-output :cached-output :with-substitute}}
             (t/output-dependencies node))))))
 
-(n/defnode4 OneEventNode
+(n/defnode OneEventNode
   (on :an-event
     :ok))
 
-(n/defnode4 EventlessNode)
+(n/defnode EventlessNode)
 
-(n/defnode4 MixinEventNode
+(n/defnode MixinEventNode
   (on :mixin-event
     :mixin-ok))
 
-(n/defnode4 InheritedEventNode
+(n/defnode InheritedEventNode
   (inherits OneEventNode)
   (inherits MixinEventNode)
 
@@ -292,7 +292,7 @@
 (dp/defproperty ValidatedProperty DefaultProperty
   (validation not-neg?))
 
-(n/defnode4 NodeWithPropertyVariations
+(n/defnode NodeWithPropertyVariations
   (property typed-external TypedProperty)
   (property derived-external DerivedProperty)
   (property default-external DefaultProperty)
@@ -305,5 +305,5 @@
   (property validated-internal DefaultProperty
     (validation (fn [value] true))))
 
-(n/defnode4 InheritsPropertyVariations
+(n/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))

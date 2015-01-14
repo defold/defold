@@ -8,7 +8,7 @@
             [clojure.java.io :as io])
   (:import [java.io StringReader]))
 
-(n/defnode4 DummyNode)
+(n/defnode DummyNode)
 
 (defrecord ExtensionHolder [ext]
   f/PathManipulation

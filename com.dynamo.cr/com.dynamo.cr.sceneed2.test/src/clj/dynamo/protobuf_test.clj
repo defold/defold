@@ -20,7 +20,7 @@
 (sm/defn produce-tree      [this] nil)
 (sm/defn produce-image     [this] nil)
 
-(n/defnode4 AtlasNode
+(n/defnode AtlasNode
   (inherits OutlineNode)
 
   (input images     [Image])
@@ -29,13 +29,13 @@
   (property extrude-borders s/Int)
   (property margin          s/Int))
 
-(n/defnode4 AtlasAnimationNode
+(n/defnode AtlasAnimationNode
   (inherits OutlineNode)
 
   (output tree      [OutlineItem] produce-tree)
   (output animation Animation     produce-animation))
 
-(n/defnode4 AtlasImageNode
+(n/defnode AtlasImageNode
   (inherits OutlineNode)
 
   (output tree [OutlineItem] produce-tree))

@@ -40,7 +40,7 @@
      (fn [ctx gl glu text-renderer]
        (render-fps ctx gl text-renderer (:tracker this)))}]})
 
-(n/defnode4 FpsTrackerNode
+(n/defnode FpsTrackerNode
   (property tracker FpsTracker)
 
   (output renderable t/RenderData render-overlay))
