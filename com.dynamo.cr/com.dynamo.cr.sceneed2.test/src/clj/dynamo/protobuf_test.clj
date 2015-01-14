@@ -40,25 +40,24 @@
 
   (output tree [OutlineItem] produce-tree))
 
-;; TODO - Replace with new protocol buffer reader
-#_(protocol-buffer-converters
-  TestAtlasProto$Atlas
-  {:constructor      #'make-atlas-node
-   :basic-properties [:extrude-borders :margin]
-   :node-properties  {:images-list [:tree -> :children,
-                                    :image -> :images]
-                      :animations-list [:tree -> :children,
-                                        :animation -> :animations]}}
+(protocol-buffer-converters
+ TestAtlasProto$Atlas
+ {:node-type        AtlasNode
+  :basic-properties [:extrude-borders :margin]
+  :node-properties  {:images-list [:tree -> :children,
+                                   :image -> :images]
+                     :animations-list [:tree -> :children,
+                                       :animation -> :animations]}}
 
-  TestAtlasProto$AtlasAnimation
-  {:constructor      #'make-atlas-animation-node
-   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
-   :node-properties  {:images-list [:tree -> :children,
-                                    :image -> :images]}}
+ TestAtlasProto$AtlasAnimation
+ {:node-type        AtlasAnimationNode
+  :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
+  :node-properties  {:images-list [:tree -> :children,
+                                   :image -> :images]}}
 
-  TestAtlasProto$AtlasImage
-  {:constructor      #'make-atlas-image-node
-   :basic-properties [:image]})
+ TestAtlasProto$AtlasImage
+ {:node-type        AtlasImageNode
+  :basic-properties [:image]})
 
 (defn atlas-with-one-animation [anim-id]
   (.build (doto (TestAtlasProto$Atlas/newBuilder)
@@ -66,12 +65,12 @@
             (.addAnimations (doto (TestAtlasProto$AtlasAnimation/newBuilder)
                               (.setId anim-id))))))
 
-#_(deftest node-connections-have-right-cardinality
-   (testing "Children of the atlas node should be created exactly once."
-     (with-clean-world
-       (let [message    (atlas-with-one-animation "the-animation")
-             atlas-node (ds/transactional (f/message->node message))
-             anim-node  (iq/node-feeding-into atlas-node :animations)]
-         (is (not (nil? atlas-node)))
-         (is (= 7 (:margin atlas-node)))
-         (is (= "the-animation" (:id anim-node)))))))
+(deftest node-connections-have-right-cardinality
+ (testing "Children of the atlas node should be created exactly once."
+   (with-clean-world
+     (let [message    (atlas-with-one-animation "the-animation")
+           atlas-node (ds/transactional (f/message->node message))
+           anim-node  (iq/node-feeding-into atlas-node :animations)]
+       (is (not (nil? atlas-node)))
+       (is (= 7 (:margin atlas-node)))
+       (is (= "the-animation" (:id anim-node)))))))

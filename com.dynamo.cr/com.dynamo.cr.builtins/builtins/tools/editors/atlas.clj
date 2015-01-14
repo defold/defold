@@ -277,25 +277,24 @@
   (inherits AtlasProperties)
   (inherits AtlasSave))
 
-;; TODO - replace with new protocol buffer loading
-#_(protocol-buffer-converters
-   AtlasProto$Atlas
-   {:constructor      #'make-atlas-node
-    :basic-properties [:extrude-borders :margin]
-    :node-properties  {:images-list [:tree -> :children,
-                                     :image -> :images]
-                       :animations-list [:tree -> :children,
-                                         :animation -> :animations]}}
+(protocol-buffer-converters
+ AtlasProto$Atlas
+ {:node-type        AtlasNode
+  :basic-properties [:extrude-borders :margin]
+  :node-properties  {:images-list [:tree -> :children,
+                                   :image -> :images]
+                     :animations-list [:tree -> :children,
+                                       :animation -> :animations]}}
 
-   AtlasProto$AtlasAnimation
-   {:constructor      #'make-animation-group-node
-    :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
-    :node-properties  {:images-list [:tree -> :children,
-                                     :image -> :images]}}
+ AtlasProto$AtlasAnimation
+ {:node-type        AnimationGroupNode
+  :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
+  :node-properties  {:images-list [:tree -> :children,
+                                   :image -> :images]}}
 
-   AtlasProto$AtlasImage
-   {:constructor      #'make-image-node
-    :basic-properties [:image]})
+ AtlasProto$AtlasImage
+ {:node-type        ImageNode
+  :basic-properties [:image]})
 
 (def ^:private outline-vertices-per-placement 4)
 (def ^:private vertex-size (.getNumber TextureSetProto$Constants/VERTEX_SIZE))

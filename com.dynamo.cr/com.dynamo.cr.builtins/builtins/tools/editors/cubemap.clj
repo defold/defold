@@ -162,11 +162,10 @@
   (inherits CubemapImageInputs)
   (inherits CubemapImageOutputs))
 
-;; TODO - replace with new protocol buffer loading
-#_(protocol-buffer-converters
-  Graphics$Cubemap
-  {:constructor #'make-cubemap-node
-   :basic-properties [:right :left :top :bottom :front :back]})
+(protocol-buffer-converters
+ Graphics$Cubemap
+ {:node-type        CubemapNode
+  :basic-properties [:right :left :top :bottom :front :back]})
 
 (def ^:private cubemap-inputs
   {:right  :image-right
