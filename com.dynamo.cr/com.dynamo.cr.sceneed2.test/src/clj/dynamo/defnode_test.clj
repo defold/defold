@@ -9,22 +9,22 @@
 
 (deftest nodetype
   (testing "is created from a data structure"
-    (is (satisfies? t/NodeType (n/make-node-type {:inputs {:an-input s/Str}}))))
+    (is (satisfies? t/NodeType (in/make-node-type {:inputs {:an-input s/Str}}))))
   (testing "supports direct inheritance"
-    (let [super-type (n/make-node-type {:inputs {:an-input s/Str}})
-          node-type  (n/make-node-type {:supertypes [super-type]})]
+    (let [super-type (in/make-node-type {:inputs {:an-input s/Str}})
+          node-type  (in/make-node-type {:supertypes [super-type]})]
       (is (= [super-type] (t/supertypes node-type)))
       (is (= {:an-input s/Str} (t/inputs' node-type)))))
   (testing "supports multiple inheritance"
-    (let [super-type (n/make-node-type {:inputs {:an-input s/Str}})
-          mixin-type (n/make-node-type {:inputs {:mixin-input s/Str}})
-          node-type  (n/make-node-type {:supertypes [super-type mixin-type]})]
+    (let [super-type (in/make-node-type {:inputs {:an-input s/Str}})
+          mixin-type (in/make-node-type {:inputs {:mixin-input s/Str}})
+          node-type  (in/make-node-type {:supertypes [super-type mixin-type]})]
       (is (= [super-type mixin-type] (t/supertypes node-type)))
       (is (= {:an-input s/Str :mixin-input s/Str} (t/inputs' node-type)))))
   (testing "supports inheritance hierarchy"
-    (let [grandparent-type (n/make-node-type {:inputs {:grandparent-input s/Str}})
-          parent-type      (n/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input s/Str}})
-          node-type        (n/make-node-type {:supertypes [parent-type]})]
+    (let [grandparent-type (in/make-node-type {:inputs {:grandparent-input s/Str}})
+          parent-type      (in/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input s/Str}})
+          node-type        (in/make-node-type {:supertypes [parent-type]})]
       (is (= {:parent-input s/Str :grandparent-input s/Str} (t/inputs' node-type))))))
 
 (n/defnode BasicNode)
