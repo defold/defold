@@ -35,7 +35,7 @@
   (tally this 'produce-simple-value)
   scalar)
 
-(n/defnode UncachedOutput
+(n/defnode4 UncachedOutput
   (property scalar s/Str)
   (output uncached-value String produce-simple-value))
 
@@ -44,22 +44,23 @@
   (tally node 'compute-expensive-value)
   "this took a long time to produce")
 
-(n/defnode CachedOutputNoInputs
-  (output expensive-value String :cached [node g]
-    (tally node 'compute-expensive-value)
-    "this took a long time to produce")
+(n/defnode4 CachedOutputNoInputs
+  (output expensive-value String :cached
+    (fn [node g]
+      (tally node 'compute-expensive-value)
+      "this took a long time to produce"))
   (input operand String))
 
-(n/defnode UpdatesExpensiveValue
+(n/defnode4 UpdatesExpensiveValue
   (output expensive-value String :cached :on-update
-    [node g]
-    (tally node 'compute-expensive-value)
-    "this took a long time to produce"))
+    (fn [node g]
+      (tally node 'compute-expensive-value)
+      "this took a long time to produce")))
 
-(n/defnode SecondaryCachedValue
+(n/defnode4 SecondaryCachedValue
   (output another-value String :cached
-    [node g]
-    "this is distinct from the other outputs"))
+    (fn [node g]
+      "this is distinct from the other outputs")))
 
 (defnk compute-derived-value
   [this first-name last-name]
@@ -71,14 +72,14 @@
   (tally this 'passthrough-first-name)
   first-name)
 
-(n/defnode CachedOutputFromInputs
+(n/defnode4 CachedOutputFromInputs
   (input first-name String)
   (input last-name  String)
 
   (output nickname String :cached passthrough-first-name)
   (output derived-value String :cached compute-derived-value))
 
-(n/defnode CacheTestNode
+(n/defnode4 CacheTestNode
   (inherits UncachedOutput)
   (inherits CachedOutputNoInputs)
   (inherits CachedOutputFromInputs)
@@ -89,10 +90,10 @@
   []
   (with-clean-world
     (let [nodes (tx-nodes
-                  (make-cache-test-node :scalar "Jane")
-                  (make-cache-test-node :scalar "Doe")
-                  (make-cache-test-node)
-                  (make-cache-test-node))
+                  (n/construct CacheTestNode :scalar "Jane")
+                  (n/construct CacheTestNode :scalar "Doe")
+                  (n/construct CacheTestNode)
+                  (n/construct CacheTestNode))
           [name1 name2 combiner expensive]  nodes]
       (ds/transactional
         (ds/connect name1 :uncached-value combiner :first-name)
@@ -159,8 +160,8 @@
       (tally this 'dispose)
       (>!! (:channel (dg/node g this)) :gone))))
 
-(n/defnode DisposableValueNode
-  (output disposable-value t/IDisposable :cached compute-disposable-value))
+(n/defnode4 DisposableValueNode
+  (output disposable-value 't/IDisposable :cached compute-disposable-value))
 
 (defnk produce-input-from-node
   [overridden]
@@ -170,7 +171,7 @@
   [an-input]
   an-input)
 
-(n/defnode OverrideValueNode
+(n/defnode4 OverrideValueNode
   (input overridden s/Str)
   (output output s/Str produce-input-from-node)
   (output foo    s/Str derive-value-from-inputs))
@@ -179,8 +180,8 @@
   []
   (with-clean-world
     (let [nodes (tx-nodes
-                  (make-override-value-node)
-                  (make-cache-test-node :scalar "Jane"))
+                  (n/construct OverrideValueNode)
+                  (n/construct CacheTestNode :scalar "Jane"))
           [override jane]  nodes]
       (ds/transactional
         (ds/connect jane :uncached-value override :overridden))
@@ -203,7 +204,7 @@
   [project]
   (:name project))
 
-(n/defnode ProjectAwareNode
+(n/defnode4 ProjectAwareNode
   (inherits Scope)
   (output testable-output s/Str produce-output-with-project))
 
@@ -211,9 +212,9 @@
   [project-name]
   (with-clean-world
     (ds/transactional
-      (ds/in (ds/add (p/make-project :name project-name))
-        (ds/in (ds/add (make-project-aware-node))
-          (ds/add (make-project-aware-node)))))))
+      (ds/in (ds/add (n/construct p/Project :name project-name))
+        (ds/in (ds/add (n/construct ProjectAwareNode))
+          (ds/add (n/construct ProjectAwareNode)))))))
 
 (deftest sends-node-project-to-production-function
   (let [project-aware-node (build-project-aware-node :some-project)]
@@ -222,7 +223,7 @@
 (deftest update-sees-in-transaction-value
   (with-clean-world
     (let [node (ds/transactional
-                 (ds/add (p/make-project :name "a project" :int-prop 0)))
+                 (ds/add (n/construct p/Project :name "a project" :int-prop 0)))
           after-transaction (ds/transactional
                               (ds/update-property node :int-prop inc)
                               (ds/update-property node :int-prop inc)
@@ -230,7 +231,7 @@
                               (ds/update-property node :int-prop inc))]
       (is (= 4 (:int-prop after-transaction))))))
 
-(n/defnode ScopeReceiver
+(n/defnode4 ScopeReceiver
   (on :project-scope
     (ds/set-property self :message-received event)))
 
@@ -238,7 +239,7 @@
   (testing "project scope message"
     (with-clean-world
       (let [ps-node (ds/transactional
-                      (ds/in (ds/add (p/make-project :name "a project"))
-                        (ds/add (make-scope-receiver))))]
+                      (ds/in (ds/add (n/construct p/Project :name "a project"))
+                        (ds/add (n/construct ScopeReceiver))))]
         (await-world-time world-ref 3 500)
         (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))

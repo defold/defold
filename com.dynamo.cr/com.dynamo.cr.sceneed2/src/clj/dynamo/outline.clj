@@ -1,5 +1,5 @@
 (ns dynamo.outline
-  (:require [dynamo.node :refer [defnode]]
+  (:require [dynamo.node :as n]
             [dynamo.types :refer :all]
             [schema.core :as s]
             [plumbing.core :refer [defnk]]))
@@ -19,6 +19,6 @@
   {:label "my name" :icon "my type of icon" :node-ref this :children children})
 
 ;; Behavior
-(defnode OutlineNode
+(n/defnode4 OutlineNode
   (input  children [OutlineItem])
   (output tree     [OutlineItem] outline-tree-producer))

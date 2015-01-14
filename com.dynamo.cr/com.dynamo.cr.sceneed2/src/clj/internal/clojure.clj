@@ -42,7 +42,7 @@
   (when (ds/is-added? transaction self)
     (compile-source-node graph self)))
 
-(n/defnode ClojureSourceNode
+(n/defnode4 ClojureSourceNode
   (property resource IFile)
   (property namespace UnloadableNamespace)
 
@@ -50,4 +50,4 @@
 
 (defn on-load-code
   [resource _]
-  (ds/add (make-clojure-source-node :resource resource)))
+  (ds/add (n/construct ClojureSourceNode :resource resource)))

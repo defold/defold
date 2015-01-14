@@ -2,7 +2,7 @@
   (:require [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.ui :as ui]
-            [dynamo.node :as n :refer [defnode]]
+            [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [service.log :as log])
@@ -35,8 +35,8 @@
                (.setSelection ^ISelectionProvider self after)))
             (log/warn "Timed out waiting for transaction to finish.")))))))
 
-(defnode Selection
-  (input selected-nodes [t/Node])
+(n/defnode4 Selection
+  (input selected-nodes ['t/Node])
 
   (property selection-listeners EventBroadcaster (default #(ui/make-event-broadcaster)))
   (property triggers n/Triggers (default [#'fire-selection-changed]))

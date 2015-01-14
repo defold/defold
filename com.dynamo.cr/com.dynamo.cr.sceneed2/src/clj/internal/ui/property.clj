@@ -138,7 +138,7 @@
                       {:type :composite
                        :layout {:type :stack}}]]}])
 
-(n/defnode PropertyView
+(n/defnode4 PropertyView
   (input  properties [t/Properties])
   (output content s/Any aggregate-properties)
 
@@ -188,7 +188,7 @@
   [scope]
   (ds/transactional
     (ds/in scope
-      (ds/add (make-property-view)))))
+      (ds/add (n/construct PropertyView)))))
 
 (defn get-control
   "This is called by the Java shim GenericPropertySheetPage. Not for other use."

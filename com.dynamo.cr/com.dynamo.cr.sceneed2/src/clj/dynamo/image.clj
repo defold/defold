@@ -3,7 +3,7 @@
             [dynamo.types :as t]
             [dynamo.file :refer [project-path local-path]]
             [dynamo.geom :refer :all]
-            [dynamo.node :refer [defnode]]
+            [dynamo.node :as n]
             [dynamo.property :as dp]
             [internal.cache :refer [caching]]
             [plumbing.core :refer [defnk]]
@@ -63,11 +63,11 @@
 (defnk image-from-resource :- Image
   [this project]
   (let [src (project-path project (:image this))]
-	  (println :image-from-resource (:image this) src)
+    (println :image-from-resource (:image this) src)
     (load-image src (:image this))))
 
 ;; Behavior
-(defnode ImageSource
+(n/defnode4 ImageSource
   ;; NOTE: Order is important here. `property` defines an
   ;; output that is overridden by the later `output` clause.
   (property image dp/Resource)

@@ -100,10 +100,10 @@
   [aabb]
   aabb)
 
-(n/defnode Renderer
+(n/defnode4 Renderer
   (input view-camera Camera)
   (input renderables [t/RenderData])
-  (input controller  t/Node)
+  (input controller  't/Node)
   (input aabb        AABB)
 
   (property context GLContext)
@@ -176,7 +176,7 @@
   [saveable]
   saveable)
 
-(n/defnode SceneEditor
+(n/defnode4 SceneEditor
   (inherits Scope)
   (inherits Renderer)
 

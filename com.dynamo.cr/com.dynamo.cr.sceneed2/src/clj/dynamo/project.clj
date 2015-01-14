@@ -4,7 +4,7 @@
             [schema.core :as s]
             [dynamo.system :as ds]
             [dynamo.file :as file]
-            [dynamo.node :as n :refer [defnode Scope]]
+            [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.selection :as selection]
             [dynamo.types :as t]
@@ -84,7 +84,7 @@
     node
     (factory project-node path)))
 
-(defnode CannedProperties
+(n/defnode4 CannedProperties
   (property rotation     s/Str    (default "twenty degrees starboard"))
   (property translation  s/Str    (default "Guten abend."))
   (property some-vector  t/Vec3   (default [1 2 3]))
@@ -103,8 +103,8 @@
 (defn- build-selection-node
   [editor-node selected-nodes]
   (ds/in editor-node
-    (let [selection-node  (ds/add (selection/make-selection))
-          properties-node (ds/add (make-canned-properties :rotation "e to the i pi"))]
+    (let [selection-node  (ds/add (n/construct selection/Selection))
+          properties-node (ds/add (n/construct CannedProperties :rotation "e to the i pi"))]
       (doseq [node selected-nodes]
         (ds/connect node :self selection-node :selected-nodes))
       selection-node)))
@@ -134,8 +134,8 @@
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
 ; ---------------------------------------------------------------------------
-(defnode Project
-  (inherits Scope)
+(n/defnode4 Project
+  (inherits n/Scope)
 
   (property triggers           n/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
   (property tag                s/Keyword (default :project))
@@ -149,7 +149,7 @@
 (defn load-project-and-tools
   [eclipse-project branch]
   (ds/transactional
-    (let [project-node    (ds/add (make-project :eclipse-project eclipse-project :branch branch :handlers default-handlers))
+    (let [project-node    (ds/add (n/construct Project :eclipse-project eclipse-project :branch branch :handlers default-handlers))
           clojure-sources (filter clojure/clojure-source? (resources/resource-seq eclipse-project))]
       (ds/in project-node
         (doseq [source clojure-sources]

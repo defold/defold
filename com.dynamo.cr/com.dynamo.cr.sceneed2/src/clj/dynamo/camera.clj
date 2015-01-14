@@ -306,7 +306,7 @@
     (set-orthographic (camera-fov-from-aabb camera aabb) (:aspect camera) (:z-near camera) (:z-far camera))
     (camera-set-center aabb)))
 
-(n/defnode CameraController
+(n/defnode4 CameraController
   (property camera Camera)
 
   (property movement s/Keyword (default :idle))

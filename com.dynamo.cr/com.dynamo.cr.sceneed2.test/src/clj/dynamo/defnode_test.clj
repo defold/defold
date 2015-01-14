@@ -9,33 +9,23 @@
 
 (deftest nodetype
   (testing "is created from a data structure"
-    (is (satisfies? t/NodeType (n/make-node-type {:inputs #{:an-input}}))))
+    (is (satisfies? t/NodeType (n/make-node-type {:inputs {:an-input s/Str}}))))
   (testing "supports direct inheritance"
-    (let [super-type (n/make-node-type {:inputs #{:an-input}})
+    (let [super-type (n/make-node-type {:inputs {:an-input s/Str}})
           node-type  (n/make-node-type {:supertypes [super-type]})]
       (is (= [super-type] (t/supertypes node-type)))
-      (is (= #{:an-input} (t/inputs' node-type)))))
+      (is (= {:an-input s/Str} (t/inputs' node-type)))))
   (testing "supports multiple inheritance"
-    (let [super-type (n/make-node-type {:inputs #{:an-input}})
-          mixin-type (n/make-node-type {:inputs #{:mixin-input}})
+    (let [super-type (n/make-node-type {:inputs {:an-input s/Str}})
+          mixin-type (n/make-node-type {:inputs {:mixin-input s/Str}})
           node-type  (n/make-node-type {:supertypes [super-type mixin-type]})]
       (is (= [super-type mixin-type] (t/supertypes node-type)))
-      (is (= #{:an-input :mixin-input} (t/inputs' node-type)))))
+      (is (= {:an-input s/Str :mixin-input s/Str} (t/inputs' node-type)))))
   (testing "supports inheritance hierarchy"
-    (let [grandparent-type (n/make-node-type {:inputs #{:grandparent-input}})
-          parent-type      (n/make-node-type {:supertypes [grandparent-type] :inputs #{:parent-input}})
+    (let [grandparent-type (n/make-node-type {:inputs {:grandparent-input s/Str}})
+          parent-type      (n/make-node-type {:supertypes [grandparent-type] :inputs {:parent-input s/Str}})
           node-type        (n/make-node-type {:supertypes [parent-type]})]
-      (is (= #{:parent-input :grandparent-input} (t/inputs' node-type))))))
-
-(def ParentNode :any-symbol-will-do)
-
-(deftest node-form-compilation
-  (let [description (eval (n/node-type '[(input an-input s/Str)]))]
-    (is (= #{:an-input} (:inputs description))))
-  (let [description (eval (n/node-type '[(input an-input s/Str) (input another-input s/Int)]))]
-    (is (= #{:an-input :another-input} (:inputs description))))
-  (let [description (eval (n/node-type '[(inherits ParentNode)]))]
-    (is (= [ParentNode] (:supertypes description)))))
+      (is (= {:parent-input s/Str :grandparent-input s/Str} (t/inputs' node-type))))))
 
 (n/defnode4 BasicNode)
 
@@ -70,12 +60,12 @@
   (testing "labeled input"
     (let [node (n/construct OneInputNode)]
       (is (:an-input (t/inputs' OneInputNode)))
-      (is (= s/Str (get-in OneInputNode [:input-types :an-input])))
+      (is (= s/Str (:an-input (t/input-types node))))
       (is (:an-input (t/inputs node)))))
   (testing "inherited input"
     (let [node (n/construct InheritedInputNode)]
       (is (:an-input (t/inputs' InheritedInputNode)))
-      (is (= s/Str (get-in InheritedInputNode [:input-types :an-input])))
+      (is (= s/Str (:an-input (t/input-types node))))
       (is (:an-input (t/inputs node)))))
   (testing "inputs can be flagged for injection"
     (let [node (n/construct InjectableInputNode)]
@@ -194,23 +184,30 @@
   (testing "property defaults can be inherited or overridden"
     (let [node (n/construct InheritedPropertyNode)]
       (is (= "default value" (:a-property node)))
-      (is (= -1              (:another-property node))))))
+      (is (= -1              (:another-property node)))))
+  (testing "output dependencies include properties"
+    (let [node (n/construct InheritedPropertyNode)]
+      (is (= {:another-property #{:properties :another-property}
+              :a-property #{:properties :a-property}}
+            (t/output-dependencies node))))))
 
-(defnk string-production-fnk [this] "produced string")
+(defnk string-production-fnk [this integer-input] "produced string")
 (defnk integer-production-fnk [this g project] 42)
 (defn schemaless-production-fn [this g] "schemaless fn produced string")
 (defn substitute-value-fn [& _] "substitute value")
 
-(dp/defproperty IntegerProperty s/Int)
+(dp/defproperty IntegerProperty s/Int (validation (fn [x] (not (neg? x)))))
 
 (n/defnode4 MultipleOutputNode
+  (input integer-input s/Int)
+  (input string-input s/Str)
+
   (output string-output         s/Str                                                 string-production-fnk)
   (output integer-output        IntegerProperty                                       integer-production-fnk)
   (output cached-output         s/Str           :cached                               string-production-fnk)
-  (output inline-string         s/Str                                                 (fnk [] "inline-string"))
+  (output inline-string         s/Str           :on-update                            (fnk [string-input] "inline-string"))
   (output schemaless-production s/Str                                                 schemaless-production-fn)
-  (output with-substitute       s/Str           :substitute-value substitute-value-fn string-production-fnk)
-  )
+  (output with-substitute       s/Str           :substitute-value substitute-value-fn string-production-fnk))
 
 (n/defnode4 AbstractOutputNode
   (output abstract-output s/Str :abstract))
@@ -230,7 +227,8 @@
       (doseq [[label expected-schema] {:string-output s/Str :integer-output IntegerProperty :cached-output s/Str :inline-string s/Str :schemaless-production s/Str :with-substitute s/Str}]
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
       (is (:cached-output (:cached MultipleOutputNode)))
-      (is (:cached-output (t/cached-outputs node)))))
+      (is (:cached-output (t/cached-outputs node)))
+      (is (t/auto-update? node :inline-string))))
   (testing "output inheritance"
     (let [node (n/construct InheritedOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute :abstract-output]]
@@ -239,7 +237,18 @@
       (doseq [[label expected-schema] {:string-output s/Str :integer-output IntegerProperty :cached-output s/Str :inline-string s/Str :schemaless-production s/Str :with-substitute s/Str :abstract-output s/Str}]
         (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
       (is (:cached-output (:cached InheritedOutputNode)))
-      (is (:cached-output (t/cached-outputs node))))))
+      (is (:cached-output (t/cached-outputs node)))))
+  (testing "output dependencies include transforms and their inputs"
+    (let [node (n/construct MultipleOutputNode)]
+      (is (= {:project #{:integer-output}
+              :string-input #{:inline-string}
+              :integer-input #{:string-output :cached-output :with-substitute}}
+            (t/output-dependencies node))))
+    (let [node (n/construct InheritedOutputNode)]
+      (is (= {:project #{:integer-output}
+              :string-input #{:inline-string}
+              :integer-input #{:string-output :abstract-output :cached-output :with-substitute}}
+            (t/output-dependencies node))))))
 
 (n/defnode4 OneEventNode
   (on :an-event
@@ -274,4 +283,27 @@
       (is (= :mixin-ok   (n/dispatch-message node :mixin-event)))
       (is (= :another-ok (n/dispatch-message node :another-event))))))
 
-(run-tests)
+(defn- not-neg? [x] (not (neg? x)))
+
+(dp/defproperty TypedProperty s/Int)
+(dp/defproperty DerivedProperty TypedProperty)
+(dp/defproperty DefaultProperty DerivedProperty
+  (default 0))
+(dp/defproperty ValidatedProperty DefaultProperty
+  (validation not-neg?))
+
+(n/defnode4 NodeWithPropertyVariations
+  (property typed-external TypedProperty)
+  (property derived-external DerivedProperty)
+  (property default-external DefaultProperty)
+  (property validated-external ValidatedProperty)
+
+  (property typed-internal s/Int)
+  (property derived-internal TypedProperty)
+  (property default-internal TypedProperty
+    (default 0))
+  (property validated-internal DefaultProperty
+    (validation (fn [value] true))))
+
+(n/defnode4 InheritsPropertyVariations
+  (inherits NodeWithPropertyVariations))

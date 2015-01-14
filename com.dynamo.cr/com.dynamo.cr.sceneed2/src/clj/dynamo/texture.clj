@@ -1,7 +1,7 @@
 (ns dynamo.texture
   (:require [dynamo.types :refer :all]
             [dynamo.image :refer :all]
-            [dynamo.node :refer [defnode]]
+            [dynamo.node :as n]
             [dynamo.property :as dp]
             [internal.texture.pack-max-rects :refer [max-rects-packing]]
             [internal.texture.engine :refer [texture-engine-format-generate]]
@@ -23,7 +23,7 @@
           img (flood (blank-image w h) r g b)]
       (TextureSet. rct img [rct] [rct] []))))
 
-(defnode AnimationBehavior
+(n/defnode4 AnimationBehavior
   (input images [Image])
 
   (property fps             dp/NonNegativeInt (default 30))

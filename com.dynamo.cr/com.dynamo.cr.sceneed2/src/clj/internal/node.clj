@@ -24,13 +24,6 @@
 ; ---------------------------------------------------------------------------
 ; Value handling
 ; ---------------------------------------------------------------------------
-(defn node-inputs [v]            (into #{} (keys (-> v :descriptor :inputs))))
-(defn node-input-types [v]       (-> v :descriptor :inputs))
-(defn node-injectable-inputs [v] (-> v :descriptor :injectable-inputs))
-(defn node-outputs [v]           (into #{} (keys (-> v :descriptor :transforms))))
-(defn node-output-types [v]      (-> v :descriptor :transform-types))
-(defn node-cached-outputs [v]    (-> v :descriptor :cached))
-
 (defn- abstract-function
   [nodetype label type]
   (fn [this g]
@@ -57,8 +50,8 @@
 (defn get-inputs [target-node g target-label]
   (if (contains? target-node target-label)
     (get target-node target-label)
-    (let [schema (get-in target-node [:descriptor :inputs target-label])
-          output-transform (get-in target-node [:descriptor :transforms target-label])]
+    (let [schema (some-> target-node t/input-types target-label)
+          output-transform (some-> target-node t/transforms target-label)]
       (cond
         (vector? schema)     (mapv (fn [[source-node source-label]]
                                      (get-node-value (dg/node g source-node) source-label))
@@ -115,8 +108,8 @@
   value)
 
 (defn- produce-value [node g label]
-  (let [transform (get-in node [:descriptor :transforms label])]
-    (assert transform (str "There is no transform " label " on node " (:_id node)))
+  (assert (contains? (t/outputs node) label) (str "There is no transform " label " on node " (:_id node)))
+  (let [transform (some-> node t/transforms label)]
     (assert (not= ::abstract transform) )
     (metrics/node-value node label)
     (perform transform node g)))
@@ -379,10 +372,10 @@
   (into #{}
      (keep compatible?
         (for [target  targets
-              i       (node-injectable-inputs target)
-              :let    [i-l (get (node-input-types target) i)]
+              i       (t/injectable-inputs target)
+              :let    [i-l (get (t/input-types target) i)]
               node    nodes
-              [o o-l] (node-output-types node)]
+              [o o-l] (t/transform-types node)]
             [node o o-l target i i-l]))))
 
 (defn validate-descriptor [nm descriptor]

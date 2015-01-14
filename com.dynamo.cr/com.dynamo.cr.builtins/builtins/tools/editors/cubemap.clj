@@ -43,7 +43,7 @@
             [org.eclipse.core.commands ExecutionEvent]
             [dynamo.types AABB Camera]))
 
-(n/defnode CubemapImageInputs
+(n/defnode4 CubemapImageInputs
   (input image-right  Image)
   (input image-left   Image)
   (input image-top    Image)
@@ -51,7 +51,7 @@
   (input image-front  Image)
   (input image-back   Image))
 
-(n/defnode CubemapImageProperties
+(n/defnode4 CubemapImageProperties
   (property right  s/Str)
   (property left   s/Str)
   (property top    s/Str)
@@ -66,7 +66,7 @@
 (defnk produce-image-front  [image-front]  image-front)
 (defnk produce-image-back   [image-back]   image-back)
 
-(n/defnode CubemapImageOutputs
+(n/defnode4 CubemapImageOutputs
   (output image-right  Image produce-image-right)
   (output image-left   Image produce-image-left)
   (output image-top    Image produce-image-top)
@@ -148,7 +148,7 @@
     (g/aabb-incorporate  1  1  1)
     (g/aabb-incorporate -1 -1 -1)))
 
-(n/defnode CubemapRender
+(n/defnode4 CubemapRender
   (inherits CubemapImageInputs)
   (input  camera        Camera)
   (output shader        s/Any      :cached produce-shader)
@@ -157,15 +157,16 @@
   (output renderable    RenderData :cached produce-renderable)
   (output aabb          AABB               unit-bounding-box))
 
-(n/defnode CubemapNode
+(n/defnode4 CubemapNode
   (inherits CubemapImageProperties)
   (inherits CubemapImageInputs)
   (inherits CubemapImageOutputs))
 
-(protocol-buffer-converters
- Graphics$Cubemap
- {:constructor #'make-cubemap-node
-  :basic-properties [:right :left :top :bottom :front :back]})
+;; TODO - replace with new protocol buffer loading
+#_(protocol-buffer-converters
+  Graphics$Cubemap
+  {:constructor #'make-cubemap-node
+   :basic-properties [:right :left :top :bottom :front :back]})
 
 (def ^:private cubemap-inputs
   {:right  :image-right
@@ -178,7 +179,7 @@
 (defn- make-faces
   [cubemap]
   (doseq [[side input] cubemap-inputs]
-    (ds/connect (ds/add (img/make-image-source :image (get cubemap side))) :image cubemap input)))
+    (ds/connect (ds/add (n/construct img/ImageSource :image (get cubemap side))) :image cubemap input)))
 
 (defn on-load
   [path ^Graphics$Cubemap cubemap-message]
@@ -192,12 +193,12 @@
 
 (defn on-edit
   [project-node editor-site cubemap]
-  (let [editor (ise/make-scene-editor :name "editor")]
+  (let [editor (n/construct ise/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
-      (let [cubemap-render (ds/add (make-cubemap-render))
-            background     (ds/add (background/make-background))
-            grid           (ds/add (grid/make-grid))
-            camera         (ds/add (c/make-camera-controller :camera (c/make-camera :orthographic)))]
+      (let [cubemap-render (ds/add (n/construct CubemapRender))
+            background     (ds/add (n/construct background/Background))
+            grid           (ds/add (n/construct grid/Grid))
+            camera         (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
         (connect-cubemap-inputs cubemap cubemap-render)
         (ds/connect camera         :camera     grid           :camera)
         (ds/connect camera         :camera     editor         :view-camera)
