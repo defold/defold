@@ -69,21 +69,20 @@
       (is (:an-input (t/inputs node)))))
   (testing "inputs can be flagged for injection"
     (let [node (n/construct InjectableInputNode)]
-      (is (:for-injection (:injectable-inputs InjectableInputNode)))
-      )))
+      (is (:for-injection (t/injectable-inputs' InjectableInputNode))))))
 
 (definterface MarkerInterface)
 (definterface SecondaryInterface)
 
-(n/defnode SingleInterfaceNode
+(n/defnode MarkerInterfaceNode
   MarkerInterface)
 
-(n/defnode TwoInterfaceNode
+(n/defnode MarkerAndSecondaryInterfaceNode
   MarkerInterface
   SecondaryInterface)
 
 (n/defnode InheritedInterfaceNode
- (inherits SingleInterfaceNode))
+ (inherits MarkerInterfaceNode))
 
 (definterface OneMethodInterface
   (oneMethod [x]))
@@ -99,15 +98,21 @@
 (n/defnode InheritedMethodNode
   (inherits OneMethodNode))
 
+(n/defnode OverriddenMethodNode
+  (inherits OneMethodNode)
+
+  OneMethodInterface
+  (oneMethod [this x] [x :overridden]))
+
 (deftest nodes-can-implement-interfaces
   (testing "implement a single interface"
-    (let [node (n/construct SingleInterfaceNode)]
-      (is (= #{'MarkerInterface} (t/interfaces SingleInterfaceNode)))
+    (let [node (n/construct MarkerInterfaceNode)]
+      (is (= #{`MarkerInterface} (t/interfaces MarkerInterfaceNode)))
       (is (instance? MarkerInterface node))
       (is (not (instance? SecondaryInterface node)))))
   (testing "implement two interfaces"
-    (let [node (n/construct TwoInterfaceNode)]
-      (is (= #{'MarkerInterface 'SecondaryInterface} (t/interfaces TwoInterfaceNode)))
+    (let [node (n/construct MarkerAndSecondaryInterfaceNode)]
+      (is (= #{`MarkerInterface `SecondaryInterface} (t/interfaces MarkerAndSecondaryInterfaceNode)))
       (is (instance? MarkerInterface node))
       (is (instance? SecondaryInterface node))))
   (testing "implement interface with methods"
@@ -119,7 +124,10 @@
       (is (instance? MarkerInterface node)))
     (let [node (n/construct InheritedMethodNode)]
       (is (instance? OneMethodInterface node))
-      (is (= [5 :ok] (.oneMethod node 5))))))
+      (is (= [5 :ok] (.oneMethod node 5))))
+    (let [node (n/construct OverriddenMethodNode)]
+      (is (instance? OneMethodInterface node))
+      (is (= [42 :overridden] (.oneMethod node 42))))))
 
 (defprotocol LocalProtocol
   (protocol-method [this x y]))
@@ -138,6 +146,7 @@
 (deftest nodes-can-support-protocols
   (testing "support a single protocol"
     (let [node (n/construct LocalProtocolNode)]
+      (is (= #{`LocalProtocol} (t/protocols LocalProtocolNode)))
       (is (satisfies? LocalProtocol node))
       (is (= [:ok 5 10] (protocol-method node 5 10))))
     (let [node (n/construct InheritedLocalProtocol)]
@@ -196,7 +205,7 @@
 (defn schemaless-production-fn [this g] "schemaless fn produced string")
 (defn substitute-value-fn [& _] "substitute value")
 
-(dp/defproperty IntegerProperty s/Int (validation (fn [x] (not (neg? x)))))
+(dp/defproperty IntegerProperty s/Int (validation (comp not neg?)))
 
 (n/defnode MultipleOutputNode
   (input integer-input s/Int)
@@ -226,9 +235,9 @@
         (is (get (t/outputs  node)               expected-output)))
       (doseq [[label expected-schema] {:string-output s/Str :integer-output IntegerProperty :cached-output s/Str :inline-string s/Str :schemaless-production s/Str :with-substitute s/Str}]
         (is (= expected-schema (get-in MultipleOutputNode [:transform-types label]))))
-      (is (:cached-output (:cached MultipleOutputNode)))
+      (is (:cached-output (t/cached-outputs' MultipleOutputNode)))
       (is (:cached-output (t/cached-outputs node)))
-      (is (t/auto-update? node :inline-string))))
+      (is (:inline-string (t/auto-update-outputs node)))))
   (testing "output inheritance"
     (let [node (n/construct InheritedOutputNode)]
       (doseq [expected-output [:string-output :integer-output :cached-output :inline-string :schemaless-production :with-substitute :abstract-output]]
@@ -236,7 +245,7 @@
         (is (get (t/outputs  node)               expected-output)))
       (doseq [[label expected-schema] {:string-output s/Str :integer-output IntegerProperty :cached-output s/Str :inline-string s/Str :schemaless-production s/Str :with-substitute s/Str :abstract-output s/Str}]
         (is (= expected-schema (get-in InheritedOutputNode [:transform-types label]))))
-      (is (:cached-output (:cached InheritedOutputNode)))
+      (is (:cached-output (t/cached-outputs' InheritedOutputNode)))
       (is (:cached-output (t/cached-outputs node)))))
   (testing "output dependencies include transforms and their inputs"
     (let [node (n/construct MultipleOutputNode)]
@@ -270,7 +279,7 @@
 (deftest nodes-can-handle-events
   (testing "nodes with event handlers implement MessageTarget"
     (let [node (n/construct OneEventNode)]
-      (is (:an-event (t/events' OneEventNode)))
+      (is (:an-event (t/event-handlers' OneEventNode)))
       (is (satisfies? t/MessageTarget node))
       (is (= :ok (n/dispatch-message node :an-event)))))
   (testing "nodes without event handlers do not implement MessageTarget"
@@ -278,7 +287,7 @@
       (is (not (satisfies? t/MessageTarget node)))))
   (testing "nodes can inherit handlers from their supertypes"
     (let [node (n/construct InheritedEventNode)]
-      (is ((every-pred :an-event :mixin-event :another-event) (t/events' InheritedEventNode)))
+      (is ((every-pred :an-event :mixin-event :another-event) (t/event-handlers' InheritedEventNode)))
       (is (= :ok         (n/dispatch-message node :an-event)))
       (is (= :mixin-ok   (n/dispatch-message node :mixin-event)))
       (is (= :another-ok (n/dispatch-message node :another-event))))))

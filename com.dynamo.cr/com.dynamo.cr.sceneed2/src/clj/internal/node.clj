@@ -162,19 +162,22 @@ maybe cache the value that was produced, and return it."
 ; Definition handling
 ; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-  [supertypes interfaces protocols functions properties inputs injectable-inputs transforms transform-types cached event-handlers auto-update output-dependencies]
+  [supertypes interfaces protocols method-impls transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
 
   t/NodeType
   (supertypes           [_] supertypes)
   (interfaces           [_] interfaces)
   (protocols            [_] protocols)
-  (functions            [_] functions)
+  (method-impls         [_] method-impls)
   (transforms'          [_] transforms)
   (transform-types'     [_] transform-types)
   (properties'          [_] properties)
   (inputs'              [_] inputs)
+  (injectable-inputs'   [_] injectable-inputs)
   (outputs'             [_] (set (keys transforms)))
-  (events'              [_] (set (keys event-handlers)))
+  (cached-outputs'      [_] cached-outputs)
+  (auto-update-outputs' [_] auto-update-outputs)
+  (event-handlers'      [_] event-handlers)
   (output-dependencies' [_] output-dependencies))
 
 (defn- from-supertypes [local op]                (map op (:supertypes local)))
@@ -211,16 +214,16 @@ not called directly."
   [description]
   (-> description
     (update-in [:inputs]              combine-with merge      {} (from-supertypes description t/inputs'))
-    (update-in [:injectable-inputs]   combine-with set/union #{} (from-supertypes description :injectable-inputs))
+    (update-in [:injectable-inputs]   combine-with set/union #{} (from-supertypes description t/injectable-inputs'))
     (update-in [:properties]          combine-with merge      {} (from-supertypes description t/properties'))
-    (update-in [:transforms]          combine-with merge      {} (from-supertypes description :transforms))
-    (update-in [:transform-types]     combine-with merge      {} (from-supertypes description :transform-types))
-    (update-in [:cached]              combine-with set/union #{} (from-supertypes description :cached))
-    (update-in [:auto-update]         combine-with set/union #{} (from-supertypes description :auto-update))
-    (update-in [:event-handlers]      combine-with set/union #{} (from-supertypes description :event-handlers))
+    (update-in [:transforms]          combine-with merge      {} (from-supertypes description t/transforms'))
+    (update-in [:transform-types]     combine-with merge      {} (from-supertypes description t/transform-types'))
+    (update-in [:cached-outputs]      combine-with set/union #{} (from-supertypes description t/cached-outputs'))
+    (update-in [:auto-update-outputs] combine-with set/union #{} (from-supertypes description t/auto-update-outputs'))
+    (update-in [:event-handlers]      combine-with set/union #{} (from-supertypes description t/event-handlers'))
     (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description t/interfaces))
     (update-in [:protocols]           combine-with set/union #{} (from-supertypes description t/protocols))
-    (update-in [:functions]           combine-with merge      {} (from-supertypes description t/functions))
+    (update-in [:method-impls]        combine-with merge      {} (from-supertypes description t/method-impls))
     description->output-dependencies
     map->NodeTypeImpl))
 
@@ -255,14 +258,14 @@ not called directly."
     (:substitute-value options)
     (update-in [:transforms] assoc-in [label :substitute-value-fn] (:substitute-value options))
 
-    (:abstract properties)
-    (update-in [:transforms] assoc-in [label :production-fn] (abstract-function label schema))
-
     (:cached properties)
-    (update-in [:cached] #(conj (or % #{}) label))
+    (update-in [:cached-outputs] #(conj (or % #{}) label))
 
     (:on-update properties)
-    (update-in [:auto-update] #(conj (or % #{}) label))
+    (update-in [:auto-update-outputs] #(conj (or % #{}) label))
+
+    (:abstract properties)
+    (update-in [:transforms] assoc-in [label :production-fn] (abstract-function label schema))
 
     (not (:abstract properties))
     (update-in [:transforms] assoc-in [label :production-fn] args)))
@@ -290,11 +293,11 @@ not called directly."
   [description protocol]
   (update-in description [:protocols] #(conj (or % #{}) protocol)))
 
-(defn attach-function
+(defn attach-method-implementation
   "Update the node type description with the given function, which
 must be part of a protocol or interface attached to the description."
   [description sym argv fn-def]
-  (assoc-in description [:functions sym] [argv fn-def]))
+  (assoc-in description [:method-impls sym] [argv fn-def]))
 
 (def ^:private property-flags #{:cached :on-update :abstract})
 (def ^:private option-flags #{:substitute-value})
@@ -314,11 +317,11 @@ must be part of a protocol or interface attached to the description."
 
 (defn fqsymbol
   [s]
-  (if (symbol? s)
-    (let [{:keys [ns name]} (meta (resolve s))]
-      (symbol (str ns) (str name)))))
+  (assert (symbol? s))
+  (let [{:keys [ns name]} (meta (resolve s))]
+    (symbol (str ns) (str name))))
 
-(defn node-type-form
+(defn- node-type-form
   "Translate the sugared `defnode` forms into function calls that
 build the node type description (map). These are emitted where you invoked
 `defnode` so that symbols and vars resolve correctly."
@@ -342,7 +345,7 @@ build the node type description (map). These are emitted where you invoked
 
     ;; Interface or protocol function
     [([nm [& argvec] & remainder] :seq)]
-    `(attach-function '~nm '~argvec (fn ~argvec ~@remainder))
+    `(attach-method-implementation '~nm '~argvec (fn ~argvec ~@remainder))
 
     [impl :guard symbol?]
     `(cond->
@@ -363,20 +366,20 @@ build the node type description (map). These are emitted where you invoked
   [node-type]
   (map-vals t/default-property-value (t/properties' node-type)))
 
-(defn classname-for [prefix]  (symbol (str prefix "__")))
+(defn classname-for [prefix] (symbol (str prefix "__")))
 
 (defn- state-vector
   [node-type]
-  (vec (map (comp symbol name) (keys (t/properties' node-type)))))
+  (mapv (comp symbol name) (keys (t/properties' node-type))))
 
-(defn- message-processors
+(defn- message-processor
   [node-type-name node-type]
-  (when (not-empty (t/events' node-type))
+  (when (not-empty (t/event-handlers' node-type))
     `[t/MessageTarget
       (dynamo.types/process-one-event
        [~'self ~'event]
        (case (:type ~'event)
-         ~@(mapcat (fn [e] [e `((get-in ~node-type-name [:event-handlers ~e]) ~'self ~'event)]) (t/events' node-type))
+         ~@(mapcat (fn [e] [e `((get (t/event-handlers' ~node-type-name) ~e) ~'self ~'event)]) (keys (t/event-handlers' node-type)))
          nil))]))
 
 (defn- generate-node-record-sexps
@@ -385,25 +388,24 @@ build the node type description (map). These are emitted where you invoked
      t/Node
      (inputs              [_]    (set (keys (t/inputs' ~node-type-name))))
      (input-types         [_]    (t/inputs' ~node-type-name))
-     (injectable-inputs   [_]    (:injectable-inputs ~node-type-name))
+     (injectable-inputs   [_]    (t/injectable-inputs' ~node-type-name))
      (outputs             [_]    (t/outputs' ~node-type-name))
-     (transforms          [_]    (:transforms ~node-type-name))
+     (transforms          [_]    (t/transforms' ~node-type-name))
      (transform-types     [_]    (t/transform-types' ~node-type-name))
-     (cached-outputs      [_]    (:cached ~node-type-name))
-     (auto-update?        [_ l#] (contains? ~(:auto-update node-type) l#))
+     (cached-outputs      [_]    (t/cached-outputs' ~node-type-name))
+     (auto-update-outputs [_]    (t/auto-update-outputs' ~node-type-name))
      (properties          [_]    (t/properties' ~node-type-name))
      (output-dependencies [_]    (t/output-dependencies' ~node-type-name))
-     ~@(map #(symbol %) (t/interfaces node-type))
-     ~@(map #(symbol %) (t/protocols node-type))
-     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get-in ~node-type-name [:functions '~fname])) ~@argv))) (t/functions node-type))
-     ~@(message-processors node-type-name node-type)))
+     ~@(t/interfaces node-type)
+     ~@(t/protocols node-type)
+     ~@(map (fn [[fname [argv _]]] `(~fname ~argv ((second (get (t/method-impls ~node-type-name) '~fname)) ~@argv))) (t/method-impls node-type))
+     ~@(message-processor node-type-name node-type)))
 
 (defn define-node-record
   "Create a new class for the node type. This builds a defrecord with
 the node's properties as fields. The record will implement all the interfaces
 and protocols that the node type requires."
   [record-name node-type-name node-type]
-  ;(println (generate-node-record-sexps record-name node-type-name node-type))
   (eval (generate-node-record-sexps record-name node-type-name node-type)))
 
 (defn- interpose-every
@@ -412,19 +414,18 @@ and protocols that the node type requires."
 
 (defn- print-method-sexps
   [record-name node-type-name node-type]
-  (let [tagged-arg (vary-meta (gensym "v") assoc :tag (resolve record-name))]
+  (let [node (vary-meta 'node assoc :tag (resolve record-name))]
     `(defmethod print-method ~record-name
-       [~tagged-arg w#]
+       [~node w#]
        (.write
          ^java.io.Writer w#
-         (str "#" '~node-type-name "{:_id " (:_id ~tagged-arg)
-           ~@(interpose-every 3 ", " (mapcat (fn [prop] `[~prop " " (pr-str (get ~tagged-arg ~prop))]) (keys (t/properties' node-type))))
-           "}>")))))
+         (str "#" '~node-type-name "{:_id " (:_id ~node)
+           ~@(interpose-every 3 ", " (mapcat (fn [prop] `[~prop " " (pr-str (get ~node ~prop))]) (keys (t/properties' node-type))))
+           "}")))))
 
 (defn define-print-method
   "Create a nice print method for a node type. This avoids infinitely recursive output in the REPL."
   [record-name node-type-name node-type]
-  ;(println (print-method-sexps record-name node-type-name node-type))
   (eval (print-method-sexps record-name node-type-name node-type)))
 
 ; ---------------------------------------------------------------------------

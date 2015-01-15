@@ -70,7 +70,7 @@ Example:
 
   (construct GravityModifier :acceleration 16)"
   [node-type & {:as args}]
-  ((:ctor node-type) (merge {:_id (in/tempid)} args)))
+  ((::ctor node-type) (merge {:_id (in/tempid)} args)))
 
 (defmacro defnode
     "Given a name and a specification of behaviors, creates a node,
@@ -142,12 +142,11 @@ implement dynamo.types/MessageTarget."
     `(do
        (declare ~ctor-name ~symb)
        (let [description# ~(in/node-type-sexps (concat node-intrinsics forms))
-            ctor#        (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))
-            node-type#   (in/make-node-type (assoc description# :ctor ctor#))]
-        (def ~symb node-type#)
-        (in/define-node-record '~record-name '~symb ~symb)
-        (in/define-print-method '~record-name '~symb ~symb)
-        (var ~symb)))))
+             ctor#        (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
+         (def ~symb (in/make-node-type (assoc description# ::ctor ctor#)))
+         (in/define-node-record  '~record-name '~symb ~symb)
+         (in/define-print-method '~record-name '~symb ~symb)
+         (var ~symb)))))
 
 (defn abort
   "Abort production function and use substitute value."

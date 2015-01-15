@@ -253,7 +253,7 @@
              (for [[n vs] outputs-modified
                    v vs
                    :let [node (dg/node graph n)]
-                   :when (t/auto-update? node v)]
+                   :when (contains? (t/auto-update-outputs node) v)]
                [node v])))
 
 (deftype TriggerReceiver [transaction-context]

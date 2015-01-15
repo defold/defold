@@ -30,13 +30,16 @@
   (supertypes           [this])
   (interfaces           [this])
   (protocols            [this])
-  (functions            [this])
+  (method-impls         [this])
   (transforms'          [this])
   (transform-types'     [this])
   (properties'          [this])
   (inputs'              [this])
+  (injectable-inputs'   [this])
   (outputs'             [this])
-  (events'              [this])
+  (cached-outputs'      [this])
+  (auto-update-outputs' [this])
+  (event-handlers'      [this])
   (output-dependencies' [this]))
 
 (defprotocol Node
@@ -47,8 +50,8 @@
   (outputs             [this]        "Return a set of labels for the outputs of this node.")
   (transforms          [this]        "temporary")
   (transform-types     [this]        "temporary")
-  (auto-update?        [this label]  "Return true if the output label should be updated whenever it gets invalidated.")
   (cached-outputs      [this]        "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
+  (auto-update-outputs [this]        "Return a set of labels for the outputs of this node which are updated whenever they get invalidated. This must be a subset of 'outputs'.")
   (output-dependencies [this]        "Return a map of labels for the inputs and properties to outputs that depend on them."))
 
 (defprotocol MessageTarget

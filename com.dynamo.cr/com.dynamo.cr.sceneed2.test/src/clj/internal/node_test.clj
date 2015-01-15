@@ -490,7 +490,7 @@
     (is (:another-cached-output (t/cached-outputs (construct InheritsBasicNode))))
     (is (not (:another-output (t/cached-outputs (construct InheritsBasicNode))))))
   (testing "on-update"
-    (is (t/auto-update? (construct BasicNode) :basic-output))
-    (is (t/auto-update? (construct InheritsBasicNode) :basic-output))
-    (is (t/auto-update? (construct InheritsBasicNode) :another-cached-output))
-    (is (not (t/auto-update? (construct InheritsBasicNode) :another-output)))))
+    (is (:basic-output (t/auto-update-outputs (construct BasicNode))))
+    (is (:basic-output (t/auto-update-outputs (construct InheritsBasicNode))))
+    (is (:another-cached-output (t/auto-update-outputs (construct InheritsBasicNode))))
+    (is (not (:another-output (t/auto-update-outputs (construct InheritsBasicNode)))))))
