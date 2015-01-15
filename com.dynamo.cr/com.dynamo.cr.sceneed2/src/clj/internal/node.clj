@@ -347,7 +347,7 @@ build the node type description (map). These are emitted where you invoked
     [impl :guard symbol?]
     `(cond->
         (class? ~impl)
-        (attach-interface '~impl)
+        (attach-interface (symbol (.getName ~impl)))
 
         (not (class? ~impl))
         (attach-protocol (fqsymbol '~impl)))))
