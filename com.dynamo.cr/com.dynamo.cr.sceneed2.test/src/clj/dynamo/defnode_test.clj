@@ -85,7 +85,7 @@
  (inherits MarkerInterfaceNode))
 
 (definterface OneMethodInterface
-  (oneMethod [x]))
+  (oneMethod [^Long x]))
 
 (defn- private-function [x] [x :ok])
 
@@ -93,7 +93,7 @@
   (input an-input s/Str)
 
   OneMethodInterface
-  (oneMethod [this x] (private-function x)))
+  (oneMethod [this ^Long x] (private-function x)))
 
 (n/defnode InheritedMethodNode
   (inherits OneMethodNode))
@@ -127,7 +127,11 @@
       (is (= [5 :ok] (.oneMethod node 5))))
     (let [node (n/construct OverriddenMethodNode)]
       (is (instance? OneMethodInterface node))
-      (is (= [42 :overridden] (.oneMethod node 42))))))
+      (is (= [42 :overridden] (.oneMethod node 42)))))
+  (testing "preserves type hints"
+    (let [[arglist _] (get (t/method-impls OneMethodNode) 'oneMethod)]
+      (is (= ['this 'x] arglist))
+      (is (= {:tag 'Long} (meta (second arglist)))))))
 
 (defprotocol LocalProtocol
   (protocol-method [this x y]))
