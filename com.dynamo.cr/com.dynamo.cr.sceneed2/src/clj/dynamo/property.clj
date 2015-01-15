@@ -11,8 +11,12 @@
 (defmacro defproperty [name value-type & body-forms]
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
+;; TODO - SAMDISCUSS
+#_(defproperty NonNegativeInt s/Int
+   (validation (comp not neg?)))
+
 (defproperty NonNegativeInt s/Int
-  (validation (comp not neg?)))
+  (validation (fn [v] (not (neg? v)))))
 
 (defproperty Resource IResource)
 

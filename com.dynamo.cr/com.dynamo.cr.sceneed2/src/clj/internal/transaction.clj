@@ -83,13 +83,9 @@
 ; Building transactions
 ; ---------------------------------------------------------------------------
 (defn new-node
-  ([node]
-    (new-node node (set (keys (:inputs node))) (set (keys (:transforms node)))))
-  ([node inputs outputs]
-    [{:type    :create-node
-      :node    node
-      :inputs  inputs
-      :outputs outputs}]))
+  [node]
+  [{:type :create-node
+    :node node}])
 
 (defn delete-node
   [node]
@@ -257,7 +253,7 @@
              (for [[n vs] outputs-modified
                    v vs
                    :let [node (dg/node graph n)]
-                   :when (t/auto-update? node v)]
+                   :when (contains? (t/auto-update-outputs node) v)]
                [node v])))
 
 (deftype TriggerReceiver [transaction-context]

@@ -15,5 +15,3 @@
   (let [img (make-image (as-url (file "foo")) (BufferedImage. 128 192 BufferedImage/TYPE_4BYTE_ABGR))]
     (is (= 128 (.width img)))
     (is (= 192 (.height img)))))
-
-#_(run-tests)

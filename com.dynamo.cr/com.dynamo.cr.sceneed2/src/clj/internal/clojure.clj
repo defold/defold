@@ -50,4 +50,4 @@
 
 (defn on-load-code
   [resource _]
-  (ds/add (make-clojure-source-node :resource resource)))
+  (ds/add (n/construct ClojureSourceNode :resource resource)))

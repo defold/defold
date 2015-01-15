@@ -1,5 +1,6 @@
 (ns dynamo.file.protobuf
   (:require [clojure.string :as str]
+            [dynamo.node :as n]
             [dynamo.file :as f]
             [dynamo.system :as ds]
             [camel-snake-kebab :refer :all])
@@ -33,7 +34,7 @@
      [~'protobuf & {:as ~'overrides}]
      (let [~'message-mapper ~(message-mapper class (:basic-properties spec))
            ~'basic-props    (~'message-mapper ~'protobuf)
-           ~'this           (apply ~(:constructor spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
+           ~'this           (apply n/construct ~(:node-type spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
        (ds/add ~'this)
        ~@(map subordinate-mapper (:node-properties spec))
        ~'this)))

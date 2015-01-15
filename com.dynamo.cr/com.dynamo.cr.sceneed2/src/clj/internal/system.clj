@@ -39,7 +39,7 @@
     (if (:started this)
       this
       (dosync
-        (let [root (n/make-root-scope :world-ref state :_id 1)]
+        (let [root (n/construct n/RootScope :world-ref state :_id 1)]
           (ref-set state (new-world-state state root repaint-needed))
           (assoc this :started true)))))
   (stop [this]

@@ -1,38 +1,79 @@
 (ns dynamo.node
-  "Define new node types"
+  "This namespace has two fundamental jobs. First, it provides the operations
+for defining and instantiating nodes: `defnode` and `construct`.
+
+Second, this namespace defines some of the basic node types and mixins."
   (:require [clojure.set :as set]
+            [clojure.core.match :refer [match]]
+            [clojure.tools.macro :refer [name-with-attributes]]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [dynamo.property :as dp :refer [defproperty]]
             [dynamo.system :as ds]
-            [dynamo.types :refer :all]
+            [dynamo.types :as t :refer :all]
+            [dynamo.util :refer :all]
             [internal.node :as in]
+            [internal.property :as ip]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]))
 
 (set! *warn-on-reflection* true)
 
-(defn get-node-value [node label]
+(defn get-node-value
+  "Pull a value from a node's output, identified by `label`.
+The value may be cached or it may be computed on demand. This
+is transparent to the caller.
+
+This uses the current \"world\" value of the node and its output.
+That means the caller will receive a value consistent with the most
+recently committed transaction.
+
+The label must exist as a defined transform on the node, or an
+AssertionError will result."
+  [node label]
   (in/get-node-value node label))
 
-(defnk selfie [this] this)
+(defnk selfie
+  "Passthrough for self. Needed only for dependency tracking."
+  [this] this)
 
 (defn- gather-property [this prop]
   {:node-id (:_id this)
    :value (get this prop)
-   :type  (-> this :descriptor :properties prop)})
+   :type  (-> this t/properties prop)})
 
 (defnk gather-properties :- Properties
+  "Production function that delivers the definition and value
+for all properties of this node."
   [this]
-  (let [property-names (-> this :descriptor :properties keys)]
+  (let [property-names (-> this t/properties keys)]
     (zipmap property-names (map (partial gather-property this) property-names))))
 
 (def node-intrinsics
   [(list 'output 'self `s/Any `selfie)
    (list 'output 'properties `Properties `gather-properties)])
 
+(defn construct
+  "Creates an instance of a node. The node-type must have been
+previously defined via `defnode`.
+
+The node's properties will all have their default values. The caller
+may pass key/value pairs to override properties.
+
+A node that has been constructed is not connected to anything and it
+doesn't exist in the graph yet. The caller must use `dynamo.system/add`
+to place the node in the graph.
+
+Example:
+  (defnode GravityModifier
+    (property acceleration s/Int (default 32))
+
+  (construct GravityModifier :acceleration 16)"
+  [node-type & {:as args}]
+  ((::ctor node-type) (merge {:_id (in/tempid)} args)))
+
 (defmacro defnode
-  "Given a name and a specification of behaviors, creates a node,
+    "Given a name and a specification of behaviors, creates a node,
 and attendant functions.
 
 Allowed clauses are:
@@ -60,7 +101,7 @@ Ordinarily, an output value is not produced until it is requested. However, an
 output with the :on-update flag will be updated as soon as possible after the
 previous value is invalidated.
 
-Example (from [[atlas.core]]):
+Example (from [[editors.atlas]]):
 
     (defnode TextureCompiler
       (input    textureset TextureSet)
@@ -94,14 +135,18 @@ Every node always implements dynamo.types/Node.
 
 If there are any event handlers defined for the node type, then it will also
 implement dynamo.types/MessageTarget."
-  [name & specs]
-  (let [descriptor (in/compile-specification name (concat node-intrinsics specs))]
+  [symb & body]
+  (let [[symb forms] (name-with-attributes symb body)
+        record-name  (in/classname-for symb)
+        ctor-name    (symbol (str 'map-> record-name))]
     `(do
-       ~(in/generate-descriptor   name descriptor)
-       ~(in/generate-defrecord    name descriptor)
-       ~(in/generate-constructor  name descriptor)
-       ~(in/generate-print-method name)
-       (in/validate-descriptor ~(str name) ~name))))
+       (declare ~ctor-name ~symb)
+       (let [description# ~(in/node-type-sexps (concat node-intrinsics forms))
+             ctor#        (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
+         (def ~symb (in/make-node-type (assoc description# ::ctor ctor#)))
+         (in/define-node-record  '~record-name '~symb ~symb)
+         (in/define-print-method '~record-name '~symb ~symb)
+         (var ~symb)))))
 
 (defn abort
   "Abort production function and use substitute value."
@@ -116,6 +161,7 @@ This function should mainly be used to create 'plumbing'."
   [node type & {:as body}]
   (process-one-event (ds/refresh node) (assoc body :type type)))
 
+
 (defn get-node-inputs
   "Sometimes a production function needs direct access to an input source.
    This function takes any number of input labels and returns a vector of their
@@ -127,6 +173,8 @@ This function should mainly be used to create 'plumbing'."
 ; Bootstrapping the core node types
 ; ---------------------------------------------------------------------------
 (defn inject-new-nodes
+  "Implementation function that performs dependency injection for nodes.
+This function should not be called directly."
   [graph self transaction]
   (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
         nodes-added              (map #(dg/node graph %) (:nodes-added transaction))
@@ -142,6 +190,8 @@ This function should mainly be used to create 'plumbing'."
       (apply ds/connect connection))))
 
 (defn dispose-nodes
+  "Trigger to dispose nodes from a scope when the scope is destroyed.
+This should not be called directly."
   [graph self transaction]
   (when (ds/is-removed? transaction self)
     (let [graph-before-deletion (-> transaction :world-ref deref :graph)
@@ -152,6 +202,11 @@ This function should mainly be used to create 'plumbing'."
 (defproperty Triggers Callbacks (visible false))
 
 (defnode Scope
+  "Scope provides a level of grouping for nodes. Scopes nest.
+When a node is added to a Scope, the node's :self output will be
+connected to the Scope's :nodes input.
+
+When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes [s/Any])
 
   (property tag      s/Keyword)
@@ -164,6 +219,8 @@ This function should mainly be used to create 'plumbing'."
   (lookup [this nm] (-> (get-node-value this :dictionary) (get nm))))
 
 (defnode RootScope
+  "There should be exactly one RootScope in the graph, with ID 1.
+RootScope has no parent."
   (inherits Scope)
   (property tag s/Keyword (default :root)))
 
@@ -172,15 +229,25 @@ This function should mainly be used to create 'plumbing'."
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
 
 (defn mark-dirty
+  "Trigger used to implement dirty tracking for content nodes.
+Do not call this directly."
   [graph self transaction]
   (when (and (ds/is-modified? transaction self) (not (ds/is-added? transaction self)))
     (ds/set-property self :dirty true)))
 
 (defnode DirtyTracking
+  "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
+this node to set a dirty flag whenever the node is altered by a transaction."
   (property triggers Triggers (default [#'mark-dirty]))
   (property dirty s/Bool
     (default false)
     (visible false)))
 
 (defnode Saveable
+  "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
+this node to indicate that 'Save' is a meaningful action.
+
+Inheritors are required to supply a production function for the :save output."
   (output save s/Keyword :abstract))
+
+

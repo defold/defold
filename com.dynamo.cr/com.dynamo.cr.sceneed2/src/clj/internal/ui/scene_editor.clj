@@ -103,7 +103,7 @@
 (n/defnode Renderer
   (input view-camera Camera)
   (input renderables [t/RenderData])
-  (input controller  t/Node)
+  (input controller  't/Node)
   (input aabb        AABB)
 
   (property context GLContext)

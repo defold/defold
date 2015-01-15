@@ -21,7 +21,7 @@
   (testing "throws if return value is not a node"
     (with-clean-world
       (let [project-node (ds/transactional
-                           (ds/in (ds/add (p/make-project))
+                           (ds/in (ds/add (n/construct p/Project))
                              (p/register-loader "dummy" (constantly :not-a-node))
                              (ds/current-scope)))]
         (is (thrown-with-msg? AssertionError #"must return a node"
@@ -31,8 +31,8 @@
   (testing "throws if return value is not a node"
     (with-clean-world
       (let [project-node (ds/transactional
-                           (ds/in (ds/add (p/make-project))
-                             (p/register-loader "dummy" (fn [& _] (make-dummy-node)))
+                           (ds/in (ds/add (n/construct p/Project))
+                             (p/register-loader "dummy" (fn [& _] (n/construct DummyNode)))
                              (p/register-editor "dummy" (constantly :not-a-node))
                              (ds/current-scope)))]
         (is (thrown-with-msg? AssertionError #"must return a node"
