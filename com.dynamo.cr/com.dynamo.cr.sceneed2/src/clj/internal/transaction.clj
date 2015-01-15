@@ -83,13 +83,9 @@
 ; Building transactions
 ; ---------------------------------------------------------------------------
 (defn new-node
-  ([node]
-    (new-node node (set (keys (:inputs node))) (set (keys (:transforms node)))))
-  ([node inputs outputs]
-    [{:type    :create-node
-      :node    node
-      :inputs  inputs
-      :outputs outputs}]))
+  [node]
+  [{:type :create-node
+    :node node}])
 
 (defn delete-node
   [node]
