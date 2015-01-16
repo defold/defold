@@ -1,0 +1,5 @@
+name: "test_collectionfactory"
+instances {
+  id: "cf"
+  prototype: "/collectionfactory/spawner.go"
+}

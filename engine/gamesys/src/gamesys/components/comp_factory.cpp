@@ -54,7 +54,6 @@ namespace dmGameSystem
             FactoryComponent* fc = &fw->m_Components[index];
             fc->m_Resource = (FactoryResource*) params.m_Resource;
             *params.m_UserData = (uintptr_t) fc;
-
             return dmGameObject::CREATE_RESULT_OK;
         }
         else
