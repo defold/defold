@@ -45,21 +45,22 @@
   "this took a long time to produce")
 
 (n/defnode CachedOutputNoInputs
-  (output expensive-value String :cached [node g]
-    (tally node 'compute-expensive-value)
-    "this took a long time to produce")
+  (output expensive-value String :cached
+    (fn [node g]
+      (tally node 'compute-expensive-value)
+      "this took a long time to produce"))
   (input operand String))
 
 (n/defnode UpdatesExpensiveValue
   (output expensive-value String :cached :on-update
-    [node g]
-    (tally node 'compute-expensive-value)
-    "this took a long time to produce"))
+    (fn [node g]
+      (tally node 'compute-expensive-value)
+      "this took a long time to produce")))
 
 (n/defnode SecondaryCachedValue
   (output another-value String :cached
-    [node g]
-    "this is distinct from the other outputs"))
+    (fn [node g]
+      "this is distinct from the other outputs")))
 
 (defnk compute-derived-value
   [this first-name last-name]
@@ -89,10 +90,10 @@
   []
   (with-clean-world
     (let [nodes (tx-nodes
-                  (make-cache-test-node :scalar "Jane")
-                  (make-cache-test-node :scalar "Doe")
-                  (make-cache-test-node)
-                  (make-cache-test-node))
+                  (n/construct CacheTestNode :scalar "Jane")
+                  (n/construct CacheTestNode :scalar "Doe")
+                  (n/construct CacheTestNode)
+                  (n/construct CacheTestNode))
           [name1 name2 combiner expensive]  nodes]
       (ds/transactional
         (ds/connect name1 :uncached-value combiner :first-name)
@@ -160,7 +161,7 @@
       (>!! (:channel (dg/node g this)) :gone))))
 
 (n/defnode DisposableValueNode
-  (output disposable-value t/IDisposable :cached compute-disposable-value))
+  (output disposable-value 't/IDisposable :cached compute-disposable-value))
 
 (defnk produce-input-from-node
   [overridden]
@@ -179,8 +180,8 @@
   []
   (with-clean-world
     (let [nodes (tx-nodes
-                  (make-override-value-node)
-                  (make-cache-test-node :scalar "Jane"))
+                  (n/construct OverrideValueNode)
+                  (n/construct CacheTestNode :scalar "Jane"))
           [override jane]  nodes]
       (ds/transactional
         (ds/connect jane :uncached-value override :overridden))
@@ -211,9 +212,9 @@
   [project-name]
   (with-clean-world
     (ds/transactional
-      (ds/in (ds/add (p/make-project :name project-name))
-        (ds/in (ds/add (make-project-aware-node))
-          (ds/add (make-project-aware-node)))))))
+      (ds/in (ds/add (n/construct p/Project :name project-name))
+        (ds/in (ds/add (n/construct ProjectAwareNode))
+          (ds/add (n/construct ProjectAwareNode)))))))
 
 (deftest sends-node-project-to-production-function
   (let [project-aware-node (build-project-aware-node :some-project)]
@@ -222,7 +223,7 @@
 (deftest update-sees-in-transaction-value
   (with-clean-world
     (let [node (ds/transactional
-                 (ds/add (p/make-project :name "a project" :int-prop 0)))
+                 (ds/add (n/construct p/Project :name "a project" :int-prop 0)))
           after-transaction (ds/transactional
                               (ds/update-property node :int-prop inc)
                               (ds/update-property node :int-prop inc)
@@ -238,7 +239,7 @@
   (testing "project scope message"
     (with-clean-world
       (let [ps-node (ds/transactional
-                      (ds/in (ds/add (p/make-project :name "a project"))
-                        (ds/add (make-scope-receiver))))]
+                      (ds/in (ds/add (n/construct p/Project :name "a project"))
+                        (ds/add (n/construct ScopeReceiver))))]
         (await-world-time world-ref 3 500)
         (is (= "a project" (->> (ds/refresh world-ref ps-node) :message-received :scope :name)))))))

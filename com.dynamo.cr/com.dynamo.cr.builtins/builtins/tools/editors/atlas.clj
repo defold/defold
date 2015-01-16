@@ -13,16 +13,16 @@
             [dynamo.gl.texture :as texture]
             [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
-            [dynamo.node :as n :refer [defnode]]
+            [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
-            [internal.ui.scene-editor :refer :all]
+            [internal.ui.scene-editor :as ius]
             [internal.ui.background :refer :all]
             [internal.ui.grid :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.file :as file]
             [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
-            [dynamo.project :as p :refer [register-loader register-editor]]
+            [dynamo.project :as p]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
@@ -35,6 +35,7 @@
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
+            [com.dynamo.tile.proto Tile$Playback]
             [com.jogamp.opengl.util.awt TextRenderer]
             [java.nio ByteBuffer IntBuffer]
             [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
@@ -69,15 +70,11 @@
       `(when-let [value# (get ~props ~k)]
          (. ~inst ~setter (~xform value#))))))
 
-#_(defnode ImageNode
-   (inherits OutlineNode)
-   (inherits ImageSource))
-
 (defnk produce-animation :- Animation
   [this images :- [Image] id fps flip-horizontal flip-vertical playback]
   (->Animation id images fps flip-horizontal flip-vertical playback))
 
-(defnode AnimationGroupNode
+(n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
   (inherits AnimationBehavior)
 
@@ -101,7 +98,7 @@
   (let [textureset (n/get-node-value this :textureset)]
     (g/rect->aabb (:aabb textureset))))
 
-(defnode AtlasProperties
+(n/defnode AtlasProperties
   (inherits n/DirtyTracking)
 
   (input assets [OutlineItem])
@@ -127,7 +124,7 @@
             (.setFps            (.fps animation))
             (.setFlipHorizontal (.flip-horizontal animation))
             (.setFlipVertical   (.flip-vertical animation))
-            (.setPlayback       (.playback animation)))))
+            (.setPlayback       (protobuf/val->pb-enum Tile$Playback (.playback animation))))))
 
 (defnk get-text-format :- s/Str
   "get the text string for this node"
@@ -146,7 +143,7 @@
     (file/write-file path (.getBytes text))
     :ok))
 
-(defnode AtlasSave
+(n/defnode AtlasSave
   (inherits n/Saveable)
 
   (property path (s/protocol PathManipulation) (visible false))
@@ -265,7 +262,7 @@
   [textureset]
   textureset)
 
-(defnode AtlasRender
+(n/defnode AtlasRender
   (input  textureset s/Any)
 
   (output textureset s/Any            :cached passthrough-textureset)
@@ -274,36 +271,6 @@
   (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
   (output gpu-texture s/Any           :cached produce-gpu-texture)
   (output renderable RenderData       produce-renderable))
-
-(defnode AtlasNode
-  (inherits n/OutlineNode)
-  (inherits AtlasProperties)
-  (inherits AtlasSave)
-
-  (on :after-load
-    (let [path          (:path self)
-          project       (:project event)
-          atlas         (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas path))
-          compiler      (ds/add (make-texture-save
-                                  :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
-                                  :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturesetc")) path)
-                                  :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturec")) path)))]
-      (ds/set-property self :margin (:margin atlas))
-      (ds/set-property self :extrude-borders (:extrude-borders atlas))
-      (doseq [anim (:animations atlas)
-              :let [anim-node (apply make-animation-group-node (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id])))]]
-        (doseq [img (:images anim)
-                :let [img-node (p/node-by-filename project (:image img))]]
-          (ds/connect img-node :image anim-node :images)
-          (ds/connect img-node :tree  anim-node :children))
-        (ds/connect anim-node :animation self :animations)
-        (ds/connect anim-node :tree      self :children))
-      (doseq [img  (:images atlas)
-              :let [img-node (p/node-by-filename project (:image img))]]
-        (ds/connect img-node :image self :images)
-        (ds/connect img-node :tree  self :children))
-      (ds/connect self :textureset compiler :textureset)
-      (ds/set-property self :dirty false))))
 
 (def ^:private outline-vertices-per-placement 4)
 (def ^:private vertex-size (.getNumber TextureSetProto$Constants/VERTEX_SIZE))
@@ -479,7 +446,7 @@
     (.toByteArray (texturec-protocol-buffer (->engine-format (:packed-image textureset)))))
   :ok)
 
-(defnode TextureSave
+(n/defnode TextureSave
   (input textureset TextureSet)
 
   (property texture-filename    s/Str (default ""))
@@ -502,19 +469,14 @@
       "Frame Objects")
 (defhandler frame-objects-handler frame-objects-cmd frame-objects)
 
-(defn on-load
-  [project-node atlas-node path reader]
-  
-  (ds/add (make-atlas-node :path path)))
-
 (defn on-edit
   [project-node editor-site atlas-node]
-  (let [editor (make-scene-editor :name "editor")]
+  (let [editor (n/construct ius/SceneEditor :name "editor")]
     (in (add editor)
-        (let [atlas-render (add (make-atlas-render))
-              background (add (make-background))
-              grid       (add (make-grid))
-              camera     (add (make-camera-controller :camera (make-camera :orthographic)))]
+        (let [atlas-render (add (n/construct AtlasRender))
+              background (add (n/construct Background))
+              grid       (add (n/construct Grid))
+              camera     (add (n/construct CameraController :camera (make-camera :orthographic)))]
           (connect atlas-node   :textureset atlas-render :textureset)
           (connect camera       :camera     grid         :camera)
           (connect camera       :camera     editor       :view-camera)
@@ -525,6 +487,50 @@
           (connect atlas-node   :aabb       editor       :aabb))
         editor)))
 
+(defn construct-ancillary-nodes
+  [self locator input]
+  (let [atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))]
+    (def *atlas-m atlas)
+    (ds/set-property self :margin (:margin atlas))
+    (ds/set-property self :extrude-borders (:extrude-borders atlas))
+    (doseq [anim (:animations atlas)
+            :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))]]
+      (when-not anim-node (println :anim-node-nil :for anim))
+      (doseq [img (:images anim)
+              :let [img-node (lookup locator (:image img))]]
+        (when-not img-node (println :img-node-nil :for img))
+        (ds/connect img-node :image anim-node :images)
+        (ds/connect img-node :tree  anim-node :children))
+      (ds/connect anim-node :animation self :animations)
+      (ds/connect anim-node :tree      self :children))
+    (doseq [img  (:images atlas)
+            :let [img-node (lookup locator (:image img))]]
+      (when-not img-node (println :img-node-nil :for img))
+      (ds/connect img-node :image self :images)
+      (ds/connect img-node :tree  self :children))
+    self))
+
+(defn construct-compiler
+  [self]
+  (let [path (:path self)
+        compiler (ds/add (n/construct TextureSave
+                           :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
+                           :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturesetc")) path)
+                           :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturec")) path)))]
+    (ds/connect self :textureset compiler :textureset)
+    self))
+
+(n/defnode AtlasNode
+  (inherits n/OutlineNode)
+  (inherits AtlasProperties)
+  (inherits AtlasSave)
+
+  (on :load
+    (doto self
+      (construct-ancillary-nodes (:project event) (:path self))
+      (construct-compiler)
+      (ds/set-property :dirty false))))
+
 (when (in-transaction?)
-  (register-editor "atlas" #'on-edit)
-  (register-loader "atlas" AtlasNode #'on-load))
+  (p/register-editor "atlas" #'on-edit)
+  (p/register-node-type "atlas" AtlasNode))

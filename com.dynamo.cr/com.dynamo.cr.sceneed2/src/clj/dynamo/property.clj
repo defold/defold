@@ -11,26 +11,42 @@
 (defmacro defproperty [name value-type & body-forms]
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
+;; TODO - SAMDISCUSS
+#_(defproperty NonNegativeInt s/Int
+   (validation (comp not neg?)))
+
 (defproperty NonNegativeInt s/Int
-  (validation (comp not neg?)))
+  (validation (fn [v] (not (neg? v)))))
 
 (defproperty Resource IResource)
 
 (defproperty Vec3 t/Vec3
   (default [0.0 0.0 0.0]))
 
+(defproperty Color Vec3
+  (tag :color))
+
 (defprotocol Presenter
   (control-for-property [this])
   (settings-for-control [this value])
-  (on-event [this path event value]))
+  (on-event [this widget-subtree path event value]))
 
 (defn no-change [] nil)
 (defn intermediate-value [v] {:update-type :intermediate :value v})
 (defn final-value [v]        {:update-type :final :value v})
 (defn reset-default []       {:update-type :reset})
 
+(defn presenter-event-map
+  "Translate event map (from `dynamo.ui/event->map`) to stable external event map exposed to property presenters."
+  [event-map]
+  (let [whitelist #{:type}
+        qualified #{:character}]
+    (merge
+      (select-keys event-map whitelist)
+      (map-keys #(keyword (namespace ::_) (name %)) (select-keys event-map qualified)))))
+
 (defn is-enter-key? [event]
-  (#{\return \newline} (:character event)))
+  (#{\return \newline} (::character event)))
 
 (defrecord DefaultPresenter []
   Presenter
@@ -42,10 +58,19 @@
 (def default-presenter
   (->DefaultPresenter))
 
-(defn register-presenter
-  [registry value-type presenter]
-  (assoc registry value-type presenter))
+(s/defn register-presenter :- t/Registry
+  [registry   :- t/Registry
+   type       :- {:value-type s/Any (s/optional-key :tag) s/Keyword}
+   presenter  :- (s/protocol Presenter)]
+  (assoc registry (merge {:tag nil} type) presenter))
 
-(defn lookup-presenter
-  [registry property]
-  (get registry (:value-type property) default-presenter))
+(s/defn lookup-presenter :- (s/protocol Presenter)
+  [registry :- t/Registry
+   property :- (s/protocol t/PropertyType)]
+  (loop [tags (conj (t/property-tags property) nil)]
+    (if (empty? tags)
+      default-presenter
+      (let [key {:value-type (t/property-value-type property) :tag (first tags)}]
+        (if (contains? registry key)
+          (get registry key)
+          (recur (rest tags)))))))

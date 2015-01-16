@@ -163,11 +163,8 @@
 
 (protocol-buffer-converters
  Graphics$Cubemap
- {:constructor #'make-cubemap-node
-  :basic-properties [:right :left :top :bottom :front :back]
-  :right       (fn [parent-node val]
-                 (ds/connect (ds/add (img/make-image-source :image val)) :image parent-node :right))
-  })
+ {:node-type        CubemapNode
+  :basic-properties [:right :left :top :bottom :front :back]})
 
 (def ^:private cubemap-inputs
   {:right  :image-right
@@ -180,7 +177,7 @@
 (defn- make-faces
   [cubemap]
   (doseq [[side input] cubemap-inputs]
-    (ds/connect (ds/add (img/make-image-source :image (get cubemap side))) :image cubemap input)))
+    (ds/connect (ds/add (n/construct img/ImageSource :image (get cubemap side))) :image cubemap input)))
 
 (defn on-load
   [project-node path reader]
@@ -195,12 +192,12 @@
 
 (defn on-edit
   [project-node editor-site cubemap]
-  (let [editor (ise/make-scene-editor :name "editor")]
+  (let [editor (n/construct ise/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
-      (let [cubemap-render (ds/add (make-cubemap-render))
-            background     (ds/add (background/make-background))
-            grid           (ds/add (grid/make-grid))
-            camera         (ds/add (c/make-camera-controller :camera (c/make-camera :orthographic)))]
+      (let [cubemap-render (ds/add (n/construct CubemapRender))
+            background     (ds/add (n/construct background/Background))
+            grid           (ds/add (n/construct grid/Grid))
+            camera         (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
         (connect-cubemap-inputs cubemap cubemap-render)
         (ds/connect camera         :camera     grid           :camera)
         (ds/connect camera         :camera     editor         :view-camera)

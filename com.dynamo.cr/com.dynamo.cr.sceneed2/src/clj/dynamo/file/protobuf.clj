@@ -1,12 +1,13 @@
 (ns dynamo.file.protobuf
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [dynamo.node :as n]
             [dynamo.file :as f]
             [dynamo.system :as ds]
             [internal.java :as j]
             [camel-snake-kebab :refer :all])
   (:import [java.io Reader]
-           [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]))
+           [com.google.protobuf Message TextFormat GeneratedMessage$Builder Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,7 +37,6 @@ it creates. Likewise, it is responsible for making connections as desired."
 
 (defn read-text
   [^java.lang.Class class input & {:as opts}]
-  (println dynamo.file.protobuf/read-text input)
   (let [input   (if (instance? Reader input) input (io/reader input))
         builder (new-builder class)]
     (TextFormat/merge ^Reader input builder)
@@ -73,7 +73,7 @@ it creates. Likewise, it is responsible for making connections as desired."
      [~'protobuf & {:as ~'overrides}]
      (let [~'message-mapper ~(message-mapper class (:basic-properties spec))
            ~'basic-props    (~'message-mapper ~'protobuf)
-           ~'this           (apply ~(:constructor spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
+           ~'this           (apply n/construct ~(:node-type spec) (mapcat identity (merge ~'basic-props ~'overrides)))]
        (ds/add ~'this)
        ~@(map subordinate-mapper (:node-properties spec))
        ~@(map callback-field-mapper (:field-mappers spec))
@@ -88,12 +88,28 @@ it creates. Likewise, it is responsible for making connections as desired."
   [^Message pb]
   (TextFormat/printToString pb))
 
+(defn val->pb-enum
+  [^Class enum-class val]
+  (assert (contains? (supers enum-class) com.google.protobuf.ProtocolMessageEnum))
+  (assert (keyword? val))
+  (j/invoke-class-method enum-class "valueOf" (name val)))
+
+(defn pb-enum->val
+  [^Descriptors$EnumValueDescriptor val]
+  (keyword (.getName val)))
+
 (defn pb->map
   [^Message pb]
   (let [fld->map (fn [m [^Descriptors$FieldDescriptor descriptor value]]
                    (let [prop      (keyword (->kebab-case (.getName descriptor)))
                          repeated? (.isRepeated descriptor)]
-                     (if (not= Descriptors$FieldDescriptor$Type/MESSAGE (.getType descriptor))
-                       (assoc m prop value)
-                       (assoc m prop (if repeated? (map pb->map value) (pb->map value))))))]
+                     (cond
+                       (= (.getType descriptor) Descriptors$FieldDescriptor$Type/MESSAGE)
+                       (assoc m prop (if repeated? (map pb->map value) (pb->map value)))
+
+                       (= (.getType descriptor) Descriptors$FieldDescriptor$Type/ENUM)
+                       (assoc m prop (if repeated? (map pb-enum->val value) (pb-enum->val value)))
+
+                       :else
+                       (assoc m prop (if repeated? (seq value) value)))))]
     (reduce fld->map {} (.getAllFields pb))))

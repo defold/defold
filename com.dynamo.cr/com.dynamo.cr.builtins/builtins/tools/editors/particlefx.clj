@@ -226,47 +226,47 @@
   (inherits ModifierRender))
 
 (protocol-buffer-converters
- Particle$ParticleFX
- {:constructor #'editors.particlefx/make-particlefx-node
+Particle$ParticleFX
+{:node-type       ParticlefxNode
  :node-properties {:emitters-list [:tree -> :children
                                    :renderable -> :renderables]
                    :modifiers-list [:tree -> :children
                                     :renderable -> :renderables]}}
 
- Particle$Emitter
- {:constructor #'editors.particlefx/make-emitter-node
-  :basic-properties [:id :mode :duration :space :position :rotation :tile-source :animation :material :blend-mode
-                  :particle-orientation :inherit-velocity :max-particle-count :type :start-delay]
-  :node-properties {:properties-list [:value -> :property-sources]
-                    :particle-properties-list [:value -> :property-sources]
-                    :modifiers-list [:tree -> :children
-                                     :renderable -> :renderables]}
-  :enum-maps {:mode (automatic-protobuf-enum Particle$PlayMode "PLAY_MODE_")
-              :space (automatic-protobuf-enum Particle$EmissionSpace "EMISSION_SPACE_")
-              :blend-mode (automatic-protobuf-enum Particle$BlendMode "BLEND_MODE_")
-              :particle-orientation (automatic-protobuf-enum Particle$ParticleOrientation "PARTICLE_ORIENTATION_")
-              :type (automatic-protobuf-enum Particle$EmitterType "EMITTER_TYPE_")}}
+Particle$Emitter
+{:node-type        EmitterNode
+ :basic-properties [:id :mode :duration :space :position :rotation :tile-source :animation :material :blend-mode
+                    :particle-orientation :inherit-velocity :max-particle-count :type :start-delay]
+ :node-properties {:properties-list [:value -> :property-sources]
+                   :particle-properties-list [:value -> :property-sources]
+                   :modifiers-list [:tree -> :children
+                                    :renderable -> :renderables]}
+ :enum-maps {:mode (automatic-protobuf-enum Particle$PlayMode "PLAY_MODE_")
+             :space (automatic-protobuf-enum Particle$EmissionSpace "EMISSION_SPACE_")
+             :blend-mode (automatic-protobuf-enum Particle$BlendMode "BLEND_MODE_")
+             :particle-orientation (automatic-protobuf-enum Particle$ParticleOrientation "PARTICLE_ORIENTATION_")
+             :type (automatic-protobuf-enum Particle$EmitterType "EMITTER_TYPE_")}}
 
- Particle$Emitter$Property
- {:constructor #'editors.particlefx/make-emitter-property-node
-  :basic-properties [:key :spread :points-list]
-  :enum-maps  {:key (automatic-protobuf-enum Particle$EmitterKey "EMITTER_KEY_")}}
+Particle$Emitter$Property
+{:node-type        EmitterPropertyNode
+ :basic-properties [:key :spread :points-list]
+ :enum-maps        {:key (automatic-protobuf-enum Particle$EmitterKey "EMITTER_KEY_")}}
 
- Particle$Emitter$ParticleProperty
- {:constructor #'editors.particlefx/make-particle-property-node
-  :basic-properties [:key :points-list]
-  :enum-maps  {:key (automatic-protobuf-enum Particle$ParticleKey "PARTICLE_KEY_")}}
+Particle$Emitter$ParticleProperty
+{:node-type        ParticlePropertyNode
+ :basic-properties [:key :points-list]
+ :enum-maps        {:key (automatic-protobuf-enum Particle$ParticleKey "PARTICLE_KEY_")}}
 
- Particle$Modifier
- {:constructor #'editors.particlefx/make-modifier-node
-  :basic-properties [:type :use-direction :position :rotation]
-  :node-properties {:properties-list [:value -> :property-sources]}
-  :enum-maps {:type (automatic-protobuf-enum Particle$ModifierType "MODIFIER_TYPE_")}}
+Particle$Modifier
+{:node-type        ModifierNode
+ :basic-properties [:type :use-direction :position :rotation]
+ :node-properties  {:properties-list [:value -> :property-sources]}
+ :enum-maps        {:type (automatic-protobuf-enum Particle$ModifierType "MODIFIER_TYPE_")}}
 
- Particle$Modifier$Property
- {:constructor #'editors.particlefx/make-modifier-property-node
-  :basic-properties [:key :spread :points-list]
-  :enum-maps  {:key (automatic-protobuf-enum Particle$ModifierKey "MODIFIER_KEY_")}})
+Particle$Modifier$Property
+{:node-type        ModifierPropertyNode
+ :basic-properties [:key :spread :points-list]
+ :enum-maps        {:key (automatic-protobuf-enum Particle$ModifierKey "MODIFIER_KEY_")}})
 
 (defmethod protobuf/message->node Particle$SplinePoint
   [msg]
@@ -279,18 +279,18 @@
   [project-node path reader]
   (let [particlefx-message (protobuf/read-text Particle$ParticleFX reader)
         particlefx         (protobuf/message->node particlefx-message)
-        particlefx-save    (ds/add (make-particlefx-save))]
+        particlefx-save    (ds/add (n/construct ParticlefxSave))]
     (ds/connect particlefx :self particlefx-save :particlefx-properties)
     particlefx))
 
 (defn on-edit
   [project-node editor-site particlefx-node]
-  (let [editor (make-scene-editor :name "editor")]
+  (let [editor (n/construct SceneEditor :name "editor")]
     (in (add editor)
-      (let [particlefx-render (add (make-particlefx-render))
-            background (add (make-background))
-            grid       (add (make-grid))
-            camera     (add (make-camera-controller :camera (make-camera :orthographic)))
+      (let [particlefx-render (add (n/construct ParticlefxRender))
+            background (add (n/construct Background))
+            grid       (add (n/construct Grid))
+            camera     (add (n/construct CameraController :camera (make-camera :orthographic)))
             context (pl/create-context 64 256)]
         (set-property particlefx-render :context context)
         #_(connect particlefx-node   :renderables particlefx-render :renderables)

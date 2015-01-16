@@ -95,7 +95,9 @@
   ([n]
      (refresh (:world-ref n) n))
   ([world-ref n]
-     (iq/node-by-id world-ref (:_id n))))
+     (if world-ref
+       (iq/node-by-id world-ref (:_id n))
+       n)))
 
 ; ---------------------------------------------------------------------------
 ; For use by triggers

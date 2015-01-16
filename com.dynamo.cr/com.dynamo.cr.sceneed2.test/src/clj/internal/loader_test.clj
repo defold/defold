@@ -16,7 +16,7 @@
   (ds/transactional
     (ds/in proj
       (ds/add
-        (make-dummy-node :project proj ::p/filename file)))))
+        (n/construct DummyNode :project proj ::p/filename file)))))
 
 (defn- bomb
   [& _]
@@ -24,7 +24,7 @@
 
 (deftest reuse-same-node
   (with-clean-world
-    (let [project (ds/transactional (ds/add (p/make-project)))
+    (let [project (ds/transactional (ds/add (n/construct p/Project)))
           node1   (p/node-by-filename project "test-resource.txt" dummy)
           node2   (p/node-by-filename project "test-resource.txt" bomb)]
       (is (= (:_id node1) (:_id node2))))))

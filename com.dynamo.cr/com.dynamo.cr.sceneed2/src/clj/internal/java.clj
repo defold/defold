@@ -9,6 +9,10 @@
   (-> class (.getDeclaredMethod method (into-array Class []))
       (.invoke nil (into-array Object []))))
 
+(defn invoke-class-method
+  [^Class class ^String method-name & args]
+  (clojure.lang.Reflector/invokeStaticMethod class method-name ^objects (into-array Object args)))
+
 (defn daemonize
   [^Runnable f]
   (doto (Thread. f)

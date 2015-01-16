@@ -7,11 +7,13 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [dynamo.file :as file]
             [dynamo.node :as n]
+            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world]]
             [dynamo.types :as t]
             [schema.test]
-            [editors.atlas :as atlas])
+            [editors.atlas :as atlas]
+            [editors.image-node :as image])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [java.io StringReader]))
 
@@ -45,21 +47,23 @@
              (gen/tuple gen/pos-int gen/pos-int (gen/vector animation) (gen/vector image))))
 
 (defn <-text
-  [loader text-format]
-  (ds/transactional (loader nil (file/native-path "/var/tmp/dummy-path.atlas") (StringReader. text-format))))
+  [text-format]
+  (ds/transactional
+    (let [locator (reify t/NamingContext (lookup [this name] (ds/add (n/construct image/ImageResourceNode :filename name))))
+          atlas   (ds/add (n/construct atlas/AtlasNode))]
+      (atlas/construct-ancillary-nodes atlas locator (StringReader. text-format))
+      atlas)))
 
 (defn ->text
   [atlas]
   (n/get-node-value atlas :text-format))
 
-(def loader atlas/on-load)
-
 (defn round-trip
   [random-atlas]
   (with-clean-world
-    (let [first-gen  (->text (<-text loader random-atlas))
-         second-gen (->text (<-text loader first-gen))]
-     (= first-gen second-gen))))
+    (let [first-gen (->text (<-text random-atlas))
+          second-gen (->text (<-text first-gen))]
+      (= first-gen second-gen))))
 
 (defspec round-trip-preserves-fidelity
   10

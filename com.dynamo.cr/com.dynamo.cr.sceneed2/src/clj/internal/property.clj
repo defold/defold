@@ -27,7 +27,8 @@
   (property-value-type    [this]   (:value-type this))
   (default-property-value [this]   (get-default-value this))
   (valid-property-value?  [this v] (valid-value? this v))
-  (property-visible       [this]   (if (contains? this :visible) (:visible this) true)))
+  (property-visible       [this]   (if (contains? this :visible) (:visible this) true))
+  (property-tags          [this]   (:tags this)))
 
 (defn- resolve-if-symbol [sym]
   (if (symbol? sym)
@@ -47,15 +48,23 @@
     [(['visible visibility] :seq)]
     {:visible (resolve-if-symbol visibility)}
 
+    [(['tag tag] :seq)]
+    {:tags [tag]}
+
     :else
     (assert false (str "invalid form within property type definition: " (pr-str form)))))
 
+(defn merge-props [props new-props]
+  (-> (merge props new-props)
+      (assoc :tags (into (vec (:tags new-props)) (:tags props)))))
+
 (defn property-type-descriptor [name-sym value-type body-forms]
   `(let [value-type#     ~value-type
-         parent#         (when (t/property-type? value-type#) value-type#)
-         base-props#     (merge {:value-type value-type#} parent#)
+         base-props#     (if (t/property-type? value-type#)
+                           value-type#
+                           {:value-type value-type# :tags []})
          override-props# ~(mapv compile-defproperty-form body-forms)
-         props#          (reduce merge base-props# override-props#)
+         props#          (reduce merge-props base-props# override-props#)
          ; protocol detection heuristic based on private function `clojure.core/protocol?`
          protocol?#      (fn [~'p] (and (map? ~'p) (contains? ~'p :on-interface)))]
      (assert (not (protocol?# value-type#)) (str "Property " '~name-sym " type " '~value-type " looks like a protocol; try (schema.core/protocol " '~value-type ") instead."))

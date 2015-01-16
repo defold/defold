@@ -4,7 +4,7 @@
             [schema.macros :as sm]
             [dynamo.file :as f]
             [dynamo.file.protobuf :refer :all]
-            [dynamo.node :refer [defnode OutlineNode]]
+            [dynamo.node :as n]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
@@ -19,29 +19,29 @@
 (sm/defn produce-tree      [this] nil)
 (sm/defn produce-image     [this] nil)
 
-(defnode AtlasNode
-  (inherits OutlineNode)
+(n/defnode AtlasNode
+  (inherits n/OutlineNode)
 
-  (input images     [ImageSource])
+  (input images     [Image])
   (input animations [Animation])
 
   (property extrude-borders s/Int)
   (property margin          s/Int))
 
-(defnode AtlasAnimationNode
-  (inherits OutlineNode)
+(n/defnode AtlasAnimationNode
+  (inherits n/OutlineNode)
 
   (output tree      [OutlineItem] produce-tree)
   (output animation Animation     produce-animation))
 
-(defnode AtlasImageNode
-  (inherits OutlineNode)
+(n/defnode AtlasImageNode
+  (inherits n/OutlineNode)
 
   (output tree [OutlineItem] produce-tree))
 
 (protocol-buffer-converters
  TestAtlasProto$Atlas
- {:constructor      #'make-atlas-node
+ {:node-type        AtlasNode
   :basic-properties [:extrude-borders :margin]
   :node-properties  {:images-list [:tree -> :children,
                                    :image -> :images]
@@ -49,13 +49,13 @@
                                        :animation -> :animations]}}
 
  TestAtlasProto$AtlasAnimation
- {:constructor      #'make-atlas-animation-node
+ {:node-type        AtlasAnimationNode
   :basic-properties [:id :playback :fps :flip-horizontal :flip-vertical]
   :node-properties  {:images-list [:tree -> :children,
                                    :image -> :images]}}
 
  TestAtlasProto$AtlasImage
- {:constructor      #'make-atlas-image-node
+ {:node-type        AtlasImageNode
   :basic-properties [:image]})
 
 (defn atlas-with-one-animation [anim-id]

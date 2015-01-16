@@ -4,7 +4,7 @@
             [schema.core :as s]
             [dynamo.system :as ds]
             [dynamo.file :as file]
-            [dynamo.node :as n :refer [defnode Scope]]
+            [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.selection :as selection]
             [dynamo.types :as t]
@@ -42,10 +42,6 @@
   [filetype loader]
   (handle :loader filetype loader))
 
-(defn load-placeholder
-  [& _]
-  (ds/add (n/make-placeholder)))
-
 (defn register-node-type
   [filetype node-type]
   (ds/update-property (ds/current-scope) :node-types assoc filetype node-type))
@@ -74,7 +70,7 @@
   (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
   n)
 
-(defnode Placeholder
+(n/defnode Placeholder
   (inherits n/ResourceNode))
 
 (defn load-resource
@@ -82,9 +78,8 @@
   (ds/transactional
     (ds/in project-node
       (let [type          (get-in project-node [:node-types (t/extension path)] Placeholder)
-            resource-node (ds/add ((:constructor type) ::filename path))]
-        (when (:load (t/events resource-node))
-          (ds/send-after project-node {:type :load :path path}))
+            resource-node (ds/add (n/construct type ::filename path))]
+        (ds/send-after project-node {:type :load :path path})
         resource-node))))
 
 (defn node-by-filename
@@ -95,11 +90,12 @@
       node
       (factory project-node path))))
 
-(defnode CannedProperties
-  (property rotation     s/Str  (default "twenty degrees starboard"))
-  (property translation  s/Str  (default "Guten abend."))
-  (property some-vector  t/Vec3 (default [1 2 3]))
-  (property some-integer s/Int  (default 42)))
+(n/defnode CannedProperties
+  (property rotation     s/Str    (default "twenty degrees starboard"))
+  (property translation  s/Str    (default "Guten abend."))
+  (property some-vector  t/Vec3   (default [1 2 3]))
+  (property some-integer s/Int    (default 42))
+  (property background   dp/Color (default [0x4d 0xc0 0xca])))
 
 (defn- build-content-node
   [project-node path]
@@ -113,8 +109,8 @@
 (defn- build-selection-node
   [editor-node selected-nodes]
   (ds/in editor-node
-    (let [selection-node  (ds/add (selection/make-selection))
-          properties-node (ds/add (make-canned-properties :rotation "e to the i pi"))]
+    (let [selection-node  (ds/add (n/construct selection/Selection))
+          properties-node (ds/add (n/construct CannedProperties :rotation "e to the i pi"))]
       (doseq [node selected-nodes]
         (ds/connect node :self selection-node :selected-nodes))
       selection-node)))
@@ -161,8 +157,8 @@
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called by Eclipse
 ; ---------------------------------------------------------------------------
-(defnode Project
-  (inherits Scope)
+(n/defnode Project
+  (inherits n/Scope)
 
   (property triggers           n/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
   (property tag                s/Keyword (default :project))
@@ -170,6 +166,11 @@
   (property content-root       IContainer)
   (property branch             s/Str)
   (property presenter-registry t/Registry)
+
+  t/NamingContext
+  (lookup [this name]
+    (node-by-filename this
+      (file/project-path this name)))
 
   (on :destroy
     (ds/delete self)))
@@ -190,7 +191,7 @@
   [^IProject eclipse-project branch ^IProgressMonitor monitor]
   (ds/transactional
     (ds/add
-      (make-project
+      (n/construct Project
         :eclipse-project eclipse-project
         :content-root (.getFolder eclipse-project "content")
         :branch branch

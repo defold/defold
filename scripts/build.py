@@ -319,6 +319,7 @@ class Configuration(object):
                          ["org.clojure", "tools.nrepl", "0.2.3"],
                          ["org.clojure", "core.async", "0.1.346.0-17112a-alpha"],
                          ["org.clojure", "core.match", "0.2.1"],
+                         ["org.clojure", "tools.macro", "0.1.2"],
                          ["org.clojure", "tools.namespace", "0.2.6"],
                          ["org.clojure", "tools.macro", "0.1.2"],
                          ["com.stuartsierra", "component", "0.2.2"],

@@ -11,7 +11,7 @@
 (defn clean-world
   []
   (let [world-ref (ref nil)
-        root      (n/make-root-scope :world-ref world-ref :_id 1)]
+        root      (n/construct n/RootScope :world-ref world-ref :_id 1)]
     (dosync
       (ref-set world-ref (is/new-world-state world-ref root (ref #{})))
       world-ref)))

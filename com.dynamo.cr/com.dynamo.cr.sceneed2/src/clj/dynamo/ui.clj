@@ -8,13 +8,14 @@
            [org.eclipse.core.runtime SafeRunner]
            [org.eclipse.jface.util SafeRunnable]
            [org.eclipse.swt.custom StackLayout]
-           [org.eclipse.swt.widgets Control Composite Display Label Listener Shell Text Widget]
+           [org.eclipse.swt.widgets Control Composite Display Event Label Listener Shell Text Widget]
            [org.eclipse.swt.graphics Color RGB]
            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
            [org.eclipse.swt.layout FillLayout GridData GridLayout]
            [org.eclipse.swt SWT]
-           [com.dynamo.cr.properties StatusLabel]))
+           [com.dynamo.cr.properties StatusLabel]
+           [internal.ui ColorSelector]))
 
 (set! *warn-on-reflection* true)
 
@@ -88,14 +89,15 @@
 
 (def event-map (swt-events Dispose Resize Paint MouseDown MouseUp MouseDoubleClick
                            MouseEnter MouseExit MouseHover MouseMove MouseWheel DragDetect
-                           FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse))
+                           FocusIn FocusOut Gesture KeyUp KeyDown MenuDetect Traverse
+                           Selection DefaultSelection))
 
 (def event-type-map (clojure.set/map-invert event-map))
 
-(defn event-type [^org.eclipse.swt.widgets.Event evt]
+(defn event-type [^Event evt]
   (event-type-map (.type evt)))
 
-(def ^:private e->m (bean-mapper org.eclipse.swt.widgets.Event))
+(def ^:private e->m (bean-mapper Event))
 
 (defn event->map
   [evt]
@@ -134,11 +136,32 @@
 
 (defn- rgb [r g b] (Color. (display) r g b))
 
+(defn bring-to-front!
+  [^Control control]
+  (let [composite ^Composite   (.getParent control)
+        layout    ^StackLayout (.getLayout composite)]
+    (assert (instance? StackLayout layout) "bring-to-front only works on Composites with StackLayout as their layout")
+    (when (not= (. layout topControl) control)
+      (set! (. layout topControl) control)
+      (.layout composite))))
+
+(defn scroll-to-top!
+  [^ScrolledForm form]
+  (.setOrigin form 0 0)
+  (.reflow form true))
+
+
+(defn- set-widget-data [^Widget control key value]
+  (.setData control (assoc (.getData control) key value)))
+
+(defn- get-widget-data [^Widget control key]
+  (get (.getData control) key))
 
 (defn set-user-data [^Widget control value]
-  (.setData control value))
+  (set-widget-data control ::user-data value))
+
 (defn get-user-data [^Widget control]
-  (.getData control))
+  (get-widget-data control ::user-data))
 
 (defmulti make-layout      (fn [_ {type :type}] type))
 (defmulti make-layout-data (fn [_ {type :type}] type))
@@ -151,7 +174,9 @@
            :foreground   `(when-let [v# (:foreground ~props)]       (.setForeground ~control (apply rgb v#)))
            :on-click     `(when-let [v# (:on-click ~props)]         (.addHyperlinkListener ~control (proxy [HyperlinkAdapter] [] (linkActivated [e#] (v# e#)))))
            :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
-           :layout-data  `(when-let [v# (:layout-data ~props)]      (.setLayoutData ~control (make-layout-data ~control v#)))
+           :layout-data  `(let [v# (:layout-data ~props)]
+                            (when-let [parent-type# (-> (.getParent ~control) (get-widget-data ::layout) :type)]
+                              (.setLayoutData ~control (make-layout-data ~control (assoc v# :type parent-type#)))))
            :listen       `(doseq [[e# t#] (:listen ~props)]         (.addListener ~control (event-map e#) t#))
            :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
            :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
@@ -177,6 +202,13 @@
     (gen-state-changes #{:foreground :background :layout :layout-data :tooltip-text :listen :user-data} this props)
     this)
 
+  ColorSelector
+  (apply-properties [this props]
+    (gen-state-changes #{:layout-data :listen :user-data} this props)
+    (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
+    (when-let [[^int r ^int g ^int b] (:color props)] (.setColorValue this (RGB. r g b)))
+    this)
+
   Hyperlink
   (apply-properties [this props]
     (gen-state-changes #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text :listen :user-data} this props)
@@ -197,9 +229,22 @@
     (gen-state-changes #{:status :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
     this))
 
+(def swt-style
+  {:none   SWT/NONE
+   :border SWT/BORDER})
 
-(def swt-styles      {:none SWT/NONE
-                      :border SWT/BORDER})
+(def swt-horizontal-alignment
+  {:left   SWT/BEGINNING
+   :center SWT/CENTER
+   :right  SWT/END
+   :fill   SWT/FILL})
+
+(def swt-vertical-alignment
+  {:top    SWT/BEGINNING
+   :center SWT/CENTER
+   :bottom SWT/END
+   :fill   SWT/FILL})
+
 (def swt-grid-layout (map-beaner GridLayout))
 (def swt-grid-data   (map-beaner GridData))
 
@@ -209,47 +254,80 @@
     (set! (. stack topControl) (first (.getChildren control)))
     stack))
 
-(defmethod make-layout      :grid [control spec] (swt-grid-layout spec))
-(defmethod make-layout-data :grid [control spec] (swt-grid-data spec))
+(defmethod make-layout-data :stack [^Control control _]
+  nil)
 
+(defmethod make-layout :grid [^Composite control spec]
+  (let [columns (:columns spec)
+        spec (assoc spec :num-columns (count columns))]
+    (swt-grid-layout spec)))
 
+(defmethod make-layout-data :grid [^Control control spec]
+  (let [parent (.getParent control)
+        children (vec (.getChildren parent))
+        columns (:columns (get-widget-data parent ::layout))
+        ; assume no colspan/rowspan
+        child-index (.indexOf children control)
+        column-index (mod child-index (count columns))
+        column-layout (nth columns column-index)
+        spec (merge column-layout spec)
+        defaults (merge {}
+                   (when (= :fill (:horizontal-alignment spec)) {:grab-excess-horizontal-space true})
+                   (when (= :fill (:vertical-alignment   spec)) {:grab-excess-vertical-space   true}))
+        spec (into defaults
+               (for [[k v] spec]
+                (case k
+                  :horizontal-alignment [k (swt-horizontal-alignment v)]
+                  :vertical-alignment   [k (swt-vertical-alignment   v)]
+                  :min-width  [:width-hint  v]
+                  :min-height [:height-hint v]
+                  [k v])))]
+    (swt-grid-data spec)))
 
 (defmethod make-control :form
   [^FormToolkit toolkit parent [name props :as spec]]
   (let [control ^ScrolledForm (.createScrolledForm toolkit parent)
-        body    (.getBody control)
+        body (.getBody control)
+        _ (set-widget-data body ::layout (:layout props))
         child-controls (reduce merge {} (map #(make-control toolkit body %) (:children props)))]
     (apply-properties control props)
     {name (merge child-controls {::widget control})}))
 
 (defmethod make-control :composite
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createComposite toolkit parent (swt-styles (:style props :none)))
+  (let [control (.createComposite toolkit parent (swt-style (:style props :none)))
+        _ (set-widget-data control ::layout (:layout props))
         child-controls (reduce merge {} (map #(make-control toolkit control %) (:children props)))]
     (apply-properties control props)
     {name (merge child-controls {::widget control})}))
 
 (defmethod make-control :label
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createLabel toolkit parent nil (swt-styles (:style props :none)))]
+  (let [control (.createLabel toolkit parent nil (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :hyperlink
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createHyperlink toolkit parent nil (swt-styles (:style props :none)))]
+  (let [control (.createHyperlink toolkit parent nil (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :text
   [^FormToolkit toolkit parent [name props :as spec]]
-  (let [control (.createText toolkit parent nil (swt-styles (:style props :none)))]
+  (let [control (.createText toolkit parent nil (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
 (defmethod make-control :status-label
   [_ parent [name props :as spec]]
-  (let [control (StatusLabel. parent (swt-styles (:style props :none)))]
+  (let [control (StatusLabel. parent (swt-style (:style props :none)))]
+    (apply-properties control props)
+    {name {::widget control}}))
+
+(defmethod make-control :color-selector
+  [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control (ColorSelector. toolkit parent (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
@@ -266,23 +344,11 @@
 (defn get-text [^Text widget]
   (.getText widget))
 
+(defn get-color [^ColorSelector widget]
+  (let [c (.getColorValue widget)]
+    [(.-red c) (.-green c) (.-blue c)]))
+
 (defn shell [] (doto (Shell.) (.setLayout (FillLayout.))))
-
-(defn bring-to-front!
-  [widget-tree]
-  (let [control   ^Control     (widget widget-tree [])
-        composite ^Composite   (.getParent control)
-        layout    ^StackLayout (.getLayout composite)]
-    (assert (instance? StackLayout layout) "bring-to-front only works on Composites with StackLayout as their layout")
-    (when (not= (. layout topControl) control)
-      (set! (. layout topControl) control)
-      (.layout composite))))
-
-(defn scroll-to-top!
-  [widget-tree]
-  (let [form ^ScrolledForm (widget widget-tree [])]
-    (.setOrigin form 0 0)
-    (.reflow form true)))
 
 (defn now [] (System/currentTimeMillis))
 

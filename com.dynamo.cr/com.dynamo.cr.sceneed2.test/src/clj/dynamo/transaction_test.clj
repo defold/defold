@@ -28,7 +28,7 @@
 (n/defnode Downstream
   (input consumer String))
 
-(def gen-node (gen/fmap (fn [n] (make-resource :_id n :original-id n)) (gen/such-that #(< % 0) gen/neg-int)))
+(def gen-node (gen/fmap (fn [n] (n/construct Resource :_id n :original-id n)) (gen/such-that #(< % 0) gen/neg-int)))
 
 (defspec tempids-resolve-correctly
   (prop/for-all [nn gen-node]
@@ -39,12 +39,12 @@
 (deftest low-level-transactions
   (testing "one node with tempid"
     (with-clean-world
-      (let [tx-result (it/transact world-ref (it/new-node (make-resource :_id -5 :a "known value")))]
+      (let [tx-result (it/transact world-ref (it/new-node (n/construct Resource :_id -5 :a "known value")))]
         (is (= :ok (:status tx-result)))
         (is (= "known value" (:a (dg/node (:graph tx-result) (it/resolve-tempid tx-result -5))))))))
   (testing "two connected nodes"
     (with-clean-world
-      (let [[resource1 resource2] (tx-nodes (make-resource :_id -1) (make-downstream :_id -2))
+      (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
             after                 (:graph (it/transact world-ref (it/connect resource1 :b resource2 :consumer)))]
@@ -52,7 +52,7 @@
         (is (= [id2 :consumer] (first (lg/targets after id1 :b)))))))
   (testing "disconnect two singly-connected nodes"
     (with-clean-world
-      (let [[resource1 resource2] (tx-nodes (make-resource :_id -1) (make-downstream :_id -2))
+      (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))
             id1                   (:_id resource1)
             id2                   (:_id resource2)
             tx-result             (it/transact world-ref (it/connect    resource1 :b resource2 :consumer))
@@ -63,13 +63,13 @@
         (is (= [] (lg/targets after id1 :b))))))
   (testing "simple update"
     (with-clean-world
-      (let [[resource] (tx-nodes (make-resource :c 0))
+      (let [[resource] (tx-nodes (n/construct Resource :c 0))
             tx-result  (it/transact world-ref (it/update-property resource :c (fnil + 0) [42]))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (:c (dg/node (:graph tx-result) (:_id resource))))))))
   (testing "node deletion"
     (with-clean-world
-      (let [[resource1 resource2] (tx-nodes (make-resource :_id -1) (make-downstream :_id -2))]
+      (let [[resource1 resource2] (tx-nodes (n/construct Resource :_id -1) (n/construct Downstream :_id -2))]
         (it/transact world-ref (it/connect resource1 :b resource2 :consumer))
         (let [tx-result (it/transact world-ref (it/delete-node resource2))
               after     (:graph tx-result)]
@@ -113,14 +113,14 @@
   (testing "runs when node is added"
     (with-clean-world
       (let [tracker      (atom {})
-            counter      (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            counter      (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             after-adding @tracker]
         (is (= {:call-count 1 :was-added? true :was-modified? true :was-removed? false} after-adding)))))
 
   (testing "runs when node is altered in a way that affects an output"
     (with-clean-world
       (let [tracker          (atom {})
-            counter          (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            counter          (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
             _                (ds/transactional (ds/set-property counter :any-property true))
             after-updating   @tracker]
@@ -130,7 +130,7 @@
   (testing "runs when node is altered in a way that doesn't affects an output"
     (with-clean-world
       (let [tracker          (atom {})
-            counter          (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            counter          (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating  @tracker
             _                (ds/transactional (ds/set-property counter :dynamic-property true))
             after-updating   @tracker]
@@ -140,7 +140,7 @@
   (testing "runs when node is removed"
     (with-clean-world
       (let [tracker         (atom {})
-            counter         (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            counter         (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-removing @tracker
             _               (ds/transactional (ds/delete counter))
             after-removing  @tracker]
@@ -150,9 +150,9 @@
   (testing "runs when an upstream output changes"
     (with-clean-world
       (let [tracker         (atom {})
-            counter         (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
+            counter         (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
             before-updating @tracker
-            [s r1 r2 r3]    (tx-nodes (make-string-source) (make-relay) (make-relay) (make-relay))
+            [s r1 r2 r3]    (tx-nodes (n/construct StringSource) (n/construct Relay) (n/construct Relay) (n/construct Relay))
             _               (ds/transactional
                               (ds/connect s :label r1 :label)
                               (ds/connect r1 :label r2 :label)
@@ -166,8 +166,8 @@
   (testing "One node may activate another node in a trigger"
     (with-clean-world
       (let [tracker            (atom {})
-            counter            (ds/transactional (ds/add (make-trigger-execution-counter :tracking tracker)))
-            mutator            (ds/transactional (ds/add (make-mutates-by-trigger)))
+            counter            (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            mutator            (ds/transactional (ds/add (n/construct MutatesByTrigger)))
             before-transaction @tracker]
 
         (is (= 1 (:call-count before-transaction)))
@@ -220,13 +220,13 @@
 
 (defn- build-network
   []
-  (let [nodes {:person            (make-person)
-               :first-name-cell   (make-named-thing)
-               :last-name-cell    (make-named-thing)
-               :greeter           (make-receiver)
-               :formal-greeter    (make-receiver)
-               :calculator        (make-receiver)
-               :multi-node-target (make-focal-node)}
+  (let [nodes {:person            (n/construct Person)
+               :first-name-cell   (n/construct NamedThing)
+               :last-name-cell    (n/construct NamedThing)
+               :greeter           (n/construct Receiver)
+               :formal-greeter    (n/construct Receiver)
+               :calculator        (n/construct Receiver)
+               :multi-node-target (n/construct FocalNode)}
         nodes (zipmap (keys nodes) (apply tx-nodes (vals nodes)))]
     (ds/transactional
       (doseq [[f f-l t t-l]
@@ -265,7 +265,7 @@
 (deftest event-loops-started-by-transaction
   (with-clean-world
     (let [receiver (ds/transactional
-                     (ds/add (make-event-receiver :latch (promise))))]
+                     (ds/add (n/construct EventReceiver :latch (promise))))]
       (ds/transactional
         (ds/send-after receiver {:type :custom-event}))
       (is (= true (deref (:latch receiver) 500 :timeout))))))
@@ -275,13 +275,13 @@
 (n/defnode AutoUpdateOutput
   (input first-name String)
 
-  (output ordinary String [this g] "a-string")
+  (output ordinary String (fn [this g] "a-string"))
   (output updating String :on-update say-hello))
 
 (deftest on-update-properties-noted-by-transaction
   (with-clean-world
-    (let [update-node (make-auto-update-output)
-          event-receiver (make-event-receiver)
+    (let [update-node (n/construct AutoUpdateOutput)
+          event-receiver (n/construct EventReceiver)
           tx-result (it/transact world-ref [(it/new-node event-receiver) (it/new-node update-node)])]
       (let [real-updater (dg/node (:graph tx-result) (it/resolve-tempid tx-result (:_id update-node)))]
         (is (= 1 (count (:expired-outputs tx-result))))
@@ -293,7 +293,7 @@
 
 (deftest nodes-are-disposed-after-deletion
   (with-clean-world
-    (let [tx-result  (it/transact world-ref (it/new-node (make-disposable-node :_id -1)))
+    (let [tx-result  (it/transact world-ref (it/new-node (n/construct DisposableNode :_id -1)))
           disposable (dg/node (:graph tx-result) (it/resolve-tempid tx-result -1))
           tx-result  (it/transact world-ref (it/delete-node disposable))]
       (is (= disposable (first (:values-to-dispose tx-result)))))))
