@@ -31,6 +31,7 @@ import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesystem.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.gui.proto.Gui;
@@ -80,6 +81,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
         extToMessageClass.put(".spritec", SpriteDesc.class);
         extToMessageClass.put(".factoryc", FactoryDesc.class);
+        extToMessageClass.put(".collectionfactoryc", CollectionFactoryDesc.class);
         extToMessageClass.put(".materialc", MaterialDesc.class);
         extToMessageClass.put(".fontc", FontMap.class);
         extToMessageClass.put(".soundc", SoundDesc.class);

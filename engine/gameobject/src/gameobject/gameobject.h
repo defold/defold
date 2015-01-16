@@ -6,6 +6,7 @@
 
 #include <dlib/easing.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
 
@@ -16,6 +17,11 @@
 #include <script/script.h>
 
 #include <resource/resource.h>
+
+namespace dmGameObjectDDF
+{
+    struct CollectionDesc;
+}
 
 namespace dmGameObject
 {
@@ -702,6 +708,40 @@ namespace dmGameObject
      * return the spawned instance, 0 at failure
      */
     HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale);
+
+    struct InstancePropertyBuffer
+    {
+        uint8_t *property_buffer;
+        uint32_t property_buffer_size;
+    };
+
+    /**
+     * Used for mapping instance ids from a collection definition to newly spawned instances
+     */
+    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
+
+    /**
+     * Contains property buffers for game objects to be spawned
+     */
+    typedef dmHashTable<dmhash_t, InstancePropertyBuffer> InstancePropertyBuffers;
+
+    /**
+     * Spawns a collection into an existing one, from a collection definition resource. Script properties
+     * can be overridden by passing property buffers through the property_buffers hashtable. An empty game
+     * object is created under which all spawned children are placed.
+     *
+     * @param collection Gameobject collection to spawn into
+     * @param prototype_name Collection file name
+     * @param property_buffers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
+     * @param position Position for the root object
+     * @param rotation Rotation for the root object
+     * @param scale Scale of the root object
+     * @param instances Hash table to be filled with instance identifier mapping.
+     * return true on success
+     */
+    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+                             const Point3& position, const Quat& rotation, float scale,
+                             InstanceIdMap *instances);
 
     /**
      * Delete gameobject instance

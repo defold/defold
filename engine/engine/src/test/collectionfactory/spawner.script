@@ -1,0 +1,4 @@
+
+function init(self, params)
+	local id = collectionfactory.create("#collectionfactory");
+end
