@@ -1,2 +1,2 @@
-/builtins
+/builtins/*
 !/builtins/tools
