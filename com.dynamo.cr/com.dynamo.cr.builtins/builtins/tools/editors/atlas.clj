@@ -5,7 +5,6 @@
             [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.buffers :refer :all]
-            [dynamo.editors :as ed]
             [dynamo.env :as e]
             [dynamo.geom :as g :refer [to-short-uv]]
             [dynamo.gl :as gl :refer :all]
@@ -21,12 +20,11 @@
             [internal.ui.grid :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.file :as file]
-            [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
+            [dynamo.file.protobuf :as protobuf :refer [pb->str]]
             [dynamo.project :as p]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
-            [dynamo.ui :as ui :refer [defcommand defhandler]]
             [internal.ui.menus :as menus]
             [internal.ui.handlers :as handlers]
             [internal.render.pass :as pass]
@@ -41,8 +39,7 @@
             [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-            [javax.vecmath Matrix4d]
-            [org.eclipse.core.commands ExecutionEvent]))
+            [javax.vecmath Matrix4d]))
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -455,18 +452,6 @@
   (output   texturec s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
-(defn frame-objects
-  [^ExecutionEvent evt]
-  (when-let [editor (ed/event->active-editor evt)]
-    (process-one-event editor {:type :reframe})))
-
-;; MENUS
-;; undefine command if defined
-(defcommand frame-objects-cmd
-      "com.dynamo.cr.menu-items.scene"
-      "com.dynamo.cr.clojure-eclipse.commands-atlas.frame-objects"
-      "Frame Objects")
-(defhandler frame-objects-handler frame-objects-cmd frame-objects)
 
 (defn on-edit
   [project-node editor-site atlas-node]

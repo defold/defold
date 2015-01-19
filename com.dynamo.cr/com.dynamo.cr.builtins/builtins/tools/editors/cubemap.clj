@@ -21,7 +21,6 @@
             [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
-            [dynamo.ui :refer [defcommand defhandler]]
             [internal.node :as in]
             [internal.ui.background :as background]
             [internal.ui.grid :as grid]
@@ -174,7 +173,6 @@
     (let [project         (:project event)
           cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
       (doseq [[side input] cubemap-message]
-        (println :cubemap-load :connecting side input)
         (let [img-node (t/lookup project input)]
           (ds/set-property self side input)
           (ds/connect img-node :image self (cubemap-inputs side))

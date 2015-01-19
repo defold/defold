@@ -26,7 +26,6 @@
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
             [dynamo.particle-lib :as pl :refer :all]
-            [dynamo.ui :as ui :refer [defcommand defhandler]]
             [internal.ui.menus :as menus]
             [internal.ui.handlers :as handlers]
             [internal.render.pass :as pass]
