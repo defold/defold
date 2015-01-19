@@ -156,7 +156,7 @@
       :nodes-triggered     (merge-with set/union nodes-triggered {next-id (t/outputs full-node)}))))
 
 (defmethod perform :delete-node
-  [{:keys [graph nodes-removed] :as ctx} {:keys [node-id]}]
+  [{:keys [graph nodes-deleted] :as ctx} {:keys [node-id]}]
   (when-not (dg/node graph (resolve-tempid ctx node-id))
     (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
@@ -165,7 +165,7 @@
         ctx         (reduce (fn [ctx out] (mark-activated ctx node-id out)) ctx all-outputs)]
     (assoc ctx
       :graph         (dg/remove-node graph node-id)
-      :nodes-removed (assoc nodes-removed node-id node))))
+      :nodes-deleted (assoc nodes-deleted node-id node))))
 
 (defmethod perform :update-property
   [{:keys [graph] :as ctx} {:keys [node-id property fn args]}]
@@ -238,10 +238,10 @@
          (keep identity (map #(get-in cache-keys %) (pairs outputs-modified)))))
 
 (defn- dispose-obsoletes
-  [{:keys [cache obsolete-cache-keys nodes-removed] :as ctx}]
+  [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
   (let [candidates (concat
                      (filter t/disposable? (map #(get cache %) obsolete-cache-keys))
-                     (filter t/disposable? (vals nodes-removed)))]
+                     (filter t/disposable? (vals nodes-deleted)))]
     (assoc ctx :values-to-dispose (keep identity candidates))))
 
 (defn- evict-obsolete-caches
@@ -265,15 +265,15 @@
       (update-in [:pending] conj steps))))
 
 (defn- process-triggers
-  [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-removed] :as ctx}]
-  (let [all-activated  (concat (filter identity (map #(dg/node graph %) (keys nodes-triggered))) (vals nodes-removed))
+  [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-deleted] :as ctx}]
+  (let [all-activated  (concat (filter identity (map #(dg/node graph %) (keys nodes-triggered))) (vals nodes-deleted))
         invoke-trigger (fn [csub [n tr]]
                          (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
                            (tr (:graph csub) n csub)
                            (tx-apply *transaction*)))
         trigger-ctx    (-> ctx
                          (update-in [:nodes-added]      set/intersection (into #{} (keys nodes-triggered)))
-                         (update-in [:nodes-removed]    select-keys (keys nodes-triggered))
+                         (update-in [:nodes-deleted]    select-keys (keys nodes-triggered))
                          (update-in [:outputs-modified] select-keys (keys nodes-triggered)))
         trigger-ctx    (reduce invoke-trigger trigger-ctx (pairwise :triggers all-activated))]
     (assoc ctx :pending (:pending trigger-ctx))))
@@ -300,7 +300,7 @@
       ctx
       (recur (one-transaction-pass (assoc ctx :pending txs) tx-list) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-removed :outputs-modified])
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-deleted :outputs-modified])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.
@@ -327,7 +327,7 @@
      :new-event-loops     #{}
      :nodes-added         #{}
      :nodes-modified      #{}
-     :nodes-removed       {}
+     :nodes-deleted       {}
      :messages            []
      :pending             [txs]}))
 

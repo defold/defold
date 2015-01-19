@@ -4,12 +4,17 @@
             [dynamo.project :as p]
             [dynamo.file :as f]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world]]
+            [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
             [dynamo.types :as t]
             [clojure.java.io :as io])
   (:import [java.io StringReader]))
 
 (n/defnode DummyNode)
+
+(n/defnode FakeProject
+  t/NamingContext
+  (lookup [this name]
+    (ds/transactional (ds/add (n/construct DummyNode)))))
 
 (defrecord ExtensionHolder [ext]
   t/PathManipulation
@@ -18,14 +23,19 @@
   io/IOFactory
   (make-reader [this opts] (StringReader. "")))
 
+(defn- build-dummy-project
+  []
+  (let [project-node (n/construct FakeProject)]
+    (ds/transactional
+      (ds/add project-node)
+      (ds/in project-node
+        (p/register-editor "dummy" (constantly :not-a-node))
+        project-node))))
+
 (deftest make-editor
   (testing "throws if return value is not a node"
     (with-clean-world
-      (let [project-node (ds/transactional
-                           (ds/in (ds/add (n/construct p/Project))
-                             (p/register-loader "dummy" (fn [& _] (n/construct DummyNode)))
-                             (p/register-editor "dummy" (constantly :not-a-node))
-                             (ds/current-scope)))]
+      (let [project-node (build-dummy-project)]
         (is (thrown-with-msg? AssertionError #"must return a node"
               (p/make-editor project-node (ExtensionHolder. "dummy") nil)))))))
 

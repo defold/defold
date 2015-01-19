@@ -126,7 +126,7 @@
 (defn- refresh-after-a-while
   [graph this transaction]
   (when (and (ds/is-modified? transaction this :content)
-             (not (ds/is-removed? transaction this))
+             (not (ds/is-deleted? transaction this))
              (:debouncer this))
     (t/signal (:debouncer this))))
 

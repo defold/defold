@@ -138,7 +138,6 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
           ext   (.getFileExtension pr)
           p     (.toString pr)
           p     (if-not ext p (subs p 0 (- (count p) (count ext) 1)))]
-      (when-not p (println :project-path :null-result :input resource))
       (ProjectPath. project-scope p ext))))
 
 (defn in-build-directory

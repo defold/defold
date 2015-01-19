@@ -142,7 +142,7 @@ implement dynamo.types/MessageTarget."
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
        (declare ~ctor-name ~symb)
-       (let [description# ~(in/node-type-sexps (concat node-intrinsics forms))
+       (let [description# ~(in/node-type-sexps symb (concat node-intrinsics forms))
              ctor#        (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
          (def ~symb (in/make-node-type (assoc description# ::ctor ctor#)))
          (in/define-node-record  '~record-name '~symb ~symb)
@@ -194,7 +194,7 @@ This function should not be called directly."
   "Trigger to dispose nodes from a scope when the scope is destroyed.
 This should not be called directly."
   [graph self transaction]
-  (when (ds/is-removed? transaction self)
+  (when (ds/is-deleted? transaction self)
     (let [graph-before-deletion (-> transaction :world-ref deref :graph)
           nodes-to-delete       (:nodes (in/collect-inputs self graph-before-deletion {:nodes :ok}))]
       (doseq [n nodes-to-delete]
@@ -233,7 +233,7 @@ RootScope has no parent."
   "Trigger used to implement dirty tracking for content nodes.
 Do not call this directly."
   [graph self transaction]
-  (when (and (ds/is-modified? transaction self) (not (ds/is-added? transaction self)))
+  (when (and (ds/is-modified? transaction self) (not (ds/is-added? transaction self)) (not (ds/is-deleted? transaction self)))
     (ds/set-property self :dirty true)))
 
 (defnode DirtyTracking

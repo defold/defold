@@ -156,16 +156,6 @@
   (output renderable    RenderData :cached produce-renderable)
   (output aabb          AABB               unit-bounding-box))
 
-(n/defnode CubemapNode
-  (inherits CubemapImageProperties)
-  (inherits CubemapImageInputs)
-  (inherits CubemapImageOutputs))
-
-(protocol-buffer-converters
- Graphics$Cubemap
- {:node-type        CubemapNode
-  :basic-properties [:right :left :top :bottom :front :back]})
-
 (def ^:private cubemap-inputs
   {:right  :image-right
    :left   :image-left
@@ -174,17 +164,21 @@
    :front  :image-front
    :back   :image-back})
 
-(defn- make-faces
-  [cubemap]
-  (doseq [[side input] cubemap-inputs]
-    (ds/connect (ds/add (n/construct img/ImageSource :image (get cubemap side))) :image cubemap input)))
+(n/defnode CubemapNode
+  (inherits n/OutlineNode)
+  (inherits CubemapImageProperties)
+  (inherits CubemapImageInputs)
+  (inherits CubemapImageOutputs)
 
-(defn on-load
-  [project-node path reader]
-  (let [cubemap-message (protobuf/read-text Graphics$Cubemap reader)
-        cubemap         (protobuf/message->node cubemap-message)]
-    (make-faces cubemap)
-    cubemap))
+  (on :load
+    (let [project         (:project event)
+          cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
+      (doseq [[side input] cubemap-message]
+        (println :cubemap-load :connecting side input)
+        (let [img-node (t/lookup project input)]
+          (ds/set-property self side input)
+          (ds/connect img-node :image self (cubemap-inputs side))
+          (ds/connect img-node :tree  self :children))))))
 
 (defn- connect-cubemap-inputs [source-node dest-node]
   (doseq [label (vals cubemap-inputs)]
@@ -211,4 +205,4 @@
 
 (when (in-transaction?)
   (p/register-editor "cubemap" #'on-edit)
-  (p/register-loader "cubemap" #'on-load))
+  (p/register-node-type "cubemap" CubemapNode))

@@ -40,8 +40,9 @@
 
 (defn transform-node
   [g n f & args]
-  (assert (node g n) (str (pr-str n) " is not a node in the graph"))
-  (update-in g [:nodes n] #(apply f % args)))
+  (if-let [node (get-in g [:nodes n])]
+    (assoc-in g [:nodes n] (apply f node args))
+    g))
 
 (defn add-arc
   [g source source-attributes target target-attributes]

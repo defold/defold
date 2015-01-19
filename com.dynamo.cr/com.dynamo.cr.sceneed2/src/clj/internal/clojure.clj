@@ -24,30 +24,24 @@
       (remove-ns (second ns-decl)))))
 
 (defn compile-source-node
-  [graph self]
-  (let [resource    (:resource self)
-        ns-decl     (read-file-ns-decl resource)
-        source-file (file/eclipse-file resource)]
+  [node project path]
+  (let [ns-decl     (read-file-ns-decl path)
+        source-file (file/eclipse-file path)]
     (markers/remove-markers source-file)
     (try
-      (ds/in (iq/node-consuming graph self :self)
-        (Compiler/load (io/reader resource) (t/local-path resource) (.getName source-file))
-        (ds/set-property self :namespace (UnloadableNamespace. ns-decl)))
+      (ds/in project
+        (Compiler/load (io/reader path) (t/local-path path) (.getName source-file))
+        (ds/set-property node :namespace (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
         (markers/compile-error source-file compile-error)
         {:compile-error (.getMessage (.getCause compile-error))}))))
 
-(defn compile-at-load
-  [graph self transaction]
-  (when (ds/is-added? transaction self)
-    (compile-source-node graph self)))
 
 (n/defnode ClojureSourceNode
-  (property resource IFile)
+  (inherits n/ResourceNode)
+
   (property namespace UnloadableNamespace)
 
-  (property triggers n/Triggers (default [#'compile-at-load])))
+  (on :load
+    (compile-source-node self (:project event) (:filename self))))
 
-(defn on-load-code
-  [project-node resource _]
-  (ds/add (n/construct ClojureSourceNode :resource resource)))

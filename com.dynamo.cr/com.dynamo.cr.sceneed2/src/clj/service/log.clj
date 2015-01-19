@@ -62,8 +62,7 @@
        ~value')))
 
 (defmacro logging-exceptions [where & body]
-  (assert (string? where) "First argument to logging-exceptions must be a human-readable marker.")
-  (assert (seq? body) "Subsequent arguments to logging-exceptions must be the code body to run with logging.")
+  (assert (seq? body) "The rest of the arguments to logging-exceptions must be the code body to run with logging.")
   `(try
      (do ~@body)
      (catch Throwable thrown#

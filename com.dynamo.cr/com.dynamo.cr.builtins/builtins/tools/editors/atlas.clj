@@ -44,8 +44,6 @@
             [javax.vecmath Matrix4d]
             [org.eclipse.core.commands ExecutionEvent]))
 
-(require '[editors.image-node :as i])
-
 (def integers (iterate (comp int inc) (int 0)))
 
 (vtx/defvertex engine-format-texture
@@ -144,9 +142,10 @@
     :ok))
 
 (n/defnode AtlasSave
+  (inherits n/ResourceNode)
   (inherits n/Saveable)
 
-  (property path (s/protocol PathManipulation) (visible false))
+  (property filename (s/protocol PathManipulation) (visible false))
 
   (output save s/Keyword save-atlas-file)
   (output text-format s/Str get-text-format))
@@ -490,29 +489,25 @@
 (defn construct-ancillary-nodes
   [self locator input]
   (let [atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))]
-    (def *atlas-m atlas)
     (ds/set-property self :margin (:margin atlas))
     (ds/set-property self :extrude-borders (:extrude-borders atlas))
     (doseq [anim (:animations atlas)
             :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))]]
-      (when-not anim-node (println :anim-node-nil :for anim))
       (doseq [img (:images anim)
               :let [img-node (lookup locator (:image img))]]
-        (when-not img-node (println :img-node-nil :for img))
         (ds/connect img-node :image anim-node :images)
         (ds/connect img-node :tree  anim-node :children))
       (ds/connect anim-node :animation self :animations)
       (ds/connect anim-node :tree      self :children))
     (doseq [img  (:images atlas)
             :let [img-node (lookup locator (:image img))]]
-      (when-not img-node (println :img-node-nil :for img))
       (ds/connect img-node :image self :images)
       (ds/connect img-node :tree  self :children))
     self))
 
 (defn construct-compiler
   [self]
-  (let [path (:path self)
+  (let [path (:filename self)
         compiler (ds/add (n/construct TextureSave
                            :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
                            :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturesetc")) path)
@@ -527,7 +522,7 @@
 
   (on :load
     (doto self
-      (construct-ancillary-nodes (:project event) (:path self))
+      (construct-ancillary-nodes (:project event) (:filename self))
       (construct-compiler)
       (ds/set-property :dirty false))))
 

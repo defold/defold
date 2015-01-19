@@ -1,4 +1,6 @@
 (ns dynamo.project
+  "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
+ordinary paths."
   (:require [clojure.java.io :as io]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
@@ -34,37 +36,23 @@
       (when default? (.setDefaultEditor mapping desc))
       (.setFileEditorMappings reg (into-array (concat (seq all-mappings) [mapping]))))))
 
-(defn- handle
-  [key filetype handler]
-  (ds/update-property (ds/current-scope) :handlers assoc-in [key filetype] handler))
-
-(defn register-loader
-  [filetype loader]
-  (handle :loader filetype loader))
-
 (defn register-node-type
   [filetype node-type]
   (ds/update-property (ds/current-scope) :node-types assoc filetype node-type))
 
 (defn register-editor
   [filetype editor-builder]
-  (handle :editor filetype editor-builder)
+  (ds/update-property (ds/current-scope) :handlers assoc-in [:editor filetype] editor-builder)
   (register-filetype filetype true))
 
 (defn register-presenter
   [property presenter]
   (ds/update-property (ds/current-scope) :presenter-registry dp/register-presenter property presenter))
 
-(def default-handlers {:loader {"clj" clojure/on-load-code}})
-
-(defn no-such-handler
-  [key ext]
-  (fn [& _] (throw (ex-info (str "No " (name key) " has been registered that can handle " ext) {}))))
-
 (defn- editor-for [project-scope ext]
   (or
     (get-in project-scope [:handlers :editor ext])
-    (no-such-handler key ext)))
+    (fn [& _] (throw (ex-info (str "No editor has been registered that can handle file type " (pr-str ext)) {})))))
 
 (defn node?! [n kind]
   (assert (satisfies? t/Node n) (str kind " functions must return a node. Received " (type n) "."))
@@ -74,21 +62,15 @@
   (inherits n/ResourceNode))
 
 (defn load-resource
+  "Load a resource, usually from file. This will create a node of the appropriate type (as defined by
+`register-node-type` and send it a :load message."
   [project-node path]
   (ds/transactional
     (ds/in project-node
-      (let [type          (get-in project-node [:node-types (t/extension path)] Placeholder)
-            resource-node (ds/add (n/construct type ::filename path))]
-        (ds/send-after project-node {:type :load :path path})
-        resource-node))))
-
-(defn node-by-filename
-  ([project-node path]
-    (node-by-filename project-node path load-resource))
-  ([project-node path factory]
-    (if-let [node (first (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes) [::filename path]]))]
-      node
-      (factory project-node path))))
+      (ds/add
+        (n/construct
+          (get-in project-node [:node-types (t/extension path)] Placeholder)
+          :filename path)))))
 
 (n/defnode CannedProperties
   (property rotation     s/Str    (default "twenty degrees starboard"))
@@ -96,10 +78,6 @@
   (property some-vector  t/Vec3   (default [1 2 3]))
   (property some-integer s/Int    (default 42))
   (property background   dp/Color (default [0x4d 0xc0 0xca])))
-
-(defn- build-content-node
-  [project-node path]
-  (node-by-filename project-node path load-resource))
 
 (defn- build-editor-node
   [project-node site path content-node]
@@ -119,7 +97,7 @@
   [project-node path ^IEditorSite site]
   (let [[editor-node selection-node] (ds/transactional
                                        (ds/in project-node
-                                         (let [content-node   (build-content-node project-node path)
+                                         (let [content-node   (t/lookup project-node path)
                                                editor-node    (build-editor-node project-node site path content-node)
                                                selection-node (build-selection-node editor-node [content-node])]
                                            (when ((t/inputs editor-node) :presenter-registry)
@@ -160,17 +138,21 @@
 (n/defnode Project
   (inherits n/Scope)
 
-  (property triggers           n/Triggers (default [#'n/inject-new-nodes #'send-project-scope-message]))
+  (property triggers           n/Triggers (default [#'n/dispose-nodes #'n/inject-new-nodes #'send-project-scope-message]))
   (property tag                s/Keyword (default :project))
   (property eclipse-project    IProject)
   (property content-root       IContainer)
   (property branch             s/Str)
   (property presenter-registry t/Registry)
+  (property node-types         {s/Str s/Symbol})
+  (property handlers           {s/Keyword {s/Str s/fn-schema}})
 
   t/NamingContext
   (lookup [this name]
-    (node-by-filename this
-      (file/project-path this name)))
+    (let [path (if (instance? dynamo.file.ProjectPath name) name (file/project-path this name))]
+      (if-let [node (first (iq/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
+        node
+        (load-resource this path))))
 
   (on :destroy
     (ds/delete self)))
@@ -178,14 +160,13 @@
 (defn load-resource-nodes
   [project-node resources ^IProgressMonitor monitor]
   (ds/transactional
-    (let [eclipse-project ^IProject (:eclipse-project project-node)]
-      (ds/in project-node
-        (doseq [resource resources]
-          (let [p (file/project-path project-node resource)]
-            (monitored-work monitor (str "Scanning " (t/local-name p))
-              (load-resource project-node p)))))
-      (monitored-work monitor (str "Compiling tools")
-        project-node))))
+   (let [eclipse-project ^IProject (:eclipse-project project-node)]
+     (ds/in project-node
+       [project-node (doall
+                       (for [resource resources
+                             :let [p (file/project-path project-node resource)]]
+                         (monitored-work monitor (str "Scanning " (t/local-name p))
+                           (load-resource project-node p))))]))))
 
 (defn load-project
   [^IProject eclipse-project branch ^IProgressMonitor monitor]
@@ -195,7 +176,14 @@
         :eclipse-project eclipse-project
         :content-root (.getFolder eclipse-project "content")
         :branch branch
-        :handlers default-handlers))))
+        :node-types {"clj" clojure/ClojureSourceNode}))))
+
+(defn- post-load
+  [message project-node resource-nodes]
+  (doseq [resource-node resource-nodes]
+    (log/logging-exceptions (str message (:filename resource-node))
+      (when (satisfies? t/MessageTarget resource-node)
+        (t/process-one-event resource-node {:type :load :project project-node})))))
 
 (defn load-project-and-tools
   [^IProject eclipse-project branch ^IProgressMonitor monitor]
@@ -204,44 +192,10 @@
         clojure-sources (get resources true)
         non-sources     (get resources false)]
     (monitored-task monitor "Scanning project" (inc (count resources))
-      (-> project-node
-        (load-resource-nodes (get resources true) monitor)
-        (load-resource-nodes (get resources false) monitor)))))
+      (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) clojure-sources monitor))
+      (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     monitor)))))
 
 (defn open-project
+  "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function directly."
   [eclipse-project branch ^IProgressMonitor monitor]
   (resources/listen-for-close (load-project-and-tools eclipse-project branch monitor)))
-
-; ---------------------------------------------------------------------------
-; Documentation
-; ---------------------------------------------------------------------------
-(doseq [[v doc]
-       {*ns*
-        "Functions for performing transactional changes to a project and inspecting its current state."
-
-        #'open-project
-        "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function."
-
-        #'register-filetype
-        "TODO"
-
-        #'register-loader
-        "Associate a filetype (extension) with a loader function. The given loader will be
-used any time a file with that type is opened."
-
-        #'register-editor
-        "TODO"
-
-        #'load-resource
-        "Load a resource, usually from file. This looks up a suitable loader based on the filename.
-Loaders must be registered via register-loader before they can be used.
-
-This will invoke the loader function with the filename and a reader to supply the file contents."
-
-        #'node-by-filename
-        "TODO"
-
-        #'Project
-        "TODO"
-}]
-  (alter-meta! v assoc :doc doc))

@@ -21,7 +21,7 @@
             [dynamo.camera :refer :all]
             [dynamo.file :refer :all]
             [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
-            [dynamo.project :as p :refer [register-loader register-editor]]
+            [dynamo.project :as p]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
@@ -307,4 +307,4 @@ Particle$Modifier$Property
 
 (when (in-transaction?)
   (p/register-editor "particlefx" #'on-edit)
-  (p/register-loader "particlefx" #'on-load))
+  (p/register-node-type "particlefx" ParticlefxNode))

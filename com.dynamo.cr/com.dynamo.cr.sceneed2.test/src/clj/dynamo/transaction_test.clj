@@ -75,14 +75,14 @@
               after     (:graph tx-result)]
           (is (nil?   (dg/node    after (:_id resource2))))
           (is (empty? (lg/targets after (:_id resource1) :b)))
-          (is (contains? (:nodes-removed tx-result) (:_id resource2))))))))
+          (is (contains? (:nodes-deleted tx-result) (:_id resource2))))))))
 
 (defn track-trigger-activity [graph self transaction]
   (swap! (:tracking self)
     (fn [m]
       {:was-added?    (ds/is-added? transaction self)
        :was-modified? (ds/is-modified? transaction self)
-       :was-removed?  (ds/is-removed? transaction self)
+       :was-removed?  (ds/is-deleted? transaction self)
        :call-count    (inc (get m :call-count 0))})))
 
 (n/defnode StringSource

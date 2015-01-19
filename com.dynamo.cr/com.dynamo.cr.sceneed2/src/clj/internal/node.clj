@@ -162,7 +162,7 @@ maybe cache the value that was produced, and return it."
 ; Definition handling
 ; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-  [supertypes interfaces protocols method-impls transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
+  [name supertypes interfaces protocols method-impls transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
 
   t/NodeType
   (supertypes           [_] supertypes)
@@ -357,8 +357,8 @@ build the node type description (map). These are emitted where you invoked
 
 (defn node-type-sexps
   "Given all the forms in a defnode macro, emit the forms that will build the node type description."
-  [forms]
-  (list* `-> {}
+  [symb forms]
+  (list* `-> {:name (str symb)}
     (map node-type-form forms)))
 
 (defn defaults
