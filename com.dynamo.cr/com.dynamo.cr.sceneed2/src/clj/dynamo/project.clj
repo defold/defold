@@ -132,9 +132,8 @@ ordinary paths."
   ([project-node extensions title multiselect?]
     (dialogs/resource-selection-dialog title multiselect? (nodes-with-extensions project-node extensions))))
 
-; ---------------------------------------------------------------------------
-; Lifecycle, Called by Eclipse
-; ---------------------------------------------------------------------------
+(defprotocol ProjectRoot)
+
 (n/defnode Project
   (inherits n/Scope)
 
@@ -147,6 +146,7 @@ ordinary paths."
   (property node-types         {s/Str s/Symbol})
   (property handlers           {s/Keyword {s/Str s/fn-schema}})
 
+  ProjectRoot
   t/NamingContext
   (lookup [this name]
     (let [path (if (instance? dynamo.file.ProjectPath name) name (file/project-path this name))]
@@ -156,6 +156,10 @@ ordinary paths."
 
   (on :destroy
     (ds/delete self)))
+
+(defn project-enclosing
+  [node]
+  (first (iq/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
 
 (defn load-resource-nodes
   [project-node resources ^IProgressMonitor monitor]
@@ -195,6 +199,10 @@ ordinary paths."
       (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) clojure-sources monitor))
       (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     monitor)))))
 
+
+; ---------------------------------------------------------------------------
+; Lifecycle, Called during connectToBranch
+; ---------------------------------------------------------------------------
 (defn open-project
   "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function directly."
   [eclipse-project branch ^IProgressMonitor monitor]

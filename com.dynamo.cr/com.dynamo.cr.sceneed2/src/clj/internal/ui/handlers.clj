@@ -2,7 +2,8 @@
   "Implementation support for handlers and commands."
   (:require [internal.java :as java]
             [service.log :as log]
-            [service.registry :refer [registered]])
+            [service.registry :refer [registered]]
+            [camel-snake-kebab :refer :all])
   (:import [org.eclipse.core.expressions IEvaluationContext]
            [org.eclipse.core.commands AbstractHandler ExecutionEvent]
            [org.eclipse.ui.contexts IContextService]
@@ -13,12 +14,10 @@
 
 (set! *warn-on-reflection* true)
 
-(defn snake-case [^String s] (.replaceAll (.toLowerCase s) "_" "-"))
-
 (defn context-accessor-sexp
   [fld]
   (let [fld-name (name (first fld))
-        fn-name (symbol (snake-case (subs fld-name 0 (- (count fld-name) 5))))]
+        fn-name (symbol (->kebab-case (subs fld-name 0 (- (count fld-name) 5))))]
     `(defn ~fn-name [^IEvaluationContext ctx#]
        (.getVariable ctx# ~(second fld)))))
 

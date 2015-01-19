@@ -30,7 +30,8 @@
 (n/defnode BasicNode)
 
 (deftest basic-node-definition
-  (is (satisfies? t/NodeType BasicNode)))
+  (is (satisfies? t/NodeType BasicNode))
+  (is (= BasicNode (t/node-type (n/construct BasicNode)))))
 
 (n/defnode IRootNode)
 (n/defnode ChildNode
@@ -43,9 +44,12 @@
   (inherits MixinNode))
 
 (deftest inheritance
- (is (= [IRootNode] (t/supertypes ChildNode)))
- (is (= [ChildNode] (t/supertypes GChild)))
- (is (= [ChildNode MixinNode] (t/supertypes GGChild))))
+ (is (= [IRootNode]           (t/supertypes ChildNode)))
+ (is (= ChildNode             (t/node-type (n/construct ChildNode))))
+ (is (= [ChildNode]           (t/supertypes GChild)))
+ (is (= GChild                (t/node-type (n/construct GChild))))
+ (is (= [ChildNode MixinNode] (t/supertypes GGChild)))
+ (is (= GGChild               (t/node-type (n/construct GGChild)))))
 
 (n/defnode OneInputNode
   (input an-input s/Str))

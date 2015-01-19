@@ -5,10 +5,14 @@
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [service.log :as log])
+            [service.log :as log]
+            [internal.query :as iq]
+            [internal.system :as is]
+            [internal.ui.handlers :as handlers])
   (:import [org.eclipse.ui ISelectionListener]
            [org.eclipse.jface.viewers ISelection ISelectionProvider ISelectionChangedListener SelectionChangedEvent]
-           [dynamo.ui EventBroadcaster]))
+           [dynamo.ui EventBroadcaster]
+           [org.eclipse.core.commands ExecutionEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -59,3 +63,11 @@
   ui/EventSource
   (send-event [this event]
     (ui/send-event (:selection-listeners this) event)))
+
+(defmulti selected-nodes (fn [x] (class x)))
+
+(defmethod selected-nodes ExecutionEvent
+  [^ExecutionEvent evt]
+  (let [workbench-selection (handlers/active-current-selection (.getApplicationContext evt))]
+    (when (instance? clojure.lang.IDeref workbench-selection)
+      (map (partial iq/node-by-id (is/world-ref)) (deref workbench-selection)))))

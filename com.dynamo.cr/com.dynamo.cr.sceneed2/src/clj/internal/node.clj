@@ -382,10 +382,11 @@ build the node type description (map). These are emitted where you invoked
          ~@(mapcat (fn [e] [e `((get (t/event-handlers' ~node-type-name) ~e) ~'self ~'event)]) (keys (t/event-handlers' node-type)))
          nil))]))
 
-(defn- generate-node-record-sexps
+(defn- node-record-sexps
   [record-name node-type-name node-type]
   `(defrecord ~record-name ~(state-vector node-type)
      t/Node
+     (node-type           [_]    ~node-type-name)
      (inputs              [_]    (set (keys (t/inputs' ~node-type-name))))
      (input-types         [_]    (t/inputs' ~node-type-name))
      (injectable-inputs   [_]    (t/injectable-inputs' ~node-type-name))
@@ -406,7 +407,7 @@ build the node type description (map). These are emitted where you invoked
 the node's properties as fields. The record will implement all the interfaces
 and protocols that the node type requires."
   [record-name node-type-name node-type]
-  (eval (generate-node-record-sexps record-name node-type-name node-type)))
+  (eval (node-record-sexps record-name node-type-name node-type)))
 
 (defn- interpose-every
   [n elt coll]

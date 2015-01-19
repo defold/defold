@@ -22,6 +22,7 @@
             [dynamo.file :as file]
             [dynamo.file.protobuf :as protobuf :refer [pb->str]]
             [dynamo.project :as p]
+            [dynamo.selection :as sel]
             [dynamo.types :refer :all]
             [dynamo.texture :refer :all]
             [dynamo.image :refer :all]
@@ -117,8 +118,8 @@
             (.addAllImages      (map build-atlas-image (.images animation)))
             (.setId             (.id animation))
             (.setFps            (.fps animation))
-            (.setFlipHorizontal (.flip-horizontal animation))
-            (.setFlipVertical   (.flip-vertical animation))
+            (set-if-present     :flip-horizontal animation)
+            (set-if-present     :flip-vertical animation)
             (.setPlayback       (protobuf/val->pb-enum Tile$Playback (.playback animation))))))
 
 (defnk get-text-format :- s/Str
@@ -133,9 +134,9 @@
              (set-if-present  :extrude-borders this)))))
 
 (defnk save-atlas-file
-  [this path]
+  [this filename]
   (let [text (n/get-node-value this :text-format)]
-    (file/write-file path (.getBytes text))
+    (file/write-file filename (.getBytes text))
     :ok))
 
 (n/defnode AtlasSave
@@ -510,6 +511,23 @@
       (construct-ancillary-nodes (:project event) (:filename self))
       (construct-compiler)
       (ds/set-property :dirty false))))
+
+(defn add-image
+  [evt]
+  (when-let [target (first (filter #(= AtlasNode (node-type %)) (sel/selected-nodes evt)))]
+    (let [project-node  (p/project-enclosing target)
+          images-to-add (p/select-resources project-node ["png" "jpg"] "Add Image(s)" true)]
+      (ds/transactional
+        (doseq [img images-to-add]
+          (ds/connect img :image target :images)
+          (ds/connect img :tree  target :children))))))
+
+(defcommand add-image-command
+  "com.dynamo.cr.menu-items.scene"
+  "com.dynamo.cr.builtins.editors.atlas.add-image"
+  "Add Image")
+
+(defhandler add-image-handler add-image-command #'add-image)
 
 (when (in-transaction?)
   (p/register-editor "atlas" #'on-edit)

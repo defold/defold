@@ -43,6 +43,7 @@
   (output-dependencies' [this]))
 
 (defprotocol Node
+  (node-type           [this]        "Return the node type that created this node.")
   (properties          [this]        "Produce a description of properties supported by this node.")
   (inputs              [this]        "Return a set of labels for the allowed inputs of the node.")
   (injectable-inputs   [this]        "temporary")

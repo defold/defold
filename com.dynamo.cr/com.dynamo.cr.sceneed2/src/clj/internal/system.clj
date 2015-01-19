@@ -10,7 +10,7 @@
             [internal.node :as in]
             [internal.refresh :refer [refresh-message refresh-subsystem]]
             [internal.repaint :as repaint]
-            [internal.transaction :refer [*scope* set-world-ref!]]
+            [internal.transaction :as it]
             [schema.core :as s]
             [service.log :as log :refer [logging-exceptions]]))
 
@@ -110,13 +110,15 @@
 
 (def the-system (atom (system)))
 
+(defn world-ref [] (-> @the-system :world :state))
+
 (defn start
   ([]    (let [system-map (start the-system)
                state (-> system-map :world :state)
                graph (-> state deref :graph)
                root (dg/node graph 1)]
-           (set-world-ref! state)
-           (alter-var-root #'*scope* (constantly root))
+           (it/set-world-ref! state)
+           (alter-var-root #'it/*scope* (constantly root))
            system-map))
   ([sys] (swap! sys component/start-system)))
 
