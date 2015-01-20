@@ -7,7 +7,6 @@
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.editors :as ed]
-            [dynamo.env :as e]
             [dynamo.file :as file]
             [dynamo.file.protobuf :as protobuf :refer [pb->str]]
             [dynamo.geom :as g :refer [to-short-uv]]

@@ -8,7 +8,6 @@
 (def public-namespaces ['dynamo.buffers
                         'dynamo.camera
                         'dynamo.editors
-                        'dynamo.env
                         'dynamo.file
                         'dynamo.geom
                         'dynamo.gl
