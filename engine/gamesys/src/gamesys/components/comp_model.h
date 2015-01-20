@@ -13,6 +13,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompModelDestroy(const dmGameObject::ComponentDestroyParams& params);
 
+    dmGameObject::CreateResult CompModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
+
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params);

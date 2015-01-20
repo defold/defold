@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/init_spawn.scriptc"
+}

@@ -76,6 +76,8 @@ namespace dmGameSystem
         uint8_t                     m_CurrentPlayer : 1;
         /// Whether we are currently X-fading or not
         uint8_t                     m_Blending : 1;
+        /// Added to update or not
+        uint8_t                     m_AddedToUpdate : 1;
     };
 
     struct SpineModelVertex
@@ -114,6 +116,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpineModelCreate(const dmGameObject::ComponentCreateParams& params);
 
     dmGameObject::CreateResult CompSpineModelDestroy(const dmGameObject::ComponentDestroyParams& params);
+
+    dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
