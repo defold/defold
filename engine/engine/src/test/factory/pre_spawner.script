@@ -1,7 +1,5 @@
 function init(self)
-    print("test1", msg.url())
     self.factory_id = factory.create("#factory")
-    print("test2", msg.url())
     msg.post(self.factory_id, "pre_hello")
 end
 
