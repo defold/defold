@@ -351,11 +351,6 @@
       (eval replacement-node-definition)
 
       (let [node-after-mutation (ds/refresh node-before-mutation)]
-
-        (println (-> node-after-mutation :world-ref deref :world-time))
-        (println node-before-mutation)
-        (println node-after-mutation)
-
         (is (not (instance? MarkerInterface node-before-mutation)))
         (is (= "a-string" (:a-property node-after-mutation)))
         (is (= true       (:b-property node-after-mutation)))
