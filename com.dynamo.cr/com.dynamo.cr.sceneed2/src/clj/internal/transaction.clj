@@ -87,6 +87,12 @@
   [{:type :create-node
     :node node}])
 
+(defn become
+  [from-node to-node]
+  [{:type     :become
+    :node-id  (:_id from-node)
+    :to-node  to-node}])
+
 (defn delete-node
   [node]
   [{:type    :delete-node
@@ -122,7 +128,8 @@
     :to-node (:_id to-node)
     :body    body}])
 
-(defn has-tempid? [n] (and (:_id n) (neg? (:_id n))))
+(defn- tempid? [x] (neg? x))
+(defn has-tempid? [n] (and (:_id n) (tempid? (:_id n))))
 (defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
 
 (defn node->cache-keys [n]
@@ -137,6 +144,14 @@
   [{:keys [graph] :as ctx} node-id input-label]
   (let [dirty-deps (get (t/output-dependencies (dg/node graph node-id)) input-label)]
     (update-in ctx [:nodes-triggered node-id] set/union dirty-deps)))
+
+(defn- activate-all-outputs
+  [ctx node-id node]
+  (reduce
+    (fn [ctx out]
+      (mark-activated ctx node-id out))
+    ctx
+    (concat (t/outputs node) (keys (t/properties node)))))
 
 (defmulti perform (fn [ctx m] (:type m)))
 
@@ -155,17 +170,65 @@
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
       :nodes-triggered     (merge-with set/union nodes-triggered {next-id (t/outputs full-node)}))))
 
+(defn- disconnect-inputs
+  [ctx target-node target-label]
+  (reduce
+    (fn [ctx [in-node in-label]]
+      (perform ctx {:type         :disconnect
+                    :source-id    in-node
+                    :source-label in-label
+                    :target-id    (:_id target-node)
+                    :target-label target-label}))
+    ctx
+    (lg/sources (:graph ctx) (:_id target-node) target-label)))
+
+(defn- disconnect-outputs
+  [ctx source-node source-label]
+  (reduce
+    (fn [ctx [target-node target-label]]
+      (perform ctx {:type         :disconnect
+                    :source-id    source-node
+                    :source-label source-label
+                    :target-id    (:_id target-node)
+                    :target-label target-label}))
+    ctx
+    (lg/targets (:graph ctx) (:_id source-node) source-label)))
+
+(defmethod perform :become
+  [{:keys [graph tempids cache-keys nodes-triggered world-ref new-event-loops obsolete-cache-keys old-event-loops] :as ctx}
+   {:keys [node-id to-node]}]
+  (let [old-node         (dg/node graph node-id)
+        to-node-id       (:_id to-node)
+        new-node         (merge to-node old-node)
+
+        ;; disconnect inputs that no longer exist
+        vanished-inputs  (set/difference (t/inputs old-node) (t/inputs new-node))
+        ctx              (reduce (fn [ctx in]  (disconnect-inputs ctx node-id  in))  ctx vanished-inputs)
+
+        ;; disconnect outputs that no longer exist
+        vanished-outputs (set/difference (t/outputs old-node) (t/outputs new-node))
+        ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
+
+        graph            (dg/transform-node graph node-id (constantly new-node))]
+    (assoc (activate-all-outputs ctx node-id new-node)
+      :graph               graph
+      :tempids             (if (tempid? to-node-id) (assoc tempids to-node-id node-id) tempids)
+      :new-event-loops     (if (satisfies? t/MessageTarget new-node) (conj new-event-loops node-id)  new-event-loops)
+      :old-event-loops     (if (satisfies? t/MessageTarget old-node) (conj old-event-loops old-node) old-event-loops)
+      :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
+      :cache-keys          (assoc cache-keys node-id (node->cache-keys to-node)))))
+
 (defmethod perform :delete-node
-  [{:keys [graph nodes-deleted] :as ctx} {:keys [node-id]}]
+  [{:keys [graph nodes-deleted old-event-loops] :as ctx} {:keys [node-id]}]
   (when-not (dg/node graph (resolve-tempid ctx node-id))
     (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
         node        (dg/node graph node-id)
-        all-outputs (concat (t/outputs node) (keys (t/properties node)))
-        ctx         (reduce (fn [ctx out] (mark-activated ctx node-id out)) ctx all-outputs)]
+        ctx         (activate-all-outputs ctx node-id node)]
     (assoc ctx
-      :graph         (dg/remove-node graph node-id)
-      :nodes-deleted (assoc nodes-deleted node-id node))))
+      :graph           (dg/remove-node graph node-id)
+      :old-event-loops (if (satisfies? t/MessageTarget node) (conj old-event-loops node) old-event-loops)
+      :nodes-deleted   (assoc nodes-deleted node-id node))))
 
 (defmethod perform :update-property
   [{:keys [graph] :as ctx} {:keys [node-id property fn args]}]
@@ -233,9 +296,10 @@
         (recur new-ctx next-batch (dec iterations-remaining))))))
 
 (defn- determine-obsoletes
-  [{:keys [graph outputs-modified cache-keys] :as ctx}]
+  [{:keys [graph obsolete-cache-keys outputs-modified cache-keys] :as ctx}]
   (assoc ctx :obsolete-cache-keys
-         (keep identity (map #(get-in cache-keys %) (pairs outputs-modified)))))
+    (concat obsolete-cache-keys
+      (keep identity (map #(get-in cache-keys %) (pairs outputs-modified))))))
 
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
@@ -325,6 +389,7 @@
      :expired-outputs     []
      :tempids             {}
      :new-event-loops     #{}
+     :old-event-loops     #{}
      :nodes-added         #{}
      :nodes-modified      #{}
      :nodes-deleted       {}
@@ -337,14 +402,19 @@
     (binding [*transaction* (->TransactionSeed world-ref)]
       (a/go-loop []
         (when-let [msg (a/<! in)]
-          (try
-            (let [n (dg/node (:graph @world-ref) id)]
-              (when-not n
-                (log/error :message "Nil node in event loop"  :id id :chan-msg msg)))
-            (t/process-one-event (dg/node (:graph @world-ref) id) msg)
-            (catch Exception ex
-              (log/error :message "Error in node event loop" :exception ex)))
-          (recur))))))
+          (when (not= ::stop-event-loop msg)
+            (try
+              (let [n (dg/node (:graph @world-ref) id)]
+                (when-not n
+                  (log/error :message "Nil node in event loop"  :id id :chan-msg msg)))
+              (t/process-one-event (dg/node (:graph @world-ref) id) msg)
+              (catch Exception ex
+                (log/error :message "Error in node event loop" :exception ex)))
+            (recur)))))))
+
+(defn stop-event-loop!
+  [world-ref {:keys [_id]}]
+  (bus/publish @world-ref (bus/address-to _id ::stop-event-loop)))
 
 (defn- transact*
   [world-ref ctx]
@@ -361,7 +431,9 @@
 
 (defn transact
   [world-ref txs]
-  (let [{:keys [world messages new-event-loops] :as tx-result} (transact* world-ref (new-transaction-context world-ref txs))]
+  (let [{:keys [world messages new-event-loops old-event-loops] :as tx-result} (transact* world-ref (new-transaction-context world-ref txs))]
+    (doseq [l old-event-loops]
+      (stop-event-loop! world-ref l))
     (doseq [l new-event-loops]
       (start-event-loop! world-ref l))
     (when (= :ok (-> world :last-tx :status))

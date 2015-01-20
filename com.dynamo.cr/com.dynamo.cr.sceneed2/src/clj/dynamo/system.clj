@@ -54,6 +54,11 @@
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/disconnect source-node source-label target-node target-label)))
 
+(defn become
+  [source-node new-node]
+  (it/tx-bind *transaction* (it/become source-node new-node))
+  new-node)
+
 (defn set-property
   [n & kvs]
   (it/tx-bind *transaction*

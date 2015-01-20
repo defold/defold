@@ -75,7 +75,18 @@
               after     (:graph tx-result)]
           (is (nil?   (dg/node    after (:_id resource2))))
           (is (empty? (lg/targets after (:_id resource1) :b)))
-          (is (contains? (:nodes-deleted tx-result) (:_id resource2))))))))
+          (is (contains? (:nodes-deleted tx-result) (:_id resource2)))))))
+  (testing "node transformation"
+    (with-clean-world
+      (let [[resource1] (tx-nodes (n/construct Resource :marker 99))
+            id1         (:_id resource1)
+            resource2   (n/construct Downstream :_id -1)
+            tx-result   (it/transact world-ref (it/become resource1 resource2))
+            after       (:graph tx-result)]
+        (is (= :ok (:status tx-result)))
+        (is (= id1 (it/resolve-tempid tx-result -1)))
+        (is (= Downstream (t/node-type (dg/node after id1))))
+        (is (= 99  (:marker (dg/node after id1))))))))
 
 (defn track-trigger-activity [graph self transaction]
   (swap! (:tracking self)
@@ -162,6 +173,16 @@
             after-updating  @tracker]
         (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-updating))
         (is (= {:call-count 3 :was-added? false :was-modified? true :was-removed? false} after-updating)))))
+
+  (testing "runs on the new node type when a node becomes a new node"
+    (with-clean-world
+      (let [tracker          (atom {})
+            counter          (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
+            before-transmog  @tracker
+            stringer         (ds/transactional (ds/become counter (n/construct StringSource)))
+            after-transmog   @tracker]
+        (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-transmog))
+        (is (= {:call-count 2 :was-added? false :was-modified? true :was-removed? false} after-transmog)))))
 
   (testing "One node may activate another node in a trigger"
     (with-clean-world
