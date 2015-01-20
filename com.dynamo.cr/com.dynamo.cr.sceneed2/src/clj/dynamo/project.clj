@@ -155,9 +155,7 @@ ordinary paths."
         (load-resource this path))))
 
   (on :destroy
-    (do
-      (prn :Project.destroy (:_id self))
-      (ds/delete self))))
+    (ds/delete self)))
 
 (defn project-enclosing
   [node]
@@ -166,13 +164,13 @@ ordinary paths."
 (defn load-resource-nodes
   [project-node resources ^IProgressMonitor monitor]
   (ds/transactional
-   (let [eclipse-project ^IProject (:eclipse-project project-node)]
-     (ds/in project-node
-       [project-node (doall
-                       (for [resource resources
-                             :let [p (file/make-project-path project-node resource)]]
-                         (monitored-work monitor (str "Scanning " (t/local-name p))
-                           (load-resource project-node p))))]))))
+    (let [eclipse-project ^IProject (:eclipse-project project-node)]
+      (ds/in project-node
+        [project-node (doall
+                        (for [resource resources
+                              :let [p (file/make-project-path project-node resource)]]
+                          (monitored-work monitor (str "Scanning " (t/local-name p))
+                            (load-resource project-node p))))]))))
 
 (defn load-project
   [^IProject eclipse-project branch ^IProgressMonitor monitor]
