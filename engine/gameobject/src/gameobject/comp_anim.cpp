@@ -135,6 +135,11 @@ namespace dmGameObject
 
     static void RemoveAnimationCallback(AnimWorld* world, Animation* anim);
 
+    CreateResult CompAnimAddToUpdate(const ComponentAddToUpdateParams& params) {
+        // Intentional pass-through
+        return CREATE_RESULT_OK;
+    }
+
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params)
     {
         /*

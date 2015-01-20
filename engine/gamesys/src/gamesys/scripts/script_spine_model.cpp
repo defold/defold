@@ -169,10 +169,13 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
         uintptr_t user_data;
         dmMessage::URL receiver;
         SpineModelWorld* world = 0;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
         SpineModelComponent* component = world->m_Components.Get(user_data);
 
         dmhash_t bone_id;

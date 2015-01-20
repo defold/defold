@@ -591,7 +591,9 @@ namespace dmPhysics
                 break;
             }
 
-            world->m_DynamicsWorld->addRigidBody(body, data.m_Group, data.m_Mask);
+            if (data.m_Enabled) {
+                world->m_DynamicsWorld->addRigidBody(body, data.m_Group, data.m_Mask);
+            }
 
             collision_object = body;
         }
@@ -616,7 +618,9 @@ namespace dmPhysics
             collision_object->setWorldTransform(world_t);
             collision_object->setCollisionShape(compound_shape);
             collision_object->setCollisionFlags(collision_object->getCollisionFlags() | btCollisionObject::CF_NO_CONTACT_RESPONSE);
-            world->m_DynamicsWorld->addCollisionObject(collision_object, data.m_Group, data.m_Mask);
+            if (data.m_Enabled) {
+                world->m_DynamicsWorld->addCollisionObject(collision_object, data.m_Group, data.m_Mask);
+            }
         }
         collision_object->setUserPointer(data.m_UserData);
         CollisionObject3D* co = new CollisionObject3D();
@@ -777,10 +781,7 @@ namespace dmPhysics
             btRigidBody* body = btRigidBody::upcast(bt_co);
             if (body != 0x0)
             {
-                // Reset state
-                body->clearForces();
-                body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
-                body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+                // sync world transform
                 if (world->m_GetWorldTransform != 0x0)
                 {
                     dmTransform::Transform world_transform;
@@ -804,6 +805,10 @@ namespace dmPhysics
             btRigidBody* body = btRigidBody::upcast(bt_co);
             if (body != 0x0)
             {
+                // Reset state
+                body->clearForces();
+                body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
+                body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
                 world->m_DynamicsWorld->removeRigidBody(body);
             }
             else

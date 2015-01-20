@@ -29,6 +29,7 @@ namespace dmGameSystem
         float m_NearZ;
         float m_FarZ;
         uint32_t m_AutoAspectRatio : 1;
+        uint32_t m_AddedToUpdate : 1;
     };
 
     struct CameraWorld
@@ -66,6 +67,7 @@ namespace dmGameSystem
             camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
             camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
             camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
+            camera.m_AddedToUpdate = 0;
             w->m_Cameras.Push(camera);
             *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
             return dmGameObject::CREATE_RESULT_OK;
@@ -109,6 +111,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
+    dmGameObject::CreateResult CompCameraAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        CameraComponent* camera = (CameraComponent*)*params.m_UserData;
+        camera->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         CameraWorld* w = (CameraWorld*)params.m_World;
@@ -117,7 +125,7 @@ namespace dmGameSystem
         {
             camera = w->m_FocusStack[w->m_FocusStack.Size() - 1];
         }
-        if (camera != 0x0)
+        if (camera != 0x0 && camera->m_AddedToUpdate)
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
 

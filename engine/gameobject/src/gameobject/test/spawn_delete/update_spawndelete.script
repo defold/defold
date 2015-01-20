@@ -1,0 +1,7 @@
+function update(self, dt)
+    if not self.done then
+        local id = spawn("/a.goc")
+        go.delete(id)
+        self.done = true
+    end
+end

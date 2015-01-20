@@ -1,0 +1,6 @@
+function update(self, dt)
+    if not self.done then
+        local id = spawn("/init_delete_target.goc")
+        self.done = true
+    end
+end
