@@ -46,6 +46,7 @@ namespace dmPhysics
     , m_Group(1)
     , m_Mask(1)
     , m_LockedRotation(0)
+    , m_Enabled(1)
     {
 
     }

@@ -17,6 +17,7 @@ namespace dmGameSystem
         dmGameObject::HInstance m_Instance;
         uint8_t                 m_ComponentIndex;
         uint8_t                 m_Enabled : 1;
+        uint8_t                 m_AddedToUpdate : 1;
     };
 
     struct BoxVertex
@@ -57,6 +58,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params);
 
     dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params);
+
+    dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params);
 

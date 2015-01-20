@@ -1946,6 +1946,36 @@ TYPED_TEST(PhysicsTest, LockedRotation)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(box_shape);
 }
 
+TYPED_TEST(PhysicsTest, DisabledFromStart)
+{
+    VisualObject vo;
+
+    // Dynamic RB
+
+    Vectormath::Aos::Point3 start_pos(1.0f, 2.0f, 0.0f);
+    Vectormath::Aos::Quat start_rot(0.0f, 0.0f, 0.0f, 1.0f);
+    vo.m_Position = start_pos;
+    vo.m_Rotation = start_rot;
+    dmPhysics::CollisionObjectData data;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
+    data.m_UserData = &vo;
+    data.m_Enabled = false;
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    // Check static Y
+    ASSERT_EQ(start_pos.getElem(1), vo.m_Position.getElem(1));
+
+    (*TestFixture::m_Test.m_SetEnabledFunc)(TestFixture::m_World, dynamic_co, true);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    // Check decreased Y (gravity)
+    ASSERT_GT(start_pos.getElem(1), vo.m_Position.getElem(1));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
