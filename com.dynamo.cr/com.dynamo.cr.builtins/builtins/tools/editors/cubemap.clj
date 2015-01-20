@@ -49,20 +49,13 @@
   (property front  s/Str)
   (property back   s/Str))
 
-(defnk produce-image-right  [image-right]  image-right)
-(defnk produce-image-left   [image-left]   image-left)
-(defnk produce-image-top    [image-top]    image-top)
-(defnk produce-image-bottom [image-bottom] image-bottom)
-(defnk produce-image-front  [image-front]  image-front)
-(defnk produce-image-back   [image-back]   image-back)
-
 (n/defnode CubemapImageOutputs
-  (output image-right  Image produce-image-right)
-  (output image-left   Image produce-image-left)
-  (output image-top    Image produce-image-top)
-  (output image-bottom Image produce-image-bottom)
-  (output image-front  Image produce-image-front)
-  (output image-back   Image produce-image-back))
+  (output image-right  Image (fnk [image-right]  image-right))
+  (output image-left   Image (fnk [image-left]   image-left))
+  (output image-top    Image (fnk [image-top]    image-top))
+  (output image-bottom Image (fnk [image-bottom] image-bottom))
+  (output image-front  Image (fnk [image-front]  image-front))
+  (output image-back   Image (fnk [image-back]   image-back)))
 
 (vtx/defvertex normal-vtx
   (vec3 position)
