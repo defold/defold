@@ -319,7 +319,7 @@ To construct a shader object from .vp and .fp files on disk, use `load-shaders`.
 
 Example:
 
-(load-shaders gl (project-path project \"/builtins/tools/atlas/pos_uv\"))
+(load-shaders gl (make-project-path project \"/builtins/tools/atlas/pos_uv\"))
 
 This will look for pos_uv.vp (a vertex shader) and pos_uv.fp (a fragment shader). It will
 load both shaders and link them into a program.

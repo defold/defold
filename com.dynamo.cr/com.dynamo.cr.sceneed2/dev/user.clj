@@ -43,6 +43,7 @@
 
 (defn the-world [] (-> is/the-system deref :world))
 (defn the-graph [] (-> (the-world) :state is/graph))
+(defn nodes     [] (-> (the-graph) :nodes vals))
 
 (defn nodes-and-classes
   []
@@ -76,6 +77,10 @@
 (defn get-value
   [id label & {:as opt-map}]
   (n/get-node-value (merge (node id) opt-map) label))
+
+(defn projects-in-memory
+  []
+  (keep #(when (.endsWith (.getName (second %)) "Project__") (node (first %))) (nodes-and-classes)))
 
 (defn images-from-dir
   [d]

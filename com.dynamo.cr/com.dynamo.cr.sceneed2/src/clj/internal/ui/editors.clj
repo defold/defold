@@ -40,7 +40,7 @@
   [site ^IFile file]
   (let [world-ref (-> @is/the-system :world :state)
         proj      (project-containing world-ref file)
-        path      (file/project-path proj file)]
+        path      (file/make-project-path proj file)]
     (p/make-editor proj path site)))
 
 (defn- dynamic-part

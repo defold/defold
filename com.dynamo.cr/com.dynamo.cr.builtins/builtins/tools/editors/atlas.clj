@@ -1,36 +1,31 @@
 (ns editors.atlas
-  (:require [dynamo.ui :refer :all]
-            [clojure.set :refer [union]]
+  (:require [clojure.set :refer [union]]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
             [dynamo.buffers :refer :all]
-            [dynamo.env :as e]
-            [dynamo.geom :as g :refer [to-short-uv]]
-            [dynamo.gl :as gl :refer :all]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.texture :as texture]
-            [dynamo.gl.protocols :as glp]
-            [dynamo.gl.vertex :as vtx]
-            [dynamo.node :as n]
-            [dynamo.property :as dp]
-            [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
-            [internal.ui.scene-editor :as ius]
-            [internal.ui.background :refer :all]
-            [internal.ui.grid :refer :all]
             [dynamo.camera :refer :all]
+            [dynamo.editors :as ed]
+            [dynamo.env :as e]
             [dynamo.file :as file]
             [dynamo.file.protobuf :as protobuf :refer [pb->str]]
-            [dynamo.project :as p]
-            [dynamo.selection :as sel]
-            [dynamo.types :refer :all]
-            [dynamo.texture :refer :all]
+            [dynamo.geom :as g :refer [to-short-uv]]
+            [dynamo.gl :as gl]
+            [dynamo.gl.shader :as shader]
+            [dynamo.gl.texture :as texture]
+            [dynamo.gl.vertex :as vtx]
             [dynamo.image :refer :all]
-            [internal.ui.menus :as menus]
-            [internal.ui.handlers :as handlers]
-            [internal.render.pass :as pass]
-            [service.log :as log :refer [logging-exceptions]]
-            [camel-snake-kebab :refer :all])
+            [dynamo.node :as n]
+            [dynamo.project :as p]
+            [dynamo.property :as dp]
+            [dynamo.selection :as sel]
+            [dynamo.system :as ds]
+            [dynamo.texture :refer :all]
+            [dynamo.types :as t :refer :all]
+            [dynamo.ui :refer :all]
+            [internal.ui.background :refer :all]
+            [internal.ui.grid :refer :all]
+            [internal.render.pass :as pass])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -56,15 +51,6 @@
   (vec2 uv))
 
 (declare tex-outline-vertices)
-
-;; consider moving -> protocol-buffer-related place
-(defmacro set-if-present
-  ([inst k props]
-    `(set-if-present ~inst ~k ~props identity))
-  ([inst k props xform]
-    (let [setter (symbol (->camelCase (str "set-" (name k))))]
-      `(when-let [value# (get ~props ~k)]
-         (. ~inst ~setter (~xform value#))))))
 
 (defnk produce-animation :- Animation
   [this images :- [Image] id fps flip-horizontal flip-vertical playback]
@@ -115,23 +101,24 @@
 (sm/defn build-atlas-animation :- AtlasProto$AtlasAnimation
   [animation :- Animation]
   (.build (doto (AtlasProto$AtlasAnimation/newBuilder)
-            (.addAllImages      (map build-atlas-image (.images animation)))
-            (.setId             (.id animation))
-            (.setFps            (.fps animation))
-            (set-if-present     :flip-horizontal animation)
-            (set-if-present     :flip-vertical animation)
-            (.setPlayback       (protobuf/val->pb-enum Tile$Playback (.playback animation))))))
+            (.addAllImages           (map build-atlas-image (.images animation)))
+            (.setId                  (.id animation))
+            (.setFps                 (.fps animation))
+            (protobuf/set-if-present :flip-horizontal animation)
+            (protobuf/set-if-present :flip-vertical animation)
+            (.setPlayback            (protobuf/val->pb-enum Tile$Playback (.playback animation))))))
 
 (defnk get-text-format :- s/Str
   "get the text string for this node"
   [this images :- [Image] animations :- [Animation]]
+  (println :get-text-format :images images)
   (pb->str
     (.build
          (doto (AtlasProto$Atlas/newBuilder)
-             (.addAllImages     (map build-atlas-image images))
-             (.addAllAnimations (map build-atlas-animation animations))
-             (set-if-present  :margin this)
-             (set-if-present  :extrude-borders this)))))
+             (.addAllImages           (map build-atlas-image images))
+             (.addAllAnimations       (map build-atlas-animation animations))
+             (protobuf/set-if-present :margin this)
+             (protobuf/set-if-present :extrude-borders this)))))
 
 (defnk save-atlas-file
   [this filename]
@@ -155,7 +142,7 @@
   [ctx ^GL2 gl ^TextRenderer text-renderer this]
   (let [textureset ^TextureSet (n/get-node-value this :textureset)
         image      ^BufferedImage (.packed-image textureset)]
-    (overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
+    (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
 
 (defnk produce-gpu-texture
   [this gl textureset]
@@ -181,14 +168,14 @@
 
 (defn render-textureset
   [ctx gl this]
-  (do-gl [this            (assoc this :gl gl :ctx ctx)
-          textureset      (n/get-node-value this :textureset)
-          texture         (n/get-node-value this :gpu-texture)
-          shader          (n/get-node-value this :shader)
-          vbuf            (n/get-node-value this :vertex-buffer)
-          vertex-binding  (vtx/use-with gl vbuf shader)]
+  (gl/do-gl [this            (assoc this :gl gl :ctx ctx)
+             textureset      (n/get-node-value this :textureset)
+             texture         (n/get-node-value this :gpu-texture)
+             shader          (n/get-node-value this :shader)
+             vbuf            (n/get-node-value this :vertex-buffer)
+             vertex-binding  (vtx/use-with gl vbuf shader)]
     (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
-    (gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
+    (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
 (defnk produce-renderable :- RenderData
   [this textureset]
@@ -353,16 +340,16 @@
         end       (int (+ begin (* 6 (count (:images anim)))))]
     (.build
       (doto (TextureSetProto$TextureSetAnimation/newBuilder)
-         (.setId        (:id anim))
-         (.setWidth     (int (:width  (first (:images anim)))))
-         (.setHeight    (int (:height (first (:images anim)))))
-         (.setStart     start)
-         (.setEnd       end)
-         (set-if-present :playback anim)
-         (set-if-present :fps anim)
-         (set-if-present :flip-horizontal anim)
-         (set-if-present :flip-vertical anim)
-         (set-if-present :is-animation anim)))))
+         (.setId                  (:id anim))
+         (.setWidth               (int (:width  (first (:images anim)))))
+         (.setHeight              (int (:height (first (:images anim)))))
+         (.setStart               start)
+         (.setEnd                 end)
+         (protobuf/set-if-present :playback anim)
+         (protobuf/set-if-present :fps anim)
+         (protobuf/set-if-present :flip-horizontal anim)
+         (protobuf/set-if-present :flip-vertical anim)
+         (protobuf/set-if-present :is-animation anim)))))
 
 (defn build-animations
   [start-idx aseq]
@@ -453,24 +440,35 @@
   (output   texturec s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
-
 (defn on-edit
   [project-node editor-site atlas-node]
-  (let [editor (n/construct ius/SceneEditor :name "editor")]
-    (in (add editor)
-        (let [atlas-render (add (n/construct AtlasRender))
-              background (add (n/construct Background))
-              grid       (add (n/construct Grid))
-              camera     (add (n/construct CameraController :camera (make-camera :orthographic)))]
-          (connect atlas-node   :textureset atlas-render :textureset)
-          (connect camera       :camera     grid         :camera)
-          (connect camera       :camera     editor       :view-camera)
-          (connect camera       :self       editor       :controller)
-          (connect background   :renderable editor       :renderables)
-          (connect atlas-render :renderable editor       :renderables)
-          (connect grid         :renderable editor       :renderables)
-          (connect atlas-node   :aabb       editor       :aabb))
+  (let [editor (n/construct ed/SceneEditor :name "editor")]
+    (ds/in (ds/add editor)
+        (let [atlas-render (ds/add (n/construct AtlasRender))
+              background   (ds/add (n/construct Background))
+              grid         (ds/add (n/construct Grid))
+              camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))]
+          (ds/connect atlas-node   :textureset atlas-render :textureset)
+          (ds/connect camera       :camera     grid         :camera)
+          (ds/connect camera       :camera     editor       :view-camera)
+          (ds/connect camera       :self       editor       :controller)
+          (ds/connect background   :renderable editor       :renderables)
+          (ds/connect atlas-render :renderable editor       :renderables)
+          (ds/connect grid         :renderable editor       :renderables)
+          (ds/connect atlas-node   :aabb       editor       :aabb))
         editor)))
+
+(defn- bind-image-connections
+  [img-node target-node]
+  (when (:image (t/outputs img-node))
+    (ds/connect img-node :image target-node :images))
+  (when (:tree (t/outputs img-node))
+    (ds/connect img-node :tree  target-node :children))  )
+
+(defn- bind-images
+  [image-nodes target-node]
+  (doseq [img image-nodes]
+    (bind-image-connections img target-node)))
 
 (defn construct-ancillary-nodes
   [self locator input]
@@ -479,16 +477,10 @@
     (ds/set-property self :extrude-borders (:extrude-borders atlas))
     (doseq [anim (:animations atlas)
             :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))]]
-      (doseq [img (:images anim)
-              :let [img-node (lookup locator (:image img))]]
-        (ds/connect img-node :image anim-node :images)
-        (ds/connect img-node :tree  anim-node :children))
+      (bind-images (map #(lookup locator (:image %)) (:images anim)) anim-node)
       (ds/connect anim-node :animation self :animations)
       (ds/connect anim-node :tree      self :children))
-    (doseq [img  (:images atlas)
-            :let [img-node (lookup locator (:image img))]]
-      (ds/connect img-node :image self :images)
-      (ds/connect img-node :tree  self :children))
+    (bind-images (map #(lookup locator (:image %)) (:images atlas)) self)
     self))
 
 (defn construct-compiler
@@ -529,6 +521,6 @@
 
 (defhandler add-image-handler add-image-command #'add-image)
 
-(when (in-transaction?)
+(when (ds/in-transaction?)
   (p/register-editor "atlas" #'on-edit)
   (p/register-node-type "atlas" AtlasNode))

@@ -1,36 +1,28 @@
 (ns editors.cubemap
-  (:require [dynamo.ui :refer :all]
-            [clojure.set :refer [union]]
+  (:require [clojure.set :refer [union]]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
-            [dynamo.buffers :refer :all]
             [dynamo.camera :as c]
-            [dynamo.env :as e]
+            [dynamo.editors :as ed]
             [dynamo.file :refer :all]
-            [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
-            [dynamo.geom :as g :refer [to-short-uv unit-sphere-pos-nrm]]
+            [dynamo.file.protobuf :as protobuf]
+            [dynamo.geom :as g]
             [dynamo.gl :as gl :refer [do-gl]]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
-            [dynamo.gl.protocols :as glp]
             [dynamo.gl.vertex :as vtx]
             [dynamo.image :as img :refer :all]
             [dynamo.node :as n]
             [dynamo.project :as p]
-            [dynamo.system :as ds :refer [transactional in add connect in-transaction?]]
+            [dynamo.system :as ds]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
+            [dynamo.ui :refer :all]
             [internal.node :as in]
             [internal.ui.background :as background]
             [internal.ui.grid :as grid]
-            [internal.ui.scene-editor :as ise]
-            [internal.ui.menus :as menus]
-            [internal.ui.handlers :as handlers]
-            [internal.render.pass :as pass]
-            [service.log :as log :refer [logging-exceptions]]
-            [camel-snake-kebab :refer :all]
-            [clojure.osgi.core :refer [*bundle*]])
+            [internal.render.pass :as pass])
   (:import  [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.jogamp.opengl.util.awt TextRenderer]
             [java.nio ByteBuffer]
@@ -184,7 +176,7 @@
 
 (defn on-edit
   [project-node editor-site cubemap]
-  (let [editor (n/construct ise/SceneEditor :name "editor")]
+  (let [editor (n/construct ed/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
       (let [cubemap-render (ds/add (n/construct CubemapRender))
             background     (ds/add (n/construct background/Background))
@@ -201,6 +193,6 @@
         (ds/connect cubemap-render :aabb       editor         :aabb))
       editor)))
 
-(when (in-transaction?)
+(when (ds/in-transaction?)
   (p/register-editor "cubemap" #'on-edit)
   (p/register-node-type "cubemap" CubemapNode))

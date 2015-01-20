@@ -11,6 +11,21 @@
 
 (set! *warn-on-reflection* true)
 
+(defmacro set-if-present
+  "Use this macro to set an optional field on a protocol buffer message.
+props must be a maplike data structure, and k is a key into it. k will also
+be turned into a setter method name on the protocol buffer class.
+
+If provided, xform is a function of one argument. It will be called with the
+value of the property. The return value from xform will be the actual value
+placed into the protocol buffer."
+  ([inst k props]
+    `(set-if-present ~inst ~k ~props identity))
+  ([inst k props xform]
+    (let [setter (symbol (->camelCase (str "set-" (name k))))]
+      `(when-let [value# (get ~props ~k)]
+         (. ~inst ~setter (~xform value#))))))
+
 (defmulti message->node
   "This is an extensible function that you implement to help load a specific file
 type. Most of the time, these will be created for you by the

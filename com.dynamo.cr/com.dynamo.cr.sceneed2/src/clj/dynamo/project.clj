@@ -149,13 +149,15 @@ ordinary paths."
   ProjectRoot
   t/NamingContext
   (lookup [this name]
-    (let [path (if (instance? dynamo.file.ProjectPath name) name (file/project-path this name))]
+    (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
       (if-let [node (first (iq/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
         node
         (load-resource this path))))
 
   (on :destroy
-    (ds/delete self)))
+    (do
+      (prn :Project.destroy (:_id self))
+      (ds/delete self))))
 
 (defn project-enclosing
   [node]
@@ -168,7 +170,7 @@ ordinary paths."
      (ds/in project-node
        [project-node (doall
                        (for [resource resources
-                             :let [p (file/project-path project-node resource)]]
+                             :let [p (file/make-project-path project-node resource)]]
                          (monitored-work monitor (str "Scanning " (t/local-name p))
                            (load-resource project-node p))))]))))
 
@@ -187,7 +189,8 @@ ordinary paths."
   (doseq [resource-node resource-nodes]
     (log/logging-exceptions (str message (:filename resource-node))
       (when (satisfies? t/MessageTarget resource-node)
-        (t/process-one-event resource-node {:type :load :project project-node})))))
+        (ds/in project-node
+          (t/process-one-event resource-node {:type :load :project project-node}))))))
 
 (defn load-project-and-tools
   [^IProject eclipse-project branch ^IProgressMonitor monitor]
@@ -197,7 +200,8 @@ ordinary paths."
         non-sources     (get resources false)]
     (monitored-task monitor "Scanning project" (inc (count resources))
       (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) clojure-sources monitor))
-      (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     monitor)))))
+      (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     monitor)))
+    project-node))
 
 
 ; ---------------------------------------------------------------------------

@@ -51,13 +51,13 @@
                                (let [^LabelProvider this this]
                                  (if-not (:filename element)
                                    (proxy-super getImage element)
-                                   (.getImage workbench-provider (file/eclipse-file (:filename element))))))
+                                   (.getImage workbench-provider (file/project-file (:filename element))))))
 
                              (getText [element]
                                (let [^LabelProvider this this]
                                  (if-not (:filename element)
                                   (proxy-super getText element)
-                                  (let [efile ^IFile (file/eclipse-file (:filename element))
+                                  (let [efile ^IFile (file/project-file (:filename element))
                                         name  (.getName efile)]
                                     (if (.isDuplicateElement dlg element)
                                       (str name " - " (.. efile getParent getFullPath makeRelative))
@@ -67,7 +67,7 @@
                                (let [^LabelProvider this this]
                                  (if-not (:filename element)
                                   (StyledString. (proxy-super getText element))
-                                  (let [efile ^IFile (file/eclipse-file (:filename element))
+                                  (let [efile ^IFile (file/project-file (:filename element))
                                         name  (.getName efile)]
                                     (if (.isDuplicateElement dlg element)
                                       (doto (StyledString. name)

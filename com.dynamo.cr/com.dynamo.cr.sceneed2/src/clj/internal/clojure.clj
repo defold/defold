@@ -26,7 +26,7 @@
 (defn compile-source-node
   [node project path]
   (let [ns-decl     (read-file-ns-decl path)
-        source-file (file/eclipse-file path)]
+        source-file (file/project-file path)]
     (markers/remove-markers source-file)
     (try
       (ds/in project

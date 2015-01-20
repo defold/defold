@@ -1,6 +1,5 @@
 (ns dynamo.image
   (:require [clojure.java.io :as io]
-            [dynamo.file :refer [project-path]]
             [dynamo.geom :refer :all]
             [dynamo.node :as n]
             [dynamo.property :as dp]
@@ -62,9 +61,7 @@
 ;; Transform produces value
 (defnk image-from-resource :- Image
   [this filename project]
-  (load-image filename (t/local-name filename))
-  #_(let [src (project-path project filename)]
-     (load-image src (:image this))))
+  (load-image filename (t/local-path filename)))
 
 ;; Behavior
 (n/defnode ImageSource

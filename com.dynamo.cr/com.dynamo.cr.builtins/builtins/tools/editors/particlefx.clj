@@ -1,36 +1,21 @@
 (ns editors.particlefx
-  (:require [dynamo.ui :refer :all]
-            [clojure.set :refer [union]]
-            [plumbing.core :refer [fnk defnk]]
-            [schema.core :as s]
-            [schema.macros :as sm]
-            [dynamo.buffers :refer :all]
-            [dynamo.editors :as ed]
-            [dynamo.env :as e]
-            [dynamo.geom :as g :refer [to-short-uv]]
-            [dynamo.gl :as gl :refer :all]
-            [dynamo.gl.shader :as shader]
-            [dynamo.gl.texture :as texture]
-            [dynamo.gl.protocols :as glp]
-            [dynamo.gl.vertex :as vtx]
-            [dynamo.node :as n :refer :all]
-            [dynamo.system :as ds :refer [transactional in add connect set-property in-transaction?]]
-            [internal.ui.scene-editor :refer :all]
-            [internal.ui.background :refer :all]
-            [internal.ui.grid :refer :all]
+  (:require [plumbing.core :refer [fnk defnk]]
             [dynamo.camera :refer :all]
+            [schema.core :as s]
+            [dynamo.editors :as ed]
             [dynamo.file :refer :all]
-            [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters pb->str]]
-            [dynamo.project :as p]
-            [dynamo.types :refer :all]
-            [dynamo.texture :refer :all]
-            [dynamo.image :refer :all]
+            [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters]]
+            [dynamo.geom :as g]
+            [dynamo.gl :as gl :refer :all]
+            [dynamo.node :as n]
             [dynamo.particle-lib :as pl :refer :all]
-            [internal.ui.menus :as menus]
-            [internal.ui.handlers :as handlers]
+            [dynamo.project :as p]
+            [dynamo.system :as ds]
+            [dynamo.types :refer :all]
+            [dynamo.ui :refer :all]
             [internal.render.pass :as pass]
-            [service.log :as log :refer [logging-exceptions]]
-            [camel-snake-kebab :refer :all])
+            [internal.ui.background :refer :all]
+            [internal.ui.grid :refer :all])
   (:import  [com.dynamo.particle.proto Particle$ParticleFX
              Particle$Emitter Particle$Emitter$Property Particle$Emitter$ParticleProperty
              Particle$Modifier Particle$Modifier$Property
@@ -44,7 +29,7 @@
             [org.eclipse.core.commands ExecutionEvent]
             [com.sun.jna Pointer Native Callback]))
 
-(defnode TransformNode
+(n/defnode TransformNode
   (property position {:schema Point3d})
   (property rotation {:schema Quat4d})
   (property scale    {:schema Vector3d}))
@@ -54,30 +39,30 @@
   ;; For now, return first value
   {(:key this) (:y (first points))})
 
-(defnode PropertyNode
+(n/defnode PropertyNode
   (property key s/Any)
   (property points [{:x s/Num :y s/Num :t-x s/Num :t-y s/Num}])
   (input t s/Num)
   (output value s/Any :cached produce-property-value))
 
-(defnode SpreadPropertyNode
+(n/defnode SpreadPropertyNode
   (inherits PropertyNode)
   (property spread s/Num))
 
-(defnode EmitterPropertyNode
+(n/defnode EmitterPropertyNode
   (inherits SpreadPropertyNode))
 
-(defnode ParticlePropertyNode
+(n/defnode ParticlePropertyNode
   (inherits PropertyNode))
 
-(defnode ModifierPropertyNode
+(n/defnode ModifierPropertyNode
   (inherits SpreadPropertyNode))
 
 (defnk produce-properties
   [this property-sources]
   (merge (select-keys this (-> this :descriptor :properties keys)) (apply merge-with concat property-sources)))
 
-(defnode PropertiesNode
+(n/defnode PropertiesNode
   (input property-sources [s/Any])
   (output properties s/Any produce-properties))
 
@@ -137,7 +122,7 @@
 (defn render-particles []
   (println "I'm rendering particles!"))
 
-(defnode ParticlefxRender
+(n/defnode ParticlefxRender
   (property context     Pointer)
   (input    renderables [RenderData])
   (output   renderable  RenderData :cached produce-renderable))
@@ -147,19 +132,19 @@
   #_(.toByteArray (particlefx-protocol-buffer (:texture-name this) textureset))
   )
 
-(defnode ParticlefxSave
+(n/defnode ParticlefxSave
   (input particlefx-properties s/Any)
   #_(output compiled-particlefx s/Any :on-update compile-particlefx))
 
-(defnode ParticlefxProperties
+(n/defnode ParticlefxProperties
   (inherits PropertiesNode))
 
 (defnk passthrough-renderables
   [renderables]
   renderables)
 
-(defnode ParticlefxNode
-  (inherits OutlineNode)
+(n/defnode ParticlefxNode
+  (inherits n/OutlineNode)
   (inherits ParticlefxProperties)
   (input    renderables s/Any)
   (output   renderables s/Any :cached passthrough-renderables)
@@ -168,7 +153,7 @@
   #_(invoke [this user-context material texture world-transform blend-mode vertex-index vertex-count constants constant-count]
           (render-particles)))
 
-(defnode EmitterProperties
+(n/defnode EmitterProperties
   (inherits PropertiesNode)
   (property id s/Str)
   (property mode s/Any)
@@ -193,17 +178,17 @@
     (apply merge-with concat renderable renderables)
     ))
 
-(defnode EmitterRender
+(n/defnode EmitterRender
   (input renderables    [RenderData])
   (output renderable    RenderData :cached produce-emitter-renderable))
 
-(defnode EmitterNode
+(n/defnode EmitterNode
   (inherits TransformNode)
-  (inherits OutlineNode)
+  (inherits n/OutlineNode)
   (inherits EmitterProperties)
   (inherits EmitterRender))
 
-(defnode ModifierProperties
+(n/defnode ModifierProperties
   (inherits PropertiesNode)
   (property type s/Any)
   (property use-direction int))
@@ -215,12 +200,12 @@
      [{:world-transform world
        :render-fn       (fn [ctx gl glu text-renderer] (render-modifier-outlines ctx gl this))}]}))
 
-(defnode ModifierRender
+(n/defnode ModifierRender
     (output renderable    RenderData :cached produce-modifier-renderable))
 
-(defnode ModifierNode
+(n/defnode ModifierNode
   (inherits TransformNode)
-  (inherits OutlineNode)
+  (inherits n/OutlineNode)
   (inherits ModifierProperties)
   (inherits ModifierRender))
 
@@ -284,26 +269,26 @@ Particle$Modifier$Property
 
 (defn on-edit
   [project-node editor-site particlefx-node]
-  (let [editor (n/construct SceneEditor :name "editor")]
-    (in (add editor)
-      (let [particlefx-render (add (n/construct ParticlefxRender))
-            background (add (n/construct Background))
-            grid       (add (n/construct Grid))
-            camera     (add (n/construct CameraController :camera (make-camera :orthographic)))
-            context (pl/create-context 64 256)]
-        (set-property particlefx-render :context context)
+  (let [editor (n/construct ed/SceneEditor :name "editor")]
+    (ds/in (ds/add editor)
+      (let [particlefx-render (ds/add (n/construct ParticlefxRender))
+            background        (ds/add (n/construct Background))
+            grid              (ds/add (n/construct Grid))
+            camera            (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
+            context           (pl/create-context 64 256)]
+        (ds/set-property particlefx-render :context context)
         #_(connect particlefx-node   :renderables particlefx-render :renderables)
-        (connect camera            :camera      grid   :camera)
-        (connect camera            :camera      editor :view-camera)
-        (connect camera            :self        editor :controller)
-        (connect background        :renderable  editor :renderables)
-        (connect grid              :renderable  editor :renderables)
+        (ds/connect camera            :camera      grid   :camera)
+        (ds/connect camera            :camera      editor :view-camera)
+        (ds/connect camera            :self        editor :controller)
+        (ds/connect background        :renderable  editor :renderables)
+        (ds/connect grid              :renderable  editor :renderables)
         #_(connect particlefx-render :renderable  editor :renderables)
-        (connect particlefx-node   :aabb        editor :aabb)
+        (ds/connect particlefx-node   :aabb        editor :aabb)
         #_(
         ))
       editor)))
 
-(when (in-transaction?)
+(when (ds/in-transaction?)
   (p/register-editor "particlefx" #'on-edit)
   (p/register-node-type "particlefx" ParticlefxNode))

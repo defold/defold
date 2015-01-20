@@ -3,8 +3,8 @@
 
 Two record types are defined, `ProjectPath` and `NativePath`.
 
-*ProjectPath*: represents a project-relative path to a resource. The [[project-path]] function
-creates and returns a ProjectPath. Implements [[PathManipulation]] and [[ProjectRelative]].
+*ProjectPath*: represents a project-relative path to a resource. The [[make-project-path]] function
+creates and returns a ProjectPath, which implements [[PathManipulation]] and [[ProjectRelative]].
 
 *NativePath*: represents a path, typically to a resource, as represented in
 the native file system. Overrides `.toString()`. Implements [[PathManipulation]].
@@ -25,15 +25,15 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
            [com.google.protobuf TextFormat GeneratedMessage$Builder]
            [org.osgi.framework Bundle]
            [org.eclipse.core.internal.resources File]
-           [org.eclipse.core.resources IProject IResource IFile]))
+           [org.eclipse.core.resources IProject IResource IFile]
+           [org.eclipse.core.runtime IPath]))
 
 (set! *warn-on-reflection* true)
 
 (defn- eproj ^IProject [p] (:eclipse-project p))
 
 (defprotocol ProjectRelative
-  (eclipse-path [this] "Returns the path (as Eclipse's IPath) relative to a project container.")
-  (eclipse-file [this] "Returns the file (as Eclipse's IFile) relative to a project container."))
+  (project-file [this] "Returns the file (as Eclipse's IFile) relative to a project container."))
 
 (defprotocol FileWriter
   (write-file [this ^bytes contents] "Given a path and contents, writes the contents to file. This will overwrite any existing contents."))
@@ -65,13 +65,12 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
       (.flush out)))
 
   ProjectRelative
-  (eclipse-path      [this] (.addFileExtension (.getFullPath (.getFile (eproj project) path)) ext))
-  (eclipse-file      [this] (.getFile (eproj project) (t/local-path this)))
+  (project-file          [this]      (.getFile (eproj project) (str "content/" (t/local-path this))))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (eclipse-file this) opts))
+  (io/make-input-stream  [this opts] (io/make-input-stream (project-file this) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (io/make-output-stream (eclipse-file this) opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (project-file this) opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   Object
@@ -123,7 +122,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
 
 (alter-meta! #'map->NativePath update-in [:doc] str "\n\n See [[->NativePath.]]")
 
-(defn project-path
+(defn make-project-path
   "Given a project-scope node, returns a ProjectPath containing the path to the project's files.
    The resource can be a string or an IFile."
   ([project-scope]
@@ -134,7 +133,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
           file  (if (instance? IFile resource)
                   resource
                   (.getFile ep (str "content/" resource)))
-          pr    (.removeFirstSegments (.getFullPath ^IFile file) 1)
+          pr    (.removeFirstSegments (.getFullPath ^IFile file) 2)
           ext   (.getFileExtension pr)
           p     (.toString pr)
           p     (if-not ext p (subs p 0 (- (count p) (count ext) 1)))]
@@ -147,7 +146,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
   (let [project               (.project p)
         eclipse-project       (eproj project)
         branch                (:branch project)
-        relative-to-build-dir (clojure.string/replace (.path p) "content" (str branch "/build/default"))
+        relative-to-build-dir (str branch "/build/default/" (.path p))
         build-dir-native      (.removeLastSegments (.getLocation (.getFile eclipse-project "content")) 1)]
     (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (.ext p))))
 
