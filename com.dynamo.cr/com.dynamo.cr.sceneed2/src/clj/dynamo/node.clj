@@ -142,11 +142,20 @@ implement dynamo.types/MessageTarget."
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
        (declare ~ctor-name ~symb)
-       (let [description# ~(in/node-type-sexps symb (concat node-intrinsics forms))
-             ctor#        (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
+       (let [description#    ~(in/node-type-sexps symb (concat node-intrinsics forms))
+             replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
+                               (when (satisfies? t/NodeType x#) x#))
+             whole-graph#    (some-> (ds/current-scope) :world-ref deref :graph)
+             to-be-replaced# (when (and whole-graph# replacing# (ds/current-scope))
+                               (filterv #(= replacing# (t/node-type %)) (dg/node-values whole-graph#)))
+             ctor#           (fn [args#] (~ctor-name (merge (in/defaults ~symb) args#)))]
          (def ~symb (in/make-node-type (assoc description# ::ctor ctor#)))
          (in/define-node-record  '~record-name '~symb ~symb)
          (in/define-print-method '~record-name '~symb ~symb)
+         (when (and replacing# (ds/current-scope))
+           (ds/transactional
+             (doseq [r# to-be-replaced#]
+               (ds/become r# (construct ~symb)))))
          (var ~symb)))))
 
 (defn abort

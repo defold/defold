@@ -4,7 +4,10 @@
             [plumbing.core :refer [defnk fnk]]
             [dynamo.node :as n]
             [dynamo.property :as dp]
+            [dynamo.system :as ds]
+            [dynamo.system.test-support :as ts]
             [dynamo.types :as t]
+            [internal.graph.dgraph :as dg]
             [internal.node :as in]))
 
 (deftest nodetype
@@ -324,3 +327,37 @@
 
 (n/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
+
+
+
+(def original-node-definition
+  '(n/defnode MutagenicNode
+     (property a-property s/Str (default "a-string"))
+     (property b-property s/Bool (default true))))
+
+(def replacement-node-definition
+  '(n/defnode MutagenicNode
+     (property a-property s/Str  (default "Genosha"))
+     (property b-property s/Bool (default false))
+     (property c-property s/Int  (default 42))
+     MarkerInterface))
+
+(deftest redefining-nodes-updates-existing-world-instances
+  (ts/with-clean-world
+    (eval original-node-definition)
+
+    (let [node-before-mutation (ds/transactional (ds/add (n/construct (resolve 'MutagenicNode))))
+          original-node-id     (:_id node-before-mutation)]
+      (eval replacement-node-definition)
+
+      (let [node-after-mutation (ds/refresh node-before-mutation)]
+
+        (println (-> node-after-mutation :world-ref deref :world-time))
+        (println node-before-mutation)
+        (println node-after-mutation)
+
+        (is (not (instance? MarkerInterface node-before-mutation)))
+        (is (= "a-string" (:a-property node-after-mutation)))
+        (is (= true       (:b-property node-after-mutation)))
+        (is (= 42         (:c-property node-after-mutation)))
+        (is (instance? MarkerInterface node-after-mutation))))))

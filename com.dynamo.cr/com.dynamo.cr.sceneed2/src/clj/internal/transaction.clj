@@ -402,7 +402,7 @@
     (binding [*transaction* (->TransactionSeed world-ref)]
       (a/go-loop []
         (when-let [msg (a/<! in)]
-          (when (not= ::stop-event-loop msg)
+          (when (not= ::stop-event-loop (:type msg))
             (try
               (let [n (dg/node (:graph @world-ref) id)]
                 (when-not n
@@ -414,7 +414,7 @@
 
 (defn stop-event-loop!
   [world-ref {:keys [_id]}]
-  (bus/publish @world-ref (bus/address-to _id ::stop-event-loop)))
+  (bus/publish (:message-bus @world-ref) (bus/address-to _id {:type ::stop-event-loop})))
 
 (defn- transact*
   [world-ref ctx]
