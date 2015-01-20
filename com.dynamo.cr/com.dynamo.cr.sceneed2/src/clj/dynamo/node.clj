@@ -252,8 +252,16 @@ Inheritors are required to supply a production function for the :save output."
   (output save s/Keyword :abstract))
 
 (defnode ResourceNode
+  "Mixin. Any node loaded from the filesystem should inherit this."
   (property filename (s/protocol PathManipulation) (visible false)))
 
 (defnode OutlineNode
+  "Mixin. Any OutlineNode can be shown in an outline view.
+
+Inputs:
+- children `[OutlineItem]` - Input values that will be nested beneath this node.
+
+Outputs:
+- tree `OutlineItem` - A single value that contains the display info for this node and all its children."
   (input  children [OutlineItem])
-  (output tree     [OutlineItem] outline/outline-tree-producer))
+  (output tree     OutlineItem outline/outline-tree-producer))

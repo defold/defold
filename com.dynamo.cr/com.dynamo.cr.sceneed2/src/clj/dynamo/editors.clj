@@ -102,8 +102,25 @@ Outputs
         (ds/set-property camera-node :camera (c/camera-orthographic-frame-aabb camera aabb))))))
 
 (n/defnode SceneEditor
-"
- - controller  `dynamo.types/Node` - The node that handles UI gestures
+  "SceneEditor is the basis for all 2D orthographic and 3D perspective editors.
+It provides rendering behavior (inherited from Renderer). It also acts as a Scope for
+view-local nodes (e.g., view camera, controller, manipulator).
+
+Inputs:
+- controller  `dynamo.types/Node` - The node that handles UI gestures
+- saveable `schema.core/Keyword` - Used to produce the `saveable` output. A content node connects to this so that pulling the content node's value causes the file to be saved as a side effect.
+- presenter-registry `dynamo.types/Registry` - Property presenters that have been registered for this project.
+- dirty `schema.core/Bool` - When true, causes the editor to be marked as dirty.
+
+Outputs:
+- saveable - Passthrough of the `saveable` output. Pulling this output causes the content node to save itself.
+- presenter-registry - Passthrough of the presenter registry.
+
+Messages:
+- :create  - Builds the GUI components in respond to the editor part being opened.
+- :init    - State initialization, sent after :create
+- :save    - Sent by the GUI when the user wants to save the content
+- :destroy - Clean up
 "
   (inherits n/Scope)
   (inherits Renderer)
