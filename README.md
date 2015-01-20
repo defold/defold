@@ -17,6 +17,10 @@ Setup
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
 * [Eclipse 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
 
+* Packages required to build engine on Linux:
+
+        $ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential
+
 **Eclipse Plugins**
 
 <table>
@@ -131,6 +135,17 @@ Build and Run Editor
     - Go to `Preferences > Run/Debug`
     - Deselect `Build` in `General Options`
     - This disables building of custom build steps and explicit invocation of `Project > Build All` is now required.
+
+**Notes for building the editor under Linux:**
+* Install [protobuf-compiler 2.3](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html), latest (2.4) does not work.
+* Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
+* Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
+* `.deb` files can be installed by running:
+
+        $ sudo dpkg -i <filename>.deb
+
+        # If dpkg complains about dependencies, run this directly afterwards:
+        $ sudo apt-get install -f
 
 Licenses
 --------
