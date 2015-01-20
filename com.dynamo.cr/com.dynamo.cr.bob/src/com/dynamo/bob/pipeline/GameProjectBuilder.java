@@ -223,6 +223,16 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
+        // Custom resources
+        String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
+        for (String s : custom_resources) {
+            s = s.trim();
+            if (s.length() > 0) {
+                IResource r = project.getResource(s);
+                resources.add(r.output().getAbsPath());
+            }
+        }
+
         return resources;
     }
 
@@ -241,16 +251,6 @@ public class GameProjectBuilder extends Builder<Void> {
         try {
             if (project.option("archive", "false").equals("true")) {
                 HashSet<String> resources = findResources(project);
-
-                // Custom resources
-                String[] custom_resources = properties.getStringValue("project", "custom_resources", "").split(",");
-                for (String s : custom_resources) {
-                    s = s.trim();
-                    if (s.length() > 0) {
-                        IResource r = this.project.getResource(s);
-                        resources.add(r.output().getAbsPath());
-                    }
-                }
 
                 File archiveFile = createArchive(resources);
                 is = new FileInputStream(archiveFile);

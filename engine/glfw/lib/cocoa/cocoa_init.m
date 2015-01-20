@@ -91,6 +91,18 @@ static NSString *findAppName( void )
     // If we get here, we're unbundled
     if( !_glfwLibrary.Unbundled )
     {
+        // Wait for an (any) event before calling SetFrontProcess() below.
+        // If we skip this, sometimes the app/window become unresponsive
+        // right after start.
+        //
+        // This also fixes the bug where the correct menu won't show
+        // unless the user switches from the app and back again.
+        //
+        // Eclipse does something similar:
+        // https://bugs.eclipse.org/bugs/attachment.cgi?id=248969
+        [NSApp nextEventMatchingMask: NSAnyEventMask untilDate: nil
+            inMode: NSDefaultRunLoopMode dequeue: NO ];
+
         // Could do this only if we discover we're unbundled, but it should
         // do no harm...
         ProcessSerialNumber psn = { 0, kCurrentProcess };
