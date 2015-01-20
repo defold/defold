@@ -111,7 +111,6 @@
 (defnk get-text-format :- s/Str
   "get the text string for this node"
   [this images :- [Image] animations :- [Animation]]
-  (println :get-text-format :images images)
   (pb->str
     (.build
          (doto (AtlasProto$Atlas/newBuilder)
