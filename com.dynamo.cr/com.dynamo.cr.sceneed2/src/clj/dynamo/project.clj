@@ -115,14 +115,19 @@ ordinary paths."
   (doseq [id (:nodes-added txn)]
     (ds/send-after {:_id id} {:type :project-scope :scope self})))
 
+(defn nodes-in-project
+  "Return a lazy sequence of all nodes in this project. There is no
+guaranteed ordering of the sequence."
+  [project-node]
+  (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)]))
+
 (defn nodes-with-extensions
   [project-node extensions]
   (let [extensions (into #{} extensions)
         pred (fn [node] (and (:filename node)
                           (some #{(t/extension (:filename node))} extensions)))]
     (into #{}
-      (filter pred
-        (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)])))))
+      (filter pred (nodes-in-project project-node)))))
 
 (defn select-resources
   ([project-node extensions]

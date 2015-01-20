@@ -1,7 +1,8 @@
 (ns editors.image-node
   (:require [dynamo.node :as n]
             [dynamo.image :as i]
-            [dynamo.project :as p]))
+            [dynamo.project :as p]
+            [dynamo.system :as ds]))
 
 (n/defnode ImageResourceNode
   (inherits n/OutlineNode)
