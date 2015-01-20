@@ -1,4 +1,4 @@
-(ns internal.ui.grid
+(ns dynamo.grid
   (:require [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [dynamo.camera :as c]

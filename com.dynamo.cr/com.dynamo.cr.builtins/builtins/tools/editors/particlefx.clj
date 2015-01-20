@@ -8,14 +8,14 @@
             [dynamo.file.protobuf :as protobuf :refer [protocol-buffer-converters]]
             [dynamo.geom :as g]
             [dynamo.gl :as gl :refer :all]
+            [dynamo.grid :as grid]
             [dynamo.node :as n]
             [dynamo.particle-lib :as pl :refer :all]
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :refer :all]
             [dynamo.ui :refer :all]
-            [internal.render.pass :as pass]
-            [internal.ui.grid :refer :all])
+            [internal.render.pass :as pass])
   (:import  [com.dynamo.particle.proto Particle$ParticleFX
              Particle$Emitter Particle$Emitter$Property Particle$Emitter$ParticleProperty
              Particle$Modifier Particle$Modifier$Property
@@ -273,7 +273,7 @@ Particle$Modifier$Property
     (ds/in (ds/add editor)
       (let [particlefx-render (ds/add (n/construct ParticlefxRender))
             background        (ds/add (n/construct background/Gradient))
-            grid              (ds/add (n/construct Grid))
+            grid              (ds/add (n/construct grid/Grid))
             camera            (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
             context           (pl/create-context 64 256)]
         (ds/set-property particlefx-render :context context)

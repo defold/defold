@@ -13,6 +13,7 @@
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
+            [dynamo.grid :as grid]
             [dynamo.image :as img :refer :all]
             [dynamo.node :as n]
             [dynamo.project :as p]
@@ -21,7 +22,6 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [internal.node :as in]
-            [internal.ui.grid :as grid]
             [internal.render.pass :as pass])
   (:import  [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.jogamp.opengl.util.awt TextRenderer]
@@ -116,7 +116,7 @@
           shader          (n/get-node-value this :shader)
           vbuf            (n/get-node-value this :vertex-buffer)
           vertex-binding  (vtx/use-with gl vbuf shader)
-          camera          (in/get-inputs this (-> this :world-ref deref :graph) :camera)]
+          camera          (n/get-node-value this :camera)]
          (shader/set-uniform shader "world" world)
          (shader/set-uniform shader "cameraPosition" (t/position camera))
          (shader/set-uniform shader "envMap" (texture/texture-unit-index texture))
@@ -141,6 +141,7 @@
 (n/defnode CubemapRender
   (inherits CubemapImageInputs)
   (input  camera        Camera)
+  (output camera        Camera             (fnk [camera] camera))
   (output shader        s/Any      :cached produce-shader)
   (output vertex-buffer s/Any      :cached produce-renderable-vertex-buffer)
   (output gpu-texture   s/Any      :cached produce-gpu-texture)

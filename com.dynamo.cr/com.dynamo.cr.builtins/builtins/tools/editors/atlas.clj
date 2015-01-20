@@ -15,6 +15,7 @@
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
+            [dynamo.grid :as grid]
             [dynamo.image :refer :all]
             [dynamo.node :as n]
             [dynamo.project :as p]
@@ -24,7 +25,6 @@
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [internal.ui.grid :refer :all]
             [internal.render.pass :as pass])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -446,7 +446,7 @@
     (ds/in (ds/add editor)
         (let [atlas-render (ds/add (n/construct AtlasRender))
               background   (ds/add (n/construct background/Gradient))
-              grid         (ds/add (n/construct Grid))
+              grid         (ds/add (n/construct grid/Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))]
           (ds/connect atlas-node   :textureset atlas-render :textureset)
           (ds/connect camera       :camera     grid         :camera)
