@@ -303,10 +303,11 @@ local function stack(start)
     if not source then break end
 
     local src = source.source
-    if src:find("@") == 1 then
+    if src:find("@") == 1 or src:find("=") == 1 then
       src = src:sub(2):gsub("\\", "/")
       if src:find("%./") == 1 then src = src:sub(3) end
     end
+
 
     table.insert(stack, { -- remove basedir from source
       {source.name, removebasedir(src, basedir),
@@ -567,8 +568,8 @@ local function debug_hook(event, line)
       -- Unfortunately, there is no reliable/quick way to figure out
       -- what is the filename and what is the source code.
       -- The following will work if the supplied filename uses Unix path.
-      if file:find("^@") then
-        file = file:gsub("^@", ""):gsub("\\", "/")
+      if file:find("^@") or file:find("^=") then
+        file = file:gsub("^=", ""):gsub("^@", ""):gsub("\\", "/")
         -- need this conversion to be applied to relative and absolute
         -- file names as you may write "require 'Foo'" to
         -- load "foo.lua" (on a case insensitive file system) and breakpoints
