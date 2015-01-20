@@ -23,7 +23,7 @@ namespace dmGameSystem
 {
     /*# make a factory create a new game object
      * The URL identifies which factory should create the game object.
-     * If the in game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.
+     * If the game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.
      *
      * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
      * See go.property for more information on script properties.

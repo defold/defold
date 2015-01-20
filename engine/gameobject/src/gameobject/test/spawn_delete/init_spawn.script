@@ -1,6 +1,5 @@
 go.property("prototype", hash(""))
 
 function init(self)
-    print("PROTOTYPE", self.prototype)
     local id = spawn("/a.goc")
 end
