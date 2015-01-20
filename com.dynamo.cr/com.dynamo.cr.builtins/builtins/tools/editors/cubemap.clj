@@ -3,6 +3,7 @@
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
+            [dynamo.background :as background]
             [dynamo.camera :as c]
             [dynamo.editors :as ed]
             [dynamo.file :refer :all]
@@ -20,7 +21,6 @@
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [internal.node :as in]
-            [internal.ui.background :as background]
             [internal.ui.grid :as grid]
             [internal.render.pass :as pass])
   (:import  [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -179,7 +179,7 @@
   (let [editor (n/construct ed/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
       (let [cubemap-render (ds/add (n/construct CubemapRender))
-            background     (ds/add (n/construct background/Background))
+            background     (ds/add (n/construct background/Gradient))
             grid           (ds/add (n/construct grid/Grid))
             camera         (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
         (connect-cubemap-inputs cubemap cubemap-render)

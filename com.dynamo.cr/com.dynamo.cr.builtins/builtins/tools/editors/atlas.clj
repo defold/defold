@@ -3,6 +3,7 @@
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
+            [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
             [dynamo.editors :as ed]
@@ -23,7 +24,6 @@
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [internal.ui.background :refer :all]
             [internal.ui.grid :refer :all]
             [internal.render.pass :as pass])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
@@ -445,7 +445,7 @@
   (let [editor (n/construct ed/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
         (let [atlas-render (ds/add (n/construct AtlasRender))
-              background   (ds/add (n/construct Background))
+              background   (ds/add (n/construct background/Gradient))
               grid         (ds/add (n/construct Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))]
           (ds/connect atlas-node   :textureset atlas-render :textureset)

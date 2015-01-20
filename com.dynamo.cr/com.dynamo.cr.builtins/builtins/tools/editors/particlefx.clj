@@ -1,5 +1,6 @@
 (ns editors.particlefx
   (:require [plumbing.core :refer [fnk defnk]]
+            [dynamo.background :as background]
             [dynamo.camera :refer :all]
             [schema.core :as s]
             [dynamo.editors :as ed]
@@ -14,7 +15,6 @@
             [dynamo.types :refer :all]
             [dynamo.ui :refer :all]
             [internal.render.pass :as pass]
-            [internal.ui.background :refer :all]
             [internal.ui.grid :refer :all])
   (:import  [com.dynamo.particle.proto Particle$ParticleFX
              Particle$Emitter Particle$Emitter$Property Particle$Emitter$ParticleProperty
@@ -272,7 +272,7 @@ Particle$Modifier$Property
   (let [editor (n/construct ed/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
       (let [particlefx-render (ds/add (n/construct ParticlefxRender))
-            background        (ds/add (n/construct Background))
+            background        (ds/add (n/construct background/Gradient))
             grid              (ds/add (n/construct Grid))
             camera            (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
             context           (pl/create-context 64 256)]
