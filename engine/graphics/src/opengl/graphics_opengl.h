@@ -77,6 +77,7 @@ namespace dmGraphics
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
         HTexture        m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
+        GLuint          m_RenderBuffers[MAX_BUFFER_TYPE_COUNT];
         GLuint          m_Id;
     };
 
