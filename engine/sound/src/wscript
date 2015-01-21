@@ -7,16 +7,34 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('openal')
 
-    source =  'sound_common.cpp sound.cpp sound_codec.cpp stb_vorbis/stb_vorbis.c'.split()
-    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp devices/device_null.cpp stb_vorbis/stb_vorbis.c'.split()
+    source =  'sound_common.cpp sound.cpp sound_codec.cpp sound_decoder.cpp'.split()
+    source2 =  'sound_common.cpp sound2.cpp sound_codec.cpp sound_decoder.cpp'.split()
+    source_null = 'devices/device_null.cpp sound_common.cpp sound_null.cpp sound_decoder.cpp sound_codec.cpp sound_generic.cpp'.split()
 
+    stb_vorbis = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
+    wav = ['decoders/decoder_wav.cpp']
+    tremolo = ['decoders/decoder_tremolo.cpp'];
+
+    if bld.env.platform == 'js-web' or bld.env.platform == 'win32':
+        decoders = stb_vorbis + wav
+    else:
+        decoders = tremolo + stb_vorbis + wav
+
+    source = source + decoders
+    source2 = source2 + decoders
+    source_null = source_null + decoders
+
+    defines = 'TREMOLO_SCORE=8'
     include = ''
+
     if re.match('arm.*?android', bld.env['PLATFORM']):
         include = 'openal/include'
+        defines = 'TREMOLO_SCORE=10'
 
     if re.match('arm.*?darwin', bld.env['PLATFORM']):
         source.append('sound_ios.cpp')
         source2.append('sound_ios.cpp')
+        defines = 'TREMOLO_SCORE=10'
     else:
         source.append('sound_generic.cpp')
         source2.append('sound_generic.cpp')
@@ -46,19 +64,23 @@ def build(bld):
     # assumed it applied to both sound and sound2
     if bld.env.platform != 'js-web':
       sound = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                               includes = '. vorbis_tremor %s' % include,
+                               includes = '. %s' % include,
+                               defines = defines,
                                target = 'sound',
                                source = source)
 
       sound2 = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
-                                includes = '. vorbis_tremor %s' % include,
+                                includes = '. %s' % include,
+                                defines = defines,
                                 target = 'sound2',
                                 source = source2)
 
     sound_null = bld.new_task_gen(features = 'cc cxx cstaticlib ddf',
                                   includes = '.',
+                                  defines = defines,
                                   target = 'sound_null',
-                                  source = 'sound_common.cpp sound_null.cpp sound_codec.cpp sound_generic.cpp stb_vorbis/stb_vorbis.c')
+                                  source = source_null)
+
 
     if sys.platform == 'win32':
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
