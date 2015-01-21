@@ -49,18 +49,22 @@
   (apply merge-with (fn [a b] (reverse (sort-by #(render-key view-camera %) (concat a b)))) renderables))
 
 (defn setup-pass
-  [context ^GL2 gl ^GLU glu pass camera]
-  (let [viewport ^Region (:viewport camera)]
-    (.glMatrixMode gl GL2/GL_PROJECTION)
-    (.glLoadIdentity gl)
-    (if (t/model-transform? pass)
-      (gl/gl-mult-matrix-4d gl (c/camera-projection-matrix camera))
-      (gl/glu-ortho glu viewport))
-    (.glMatrixMode gl GL2/GL_MODELVIEW)
-    (.glLoadIdentity gl)
-    (when (t/model-transform? pass)
-      (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
-    (pass/prepare-gl pass gl glu)))
+  ([context gl glu pass camera]
+    (setup-pass context gl glu pass camera nil))
+  ([context ^GL2 gl ^GLU glu pass camera pick-rect]
+    (let [viewport ^Region (:viewport camera)]
+      (.glMatrixMode gl GL2/GL_PROJECTION)
+      (.glLoadIdentity gl)
+      (when pick-rect
+        (gl/glu-pick-matrix glu pick-rect viewport))
+      (if (t/model-transform? pass)
+        (gl/gl-mult-matrix-4d gl (c/camera-projection-matrix camera))
+        (gl/glu-ortho glu viewport))
+      (.glMatrixMode gl GL2/GL_MODELVIEW)
+      (.glLoadIdentity gl)
+      (when (t/model-transform? pass)
+        (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
+      (pass/prepare-gl pass gl glu))))
 
 (defn gl-viewport [^GL2 gl camera]
   (let [viewport ^Region (:viewport camera)]

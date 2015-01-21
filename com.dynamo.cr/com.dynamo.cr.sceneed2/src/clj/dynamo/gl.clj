@@ -160,6 +160,21 @@
 (defmacro glu-ortho [glu region]
   `(.gluOrtho2D ~glu (double (.left ~region)) (double (.right ~region)) (double (.bottom ~region)) (double (.top ~region))))
 
+(defn ^"[I" viewport-array [viewport]
+  (int-array [(:left viewport)
+              (:top viewport)
+              (:right viewport)
+              (:bottom viewport)]))
+
+(defmacro glu-pick-matrix [glu pick-rect viewport]
+  `(let [pick-rect# ~pick-rect]
+     (.gluPickMatrix ~glu
+       (double (:x pick-rect#))
+       (double (:y pick-rect#))
+       (double (:width pick-rect#))
+       (double (:height pick-rect#))
+       (viewport-array ~viewport)
+       (int 0))))
 
 (defmacro do-gl
   [bindings & body]

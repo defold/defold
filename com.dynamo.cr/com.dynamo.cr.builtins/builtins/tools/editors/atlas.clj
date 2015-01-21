@@ -465,57 +465,58 @@
 (defn select-click [this x y]
   (prn "enter select-click" x y)
   (let [factory (gl/glfactory)
-        context (doto (.createExternalGLContext factory)
-                  .makeCurrent)
-        gl (.. context getGL getGL2)
+        context (.createExternalGLContext factory)
         select-buffer (.. ByteBuffer
                         (allocateDirect (* 4 pick-buffer-size))
                         (order (ByteOrder/nativeOrder))
                         asIntBuffer)
-        glu (GLU.)
         pass pass/selection
         [[renderables] view-camera] (n/get-node-inputs this :renderables :view-camera)
-        nodes (map-indexed vector (get renderables pass))]
-    (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
-    (.release context)
-    (.glSelectBuffer gl pick-buffer-size select-buffer)
-    (.glRenderMode gl GL2/GL_SELECT)
-    (.glInitNames gl)
+        nodes (map-indexed vector (get renderables pass))
+        pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
+    (gl/with-context
+      context
+      [gl glu]
+      (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
+      (.glSelectBuffer gl pick-buffer-size select-buffer)
+      (.glRenderMode gl GL2/GL_SELECT)
+      (.glInitNames gl)
+      (prn "viewport" (:viewport view-camera))
 
-    (ius/setup-pass context gl glu pass view-camera)
-    (doseq [[i node] nodes]
-      (.glPushName gl i)
-      (gl/gl-push-matrix
-        gl
-        (when (t/model-transform? pass)
-          (gl/gl-mult-matrix-4d gl (:world-transform node)))
-        (try
-          (when (:render-fn node)
-            ((:render-fn node) context gl glu nil))
-          (catch Exception e
-            (log/error :exception e
-                       :pass pass
-                       :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))
-      (.glPopName gl))
+      (ius/setup-pass context gl glu pass view-camera pick-rect)
+      (doseq [[i node] nodes]
+        (.glPushName gl i)
+        (gl/gl-push-matrix
+          gl
+          (when (t/model-transform? pass)
+            (gl/gl-mult-matrix-4d gl (:world-transform node)))
+          (try
+            (when (:render-fn node)
+              ((:render-fn node) context gl glu nil))
+            (catch Exception e
+              (log/error :exception e
+                         :pass pass
+                         :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))
+        (.glPopName gl))
 
-    (.glFlush gl)
-    (let [hits (.glRenderMode gl GL2/GL_RENDER)]
-      (prn "hits" hits)
-      (prn "list of names"
-           (loop [i 0
-                  ptr 0
-                  result []]
-             (if (< i hits)
-               (let [c (.get select-buffer ptr)
-                     ;; minz (.get select-buffer (+ ptr 1))
-                     ;; maxz (.get select-buffer (+ ptr 2))
-                     name (.get select-buffer (+ ptr 3))]
-                 (assert (= 1 c) "Count of names in a hit record must be one")
-                 (recur (inc i)
-                        (+ ptr 3 c)
-                        (conj result name)))
-               result))))
-    (prn "done select-click" x y)))
+      (.glFlush gl)
+      (let [hits (.glRenderMode gl GL2/GL_RENDER)]
+        (prn "hits" hits)
+        (prn "list of names"
+             (loop [i 0
+                    ptr 0
+                    result []]
+               (if (< i hits)
+                 (let [c (.get select-buffer ptr)
+                       ;; minz (.get select-buffer (+ ptr 1))
+                       ;; maxz (.get select-buffer (+ ptr 2))
+                       name (.get select-buffer (+ ptr 3))]
+                   (assert (= 1 c) "Count of names in a hit record must be one")
+                   (recur (inc i)
+                          (+ ptr 3 c)
+                          (conj result name)))
+                 result))))
+      (prn "done select-click" x y))))
 
 (n/defnode SelectionController
   (input renderables [t/RenderData])
