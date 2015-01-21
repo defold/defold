@@ -178,6 +178,23 @@
     (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
+(defn render-quad
+  [ctx gl this i]
+  (gl/do-gl [this            (assoc this :gl gl :ctx ctx)
+             textureset      (n/get-node-value this :textureset)
+             texture         (n/get-node-value this :gpu-texture)
+             shader          (n/get-node-value this :shader)
+             vbuf            (n/get-node-value this :vertex-buffer)
+             vertex-binding  (vtx/use-with gl vbuf shader)]
+    (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
+
+(defn selection-renderables
+  [this textureset]
+  (for [i (range (count (:coords textureset)))]
+    {:world-transform g/Identity4d
+     :render-fn       (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))}))
+
 (defnk produce-renderable :- RenderData
   [this textureset]
   {pass/overlay
@@ -187,7 +204,7 @@
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]
    pass/selection
-   []})
+   (selection-renderables this textureset)})
 
 (defnk produce-renderable-vertex-buffer
   [this gl textureset]
@@ -458,7 +475,7 @@
         glu (GLU.)
         pass pass/selection
         [[renderables] view-camera] (n/get-node-inputs this :renderables :view-camera)
-        nodes (map-indexed vector (get renderables pass/transparent))]
+        nodes (map-indexed vector (get renderables pass))]
     (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
     (.release context)
     (.glSelectBuffer gl pick-buffer-size select-buffer)
