@@ -167,12 +167,12 @@
   (let [bound-syms (map first (partition 2 bindings))]
     `(let ~bindings
        (doseq [b# ~(into [] bound-syms)]
-         (when (satisfies? ~`p/GlEnable b#)
-           (.enable b#)))
+         (when (satisfies? p/GlEnable b#)
+           (p/enable b#)))
        (let [rval# (do ~@body)]
            (doseq [b# ~(into [] (reverse bound-syms))]
-             (when (satisfies? ~`p/GlDisable b#)
-               (.disable b#)))
+             (when (satisfies? p/GlDisable b#)
+               (p/disable b#)))
            rval#))))
 
 (defn overlay
