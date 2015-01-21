@@ -17,7 +17,7 @@ ordinary paths."
             [internal.ui.dialogs :as dialogs]
             [eclipse.resources :as resources]
             [service.log :as log])
-  (:import [org.eclipse.core.resources IContainer IFile IProject IResource]
+  (:import [org.eclipse.core.resources IContainer IFile IProject IResource IResourceChangeListener]
            [org.eclipse.core.runtime IProgressMonitor]
            [org.eclipse.ui PlatformUI IEditorSite]
            [org.eclipse.ui.internal.registry FileEditorMapping EditorRegistry]))
@@ -115,11 +115,21 @@ ordinary paths."
   (doseq [id (:nodes-added txn)]
     (ds/send-after {:_id id} {:type :project-scope :scope self})))
 
+(defn project-enclosing
+  [node]
+  (first (iq/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
+
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
 guaranteed ordering of the sequence."
   [project-node]
   (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)]))
+
+(defn nodes-with-filename
+  "Return a lazy sequence of all nodes in the project that match this filename.
+There is no guaranteed ordering of the sequence."
+  [project-node path]
+  (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
 
 (defn nodes-with-extensions
   [project-node extensions]
@@ -162,9 +172,7 @@ guaranteed ordering of the sequence."
   (on :destroy
     (ds/delete self)))
 
-(defn project-enclosing
-  [node]
-  (first (iq/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
+
 
 (defn load-resource-nodes
   [project-node resources ^IProgressMonitor monitor]
@@ -206,6 +214,33 @@ guaranteed ordering of the sequence."
       (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     monitor)))
     project-node))
 
+(defn- update-added-resources
+  [project-node {:keys [added]}]
+  (let [resources       (group-by clojure/clojure-source? added)
+        clojure-sources (get resources true)
+        non-sources     (get resources false)]
+    (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) clojure-sources nil))
+    (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     nil))
+    project-node))
+
+
+(defn- update-deleted-resources
+  [project-node {:keys [deleted]}]
+  (let [nodes-to-delete (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) deleted)]
+    (ds/transactional
+      (doseq [n nodes-to-delete]
+        (ds/delete n)))))
+
+(defn- update-changed-resources
+  [project-node {:keys [changed]}]
+  )
+
+(defn- update-resources
+  [project-node changeset]
+  (-> (ds/refresh project-node)
+    (update-added-resources changeset)
+    (update-deleted-resources changeset)
+    (update-changed-resources changeset)))
 
 ; ---------------------------------------------------------------------------
 ; Lifecycle, Called during connectToBranch
@@ -213,4 +248,6 @@ guaranteed ordering of the sequence."
 (defn open-project
   "Called from com.dynamo.cr.editor.Activator when opening a project. You should not call this function directly."
   [eclipse-project branch ^IProgressMonitor monitor]
-  (resources/listen-for-close (load-project-and-tools eclipse-project branch monitor)))
+  (let [project-node (load-project-and-tools eclipse-project branch monitor)
+        listener     (resources/listen-for-change #(update-resources project-node %))]
+    (resources/listen-for-close project-node listener)))

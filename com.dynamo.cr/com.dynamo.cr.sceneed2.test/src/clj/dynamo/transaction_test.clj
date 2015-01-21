@@ -8,6 +8,7 @@
             [schema.core :as s]
             [plumbing.core :refer [defnk]]
             [dynamo.node :as n :refer [Scope]]
+            [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
@@ -75,7 +76,8 @@
               after     (:graph tx-result)]
           (is (nil?   (dg/node    after (:_id resource2))))
           (is (empty? (lg/targets after (:_id resource1) :b)))
-          (is (contains? (:nodes-deleted tx-result) (:_id resource2)))))))
+          (is (contains? (:nodes-deleted tx-result) (:_id resource2)))
+          (is (empty?    (:nodes-added   tx-result)))))))
   (testing "node transformation"
     (with-clean-world
       (let [[resource1] (tx-nodes (n/construct Resource :marker 99))
@@ -148,7 +150,7 @@
         (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-updating))
         (is (= {:call-count 2 :was-added? false :was-modified? true :was-removed? false} after-updating)))))
 
-  (testing "runs when node is removed"
+  (testing "runs when node is deleted"
     (with-clean-world
       (let [tracker         (atom {})
             counter         (ds/transactional (ds/add (n/construct TriggerExecutionCounter :tracking tracker)))
@@ -207,7 +209,19 @@
           (let [after-trigger @tracker]
             (is (= 3 (:call-count after-trigger)))
             (is (not (:was-added? after-trigger)))
-            (is (:was-modified? after-trigger))))))))
+            (is (:was-modified? after-trigger)))))))
+
+  (testing "activation is correct even when scopes and injection happen"
+    (with-clean-world
+      (let [tracker            (atom {})
+            scope              (ds/transactional (ds/add (n/construct p/Project)))
+            counter            (ds/transactional (ds/in scope (ds/add (n/construct TriggerExecutionCounter :tracking tracker))))
+            before-removing    @tracker
+            _                  (ds/transactional (ds/delete counter))
+            after-removing     @tracker]
+
+        (is (= {:call-count 1 :was-added? true  :was-modified? true :was-removed? false} before-removing))
+        (is (= {:call-count 2 :was-added? false :was-modified? true :was-removed? true} after-removing))))))
 
 (n/defnode NamedThing
   (property name s/Str))

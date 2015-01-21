@@ -26,7 +26,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
            [org.osgi.framework Bundle]
            [org.eclipse.core.internal.resources File]
            [org.eclipse.core.resources IProject IResource IFile]
-           [org.eclipse.core.runtime IPath]))
+           [org.eclipse.core.runtime IPath Path]))
 
 (set! *warn-on-reflection* true)
 
@@ -130,9 +130,10 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
       (ProjectPath. project-scope (.toString (.removeFirstSegments (.getFullPath ep) 1)) nil)))
   ([project-scope resource]
     (let [ep    (eproj project-scope)
-          file  (if (instance? IFile resource)
-                  resource
-                  (.getFile ep (str "content/" resource)))
+          file  (cond
+                  (instance? IFile resource) resource
+                  (instance? IPath resource) (.getFile ep (.append (Path. "content") resource))
+                  :else                      (.getFile ep (str "content/" resource)))
           pr    (.removeFirstSegments (.getFullPath ^IFile file) 2)
           ext   (.getFileExtension pr)
           p     (.toString pr)

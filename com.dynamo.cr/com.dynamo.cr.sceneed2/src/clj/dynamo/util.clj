@@ -42,17 +42,18 @@
 (defmacro monitored-task
  [mon nm size & body]
  `(let [m# ~mon]
-    (.beginTask m# ~nm ~size)
+    (when m#
+      (.beginTask m# ~nm ~size))
     (let [res# (do ~@body)]
-      (.done m#)
+      (when m# (.done m#))
       res#)))
 
 (defmacro monitored-work
   [mon subtask & body]
   `(let [m# ~mon]
-     (.subTask m# ~subtask)
+     (when m# (.subTask m# ~subtask))
      (let [res# (do ~@body)]
-       (.worked m# 1)
+       (when m# (.worked m# 1))
        res#)))
 
 (defmacro doseq-monitored [monitor task-name bindings & body]
