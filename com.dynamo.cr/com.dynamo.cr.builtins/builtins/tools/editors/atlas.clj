@@ -484,7 +484,6 @@
 
     (ius/setup-pass context gl glu pass view-camera)
     (doseq [[i node] nodes]
-      (prn :node i node)
       (.glPushName gl i)
       (gl/gl-push-matrix
         gl
@@ -500,8 +499,22 @@
       (.glPopName gl))
 
     (.glFlush gl)
-    (let [hits (.glRenderMode gl GL2/GL_SELECT)]
-      (prn "hits" hits))
+    (let [hits (.glRenderMode gl GL2/GL_RENDER)]
+      (prn "hits" hits)
+      (prn "list of names"
+           (loop [i 0
+                  ptr 0
+                  result []]
+             (if (< i hits)
+               (let [c (.get select-buffer ptr)
+                     ;; minz (.get select-buffer (+ ptr 1))
+                     ;; maxz (.get select-buffer (+ ptr 2))
+                     name (.get select-buffer (+ ptr 3))]
+                 (assert (= 1 c) "Count of names in a hit record must be one")
+                 (recur (inc i)
+                        (+ ptr 3 c)
+                        (conj result name)))
+               result))))
     (prn "done select-click" x y)))
 
 (n/defnode SelectionController
