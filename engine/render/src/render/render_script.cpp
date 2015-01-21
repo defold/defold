@@ -451,11 +451,6 @@ namespace dmRender
      */
 
     /*#
-     * @name render.FORMAT_STENCIL
-     * @variable
-     */
-
-    /*#
      * @name render.FILTER_LINEAR
      * @variable
      */
@@ -499,7 +494,6 @@ namespace dmRender
      *      render.FORMAT_RGBA_DXT3<br/>
      *      render.FORMAT_RGBA_DXT5<br/>
      *      render.FORMAT_DEPTH<br/>
-     *      render.FORMAT_STENCIL<br/>
      *     </td></tr>
      *   <tr><td>"width"</td><td>number</td></tr>
      *   <tr><td>"height"</td><td>number</td></tr>
@@ -558,20 +552,6 @@ namespace dmRender
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
                     p->m_Format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, -1);
-                    if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
-                    {
-                        if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
-                        {
-                            return luaL_error(L, "The only valid format for depth buffers is FORMAT_DEPTH.");
-                        }
-                    }
-                    if(buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-                    {
-                        if(p->m_Format != dmGraphics::TEXTURE_FORMAT_STENCIL)
-                        {
-                            return luaL_error(L, "The only valid format for stencil buffers is FORMAT_STENCIL.");
-                        }
-                    }
                 }
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
@@ -736,14 +716,10 @@ namespace dmRender
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
             dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
-            if(texture != 0)
-            {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uint32_t)texture)))
-                    return 0;
-                else
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-            }
-            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uint32_t)texture)))
+                return 0;
+            else
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
         }
         else
         {
@@ -1689,7 +1665,6 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(RGBA_DXT3);
         REGISTER_FORMAT_CONSTANT(RGBA_DXT5);
         REGISTER_FORMAT_CONSTANT(DEPTH);
-        REGISTER_FORMAT_CONSTANT(STENCIL);
 
 #undef REGISTER_FORMAT_CONSTANT
 
