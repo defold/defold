@@ -37,6 +37,7 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
     }
 
@@ -673,21 +674,15 @@ namespace dmGraphics
         BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            assert(GetBufferTypeIndex(buffer_types[i]) == i);
             if (buffer_type_flags & buffer_types[i])
             {
                 uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
                 *(buffers[i]) = new char[buffer_size];
                 *(buffer_sizes[i]) = buffer_size;
+                rt->m_BufferTextures[i] = NewTexture(context, creation_params[i]);
                 rt->m_BufferTextureParams[i] = params[i];
                 rt->m_BufferTextureParams[i].m_Data = 0x0;
                 rt->m_BufferTextureParams[i].m_DataSize = 0;
-
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
-                {
-                    rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
-                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
-                }
             }
         }
 
@@ -696,8 +691,11 @@ namespace dmGraphics
 
     void DeleteRenderTarget(HRenderTarget rt)
     {
-        if (rt->m_ColorBufferTexture)
-            DeleteTexture(rt->m_ColorBufferTexture);
+        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        {
+            if (rt->m_BufferTextures[i])
+                DeleteTexture(rt->m_BufferTextures[i]);
+        }
         delete [] (char*)rt->m_FrameBuffer.m_ColorBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
@@ -720,9 +718,7 @@ namespace dmGraphics
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
-        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
-            return 0;
-        return rendertarget->m_ColorBufferTexture;
+        return rendertarget->m_BufferTextures[buffer_type];
     }
 
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
@@ -731,7 +727,7 @@ namespace dmGraphics
         uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            if (buffers)
+            if (rt->m_BufferTextures[i])
             {
                 delete [] (char*)*(buffers[i]);
                 uint32_t buffer_size = sizeof(uint32_t) * width * height;
@@ -739,10 +735,7 @@ namespace dmGraphics
                 *(buffer_sizes[i]) = buffer_size;
                 rt->m_BufferTextureParams[i].m_Width = width;
                 rt->m_BufferTextureParams[i].m_Height = height;
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
-                {
-                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
-                }
+                SetTexture(rt->m_BufferTextures[i], rt->m_BufferTextureParams[i]);
             }
         }
     }
@@ -758,7 +751,6 @@ namespace dmGraphics
 
         tex->m_Width = params.m_Width;
         tex->m_Height = params.m_Height;
-        tex->m_Data = 0;
 
         if (params.m_OriginalWidth == 0) {
         	tex->m_OriginalWidth = params.m_Width;
@@ -785,9 +777,11 @@ namespace dmGraphics
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Format = params.m_Format;
-        // Allocate even for 0x0 size so that the rendertarget dummies will work.
-        texture->m_Data = new char[params.m_DataSize];
-        memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
+        if (params.m_DataSize > 0)
+        {
+            texture->m_Data = new char[params.m_DataSize];
+            memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
+        }
     }
 
     uint16_t GetTextureWidth(HTexture texture)

@@ -337,8 +337,8 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
 {
     const char* script =
     "function update(self)\n"
-    "    local params_color = {\n"
-    "        format = render.FORMAT_RGBA,\n"
+    "    local params = {\n"
+    "        format = render.FORMAT_RGB,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = render.FILTER_NEAREST,\n"
@@ -346,25 +346,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "        u_wrap = render.WRAP_REPEAT,\n"
     "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    local params_depth = {\n"
-    "        format = render.FORMAT_DEPTH,\n"
-    "        width = 1,\n"
-    "        height = 2,\n"
-    "        min_filter = render.FILTER_NEAREST,\n"
-    "        mag_filter = render.FILTER_LINEAR,\n"
-    "        u_wrap = render.WRAP_REPEAT,\n"
-    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
-    "    }\n"
-    "    local params_stencil = {\n"
-    "        format = render.FORMAT_STENCIL,\n"
-    "        width = 1,\n"
-    "        height = 2,\n"
-    "        min_filter = render.FILTER_NEAREST,\n"
-    "        mag_filter = render.FILTER_LINEAR,\n"
-    "        u_wrap = render.WRAP_REPEAT,\n"
-    "        v_wrap = render.WRAP_MIRRORED_REPEAT\n"
-    "    }\n"
-    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_COLOR_BIT] = params_color, [render.BUFFER_DEPTH_BIT] = params_depth, [render.BUFFER_STENCIL_BIT] = params_stencil})\n"
+    "    self.rt = render.render_target(\"rt\", {[render.BUFFER_DEPTH_BIT] = params})\n"
     "    render.enable_render_target(self.rt)\n"
     "    render.disable_render_target(self.rt)\n"
     "    render.set_render_target_size(self.rt, 3, 4)\n"
@@ -385,6 +367,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     ASSERT_NE((void*)0, (void*)command->m_Operands[0]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }

@@ -76,28 +76,6 @@
 #define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
 #define DMGRAPHICS_TYPE_SAMPLER_CUBE                        (GL_SAMPLER_CUBE)
 
-// Render buffer storage formats
-#ifdef GL_DEPTH_STENCIL_OES
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH24_STENCIL8_OES)
-#else
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH_STENCIL)
-#endif
-#ifdef GL_DEPTH_COMPONENT24_OES
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT24_OES)
-#else
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT)
-#endif
-#ifdef GL_DEPTH_COMPONENT16_OES
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16_OES)
-#else
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16)
-#endif
-#ifdef GL_STENCIL_INDEX8_OES
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8_OES)
-#else
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8)
-#endif
-
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
 // We check this at runtime through extensions supported
