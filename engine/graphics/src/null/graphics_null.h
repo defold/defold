@@ -57,7 +57,7 @@ namespace dmGraphics
     struct RenderTarget
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
+        HTexture        m_ColorBufferTexture;
         FrameBuffer     m_FrameBuffer;
     };
 
