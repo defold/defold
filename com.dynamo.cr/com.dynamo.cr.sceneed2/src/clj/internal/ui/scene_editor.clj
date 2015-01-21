@@ -77,7 +77,7 @@
          (gl/gl-clear gl 0.0 0.0 0.0 1)
          (gl-viewport gl view-camera)
          (when-let [renderables (n/get-node-value this :render-data)]
-           (doseq [pass pass/passes]
+           (doseq [pass pass/render-passes]
              (setup-pass context gl glu pass view-camera)
              (doseq [node (get renderables pass)]
                (gl/gl-push-matrix gl
