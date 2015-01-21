@@ -3,6 +3,7 @@
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
+            [service.log :as log]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
@@ -21,6 +22,7 @@
             [dynamo.property :as dp]
             [dynamo.selection :as sel]
             [dynamo.system :as ds]
+            [internal.ui.scene-editor :as ius]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
@@ -30,10 +32,11 @@
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
             [com.dynamo.tile.proto Tile$Playback]
             [com.jogamp.opengl.util.awt TextRenderer]
-            [java.nio ByteBuffer IntBuffer]
-            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
+            [java.nio ByteOrder ByteBuffer IntBuffer]
+            [dynamo.types Animation Camera Image TextureSet Rect EngineFormatTexture AABB]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
+            [javax.media.opengl.glu GLU]
             [javax.vecmath Matrix4d]))
 
 (def integers (iterate (comp int inc) (int 0)))
@@ -182,7 +185,9 @@
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this))}]
    pass/transparent
    [{:world-transform g/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]})
+     :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]
+   pass/selection
+   []})
 
 (defnk produce-renderable-vertex-buffer
   [this gl textureset]
@@ -438,6 +443,70 @@
   (output   texturec s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
+(def pick-buffer-size 4096)
+
+(defn select-click [this x y]
+  (prn "enter select-click" x y)
+  (let [factory (gl/glfactory)
+        context (doto (.createExternalGLContext factory)
+                  .makeCurrent)
+        gl (.. context getGL getGL2)
+        select-buffer (.. ByteBuffer
+                        (allocateDirect (* 4 pick-buffer-size))
+                        (order (ByteOrder/nativeOrder))
+                        asIntBuffer)
+        glu (GLU.)
+        pass pass/selection
+        [[renderables] view-camera] (n/get-node-inputs this :renderables :view-camera)
+        nodes (map-indexed vector (get renderables pass/transparent))]
+    (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
+    (.release context)
+    (.glSelectBuffer gl pick-buffer-size select-buffer)
+    (.glRenderMode gl GL2/GL_SELECT)
+    (.glInitNames gl)
+
+    (ius/setup-pass context gl glu pass view-camera)
+    (doseq [[i node] nodes]
+      (prn :node i node)
+      (.glPushName gl i)
+      (gl/gl-push-matrix
+        gl
+        (when (t/model-transform? pass)
+          (gl/gl-mult-matrix-4d gl (:world-transform node)))
+        (try
+          (when (:render-fn node)
+            ((:render-fn node) context gl glu nil))
+          (catch Exception e
+            (log/error :exception e
+                       :pass pass
+                       :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))
+      (.glPopName gl))
+
+    (.glFlush gl)
+    (let [hits (.glRenderMode gl GL2/GL_SELECT)]
+      (prn "hits" hits))
+    (prn "done select-click" x y)))
+
+(n/defnode SelectionController
+  (input renderables [t/RenderData])
+  (input view-camera Camera)
+  (on :mouse-down
+      ;; "SelectionController:mouse-down" {:y 139, :key-code 0, :rotation 0.0, :index 0, :button 1, :item nil,
+      ;; :time 21933621, :width 0, :start 0, :y-direction 0, :type :mouse-down, :touches nil, :segments-chars nil,
+      ;; :segments nil, :x-direction 0, :widget #<GLCanvas GLCanvas {}>, :gc nil, :count 1, :magnification 0.0,
+      ;; display #<Display org.eclipse.swt.widgets.Display@7479b626>, :x 215, :end 0, :doit true, :key-location 0,
+      ;; :character \ , :state-mask 0, :height 0, :text nil, :data nil, :detail 0}
+
+
+      ;; event has :x and :y in pixels relative to top-left corner of canvas.
+      ;; :state-mask is a bit mask of modifier keys and buttons
+      ;; :button is 1 for the left mouse button, 3 for the "right" button
+      (let [{:keys [x y button state-mask]} event]
+        (select-click self x y)))
+  (on :mouse-up
+      (let [{:keys [x y button state-mask]} event]
+        (prn "SelectionController:mouse-up" x y button state-mask))))
+
 (defn on-edit
   [project-node editor-site atlas-node]
   (let [editor (n/construct ed/SceneEditor :name "editor")]
@@ -445,11 +514,15 @@
         (let [atlas-render (ds/add (n/construct AtlasRender))
               background   (ds/add (n/construct background/Gradient))
               grid         (ds/add (n/construct grid/Grid))
-              camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))]
+              camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
+              selector     (ds/add (n/construct SelectionController))]
           (ds/connect atlas-node   :textureset atlas-render :textureset)
           (ds/connect camera       :camera     grid         :camera)
           (ds/connect camera       :camera     editor       :view-camera)
-          (ds/connect camera       :self       editor       :controller)
+          ;; (ds/connect camera       :self       editor       :controller)
+          (ds/connect selector     :self       editor       :controller)
+          (ds/connect atlas-render :renderable selector     :renderables)
+          (ds/connect camera       :camera     selector     :view-camera)
           (ds/connect background   :renderable editor       :renderables)
           (ds/connect atlas-render :renderable editor       :renderables)
           (ds/connect grid         :renderable editor       :renderables)
