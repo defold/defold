@@ -12,7 +12,7 @@
       <programArgsMac>-vm
 ../../../jre/Contents/Home/bin/java</programArgsMac>
       <programArgsWin>-vm
-jre\bin\javaw.exe</programArgsWin>
+jre\bin\</programArgsWin>
       <vmArgs>-Declipse.p2.unsignedPolicy=allow -Dsun.net.client.defaultReadTimeout=30000 -XX:MaxPermSize=128M -Xmx1200M -Djogl.texture.notexrect=true -Djava.net.preferIPv4Stack=true</vmArgs>
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
    </launcherArgs>
