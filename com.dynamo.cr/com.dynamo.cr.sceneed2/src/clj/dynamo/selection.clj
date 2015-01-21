@@ -69,4 +69,4 @@
   [^ExecutionEvent evt]
   (let [workbench-selection (handlers/active-current-selection (.getApplicationContext evt))]
     (when (instance? clojure.lang.IDeref workbench-selection)
-      (map (partial ds/node-by-id (is/world-ref)) (deref workbench-selection)))))
+      (map (partial ds/node (is/world-ref)) (deref workbench-selection)))))

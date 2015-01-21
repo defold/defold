@@ -18,7 +18,7 @@
 (defmacro with-clean-world
   [& forms]
   `(let [~'world-ref (clean-world)
-         ~'root      (ds/node-by-id ~'world-ref 1)]
+         ~'root      (ds/node ~'world-ref 1)]
      (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
        (ds/in ~'root
            ~@forms))))

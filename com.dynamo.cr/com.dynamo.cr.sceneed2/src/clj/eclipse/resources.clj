@@ -29,7 +29,7 @@
         (resourceChanged [this event]
           (when (= (.getResource event) project)
             (doseq [d disposables] (t/dispose d))
-            (n/dispatch-message (ds/node-by-id world-ref project-node-id) :destroy))))
+            (n/dispatch-message (ds/node world-ref project-node-id) :destroy))))
       IResourceChangeEvent/PRE_DELETE)))
 
 (def ^:private delta-kinds

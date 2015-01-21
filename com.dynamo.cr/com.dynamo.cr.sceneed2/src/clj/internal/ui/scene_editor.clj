@@ -103,7 +103,7 @@
 
 (defn pipe-events-to-node
   [component type {:keys [_id world-ref] :as node}]
-  (ui/listen component type #(t/process-one-event (ds/node-by-id world-ref _id) %)))
+  (ui/listen component type #(t/process-one-event (ds/node world-ref _id) %)))
 
 (defn send-view-scope-message
   [graph self transaction]

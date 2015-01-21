@@ -15,7 +15,7 @@
 ; ---------------------------------------------------------------------------
 ; Interrogating the Graph
 ; ---------------------------------------------------------------------------
-(defn node-by-id
+(defn node
   "Get a node, given just a world and an id."
   [world-ref id]
   (dg/node (:graph @world-ref) id))
@@ -72,7 +72,7 @@ A clause may be one of the following forms:
 All the list forms look for symbols in the first position. Be sure to quote the list
 to distinguish it from a function call."
   [world-ref clauses]
-  (map #(node-by-id world-ref %) (q/query (:graph @world-ref) clauses)))
+  (map #(node world-ref %) (q/query (:graph @world-ref) clauses)))
 
 
 ; ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ to distinguish it from a function call."
      (refresh (:world-ref n) n))
   ([world-ref n]
      (if world-ref
-       (node-by-id world-ref (:_id n))
+       (node world-ref (:_id n))
        n)))
 
 ; ---------------------------------------------------------------------------
