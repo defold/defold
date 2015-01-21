@@ -1974,6 +1974,7 @@ TYPED_TEST(PhysicsTest, DisabledFromStart)
     ASSERT_GT(start_pos.getElem(1), vo.m_Position.getElem(1));
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
 int main(int argc, char **argv)
