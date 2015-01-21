@@ -10,7 +10,6 @@
             [dynamo.image :refer :all]
             [dynamo.system :as ds]
             [dynamo.system.test-support :refer [with-clean-world]]
-            [internal.query :as iq]
             [internal.transaction :as it])
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]))
@@ -69,7 +68,7 @@
     (with-clean-world
       (let [message    (atlas-with-one-animation "the-animation")
             atlas-node (ds/transactional (message->node message))
-            anim-node  (iq/node-feeding-into atlas-node :animations)]
+            anim-node  (ds/node-feeding-into atlas-node :animations)]
         (is (not (nil? atlas-node)))
         (is (= 7 (:margin atlas-node)))
         (is (= "the-animation" (:id anim-node)))))))

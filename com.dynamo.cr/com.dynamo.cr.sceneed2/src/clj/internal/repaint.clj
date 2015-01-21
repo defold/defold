@@ -1,10 +1,10 @@
 (ns internal.repaint
   (:require [com.stuartsierra.component :as component]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [internal.disposal :as disp]
             [internal.graph.dgraph :as dg]
-            [internal.query :as iq]
             [service.log :as log])
   (:import [org.eclipse.swt.widgets Display]))
 
@@ -21,7 +21,7 @@
         (let [g (:graph @world-ref)]
           (doseq [w @waiters]
             (try
-              (t/frame (iq/node-by-id world-ref w))
+              (t/frame (ds/node-by-id world-ref w))
               (catch Throwable t
                 (log/error :exception t :message "Error sending frame message to " w))))
           (alter waiters empty))))))

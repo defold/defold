@@ -6,7 +6,6 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [service.log :as log]
-            [internal.query :as iq]
             [internal.system :as is]
             [internal.ui.handlers :as handlers])
   (:import [org.eclipse.ui ISelectionListener]
@@ -70,4 +69,4 @@
   [^ExecutionEvent evt]
   (let [workbench-selection (handlers/active-current-selection (.getApplicationContext evt))]
     (when (instance? clojure.lang.IDeref workbench-selection)
-      (map (partial iq/node-by-id (is/world-ref)) (deref workbench-selection)))))
+      (map (partial ds/node-by-id (is/world-ref)) (deref workbench-selection)))))

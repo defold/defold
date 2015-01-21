@@ -13,7 +13,6 @@ ordinary paths."
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [internal.clojure :as clojure]
-            [internal.query :as iq]
             [internal.ui.dialogs :as dialogs]
             [eclipse.resources :as resources]
             [service.log :as log])
@@ -121,19 +120,19 @@ ordinary paths."
 
 (defn project-enclosing
   [node]
-  (first (iq/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
+  (first (ds/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
 
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
 guaranteed ordering of the sequence."
   [project-node]
-  (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)]))
+  (ds/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)]))
 
 (defn nodes-with-filename
   "Return a lazy sequence of all nodes in the project that match this filename.
 There is no guaranteed ordering of the sequence."
   [project-node path]
-  (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
+  (ds/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
 
 (defn nodes-with-extensions
   [project-node extensions]
@@ -169,7 +168,7 @@ There is no guaranteed ordering of the sequence."
   t/NamingContext
   (lookup [this name]
     (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
-      (if-let [node (first (iq/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
+      (if-let [node (first (ds/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
         node
         (load-resource this path))))
 

@@ -3,8 +3,7 @@
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
-            [eclipse.markers :as markers]
-            [internal.query :as iq])
+            [eclipse.markers :as markers])
   (:import [org.eclipse.ui PlatformUI]
            [org.eclipse.ui.dialogs FilteredItemsSelectionDialog FilteredItemsSelectionDialog$AbstractContentProvider FilteredItemsSelectionDialog$ItemsFilter]
            [org.eclipse.ui.model WorkbenchLabelProvider]

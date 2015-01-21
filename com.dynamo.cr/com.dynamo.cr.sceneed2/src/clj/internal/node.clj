@@ -6,6 +6,7 @@
             [clojure.set :as set]
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [schema.core :as s]
@@ -14,7 +15,6 @@
             [internal.graph.dgraph :as dg]
             [internal.metrics :as metrics]
             [internal.property :as ip]
-            [internal.query :as iq]
             [internal.either :as e]
             [service.log :as log]
             [inflections.core :refer [plural]]
@@ -35,7 +35,7 @@
 
 (defn- find-enclosing-scope
   [tag node]
-  (when-let [scope (iq/node-consuming node :self)]
+  (when-let [scope (ds/node-consuming node :self)]
     (if (= tag (:tag scope))
       scope
       (recur tag scope))))

@@ -2,7 +2,6 @@
   (:require [clojure.core.async :as a]
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
-            [internal.query :as iq]
             [internal.system :as is]
             [internal.transaction :as it]))
 
@@ -19,7 +18,7 @@
 (defmacro with-clean-world
   [& forms]
   `(let [~'world-ref (clean-world)
-         ~'root      (iq/node-by-id ~'world-ref 1)]
+         ~'root      (ds/node-by-id ~'world-ref 1)]
      (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
        (ds/in ~'root
            ~@forms))))

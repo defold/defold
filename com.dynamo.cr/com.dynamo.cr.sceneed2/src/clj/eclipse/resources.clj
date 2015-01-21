@@ -1,8 +1,8 @@
 (ns eclipse.resources
   (:require [clojure.core.async :refer [put!]]
             [dynamo.node :as n]
-            [dynamo.types :as t]
-            [internal.query :as iq])
+            [dynamo.system :as ds]
+            [dynamo.types :as t])
   (:import [org.eclipse.core.resources IContainer IFolder IResource IResourceChangeEvent IResourceChangeListener IResourceDelta IResourceDeltaVisitor IWorkspace ResourcesPlugin]))
 
 (set! *warn-on-reflection* true)
@@ -29,7 +29,7 @@
         (resourceChanged [this event]
           (when (= (.getResource event) project)
             (doseq [d disposables] (t/dispose d))
-            (n/dispatch-message (iq/node-by-id world-ref project-node-id) :destroy))))
+            (n/dispatch-message (ds/node-by-id world-ref project-node-id) :destroy))))
       IResourceChangeEvent/PRE_DELETE)))
 
 (def ^:private delta-kinds

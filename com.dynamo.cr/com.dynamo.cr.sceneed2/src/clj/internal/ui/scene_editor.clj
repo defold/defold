@@ -14,8 +14,7 @@
             [internal.disposal :as disp]
             [internal.node :as in]
             [internal.render.pass :as pass]
-            [internal.repaint :as repaint]
-            [internal.query :as iq])
+            [internal.repaint :as repaint])
   (:import [javax.media.opengl GL2 GLContext]
            [javax.media.opengl.glu GLU]
            [java.nio IntBuffer]
@@ -95,7 +94,7 @@
            (metrics/paint-complete)))))))
 
 (defn dispatch-to-controller-of [evt self]
-  (t/process-one-event (iq/node-feeding-into self :controller) evt))
+  (t/process-one-event (ds/node-feeding-into self :controller) evt))
 
 (defn start-event-pump
   [canvas self]
@@ -104,7 +103,7 @@
 
 (defn pipe-events-to-node
   [component type {:keys [_id world-ref] :as node}]
-  (ui/listen component type #(t/process-one-event (iq/node-by-id world-ref _id) %)))
+  (ui/listen component type #(t/process-one-event (ds/node-by-id world-ref _id) %)))
 
 (defn send-view-scope-message
   [graph self transaction]

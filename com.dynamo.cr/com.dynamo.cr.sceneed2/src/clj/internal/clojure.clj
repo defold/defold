@@ -6,7 +6,6 @@
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [internal.query :as iq]
             [eclipse.markers :as markers]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IResource]

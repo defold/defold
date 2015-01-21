@@ -8,7 +8,6 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [internal.node :as in]
-            [internal.query :as iq]
             [internal.ui.editors :as ie]
             [internal.ui.handlers :refer [active-editor]]
             [internal.ui.scene-editor :as iuse])
@@ -84,7 +83,7 @@ Outputs
           client      (.getClientArea ^GLCanvas canvas)
           viewport    (t/->Region 0 (.width client) 0 (.height client))
           aspect      (/ (double (.width client)) (.height client))
-          camera-node (iq/node-feeding-into self :view-camera)
+          camera-node (ds/node-feeding-into self :view-camera)
           camera      (n/get-node-value camera-node :camera)
           new-camera  (-> camera
                         (c/set-orthographic (:fov camera)
@@ -95,7 +94,7 @@ Outputs
       (ds/set-property camera-node :camera new-camera)))
 
   (on :reframe
-    (let [camera-node (iq/node-feeding-into self :view-camera)
+    (let [camera-node (ds/node-feeding-into self :view-camera)
           camera      (n/get-node-value camera-node :camera)
           aabb        (n/get-node-value self :aabb)]
       (when aabb ;; there exists an aabb to center on

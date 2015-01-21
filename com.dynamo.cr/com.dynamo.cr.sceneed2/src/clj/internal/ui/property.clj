@@ -10,7 +10,6 @@
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [internal.node :as in]
-            [internal.query :as iq]
             [camel-snake-kebab :refer :all])
   (:import [org.eclipse.core.runtime IStatus Status]
            [org.eclipse.swt.widgets Composite]
@@ -176,7 +175,7 @@
 
   ISelectionListener
   (selectionChanged [this part selection]
-    (let [current-inputs (iq/sources-of this :properties)]
+    (let [current-inputs (ds/sources-of this :properties)]
       (when (not= @selection (map (comp :_id first) current-inputs))
         (ds/transactional
           (doseq [[source-node source-label] current-inputs]

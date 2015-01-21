@@ -3,7 +3,6 @@
             [dynamo.project :as p]
             [dynamo.system :as ds]
             [dynamo.types :refer [MessageTarget]]
-            [internal.query :as iq]
             [internal.system :as is]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IProject]
@@ -29,7 +28,7 @@
 
 (defn- project-containing [world-ref ^IFile file]
   (let [eclipse-project (.getProject file)
-        project-nodes (iq/query world-ref [[:eclipse-project eclipse-project]])]
+        project-nodes (ds/query world-ref [[:eclipse-project eclipse-project]])]
     (if (empty? project-nodes)
       (log/error :not-project-file (str "File " file " is not part of any project"))
       (select-applicable-project file project-nodes))))
