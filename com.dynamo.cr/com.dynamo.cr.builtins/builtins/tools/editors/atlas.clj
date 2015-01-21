@@ -191,9 +191,11 @@
 
 (defn selection-renderables
   [this textureset]
-  (for [i (range (count (:coords textureset)))]
-    {:world-transform g/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))}))
+  (map-indexed (fn [i coord]
+                 {:world-transform g/Identity4d
+                  :path (:path coord)
+                  :render-fn       (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))})
+               (:coords textureset)))
 
 (defnk produce-renderable :- RenderData
   [this textureset]
@@ -472,7 +474,7 @@
                         asIntBuffer)
         pass pass/selection
         [[renderables] view-camera] (n/get-node-inputs this :renderables :view-camera)
-        nodes (map-indexed vector (get renderables pass))
+        renderables (map-indexed vector (get renderables pass))
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
     (gl/with-context
       context
@@ -484,38 +486,40 @@
       (prn "viewport" (:viewport view-camera))
 
       (ius/setup-pass context gl glu pass view-camera pick-rect)
-      (doseq [[i node] nodes]
+      (doseq [[i renderable] renderables]
         (.glPushName gl i)
         (gl/gl-push-matrix
           gl
           (when (t/model-transform? pass)
-            (gl/gl-mult-matrix-4d gl (:world-transform node)))
+            (gl/gl-mult-matrix-4d gl (:world-transform renderable)))
           (try
-            (when (:render-fn node)
-              ((:render-fn node) context gl glu nil))
+            (when (:render-fn renderable)
+              ((:render-fn renderable) context gl glu nil))
             (catch Exception e
               (log/error :exception e
                          :pass pass
-                         :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30))))))
+                         :renderable renderable
+                         :message "skipping renderable"))))
         (.glPopName gl))
 
       (.glFlush gl)
-      (let [hits (.glRenderMode gl GL2/GL_RENDER)]
-        (prn "hits" hits)
-        (prn "list of names"
-             (loop [i 0
+      (let [hits (.glRenderMode gl GL2/GL_RENDER)
+            paths (loop [i 0
                     ptr 0
                     result []]
-               (if (< i hits)
-                 (let [c (.get select-buffer ptr)
-                       ;; minz (.get select-buffer (+ ptr 1))
-                       ;; maxz (.get select-buffer (+ ptr 2))
-                       name (.get select-buffer (+ ptr 3))]
-                   (assert (= 1 c) "Count of names in a hit record must be one")
-                   (recur (inc i)
-                          (+ ptr 3 c)
-                          (conj result name)))
-                 result))))
+                    (if (< i hits)
+                      (let [c (.get select-buffer ptr)
+                            ;; minz (.get select-buffer (+ ptr 1))
+                            ;; maxz (.get select-buffer (+ ptr 2))
+                            name (.get select-buffer (+ ptr 3))
+                            path (:path (second (nth renderables name)))]
+                        (assert (= 1 c) "Count of names in a hit record must be one")
+                        (recur (inc i)
+                               (+ ptr 3 c)
+                               (conj result path)))
+                      result))]
+        (prn "hits" hits)
+        (prn "list of paths" paths))
       (prn "done select-click" x y))))
 
 (n/defnode SelectionController
