@@ -441,16 +441,20 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
 
 TEST_F(dmGraphicsTest, TestRenderTarget)
 {
-	dmGraphics::TextureCreationParams creation_params[4];
-    dmGraphics::TextureParams params[4];
+	dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
     for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
     {
     	creation_params[i].m_Width = WIDTH;
     	creation_params[i].m_Height = HEIGHT;
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
-        params[i].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     }
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
     dmGraphics::EnableRenderTarget(m_Context, target);
