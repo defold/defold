@@ -17,9 +17,15 @@ Setup
 * [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/index.html)
 * [Eclipse 3.8.2](http://archive.eclipse.org/eclipse/downloads/drops/R-3.8.2-201301310800/) (the editor isn't compatible with Eclipse 4.X)
 
-* Packages required to build engine on Linux:
+* Linux:
 
         $ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential
+
+* Windows:
+  - [Visual C++ 2010 Express](http://www.visualstudio.com/downloads/download-visual-studio-vs#DownloadFamilies_4)
+  - [MSYS/MinGW](http://www.mingw.org/), will get you a shell that behaves like Linux, and much easier to build defold through.
+  - [Protocol Buffers 2.3.0 compiler](https://code.google.com/p/protobuf/downloads/detail?name=protoc-2.3.0-win32.zip), and place somewhere where MSYS can access it.
+  - [easy_install]( https://pypi.python.org/pypi/setuptools#id3 )
 
 **Eclipse Plugins**
 
@@ -65,7 +71,7 @@ setup. See `build.py` and the `shell` command below.
 **Optional Software**
 
 * [ccache](http://ccache.samba.org) - install with `brew install ccache` on OS X and `sudo apt-get install ccache`
-  on Debian based Linux distributions
+  on Debian based Linux distributions and [ccache-win32](https://code.google.com/p/ccache-win32/downloads/detail?name=ccache-win32-2.4.zip) for Windows.
 
 **Import Java Projects**
 
