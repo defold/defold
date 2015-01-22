@@ -465,8 +465,7 @@
 
 (def pick-buffer-size 4096)
 
-(defn select-click [this x y]
-  (prn "enter select-click" x y)
+(defn find-nodes-at-point [this x y]
   (let [factory (gl/glfactory)
         context (.createExternalGLContext factory)
         select-buffer (.. ByteBuffer
@@ -490,31 +489,21 @@
         (ius/render context gl glu nil pass renderable)
         (.glPopName gl))
       (.glFlush gl)
-      (let [hit-count (.glRenderMode gl GL2/GL_RENDER)
-            node-ids (gl/select-buffer-names hit-count select-buffer)]
-        (prn 'hit-count hit-count)
-        (prn 'node-ids node-ids))
-      (prn "done select-click" x y))))
+      (let [hit-count (.glRenderMode gl GL2/GL_RENDER)]
+        (gl/select-buffer-names hit-count select-buffer)))))
 
 (n/defnode SelectionController
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (on :mouse-down
-      ;; "SelectionController:mouse-down" {:y 139, :key-code 0, :rotation 0.0, :index 0, :button 1, :item nil,
-      ;; :time 21933621, :width 0, :start 0, :y-direction 0, :type :mouse-down, :touches nil, :segments-chars nil,
-      ;; :segments nil, :x-direction 0, :widget #<GLCanvas GLCanvas {}>, :gc nil, :count 1, :magnification 0.0,
-      ;; display #<Display org.eclipse.swt.widgets.Display@7479b626>, :x 215, :end 0, :doit true, :key-location 0,
-      ;; :character \ , :state-mask 0, :height 0, :text nil, :data nil, :detail 0}
-
-
       ;; event has :x and :y in pixels relative to top-left corner of canvas.
       ;; :state-mask is a bit mask of modifier keys and buttons
       ;; :button is 1 for the left mouse button, 3 for the "right" button
       (let [{:keys [x y button state-mask]} event]
-        (select-click self x y)))
+        (prn :SelectionController.mouse-down :nodes-at-point (find-nodes-at-point self x y))))
   (on :mouse-up
       (let [{:keys [x y button state-mask]} event]
-        (prn "SelectionController:mouse-up" x y button state-mask))))
+        (prn :SelectionController:mouse-up))))
 
 (defn on-edit
   [project-node editor-site atlas-node]
