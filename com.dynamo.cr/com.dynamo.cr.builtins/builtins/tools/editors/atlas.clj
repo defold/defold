@@ -474,7 +474,8 @@
                         (order (ByteOrder/nativeOrder))
                         asIntBuffer)
         pass pass/selection
-        [[renderables] view-camera] (n/get-node-inputs this :renderables :view-camera)
+        [renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
+        renderables (apply merge-with concat renderable-inputs)
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
     (gl/with-context
       context
