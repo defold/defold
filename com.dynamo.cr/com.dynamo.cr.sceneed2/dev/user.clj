@@ -15,6 +15,7 @@
             [internal.ui.property :as iip]
             [internal.java :as j]
             [clojure.repl :refer :all]
+            [clojure.pprint :refer [pprint]]
             [schema.core :as s])
   (:import [java.awt Dimension]
            [javax.vecmath Matrix4d Matrix3d Point3d Vector4d Vector3d]
