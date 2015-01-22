@@ -33,7 +33,12 @@
    :disposal-queue      (a/chan (a/dropping-buffer 1000))
    :repaint-needed      repaint-needed})
 
-(defrecord World [started state repaint-needed]
+(defn- new-history
+  [state]
+  {:state state
+   :undo-stack nil})
+
+(defrecord World [started state history repaint-needed]
   component/Lifecycle
   (start [this]
     (if (:started this)
@@ -41,11 +46,13 @@
       (dosync
         (let [root (n/construct n/RootScope :world-ref state :_id 1)]
           (ref-set state (new-world-state state root repaint-needed))
+          (ref-set history (new-history state))
           (assoc this :started true)))))
   (stop [this]
     (if (:started this)
       (dosync
         (ref-set state nil)
+        (ref-set history nil)
         (assoc this :started false))
       this)))
 
@@ -69,12 +76,39 @@
                                                #(when (satisfies? t/Frame %) %)
                                                (nodes-modified graph last-tx)))))
 
+(defn- world-summary
+  [world-state]
+  {:world-time (-> world-state :world-time)
+   :graph {:nodes (-> world-state :graph :nodes count)
+           :arcs  (-> world-state :graph :arcs count)}
+   :cache-keys (-> world-state :cache-keys count)
+   :repaint-needed (-> world-state :repaint-needed deref count)})
+
+(defn- push-history [history-ref _ world-ref old-world new-world]
+  (when (transaction-applied? old-world new-world)
+    (dosync
+      (assert (= (:state @history-ref) world-ref))
+      (alter history-ref update-in [:undo-stack] conj new-world))
+    (let [histories (:undo-stack @history-ref)]
+      (prn :push-history (count histories) (world-summary (first histories))))))
+
+(defn- undo-history [history-ref]
+  (dosync
+    (let [world-ref (:state @history-ref)
+          latest (first (:undo-stack @history-ref))]
+      (when latest
+        (ref-set world-ref latest)
+        (alter history-ref update-in [:undo-stack] next))))
+  (prn :undo-history (world-summary @(:state @history-ref))))
+
 (defn- world
   [report-ch repaint-needed]
-  (let [world-ref (ref nil)]
-    (add-watch world-ref :tx-report (partial send-tx-reports report-ch))
-    (add-watch world-ref :tx-report (partial schedule-repaints repaint-needed))
-    (->World false world-ref repaint-needed)))
+  (let [world-ref   (ref nil)
+        history-ref (ref nil)]
+    (add-watch world-ref :send-tx-reports   (partial send-tx-reports report-ch))
+    (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
+    (add-watch world-ref :push-history      (partial push-history history-ref))
+    (->World false world-ref history-ref repaint-needed)))
 
 (defn- refresh-messages
   [{:keys [expired-outputs]}]
@@ -125,3 +159,7 @@
 (defn stop
   ([]    (stop the-system))
   ([sys] (swap! sys component/stop-system)))
+
+(defn undo
+  ([]    (undo the-system))
+  ([sys] (undo-history (-> @the-system :world :history))))
