@@ -484,20 +484,16 @@
       (.glSelectBuffer gl pick-buffer-size select-buffer)
       (.glRenderMode gl GL2/GL_SELECT)
       (.glInitNames gl)
-      (prn "viewport" (:viewport view-camera))
-
       (ius/setup-pass context gl glu pass view-camera pick-rect)
       (doseq [[i renderable] renderables]
-        (.glPushName gl i)
+        (.glPushName gl (:node-id renderable))
         (ius/render context gl glu nil pass renderable)
         (.glPopName gl))
-
       (.glFlush gl)
       (let [hit-count (.glRenderMode gl GL2/GL_RENDER)
-            node-ids (map #(:node-id (second (nth renderables %)))
-                          (gl/select-buffer-names hit-count select-buffer))]
-        (prn "hits" hit-count)
-        (prn "list of node IDs" node-ids))
+            node-ids (gl/select-buffer-names hit-count select-buffer)]
+        (prn 'hit-count hit-count)
+        (prn 'node-ids node-ids))
       (prn "done select-click" x y))))
 
 (n/defnode SelectionController
