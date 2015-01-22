@@ -117,11 +117,12 @@
        (.release ~ctx))))
 
 (defmacro gl-push-matrix [gl & body]
-  `(try
-     (.glPushMatrix ~gl)
-     ~@body
-     (finally
-       (.glPopMatrix ~gl))))
+  `(let [^GL2 gl# ~gl]
+     (try
+       (.glPushMatrix gl#)
+       ~@body
+       (finally
+         (.glPopMatrix gl#)))))
 
 (defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
   (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
