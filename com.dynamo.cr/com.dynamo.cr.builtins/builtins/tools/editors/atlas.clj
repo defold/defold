@@ -191,11 +191,12 @@
 
 (defn selection-renderables
   [this textureset]
-  (map-indexed (fn [i coord]
-                 {:world-transform g/Identity4d
-                  :path (:path coord)
-                  :render-fn       (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))})
-               (:coords textureset)))
+  (let [project-root (p/project-root-node this)]
+    (map-indexed (fn [i rect]
+                   {:world-transform g/Identity4d
+                    :node-id (:_id (t/lookup project-root (:path rect)))
+                    :render-fn (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))})
+                 (:coords textureset))))
 
 (defnk produce-renderable :- RenderData
   [this textureset]
@@ -504,22 +505,22 @@
 
       (.glFlush gl)
       (let [hits (.glRenderMode gl GL2/GL_RENDER)
-            paths (loop [i 0
-                    ptr 0
-                    result []]
-                    (if (< i hits)
-                      (let [c (.get select-buffer ptr)
-                            ;; minz (.get select-buffer (+ ptr 1))
-                            ;; maxz (.get select-buffer (+ ptr 2))
-                            name (.get select-buffer (+ ptr 3))
-                            path (:path (second (nth renderables name)))]
-                        (assert (= 1 c) "Count of names in a hit record must be one")
-                        (recur (inc i)
-                               (+ ptr 3 c)
-                               (conj result path)))
-                      result))]
+            node-ids (loop [i 0
+                       ptr 0
+                       result []]
+                       (if (< i hits)
+                         (let [c (.get select-buffer ptr)
+                               ;; minz (.get select-buffer (+ ptr 1))
+                               ;; maxz (.get select-buffer (+ ptr 2))
+                               name (.get select-buffer (+ ptr 3))
+                               node-id (:node-id (second (nth renderables name)))]
+                           (assert (= 1 c) "Count of names in a hit record must be one")
+                           (recur (inc i)
+                                  (+ ptr 3 c)
+                                  (conj result node-id)))
+                         result))]
         (prn "hits" hits)
-        (prn "list of paths" paths))
+        (prn "list of node IDs" node-ids))
       (prn "done select-click" x y))))
 
 (n/defnode SelectionController
