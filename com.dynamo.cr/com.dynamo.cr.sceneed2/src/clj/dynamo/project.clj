@@ -237,17 +237,14 @@ There is no guaranteed ordering of the sequence."
 (defn- update-changed-resources
   [project-node {:keys [changed]}]
   (let [nodes-to-replace (map #(first (nodes-with-filename project-node (file/make-project-path project-node %))) changed)]
-    (println :nodes-to-replace nodes-to-replace)
     (ds/transactional
       (doseq [n nodes-to-replace]
         (ds/send-after n {:type :unload})))
     (ds/transactional
       (doseq [n nodes-to-replace]
         (let [replacement (new-node-for-path project-node (:filename n))]
-          (println :replacement :for (:filename n) replacement)
           (ds/become n replacement)
-          (ds/send-after n {:type :load :project project-node}))
-        ))))
+          (ds/send-after n {:type :load :project project-node}))))))
 
 (defn- update-resources
   [project-node changeset]

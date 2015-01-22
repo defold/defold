@@ -50,10 +50,10 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
   [p]
   (last (str/split p (java.util.regex.Pattern/compile java.io.File/separator))))
 
-(defrecord ProjectPath [project ^String path ^String ext]
+(defrecord ProjectPath [project-ref ^String path ^String ext]
   t/PathManipulation
   (extension         [this]         ext)
-  (replace-extension [this new-ext] (ProjectPath. project path new-ext))
+  (replace-extension [this new-ext] (ProjectPath. project-ref path new-ext))
   (local-path        [this]         (if ext (str path "." ext) path))
   (local-name        [this]         (str (last-component path) "." ext))
 
@@ -65,7 +65,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
       (.flush out)))
 
   ProjectRelative
-  (project-file          [this]      (.getFile (eproj project) (str "content/" (t/local-path this))))
+  (project-file          [this]      (.getFile (eproj @project-ref) (str "content/" (t/local-path this))))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (project-file this) opts))
@@ -138,18 +138,18 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
           ext   (.getFileExtension pr)
           p     (.toString pr)
           p     (if-not ext p (subs p 0 (- (count p) (count ext) 1)))]
-      (ProjectPath. project-scope p ext))))
+      (ProjectPath. (t/node-ref project-scope) p ext))))
 
 (defn in-build-directory
   "Given a ProjectPath, translates that path into a NativePath containing the
    corresponding build location"
   [^ProjectPath p]
-  (let [project               (.project p)
+  (let [project               @(:project-ref p)
         eclipse-project       (eproj project)
         branch                (:branch project)
-        relative-to-build-dir (str branch "/build/default/" (.path p))
+        relative-to-build-dir (str branch "/build/default/" (:path p))
         build-dir-native      (.removeLastSegments (.getLocation (.getFile eclipse-project "content")) 1)]
-    (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (.ext p))))
+    (NativePath. (.toOSString (.append build-dir-native relative-to-build-dir)) (:ext p))))
 
 (extend File
   io/IOFactory
@@ -167,5 +167,3 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
                  (catch Throwable t
                    (log/error :exception t :message (str "Cannot write output to " x)))))
              pipe))))
-
-
