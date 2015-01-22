@@ -69,6 +69,21 @@
   (let [viewport ^Region (:viewport camera)]
     (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport)))))
 
+(defn render
+  [context gl glu text-renderer pass renderable]
+  (gl/gl-push-matrix
+    gl
+    (when (t/model-transform? pass)
+      (gl/gl-mult-matrix-4d gl (:world-transform renderable)))
+    (try
+      (when (:render-fn renderable)
+        ((:render-fn renderable) context gl glu text-renderer))
+      (catch Exception e
+        (log/error :exception e
+                   :pass pass
+                   :renderable renderable
+                   :message "skipping renderable")))))
+
 (defn paint-renderer
   [^GLContext context ^GLCanvas canvas this ^Camera view-camera text-renderer]
   (metrics/paint)
@@ -83,16 +98,7 @@
            (doseq [pass pass/render-passes]
              (setup-pass context gl glu pass view-camera)
              (doseq [node (get renderables pass)]
-               (gl/gl-push-matrix gl
-                   (when (t/model-transform? pass)
-                     (gl/gl-mult-matrix-4d gl (:world-transform node)))
-                   (try
-                     (when (:render-fn node)
-                       ((:render-fn node) context gl glu text-renderer))
-                     (catch Exception e
-                       (log/error :exception e
-                                  :pass pass
-                                  :message (str (.getMessage e) "skipping node " (class node) (:_id node) "\n ** trace: " (clojure.stacktrace/print-stack-trace e 30)))))))))
+               (render context gl glu text-renderer pass node))))
          (finally
            (.swapBuffers canvas)
            (metrics/paint-complete)))))))

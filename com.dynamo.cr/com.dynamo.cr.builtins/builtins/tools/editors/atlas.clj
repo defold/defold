@@ -489,18 +489,7 @@
       (ius/setup-pass context gl glu pass view-camera pick-rect)
       (doseq [[i renderable] renderables]
         (.glPushName gl i)
-        (gl/gl-push-matrix
-          gl
-          (when (t/model-transform? pass)
-            (gl/gl-mult-matrix-4d gl (:world-transform renderable)))
-          (try
-            (when (:render-fn renderable)
-              ((:render-fn renderable) context gl glu nil))
-            (catch Exception e
-              (log/error :exception e
-                         :pass pass
-                         :renderable renderable
-                         :message "skipping renderable"))))
+        (ius/render context gl glu nil pass renderable)
         (.glPopName gl))
 
       (.glFlush gl)
