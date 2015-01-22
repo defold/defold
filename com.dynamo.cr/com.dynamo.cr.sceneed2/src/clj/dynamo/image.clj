@@ -4,7 +4,6 @@
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.types :as t]
-            [internal.cache :refer [caching]]
             [plumbing.core :refer [defnk]]
             [schema.core :as s]
             [schema.macros :as sm])
@@ -49,11 +48,9 @@
     (.dispose gfx)
     img))
 
-(def load-image
-  (caching
-    (fn [src reference]
-      (if-let [img (ImageIO/read (io/input-stream src))]
-        (make-image reference img)))))
+(defn load-image [src reference]
+  (if-let [img (ImageIO/read (io/input-stream src))]
+    (make-image reference img)))
 
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))

@@ -15,7 +15,6 @@
             [dynamo.system :as ds :refer [   ]]
             [dynamo.types :as t]
             [internal.async :as ia]
-            [internal.query :as iq]
             [internal.node :as in])
   (:import [dynamo.types Image AABB]))
 
@@ -46,7 +45,7 @@
 
 (defn solo [ss] (or (first ss) (throw (ex-info (str "Exactly one result was expected. Got " (count ss)) {}))))
 
-(defn q [w clauses] (solo (iq/query w clauses)))
+(defn q [w clauses] (solo (ds/query w clauses)))
 
 (deftest scope-registration
   (testing "Nodes are registered within a scope by name"

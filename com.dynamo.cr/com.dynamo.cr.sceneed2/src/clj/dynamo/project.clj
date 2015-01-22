@@ -13,7 +13,6 @@ ordinary paths."
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [internal.clojure :as clojure]
-            [internal.query :as iq]
             [internal.ui.dialogs :as dialogs]
             [eclipse.resources :as resources]
             [service.log :as log])
@@ -61,6 +60,12 @@ ordinary paths."
 (n/defnode Placeholder
   (inherits n/ResourceNode))
 
+(defn- new-node-for-path
+  [project-node path]
+  (n/construct
+    (get-in project-node [:node-types (t/extension path)] Placeholder)
+    :filename path))
+
 (defn load-resource
   "Load a resource, usually from file. This will create a node of the appropriate type (as defined by
 `register-node-type` and send it a :load message."
@@ -68,9 +73,7 @@ ordinary paths."
   (ds/transactional
     (ds/in project-node
       (ds/add
-        (n/construct
-          (get-in project-node [:node-types (t/extension path)] Placeholder)
-          :filename path)))))
+        (new-node-for-path project-node path)))))
 
 (n/defnode CannedProperties
   (property rotation     s/Str    (default "twenty degrees starboard"))
@@ -117,19 +120,19 @@ ordinary paths."
 
 (defn project-enclosing
   [node]
-  (first (iq/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
+  (first (ds/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
 
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
 guaranteed ordering of the sequence."
   [project-node]
-  (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)]))
+  (ds/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes)]))
 
 (defn nodes-with-filename
   "Return a lazy sequence of all nodes in the project that match this filename.
 There is no guaranteed ordering of the sequence."
   [project-node path]
-  (iq/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
+  (ds/query (:world-ref project-node) [[:_id (:_id project-node)] '(input :nodes) [:filename path]]))
 
 (defn nodes-with-extensions
   [project-node extensions]
@@ -165,7 +168,7 @@ There is no guaranteed ordering of the sequence."
   t/NamingContext
   (lookup [this name]
     (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
-      (if-let [node (first (iq/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
+      (if-let [node (first (ds/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
         node
         (load-resource this path))))
 
@@ -223,17 +226,25 @@ There is no guaranteed ordering of the sequence."
     (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     nil))
     project-node))
 
-
 (defn- update-deleted-resources
   [project-node {:keys [deleted]}]
   (let [nodes-to-delete (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) deleted)]
     (ds/transactional
       (doseq [n nodes-to-delete]
-        (ds/delete n)))))
+        (ds/delete n))))
+  project-node)
 
 (defn- update-changed-resources
   [project-node {:keys [changed]}]
-  )
+  (let [nodes-to-replace (map #(first (nodes-with-filename project-node (file/make-project-path project-node %))) changed)]
+    (ds/transactional
+      (doseq [n nodes-to-replace]
+        (ds/send-after n {:type :unload})))
+    (ds/transactional
+      (doseq [n nodes-to-replace]
+        (let [replacement (new-node-for-path project-node (:filename n))]
+          (ds/become n replacement)
+          (ds/send-after n {:type :load :project project-node}))))))
 
 (defn- update-resources
   [project-node changeset]

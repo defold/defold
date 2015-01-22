@@ -6,7 +6,6 @@
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [internal.query :as iq]
             [eclipse.markers :as markers]
             [service.log :as log])
   (:import [org.eclipse.core.resources IFile IResource]
@@ -33,9 +32,7 @@
         (Compiler/load (io/reader path) (t/local-path path) (.getName source-file))
         (ds/set-property node :namespace (UnloadableNamespace. ns-decl)))
       (catch clojure.lang.Compiler$CompilerException compile-error
-        (markers/compile-error source-file compile-error)
-        {:compile-error (.getMessage (.getCause compile-error))}))))
-
+        (markers/compile-error source-file compile-error)))))
 
 (n/defnode ClojureSourceNode
   (inherits n/ResourceNode)
@@ -43,5 +40,9 @@
   (property namespace UnloadableNamespace)
 
   (on :load
-    (compile-source-node self (:project event) (:filename self))))
+    (compile-source-node self (:project event) (:filename self)))
+
+  (on :unload
+    (when (:namespace self)
+      (t/dispose (:namespace self)))))
 

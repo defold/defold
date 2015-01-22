@@ -1,9 +1,10 @@
 (ns eclipse.resources
   (:require [clojure.core.async :refer [put!]]
             [dynamo.node :as n]
+            [dynamo.system :as ds]
             [dynamo.types :as t]
-            [internal.query :as iq])
-  (:import [org.eclipse.core.resources IContainer IFolder IResource IResourceChangeEvent IResourceChangeListener IResourceDelta IResourceDeltaVisitor IWorkspace ResourcesPlugin]))
+            [eclipse.markers :as markers])
+  (:import [org.eclipse.core.resources IContainer IFolder IResource IResourceChangeEvent IResourceChangeListener IResourceDelta IResourceDeltaVisitor IWorkspace ResourcesPlugin WorkspaceJob]))
 
 (set! *warn-on-reflection* true)
 
@@ -19,6 +20,22 @@
   []
   (ResourcesPlugin/getWorkspace))
 
+(defn schedule-workspace-job
+  "Defer execution of the thunk until after the current ResourceChangeEvent is done processing.
+This avoids the 'Resource tree is locked' exception that can occur if you change resources while
+an event is in flight."
+  [job-name message-if-error scheduling-rule f & args]
+  (doto
+    (proxy [WorkspaceJob] [job-name]
+          (runInWorkspace [monitor]
+            (try
+              (apply f args)
+              markers/ok-status
+              (catch Throwable t
+                (markers/error-status message-if-error 0 t)))))
+    (.setRule scheduling-rule)
+    (.schedule)))
+
 (defn listen-for-close
   [project-node & disposables]
   (let [project         (:eclipse-project project-node)
@@ -29,7 +46,7 @@
         (resourceChanged [this event]
           (when (= (.getResource event) project)
             (doseq [d disposables] (t/dispose d))
-            (n/dispatch-message (iq/node-by-id world-ref project-node-id) :destroy))))
+            (n/dispatch-message (ds/node world-ref project-node-id) :destroy))))
       IResourceChangeEvent/PRE_DELETE)))
 
 (def ^:private delta-kinds
@@ -37,15 +54,19 @@
    2 :deleted
    4 :changed})
 
+(def ^:private delta-flags-of-interest
+  (+ IResourceDelta/CONTENT IResourceDelta/REPLACED))
+
 (defn- rce->map
   [^IResourceChangeEvent event]
   (let [deltas (atom {})
         visitor (reify IResourceDeltaVisitor
                   (^boolean visit [this ^IResourceDelta delta]
                     (when (and
-                              (< 2 (.. delta getFullPath segmentCount))
-                              (not (.. delta getFullPath (removeFirstSegments 1) toOSString (startsWith "content/builtins")))
-                              (not (instance? IContainer (.getResource delta))))
+                            (not= 0 (bit-and (.getFlags delta) delta-flags-of-interest))
+                            (< 2 (.. delta getFullPath segmentCount))
+                            (not (.. delta getFullPath (removeFirstSegments 1) toOSString (startsWith "content/builtins")))
+                            (not (instance? IContainer (.getResource delta))))
                       ;; ignore spurious change events on the builtins folder
                       (swap! deltas update-in [(delta-kinds (.getKind delta))] conj (.. delta getFullPath (removeFirstSegments 2))))
                     (instance? IContainer (.getResource delta))))]
@@ -58,9 +79,10 @@
         l         (reify
                     IResourceChangeListener
                     (resourceChanged [_ event]
-                      (let [m (rce->map event)]
-                        (when-not (empty? m)
-                          (f m)))))]
+                      (when (= IResourceChangeEvent/POST_CHANGE (.getType event))
+                        (let [m (rce->map event)]
+                          (when-not (empty? m)
+                            (schedule-workspace-job "Refresh resources" "Error refreshing resources" (.getResource event) f m))))))]
     (.addResourceChangeListener workspace l)
     (reify t/IDisposable
          (dispose [this] (.removeResourceChangeListener workspace l)))))

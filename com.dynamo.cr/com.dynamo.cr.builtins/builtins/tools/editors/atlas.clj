@@ -589,6 +589,14 @@
     (bind-images (map #(lookup locator (:image %)) (:images atlas)) self)
     self))
 
+(defn remove-ancillary-nodes
+  [self]
+  (doseq [[animation-group _] (ds/sources-of self :animations)]
+    (ds/delete animation-group))
+  (doseq [[image _] (ds/sources-of self :images)]
+    (ds/disconnect image :image self :images)
+    (ds/disconnect image :tree  self :children)))
+
 (defn construct-compiler
   [self]
   (let [path (:filename self)
@@ -599,6 +607,12 @@
     (ds/connect self :textureset compiler :textureset)
     self))
 
+(defn remove-compiler
+  [self]
+  (let [candidates (ds/nodes-consuming self :textureset)]
+    (doseq [[compiler _]  (filter #(= TextureSave (t/node-type (first %))) candidates)]
+      (ds/delete compiler))))
+
 (n/defnode AtlasNode
   (inherits n/OutlineNode)
   (inherits AtlasProperties)
@@ -608,7 +622,12 @@
     (doto self
       (construct-ancillary-nodes (:project event) (:filename self))
       (construct-compiler)
-      (ds/set-property :dirty false))))
+      (ds/set-property :dirty false)))
+
+  (on :unload
+    (doto self
+      (remove-ancillary-nodes)
+      (remove-compiler))))
 
 (defn add-image
   [evt]

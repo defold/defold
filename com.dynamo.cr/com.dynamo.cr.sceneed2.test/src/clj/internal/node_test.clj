@@ -11,7 +11,6 @@
             [dynamo.system.test-support :refer [with-clean-world tx-nodes]]
             [internal.node :as in]
             [internal.system :as is]
-            [internal.query :as iq]
             [internal.transaction :as it]))
 
 (def ^:dynamic *calls*)
@@ -56,7 +55,7 @@
   (with-clean-world
     (let [evented (ds/transactional (ds/add (construct NodeWithEvents)))]
       (is (= :ok (t/process-one-event evented {:type :mousedown})))
-      (is (:message-processed (iq/node-by-id world-ref (:_id evented)))))))
+      (is (:message-processed (ds/node world-ref (:_id evented)))))))
 
 (defprotocol AProtocol
   (complainer [this]))

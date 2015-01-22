@@ -1,4 +1,5 @@
 (ns dynamo.types
+  "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."
   (:require [schema.core :as s]
             [schema.macros :as sm])
   (:import [java.awt.image BufferedImage]
@@ -41,6 +42,16 @@
   (auto-update-outputs' [this])
   (event-handlers'      [this])
   (output-dependencies' [this]))
+
+(sm/defrecord NodeRef [world-ref node-id]
+  clojure.lang.IDeref
+  (deref [this] (get-in (:graph @world-ref) [:nodes node-id])))
+
+(defmethod print-method NodeRef
+  [^NodeRef v ^java.io.Writer w]
+  (.write w (str "<NodeRef@" (:node-id v) ">")))
+
+(defn node-ref [node] (NodeRef. (:world-ref node) (:_id node)))
 
 (defprotocol Node
   (node-type           [this]        "Return the node type that created this node.")
@@ -115,7 +126,7 @@
 
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)
-(def NodeRef s/Int)
+
 (def Color   [s/Num])
 (def Vec3    [(s/one s/Num "x")
               (s/one s/Num "y")
@@ -255,9 +266,7 @@
      (and (not expect-collection?) in-t-pl? out-t-pl? (check-single-type (first output-schema) (first input-schema))))))
 
 (doseq [[v doc]
-       {*ns*                   "Schema and type definitions. Refer to Prismatic's schema.core for s/* definitions."
-        #'Icon                 "*schema* - schema for the representation of an Icon as s/Str"
-        #'NodeRef              "*schema* - schema for the representation of a node reference as s/Int"
+       {#'Icon                 "*schema* - schema for the representation of an Icon as s/Str"
         #'Pass                 "value for a rendering pass"
         #'selection?           "Replies true when the pass is used during pick render."
         #'model-transform?     "Replies true when the pass should apply the node transforms to the current model-view matrix. (Will be true in most cases, false for overlays.)"}]

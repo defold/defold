@@ -130,7 +130,7 @@
 
 (defn- tempid? [x] (neg? x))
 (defn has-tempid? [n] (and (:_id n) (tempid? (:_id n))))
-(defn resolve-tempid [ctx x] (if (pos? x) x (get (:tempids ctx) x)))
+(defn resolve-tempid [ctx x] (when x (if (pos? x) x (get (:tempids ctx) x))))
 
 (defn node->cache-keys [n]
   (zipmap (t/cached-outputs n) (repeatedly new-cache-key)))
@@ -209,12 +209,15 @@
         vanished-outputs (set/difference (t/outputs old-node) (t/outputs new-node))
         ctx              (reduce (fn [ctx out] (disconnect-outputs ctx node-id out)) ctx vanished-outputs)
 
-        graph            (dg/transform-node graph node-id (constantly new-node))]
+        graph            (dg/transform-node graph node-id (constantly new-node))
+
+        start-loop       (and      (satisfies? t/MessageTarget new-node)  (not (satisfies? t/MessageTarget old-node)))
+        end-loop         (and (not (satisfies? t/MessageTarget new-node))      (satisfies? t/MessageTarget old-node))]
     (assoc (activate-all-outputs ctx node-id new-node)
       :graph               graph
       :tempids             (if (tempid? to-node-id) (assoc tempids to-node-id node-id) tempids)
-      :new-event-loops     (if (satisfies? t/MessageTarget new-node) (conj new-event-loops node-id)  new-event-loops)
-      :old-event-loops     (if (satisfies? t/MessageTarget old-node) (conj old-event-loops old-node) old-event-loops)
+      :new-event-loops     (if start-loop (conj new-event-loops node-id)  new-event-loops)
+      :old-event-loops     (if end-loop   (conj old-event-loops old-node) old-event-loops)
       :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
       :cache-keys          (assoc cache-keys node-id (node->cache-keys to-node)))))
 
