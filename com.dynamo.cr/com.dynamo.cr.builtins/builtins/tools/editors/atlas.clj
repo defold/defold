@@ -475,7 +475,6 @@
                         asIntBuffer)
         pass pass/selection
         [[renderables] view-camera] (n/get-node-inputs this :renderables :view-camera)
-        renderables (map-indexed vector (get renderables pass))
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
     (gl/with-context
       context
@@ -485,7 +484,7 @@
       (.glRenderMode gl GL2/GL_SELECT)
       (.glInitNames gl)
       (ius/setup-pass context gl glu pass view-camera pick-rect)
-      (doseq [[i renderable] renderables]
+      (doseq [renderable (get renderables pass)]
         (.glPushName gl (:node-id renderable))
         (ius/render context gl glu nil pass renderable)
         (.glPopName gl))
