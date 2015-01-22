@@ -504,22 +504,10 @@
         (.glPopName gl))
 
       (.glFlush gl)
-      (let [hits (.glRenderMode gl GL2/GL_RENDER)
-            node-ids (loop [i 0
-                       ptr 0
-                       result []]
-                       (if (< i hits)
-                         (let [c (.get select-buffer ptr)
-                               ;; minz (.get select-buffer (+ ptr 1))
-                               ;; maxz (.get select-buffer (+ ptr 2))
-                               name (.get select-buffer (+ ptr 3))
-                               node-id (:node-id (second (nth renderables name)))]
-                           (assert (= 1 c) "Count of names in a hit record must be one")
-                           (recur (inc i)
-                                  (+ ptr 3 c)
-                                  (conj result node-id)))
-                         result))]
-        (prn "hits" hits)
+      (let [hit-count (.glRenderMode gl GL2/GL_RENDER)
+            node-ids (map #(:node-id (second (nth renderables %)))
+                          (gl/select-buffer-names hit-count select-buffer))]
+        (prn "hits" hit-count)
         (prn "list of node IDs" node-ids))
       (prn "done select-click" x y))))
 

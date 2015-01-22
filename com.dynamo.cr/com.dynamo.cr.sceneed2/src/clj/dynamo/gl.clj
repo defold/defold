@@ -198,3 +198,22 @@
     (.begin3DRendering text-renderer)
     (.draw3D text-renderer chars xloc yloc scalex scaley)
     (.end3DRendering text-renderer)))
+
+(defn select-buffer-names
+  [hit-count ^IntBuffer select-buffer]
+  "Returns a collection of names from a GL_SELECT buffer.
+  Names are integers assigned during rendering with glPushName and glPopName.
+  The select-buffer contains a series of 'hits' where each hit
+  is [name-count min-z max-z & names+]. In our usage, names may not be
+  nested so name-count must always be one."
+  (loop [i 0
+         ptr 0
+         names []]
+    (if (< i hit-count)
+      (let [name-count (.get select-buffer ptr)
+            name (.get select-buffer (+ ptr 3))]
+        (assert (= 1 name-count) "Count of names in a hit record must be one")
+        (recur (inc i)
+               (+ ptr 3 name-count)
+               (conj names name)))
+      names)))
