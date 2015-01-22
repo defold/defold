@@ -17,7 +17,7 @@
             [internal.repaint :as repaint])
   (:import [javax.media.opengl GL2 GLContext]
            [javax.media.opengl.glu GLU]
-           [java.nio IntBuffer]
+           [java.nio ByteOrder ByteBuffer IntBuffer]
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]
            [org.eclipse.swt.opengl GLCanvas]
            [dynamo.types Camera Region ]
@@ -102,6 +102,31 @@
          (finally
            (.swapBuffers canvas)
            (metrics/paint-complete)))))))
+
+(def ^:private pick-buffer-size 4096)
+
+(defn selection-renderer
+  "Renders the renderables, each of which should be a map containing
+  :select-name (an integer) and :render-fn. Returns a collection of
+  names (integers) found within the pick-rect (map of :x :y :width :height)."
+  [^GLContext context renderables ^Camera view-camera pick-rect]
+  (let [select-buffer (.. ByteBuffer
+                        (allocateDirect (* 4 pick-buffer-size))
+                        (order (ByteOrder/nativeOrder))
+                        asIntBuffer)]
+    (gl/with-context context [gl glu]
+      (.glSelectBuffer gl pick-buffer-size select-buffer)
+      (.glRenderMode gl GL2/GL_SELECT)
+      (.glInitNames gl)
+      (doseq [pass pass/selection-passes]
+        (setup-pass context gl glu pass view-camera pick-rect)
+        (doseq [renderable (get renderables pass)]
+          (.glPushName gl (:select-name renderable))
+          (render context gl glu nil pass renderable)
+          (.glPopName gl)))
+      (.glFlush gl)  ; is this necessary?
+      (let [hit-count (.glRenderMode gl GL2/GL_RENDER)]
+        (gl/select-buffer-names hit-count select-buffer)))))
 
 (defn dispatch-to-controller-of [evt self]
   (t/process-one-event (ds/node-feeding-into self :controller) evt))

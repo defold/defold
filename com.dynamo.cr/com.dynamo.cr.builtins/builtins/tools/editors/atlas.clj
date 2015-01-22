@@ -32,7 +32,6 @@
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
             [com.dynamo.tile.proto Tile$Playback]
             [com.jogamp.opengl.util.awt TextRenderer]
-            [java.nio ByteOrder ByteBuffer IntBuffer]
             [dynamo.types Animation Camera Image TextureSet Rect EngineFormatTexture AABB]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
@@ -194,7 +193,7 @@
   (let [project-root (p/project-root-node this)]
     (map-indexed (fn [i rect]
                    {:world-transform g/Identity4d
-                    :node-id (:_id (t/lookup project-root (:path rect)))
+                    :select-name (:_id (t/lookup project-root (:path rect)))
                     :render-fn (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))})
                  (:coords textureset))))
 
@@ -463,34 +462,13 @@
   (output   texturec s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
-(def pick-buffer-size 4096)
-
 (defn find-nodes-at-point [this x y]
   (let [factory (gl/glfactory)
         context (.createExternalGLContext factory)
-        select-buffer (.. ByteBuffer
-                        (allocateDirect (* 4 pick-buffer-size))
-                        (order (ByteOrder/nativeOrder))
-                        asIntBuffer)
-        pass pass/selection
         [renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
         renderables (apply merge-with concat renderable-inputs)
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
-    (gl/with-context
-      context
-      [gl glu]
-      (.glPolygonMode gl GL2/GL_FRONT GL2/GL_FILL)
-      (.glSelectBuffer gl pick-buffer-size select-buffer)
-      (.glRenderMode gl GL2/GL_SELECT)
-      (.glInitNames gl)
-      (ius/setup-pass context gl glu pass view-camera pick-rect)
-      (doseq [renderable (get renderables pass)]
-        (.glPushName gl (:node-id renderable))
-        (ius/render context gl glu nil pass renderable)
-        (.glPopName gl))
-      (.glFlush gl)
-      (let [hit-count (.glRenderMode gl GL2/GL_RENDER)]
-        (gl/select-buffer-names hit-count select-buffer)))))
+    (ius/selection-renderer context renderables view-camera pick-rect)))
 
 (n/defnode SelectionController
   (input renderables [t/RenderData])
