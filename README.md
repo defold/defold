@@ -24,7 +24,6 @@ Setup
 * Windows:
   - [Visual C++ 2010 Express](http://www.visualstudio.com/downloads/download-visual-studio-vs#DownloadFamilies_4)
   - [MSYS/MinGW](http://www.mingw.org/), will get you a shell that behaves like Linux, and much easier to build defold through.
-  - [Protocol Buffers 2.3.0 compiler](https://code.google.com/p/protobuf/downloads/detail?name=protoc-2.3.0-win32.zip), and place somewhere where MSYS can access it.
   - [easy_install]( https://pypi.python.org/pypi/setuptools#id3 )
 
 **Eclipse Plugins**
@@ -71,7 +70,7 @@ setup. See `build.py` and the `shell` command below.
 **Optional Software**
 
 * [ccache](http://ccache.samba.org) - install with `brew install ccache` on OS X and `sudo apt-get install ccache`
-  on Debian based Linux distributions and [ccache-win32](https://code.google.com/p/ccache-win32/downloads/detail?name=ccache-win32-2.4.zip) for Windows.
+  on Debian based Linux distributions.
 
 **Import Java Projects**
 
@@ -143,9 +142,9 @@ Build and Run Editor
     - This disables building of custom build steps and explicit invocation of `Project > Build All` is now required.
 
 **Notes for building the editor under Linux:**
-* Install [protobuf-compiler 2.3](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html), latest (2.4) does not work.
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
 * Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
+* Make sure that the [protobuf-compiler](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html) version used is 2.3, latest (2.4) does not work.
 * `.deb` files can be installed by running:
 
         $ sudo dpkg -i <filename>.deb
