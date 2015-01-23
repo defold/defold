@@ -168,7 +168,7 @@ public class AtlasNode extends TextureSetNode {
                 TextureSetResult result = TextureSetGenerator.generate(images, iterator,
                         Math.max(0, margin),
                         Math.max(0, innerPadding),
-                        Math.max(0, extrudeBorders), true, true, true, false);
+                        Math.max(0, extrudeBorders), true, true, true, false, null);
                 TextureSet textureSet = result.builder.setTexture("").build();
                 runtimeTextureSet.update(textureSet, result.uvTransforms);
 

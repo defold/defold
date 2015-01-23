@@ -73,14 +73,15 @@ public class TextureSetLayout {
 
     }
 
-    public static Layout layout(int margin, List<Rect> rectangles, boolean rotate, boolean fast) {
+    public static Layout layout(int margin, List<Rect> rectangles, boolean rotate) {
         if (rectangles.size() == 0) {
             return new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>());
         }
-        return createMaxRectsLayout(margin, rectangles, rotate, fast);
+
+        return createMaxRectsLayout(margin, rectangles, rotate);
     }
 
-    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, boolean fast) {
+    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate) {
         int defaultMaxPageSize = 1024;
         final int defaultMinPageSize = 16;
 
@@ -92,7 +93,6 @@ public class TextureSetLayout {
         settings.paddingX = margin;
         settings.paddingY = margin;
         settings.rotation = rotate;
-        settings.fast = fast;
         settings.square = false;
 
         // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
