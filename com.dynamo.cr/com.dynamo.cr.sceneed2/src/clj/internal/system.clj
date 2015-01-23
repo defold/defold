@@ -3,6 +3,7 @@
             [com.stuartsierra.component :as component]
             [dynamo.node :as n]
             [dynamo.types :as t]
+            [dynamo.ui :as ui]
             [internal.bus :as bus]
             [internal.cache :refer [make-cache]]
             [internal.graph.dgraph :as dg]
@@ -163,3 +164,10 @@
 (defn undo
   ([]    (undo the-system))
   ([sys] (undo-history (-> @sys :world :history))))
+
+(ui/defcommand undo-command
+  "com.dynamo.cr.menu-items.scene"
+  "com.dynamo.cr.dynamo.project.undo"
+  "Undo")
+
+(ui/defhandler undo-handler undo-command #'undo)
