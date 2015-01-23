@@ -25,7 +25,6 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         public int paddingX;
         public int paddingY;
         public boolean rotation;
-        public boolean fast;
         public boolean square;
     }
 
@@ -45,26 +44,6 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             n.rect.width += settings.paddingX;
             n.rect.height += settings.paddingY;
             srcNodes.add(n);
-        }
-
-        if (settings.fast){
-            if (settings.rotation) {
-                // Sort by longest side if rotation is enabled.
-                Collections.sort(srcNodes, new Comparator<RectNode>() {
-                    public int compare (RectNode o1, RectNode o2) {
-                        int n1 = o1.rect.width > o1.rect.height ? o1.rect.width : o1.rect.height;
-                        int n2 = o2.rect.width > o2.rect.height ? o2.rect.width : o2.rect.height;
-                        return n2 - n1;
-                    }
-                });
-            } else {
-                // Sort only by width (largest to smallest) if rotation is disabled.
-                Collections.sort(srcNodes, new Comparator<RectNode>() {
-                    public int compare (RectNode o1, RectNode o2) {
-                        return o2.rect.width - o1.rect.width;
-                    }
-                });
-            }
         }
 
         Vector<Page> pages = new Vector<Page>();
@@ -180,21 +159,19 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         for (int i = 0, n = methods.length; i < n; i++) {
             maxRects.init(width, height);
             Page result;
-            if (!settings.fast) {
-                result = maxRects.pack(inputRects, methods[i]);
-            } else {
-                Vector<RectNode> remaining = new Vector<RectNode>();
-                for (int ii = 0, nn = inputRects.size(); ii < nn; ii++) {
-                    RectNode rect = inputRects.get(ii);
-                    if (maxRects.insert(rect, methods[i]) == null) {
-                        while (ii < nn) {
-                            remaining.add(inputRects.get(ii++));
-                        }
+
+            Vector<RectNode> remaining = new Vector<RectNode>();
+            for (int ii = 0, nn = inputRects.size(); ii < nn; ii++) {
+                RectNode rect = inputRects.get(ii);
+                if (maxRects.insert(rect, methods[i]) == null) {
+                    while (ii < nn) {
+                        remaining.add(inputRects.get(ii++));
                     }
                 }
-                result = maxRects.getResult();
-                result.remainingRects = remaining;
             }
+            result = maxRects.getResult();
+            result.remainingRects = remaining;
+
             if (fully && result.remainingRects.size() > 0) {
                 continue;
             }
