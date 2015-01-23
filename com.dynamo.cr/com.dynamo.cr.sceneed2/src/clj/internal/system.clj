@@ -162,4 +162,4 @@
 
 (defn undo
   ([]    (undo the-system))
-  ([sys] (undo-history (-> @the-system :world :history))))
+  ([sys] (undo-history (-> @sys :world :history))))
