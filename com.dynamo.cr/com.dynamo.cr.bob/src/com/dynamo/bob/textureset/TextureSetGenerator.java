@@ -135,12 +135,18 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean fast) {
+            int margin, int innerPadding, int extrudeBorders, boolean genOutlines, boolean genAtlasVertices, boolean rotate, boolean useTileGrid, Rect gridSize) {
 
         images = createInnerPadding(images, innerPadding);
         images = extrudeBorders(images, extrudeBorders);
 
-        Layout layout = layout(margin, images, rotate, fast);
+        Layout layout;
+        if (useTileGrid)
+        {
+            layout = gridLayout(margin, images, gridSize);
+        } else {
+            layout = packedLayout(margin, images, rotate);
+        }
 
         rotateImages(layout, images);
 
@@ -205,14 +211,8 @@ public class TextureSetGenerator {
         return images;
     }
 
-    private static Layout layout(int margin, List<BufferedImage> images, boolean rotate, boolean fast) {
-        List<Rect> rectangles = new ArrayList<Rect>(images.size());
-        int index = 0;
-        for (BufferedImage image : images) {
-            rectangles.add(new Rect(index++, image.getWidth(), image.getHeight()));
-        }
-
-        Layout layout = TextureSetLayout.layout(margin, rectangles, rotate, fast);
+    private static Layout packedLayout(int margin, List<BufferedImage> images, boolean rotate ) {
+        Layout layout = TextureSetLayout.layout(margin, rectanglesFromImages(images), rotate);
         Collections.sort(layout.getRectangles(), new Comparator<Rect>() {
             @Override
             public int compare(Rect r1, Rect r2) {
@@ -222,6 +222,52 @@ public class TextureSetGenerator {
             }
         });
         return layout;
+    }
+
+    private static Layout gridLayout( int margin, List<BufferedImage> images, Rect gridSize ) {
+
+        // We assume here that all images have the same size,
+        // since they will be "packed" into a uniformly sized grid.
+        int cellWidth  = images.get(0).getWidth();
+        int cellHeight = images.get(0).getHeight();
+
+        int x = margin;
+        int y = margin;
+        int w = margin*2 +  gridSize.width * cellWidth;
+        int h = margin*2 + gridSize.height * cellHeight;
+
+        // Loop through all images and put them right after eachother
+        Layout layout = new Layout( w, h, rectanglesFromImages(images) );
+        for ( Rect r : layout.getRectangles() ) {
+
+            if (y + cellHeight > h) {
+                throw new RuntimeException("Image height too small when generating a grid based layout: " + w + "x" + h
+                    + " offending cell position: " + x + "," + y + " (of size: " + cellWidth + "x" + cellHeight + ")");
+            }
+
+            r.x = x;
+            r.y = y;
+
+            if (x + cellWidth >= w) {
+                x = margin;
+                y += cellHeight;
+            } else {
+                x += cellWidth;
+            }
+
+        }
+
+        return layout;
+    }
+
+    private static List<Rect> rectanglesFromImages( List<BufferedImage> images ) {
+        List<Rect> rectangles = new ArrayList<Rect>(images.size());
+        int index = 0;
+        for (BufferedImage image : images) {
+            rectangles.add(new Rect(index++, image.getWidth(), image.getHeight()));
+        }
+
+        return rectangles;
     }
 
     private static BufferedImage composite(List<BufferedImage> images, Layout layout) {
