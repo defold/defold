@@ -1137,12 +1137,19 @@ def detect(conf):
     else:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
 
-    if getattr(Options.options, 'use_vanilla_lua', False) == False and 'web' != build_util.get_target_os():
-        conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
-    else:
+    use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
+    if build_util.get_target_os() == 'web':
+        use_vanilla = True
+    if build_util.get_target_platform() == 'x86_64-darwin':
+        # TODO: LuaJIT is currently broken on x86_64-darwin
+        use_vanilla = True
+
+    if use_vanilla:
         conf.env['STATICLIB_LUA'] = 'lua'
         conf.env['LUA_BYTECODE_ENABLE'] = 'no'
+    else:
+        conf.env['STATICLIB_LUA'] = 'luajit-5.1'
+        conf.env['LUA_BYTECODE_ENABLE'] = 'yes'
 
 def configure(conf):
     detect(conf)

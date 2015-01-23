@@ -40,7 +40,7 @@ protected:
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent
-        uint32_t resource_type;
+        dmResource::ResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "mt", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType mt_type;
