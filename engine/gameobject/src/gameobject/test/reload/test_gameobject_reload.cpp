@@ -45,7 +45,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "rt", this, ResReloadTargetCreate, ResReloadTargetDestroy, ResReloadTargetRecreate);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        uint32_t resource_type;
+        dmResource::ResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "rt", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType rt_type;

@@ -818,7 +818,7 @@ Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** 
     return result;
 }
 
-Result GetType(HFactory factory, void* resource, uint32_t* type)
+Result GetType(HFactory factory, void* resource, ResourceType* type)
 {
     assert(type);
 
@@ -831,19 +831,19 @@ Result GetType(HFactory factory, void* resource, uint32_t* type)
     SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
-    *type = (uint32_t) rd->m_ResourceType; // TODO: Not 64-bit friendly...
+    *type = (ResourceType) rd->m_ResourceType;
 
     return RESULT_OK;
 }
 
-Result GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* type)
+Result GetTypeFromExtension(HFactory factory, const char* extension, ResourceType* type)
 {
     assert(type);
 
     SResourceType* resource_type = FindResourceType(factory, extension);
     if (resource_type)
     {
-        *type = (uint32_t) resource_type; // TODO: Not 64-bit friendly...
+        *type = (ResourceType) resource_type;
         return RESULT_OK;
     }
     else
@@ -852,7 +852,7 @@ Result GetTypeFromExtension(HFactory factory, const char* extension, uint32_t* t
     }
 }
 
-Result GetExtensionFromType(HFactory factory, uint32_t type, const char** extension)
+Result GetExtensionFromType(HFactory factory, ResourceType type, const char** extension)
 {
     for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
     {

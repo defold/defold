@@ -64,7 +64,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, ResCreate, ResDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        uint32_t resource_type;
+        dmResource::ResourceType resource_type;
         dmGameObject::Result result;
 
         e = dmResource::GetTypeFromExtension(m_Factory, "no_user_datac", &resource_type);

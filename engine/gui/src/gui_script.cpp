@@ -466,8 +466,8 @@ namespace dmGui
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        int ref = (int) userdata1;
-        int node_ref = (int) userdata2;
+        int ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
+        int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         lua_rawgeti(L, LUA_REGISTRYINDEX, node_ref);
@@ -2406,7 +2406,7 @@ namespace dmGui
 
     /*# set the render ordering for the current GUI scene
      *
-     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words 
+     * Set the order number for the current GUI scene. The number dictates the sorting of the "gui" render predicate, in other words
      * in which order the scene will be rendered in relation to other currently rendered GUI scenes.
      *
      * The number must be in the range 0 to 7.

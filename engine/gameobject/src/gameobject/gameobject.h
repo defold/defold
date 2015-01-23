@@ -552,7 +552,7 @@ namespace dmGameObject
     {
         ComponentType();
 
-        uint32_t                m_ResourceType;
+        dmResource::ResourceType m_ResourceType;
         const char*             m_Name;
         void*                   m_Context;
         ComponentNewWorld       m_NewWorldFunction;
@@ -631,7 +631,7 @@ namespace dmGameObject
      * @param out_component_index Optional component index out argument, 0x0 is accepted
      * @return the registered component type or 0x0 if not found
      */
-    ComponentType* FindComponentType(HRegister regist, uint32_t resource_type, uint32_t* out_component_index);
+    ComponentType* FindComponentType(HRegister regist, dmResource::ResourceType resource_type, uint32_t* out_component_index);
 
     /**
      * Set update order priority. Zero is highest priority.
@@ -640,7 +640,7 @@ namespace dmGameObject
      * @param prio Priority
      * @return RESULT_OK on success
      */
-    Result SetUpdateOrderPrio(HRegister regist, uint32_t resource_type, uint16_t prio);
+    Result SetUpdateOrderPrio(HRegister regist, dmResource::ResourceType resource_type, uint16_t prio);
 
     /**
      * Sort component types according to update order priority.

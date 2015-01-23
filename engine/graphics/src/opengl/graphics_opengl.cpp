@@ -626,7 +626,8 @@ static void LogFrameBufferError(GLenum status)
 
     void DeleteVertexBuffer(HVertexBuffer buffer)
     {
-        glDeleteBuffersARB(1, &buffer);
+        GLuint b = (GLuint) buffer;
+        glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 
@@ -667,7 +668,8 @@ static void LogFrameBufferError(GLenum status)
 
     void DeleteIndexBuffer(HIndexBuffer buffer)
     {
-        glDeleteBuffersARB(1, &buffer);
+        GLuint b = (GLuint) buffer;
+        glDeleteBuffersARB(1, &b);
         CHECK_GL_ERROR
     }
 
