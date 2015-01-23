@@ -76,7 +76,7 @@ namespace dmGameObject
             }
             else
             {
-                uint32_t resource_type;
+                dmResource::ResourceType resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
                 assert(fact_e == dmResource::RESULT_OK);
                 uint32_t type_index;

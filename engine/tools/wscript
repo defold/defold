@@ -24,11 +24,11 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin":
+    if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif platform == "armv7-darwin":
         pass
-    elif platform == "linux":
+    elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif platform == "win32":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])

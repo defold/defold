@@ -291,7 +291,7 @@ namespace dmGameObject
         }
     }
 
-    ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index)
+    ComponentType* FindComponentType(Register* regist, dmResource::ResourceType resource_type, uint32_t* index)
     {
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
@@ -331,7 +331,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result SetUpdateOrderPrio(HRegister regist, uint32_t resource_type, uint16_t prio)
+    Result SetUpdateOrderPrio(HRegister regist, dmResource::ResourceType resource_type, uint16_t prio)
     {
         bool found = false;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
