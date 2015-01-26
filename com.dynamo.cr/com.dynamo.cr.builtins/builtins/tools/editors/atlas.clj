@@ -36,7 +36,8 @@
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
             [javax.media.opengl.glu GLU]
-            [javax.vecmath Matrix4d]))
+            [javax.vecmath Matrix4d]
+            [org.eclipse.swt SWT]))
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -470,18 +471,26 @@
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
     (ius/selection-renderer context renderables view-camera pick-rect)))
 
+(defn- not-camera-movement?
+  "True if the event does not have keyboard modifier-keys for a
+  camera movement action (CTRL or ALT). Note that this won't
+  necessarily apply to mouse-up events because the modifier keys
+  can be released before the mouse button."
+  [event]
+  (zero? (bit-and (:state-mask event) (bit-or SWT/CTRL SWT/ALT))))
+
+(defn- selection-event?
+  [event]
+  (and (not-camera-movement? event)
+       (= 1 (:button event))))
+
 (n/defnode SelectionController
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (on :mouse-down
-      ;; event has :x and :y in pixels relative to top-left corner of canvas.
-      ;; :state-mask is a bit mask of modifier keys and buttons
-      ;; :button is 1 for the left mouse button, 3 for the "right" button
-      (let [{:keys [x y button state-mask]} event]
-        (prn :SelectionController.mouse-down :nodes-at-point (find-nodes-at-point self x y))))
-  (on :mouse-up
-      (let [{:keys [x y button state-mask]} event]
-        (prn :SelectionController:mouse-up))))
+      (when (selection-event? event)
+        (let [{:keys [x y button state-mask]} event]
+          (prn :SelectionController.mouse-down :nodes-at-point (find-nodes-at-point self x y))))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
