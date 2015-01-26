@@ -3,6 +3,7 @@
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
+            [service.log :as log]
             [dynamo.background :as background]
             [dynamo.buffers :refer :all]
             [dynamo.camera :refer :all]
@@ -21,6 +22,7 @@
             [dynamo.property :as dp]
             [dynamo.selection :as sel]
             [dynamo.system :as ds]
+            [internal.ui.scene-editor :as ius]
             [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
@@ -30,11 +32,12 @@
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
             [com.dynamo.tile.proto Tile$Playback]
             [com.jogamp.opengl.util.awt TextRenderer]
-            [java.nio ByteBuffer IntBuffer]
-            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
+            [dynamo.types Animation Camera Image TextureSet Rect EngineFormatTexture AABB]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
-            [javax.vecmath Matrix4d]))
+            [javax.media.opengl.glu GLU]
+            [javax.vecmath Matrix4d]
+            [org.eclipse.swt SWT]))
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -175,6 +178,26 @@
     (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
+(defn render-quad
+  [ctx gl this i]
+  (gl/do-gl [this            (assoc this :gl gl :ctx ctx)
+             textureset      (n/get-node-value this :textureset)
+             texture         (n/get-node-value this :gpu-texture)
+             shader          (n/get-node-value this :shader)
+             vbuf            (n/get-node-value this :vertex-buffer)
+             vertex-binding  (vtx/use-with gl vbuf shader)]
+    (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
+
+(defn selection-renderables
+  [this textureset]
+  (let [project-root (p/project-root-node this)]
+    (map-indexed (fn [i rect]
+                   {:world-transform g/Identity4d
+                    :select-name (:_id (t/lookup project-root (:path rect)))
+                    :render-fn (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))})
+                 (:coords textureset))))
+
 (defnk produce-renderable :- RenderData
   [this textureset]
   {pass/overlay
@@ -182,7 +205,9 @@
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this))}]
    pass/transparent
    [{:world-transform g/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]})
+     :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]
+   pass/selection
+   (selection-renderables this textureset)})
 
 (defnk produce-renderable-vertex-buffer
   [this gl textureset]
@@ -438,6 +463,53 @@
   (output   texturec s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
+(defn find-nodes-at-point [this x y]
+  (let [factory (gl/glfactory)
+        context (.createExternalGLContext factory)
+        [renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
+        renderables (apply merge-with concat renderable-inputs)
+        pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
+    (ius/selection-renderer context renderables view-camera pick-rect)))
+
+(defn- not-camera-movement?
+  "True if the event does not have keyboard modifier-keys for a
+  camera movement action (CTRL or ALT). Note that this won't
+  necessarily apply to mouse-up events because the modifier keys
+  can be released before the mouse button."
+  [event]
+  (zero? (bit-and (:state-mask event) (bit-or SWT/CTRL SWT/ALT))))
+
+(defn- selection-event?
+  [event]
+  (and (not-camera-movement? event)
+       (= 1 (:button event))))
+
+(n/defnode SelectionController
+  (input renderables [t/RenderData])
+  (input view-camera Camera)
+  (on :mouse-down
+      (when (selection-event? event)
+        (let [{:keys [x y button state-mask]} event]
+          (prn :SelectionController.mouse-down :nodes-at-point (find-nodes-at-point self x y))))))
+
+(defn broadcast-event [this event]
+  (let [[controllers] (n/get-node-inputs this :controllers)]
+    (doseq [controller controllers]
+      (t/process-one-event controller event))))
+
+(n/defnode BroadcastController
+  (input controllers [s/Any])
+  (on :mouse-down (broadcast-event self event))
+  (on :mouse-up (broadcast-event self event))
+  (on :mouse-double-click (broadcast-event self event))
+  (on :mouse-enter (broadcast-event self event))
+  (on :mouse-exit (broadcast-event self event))
+  (on :mouse-hover (broadcast-event self event))
+  (on :mouse-move (broadcast-event self event))
+  (on :mouse-wheel (broadcast-event self event))
+  (on :key-down (broadcast-event self event))
+  (on :key-up (broadcast-event self event)))
+
 (defn on-edit
   [project-node editor-site atlas-node]
   (let [editor (n/construct ed/SceneEditor :name "editor")]
@@ -445,11 +517,17 @@
         (let [atlas-render (ds/add (n/construct AtlasRender))
               background   (ds/add (n/construct background/Gradient))
               grid         (ds/add (n/construct grid/Grid))
-              camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))]
+              camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
+              controller   (ds/add (n/construct BroadcastController))
+              selector     (ds/add (n/construct SelectionController))]
           (ds/connect atlas-node   :textureset atlas-render :textureset)
           (ds/connect camera       :camera     grid         :camera)
           (ds/connect camera       :camera     editor       :view-camera)
-          (ds/connect camera       :self       editor       :controller)
+          (ds/connect camera       :self       controller   :controllers)
+          (ds/connect selector     :self       controller   :controllers)
+          (ds/connect atlas-render :renderable selector     :renderables)
+          (ds/connect camera       :camera     selector     :view-camera)
+          (ds/connect controller   :self       editor       :controller)
           (ds/connect background   :renderable editor       :renderables)
           (ds/connect atlas-render :renderable editor       :renderables)
           (ds/connect grid         :renderable editor       :renderables)

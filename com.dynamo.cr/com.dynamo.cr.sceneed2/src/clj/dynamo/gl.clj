@@ -117,11 +117,12 @@
        (.release ~ctx))))
 
 (defmacro gl-push-matrix [gl & body]
-  `(try
-     (.glPushMatrix ~gl)
-     ~@body
-     (finally
-       (.glPopMatrix ~gl))))
+  `(let [^GL2 gl# ~gl]
+     (try
+       (.glPushMatrix gl#)
+       ~@body
+       (finally
+         (.glPopMatrix gl#)))))
 
 (defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
   (let [fbuf (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
@@ -160,6 +161,21 @@
 (defmacro glu-ortho [glu region]
   `(.gluOrtho2D ~glu (double (.left ~region)) (double (.right ~region)) (double (.bottom ~region)) (double (.top ~region))))
 
+(defn ^"[I" viewport-array [viewport]
+  (int-array [(:left viewport)
+              (:top viewport)
+              (:right viewport)
+              (:bottom viewport)]))
+
+(defmacro glu-pick-matrix [glu pick-rect viewport]
+  `(let [pick-rect# ~pick-rect]
+     (.gluPickMatrix ~glu
+       (double (:x pick-rect#))
+       (double (:y pick-rect#))
+       (double (:width pick-rect#))
+       (double (:height pick-rect#))
+       (viewport-array ~viewport)
+       (int 0))))
 
 (defmacro do-gl
   [bindings & body]
@@ -167,12 +183,12 @@
   (let [bound-syms (map first (partition 2 bindings))]
     `(let ~bindings
        (doseq [b# ~(into [] bound-syms)]
-         (when (satisfies? ~`p/GlEnable b#)
-           (.enable b#)))
+         (when (satisfies? p/GlEnable b#)
+           (p/enable b#)))
        (let [rval# (do ~@body)]
            (doseq [b# ~(into [] (reverse bound-syms))]
-             (when (satisfies? ~`p/GlDisable b#)
-               (.disable b#)))
+             (when (satisfies? p/GlDisable b#)
+               (p/disable b#)))
            rval#))))
 
 (defn overlay
@@ -183,3 +199,22 @@
     (.begin3DRendering text-renderer)
     (.draw3D text-renderer chars xloc yloc scalex scaley)
     (.end3DRendering text-renderer)))
+
+(defn select-buffer-names
+  [hit-count ^IntBuffer select-buffer]
+  "Returns a collection of names from a GL_SELECT buffer.
+  Names are integers assigned during rendering with glPushName and glPopName.
+  The select-buffer contains a series of 'hits' where each hit
+  is [name-count min-z max-z & names+]. In our usage, names may not be
+  nested so name-count must always be one."
+  (loop [i 0
+         ptr 0
+         names []]
+    (if (< i hit-count)
+      (let [name-count (.get select-buffer ptr)
+            name (.get select-buffer (+ ptr 3))]
+        (assert (= 1 name-count) "Count of names in a hit record must be one")
+        (recur (inc i)
+               (+ ptr 3 name-count)
+               (conj names name)))
+      names)))

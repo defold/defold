@@ -122,6 +122,10 @@ ordinary paths."
   [node]
   (first (ds/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `ProjectRoot)])))
 
+(defn scope-enclosing
+  [node]
+  (first (ds/query (:world-ref node) [[:_id (:_id node)] '(output :self) (list 'protocol `t/NamingContext)])))
+
 (defn nodes-in-project
   "Return a lazy sequence of all nodes in this project. There is no
 guaranteed ordering of the sequence."
@@ -152,6 +156,9 @@ There is no guaranteed ordering of the sequence."
 
 (defprotocol ProjectRoot)
 
+(defn project-root? [node]
+  (satisfies? ProjectRoot node))
+
 (n/defnode Project
   (inherits n/Scope)
 
@@ -175,7 +182,13 @@ There is no guaranteed ordering of the sequence."
   (on :destroy
     (ds/delete self)))
 
-
+(defn project-root-node
+  "Finds and returns the ProjectRoot node starting from any node."
+  [node]
+  (when node
+    (if (project-root? node)
+      node
+      (recur (scope-enclosing node)))))
 
 (defn load-resource-nodes
   [project-node resources ^IProgressMonitor monitor]

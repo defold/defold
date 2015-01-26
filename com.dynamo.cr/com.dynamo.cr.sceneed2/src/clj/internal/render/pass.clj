@@ -16,7 +16,7 @@
     `(do
        ~@(map #(list* 'make-pass %) ps)
        (def selection-passes ~(mapv first (filter second ps)))
-       (def passes           ~(mapv first ps)))))
+       (def render-passes    ~(mapv first (remove second ps))))))
 
 (make-passes
   background     false false
@@ -128,6 +128,6 @@
          #'selection-passes
          "Vector of the passes that participate in selection"
 
-         #'passes
-         "Vector of all passes, ordered from back to front."}]
+         #'render-passes
+         "Vector of all non-selection passes, ordered from back to front."}]
   (alter-meta! v assoc :doc doc))
