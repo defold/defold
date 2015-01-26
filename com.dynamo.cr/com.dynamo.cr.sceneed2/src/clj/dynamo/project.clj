@@ -87,31 +87,20 @@ ordinary paths."
   (let [editor-factory (editor-for project-node (t/extension path))]
     (node?! (editor-factory project-node site content-node) "Editor")))
 
-(defn- build-selection-node
-  [editor-node selected-nodes]
-  (ds/in editor-node
-    (let [selection-node  (ds/add (n/construct selection/Selection))
-          properties-node (ds/add (n/construct CannedProperties :rotation "e to the i pi"))]
-      (doseq [node selected-nodes]
-        (ds/connect node :self selection-node :selected-nodes))
-      selection-node)))
-
 (defn make-editor
   [project-node path ^IEditorSite site]
-  (let [[editor-node selection-node] (ds/transactional
-                                       (ds/in project-node
-                                         (let [content-node   (t/lookup project-node path)
-                                               editor-node    (build-editor-node project-node site path content-node)
-                                               selection-node (build-selection-node editor-node [content-node])]
-                                           (when ((t/inputs editor-node) :presenter-registry)
-                                             (ds/connect project-node :presenter-registry editor-node :presenter-registry))
-                                           (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
-                                             (ds/connect content-node :save editor-node :saveable))
-                                           (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
-                                             (ds/connect content-node :dirty editor-node :dirty))
-                                           [editor-node selection-node])))]
-    (.setSelectionProvider site selection-node)
-    editor-node))
+  (ds/transactional
+    (ds/in project-node
+      (let [content-node   (t/lookup project-node path)
+            editor-node    (build-editor-node project-node site path content-node)]
+        (when ((t/inputs editor-node) :presenter-registry)
+          (ds/connect project-node :presenter-registry editor-node :presenter-registry))
+        (when (and ((t/inputs editor-node) :saveable) ((t/outputs content-node) :save))
+          (ds/connect content-node :save editor-node :saveable))
+        (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
+          (ds/connect content-node :dirty editor-node :dirty))
+        ;; TODO: Figure out how to get selection node, then (.setSelectionProvider site selection-node)
+        editor-node))))
 
 (defn- send-project-scope-message
   [graph self txn]

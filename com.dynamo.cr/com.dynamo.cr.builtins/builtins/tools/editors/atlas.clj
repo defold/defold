@@ -484,13 +484,29 @@
   (and (not-camera-movement? event)
        (= 1 (:button event))))
 
+(defn- deselect-all
+  [selection-node]
+  (doseq [[node label] (ds/sources-of selection-node :selected-nodes)]
+    (ds/disconnect node label selection-node :selected-nodes)))
+
+(defn- select-nodes
+  [selection-node nodes]
+  (doseq [node nodes]
+    (ds/connect node :self selection-node :selected-nodes)))
+
 (n/defnode SelectionController
   (input renderables [t/RenderData])
   (input view-camera Camera)
+  (input selection sel/Selection)
   (on :mouse-down
       (when (selection-event? event)
-        (let [{:keys [x y button state-mask]} event]
-          (prn :SelectionController.mouse-down :nodes-at-point (find-nodes-at-point self x y))))))
+        (let [{:keys [x y]} event
+              {:keys [world-ref]} self
+              [selection] (n/get-node-inputs self :selection)
+              nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
+          (prn :SelectionController.mouse-down x y)
+          (deselect-all selection)
+          (select-nodes selection nodes)))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -519,6 +535,7 @@
               grid         (ds/add (n/construct grid/Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
               controller   (ds/add (n/construct BroadcastController))
+              selection    (ds/add (n/construct sel/Selection))
               selector     (ds/add (n/construct SelectionController))]
           (ds/connect atlas-node   :textureset atlas-render :textureset)
           (ds/connect camera       :camera     grid         :camera)
@@ -527,6 +544,7 @@
           (ds/connect selector     :self       controller   :controllers)
           (ds/connect atlas-render :renderable selector     :renderables)
           (ds/connect camera       :camera     selector     :view-camera)
+          (ds/connect selection    :self       selector     :selection)
           (ds/connect controller   :self       editor       :controller)
           (ds/connect background   :renderable editor       :renderables)
           (ds/connect atlas-render :renderable editor       :renderables)
