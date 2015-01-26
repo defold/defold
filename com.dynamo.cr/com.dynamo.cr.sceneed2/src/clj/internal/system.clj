@@ -165,9 +165,12 @@
   ([]    (undo the-system))
   ([sys] (undo-history (-> @sys :world :history))))
 
+(defn do-undo [event]
+  (undo))
+
 (ui/defcommand undo-command
   "com.dynamo.cr.menu-items.scene"
   "com.dynamo.cr.dynamo.project.undo"
   "Undo")
 
-(ui/defhandler undo-handler undo-command #'undo)
+(ui/defhandler undo-handler undo-command #'do-undo)
