@@ -483,6 +483,24 @@
       (let [{:keys [x y button state-mask]} event]
         (prn :SelectionController:mouse-up))))
 
+(defn broadcast-event [this event]
+  (let [[controllers] (n/get-node-inputs this :controllers)]
+    (doseq [controller controllers]
+      (t/process-one-event controller event))))
+
+(n/defnode BroadcastController
+  (input controllers [s/Any])
+  (on :mouse-down (broadcast-event self event))
+  (on :mouse-up (broadcast-event self event))
+  (on :mouse-double-click (broadcast-event self event))
+  (on :mouse-enter (broadcast-event self event))
+  (on :mouse-exit (broadcast-event self event))
+  (on :mouse-hover (broadcast-event self event))
+  (on :mouse-move (broadcast-event self event))
+  (on :mouse-wheel (broadcast-event self event))
+  (on :key-down (broadcast-event self event))
+  (on :key-up (broadcast-event self event)))
+
 (defn on-edit
   [project-node editor-site atlas-node]
   (let [editor (n/construct ed/SceneEditor :name "editor")]
@@ -491,14 +509,16 @@
               background   (ds/add (n/construct background/Gradient))
               grid         (ds/add (n/construct grid/Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
+              controller   (ds/add (n/construct BroadcastController))
               selector     (ds/add (n/construct SelectionController))]
           (ds/connect atlas-node   :textureset atlas-render :textureset)
           (ds/connect camera       :camera     grid         :camera)
           (ds/connect camera       :camera     editor       :view-camera)
-          ;; (ds/connect camera       :self       editor       :controller)
-          (ds/connect selector     :self       editor       :controller)
+          (ds/connect camera       :self       controller   :controllers)
+          (ds/connect selector     :self       controller   :controllers)
           (ds/connect atlas-render :renderable selector     :renderables)
           (ds/connect camera       :camera     selector     :view-camera)
+          (ds/connect controller   :self       editor       :controller)
           (ds/connect background   :renderable editor       :renderables)
           (ds/connect atlas-render :renderable editor       :renderables)
           (ds/connect grid         :renderable editor       :renderables)
