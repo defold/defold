@@ -35,8 +35,9 @@
    :repaint-needed      repaint-needed})
 
 (defn- new-history
-  [state]
+  [state repaint-needed]
   {:state state
+   :repaint-needed repaint-needed
    :undo-stack nil})
 
 (defrecord World [started state history repaint-needed]
@@ -47,7 +48,7 @@
       (dosync
         (let [root (n/construct n/RootScope :world-ref state :_id 1)]
           (ref-set state (new-world-state state root repaint-needed))
-          (ref-set history (new-history state))
+          (ref-set history (new-history state repaint-needed))
           (assoc this :started true)))))
   (stop [this]
     (if (:started this)
@@ -96,11 +97,18 @@
 (defn- undo-history [history-ref]
   (dosync
     (let [world-ref (:state @history-ref)
+          repaint-needed (:repaint-needed @history-ref)
           latest (first (:undo-stack @history-ref))]
       (when latest
         (ref-set world-ref latest)
-        (alter history-ref update-in [:undo-stack] next))))
-  (prn :undo-history (world-summary @(:state @history-ref))))
+        (alter history-ref update-in [:undo-stack] next)
+        (let [nodes (dg/node-values (:graph latest))
+              nodes-to-repaint (keep
+                                 #(when (satisfies? t/Frame %) %)
+                                 nodes)]
+          (prn :repainting (str (count nodes-to-repaint) " of " (count nodes) " nodes"))
+          (repaint/schedule-repaint repaint-needed nodes-to-repaint)))
+      (prn :undo-history (world-summary @(:state @history-ref))))))
 
 (defn- world
   [report-ch repaint-needed]

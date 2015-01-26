@@ -173,6 +173,10 @@
             (ds/set-property {:_id (:node-id prop)} prop-name new-value)))
         (log/warn :message "Expected event from widget on active property page"))))
 
+  t/Frame
+  (frame [this]
+    (t/signal (:debouncer this)))
+
   ISelectionListener
   (selectionChanged [this part selection]
     (let [current-inputs (ds/sources-of this :properties)]
