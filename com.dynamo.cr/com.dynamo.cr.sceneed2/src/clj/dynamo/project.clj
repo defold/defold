@@ -99,7 +99,6 @@ ordinary paths."
           (ds/connect content-node :save editor-node :saveable))
         (when (and ((t/inputs editor-node) :dirty) ((t/outputs content-node) :dirty))
           (ds/connect content-node :dirty editor-node :dirty))
-        ;; TODO: Figure out how to get selection node, then (.setSelectionProvider site selection-node)
         editor-node))))
 
 (defn- send-project-scope-message

@@ -37,7 +37,8 @@
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
             [javax.media.opengl.glu GLU]
             [javax.vecmath Matrix4d]
-            [org.eclipse.swt SWT]))
+            [org.eclipse.swt SWT]
+            [org.eclipse.ui IEditorSite]))
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -527,7 +528,7 @@
   (on :key-up (broadcast-event self event)))
 
 (defn on-edit
-  [project-node editor-site atlas-node]
+  [project-node ^IEditorSite editor-site atlas-node]
   (let [editor (n/construct ed/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
         (let [atlas-render (ds/add (n/construct AtlasRender))
@@ -537,6 +538,7 @@
               controller   (ds/add (n/construct BroadcastController))
               selection    (ds/add (n/construct sel/Selection))
               selector     (ds/add (n/construct SelectionController))]
+          ;; TODO: (.setSelectionProvider editor-site selection) and fix resulting NullPointerException
           (ds/connect atlas-node   :textureset atlas-render :textureset)
           (ds/connect camera       :camera     grid         :camera)
           (ds/connect camera       :camera     editor       :view-camera)
