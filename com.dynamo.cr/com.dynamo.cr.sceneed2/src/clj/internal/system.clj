@@ -72,8 +72,8 @@
 (defn- world
   [report-ch repaint-needed]
   (let [world-ref (ref nil)]
-    (add-watch world-ref :tx-report (partial send-tx-reports report-ch))
-    (add-watch world-ref :tx-report (partial schedule-repaints repaint-needed))
+    (add-watch world-ref :send-tx-reports (partial send-tx-reports report-ch))
+    (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
     (->World false world-ref repaint-needed)))
 
 (defn- refresh-messages
