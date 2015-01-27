@@ -498,7 +498,7 @@
 (n/defnode SelectionController
   (input renderables [t/RenderData])
   (input view-camera Camera)
-  (input selection-node sel/Selection :inject)
+  (input selection-node s/Any :inject)
   (on :mouse-down
       (when (selection-event? event)
         (let [{:keys [x y]} event
