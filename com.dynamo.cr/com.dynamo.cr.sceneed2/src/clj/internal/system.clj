@@ -90,7 +90,7 @@
   (when (transaction-applied? old-world new-world)
     (dosync
       (assert (= (:state @history-ref) world-ref))
-      (alter history-ref update-in [:undo-stack] conj new-world))
+      (alter history-ref update-in [:undo-stack] conj old-world))
     (let [histories (:undo-stack @history-ref)]
       (prn :push-history (count histories) (world-summary (first histories))))))
 
