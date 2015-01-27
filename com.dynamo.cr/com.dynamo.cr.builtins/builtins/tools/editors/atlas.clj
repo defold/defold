@@ -199,6 +199,38 @@
                     :render-fn (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))})
                  (:coords textureset))))
 
+(defn render-selection-outline
+  [ctx gl this textureset rect]
+  (let [bounds (:aabb textureset)
+        {:keys [x y width height]} rect
+        left x
+        right (+ x width)
+        bottom (- (:height bounds) y)
+        top (- (:height bounds) (+ y height))]
+    (prn 'render-selection-outline :rect rect :gl (type gl))
+    (.glColor3ub gl 0x4b 0xff 0x8b)  ; bright green
+    (.glBegin gl GL2/GL_LINE_LOOP)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)))
+
+(defn selection-outline-renderables
+  [this textureset]
+  (let [project-root (p/project-root-node this)
+        [selection] (n/get-node-inputs this :selection)
+        selected (set @selection)]
+    (prn 'selection-outline-renderables :selected selected)
+    (vec (keep
+           (fn [rect]
+             (let [node (t/lookup project-root (:path rect))]
+               (when (selected (:_id node))
+                 {:world-transform g/Identity4d
+                  :render-fn (fn [ctx gl glu text-renderer]
+                               (render-selection-outline ctx gl this textureset rect))})))
+           (:coords textureset)))))
+
 (defnk produce-renderable :- RenderData
   [this textureset]
   {pass/overlay
@@ -207,6 +239,8 @@
    pass/transparent
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]
+   pass/outline
+   (selection-outline-renderables this textureset)
    pass/selection
    (selection-renderables this textureset)})
 
@@ -272,6 +306,7 @@
 
 (n/defnode AtlasRender
   (input  textureset s/Any)
+  (input  selection s/Any :inject)
 
   (output textureset s/Any            :cached passthrough-textureset)
   (output shader s/Any                :cached produce-shader)
