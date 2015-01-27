@@ -498,16 +498,16 @@
 (n/defnode SelectionController
   (input renderables [t/RenderData])
   (input view-camera Camera)
-  (input selection sel/Selection)
+  (input selection-node sel/Selection :inject)
   (on :mouse-down
       (when (selection-event? event)
         (let [{:keys [x y]} event
               {:keys [world-ref]} self
-              [selection] (n/get-node-inputs self :selection)
+              [selection-node] (n/get-node-inputs self :selection-node)
               nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
           (prn :SelectionController.mouse-down x y)
-          (deselect-all selection)
-          (select-nodes selection nodes)))))
+          (deselect-all selection-node)
+          (select-nodes selection-node nodes)))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -536,9 +536,7 @@
               grid         (ds/add (n/construct grid/Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
               controller   (ds/add (n/construct BroadcastController))
-              selection    (ds/add (n/construct sel/Selection))
               selector     (ds/add (n/construct SelectionController))]
-          ;; TODO: (.setSelectionProvider editor-site selection) and fix resulting NullPointerException
           (ds/connect atlas-node   :textureset atlas-render :textureset)
           (ds/connect camera       :camera     grid         :camera)
           (ds/connect camera       :camera     editor       :view-camera)
@@ -546,7 +544,6 @@
           (ds/connect selector     :self       controller   :controllers)
           (ds/connect atlas-render :renderable selector     :renderables)
           (ds/connect camera       :camera     selector     :view-camera)
-          (ds/connect selection    :self       selector     :selection)
           (ds/connect controller   :self       editor       :controller)
           (ds/connect background   :renderable editor       :renderables)
           (ds/connect atlas-render :renderable editor       :renderables)
