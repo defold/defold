@@ -39,7 +39,8 @@
   [state repaint-needed]
   {:state state
    :repaint-needed repaint-needed
-   :undo-stack []})
+   :undo-stack []
+   :redo-stack []})
 
 (defrecord World [started state history repaint-needed]
   component/Lifecycle
@@ -95,25 +96,39 @@
   (when (transaction-applied? old-world new-world)
     (dosync
       (assert (= (:state @history-ref) world-ref))
-      (alter history-ref update-in [:undo-stack] conj-undo-stack old-world))
-    (let [histories (:undo-stack @history-ref)]
-      (prn :push-history (count histories) (world-summary (peek histories))))))
+      (alter history-ref update-in [:undo-stack] conj-undo-stack old-world)
+      (alter history-ref assoc-in  [:redo-stack] [])
+      (prn :push-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
+
+(defn- repaint-all [graph repaint-needed]
+  (let [nodes (dg/node-values graph)
+        nodes-to-repaint (keep #(when (satisfies? t/Frame %) %) nodes)]
+    (println (str "repainting " (count nodes-to-repaint) " of " (count nodes) " nodes"))
+    (repaint/schedule-repaint repaint-needed nodes-to-repaint)))
 
 (defn- undo-history [history-ref]
   (dosync
     (let [world-ref (:state @history-ref)
-          latest (peek (:undo-stack @history-ref))]
-      (when latest
-        (ref-set world-ref latest)
+          old-world @world-ref
+          new-world (peek (:undo-stack @history-ref))]
+      (when new-world
+        (ref-set world-ref (dissoc new-world :last-tx))
         (alter history-ref update-in [:undo-stack] pop)
-        (let [nodes (dg/node-values (:graph latest))
-              nodes-to-repaint (keep
-                                 #(when (satisfies? t/Frame %) %)
-                                 nodes)
-              repaint-needed (:repaint-needed @history-ref)]
-          (prn :repainting (str (count nodes-to-repaint) " of " (count nodes) " nodes"))
-          (repaint/schedule-repaint repaint-needed nodes-to-repaint)))
-      (prn :undo-history (count (:undo-stack @history-ref)) (world-summary @(:state @history-ref))))))
+        (alter history-ref update-in [:redo-stack] conj old-world)
+        (repaint-all (:graph new-world) (:repaint-needed @history-ref)))
+      (prn :undo-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
+
+(defn- redo-history [history-ref]
+  (dosync
+    (let [world-ref (:state @history-ref)
+          old-world @world-ref
+          new-world (peek (:redo-stack @history-ref))]
+      (when new-world
+        (ref-set world-ref (dissoc new-world :last-tx))
+        (alter history-ref update-in [:undo-stack] conj old-world)
+        (alter history-ref update-in [:redo-stack] pop)
+        (repaint-all (:graph new-world) (:repaint-needed @history-ref)))
+      (prn :redo-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
 
 (defn- world
   [report-ch repaint-needed]
@@ -178,6 +193,10 @@
   ([]    (undo the-system))
   ([sys] (undo-history (-> @sys :world :history))))
 
+(defn redo
+  ([]    (redo the-system))
+  ([sys] (redo-history (-> @sys :world :history))))
+
 (defn do-undo [event]
   (undo))
 
@@ -187,3 +206,13 @@
   "Undo")
 
 (ui/defhandler undo-handler undo-command #'do-undo)
+
+(defn do-redo [event]
+  (redo))
+
+(ui/defcommand redo-command
+  "com.dynamo.cr.menu-items.scene"
+  "com.dynamo.cr.dynamo.project.redo"
+  "Redo")
+
+(ui/defhandler redo-handler redo-command #'do-redo)
