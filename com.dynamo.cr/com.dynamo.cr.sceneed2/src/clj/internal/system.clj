@@ -97,7 +97,6 @@
 (defn- undo-history [history-ref]
   (dosync
     (let [world-ref (:state @history-ref)
-          repaint-needed (:repaint-needed @history-ref)
           latest (first (:undo-stack @history-ref))]
       (when latest
         (ref-set world-ref latest)
@@ -105,10 +104,11 @@
         (let [nodes (dg/node-values (:graph latest))
               nodes-to-repaint (keep
                                  #(when (satisfies? t/Frame %) %)
-                                 nodes)]
+                                 nodes)
+              repaint-needed (:repaint-needed @history-ref)]
           (prn :repainting (str (count nodes-to-repaint) " of " (count nodes) " nodes"))
           (repaint/schedule-repaint repaint-needed nodes-to-repaint)))
-      (prn :undo-history (world-summary @(:state @history-ref))))))
+      (prn :undo-history (count (:undo-stack @history-ref)) (world-summary @(:state @history-ref))))))
 
 (defn- world
   [report-ch repaint-needed]
