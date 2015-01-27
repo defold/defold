@@ -4,6 +4,7 @@
             [dynamo.node :as n]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [dynamo.util :as util]
             [internal.bus :as bus]
             [internal.cache :refer [make-cache]]
             [internal.graph.dgraph :as dg]
@@ -38,7 +39,7 @@
   [state repaint-needed]
   {:state state
    :repaint-needed repaint-needed
-   :undo-stack nil})
+   :undo-stack []})
 
 (defrecord World [started state history repaint-needed]
   component/Lifecycle
@@ -86,21 +87,25 @@
    :cache-keys (-> world-state :cache-keys count)
    :repaint-needed (-> world-state :repaint-needed deref count)})
 
+(def history-size-min 50)
+(def history-size-max 60)
+(def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
+
 (defn- push-history [history-ref _ world-ref old-world new-world]
   (when (transaction-applied? old-world new-world)
     (dosync
       (assert (= (:state @history-ref) world-ref))
-      (alter history-ref update-in [:undo-stack] conj old-world))
+      (alter history-ref update-in [:undo-stack] conj-undo-stack old-world))
     (let [histories (:undo-stack @history-ref)]
-      (prn :push-history (count histories) (world-summary (first histories))))))
+      (prn :push-history (count histories) (world-summary (peek histories))))))
 
 (defn- undo-history [history-ref]
   (dosync
     (let [world-ref (:state @history-ref)
-          latest (first (:undo-stack @history-ref))]
+          latest (peek (:undo-stack @history-ref))]
       (when latest
         (ref-set world-ref latest)
-        (alter history-ref update-in [:undo-stack] next)
+        (alter history-ref update-in [:undo-stack] pop)
         (let [nodes (dg/node-values (:graph latest))
               nodes-to-repaint (keep
                                  #(when (satisfies? t/Frame %) %)
