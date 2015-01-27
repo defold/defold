@@ -495,6 +495,20 @@
   (doseq [node nodes]
     (ds/connect node :self selection-node :selected-nodes)))
 
+(defn- toggle-selection
+  [selection-node nodes]
+  (let [selected-nodes-labels (into {} (ds/sources-of selection-node :selected-nodes))]
+    (doseq [node nodes]
+      (if-let [label (get selected-nodes-labels node)]
+        (ds/disconnect node label selection-node :selected-nodes)
+        (ds/connect node :self selection-node :selected-nodes)))))
+
+(defn- selection-mode
+  [event]
+  (if (zero? (bit-and (:state-mask event) (bit-or SWT/COMMAND SWT/SHIFT)))
+    :replace
+    :toggle))
+
 (n/defnode SelectionController
   (input renderables [t/RenderData])
   (input view-camera Camera)
@@ -506,8 +520,10 @@
               [selection-node] (n/get-node-inputs self :selection-node)
               nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
           (prn :SelectionController.mouse-down x y)
-          (deselect-all selection-node)
-          (select-nodes selection-node nodes)))))
+          (case (selection-mode event)
+            :replace (do (deselect-all selection-node)
+                         (select-nodes selection-node nodes))
+            :toggle (toggle-selection selection-node nodes))))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
