@@ -1,6 +1,6 @@
 (ns dynamo.selection
   (:require [schema.core :as s]
-            [plumbing.core :refer [defnk]]
+            [plumbing.core :refer [defnk fnk]]
             [dynamo.ui :as ui]
             [dynamo.node :as n]
             [dynamo.system :as ds]
@@ -45,6 +45,7 @@
   (property triggers n/Triggers (default [#'fire-selection-changed]))
 
   (output selection s/Any produce-selection)
+  (output selection-node Selection (fnk [self] self))
 
   (on :release
     (deliver (:latch event) true))

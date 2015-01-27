@@ -37,7 +37,8 @@
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
             [javax.media.opengl.glu GLU]
             [javax.vecmath Matrix4d]
-            [org.eclipse.swt SWT]))
+            [org.eclipse.swt SWT]
+            [org.eclipse.ui IEditorSite]))
 
 (def integers (iterate (comp int inc) (int 0)))
 
@@ -484,13 +485,29 @@
   (and (not-camera-movement? event)
        (= 1 (:button event))))
 
+(defn- deselect-all
+  [selection-node]
+  (doseq [[node label] (ds/sources-of selection-node :selected-nodes)]
+    (ds/disconnect node label selection-node :selected-nodes)))
+
+(defn- select-nodes
+  [selection-node nodes]
+  (doseq [node nodes]
+    (ds/connect node :self selection-node :selected-nodes)))
+
 (n/defnode SelectionController
   (input renderables [t/RenderData])
   (input view-camera Camera)
+  (input selection-node s/Any :inject)
   (on :mouse-down
       (when (selection-event? event)
-        (let [{:keys [x y button state-mask]} event]
-          (prn :SelectionController.mouse-down :nodes-at-point (find-nodes-at-point self x y))))))
+        (let [{:keys [x y]} event
+              {:keys [world-ref]} self
+              [selection-node] (n/get-node-inputs self :selection-node)
+              nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
+          (prn :SelectionController.mouse-down x y)
+          (deselect-all selection-node)
+          (select-nodes selection-node nodes)))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -511,7 +528,7 @@
   (on :key-up (broadcast-event self event)))
 
 (defn on-edit
-  [project-node editor-site atlas-node]
+  [project-node ^IEditorSite editor-site atlas-node]
   (let [editor (n/construct ed/SceneEditor :name "editor")]
     (ds/in (ds/add editor)
         (let [atlas-render (ds/add (n/construct AtlasRender))
