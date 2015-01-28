@@ -14,7 +14,10 @@
             [internal.repaint :as repaint]
             [internal.transaction :as it]
             [schema.core :as s]
-            [service.log :as log :refer [logging-exceptions]]))
+            [service.log :as log :refer [logging-exceptions]])
+  (:import [org.eclipse.ui PlatformUI]
+           [org.eclipse.core.commands.operations UndoContext]
+           [internal.ui GenericOperation]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,7 +45,7 @@
    :undo-stack []
    :redo-stack []})
 
-(defrecord World [started state history repaint-needed]
+(defrecord World [started state history undo-context repaint-needed]
   component/Lifecycle
   (start [this]
     (if (:started this)
@@ -92,12 +95,15 @@
 (def history-size-max 60)
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
 
-(defn- push-history [history-ref _ world-ref old-world new-world]
+(declare record-history-operation)
+
+(defn- push-history [history-ref undo-context _ world-ref old-world new-world]
   (when (transaction-applied? old-world new-world)
     (dosync
       (assert (= (:state @history-ref) world-ref))
       (alter history-ref update-in [:undo-stack] conj-undo-stack old-world)
       (alter history-ref assoc-in  [:redo-stack] [])
+      (record-history-operation undo-context (str "World Time: " (:world-time new-world)))
       (prn :push-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
 
 (defn- repaint-all [graph repaint-needed]
@@ -132,12 +138,13 @@
 
 (defn- world
   [report-ch repaint-needed]
-  (let [world-ref   (ref nil)
-        history-ref (ref nil)]
+  (let [world-ref    (ref nil)
+        history-ref  (ref nil)
+        undo-context (UndoContext.)]
     (add-watch world-ref :send-tx-reports   (partial send-tx-reports report-ch))
     (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
-    (add-watch world-ref :push-history      (partial push-history history-ref))
-    (->World false world-ref history-ref repaint-needed)))
+    (add-watch world-ref :push-history      (partial push-history history-ref undo-context))
+    (->World false world-ref history-ref undo-context repaint-needed)))
 
 (defn- refresh-messages
   [{:keys [expired-outputs]}]
@@ -197,22 +204,15 @@
   ([]    (redo the-system))
   ([sys] (redo-history (-> @sys :world :history))))
 
-(defn do-undo [event]
-  (undo))
+(defn undo-context
+  ([]    (undo-context the-system))
+  ([sys] (-> @sys :world :undo-context)))
 
-(ui/defcommand undo-command
-  "com.dynamo.cr.menu-items.scene"
-  "com.dynamo.cr.dynamo.project.undo"
-  "Undo")
+(defn history-operation [undo-context label]
+  (doto (GenericOperation. label undo redo)
+   (.addContext undo-context)))
 
-(ui/defhandler undo-handler undo-command #'do-undo)
-
-(defn do-redo [event]
-  (redo))
-
-(ui/defcommand redo-command
-  "com.dynamo.cr.menu-items.scene"
-  "com.dynamo.cr.dynamo.project.redo"
-  "Redo")
-
-(ui/defhandler redo-handler redo-command #'do-redo)
+(defn record-history-operation [undo-context label]
+  (let [operation (history-operation undo-context label)
+        history (.. PlatformUI getWorkbench getOperationSupport getOperationHistory)]
+    (.add history operation)))

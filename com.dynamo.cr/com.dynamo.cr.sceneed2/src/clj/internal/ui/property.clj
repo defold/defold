@@ -10,6 +10,7 @@
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [internal.node :as in]
+            [internal.system :as is]
             [camel-snake-kebab :refer :all])
   (:import [org.eclipse.core.runtime IStatus Status]
            [org.eclipse.swt.widgets Composite]
