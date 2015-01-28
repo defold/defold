@@ -68,3 +68,10 @@
      (catch Throwable thrown#
        (error :exception thrown# :from ~where)
        nil)))
+
+(defmacro timed [label & body]
+  `(let [start-time# (System/nanoTime)
+         result# (do ~@body)]
+     (println (quot (- (System/nanoTime) start-time#) 1000000) "ms" ~label)
+     result#))
+

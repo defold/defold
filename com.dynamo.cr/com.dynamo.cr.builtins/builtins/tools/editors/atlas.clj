@@ -144,9 +144,10 @@
 
 (defn render-quad
   [ctx gl textureset vertex-binding gpu-texture i]
-  (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-   (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
-   (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
+  (service.log/timed (str "render-quad " i)
+    (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6))))
 
 (defn selection-renderables
   [this textureset vertex-binding gpu-texture]
@@ -158,14 +159,14 @@
                  (:coords textureset))))
 
 (defn render-selection-outline
-  [ctx gl this textureset rect]
+  [ctx ^GL2 gl this textureset rect]
   (let [bounds (:aabb textureset)
         {:keys [x y width height]} rect
         left x
         right (+ x width)
         bottom (- (:height bounds) y)
         top (- (:height bounds) (+ y height))]
-    (.glColor3ub gl 0x4b 0xff 0x8b)  ; bright green
+    (.glColor3ub gl (.byteValue (Long. 0x4b)) (.byteValue (Long. 0xff)) (.byteValue (Long. 0x8b)))  ; bright green
     (.glBegin gl GL2/GL_LINE_LOOP)
     (.glVertex2i gl left top)
     (.glVertex2i gl right top)
@@ -437,12 +438,13 @@
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
 (defn find-nodes-at-point [this x y]
+  (service.log/timed "find-nodes-at-point"
   (let [factory (gl/glfactory)
         context (.createExternalGLContext factory)
         [renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
         renderables (apply merge-with concat renderable-inputs)
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
-    (ius/selection-renderer context renderables view-camera pick-rect)))
+    (service.log/timed "selection-renderer" (ius/selection-renderer context renderables view-camera pick-rect)))))
 
 (defn- not-camera-movement?
   "True if the event does not have keyboard modifier-keys for a
@@ -486,15 +488,16 @@
   (input view-camera Camera)
   (input selection-node s/Any :inject)
   (on :mouse-down
-      (when (selection-event? event)
-        (let [{:keys [x y]} event
-              {:keys [world-ref]} self
-              [selection-node] (n/get-node-inputs self :selection-node)
-              nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
-          (case (selection-mode event)
-            :replace (do (deselect-all selection-node)
-                         (select-nodes selection-node nodes))
-            :toggle (toggle-selection selection-node nodes))))))
+    (service.log/timed "SelectionController on :mouse-down"
+    (when (selection-event? event)
+      (let [{:keys [x y]} event
+            {:keys [world-ref]} self
+            [selection-node] (n/get-node-inputs self :selection-node)
+            nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
+        (case (selection-mode event)
+          :replace (do (deselect-all selection-node)
+                       (select-nodes selection-node nodes))
+          :toggle (toggle-selection selection-node nodes)))))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]

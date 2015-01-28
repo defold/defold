@@ -18,8 +18,9 @@
 (defrecord TextureLifecycle [^BufferedImage img context-local-data]
   GlBind
   (bind [this gl]
+    (service.log/timed "TextureLifecycle.bind"
     (when-not (get @context-local-data gl)
-      (let [texture ^Texture (AWTTextureIO/newTexture (GLProfile/getGL2GL3) img true)
+      (let [texture ^Texture (service.log/timed "AWTTextureIO/newTexture" (AWTTextureIO/newTexture (GLProfile/getGL2GL3) img true))
             drawable (.getGLDrawable ^GLContext (GLContext/getCurrent))]
         ;; TODO - don't assume GL_TEXTURE0 every time!
         (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)
@@ -37,7 +38,7 @@
               (dispose [this drawable]
                 (unbind this gl))
               (reshape [this drawable x y width height]))))
-        (swap! context-local-data assoc gl texture))))
+        (swap! context-local-data assoc gl texture)))))
 
   (unbind [this gl]
     (when-let [texture ^Texture (get @context-local-data gl)]
