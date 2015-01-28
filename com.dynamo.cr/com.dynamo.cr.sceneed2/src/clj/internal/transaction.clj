@@ -318,11 +318,12 @@
 (defn- determine-autoupdates
   [{:keys [graph outputs-modified] :as ctx}]
   (update-in ctx [:expired-outputs] concat
-             (for [[n vs] outputs-modified
-                   v vs
-                   :let [node (dg/node graph n)]
-                   :when (contains? (t/auto-update-outputs node) v)]
-               [node v])))
+             (doall
+               (for [[n vs] outputs-modified
+                    v vs
+                    :let [node (dg/node graph n)]
+                    :when (and node (contains? (t/auto-update-outputs node) v))]
+                [node v]))))
 
 (deftype TriggerReceiver [transaction-context]
   TransactionReceiver
