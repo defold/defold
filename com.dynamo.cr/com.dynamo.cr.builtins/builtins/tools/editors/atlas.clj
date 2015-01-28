@@ -207,7 +207,6 @@
         right (+ x width)
         bottom (- (:height bounds) y)
         top (- (:height bounds) (+ y height))]
-    (prn 'render-selection-outline :rect rect :gl (type gl))
     (.glColor3ub gl 0x4b 0xff 0x8b)  ; bright green
     (.glBegin gl GL2/GL_LINE_LOOP)
     (.glVertex2i gl left top)
@@ -220,7 +219,6 @@
   [this textureset selection]
   (let [project-root (p/project-root-node this)
         selected (set @selection)]
-    (prn 'selection-outline-renderables :selected selected)
     (vec (keep
            (fn [rect]
              (let [node (t/lookup project-root (:path rect))]
@@ -553,7 +551,6 @@
               {:keys [world-ref]} self
               [selection-node] (n/get-node-inputs self :selection-node)
               nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
-          (prn :SelectionController.mouse-down x y)
           (case (selection-mode event)
             :replace (do (deselect-all selection-node)
                          (select-nodes selection-node nodes))
