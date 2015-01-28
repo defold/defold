@@ -1,6 +1,7 @@
 (ns dynamo.gl
   (:require [dynamo.gl.protocols :as p])
   (:import [java.awt Font]
+           [java.util WeakHashMap]
            [java.nio IntBuffer]
            [javax.media.opengl GL GL2 GLDrawableFactory GLProfile]
            [javax.media.opengl.glu GLU]
@@ -116,6 +117,30 @@
      (finally
        (.release ~ctx))))
 
+(defmacro with-enabled
+  [glsymb gl-stuff & body]
+  (assert (vector? gl-stuff) (str "GL objects must be a vector of values that satisfy GlEnable" gl-stuff))
+  `(let [gl# ~glsymb
+         items# ~gl-stuff]
+     (doseq [b# items#]
+       (when (satisfies? p/GlBind b#)
+         (p/bind b# gl#))
+       (when (satisfies? p/GlEnable b#)
+         (p/enable b# gl#))
+       (let [res# (do ~@body)]
+         (doseq [b# (reverse items#)]
+           (when (satisfies? p/GlEnable b#)
+             (p/disable b# gl#)))
+         res#))))
+
+(defmacro do-gl
+  [glsymb bindings & body]
+  (assert (even? (count bindings)) "Bindings must contain an even number of forms")
+  (let [bound-syms (map first (partition 2 bindings))]
+    `(let ~bindings
+       (with-enabled ~glsymb ~(into [] bound-syms)
+         ~@body))))
+
 (defmacro gl-push-matrix [gl & body]
   `(let [^GL2 gl# ~gl]
      (try
@@ -177,19 +202,7 @@
        (viewport-array ~viewport)
        (int 0))))
 
-(defmacro do-gl
-  [bindings & body]
-  (assert (even? (count bindings)) "Bindings must contain an even number of forms")
-  (let [bound-syms (map first (partition 2 bindings))]
-    `(let ~bindings
-       (doseq [b# ~(into [] bound-syms)]
-         (when (satisfies? p/GlEnable b#)
-           (p/enable b#)))
-       (let [rval# (do ~@body)]
-           (doseq [b# ~(into [] (reverse bound-syms))]
-             (when (satisfies? p/GlDisable b#)
-               (p/disable b#)))
-           rval#))))
+
 
 (defn overlay
   [ctx ^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float scalex ^Float scaley]

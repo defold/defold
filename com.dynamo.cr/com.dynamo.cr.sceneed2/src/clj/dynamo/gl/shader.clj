@@ -1,7 +1,91 @@
 (ns dynamo.gl.shader
+"# Building Shaders
+
+To construct a shader object from .vp and .fp files on disk, use `load-shaders`.
+
+Example:
+
+(load-shaders gl (make-project-path project \"/builtins/tools/atlas/pos_uv\"))
+
+This will look for pos_uv.vp (a vertex shader) and pos_uv.fp (a fragment shader). It will
+load both shaders and link them into a program.
+
+To make a shader object from GLSL strings (either just as literal strings, or created
+via defshader), use `make-shader`
+
+Example
+(defshader frag ,,,)
+(defshader vert ,,,)
+(make-shader [vert] [frag])
+
+This will use all the strings in the first collection as sources for the vertex shader
+and all the strings in the second collection as sources for the fragment shader. If you
+only have one string, you can pass that instead of a collection.
+
+# GLSL Translator
+
+The GLSL translator is derived from Roger Allen's Shadertone project (https://github.com/overtone/shadertone).
+See licenses/shadertone.txt
+
+This is only a single-pass \"lisp\" to GLSL translator.  Very basic.
+If this is useful, then we can work to improve it.
+
+# Basic Forms
+
+Here are the essential forms.
+  * define functions
+    (defn <return-type> <function-name> <function-args-vector> <body-stmt1> ... )
+  * function calls
+    (<name> <arg1> <arg2> ... )
+  * return value
+    (return <statement>)
+  * variable creation/assignment
+    (uniform <type> <name>)
+    (setq <type> <name> <statement>)
+    (setq <name> <statement>)
+  * looping
+    (forloop [ <init-stmt> <test-stmt> <step-stmt> ] <body-stmt1> ... )
+    (while <test-stmt> <body-stmt1> ... )
+    (break)
+    (continue)
+  * conditionals
+    (if <test> <stmt>)
+    (if <test> (do <body-stmt1> ...))
+    (if <test> <stmt> <else-stmt>)
+    (if <test> (do <body-stmt1> ...) (do <else-stmt1> ...))
+  * switch
+    (switch <test> <case-int-1> <case-stmt-1> ...)
+    cases can only be integers or the keyword :default
+
+# Types
+
+Variable types are exactly the GLSL types.
+
+# Examples
+
+The very simplest case, a constant fragment color.
+
+(defshader test-shader
+   (defn void main []
+      (setq gl_FragColor (vec4 1.0 0.5 0.5 1.0))))
+
+Note that the \"defn\" inside of defshader resembles clojure.core/defn, but
+here it specifically means to create a shader function. Note also the return
+type in the declaration.
+
+Here is an example that uses a uniform variable to be set by the application.
+
+(defshader test-shader
+  (uniform vec3 iResolution)
+  (defn void main []
+    (setq vec2 uv (/ gl_FragCoord.xy iResolution.xy))
+    (setq gl_FragColor (vec4 uv.x uv.y 0.0 1.0))))
+
+There are some examples in the testcases in dynamo.shader.translate-test."
   (:require [clojure.walk :as walk]
             [clojure.string :as string]
             [dynamo.buffers :refer [bbuf->string]]
+            [dynamo.gl :as gl]
             [dynamo.geom :as g]
             [dynamo.types :as t]
             [dynamo.gl.protocols :refer :all])
@@ -179,18 +263,23 @@
 ;; ======================================================================
 ;; Public API
 (defn create-shader
+  "Returns a string in GLSL suitable for compilation. Takes a list of forms.
+These forms should be quoted, as if they came from a macro."
   [params]
   (apply str (shader-walk params)))
 
 (defmacro defshader
+  "Macro to define the fragment shader program. Defines a new var whose contents will
+be the return value of `create-shader`.
+
+This must be submitted to the driver for compilation before you can use it. See
+`make-shader`"
   [name & body]
   `(def ~name ~(create-shader body)))
 
-(defprotocol ShaderProgram
-  (shader-program [this]))
-
 (defprotocol ShaderVariables
-  (set-uniform [this name val]))
+  (get-attrib-location [this gl name])
+  (set-uniform [this gl name val]))
 
 (defmulti set-uniform-at-index (fn [_ _ _ val] (class val)))
 
@@ -275,147 +364,51 @@
   (when (not= 0 shader)
     (.glDeleteShader gl shader)))
 
+(defrecord ShaderLifecycle [verts frags context-local-data]
+  GlBind
+  (bind [this gl]
+    (when-not (get @context-local-data gl)
+      (let [vs     (make-vertex-shader gl verts)
+           fs      (make-fragment-shader gl frags)
+           program (make-program gl vs fs)]
+       (delete-shader gl vs)
+       (delete-shader gl fs)
+       (swap! context-local-data assoc gl {:program program}))))
+
+  (unbind [this gl]
+    (when-let [program (get-in @context-local-data [gl :program])]
+      (delete-shader gl program)
+      (swap! @context-local-data dissoc gl)))
+
+  GlEnable
+  (enable [this gl]
+    (when-let [program (get-in @context-local-data [gl :program])]
+      (.glUseProgram ^GL2 gl program)))
+
+  (disable [this gl]
+    (.glUseProgram ^GL2 gl 0))
+
+  ShaderVariables
+  (get-attrib-location [this gl name]
+    (when-let [program (get-in @context-local-data [gl :program])]
+      (gl/gl-get-attrib-location ^GL2 gl program name)))
+
+  (set-uniform [this gl name val]
+    (when-let [program (get-in @context-local-data [gl :program])]
+      (let [loc (.glGetUniformLocation ^GL2 gl program name)]
+        (set-uniform-at-index gl program loc val)))))
+
 (defn make-shader
-  [^GLContext ctx ^GL2 gl verts frags]
-  (let [vs (make-vertex-shader gl verts)
-        fs (make-fragment-shader gl frags)
-        program (make-program gl vs fs)]
-    (delete-shader gl vs)
-    (delete-shader gl fs)
-    (reify
-      ShaderProgram
-      (shader-program [this] program)
-
-      t/IDisposable
-      (dispose [this]
-        (when (not= 0 program)
-          (.glDeleteProgram gl program)))
-
-      GlEnable
-      (enable [this]
-        (.glUseProgram gl program))
-
-      GlDisable
-      (disable [this]
-        (.glUseProgram gl 0))
-
-      ShaderVariables
-      (set-uniform [this name val]
-        (let [loc (.glGetUniformLocation ^GL2 gl program name)]
-          (set-uniform-at-index gl program loc val))))))
+  "Ready a shader program for use by compiling and linking it. Takes a collection
+of GLSL strings and returns an object that satisfies GlBind and GlEnable."
+  [verts frags]
+  (->ShaderLifecycle verts frags (atom {})))
 
 (defn load-shaders
-  [^GLContext ctx ^GL2 gl sdef]
-  (make-shader ctx gl
+  "Load a shader from files. Takes a PathManipulation that can be used to
+locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEnable."
+  [sdef]
+  (make-shader
     (slurp (t/replace-extension sdef "vp"))
     (slurp (t/replace-extension sdef "fp"))))
 
-(doseq [[v doc]
-        {*ns*
-"
-# Building Shaders
-
-To construct a shader object from .vp and .fp files on disk, use `load-shaders`.
-
-Example:
-
-(load-shaders gl (make-project-path project \"/builtins/tools/atlas/pos_uv\"))
-
-This will look for pos_uv.vp (a vertex shader) and pos_uv.fp (a fragment shader). It will
-load both shaders and link them into a program.
-
-To make a shader object from GLSL strings (either just as literal strings, or created
-via defshader), use `make-shader`
-
-Example
-(defshader frag ,,,)
-(defshader vert ,,,)
-(make-shader [vert] [frag])
-
-This will use all the strings in the first collection as sources for the vertex shader
-and all the strings in the second collection as sources for the fragment shader. If you
-only have one string, you can pass that instead of a collection.
-
-# GLSL Translator
-
-The GLSL translator is derived from Roger Allen's Shadertone project (https://github.com/overtone/shadertone).
-See licenses/shadertone.txt
-
-This is only a single-pass \"lisp\" to GLSL translator.  Very basic.
-If this is useful, then we can work to improve it.
-
-# Basic Forms
-
-Here are the essential forms.
-  * define functions
-    (defn <return-type> <function-name> <function-args-vector> <body-stmt1> ... )
-  * function calls
-    (<name> <arg1> <arg2> ... )
-  * return value
-    (return <statement>)
-  * variable creation/assignment
-    (uniform <type> <name>)
-    (setq <type> <name> <statement>)
-    (setq <name> <statement>)
-  * looping
-    (forloop [ <init-stmt> <test-stmt> <step-stmt> ] <body-stmt1> ... )
-    (while <test-stmt> <body-stmt1> ... )
-    (break)
-    (continue)
-  * conditionals
-    (if <test> <stmt>)
-    (if <test> (do <body-stmt1> ...))
-    (if <test> <stmt> <else-stmt>)
-    (if <test> (do <body-stmt1> ...) (do <else-stmt1> ...))
-  * switch
-    (switch <test> <case-int-1> <case-stmt-1> ...)
-    cases can only be integers or the keyword :default
-
-# Types
-
-Variable types are exactly the GLSL types.
-
-# Examples
-
-The very simplest case, a constant fragment color.
-
-(defshader test-shader
-   (defn void main []
-      (setq gl_FragColor (vec4 1.0 0.5 0.5 1.0))))
-
-Note that the \"defn\" inside of defshader resembles clojure.core/defn, but
-here it specifically means to create a shader function. Note also the return
-type in the declaration.
-
-Here is an example that uses a uniform variable to be set by the application.
-
-(defshader test-shader
-  (uniform vec3 iResolution)
-  (defn void main []
-    (setq vec2 uv (/ gl_FragCoord.xy iResolution.xy))
-    (setq gl_FragColor (vec4 uv.x uv.y 0.0 1.0))))
-
-There are some examples in the testcases in dynamo.shader.translate-test."
-
-#'load-shaders
-"Load a shader from files. Takes a PathManipulation that can be used to
-locate the .vp and .fp files. Returns an object that satisifies GlEnable,
-GlDisable, and IDisposable."
-
-#'make-shader
-"Ready a shader program for use by compiling and linking it. Takes a collection
-of GLSL strings and returns an object that satisfies GlEnable, GlDisable, and
-IDisposable."
-
-#'defshader
-"Macro to define the fragment shader program. Defines a new var whose contents will
-be the return value of `create-shader`.
-
-This must be submitted to the driver for compilation before you can use it. See
-`make-shader`"
-
-#'create-shader
-"Returns a string in GLSL suitable for compilation. Takes a list of forms.
-These forms should be quoted, as if they came from a macro."
-         }]
-  (alter-meta! v assoc :doc doc))

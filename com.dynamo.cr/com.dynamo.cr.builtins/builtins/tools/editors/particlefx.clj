@@ -76,17 +76,17 @@
         size-y    (:size-y properties)
         size-z    (:size-z properties)]
     (print "hej")
-    (do-gl [this            (assoc this :gl-context ctx)
-                                this            (assoc this :gl gl)]
-                               ;; Convert into vbo
-                               (.glBegin gl GL/GL_LINES)
-                               (.glVertex3f gl 0.0 0.0 0.0)
-                               (.glVertex3f gl (half size-x) size-y 0.0)
-                               (.glVertex3f gl (half size-x) size-y 0.0)
-                               (.glVertex3f gl (half (- size-x)) size-y 0.0)
-                               (.glVertex3f gl (half (- size-x)) size-y 0.0)
-                               (.glVertex3f gl 0.0 0.0 0.0)
-                               (.glEnd gl))))
+    (do-gl gl [this            (assoc this :gl-context ctx)
+               this            (assoc this :gl gl)]
+      ;; Convert into vbo
+      (.glBegin gl GL/GL_LINES)
+      (.glVertex3f gl 0.0 0.0 0.0)
+      (.glVertex3f gl (half size-x) size-y 0.0)
+      (.glVertex3f gl (half size-x) size-y 0.0)
+      (.glVertex3f gl (half (- size-x)) size-y 0.0)
+      (.glVertex3f gl (half (- size-x)) size-y 0.0)
+      (.glVertex3f gl 0.0 0.0 0.0)
+      (.glEnd gl))))
 
 (defn render-modifier-outlines
   [ctx ^GL2 gl this]
@@ -96,17 +96,17 @@
     (print this)
     (print properties)
     (print scale)
-    (do-gl [this (assoc this :gl-context ctx)
-            this (assoc this :gl gl)]
-           ;; Convert into vbo
-           (.glBegin gl GL/GL_LINES)
-           (.glVertex3f gl 0.0 0.0 0.0)
-           (.glVertex3f gl scale scale 0.0)
-           (.glVertex3f gl scale scale 0.0)
-           (.glVertex3f gl (- scale) scale 0.0)
-           (.glVertex3f gl (- scale) scale 0.0)
-           (.glVertex3f gl 0.0 0.0 0.0)
-           (.glEnd gl))))
+    (do-gl gl [this (assoc this :gl-context ctx)
+               this (assoc this :gl gl)]
+      ;; Convert into vbo
+      (.glBegin gl GL/GL_LINES)
+      (.glVertex3f gl 0.0 0.0 0.0)
+      (.glVertex3f gl scale scale 0.0)
+      (.glVertex3f gl scale scale 0.0)
+      (.glVertex3f gl (- scale) scale 0.0)
+      (.glVertex3f gl (- scale) scale 0.0)
+      (.glVertex3f gl 0.0 0.0 0.0)
+      (.glEnd gl))))
 
 (defnk produce-renderable :- RenderData
   [this renderables]

@@ -1,65 +1,40 @@
 (ns editors.cubemap
-  (:require [clojure.set :refer [union]]
-            [plumbing.core :refer [fnk defnk]]
+  (:require [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
-            [schema.macros :as sm]
             [dynamo.background :as background]
             [dynamo.camera :as c]
             [dynamo.editors :as ed]
-            [dynamo.file :refer :all]
             [dynamo.file.protobuf :as protobuf]
             [dynamo.geom :as g]
-            [dynamo.gl :as gl :refer [do-gl]]
+            [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
             [dynamo.gl.vertex :as vtx]
             [dynamo.grid :as grid]
-            [dynamo.image :as img :refer :all]
+            [dynamo.image :as img]
             [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system :as ds]
-            [dynamo.texture :refer :all]
             [dynamo.types :as t :refer :all]
-            [dynamo.ui :refer :all]
-            [internal.node :as in]
             [internal.render.pass :as pass])
   (:import  [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-            [com.jogamp.opengl.util.awt TextRenderer]
-            [java.nio ByteBuffer]
-            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2]
-            [javax.vecmath Matrix4d Matrix4f Vector4f]
-            [org.eclipse.core.commands ExecutionEvent]
-            [dynamo.types AABB Camera]))
-
-(n/defnode CubemapImageInputs
-  (input image-right  Image)
-  (input image-left   Image)
-  (input image-top    Image)
-  (input image-bottom Image)
-  (input image-front  Image)
-  (input image-back   Image))
-
-(n/defnode CubemapImageProperties
-  (property right  s/Str)
-  (property left   s/Str)
-  (property top    s/Str)
-  (property bottom s/Str)
-  (property front  s/Str)
-  (property back   s/Str))
-
-(n/defnode CubemapImageOutputs
-  (output image-right  Image (fnk [image-right]  image-right))
-  (output image-left   Image (fnk [image-left]   image-left))
-  (output image-top    Image (fnk [image-top]    image-top))
-  (output image-bottom Image (fnk [image-bottom] image-bottom))
-  (output image-front  Image (fnk [image-front]  image-front))
-  (output image-back   Image (fnk [image-back]   image-back)))
+            [javax.vecmath Matrix4d]
+            [dynamo.types AABB Camera Image]))
 
 (vtx/defvertex normal-vtx
   (vec3 position)
   (vec3 normal))
+
+(def unit-sphere
+  (let [lats 16
+        longs 32
+        vbuf (->normal-vtx (* 6 (* lats longs)))]
+    (doseq [face (g/unit-sphere-pos-nrm lats longs)
+            v    face]
+      (conj! vbuf v))
+    (persistent! vbuf)))
 
 (shader/defshader pos-norm-vert
   (uniform mat4 world)
@@ -82,64 +57,34 @@
     (setq vec3 refl (reflect camToV vNormal))
       (setq gl_FragColor (textureCube envMap refl))))
 
-(defnk produce-shader :- s/Int
-  [this gl-context gl]
-  (shader/make-shader gl-context gl pos-norm-vert pos-norm-frag))
-
-(defnk produce-gpu-texture
-  [project this gl image-right image-left image-top image-bottom image-front image-back]
-  (let [texture (texture/image-cubemap-texture gl (:contents image-right) (:contents image-left) (:contents image-top) (:contents image-bottom) (:contents image-front) (:contents image-back))]
-    texture))
-
-(defnk produce-renderable-vertex-buffer
-  []
-  (let [lats 16
-        longs 32
-        vbuf (->normal-vtx (* 6 (* lats longs)))]
-    (doseq [face (g/unit-sphere-pos-nrm lats longs)
-            v    face]
-      (conj! vbuf v))
-    (persistent! vbuf)))
+(def cubemap-shader (shader/make-shader pos-norm-vert pos-norm-frag))
 
 (defn render-cubemap
-  [ctx ^GL2 gl this project world]
-  (do-gl [this            (assoc this :gl-context ctx)
-          this            (assoc this :gl gl)
-          texture         (n/get-node-value this :gpu-texture)
-          shader          (n/get-node-value this :shader)
-          vbuf            (n/get-node-value this :vertex-buffer)
-          vertex-binding  (vtx/use-with gl vbuf shader)
-          camera          (n/get-node-value this :camera)]
-         (shader/set-uniform shader "world" world)
-         (shader/set-uniform shader "cameraPosition" (t/position camera))
-         (shader/set-uniform shader "envMap" (texture/texture-unit-index texture))
-         (gl/gl-enable gl GL/GL_CULL_FACE)
-         (gl/gl-cull-face gl GL/GL_BACK)
-         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
-         (gl/gl-disable gl GL/GL_CULL_FACE)))
+  [^GL2 gl world camera gpu-texture vertex-binding]
+  (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
+    (shader/set-uniform cubemap-shader gl "world" world)
+    (shader/set-uniform cubemap-shader gl "cameraPosition" (t/position camera))
+    (shader/set-uniform cubemap-shader gl "envMap" (texture/texture-unit-index gpu-texture))
+    (gl/gl-enable gl GL/GL_CULL_FACE)
+    (gl/gl-cull-face gl GL/GL_BACK)
+    (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
+    (gl/gl-disable gl GL/GL_CULL_FACE)))
 
 (defnk produce-renderable :- RenderData
-  [this project vertex-buffer]
+  [this camera gpu-texture vertex-binding]
   (let [world (Matrix4d. g/Identity4d)]
     {pass/transparent
      [{:world-transform world
-       :render-fn       (fn [ctx gl glu text-renderer] (render-cubemap ctx gl this project world))}]}))
-
-(defnk unit-bounding-box
-  []
-  (-> (g/null-aabb)
-    (g/aabb-incorporate  1  1  1)
-    (g/aabb-incorporate -1 -1 -1)))
+       :render-fn       (fn [ctx gl glu text-renderer] (render-cubemap gl world camera gpu-texture vertex-binding))}]}))
 
 (n/defnode CubemapRender
-  (inherits CubemapImageInputs)
+  (input gpu-texture s/Any)
+
   (input  camera        Camera)
-  (output camera        Camera             (fnk [camera] camera))
-  (output shader        s/Any      :cached produce-shader)
-  (output vertex-buffer s/Any      :cached produce-renderable-vertex-buffer)
-  (output gpu-texture   s/Any      :cached produce-gpu-texture)
+
+  (output vertex-binding s/Any     :cached (fnk [] (vtx/use-with unit-sphere cubemap-shader)))
   (output renderable    RenderData :cached produce-renderable)
-  (output aabb          AABB               unit-bounding-box))
+  (output aabb          AABB               (fnk [] g/unit-bounding-box)))
 
 (def ^:private cubemap-inputs
   {:right  :image-right
@@ -149,11 +94,28 @@
    :front  :image-front
    :back   :image-back})
 
+(defnk produce-gpu-texture
+  [image-right image-left image-top image-bottom image-front image-back]
+  (apply texture/image-cubemap-texture (map :contents [image-right image-left image-top image-bottom image-front image-back])))
+
 (n/defnode CubemapNode
   (inherits n/OutlineNode)
-  (inherits CubemapImageProperties)
-  (inherits CubemapImageInputs)
-  (inherits CubemapImageOutputs)
+
+  (property right  s/Str)
+  (property left   s/Str)
+  (property top    s/Str)
+  (property bottom s/Str)
+  (property front  s/Str)
+  (property back   s/Str)
+
+  (input image-right  Image)
+  (input image-left   Image)
+  (input image-top    Image)
+  (input image-bottom Image)
+  (input image-front  Image)
+  (input image-back   Image)
+
+  (output gpu-texture   s/Any      :cached produce-gpu-texture)
 
   (on :load
     (let [project         (:project event)
@@ -164,10 +126,6 @@
           (ds/connect img-node :image self (cubemap-inputs side))
           (ds/connect img-node :tree  self :children))))))
 
-(defn- connect-cubemap-inputs [source-node dest-node]
-  (doseq [label (vals cubemap-inputs)]
-    (ds/connect source-node label dest-node label)))
-
 (defn on-edit
   [project-node editor-site cubemap]
   (let [editor (n/construct ed/SceneEditor :name "editor")]
@@ -176,15 +134,15 @@
             background     (ds/add (n/construct background/Gradient))
             grid           (ds/add (n/construct grid/Grid))
             camera         (ds/add (n/construct c/CameraController :camera (c/make-camera :orthographic)))]
-        (connect-cubemap-inputs cubemap cubemap-render)
-        (ds/connect camera         :camera     grid           :camera)
-        (ds/connect camera         :camera     editor         :view-camera)
-        (ds/connect camera         :self       editor         :controller)
-        (ds/connect background     :renderable editor         :renderables)
-        (ds/connect cubemap-render :renderable editor         :renderables)
-        (ds/connect camera         :camera     cubemap-render :camera)
-        (ds/connect grid           :renderable editor         :renderables)
-        (ds/connect cubemap-render :aabb       editor         :aabb))
+        (ds/connect cubemap        :gpu-texture cubemap-render :gpu-texture)
+        (ds/connect camera         :camera      grid           :camera)
+        (ds/connect camera         :camera      editor         :view-camera)
+        (ds/connect camera         :self        editor         :controller)
+        (ds/connect background     :renderable  editor         :renderables)
+        (ds/connect cubemap-render :renderable  editor         :renderables)
+        (ds/connect camera         :camera      cubemap-render :camera)
+        (ds/connect grid           :renderable  editor         :renderables)
+        (ds/connect cubemap-render :aabb        editor         :aabb))
       editor)))
 
 (when (ds/in-transaction?)

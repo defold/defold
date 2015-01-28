@@ -10,7 +10,7 @@
             [dynamo.editors :as ed]
             [dynamo.file :as file]
             [dynamo.file.protobuf :as protobuf :refer [pb->str]]
-            [dynamo.geom :as g :refer [to-short-uv]]
+            [dynamo.geom :as g]
             [dynamo.gl :as gl]
             [dynamo.gl.shader :as shader]
             [dynamo.gl.texture :as texture]
@@ -23,7 +23,7 @@
             [dynamo.selection :as sel]
             [dynamo.system :as ds]
             [internal.ui.scene-editor :as ius]
-            [dynamo.texture :refer :all]
+            [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
             [internal.render.pass :as pass])
@@ -55,46 +55,30 @@
 
 (declare tex-outline-vertices)
 
-(defnk produce-animation :- Animation
-  [this images :- [Image] id fps flip-horizontal flip-vertical playback]
-  (->Animation id images fps flip-horizontal flip-vertical playback))
-
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
-  (inherits AnimationBehavior)
 
-  (output animation Animation produce-animation)
+  (input images [Image])
+
+  (property fps             dp/NonNegativeInt (default 30))
+  (property flip-horizontal s/Bool)
+  (property flip-vertical   s/Bool)
+  (property playback        AnimationPlayback (default :PLAYBACK_ONCE_FORWARD))
+
+  (output animation Animation
+    (fnk [this id images :- [Image] fps flip-horizontal flip-vertical playback]
+      (->Animation id images fps flip-horizontal flip-vertical playback)))
 
   (property id s/Str))
 
-(sm/defn ^:private consolidate :- [Image]
-  [images :- [Image] containers :- [{:images [Image]}]]
-  (seq (apply union
-              (into #{} images)
-              (map #(into #{} (:images %)) containers))))
+(defn- consolidate
+  [images animations]
+  (seq (into #{} (flatten (concat images (map :images animations))))))
 
 (defnk produce-textureset :- TextureSet
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
-  (-> (pack-textures margin extrude-borders (consolidate images animations))
-    (assoc :animations animations)))
-
-(defnk produce-aabb :- AABB
-  [this]
-  (let [textureset (n/get-node-value this :textureset)]
-    (g/rect->aabb (:aabb textureset))))
-
-(n/defnode AtlasProperties
-  (inherits n/DirtyTracking)
-
-  (input assets [OutlineItem])
-  (input images [Image])
-  (input animations [Animation])
-
-  (property margin          dp/NonNegativeInt (default 0))
-  (property extrude-borders dp/NonNegativeInt (default 0))
-
-  (output textureset TextureSet :cached :substitute-value (blank-textureset) produce-textureset)
-  (output aabb       AABB               produce-aabb))
+  (let [textureset (tex/pack-textures margin extrude-borders (consolidate images animations))]
+    (assoc textureset :animations animations)))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
@@ -128,27 +112,13 @@
     (file/write-file filename (.getBytes text))
     :ok))
 
-(n/defnode AtlasSave
-  (inherits n/ResourceNode)
-  (inherits n/Saveable)
-
-  (property filename (s/protocol PathManipulation) (visible false))
-
-  (output save s/Keyword save-atlas-file)
-  (output text-format s/Str get-text-format))
-
 (defn vertex-starts [n-vertices] (take n-vertices (take-nth 6 integers)))
 (defn vertex-counts [n-vertices] (take n-vertices (repeat (int 6))))
 
 (defn render-overlay
-  [ctx ^GL2 gl ^TextRenderer text-renderer this]
-  (let [textureset ^TextureSet (n/get-node-value this :textureset)
-        image      ^BufferedImage (.packed-image textureset)]
+  [ctx ^GL2 gl ^TextRenderer text-renderer textureset]
+  (let [image ^BufferedImage (.packed-image textureset)]
     (gl/overlay ctx gl text-renderer (format "Size: %dx%d" (.getWidth image) (.getHeight image)) 12.0 -22.0 1.0 1.0)))
-
-(defnk produce-gpu-texture
-  [this gl textureset]
-  (texture/image-texture gl (:packed-image textureset)))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -164,67 +134,52 @@
   (defn void main []
     (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
 
-(defnk produce-shader :- s/Int
-  [this gl ctx]
-  (shader/make-shader ctx gl pos-uv-vert pos-uv-frag))
+(def atlas-shader (shader/make-shader pos-uv-vert pos-uv-frag))
 
 (defn render-textureset
-  [ctx gl this]
-  (gl/do-gl [this            (assoc this :gl gl :ctx ctx)
-             textureset      (n/get-node-value this :textureset)
-             texture         (n/get-node-value this :gpu-texture)
-             shader          (n/get-node-value this :shader)
-             vbuf            (n/get-node-value this :vertex-buffer)
-             vertex-binding  (vtx/use-with gl vbuf shader)]
-    (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
+  [ctx gl textureset vertex-binding gpu-texture]
+  (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
 (defn render-quad
-  [ctx gl this i]
-  (gl/do-gl [this            (assoc this :gl gl :ctx ctx)
-             textureset      (n/get-node-value this :textureset)
-             texture         (n/get-node-value this :gpu-texture)
-             shader          (n/get-node-value this :shader)
-             vbuf            (n/get-node-value this :vertex-buffer)
-             vertex-binding  (vtx/use-with gl vbuf shader)]
-    (shader/set-uniform shader "texture" (texture/texture-unit-index texture))
-    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
+  [ctx gl textureset vertex-binding gpu-texture i]
+  (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
+   (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+   (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
 
 (defn selection-renderables
-  [this textureset]
+  [this textureset vertex-binding gpu-texture]
   (let [project-root (p/project-root-node this)]
     (map-indexed (fn [i rect]
                    {:world-transform g/Identity4d
                     :select-name (:_id (t/lookup project-root (:path rect)))
-                    :render-fn (fn [ctx gl glu text-renderer] (render-quad ctx gl this i))})
+                    :render-fn (fn [ctx gl glu text-renderer] (render-quad ctx gl textureset vertex-binding gpu-texture i))})
                  (:coords textureset))))
 
 (defnk produce-renderable :- RenderData
-  [this textureset]
+  [this textureset vertex-binding gpu-texture]
   {pass/overlay
    [{:world-transform g/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this))}]
+     :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer textureset))}]
    pass/transparent
    [{:world-transform g/Identity4d
-     :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]
+     :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl textureset vertex-binding gpu-texture))}]
    pass/selection
-   (selection-renderables this textureset)})
+   (selection-renderables this textureset vertex-binding gpu-texture)})
 
 (defnk produce-renderable-vertex-buffer
-  [this gl textureset]
-  (let [shader     (n/get-node-value this :shader)
-        bounds     (:aabb textureset)
-        coords     (:coords textureset)
-        vbuf       (->texture-vtx (* 6 (count coords)))
-        x-scale    (/ 1.0 (.width bounds))
-        y-scale    (/ 1.0 (.height bounds))]
+  [[:textureset aabb coords]]
+  (let [vbuf       (->texture-vtx (* 6 (count coords)))
+        x-scale    (/ 1.0 (.width aabb))
+        y-scale    (/ 1.0 (.height aabb))]
     (doseq [coord coords]
       (let [w  (.width coord)
             h  (.height coord)
             x0 (.x coord)
-            y0 (- (.height bounds) (.y coord)) ;; invert for screen
+            y0 (- (.height aabb) (.y coord)) ;; invert for screen
             x1 (+ x0 w)
-            y1 (- (.height bounds) (+ (.y coord) h))
+            y1 (- (.height aabb) (+ (.y coord) h))
             u0 (* x0 x-scale)
             v0 (* y0 y-scale)
             u1 (* x1 x-scale)
@@ -240,21 +195,17 @@
     (persistent! vbuf)))
 
 (defnk produce-outline-vertex-buffer
-  [this gl]
-  (let [textureset (n/get-node-value this :textureset)
-        shader     (n/get-node-value this :shader)
-        bounds     (:aabb textureset)
-        coords     (:coords textureset)
-        vbuf       (->texture-vtx (* 6 (count coords)))
-        x-scale    (/ 1.0 (.width bounds))
-        y-scale    (/ 1.0 (.height bounds))]
+  [[:textureset aabb coords]]
+  (let [vbuf       (->texture-vtx (* 6 (count coords)))
+        x-scale    (/ 1.0 (.width aabb))
+        y-scale    (/ 1.0 (.height aabb))]
     (doseq [coord coords]
       (let [w  (.width coord)
             h  (.height coord)
             x0 (.x coord)
-            y0 (- (.height bounds) (.y coord)) ;; invert for screen
+            y0 (- (.height aabb) (.y coord)) ;; invert for screen
             x1 (+ x0 w)
-            y1 (- (.height bounds) (+ y0 h))
+            y1 (- (.height aabb) (+ y0 h))
             u0 (* x0 x-scale)
             v0 (* y0 y-scale)
             u1 (* x1 x-scale)
@@ -266,29 +217,22 @@
           (conj! [x1 y0 0 1 u1 (- 1 v0)]))))
     (persistent! vbuf)))
 
-(defnk passthrough-textureset
-  [textureset]
-  textureset)
-
 (n/defnode AtlasRender
-  (input  textureset s/Any)
+  (input gpu-texture s/Any)
+  (input textureset s/Any)
 
-  (output textureset s/Any            :cached passthrough-textureset)
-  (output shader s/Any                :cached produce-shader)
   (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
   (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
-  (output gpu-texture s/Any           :cached produce-gpu-texture)
+  (output vertex-binding s/Any        :cached (fnk [vertex-buffer] (vtx/use-with vertex-buffer atlas-shader)))
   (output renderable RenderData       produce-renderable))
 
 (def ^:private outline-vertices-per-placement 4)
 (def ^:private vertex-size (.getNumber TextureSetProto$Constants/VERTEX_SIZE))
 
 (sm/defn textureset->texcoords
-  [textureset]
+  [{:keys [coords] :as textureset}]
   (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
         y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
-        coords     (:coords textureset)
-        bounds     (:aabb textureset)
         vbuf       (->uv-only (* 2 (count coords)))]
     (doseq [coord coords]
       (let [x0 (.x coord)
@@ -305,11 +249,9 @@
     (persistent! vbuf)))
 
 (sm/defn textureset->vertices
-  [textureset]
+  [{:keys [coords] :as textureset}]
   (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
         y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
-        coords     (:coords textureset)
-        bounds     (:aabb textureset)
         vbuf       (->engine-format-texture (* 6 (count coords)))]
     (doseq [coord coords]
       (let [x0 (.x coord)
@@ -318,10 +260,10 @@
             y1 (+ (.y coord) (.height coord))
             w2 (* (.width coord) 0.5)
             h2 (* (.height coord) 0.5)
-            u0 (to-short-uv (* x0 x-scale))
-            u1 (to-short-uv (* x1 x-scale))
-            v0 (to-short-uv (* y0 y-scale))
-            v1 (to-short-uv (* y1 y-scale))]
+            u0 (g/to-short-uv (* x0 x-scale))
+            u1 (g/to-short-uv (* x1 x-scale))
+            v0 (g/to-short-uv (* y0 y-scale))
+            v1 (g/to-short-uv (* y1 y-scale))]
         (doto vbuf
           (conj! [(- w2) (- h2) 0 u0 v1])
           (conj! [   w2  (- h2) 0 u1 v1])
@@ -346,10 +288,10 @@
             y1 (+ (.y coord) (.height coord))
             w2 (* (.width coord) 0.5)
             h2 (* (.height coord) 0.5)
-            u0 (to-short-uv (* x0 x-scale))
-            u1 (to-short-uv (* x1 x-scale))
-            v0 (to-short-uv (* y0 y-scale))
-            v1 (to-short-uv (* y1 y-scale))]
+            u0 (g/to-short-uv (* x0 x-scale))
+            u1 (g/to-short-uv (* x1 x-scale))
+            v0 (g/to-short-uv (* y0 y-scale))
+            v1 (g/to-short-uv (* y1 y-scale))]
         (doto vbuf
           (conj! [(- w2) (- h2) 0 u0 v1])
           (conj! [   w2  (- h2) 0 u1 v1])
@@ -359,7 +301,6 @@
 
 (defn build-animation
   [anim begin]
-  #_(s/validate Animation anim)
   (let [start     (int begin)
         end       (int (+ begin (* 6 (count (:images anim)))))]
     (.build
@@ -401,12 +342,10 @@
     (map #(extract-image-coords idx %) animations)))
 
 (defn texturesetc-protocol-buffer
-  [texture-name textureset]
+  [texture-name {:keys [coords] :as textureset}]
   #_(s/validate TextureSet textureset)
   (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
         y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
-        coords     (:coords textureset)
-        bounds     (:aabb textureset)
         anims      (remove #(empty? (:images %)) (.animations textureset))
         acoords    (get-animation-image-coords coords anims)
         n-rects    (count coords)
@@ -451,7 +390,7 @@
 (defnk compile-texturec :- s/Bool
   [this g project textureset :- TextureSet]
   (file/write-file (:texture-filename this)
-    (.toByteArray (texturec-protocol-buffer (->engine-format (:packed-image textureset)))))
+    (.toByteArray (texturec-protocol-buffer (tex/->engine-format (:packed-image textureset)))))
   :ok)
 
 (n/defnode TextureSave
@@ -553,18 +492,19 @@
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
               controller   (ds/add (n/construct BroadcastController))
               selector     (ds/add (n/construct SelectionController))]
-          (ds/connect atlas-node   :textureset atlas-render :textureset)
-          (ds/connect camera       :camera     grid         :camera)
-          (ds/connect camera       :camera     editor       :view-camera)
-          (ds/connect camera       :self       controller   :controllers)
-          (ds/connect selector     :self       controller   :controllers)
-          (ds/connect atlas-render :renderable selector     :renderables)
-          (ds/connect camera       :camera     selector     :view-camera)
-          (ds/connect controller   :self       editor       :controller)
-          (ds/connect background   :renderable editor       :renderables)
-          (ds/connect atlas-render :renderable editor       :renderables)
-          (ds/connect grid         :renderable editor       :renderables)
-          (ds/connect atlas-node   :aabb       editor       :aabb))
+          (ds/connect atlas-node   :textureset  atlas-render :textureset)
+          (ds/connect atlas-node   :gpu-texture atlas-render :gpu-texture)
+          (ds/connect camera       :camera      grid         :camera)
+          (ds/connect camera       :camera      editor       :view-camera)
+          (ds/connect camera       :self        controller   :controllers)
+          (ds/connect selector     :self        controller   :controllers)
+          (ds/connect atlas-render :renderable  selector     :renderables)
+          (ds/connect camera       :camera      selector     :view-camera)
+          (ds/connect controller   :self        editor       :controller)
+          (ds/connect background   :renderable  editor       :renderables)
+          (ds/connect atlas-render :renderable  editor       :renderables)
+          (ds/connect grid         :renderable  editor       :renderables)
+          (ds/connect atlas-node   :aabb        editor       :aabb))
         editor)))
 
 (defn- bind-image-connections
@@ -617,9 +557,41 @@
       (ds/delete compiler))))
 
 (n/defnode AtlasNode
+  "This node represents an actual Atlas. It accepts a collection
+   of images and animations. It emits a packed textureset.
+
+   Inputs:
+   images `[dynamo.types/Image]` - A collection of images that will be packed into the atlas.
+   animations `[dynamo.types/Animation]` - A collection of animations that will be packed into the atlas.
+
+   Properties:
+   margin - Integer, must be zero or greater. The number of pixels of transparent space to leave between textures.
+   extrude-borders - Integer, must be zero or greater. The number of pixels for which the outer edge of each texture will be duplicated.
+
+   The margin fits outside the extruded border.
+
+   Outputs
+   aabb `dynamo.types.AABB` - The AABB of the packed texture, in pixel space.
+   gpu-texture `Texture` - A wrapper for the BufferedImage with the actual pixels. Conforms to the right protocols so you can directly use this in rendering.
+   text-format `String` - A saveable representation of the atlas, its animations, and images. Built as a text-formatted protocol buffer.
+   textureset `[dynamo.types/TextureSet]` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.\"
+   "
   (inherits n/OutlineNode)
-  (inherits AtlasProperties)
-  (inherits AtlasSave)
+  (inherits n/ResourceNode)
+  (inherits n/Saveable)
+
+  (input images [Image])
+  (input animations [Animation])
+
+  (property margin          dp/NonNegativeInt (default 0))
+  (property extrude-borders dp/NonNegativeInt (default 0))
+  (property filename (s/protocol PathManipulation) (visible false))
+
+  (output aabb        AABB               (fnk [textureset] (g/rect->aabb (:aabb textureset))))
+  (output gpu-texture s/Any      :cached (fnk [textureset] (texture/image-texture (:packed-image textureset))))
+  (output save        s/Keyword          save-atlas-file)
+  (output text-format s/Str              get-text-format)
+  (output textureset  TextureSet :cached :substitute-value (tex/blank-textureset) produce-textureset)
 
   (on :load
     (doto self

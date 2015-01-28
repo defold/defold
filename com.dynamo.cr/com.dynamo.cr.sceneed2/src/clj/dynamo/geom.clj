@@ -10,6 +10,12 @@
 
 (defn clamper [low high] (fn [x] (min (max x low) high)))
 
+(defn lift-f1 [op] (fn [c xs] (into (empty xs) (for [x xs] (op c x)))))
+
+(def *& (lift-f1 *))
+(def +& (lift-f1 +))
+(def -& (lift-f1 -))
+
 ; -------------------------------------
 ; 2D geometry
 ; -------------------------------------
@@ -203,7 +209,7 @@
             (/ (+ (-> aabb min-p .z) (-> aabb max-p .z)) 2.0)))
 
 (sm/defn rect->aabb :- AABB
-  [^Rect bounds :- Rect ]
+  [^Rect bounds :- Rect]
   (assert bounds "rect->aabb require boundaries")
   (let [x1 (.x bounds)
         y1 (.y bounds)
@@ -213,9 +219,15 @@
         (aabb-incorporate (Point3d. x1 y1 0))
         (aabb-incorporate (Point3d. x2 y2 0)))))
 
+(def unit-bounding-box
+  (-> (null-aabb)
+    (aabb-incorporate  1  1  1)
+    (aabb-incorporate -1 -1 -1)))
+
 ; -------------------------------------
 ; Primitive shapes as vertex arrays
 ; -------------------------------------
+
 
 (sm/defn unit-sphere-pos-nrm [lats longs]
   (for [lat-i (range lats)
@@ -232,3 +244,6 @@
                         long-idx [long-i (inc long-i)]]
                     (make-vertex (lat-angle (/ lat-idx lats)) (long-angle (/ long-idx longs))))]
                 (map #(nth vertices %) [0 1 2 1 3 2]))))
+
+
+

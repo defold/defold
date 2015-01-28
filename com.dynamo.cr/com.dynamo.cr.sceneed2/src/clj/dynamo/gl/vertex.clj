@@ -1,9 +1,31 @@
 (ns dynamo.gl.vertex
+  "This namespace contains macros and functions to deal with vertex buffers.
+
+The first step is to define a vertex format using the `defvertex` macro.
+That macro uses a micro-language similar to GLSL attribute declarations to
+describe the vertex attributes and how they will lay out in memory.
+
+The macro also defines a factory function to create vertex buffers with
+that format. Given `(defvertex loc+tex ,,,)`, a factory function called
+`->loc+tex` will be created. That factory function requires a capacity
+argument, which is the number of vertices for which it will allocate memory.
+
+The factory function returns a vertex buffer object that acts exactly like
+a Clojure transient vector. You use the core library functions conj!, set!,
+assoc!, etc. to place vertices in the buffer. Before using the buffer in
+rendering, however, you must make it persistent with the `persistent!`
+function. After that, no more modifications are allowed. (Please note that
+`persistent!` creates a new object that shares the same underlying memory.
+There are no bulk memory copies needed.)
+
+After the vertex is populated, you can bind its data to shader attributes
+using the `use-with` function. This returns a binding suitable for use in
+the `do-gl` macro from `dynamo.gl`."
   (:require [clojure.string :as str]
             [dynamo.buffers :as b]
             [dynamo.types :refer [IDisposable dispose]]
             [dynamo.gl.protocols :refer :all]
-            [dynamo.gl.shader :refer [shader-program]]
+            [dynamo.gl.shader :as shader]
             [dynamo.gl :as gl])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
            [java.nio ByteBuffer]
@@ -305,6 +327,44 @@
     :attributes ~(mapv compile-attribute defs)})
 
 (defmacro defvertex
+  "This macro creates a new vertex buffer layout definition with the given name.
+
+  The layout is defined by a micro-language that resembles GLSL attribute
+  declarations. The layout forms will be used later to locate and bind to
+  shader attributes.
+
+  Each layout form has the shape (attribute-type name & [normalized]).
+
+  attribute-type is like X.Y, where X can be 'vec1', 'vec2', 'vec3', or 'vec4'.
+  Y is the component type. It can be 'byte', 'short', 'int', 'float', or 'double'.
+
+  Because 'float' is the most common component type, it will be assumed if you
+  leave it off.
+
+  Normalized is optional. It defaults to false.
+
+  Example: a vertex has x, y, z location, plus u, v texture coords. All are float.
+
+  (defvertex location+texture
+     (vec3 location)
+     (vec2 texcoord))
+
+  Example: a vertex has a 4-vector for location, u, v texture coords as normalized
+  shorts, plus a normal vector and a specular color.
+
+  (defvertex materialized
+     (vec4        location)
+     (vec2.short  texture)
+     (vec3        normal)
+     (vec4.double specularity))
+
+  You can specify a memory layout with the keywords :interleaved or :chunked right
+  after the name. The default memory layout for a vertex is interleaved
+  (array-of-structs style.) Chunked layout is struct-of-arrays style.
+
+  This macro creates a factory function with `->` prepended to the vertex format name.
+  The factory function takes one integer for the number of vertices for which it will
+  allocate memory."
   [nm & more]
   (let [packing      (if (keyword? (first more)) (first more) :interleaved)
         more         (if (keyword? (first more)) (rest more) more)
@@ -324,10 +384,10 @@
 (defn- vertex-enable-attrib
   [^GL2 gl shader attrib stride offset]
   (let [[nm sz tp & more] attrib
-        loc               (gl/gl-get-attrib-location gl shader (name nm))
+        loc               (shader/get-attrib-location shader gl (name nm))
         norm              (if (not (nil? (first more))) (first more) false)]
     (when (not= -1 loc)
-      (gl/gl-vertex-attrib-pointer gl loc ^int sz ^int (gl-types tp) ^boolean norm ^int stride ^long offset)
+      (gl/gl-vertex-attrib-pointer gl ^int loc ^int sz ^int (gl-types tp) ^boolean norm ^int stride ^long offset)
       (gl/gl-enable-vertex-attrib-array gl loc)
       loc)))
 
@@ -351,106 +411,49 @@
   (doseq [l locs]
     (vertex-disable-attrib gl l)))
 
+(defrecord VertexBufferShaderLink [^PersistentVertexBuffer vertex-buffer shader context-local-data]
+  GlBind
+  (bind [this gl]
+    (when-not (get @context-local-data gl)
+      (let [buffer-name (first (gl/gl-gen-buffers gl 1))]
+        (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)
+        (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit ^ByteBuffer (.buffer vertex-buffer)) (.buffer vertex-buffer) GL2/GL_STATIC_DRAW)
+        (swap! context-local-data assoc gl {:buffer-name buffer-name
+                                            :attrib-locs (vertex-enable-attribs gl shader (:attributes (.layout vertex-buffer)))}))))
+
+  (unbind [this gl]
+    (when-let [{:keys [buffer-name attrib-locs]} (get @context-local-data gl)]
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)
+      (vertex-disable-attribs gl attrib-locs)
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)
+      (when (not= 0 @buffer-name)
+        (gl/gl-delete-buffers ^GL2 gl buffer-name))
+      (swap! context-local-data dissoc gl)))
+
+  GlEnable
+  (enable [this gl]
+    (when-let [{:keys [buffer-name]} (get @context-local-data gl)]
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER buffer-name)))
+
+  (disable [this gl]
+    (when (get @context-local-data gl)
+      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
+
+  IDisposable
+  (dispose [this]
+    (println :VertexBufferShaderLink.dispose)))
+
 (defn use-with
-  [^GL2 gl ^PersistentVertexBuffer vertex-buffer shader]
-  (let [byte-count  (.limit ^ByteBuffer (.buffer vertex-buffer))
-        attribs     (:attributes (.layout vertex-buffer))
-        buffer-name (first (gl/gl-gen-buffers gl 1))
-        _           (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER buffer-name)
-        _           (gl/gl-buffer-data gl GL/GL_ARRAY_BUFFER byte-count (.buffer vertex-buffer) GL2/GL_STATIC_DRAW)
-        locs        (vertex-enable-attribs gl (shader-program shader) attribs)]
-    (reify
-      GlEnable
-      (enable [this]
-        (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER buffer-name))
+  "Prepare a vertex buffer to be used in rendering by binding its attributes to
+  the given shader's attributes. Matching is done by attribute names. An
+  attribute that exists in the vertex buffer but is not used by the shader will
+  simply be ignored.
 
-      GlDisable
-      (disable [this]
-        (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
+  At the time when `use-with` is called, it binds the buffer to GL as a GL_ARRAY_BUFFER.
+  This is also when it binds attribs to the shader.
 
-      IDisposable
-      (dispose [this]
-        (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER buffer-name)
-        (vertex-disable-attribs gl locs)
-        (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
-        (when (not= 0 buffer-name)
-          (gl/gl-delete-buffers gl buffer-name))))))
+  This function returns an object that satisfies dynamo.gl.protocols/GlEnable,
+  dynamo.gl.protocols/GlDisable."
+  [^PersistentVertexBuffer vertex-buffer shader]
+  (->VertexBufferShaderLink vertex-buffer shader (atom {})))
 
-(doseq [[v doc]
-        {*ns*
-         "This namespace contains macros and functions to deal with vertex buffers.
-
-          The first step is to define a vertex format using the `defvertex` macro.
-          That macro uses a micro-language similar to GLSL attribute declarations to
-          describe the vertex attributes and how they will lay out in memory.
-
-          The macro also defines a factory function to create vertex buffers with
-          that format. Given `(defvertex loc+tex ,,,)`, a factory function called
-          `->loc+tex` will be created. That factory function requires a capacity
-          argument, which is the number of vertices for which it will allocate memory.
-
-          The factory function returns a vertex buffer object that acts exactly like
-          a Clojure transient vector. You use the core library functions conj!, set!,
-          assoc!, etc. to place vertices in the buffer. Before using the buffer in
-          rendering, however, you must make it persistent with the `persistent!`
-          function. After that, no more modifications are allowed. (Please note that
-          `persistent!` creates a new object that shares the same underlying memory.
-          There are no bulk memory copies needed.)
-
-          After the vertex is populated, you can bind its data to shader attributes
-          using the `use-with` function. This returns a binding suitable for use in
-          the `do-gl` macro from `dynamo.gl`."
-
-         #'defvertex
-         "This macro creates a new vertex buffer layout definition with the given name.
-
-          The layout is defined by a micro-language that resembles GLSL attribute
-          declarations. The layout forms will be used later to locate and bind to
-          shader attributes.
-
-          Each layout form has the shape (attribute-type name & [normalized]).
-
-          attribute-type is like X.Y, where X can be 'vec1', 'vec2', 'vec3', or 'vec4'.
-          Y is the component type. It can be 'byte', 'short', 'int', 'float', or 'double'.
-
-          Because 'float' is the most common component type, it will be assumed if you
-          leave it off.
-
-          Normalized is optional. It defaults to false.
-
-          Example: a vertex has x, y, z location, plus u, v texture coords. All are float.
-
-          (defvertex location+texture
-             (vec3 location)
-             (vec2 texcoord))
-
-          Example: a vertex has a 4-vector for location, u, v texture coords as normalized
-          shorts, plus a normal vector and a specular color.
-
-          (defvertex materialized
-             (vec4        location)
-             (vec2.short  texture)
-             (vec3        normal)
-             (vec4.double specularity))
-
-          You can specify a memory layout with the keywords :interleaved or :chunked right
-          after the name. The default memory layout for a vertex is interleaved
-          (array-of-structs style.) Chunked layout is struct-of-arrays style.
-
-          This macro creates a factory function with `->` prepended to the vertex format name.
-          The factory function takes one integer for the number of vertices for which it will
-          allocate memory."
-
-         #'use-with
-         "Prepare a vertex buffer to be used in rendering by binding its attributes to
-          the given shader's attributes. Matching is done by attribute names. An
-          attribute that exists in the vertex buffer but is not used by the shader will
-          simply be ignored.
-
-          At the time when `use-with` is called, it binds the buffer to GL as a GL_ARRAY_BUFFER.
-          This is also when it binds attribs to the shader.
-
-          This function returns an object that satisfies dynamo.gl.protocols/GlEnable,
-          dynamo.gl.protocols/GlDisable, and dynamo.types/IDisposable. You must ensure
-          that `dispose` is called to free GPU memory eventually."}]
-  (alter-meta! v assoc :doc doc))
