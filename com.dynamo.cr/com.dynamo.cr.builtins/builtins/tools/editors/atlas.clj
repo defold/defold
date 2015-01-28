@@ -217,9 +217,8 @@
     (.glEnd gl)))
 
 (defn selection-outline-renderables
-  [this textureset]
+  [this textureset selection]
   (let [project-root (p/project-root-node this)
-        [selection] (n/get-node-inputs this :selection)
         selected (set @selection)]
     (prn 'selection-outline-renderables :selected selected)
     (vec (keep
@@ -232,7 +231,7 @@
            (:coords textureset)))))
 
 (defnk produce-renderable :- RenderData
-  [this textureset]
+  [this textureset selection]
   {pass/overlay
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer this))}]
@@ -240,7 +239,7 @@
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl this))}]
    pass/outline
-   (selection-outline-renderables this textureset)
+   (selection-outline-renderables this textureset selection)
    pass/selection
    (selection-renderables this textureset)})
 
