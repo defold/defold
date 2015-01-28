@@ -80,14 +80,4 @@
                                                     :textureset-filename (file/native-path (.getPath texturesetc)))))]
         (ds/transactional (ds/connect atlas :textureset compiler :textureset))
         (is (= :ok (n/get-node-value compiler :texturec)))
-        (is (= :ok (n/get-node-value compiler :texturesetc)))
-        ))
-    ))
-
-;(let [path (:filename self)
-;        compiler (ds/add (n/construct TextureSave
-;                           :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
-;                           :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturesetc")) path)
-;                           :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturec")) path)))]
-;    (ds/connect self :textureset compiler :textureset)
-;    self)
+        (is (= :ok (n/get-node-value compiler :texturesetc)))))))
