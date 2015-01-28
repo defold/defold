@@ -93,7 +93,7 @@
             (.setFps                 (.fps animation))
             (protobuf/set-if-present :flip-horizontal animation)
             (protobuf/set-if-present :flip-vertical animation)
-            (.setPlayback            (protobuf/val->pb-enum Tile$Playback (.playback animation))))))
+            (protobuf/set-if-present :playback animation (partial protobuf/val->pb-enum Tile$Playback)))))
 
 (defnk get-text-format :- s/Str
   "get the text string for this node"
@@ -310,7 +310,7 @@
          (.setHeight              (int (:height (first (:images anim)))))
          (.setStart               start)
          (.setEnd                 end)
-         (protobuf/set-if-present :playback anim)
+         (protobuf/set-if-present :playback anim (partial protobuf/val->pb-enum Tile$Playback))
          (protobuf/set-if-present :fps anim)
          (protobuf/set-if-present :flip-horizontal anim)
          (protobuf/set-if-present :flip-vertical anim)
@@ -368,7 +368,8 @@
 (defnk compile-texturesetc :- s/Bool
   [this g project textureset :- TextureSet]
   (file/write-file (:textureset-filename this)
-    (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset))))
+    (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset)))
+  :ok)
 
 (defn- texturec-protocol-buffer
   [engine-format]
@@ -400,7 +401,7 @@
   (property texture-name        s/Str)
   (property textureset-filename s/Str (default ""))
 
-  (output   texturec s/Any :on-update compile-texturec)
+  (output   texturec    s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
 (defn find-nodes-at-point [this x y]

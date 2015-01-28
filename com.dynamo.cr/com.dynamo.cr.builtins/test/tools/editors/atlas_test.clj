@@ -9,15 +9,13 @@
             [dynamo.node :as n]
             [dynamo.project :as p]
             [dynamo.system :as ds]
-            [dynamo.system.test-support :refer [with-clean-world]]
+            [dynamo.system.test-support :refer [with-clean-world tempfile]]
             [dynamo.types :as t]
             [schema.test]
             [editors.atlas :as atlas]
             [editors.image-node :as image])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [java.io StringReader]))
-
-(use-fixtures :once schema.test/validate-schemas)
 
 (def ident (gen/not-empty gen/string-alpha-numeric))
 
@@ -68,3 +66,28 @@
 (defspec round-trip-preserves-fidelity
   10
   (prop/for-all* [atlas] round-trip))
+
+(deftest compilation-to-binary
+  (testing "Doesn't throw an exception"
+    (with-clean-world
+      (let [atlas       (<-text (first (gen/sample (gen/resize 10 atlas) 1)))
+            txname       "random-mcnally"
+            texturesetc (tempfile txname "texturesetc" true)
+            texturec    (tempfile txname "texturec" true)
+            compiler    (ds/transactional (ds/add (n/construct atlas/TextureSave
+                                                    :texture-name        txname
+                                                    :texture-filename    (file/native-path (.getPath texturec))
+                                                    :textureset-filename (file/native-path (.getPath texturesetc)))))]
+        (ds/transactional (ds/connect atlas :textureset compiler :textureset))
+        (is (= :ok (n/get-node-value compiler :texturec)))
+        (is (= :ok (n/get-node-value compiler :texturesetc)))
+        ))
+    ))
+
+;(let [path (:filename self)
+;        compiler (ds/add (n/construct TextureSave
+;                           :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
+;                           :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturesetc")) path)
+;                           :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturec")) path)))]
+;    (ds/connect self :textureset compiler :textureset)
+;    self)

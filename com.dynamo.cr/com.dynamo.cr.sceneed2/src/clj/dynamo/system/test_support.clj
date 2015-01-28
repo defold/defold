@@ -38,3 +38,10 @@
         (if (>= (:world-time n) desired-time)
           (a/put! valch n))))
     (first (a/alts!! [valch timer]))))
+
+(defn tempfile
+  [prefix suffix auto-delete?]
+  (let [f (java.io.File/createTempFile prefix suffix)]
+    (when auto-delete?
+      (.deleteOnExit f))
+    f))
