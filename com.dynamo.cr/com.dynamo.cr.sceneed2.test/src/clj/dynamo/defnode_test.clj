@@ -238,6 +238,12 @@
 
   (output abstract-output s/Str string-production-fnk))
 
+(n/defnode TwoLayerDependencyNode
+  (property a-property s/Str)
+
+  (output direct-calculation s/Str (fnk [a-property] a-property))
+  (output indirect-calculation s/Str (fnk [direct-calculation] direct-calculation)))
+
 (deftest nodes-can-have-outputs
   (testing "basic output definition"
     (let [node (n/construct MultipleOutputNode)]
@@ -268,6 +274,11 @@
       (is (= {:project #{:integer-output}
               :string-input #{:inline-string}
               :integer-input #{:string-output :abstract-output :cached-output :with-substitute}}
+            (t/output-dependencies node)))))
+  (testing "output dependencies are the transitive closure of their inputs"
+    (let [node (n/construct TwoLayerDependencyNode)]
+      (is (= {:a-property #{:direct-calculation :indirect-calculation :properties :a-property}
+              :direct-calculation #{:indirect-calculation}}
             (t/output-dependencies node))))))
 
 (n/defnode OneEventNode
@@ -327,8 +338,6 @@
 
 (n/defnode InheritsPropertyVariations
   (inherits NodeWithPropertyVariations))
-
-
 
 (def original-node-definition
   '(n/defnode MutagenicNode

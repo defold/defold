@@ -199,13 +199,29 @@ maybe cache the value that was produced, and return it."
       (into #{} (keys (dissoc (pf/input-schema production-fn) s/Keyword :this :g)))
       #{})))
 
+(defn dependency-seq
+  ([desc inputs]
+    (dependency-seq desc #{} inputs))
+  ([desc seen inputs]
+    (mapcat
+      (fn [x]
+        (if (not (seen x))
+          (if-let [recursive (get-in desc [:transforms x])]
+            (dependency-seq desc (conj seen x) (inputs-for recursive))
+            #{x})
+          seen))
+      inputs)))
+
 (defn description->output-dependencies
    [{:keys [transforms properties] :as description}]
-   (assoc description :output-dependencies
-     (let [outs (dissoc transforms :self)
-           outs (zipmap (keys outs) (map inputs-for (vals outs)))
-           outs (assoc outs :properties (set (keys properties)))]
-       (invert-map outs))))
+   (let [outs (dissoc transforms :self)
+         outs (zipmap (keys outs) (map #(dependency-seq description (inputs-for %)) (vals outs)))
+         outs (assoc outs :properties (set (keys properties)))]
+     (invert-map outs)))
+
+(defn attach-output-dependencies
+  [description]
+  (assoc description :output-dependencies (description->output-dependencies description)))
 
 (defn make-node-type
   "Create a node type object from a maplike description of the node.
@@ -224,7 +240,7 @@ not called directly."
     (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description t/interfaces))
     (update-in [:protocols]           combine-with set/union #{} (from-supertypes description t/protocols))
     (update-in [:method-impls]        combine-with merge      {} (from-supertypes description t/method-impls))
-    description->output-dependencies
+    attach-output-dependencies
     map->NodeTypeImpl))
 
 

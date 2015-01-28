@@ -6,7 +6,7 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test :refer :all]
             [schema.core :as s]
-            [plumbing.core :refer [defnk]]
+            [plumbing.core :refer [defnk fnk]]
             [dynamo.node :as n :refer [Scope]]
             [dynamo.project :as p]
             [dynamo.system :as ds]
@@ -101,13 +101,9 @@
 (n/defnode StringSource
   (property label s/Str (default "a-string")))
 
-(defnk passthrough-label
-  [label]
-  label)
-
 (n/defnode Relay
   (input label s/Str)
-  (output label s/Str passthrough-label))
+  (output label s/Str (fnk [label] label)))
 
 (n/defnode TriggerExecutionCounter
   (input downstream s/Any)
@@ -226,32 +222,24 @@
 (n/defnode NamedThing
   (property name s/Str))
 
-(defnk friendly-name [first-name] first-name)
-(defnk full-name [first-name surname] (str first-name " " surname))
-(defnk age [date-of-birth] date-of-birth)
-
 (n/defnode Person
   (property date-of-birth java.util.Date)
 
   (input first-name String)
   (input surname String)
 
-  (output friendly-name String friendly-name)
-  (output full-name String full-name)
-  (output age java.util.Date age))
-
-(defnk passthrough [generic-input] generic-input)
+  (output friendly-name String (fnk [first-name] first-name))
+  (output full-name String (fnk [first-name surname] (str first-name " " surname)))
+  (output age java.util.Date (fnk [date-of-birth] date-of-birth)))
 
 (n/defnode Receiver
   (input generic-input s/Any)
   (property touched s/Bool (default false))
-  (output passthrough s/Any passthrough))
-
-(defnk aggregator [aggregator] aggregator)
+  (output passthrough s/Any (fnk [generic-input] generic-input)))
 
 (n/defnode FocalNode
   (input aggregator [s/Any])
-  (output aggregated [s/Any] aggregator))
+  (output aggregated [s/Any] (fnk [aggregator] aggregator)))
 
 (defn- build-network
   []
@@ -305,13 +293,11 @@
         (ds/send-after receiver {:type :custom-event}))
       (is (= true (deref (:latch receiver) 500 :timeout))))))
 
-(defnk say-hello [first-name] (str "Hello, " first-name))
-
 (n/defnode AutoUpdateOutput
   (input first-name String)
 
   (output ordinary String (fn [this g] "a-string"))
-  (output updating String :on-update say-hello))
+  (output updating String :on-update (fnk [first-name] (str "Hello, " first-name))))
 
 (deftest on-update-properties-noted-by-transaction
   (with-clean-world
@@ -332,3 +318,21 @@
           disposable (dg/node (:graph tx-result) (it/resolve-tempid tx-result -1))
           tx-result  (it/transact world-ref (it/delete-node disposable))]
       (is (= disposable (first (:values-to-dispose tx-result)))))))
+
+(n/defnode CachedOutputInvalidation
+  (property a-property String (default "a-string"))
+
+  (output ordinary String :cached (fnk [a-property] a-property))
+  (output self-dependent String :cached (fnk [ordinary] ordinary)))
+
+(deftest invalidated-properties-noted-by-transaction
+  (with-clean-world
+    (let [node      (n/construct CachedOutputInvalidation)
+          tx-result (it/transact world-ref [(it/new-node node)])]
+      (let [real-node (dg/node (:graph tx-result) (it/resolve-tempid tx-result (:_id node)))]
+        (is (= 1 (count (:outputs-modified tx-result))))
+        (is (= [(:_id real-node) #{:properties :self :self-dependent :a-property :ordinary}] (first (:outputs-modified tx-result))))
+        (let [tx-data   [(it/update-property real-node :a-property (constantly "new-value") [])]
+              tx-result (it/transact world-ref tx-data)]
+          (is (= 1 (count (:outputs-modified tx-result))))
+          (is (= [(:_id real-node) #{:properties :a-property :ordinary :self-dependent}] (first (:outputs-modified tx-result)))))))))
