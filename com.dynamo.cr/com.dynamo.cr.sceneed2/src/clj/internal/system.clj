@@ -83,14 +83,6 @@
                                                #(when (satisfies? t/Frame %) %)
                                                (nodes-modified graph last-tx)))))
 
-(defn- world-summary
-  [world-state]
-  {:world-time (-> world-state :world-time)
-   :graph {:nodes (-> world-state :graph :nodes count)
-           :arcs  (-> world-state :graph :arcs count)}
-   :cache-keys (-> world-state :cache-keys count)
-   :repaint-needed (-> world-state :repaint-needed deref count)})
-
 (def history-size-min 50)
 (def history-size-max 60)
 (def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
@@ -105,14 +97,12 @@
     (dosync
       (assert (= (:state @history-ref) world-ref))
       (alter history-ref update-in [:undo-stack] conj-undo-stack old-world)
-      (alter history-ref assoc-in  [:redo-stack] [])
-      (record-history-operation undo-context (history-label new-world))
-      (prn :push-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
+      (alter history-ref assoc-in  [:redo-stack] []))
+    (record-history-operation undo-context (history-label new-world))))
 
 (defn- repaint-all [graph repaint-needed]
   (let [nodes (dg/node-values graph)
         nodes-to-repaint (keep #(when (satisfies? t/Frame %) %) nodes)]
-    (println (str "repainting " (count nodes-to-repaint) " of " (count nodes) " nodes"))
     (repaint/schedule-repaint repaint-needed nodes-to-repaint)))
 
 (defn- undo-history [history-ref]
@@ -124,8 +114,7 @@
         (ref-set world-ref (dissoc new-world :last-tx))
         (alter history-ref update-in [:undo-stack] pop)
         (alter history-ref update-in [:redo-stack] conj old-world)
-        (repaint-all (:graph new-world) (:repaint-needed @history-ref)))
-      (prn :undo-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
+        (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
 
 (defn- redo-history [history-ref]
   (dosync
@@ -136,8 +125,7 @@
         (ref-set world-ref (dissoc new-world :last-tx))
         (alter history-ref update-in [:undo-stack] conj old-world)
         (alter history-ref update-in [:redo-stack] pop)
-        (repaint-all (:graph new-world) (:repaint-needed @history-ref)))
-      (prn :redo-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
+        (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
 
 (defn- world
   [report-ch repaint-needed]
