@@ -97,13 +97,16 @@
 
 (declare record-history-operation)
 
+(defn- history-label [world]
+  (or (get-in world [:last-tx :label]) (str "World Time: " (:world-time world))))
+
 (defn- push-history [history-ref undo-context _ world-ref old-world new-world]
   (when (transaction-applied? old-world new-world)
     (dosync
       (assert (= (:state @history-ref) world-ref))
       (alter history-ref update-in [:undo-stack] conj-undo-stack old-world)
       (alter history-ref assoc-in  [:redo-stack] [])
-      (record-history-operation undo-context (str "World Time: " (:world-time new-world)))
+      (record-history-operation undo-context (history-label new-world))
       (prn :push-history (count (:undo-stack @history-ref)) (count (:redo-stack @history-ref)) (world-summary @world-ref)))))
 
 (defn- repaint-all [graph repaint-needed]

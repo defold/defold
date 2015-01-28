@@ -172,6 +172,10 @@ to distinguish it from a function call."
        (node world-ref (:_id n))
        n)))
 
+(defn tx-label
+  [label]
+  (it/tx-bind *transaction* (it/label label)))
+
 ; ---------------------------------------------------------------------------
 ; For use by triggers
 ; ---------------------------------------------------------------------------

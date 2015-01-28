@@ -173,6 +173,7 @@
               result (dp/on-event presenter widget-subtree path presenter-event old-value)]
           (when-let [new-value (:value result)]
             (when (not= new-value old-value)
+              (ds/tx-label (str "Set " (niceify-label prop-name)))
               (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
         (log/warn :message "Expected event from widget on active property page"))))
 

@@ -128,6 +128,11 @@
     :to-node (:_id to-node)
     :body    body}])
 
+(defn label
+  [label]
+  [{:type  :label
+    :label label}])
+
 (defn- tempid? [x] (neg? x))
 (defn has-tempid? [n] (and (:_id n) (tempid? (:_id n))))
 (defn resolve-tempid [ctx x] (when x (if (pos? x) x (get (:tempids ctx) x))))
@@ -266,6 +271,10 @@
   (let [target-id (resolve-tempid ctx to-node)]
     (update-in ctx [:messages] conj (bus/address-to target-id body))))
 
+(defmethod perform :label
+  [ctx {:keys [label]}]
+  (assoc ctx :label label))
+
 (defn- apply-tx
   [ctx actions]
   (reduce
@@ -367,7 +376,7 @@
       ctx
       (recur (one-transaction-pass (assoc ctx :pending txs) tx-list) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-deleted :outputs-modified])
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-deleted :outputs-modified :label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.
