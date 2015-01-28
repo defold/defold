@@ -124,14 +124,15 @@
          items# ~gl-stuff]
      (doseq [b# items#]
        (when (satisfies? p/GlBind b#)
-         (p/bind b# gl#))
+         (p/bind b# gl#)))
+     (doseq [b# items#]
        (when (satisfies? p/GlEnable b#)
-         (p/enable b# gl#))
-       (let [res# (do ~@body)]
-         (doseq [b# (reverse items#)]
-           (when (satisfies? p/GlEnable b#)
-             (p/disable b# gl#)))
-         res#))))
+         (p/enable b# gl#)))
+     (let [res# (do ~@body)]
+       (doseq [b# (reverse items#)]
+         (when (satisfies? p/GlEnable b#)
+           (p/disable b# gl#)))
+       res#)))
 
 (defmacro do-gl
   [glsymb bindings & body]
