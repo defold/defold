@@ -1,5 +1,6 @@
 (ns dynamo.system.test-support
   (:require [clojure.core.async :as a]
+            [com.stuartsierra.component :as component]
             [dynamo.node :as n]
             [dynamo.system :as ds :refer [in]]
             [internal.system :as is]
@@ -9,15 +10,14 @@
 
 (defn clean-world
   []
-  (let [world-ref (ref nil)
-        root      (n/construct n/RootScope :world-ref world-ref :_id 1)]
-    (dosync
-      (ref-set world-ref (is/new-world-state world-ref root (ref #{})))
-      world-ref)))
+  (let [report-ch (a/chan (a/dropping-buffer 1))
+        world     (is/world report-ch (ref #{}))]
+    (component/start world)))
 
 (defmacro with-clean-world
   [& forms]
-  `(let [~'world-ref (clean-world)
+  `(let [~'world     (clean-world)
+         ~'world-ref (:state ~'world)
          ~'root      (ds/node ~'world-ref 1)]
      (binding [it/*transaction* (it/->TransactionSeed ~'world-ref)]
        (ds/in ~'root

@@ -69,7 +69,7 @@
                                                #(when (satisfies? t/Frame %) %)
                                                (nodes-modified graph last-tx)))))
 
-(defn- world
+(defn world
   [report-ch repaint-needed]
   (let [world-ref (ref nil)]
     (add-watch world-ref :send-tx-reports (partial send-tx-reports report-ch))
