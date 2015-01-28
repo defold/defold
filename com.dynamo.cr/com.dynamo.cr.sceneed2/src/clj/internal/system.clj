@@ -3,6 +3,8 @@
             [com.stuartsierra.component :as component]
             [dynamo.node :as n]
             [dynamo.types :as t]
+            [dynamo.ui :as ui]
+            [dynamo.util :as util]
             [internal.bus :as bus]
             [internal.cache :refer [make-cache]]
             [internal.graph.dgraph :as dg]
@@ -12,7 +14,10 @@
             [internal.repaint :as repaint]
             [internal.transaction :as it]
             [schema.core :as s]
-            [service.log :as log :refer [logging-exceptions]]))
+            [service.log :as log :refer [logging-exceptions]])
+  (:import [org.eclipse.ui PlatformUI]
+           [org.eclipse.core.commands.operations UndoContext]
+           [internal.ui GenericOperation]))
 
 (set! *warn-on-reflection* true)
 
@@ -33,7 +38,14 @@
    :disposal-queue      (a/chan (a/dropping-buffer 1000))
    :repaint-needed      repaint-needed})
 
-(defrecord World [started state repaint-needed]
+(defn- new-history
+  [state repaint-needed]
+  {:state state
+   :repaint-needed repaint-needed
+   :undo-stack []
+   :redo-stack []})
+
+(defrecord World [started state history undo-context repaint-needed]
   component/Lifecycle
   (start [this]
     (if (:started this)
@@ -41,11 +53,13 @@
       (dosync
         (let [root (n/construct n/RootScope :world-ref state :_id 1)]
           (ref-set state (new-world-state state root repaint-needed))
+          (ref-set history (new-history state repaint-needed))
           (assoc this :started true)))))
   (stop [this]
     (if (:started this)
       (dosync
         (ref-set state nil)
+        (ref-set history nil)
         (assoc this :started false))
       this)))
 
@@ -69,12 +83,59 @@
                                                #(when (satisfies? t/Frame %) %)
                                                (nodes-modified graph last-tx)))))
 
+(def history-size-min 50)
+(def history-size-max 60)
+(def conj-undo-stack (partial util/push-with-size-limit history-size-min history-size-max))
+
+(declare record-history-operation)
+
+(defn- history-label [world]
+  (or (get-in world [:last-tx :label]) (str "World Time: " (:world-time world))))
+
+(defn- push-history [history-ref undo-context _ world-ref old-world new-world]
+  (when (transaction-applied? old-world new-world)
+    (dosync
+      (assert (= (:state @history-ref) world-ref))
+      (alter history-ref update-in [:undo-stack] conj-undo-stack old-world)
+      (alter history-ref assoc-in  [:redo-stack] []))
+    (record-history-operation undo-context (history-label new-world))))
+
+(defn- repaint-all [graph repaint-needed]
+  (let [nodes (dg/node-values graph)
+        nodes-to-repaint (keep #(when (satisfies? t/Frame %) %) nodes)]
+    (repaint/schedule-repaint repaint-needed nodes-to-repaint)))
+
+(defn- undo-history [history-ref]
+  (dosync
+    (let [world-ref (:state @history-ref)
+          old-world @world-ref
+          new-world (peek (:undo-stack @history-ref))]
+      (when new-world
+        (ref-set world-ref (dissoc new-world :last-tx))
+        (alter history-ref update-in [:undo-stack] pop)
+        (alter history-ref update-in [:redo-stack] conj old-world)
+        (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
+
+(defn- redo-history [history-ref]
+  (dosync
+    (let [world-ref (:state @history-ref)
+          old-world @world-ref
+          new-world (peek (:redo-stack @history-ref))]
+      (when new-world
+        (ref-set world-ref (dissoc new-world :last-tx))
+        (alter history-ref update-in [:undo-stack] conj old-world)
+        (alter history-ref update-in [:redo-stack] pop)
+        (repaint-all (:graph new-world) (:repaint-needed @history-ref))))))
+
 (defn world
   [report-ch repaint-needed]
-  (let [world-ref (ref nil)]
-    (add-watch world-ref :send-tx-reports (partial send-tx-reports report-ch))
+  (let [world-ref    (ref nil)
+        history-ref  (ref nil)
+        undo-context (UndoContext.)]
+    (add-watch world-ref :send-tx-reports   (partial send-tx-reports report-ch))
     (add-watch world-ref :schedule-repaints (partial schedule-repaints repaint-needed))
-    (->World false world-ref repaint-needed)))
+    (add-watch world-ref :push-history      (partial push-history history-ref undo-context))
+    (->World false world-ref history-ref undo-context repaint-needed)))
 
 (defn- refresh-messages
   [{:keys [expired-outputs]}]
@@ -125,3 +186,24 @@
 (defn stop
   ([]    (stop the-system))
   ([sys] (swap! sys component/stop-system)))
+
+(defn undo
+  ([]    (undo the-system))
+  ([sys] (undo-history (-> @sys :world :history))))
+
+(defn redo
+  ([]    (redo the-system))
+  ([sys] (redo-history (-> @sys :world :history))))
+
+(defn undo-context
+  ([]    (undo-context the-system))
+  ([sys] (-> @sys :world :undo-context)))
+
+(defn history-operation [undo-context label]
+  (doto (GenericOperation. label undo redo)
+   (.addContext undo-context)))
+
+(defn record-history-operation [undo-context label]
+  (let [operation (history-operation undo-context label)
+        history (.. PlatformUI getWorkbench getOperationSupport getOperationHistory)]
+    (.add history operation)))

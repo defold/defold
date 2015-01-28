@@ -2,13 +2,18 @@ package internal.ui;
 
 import static clojure.osgi.ClojureHelper.*;
 
+import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.ui.IActionBars;
+import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.ISelectionListener;
 import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.actions.ActionFactory;
+import org.eclipse.ui.operations.RedoActionHandler;
+import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.views.properties.IPropertySheetPage;
 
 public class GenericPropertySheetPage extends Viewer implements IPropertySheetPage {
@@ -23,12 +28,17 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
      * in to this generic property sheet.
      */
     private Object behavior;
-    private Object scope;
+    private final Object scope;
+    private final UndoActionHandler undoHandler;
+    private final RedoActionHandler redoHandler;
 
-    public GenericPropertySheetPage(Object scope) {
+    public GenericPropertySheetPage(IEditorSite site, IUndoContext undoContext, Object scope) {
         super();
 
         this.scope = scope;
+
+        undoHandler = new UndoActionHandler(site, undoContext);
+        redoHandler = new RedoActionHandler(site, undoContext);
     }
 
     @Override
@@ -45,7 +55,10 @@ public class GenericPropertySheetPage extends Viewer implements IPropertySheetPa
 
     @Override
     public void setActionBars(IActionBars actionBars) {
-        // Not supported
+        final String undoId = ActionFactory.UNDO.getId();
+        final String redoId = ActionFactory.REDO.getId();
+        actionBars.setGlobalActionHandler(undoId, undoHandler);
+        actionBars.setGlobalActionHandler(redoId, redoHandler);
     }
 
     @Override

@@ -10,6 +10,7 @@
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
             [internal.node :as in]
+            [internal.system :as is]
             [camel-snake-kebab :refer :all])
   (:import [org.eclipse.core.runtime IStatus Status]
            [org.eclipse.swt.widgets Composite]
@@ -168,10 +169,17 @@
       (if (identical? (:widget ui-event) (ui/widget widget-subtree path))
         (let [prop (get content prop-name)
               presenter-event (dp/presenter-event-map ui-event)
-              result (dp/on-event presenter widget-subtree path presenter-event (:value prop))]
+              old-value (:value prop)
+              result (dp/on-event presenter widget-subtree path presenter-event old-value)]
           (when-let [new-value (:value result)]
-            (ds/set-property {:_id (:node-id prop)} prop-name new-value)))
+            (when (not= new-value old-value)
+              (ds/tx-label (str "Set " (niceify-label prop-name)))
+              (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
         (log/warn :message "Expected event from widget on active property page"))))
+
+  t/Frame
+  (frame [this]
+    (t/signal (:debouncer this)))
 
   ISelectionListener
   (selectionChanged [this part selection]

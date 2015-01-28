@@ -4,6 +4,7 @@ import static clojure.osgi.ClojureHelper.*;
 
 import java.io.ByteArrayInputStream;
 
+import org.eclipse.core.commands.operations.IUndoContext;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
@@ -16,11 +17,15 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.action.IStatusLineManager;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.IFileEditorInput;
 import org.eclipse.ui.PartInitException;
+import org.eclipse.ui.actions.ActionFactory;
 import org.eclipse.ui.dialogs.SaveAsDialog;
+import org.eclipse.ui.operations.RedoActionHandler;
+import org.eclipse.ui.operations.UndoActionHandler;
 import org.eclipse.ui.part.EditorPart;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.statushandlers.StatusManager;
@@ -64,6 +69,12 @@ public class GenericEditor extends EditorPart implements IDirtyable {
 
     private boolean dirty = false;
 
+    private IUndoContext undoContext;
+
+    private UndoActionHandler undoHandler;
+
+    private RedoActionHandler redoHandler;
+
     static {
         require(INTERNAL_NS);
     }
@@ -74,10 +85,21 @@ public class GenericEditor extends EditorPart implements IDirtyable {
         setInput(input);
         setPartName(input.getName());
 
+        undoContext = (IUndoContext)invoke(INTERNAL_NS, "undo-context");
+        undoHandler = new UndoActionHandler(site, undoContext);
+        redoHandler = new RedoActionHandler(site, undoContext);
+
+        final String undoId = ActionFactory.UNDO.getId();
+        final String redoId = ActionFactory.REDO.getId();
+
+        IActionBars actionBars = site.getActionBars();
+        actionBars.setGlobalActionHandler(undoId, undoHandler);
+        actionBars.setGlobalActionHandler(redoId, redoHandler);
+
         IFile file = ((IFileEditorInput) input).getFile();
         behavior = invoke(INTERNAL_NS, "implementation-for", site, file);
 
-        propertySheetPage = new GenericPropertySheetPage(behavior);
+        propertySheetPage = new GenericPropertySheetPage(site, undoContext, behavior);
 
         dispatchMessage(behavior, INIT, SITE, site, INPUT, input, DIRTY_TRACKER, this);
     }
@@ -167,6 +189,8 @@ public class GenericEditor extends EditorPart implements IDirtyable {
     public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
         if (adapter == IPropertySheetPage.class) {
             return this.propertySheetPage;
+        } else if (adapter == IUndoContext.class) {
+            return undoContext;
         } else {
             return super.getAdapter(adapter);
         }

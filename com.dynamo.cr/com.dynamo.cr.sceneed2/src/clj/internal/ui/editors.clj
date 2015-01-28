@@ -58,3 +58,6 @@
     (let [p (dynamic-part opts)]
       (.showPart ^EPartService (.get ctx EPartService) ^MPart p EPartService$PartState/ACTIVATE)
       p)))
+
+(defn undo-context []
+  (is/undo-context))
