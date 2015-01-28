@@ -251,7 +251,7 @@
 (n/defnode AtlasRender
   (input gpu-texture s/Any)
   (input textureset s/Any)
-  (input  selection s/Any :inject)
+  (input selection s/Any :inject)
 
   (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
   (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
