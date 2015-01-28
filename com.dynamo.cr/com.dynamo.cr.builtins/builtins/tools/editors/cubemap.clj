@@ -115,7 +115,7 @@
   (input image-front  Image)
   (input image-back   Image)
 
-  (output gpu-texture   s/Any      :cached produce-gpu-texture)
+  (output gpu-texture   s/Any :cached produce-gpu-texture)
 
   (on :load
     (let [project         (:project event)
@@ -123,8 +123,7 @@
       (doseq [[side input] cubemap-message]
         (let [img-node (t/lookup project input)]
           (ds/set-property self side input)
-          (ds/connect img-node :image self (cubemap-inputs side))
-          (ds/connect img-node :tree  self :children))))))
+          (ds/connect img-node :image self (cubemap-inputs side)))))))
 
 (defn on-edit
   [project-node editor-site cubemap]
