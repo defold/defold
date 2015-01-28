@@ -157,14 +157,45 @@
                     :render-fn (fn [ctx gl glu text-renderer] (render-quad ctx gl textureset vertex-binding gpu-texture i))})
                  (:coords textureset))))
 
+(defn render-selection-outline
+  [ctx gl this textureset rect]
+  (let [bounds (:aabb textureset)
+        {:keys [x y width height]} rect
+        left x
+        right (+ x width)
+        bottom (- (:height bounds) y)
+        top (- (:height bounds) (+ y height))]
+    (.glColor3ub gl 0x4b 0xff 0x8b)  ; bright green
+    (.glBegin gl GL2/GL_LINE_LOOP)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)))
+
+(defn selection-outline-renderables
+  [this textureset selection]
+  (let [project-root (p/project-root-node this)
+        selected (set @selection)]
+    (vec (keep
+           (fn [rect]
+             (let [node (t/lookup project-root (:path rect))]
+               (when (selected (:_id node))
+                 {:world-transform g/Identity4d
+                  :render-fn (fn [ctx gl glu text-renderer]
+                               (render-selection-outline ctx gl this textureset rect))})))
+           (:coords textureset)))))
+
 (defnk produce-renderable :- RenderData
-  [this textureset vertex-binding gpu-texture]
+  [this textureset selection vertex-binding gpu-texture]
   {pass/overlay
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer textureset))}]
    pass/transparent
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-textureset ctx gl textureset vertex-binding gpu-texture))}]
+   pass/outline
+   (selection-outline-renderables this textureset selection)
    pass/selection
    (selection-renderables this textureset vertex-binding gpu-texture)})
 
@@ -220,6 +251,7 @@
 (n/defnode AtlasRender
   (input gpu-texture s/Any)
   (input textureset s/Any)
+  (input  selection s/Any :inject)
 
   (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
   (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
@@ -459,7 +491,6 @@
               {:keys [world-ref]} self
               [selection-node] (n/get-node-inputs self :selection-node)
               nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
-          (prn :SelectionController.mouse-down x y)
           (case (selection-mode event)
             :replace (do (deselect-all selection-node)
                          (select-nodes selection-node nodes))
