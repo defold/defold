@@ -3,22 +3,21 @@
             [dynamo.types :as t]
             [dynamo.ui :as ui]
             [dynamo.util :refer :all]
-            [internal.property :as ip])
-  (:import [org.eclipse.core.resources IResource]))
+            [internal.property :as ip]))
 
 (set! *warn-on-reflection* true)
 
 (defmacro defproperty [name value-type & body-forms]
   (apply ip/def-property-type-descriptor name value-type body-forms))
 
-;; TODO - SAMDISCUSS
-#_(defproperty NonNegativeInt s/Int
-   (validation (comp not neg?)))
+(defproperty NonNegativeInt s/Int
+  (validation (comp not neg?)))
 
 (defproperty NonNegativeInt s/Int
   (validation (fn [v] (not (neg? v)))))
 
-(defproperty Resource IResource)
+(defproperty Resource s/Str (tag ::resource))
+(defproperty ImageResource Resource (tag ::image))
 
 (defproperty Vec3 t/Vec3
   (default [0.0 0.0 0.0]))

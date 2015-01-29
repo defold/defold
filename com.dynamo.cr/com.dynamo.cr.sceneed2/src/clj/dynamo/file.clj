@@ -136,7 +136,7 @@ and have the corresponding `make-reader`, `make-writer`, `make-input-stream` and
                   :else                      (.getFile ep (str "content/" resource)))
           pr    (.removeFirstSegments (.getFullPath ^IFile file) 2)
           ext   (.getFileExtension pr)
-          p     (.toString pr)
+          p     (str "/" (.toString pr))
           p     (if-not ext p (subs p 0 (- (count p) (count ext) 1)))]
       (ProjectPath. (t/node-ref project-scope) p ext))))
 

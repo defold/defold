@@ -14,6 +14,7 @@
             [dynamo.image :as img]
             [dynamo.node :as n]
             [dynamo.project :as p]
+            [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [internal.render.pass :as pass])
@@ -86,44 +87,26 @@
   (output renderable    RenderData :cached produce-renderable)
   (output aabb          AABB               (fnk [] g/unit-bounding-box)))
 
-(def ^:private cubemap-inputs
-  {:right  :image-right
-   :left   :image-left
-   :top    :image-top
-   :bottom :image-bottom
-   :front  :image-front
-   :back   :image-back})
-
 (defnk produce-gpu-texture
-  [image-right image-left image-top image-bottom image-front image-back]
-  (apply texture/image-cubemap-texture (map :contents [image-right image-left image-top image-bottom image-front image-back])))
+  [right left top bottom front back]
+  (apply texture/image-cubemap-texture (map :contents [right left top bottom front back])))
 
 (n/defnode CubemapNode
   (inherits n/OutlineNode)
 
-  (property right  s/Str)
-  (property left   s/Str)
-  (property top    s/Str)
-  (property bottom s/Str)
-  (property front  s/Str)
-  (property back   s/Str)
-
-  (input image-right  Image)
-  (input image-left   Image)
-  (input image-top    Image)
-  (input image-bottom Image)
-  (input image-front  Image)
-  (input image-back   Image)
+  (property right  dp/ImageResource)
+  (property left   dp/ImageResource)
+  (property top    dp/ImageResource)
+  (property bottom dp/ImageResource)
+  (property front  dp/ImageResource)
+  (property back   dp/ImageResource)
 
   (output gpu-texture   s/Any :cached produce-gpu-texture)
 
   (on :load
-    (let [project         (:project event)
-          cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
+    (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
       (doseq [[side input] cubemap-message]
-        (let [img-node (t/lookup project input)]
-          (ds/set-property self side input)
-          (ds/connect img-node :content self (cubemap-inputs side)))))))
+        (ds/set-property self side input)))))
 
 (defn on-edit
   [project-node editor-site cubemap]

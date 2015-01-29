@@ -22,6 +22,12 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- resource?
+  ([property-type]
+    (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
+  ([node label]
+    (some-> node t/node-type t/properties' label resource?)))
+
 ; ---------------------------------------------------------------------------
 ; Value handling
 ; ---------------------------------------------------------------------------
@@ -52,25 +58,33 @@
   "Gets an input (maybe with multiple values) needed to invoke a production function for a node.
 The input to the production function may be one of three things:
 
-1. A property of the node. In this case, the property is retrieved directly from the node.
-2. An output of the node. The node is asked to supply a value for this output. (This recurses back into get-node-value.)
-3. An input of the node. In this case, the nodes connected to this input are asked to supply their values."
+1. An input of the node. In this case, the nodes connected to this input are asked to supply their values.
+2. A property of the node. In this case, the property is retrieved directly from the node.
+3. An output of this node or another node. The source node is asked to supply a value for this output. (This recurses back into get-node-value.)"
   [target-node g target-label]
-  (if (contains? target-node target-label)
-    (get target-node target-label)
-    (let [schema (some-> target-node t/input-types target-label)
-          output-transform (some-> target-node t/transforms target-label)]
-      (cond
-        (vector? schema)     (mapv (fn [[source-node source-label]]
-                                     (get-node-value (dg/node g source-node) source-label))
-                                  (lg/sources g (:_id target-node) target-label))
-        (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-                               (when first-source-node
-                                 (get-node-value (dg/node g first-source-node) first-source-label)))
-        (not (nil? output-transform)) (get-node-value target-node target-label)
-        :else                (let [missing (missing-input target-node target-label)]
-                               (service.log/warn :missing-input missing)
-                               missing)))))
+  (let [input-schema (some-> target-node t/input-types target-label)
+        output-transform (some-> target-node t/transforms target-label)]
+    (cond
+      (vector? input-schema)
+      (mapv (fn [[source-node source-label]]
+              (get-node-value (dg/node g source-node) source-label))
+           (lg/sources g (:_id target-node) target-label))
+
+      (not (nil? input-schema))
+      (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
+        (when first-source-node
+          (get-node-value (dg/node g first-source-node) first-source-label)))
+
+      (contains? target-node target-label)
+      (get target-node target-label)
+
+      (not (nil? output-transform))
+      (get-node-value target-node target-label)
+
+      :else
+      (let [missing (missing-input target-node target-label)]
+        (service.log/warn :missing-input missing)
+        missing))))
 
 (defn collect-inputs
   "Return a map of all inputs needed for the input-schema. The schema will usually
@@ -292,9 +306,15 @@ not called directly."
 (defn attach-property
   "Update the node type description with the given property."
   [description label property-type passthrough]
-  (-> description
-    (update-in [:properties] assoc label property-type)
+  (cond-> (update-in description [:properties] assoc label property-type)
+
+    (resource? property-type)
+    (assoc-in [:inputs label] property-type)
+
+    true
     (update-in [:transforms] assoc-in [label :production-fn] passthrough)
+
+    true
     (update-in [:transform-types] assoc label (:value-type property-type))))
 
 (defn attach-event-handler
@@ -517,9 +537,27 @@ for all properties of this node."
   (let [property-names (-> this t/properties keys)]
     (zipmap property-names (map (partial gather-property this) property-names))))
 
+(defn- resource-connected?
+  [graph self input string-val]
+  (let [src-nodes (map #(dg/node graph (first %)) (lg/sources graph (:_id self) input))]
+    (not-every? not (filter #(= string-val (t/local-path (:filename %))) src-nodes))))
+
 (defn attach-resource
   [transaction graph self label kind]
-  (println "enforcing resource invariants. (not really)"))
+  (doseq [p     (ds/outputs-modified transaction self)
+          :when (resource? self p)
+          :let  [old-val (get (dg/node (ds/pre-transaction-graph transaction) (:_id self)) p)
+                 new-val (get self p)
+                 delta?  (not= old-val new-val)
+                 incorrect? (not (resource-connected? (:graph transaction) self p new-val))]]
+    (when (and delta? incorrect?)
+      (println "enforcing resource invariant on " (:_id self) p " [" old-val " -> " new-val "]" delta? incorrect?)
+      (when (not (empty? old-val))
+        (println "disconnecting " (:_id (ds/lookup-in-transaction transaction self old-val)) :content (:_id self) p)
+        (ds/disconnect (ds/lookup-in-transaction transaction self old-val) :content self p))
+      (when (not (empty? new-val))
+        (println "connecting " (:_id (ds/lookup-in-transaction transaction self new-val)) :content (:_id self) p)
+        (ds/connect (ds/lookup-in-transaction transaction self new-val) :content self p)))))
 
 (def node-intrinsics
   [(list 'output 'self `s/Any `(fnk [~'this] ~'this))

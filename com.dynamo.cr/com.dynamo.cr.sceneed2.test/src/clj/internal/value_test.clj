@@ -196,9 +196,6 @@
 
 (deftest local-properties
   (let [[override jane]  (build-override-project)]
-    (testing "local properties take precedence over wired inputs"
-      (is (= "Jane"        (n/get-node-value override :output)))
-      (is (= "local value" (n/get-node-value (assoc override :overridden "local value") :output))))
     (testing "local properties are passed to fnks"
       (is (= "value to fnk" (n/get-node-value (assoc override :an-input "value to fnk") :foo))))))
 
