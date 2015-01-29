@@ -179,7 +179,7 @@
 
 (defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 
-(defmacro gl-draw-arrays [gl t s c]     `(.glDrawArrays ~(with-meta gl {:tag `GL2}) ~t ~s ~c))
+(defmacro gl-draw-arrays [gl t s c]     `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~t ~s ~c))
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 
