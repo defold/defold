@@ -165,7 +165,7 @@
         right (+ x width)
         bottom (- (:height bounds) y)
         top (- (:height bounds) (+ y height))]
-    (.glColor3ub gl (.byteValue (Long. 0x4b)) (.byteValue (Long. 0xff)) (.byteValue (Long. 0x8b)))  ; bright green
+    (.glColor3ub gl 75 -1 -117)  ; #4bff8b bright green
     (.glBegin gl GL2/GL_LINE_LOOP)
     (.glVertex2i gl left top)
     (.glVertex2i gl right top)
