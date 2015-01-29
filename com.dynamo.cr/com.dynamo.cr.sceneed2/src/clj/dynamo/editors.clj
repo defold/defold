@@ -68,6 +68,7 @@ Outputs
 
   (output render-data t/RenderData iuse/produce-render-data)
   (output aabb AABB (fnk [aabb] aabb))
+  (output glcontext GLContext (fnk [context] context))
 
   t/Frame
   (frame [this]

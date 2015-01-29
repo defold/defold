@@ -437,14 +437,12 @@
   (output   texturec    s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
-(defn find-nodes-at-point [this x y]
+(defn find-nodes-at-point [this context x y]
   (service.log/timed "find-nodes-at-point"
-  (let [factory (gl/glfactory)
-        context (.createExternalGLContext factory)
-        [renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
+  (let [[renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
         renderables (apply merge-with concat renderable-inputs)
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
-    (service.log/timed "selection-renderer" (ius/selection-renderer context renderables view-camera pick-rect)))))
+    (ius/selection-renderer context renderables view-camera pick-rect))))
 
 (defn- not-camera-movement?
   "True if the event does not have keyboard modifier-keys for a
@@ -484,6 +482,7 @@
     :toggle))
 
 (n/defnode SelectionController
+  (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (input selection-node s/Any :inject)
@@ -492,8 +491,8 @@
     (when (selection-event? event)
       (let [{:keys [x y]} event
             {:keys [world-ref]} self
-            [selection-node] (n/get-node-inputs self :selection-node)
-            nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
+            [glcontext selection-node] (n/get-node-inputs self :glcontext :selection-node)
+            nodes (map #(ds/node world-ref %) (find-nodes-at-point self glcontext x y))]
         (case (selection-mode event)
           :replace (do (deselect-all selection-node)
                        (select-nodes selection-node nodes))
