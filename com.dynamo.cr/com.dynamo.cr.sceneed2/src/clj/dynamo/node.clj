@@ -34,26 +34,6 @@ AssertionError will result."
   [node label]
   (in/get-node-value node label))
 
-(defnk selfie
-  "Passthrough for self. Needed only for dependency tracking."
-  [this] this)
-
-(defn- gather-property [this prop]
-  {:node-id (:_id this)
-   :value (get this prop)
-   :type  (-> this t/properties prop)})
-
-(defnk gather-properties :- Properties
-  "Production function that delivers the definition and value
-for all properties of this node."
-  [this]
-  (let [property-names (-> this t/properties keys)]
-    (zipmap property-names (map (partial gather-property this) property-names))))
-
-(def node-intrinsics
-  [(list 'output 'self `s/Any `selfie)
-   (list 'output 'properties `Properties `gather-properties)])
-
 (defn construct
   "Creates an instance of a node. The node-type must have been
 previously defined via `defnode`.
@@ -169,7 +149,7 @@ implement dynamo.types/MessageTarget."
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
        (declare ~ctor-name ~symb)
-       (let [description#    ~(in/node-type-sexps symb (concat node-intrinsics forms))
+       (let [description#    ~(in/node-type-sexps symb (concat in/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? t/NodeType x#) x#))
              whole-graph#    (some-> (ds/current-scope) :world-ref deref :graph)

@@ -502,3 +502,27 @@ and protocols that the node type requires."
               [o o-l] (t/transform-types node)]
             [node o o-l target i i-l]))))
 
+; ---------------------------------------------------------------------------
+; Intrinsics
+; ---------------------------------------------------------------------------
+(defn- gather-property [this prop]
+  {:node-id (:_id this)
+   :value (get this prop)
+   :type  (-> this t/properties prop)})
+
+(defnk gather-properties :- t/Properties
+  "Production function that delivers the definition and value
+for all properties of this node."
+  [this]
+  (let [property-names (-> this t/properties keys)]
+    (zipmap property-names (map (partial gather-property this) property-names))))
+
+(defn attach-resource
+  [transaction graph self label kind]
+  (println "enforcing resource invariants. (not really)"))
+
+(def node-intrinsics
+  [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
+   (list 'output 'properties `t/Properties `gather-properties)
+   (list 'trigger 'dynamo.node/resource :added :modified `attach-resource)])
+
