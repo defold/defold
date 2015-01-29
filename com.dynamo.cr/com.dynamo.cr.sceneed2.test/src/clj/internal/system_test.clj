@@ -29,12 +29,22 @@
     (is (not (nil? (system-graph sys))))))
 
 (deftest world-time
-  (testing "World time advances with transactions"
+  (testing "world time does *not* advance for empty transactions"
+    (let [sys (atom (is/system))]
+      (is/start sys)
+      (let [world-ref (-> sys deref :world :state)
+            before    (:world-time @world-ref)
+            tx-report (txn/transact world-ref [])
+            after     (:world-time @world-ref)]
+        (is (= :empty (:status tx-report)))
+        (is (= before after)))))
+  (testing "world time advances with transactions"
     (let [sys (atom (is/system))]
       (is/start sys)
       (let [world-ref (-> sys deref :world :state)
             root      (graph-root sys)
-            before    (:world-time @world-ref)]
-        (txn/transact world-ref [])
-        (let [after (:world-time @world-ref)]
-          (is (< before after)))))))
+            before    (:world-time @world-ref)
+            tx-report (txn/transact world-ref [(txn/send-message root {:type :noop})])
+            after     (:world-time @world-ref)]
+        (is (= :ok (:status tx-report)))
+        (is (< before after))))))

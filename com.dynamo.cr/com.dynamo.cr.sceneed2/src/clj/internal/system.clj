@@ -65,7 +65,7 @@
 
 (defn- transaction-applied?
   [{old-world-time :world-time} {new-world-time :world-time :as new-world}]
-  (and (:last-tx new-world) (< old-world-time new-world-time)))
+  (and (= :ok (-> new-world :last-tx :status)) (< old-world-time new-world-time)))
 
 (defn- send-tx-reports
   [report-ch _ _ old-world {last-tx :last-tx :as new-world}]
