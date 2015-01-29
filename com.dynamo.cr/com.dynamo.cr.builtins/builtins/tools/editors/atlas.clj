@@ -466,8 +466,12 @@
     (ds/connect node :self selection-node :selected-nodes)))
 
 (defn- selection-mode
+  "True if the event has keyboard-modifier keys for multi-select.
+  On Mac: COMMAND or SHIFT.
+  On non-Mac: CTRL or SHIFT."
   [event]
-  (if (zero? (bit-and (:state-mask event) (bit-or SWT/COMMAND SWT/SHIFT)))
+  ;; SWT/MOD1 maps to COMMAND on Mac and CTRL elsewhere
+  (if (zero? (bit-and (:state-mask event) (bit-or SWT/MOD1 SWT/SHIFT)))
     :replace
     :toggle))
 
