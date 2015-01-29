@@ -1,5 +1,5 @@
 (ns editors.atlas
-  (:require [clojure.set :refer [union]]
+  (:require [clojure.set :refer [difference union]]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
@@ -465,35 +465,46 @@
   (doseq [node nodes]
     (ds/connect node :self selection-node :selected-nodes)))
 
-(defn- toggle-selection
-  [selection-node nodes]
-  (let [selected-nodes-labels (into {} (ds/sources-of selection-node :selected-nodes))]
-    (doseq [node nodes]
-      (if-let [label (get selected-nodes-labels node)]
-        (ds/disconnect node label selection-node :selected-nodes)
-        (ds/connect node :self selection-node :selected-nodes)))))
-
 (defn- selection-mode
   [event]
   (if (zero? (bit-and (:state-mask event) (bit-or SWT/COMMAND SWT/SHIFT)))
     :replace
     :toggle))
 
+(defn- selected-node-ids
+  [selection-node]
+  (set (map (comp :_id first) (ds/sources-of selection-node :selected-nodes))))
+
+(defn- toggle
+  "Returns a new set by toggling the elements in the 'clicked' set
+  between present/absent in the 'previous' set."
+  [previous clicked]
+   (union
+     (difference previous clicked)
+     (difference clicked previous)))
+
 (n/defnode SelectionController
   (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (input selection-node s/Any :inject)
+  (input default-selection s/Any)
   (on :mouse-down
     (when (selection-event? event)
       (let [{:keys [x y]} event
             {:keys [world-ref]} self
-            [glcontext selection-node] (n/get-node-inputs self :glcontext :selection-node)
-            nodes (map #(ds/node world-ref %) (find-nodes-at-point self glcontext x y))]
-        (case (selection-mode event)
-          :replace (do (deselect-all selection-node)
-                       (select-nodes selection-node nodes))
-          :toggle (toggle-selection selection-node nodes))))))
+            [glcontext selection-node default-selection]
+              (n/get-node-inputs self :glcontext :selection-node :default-selection)
+            previous (disj (selected-node-ids selection-node)
+                       (:_id default-selection))
+            clicked (set (find-nodes-at-point self glcontext x y))
+            new-node-ids (case (selection-mode event)
+                           :replace clicked
+                           :toggle (toggle previous clicked))
+            nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
+                    [default-selection])]
+        (deselect-all selection-node)
+        (select-nodes selection-node nodes)))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -525,6 +536,7 @@
               selector     (ds/add (n/construct SelectionController))]
           (ds/connect atlas-node   :textureset  atlas-render :textureset)
           (ds/connect atlas-node   :gpu-texture atlas-render :gpu-texture)
+          (ds/connect atlas-node   :self        selector     :default-selection)
           (ds/connect camera       :camera      grid         :camera)
           (ds/connect camera       :camera      editor       :view-camera)
           (ds/connect camera       :self        controller   :controllers)
