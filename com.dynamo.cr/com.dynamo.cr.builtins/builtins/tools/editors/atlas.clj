@@ -144,10 +144,9 @@
 
 (defn render-quad
   [ctx gl textureset vertex-binding gpu-texture i]
-  (service.log/timed (str "render-quad " i)
-    (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
-    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6))))
+  (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
+  (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+  (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
 
 (defn selection-renderables
   [this textureset vertex-binding gpu-texture]
@@ -438,11 +437,10 @@
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
 (defn find-nodes-at-point [this context x y]
-  (service.log/timed "find-nodes-at-point"
   (let [[renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
         renderables (apply merge-with concat renderable-inputs)
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
-    (ius/selection-renderer context renderables view-camera pick-rect))))
+    (ius/selection-renderer context renderables view-camera pick-rect)))
 
 (defn- not-camera-movement?
   "True if the event does not have keyboard modifier-keys for a
@@ -487,7 +485,6 @@
   (input view-camera Camera)
   (input selection-node s/Any :inject)
   (on :mouse-down
-    (service.log/timed "SelectionController on :mouse-down"
     (when (selection-event? event)
       (let [{:keys [x y]} event
             {:keys [world-ref]} self
@@ -496,7 +493,7 @@
         (case (selection-mode event)
           :replace (do (deselect-all selection-node)
                        (select-nodes selection-node nodes))
-          :toggle (toggle-selection selection-node nodes)))))))
+          :toggle (toggle-selection selection-node nodes))))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -546,7 +543,7 @@
   (when (:image (t/outputs img-node))
     (ds/connect img-node :image target-node :images))
   (when (:tree (t/outputs img-node))
-    (ds/connect img-node :tree  target-node :children))  )
+    (ds/connect img-node :tree  target-node :children)))
 
 (defn- bind-images
   [image-nodes target-node]
