@@ -343,6 +343,7 @@
 
 (def ^:private trigger-ordering
   [:added :modified :deleted])
+
 (def ^:private context-trigger-keys
   {:added    :nodes-added
    :modified :outputs-modified

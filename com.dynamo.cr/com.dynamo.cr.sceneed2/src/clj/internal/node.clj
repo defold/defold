@@ -224,6 +224,8 @@ maybe cache the value that was produced, and return it."
   [description]
   (assoc description :output-dependencies (description->output-dependencies description)))
 
+(def ^:private map-merge (partial merge-with merge))
+
 (defn make-node-type
   "Create a node type object from a maplike description of the node.
 This is really meant to be used during macro expansion of `defnode`,
@@ -241,10 +243,9 @@ not called directly."
     (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description t/interfaces))
     (update-in [:protocols]           combine-with set/union #{} (from-supertypes description t/protocols))
     (update-in [:method-impls]        combine-with merge      {} (from-supertypes description t/method-impls))
-    (update-in [:triggers]            combine-with merge      {} (from-supertypes description t/triggers))
+    (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description t/triggers))
     attach-output-dependencies
     map->NodeTypeImpl))
-
 
 (defn attach-supertype
   "Update the node type description with the given supertype."

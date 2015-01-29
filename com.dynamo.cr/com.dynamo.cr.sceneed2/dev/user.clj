@@ -7,6 +7,7 @@
             [dynamo.image :refer :all]
             [dynamo.node :as n]
             [dynamo.system :as ds]
+            [dynamo.types :as t]
             [dynamo.ui :as ui]
             [clojure.java.io :refer [file]]
             [internal.graph.dgraph :as dg]
@@ -14,6 +15,7 @@
             [internal.system :as is]
             [internal.ui.property :as iip]
             [internal.java :as j]
+            [internal.node :as in]
             [clojure.repl :refer :all]
             [clojure.pprint :refer [pprint]]
             [schema.core :as s])

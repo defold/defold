@@ -247,8 +247,8 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   (property tag      s/Keyword)
   (property parent   (s/protocol NamingContext))
 
-  (trigger dependency-injection :modified  inject-new-nodes)
-  (trigger garbage-collection   :deleted   dispose-nodes)
+  (trigger dependency-injection :modified inject-new-nodes)
+  (trigger garbage-collection   :deleted  dispose-nodes)
 
   (output dictionary s/Any in/scope-dictionary)
 

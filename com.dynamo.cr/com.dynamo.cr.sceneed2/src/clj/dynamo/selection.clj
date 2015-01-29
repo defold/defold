@@ -32,7 +32,7 @@
       (ui/swt-thread-safe*
         (fn []
           (if (deref release 50 false)
-            (let [after (n/get-node-value self :selection)]
+            (let [after (n/get-node-value (ds/refresh self) :selection)]
               (when (not= @before @after)
                (prn "fire-selection-changed: selection *has* changed from " @before " to " @after)
                (.setSelection ^ISelectionProvider self after)))

@@ -374,6 +374,7 @@
 (n/defnode InheritedTriggerNode
   (inherits BaseTriggerNode)
 
+  (trigger extra-added      :added           (fn [& _] :extra))
   (trigger on-delete        :deleted         (fn [& _] :override))
   )
 
@@ -386,6 +387,7 @@
   (testing "triggers are inherited"
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :added-trigger])))
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :multiway-trigger])))
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :extra-added])))
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:modified :multiway-trigger]))))
 
   (testing "inherited triggers can be overridden"
