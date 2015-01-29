@@ -132,15 +132,7 @@ Messages:
   (input  presenter-registry t/Registry)
   (output presenter-registry t/Registry (fnk [presenter-registry] presenter-registry))
 
-  (input dirty s/Bool)
-
-  (property triggers n/Triggers (default [#'n/inject-new-nodes #'n/dispose-nodes #'iuse/send-view-scope-message #'iuse/mark-editor-dirty]))
-
-  (on :init
-    (let [tracker (:dirty-tracker event)]
-      (when (in/get-inputs self (-> self :world-ref deref :graph) :dirty)
-        (.markDirty ^IDirtyable tracker))
-      (ds/set-property self :dirty-tracker tracker)))
+  (trigger view-scope :modified iuse/send-view-scope-message)
 
   (on :create
     (let [canvas        (gl/glcanvas (:parent event))
@@ -162,7 +154,4 @@ Messages:
     (ds/delete self))
 
   (on :save
-    (let [result (n/get-node-value self :saveable)]
-      (when (= :ok result)
-        (when-let [tracker (:dirty-tracker self)]
-          (.markClean ^IDirtyable tracker))))))
+    (n/get-node-value self :saveable)))

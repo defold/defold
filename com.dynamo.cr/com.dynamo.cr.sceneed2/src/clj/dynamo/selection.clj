@@ -24,7 +24,7 @@
       (deref [this] node-ids))))
 
 (defn fire-selection-changed
-  [graph self transaction]
+  [transaction graph self label kind]
   (when (ds/is-modified? transaction self :selection)
     (let [before  (n/get-node-value self :selection)
           release (promise)]
@@ -42,7 +42,8 @@
   (input selected-nodes ['t/Node])
 
   (property selection-listeners EventBroadcaster (default #(ui/make-event-broadcaster)))
-  (property triggers n/Triggers (default [#'fire-selection-changed]))
+
+  (trigger notify-listeners :modified fire-selection-changed)
 
   (output selection s/Any produce-selection)
   (output selection-node Selection (fnk [self] self))

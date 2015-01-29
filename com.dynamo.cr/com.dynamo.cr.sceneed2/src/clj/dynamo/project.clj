@@ -114,7 +114,7 @@ ordinary paths."
     editor-node))
 
 (defn- send-project-scope-message
-  [graph self txn]
+  [txn graph self label kind]
   (doseq [id (:nodes-added txn)]
     (ds/send-after {:_id id} {:type :project-scope :scope self})))
 
@@ -162,7 +162,8 @@ There is no guaranteed ordering of the sequence."
 (n/defnode Project
   (inherits n/Scope)
 
-  (property triggers           n/Triggers (default [#'n/dispose-nodes #'n/inject-new-nodes #'send-project-scope-message]))
+  (trigger notify-content-nodes :modified send-project-scope-message)
+
   (property tag                s/Keyword (default :project))
   (property eclipse-project    IProject)
   (property content-root       IContainer)

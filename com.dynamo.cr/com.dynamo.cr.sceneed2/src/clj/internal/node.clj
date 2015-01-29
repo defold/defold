@@ -162,13 +162,14 @@ maybe cache the value that was produced, and return it."
 ; Definition handling
 ; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-  [name supertypes interfaces protocols method-impls transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
+  [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
 
   t/NodeType
   (supertypes           [_] supertypes)
   (interfaces           [_] interfaces)
   (protocols            [_] protocols)
   (method-impls         [_] method-impls)
+  (triggers             [_] triggers)
   (transforms'          [_] transforms)
   (transform-types'     [_] transform-types)
   (properties'          [_] properties)
@@ -240,6 +241,7 @@ not called directly."
     (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description t/interfaces))
     (update-in [:protocols]           combine-with set/union #{} (from-supertypes description t/protocols))
     (update-in [:method-impls]        combine-with merge      {} (from-supertypes description t/method-impls))
+    (update-in [:triggers]            combine-with merge      {} (from-supertypes description t/triggers))
     attach-output-dependencies
     map->NodeTypeImpl))
 
@@ -299,6 +301,14 @@ not called directly."
   [description label handler]
   (assoc-in description [:event-handlers label] handler))
 
+(defn attach-trigger
+  "Update the node type description with the given trigger."
+  [description label kinds action]
+  (reduce
+    (fn [description kind] (assoc-in description [:triggers kind label] action))
+    description
+    kinds))
+
 (defn attach-interface
   "Update the node type description with the given interface."
   [description interface]
@@ -330,6 +340,9 @@ must be part of a protocol or interface attached to the description."
         :else [properties options args])
       [properties options args])))
 
+(defn classname
+  [^Class c]
+  (.getName c))
 
 (defn fqsymbol
   [s]
@@ -359,6 +372,11 @@ build the node type description (map). These are emitted where you invoked
     [(['on label & fn-body] :seq)]
     `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.system/transactional ~@fn-body)))
 
+    [(['trigger label & rest] :seq)]
+    (let [kinds (vec (take-while keyword? rest))
+          action (drop-while keyword? rest)]
+      `(attach-trigger ~(keyword label) ~kinds ~@action))
+
     ;; Interface or protocol function
     [([nm [& argvec] & remainder] :seq)]
     `(attach-method-implementation '~nm '~argvec (fn ~argvec ~@remainder))
@@ -366,7 +384,7 @@ build the node type description (map). These are emitted where you invoked
     [impl :guard symbol?]
     `(cond->
         (class? ~impl)
-        (attach-interface (symbol (.getName ~impl)))
+        (attach-interface (symbol (classname ~impl)))
 
         (not (class? ~impl))
         (attach-protocol (fqsymbol '~impl)))))

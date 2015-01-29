@@ -341,18 +341,44 @@
       (seq steps)
       (update-in [:pending] conj steps))))
 
+(def ^:private trigger-ordering
+  [:added :modified :deleted])
+(def ^:private context-trigger-keys
+  {:added    :nodes-added
+   :modified :outputs-modified
+   :deleted  :nodes-deleted})
+
+(defn- node-triggers
+  [node]
+  (-> node t/node-type t/triggers (select-keys trigger-ordering)))
+
+(defn- all-triggers
+  [all-activated]
+  (for [kind    trigger-ordering
+       n        all-activated
+       [l tr]   (-> n t/node-type t/triggers (get kind) seq)]
+   [tr n l kind]))
+
+(defn should-trigger?
+  [ctx node kind]
+  (contains? (get ctx (context-trigger-keys kind)) (:_id node)))
+
+(defn activated-triggers
+  [ctx triggers]
+  (filter (fn [[tr n l k]] (should-trigger? ctx n k)) triggers))
+
 (defn- process-triggers
   [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-deleted] :as ctx}]
   (let [all-activated  (concat (filter identity (map #(dg/node graph %) (keys nodes-triggered))) (vals nodes-deleted))
-        invoke-trigger (fn [csub [n tr]]
+        invoke-trigger (fn [csub [tr & args]]
                          (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
-                           (tr (:graph csub) n csub)
+                           (apply tr csub (:graph csub) args)
                            (tx-apply *transaction*)))
         trigger-ctx    (-> ctx
                          (update-in [:nodes-added]      set/intersection (into #{} (keys nodes-triggered)))
                          (update-in [:nodes-deleted]    select-keys (keys nodes-triggered))
                          (update-in [:outputs-modified] select-keys (keys nodes-triggered)))
-        trigger-ctx    (reduce invoke-trigger trigger-ctx (pairwise :triggers all-activated))]
+        trigger-ctx    (reduce invoke-trigger trigger-ctx (activated-triggers trigger-ctx (all-triggers all-activated)))]
     (assoc ctx :pending (:pending trigger-ctx))))
 
 (defn- mark-outputs-modified
