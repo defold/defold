@@ -115,18 +115,18 @@
                         (order (ByteOrder/nativeOrder))
                         asIntBuffer)]
     (gl/with-context context [gl glu]
-      (.glSelectBuffer gl pick-buffer-size select-buffer)
-      (.glRenderMode gl GL2/GL_SELECT)
-      (.glInitNames gl)
-      (doseq [pass pass/selection-passes]
-        (setup-pass context gl glu pass view-camera pick-rect)
-        (doseq [renderable (get renderables pass)]
-          (.glPushName gl (:select-name renderable))
-          (render context gl glu nil pass renderable)
-          (.glPopName gl)))
-      (.glFlush gl)  ; is this necessary?
-      (let [hit-count (.glRenderMode gl GL2/GL_RENDER)]
-        (gl/select-buffer-names hit-count select-buffer)))))
+     (.glSelectBuffer gl pick-buffer-size select-buffer)
+     (.glRenderMode gl GL2/GL_SELECT)
+     (.glInitNames gl)
+     (doseq [pass pass/selection-passes]
+       (setup-pass context gl glu pass view-camera pick-rect)
+       (doseq [renderable (get renderables pass)]
+         (.glPushName gl (:select-name renderable))
+         (render context gl glu nil pass renderable)
+         (.glPopName gl)))
+     (.glFlush gl)  ; is this necessary?
+     (let [hit-count (.glRenderMode gl GL2/GL_RENDER)]
+       (gl/select-buffer-names hit-count select-buffer)))))
 
 (defn dispatch-to-controller-of [evt self]
   (t/process-one-event (ds/node-feeding-into self :controller) evt))
