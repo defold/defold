@@ -542,7 +542,7 @@
 (defn- bind-image-connections
   [img-node target-node]
   (when (:image (t/outputs img-node))
-    (ds/connect img-node :image target-node :images))
+    (ds/connect img-node :content target-node :images))
   (when (:tree (t/outputs img-node))
     (ds/connect img-node :tree  target-node :children))  )
 
@@ -569,7 +569,7 @@
   (doseq [[animation-group _] (ds/sources-of self :animations)]
     (ds/delete animation-group))
   (doseq [[image _] (ds/sources-of self :images)]
-    (ds/disconnect image :image self :images)
+    (ds/disconnect image :content self :images)
     (ds/disconnect image :tree  self :children)))
 
 (defn construct-compiler
