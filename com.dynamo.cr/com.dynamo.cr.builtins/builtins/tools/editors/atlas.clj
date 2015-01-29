@@ -489,28 +489,95 @@
      (difference previous clicked)
      (difference clicked previous)))
 
+(defnk selection-box
+  [selecting dragging start-x start-y current-x current-y]
+  (when dragging
+    (t/map->Region
+      {:left (min start-x current-x)
+       :right (max start-x current-x)
+       :top (min start-y current-y)
+       :bottom (max start-y current-y)})))
+
 (n/defnode SelectionController
+  (property start-x s/Int)
+  (property start-y s/Int)
+  (property current-x s/Int)
+  (property current-y s/Int)
+  (property selecting s/Bool (default false))
+  (property dragging s/Bool (default false))
   (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (input selection-node s/Any :inject)
   (input default-selection s/Any)
+  (output selection-box `t/Region selection-box)
+
   (on :mouse-down
+    (prn :mouse-down)
     (when (selection-event? event)
-      (let [{:keys [x y]} event
-            {:keys [world-ref]} self
+      (ds/set-property self
+       :selecting true
+       :start-x (:x event)
+       :start-y (:y event)
+       :current-x (:x event)
+       :current-y (:y event))))
+
+  (on :mouse-move
+    (when (:selecting self)
+      (ds/set-property self
+        :dragging true ; TODO: only after moving minimum distance
+        :current-x (:x event)
+        :current-y (:y event))))
+
+  (on :mouse-up
+    (prn :mouse-up)
+    (when (:selecting self)
+      (let [{:keys [start-x start-y world-ref]} self
             [glcontext selection-node default-selection]
               (n/get-node-inputs self :glcontext :selection-node :default-selection)
             previous (disj (selected-node-ids selection-node)
                        (:_id default-selection))
-            clicked (set (find-nodes-at-point self glcontext x y))
+            clicked (set (find-nodes-at-point self glcontext start-x start-y))
             new-node-ids (case (selection-mode event)
                            :replace clicked
                            :toggle (toggle previous clicked))
             nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
                     [default-selection])]
         (deselect-all selection-node)
-        (select-nodes selection-node nodes)))))
+        (select-nodes selection-node nodes)))
+    (ds/set-property self
+      :selecting false
+      :dragging false)))
+
+(defn- render-selection-box
+  [ctx ^GL2 gl glu selection-box]
+  (let [{:keys [left right bottom top]} selection-box]
+    (.glColor3ub gl 115 -81 -52)
+    (.glBegin gl GL2/GL_LINE_LOOP)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)
+    (.glBegin gl GL2/GL_QUADS)
+    (.glColor4ub gl 115 -81 -52 64)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)))
+
+(defnk selection-box-renderable
+  [selection-box]
+  (when selection-box
+    {pass/overlay
+     [{:world-transform g/Identity4d
+       :render-fn (fn [ctx gl glu text-renderer]
+                    (render-selection-box ctx gl glu selection-box))}]}))
+
+(n/defnode SelectionBoxNode
+  (input selection-box `t/Region)
+  (output renderable RenderData selection-box-renderable))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -539,7 +606,8 @@
               grid         (ds/add (n/construct grid/Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
               controller   (ds/add (n/construct BroadcastController))
-              selector     (ds/add (n/construct SelectionController))]
+              selector     (ds/add (n/construct SelectionController))
+              selection-box (ds/add (n/construct SelectionBoxNode))]
           (ds/connect atlas-node   :textureset  atlas-render :textureset)
           (ds/connect atlas-node   :gpu-texture atlas-render :gpu-texture)
           (ds/connect atlas-node   :self        selector     :default-selection)
@@ -553,6 +621,8 @@
           (ds/connect background   :renderable  editor       :renderables)
           (ds/connect atlas-render :renderable  editor       :renderables)
           (ds/connect grid         :renderable  editor       :renderables)
+          (ds/connect selector     :selection-box selection-box :selection-box)
+          (ds/connect selection-box :renderable editor       :renderables)
           (ds/connect atlas-node   :aabb        editor       :aabb))
         editor)))
 
