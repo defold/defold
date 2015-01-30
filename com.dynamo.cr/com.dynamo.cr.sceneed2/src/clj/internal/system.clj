@@ -165,7 +165,7 @@
  (let [repaint-needed (ref #{})
        tx-report-chan (a/chan 1)]
    (component/map->SystemMap
-    {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 15)
+    {:refresh   (refresh-subsystem (shred-tx-reports tx-report-chan) 1)
      :world     (world tx-report-chan repaint-needed)
      :repaint   (component/using (repaint/repaint-subsystem repaint-needed) [:world])})))
 
