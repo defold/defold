@@ -1,5 +1,5 @@
 (ns editors.atlas
-  (:require [clojure.set :refer [union]]
+  (:require [clojure.set :refer [difference union]]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
@@ -145,8 +145,8 @@
 (defn render-quad
   [ctx gl textureset vertex-binding gpu-texture i]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-   (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
-   (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
 
 (defn selection-renderables
   [this textureset vertex-binding gpu-texture]
@@ -158,14 +158,14 @@
                  (:coords textureset))))
 
 (defn render-selection-outline
-  [ctx gl this textureset rect]
+  [ctx ^GL2 gl this textureset rect]
   (let [bounds (:aabb textureset)
         {:keys [x y width height]} rect
         left x
         right (+ x width)
         bottom (- (:height bounds) y)
         top (- (:height bounds) (+ y height))]
-    (.glColor3ub gl 0x4b 0xff 0x8b)  ; bright green
+    (.glColor3ub gl 75 -1 -117)  ; #4bff8b bright green
     (.glBegin gl GL2/GL_LINE_LOOP)
     (.glVertex2i gl left top)
     (.glVertex2i gl right top)
@@ -436,10 +436,8 @@
   (output   texturec    s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
-(defn find-nodes-at-point [this x y]
-  (let [factory (gl/glfactory)
-        context (.createExternalGLContext factory)
-        [renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
+(defn find-nodes-at-point [this context x y]
+  (let [[renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
         renderables (apply merge-with concat renderable-inputs)
         pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
     (ius/selection-renderer context renderables view-camera pick-rect)))
@@ -467,34 +465,50 @@
   (doseq [node nodes]
     (ds/connect node :self selection-node :selected-nodes)))
 
-(defn- toggle-selection
-  [selection-node nodes]
-  (let [selected-nodes-labels (into {} (ds/sources-of selection-node :selected-nodes))]
-    (doseq [node nodes]
-      (if-let [label (get selected-nodes-labels node)]
-        (ds/disconnect node label selection-node :selected-nodes)
-        (ds/connect node :self selection-node :selected-nodes)))))
-
 (defn- selection-mode
+  "True if the event has keyboard-modifier keys for multi-select.
+  On Mac: COMMAND or SHIFT.
+  On non-Mac: CTRL or SHIFT."
   [event]
-  (if (zero? (bit-and (:state-mask event) (bit-or SWT/COMMAND SWT/SHIFT)))
+  ;; SWT/MOD1 maps to COMMAND on Mac and CTRL elsewhere
+  (if (zero? (bit-and (:state-mask event) (bit-or SWT/MOD1 SWT/SHIFT)))
     :replace
     :toggle))
 
+(defn- selected-node-ids
+  [selection-node]
+  (set (map (comp :_id first) (ds/sources-of selection-node :selected-nodes))))
+
+(defn- toggle
+  "Returns a new set by toggling the elements in the 'clicked' set
+  between present/absent in the 'previous' set."
+  [previous clicked]
+   (union
+     (difference previous clicked)
+     (difference clicked previous)))
+
 (n/defnode SelectionController
+  (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (input selection-node s/Any :inject)
+  (input default-selection s/Any)
   (on :mouse-down
-      (when (selection-event? event)
-        (let [{:keys [x y]} event
-              {:keys [world-ref]} self
-              [selection-node] (n/get-node-inputs self :selection-node)
-              nodes (map #(ds/node world-ref %) (find-nodes-at-point self x y))]
-          (case (selection-mode event)
-            :replace (do (deselect-all selection-node)
-                         (select-nodes selection-node nodes))
-            :toggle (toggle-selection selection-node nodes))))))
+    (when (selection-event? event)
+      (let [{:keys [x y]} event
+            {:keys [world-ref]} self
+            [glcontext selection-node default-selection]
+              (n/get-node-inputs self :glcontext :selection-node :default-selection)
+            previous (disj (selected-node-ids selection-node)
+                       (:_id default-selection))
+            clicked (set (find-nodes-at-point self glcontext x y))
+            new-node-ids (case (selection-mode event)
+                           :replace clicked
+                           :toggle (toggle previous clicked))
+            nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
+                    [default-selection])]
+        (deselect-all selection-node)
+        (select-nodes selection-node nodes)))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -526,6 +540,7 @@
               selector     (ds/add (n/construct SelectionController))]
           (ds/connect atlas-node   :textureset  atlas-render :textureset)
           (ds/connect atlas-node   :gpu-texture atlas-render :gpu-texture)
+          (ds/connect atlas-node   :self        selector     :default-selection)
           (ds/connect camera       :camera      grid         :camera)
           (ds/connect camera       :camera      editor       :view-camera)
           (ds/connect camera       :self        controller   :controllers)
@@ -544,7 +559,7 @@
   (when (:image (t/outputs img-node))
     (ds/connect img-node :content target-node :images))
   (when (:tree (t/outputs img-node))
-    (ds/connect img-node :tree  target-node :children))  )
+    (ds/connect img-node :tree  target-node :children)))
 
 (defn- bind-images
   [image-nodes target-node]

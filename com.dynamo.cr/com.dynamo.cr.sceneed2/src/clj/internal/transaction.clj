@@ -281,7 +281,9 @@
     (fn [ctx action]
       (cond
         (sequential? action) (apply-tx ctx action)
-        :else                (perform ctx action)))
+        :else                (-> ctx
+                                 (perform action)
+                                 (update-in [:completed] conj action))))
     ctx
     actions))
 
@@ -336,10 +338,10 @@
 
 (deftype TriggerReceiver [transaction-context]
   TransactionReceiver
-  (tx-merge [this steps]
+  (tx-merge [this work]
     (cond-> transaction-context
-      (seq steps)
-      (update-in [:pending] conj steps))))
+      (seq work)
+      (update-in [:pending] conj work))))
 
 (def ^:private trigger-ordering
   [:added :modified :deleted])
@@ -387,9 +389,9 @@
   (update-in ctx [:outputs-modified] #(merge-with set/union % (:nodes-triggered ctx))))
 
 (defn- one-transaction-pass
-  [ctx tx-list]
+  [ctx actions]
   (-> (assoc ctx :nodes-triggered {})
-    (apply-tx tx-list)
+    (apply-tx actions)
     trace-trigger-activation
     mark-outputs-modified
     process-triggers
@@ -398,27 +400,30 @@
 (defn- exhaust-actions-and-triggers
   ([ctx]
     (exhaust-actions-and-triggers ctx maximum-retrigger-count))
-  ([{[tx-list & txs] :pending :as ctx} retrigger-count]
+  ([{[current-action & pending-actions] :pending :as ctx} retrigger-count]
     (assert (< 0 retrigger-count) "Maximum number of trigger executions reached; probable infinite recursion.")
-    (if (empty? tx-list)
+    (if (empty? current-action)
       ctx
-      (recur (one-transaction-pass (assoc ctx :pending txs) tx-list) (dec retrigger-count)))))
+      (recur (one-transaction-pass (assoc ctx :pending pending-actions) current-action) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :txs :nodes-added :nodes-deleted :outputs-modified :label])
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.
    Likewise for cache and cache-keys."
   [{:keys [graph cache cache-keys world-time] :as ctx}]
-  (update-in ctx [:world] assoc
-    :graph      graph
-    :cache      cache
-    :cache-keys cache-keys
-    :world-time (inc world-time)
-    :last-tx    (assoc (select-keys ctx tx-report-keys) :status :ok)))
+  (let [empty-tx?  (empty? (:completed ctx))
+        status     (if empty-tx? :empty :ok)
+        world-time (if empty-tx? world-time (inc world-time))]
+    (update-in ctx [:world] assoc
+      :graph      graph
+      :cache      cache
+      :cache-keys cache-keys
+      :world-time world-time
+      :last-tx    (assoc (select-keys ctx tx-report-keys) :status status))))
 
 (defn- new-transaction-context
-  [world-ref txs]
+  [world-ref actions]
   (let [current-world @world-ref]
     {:world-ref           world-ref
      :world               current-world
@@ -434,7 +439,8 @@
      :nodes-modified      #{}
      :nodes-deleted       {}
      :messages            []
-     :pending             [txs]}))
+     :pending             [actions]
+     :completed           []}))
 
 (defn start-event-loop!
   [world-ref id]
