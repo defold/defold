@@ -4,6 +4,7 @@
             [plumbing.core :refer [fnk]]
             [dynamo.camera :as c]
             [dynamo.gl :as gl]
+            [dynamo.gl.texture :as texture]
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
@@ -14,7 +15,7 @@
   (:import  [internal.ui GenericEditor IDirtyable]
             [dynamo.types Camera AABB]
             [java.awt Font]
-            [javax.media.opengl GL2 GLContext GLDrawableFactory]
+            [javax.media.opengl GL2 GLAutoDrawable GLContext GLDrawableFactory GLEventListener]
             [com.jogamp.opengl.util.awt TextRenderer]
             [org.eclipse.swt.opengl GLCanvas]
             [org.eclipse.core.commands ExecutionEvent]))
@@ -146,12 +147,16 @@ Messages:
       (.release context)
       (iuse/pipe-events-to-node canvas :resize self)
       (iuse/start-event-pump canvas self)
+      (texture/initialize gl)
       (ds/set-property self
         :context context
         :canvas canvas
         :text-renderer (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
 
   (on :destroy
+    (when (:context self)
+      (texture/unload-all (.. (:context self) getGL)))
+
     (ds/delete self))
 
   (on :save

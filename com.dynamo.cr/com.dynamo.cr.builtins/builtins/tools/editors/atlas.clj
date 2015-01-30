@@ -139,13 +139,13 @@
 (defn render-textureset
   [ctx gl textureset vertex-binding gpu-texture]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
 (defn render-quad
   [ctx gl textureset vertex-binding gpu-texture i]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
 
 (defn selection-renderables

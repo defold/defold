@@ -65,7 +65,7 @@
   (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
     (shader/set-uniform cubemap-shader gl "world" world)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (t/position camera))
-    (shader/set-uniform cubemap-shader gl "envMap" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform cubemap-shader gl "envMap" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-enable gl GL/GL_CULL_FACE)
     (gl/gl-cull-face gl GL/GL_BACK)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
@@ -84,7 +84,7 @@
   (input  camera        Camera)
 
   (output vertex-binding s/Any     :cached (fnk [] (vtx/use-with unit-sphere cubemap-shader)))
-  (output renderable    RenderData :cached produce-renderable)
+  (output renderable    RenderData  produce-renderable)
   (output aabb          AABB               (fnk [] g/unit-bounding-box)))
 
 (defnk produce-gpu-texture
@@ -101,7 +101,7 @@
   (property front  dp/ImageResource)
   (property back   dp/ImageResource)
 
-  (output gpu-texture   s/Any :cached produce-gpu-texture)
+  (output gpu-texture   s/Any  :cached produce-gpu-texture)
 
   (on :load
     (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
