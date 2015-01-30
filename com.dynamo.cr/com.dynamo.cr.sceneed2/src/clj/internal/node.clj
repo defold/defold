@@ -537,30 +537,47 @@ for all properties of this node."
   (let [property-names (-> this t/properties keys)]
     (zipmap property-names (map (partial gather-property this) property-names))))
 
-(defn- resource-connected?
-  [graph self input string-val]
-  (let [src-nodes (map #(dg/node graph (first %)) (lg/sources graph (:_id self) input))]
-    (not-every? not (filter #(= string-val (t/local-path (:filename %))) src-nodes))))
+(defn- ->set [x] (if (coll? x) (set x) (if (nil? x) #{} #{x})))
 
-(defn attach-resource
+(defn- resources-connected
+  [transaction self prop]
+  (let [graph (ds/in-transaction-graph transaction)]
+    (map
+      (fn [[node-id label]]
+        [(dg/node graph node-id)
+         label])
+      (lg/sources graph (:_id self) prop))))
+
+(defn- expected-resource-connection
+  [transaction self prop]
+  (map
+    (fn [nodename]
+      [(ds/lookup-in-transaction transaction self nodename)
+       :content])
+    (->set (get self prop))))
+
+(defn- ensure-resources-connected
+  [transaction self prop]
+  (let  [actual-connections   (resources-connected transaction self prop)
+         expected-connections (expected-resource-connection transaction self prop)]
+    (println :ensure-resources-connected :actual-connections actual-connections)
+    (println :ensure-resources-connected :expected-connections expected-connections)
+    (apply-deltas (set actual-connections) (set expected-connections)
+      #(doseq [[node label] %]
+         (println "disconnecting " (:_id node) label (:_id self) prop)
+         (ds/disconnect node label self prop))
+      #(doseq [[node label] %]
+         (println "connecting " (:_id node) label (:_id self) prop)
+         (ds/connect    node label self prop)))))
+
+(defn connect-resource
   [transaction graph self label kind]
-  (doseq [p     (ds/outputs-modified transaction self)
-          :when (resource? self p)
-          :let  [old-val (get (dg/node (ds/pre-transaction-graph transaction) (:_id self)) p)
-                 new-val (get self p)
-                 delta?  (not= old-val new-val)
-                 incorrect? (not (resource-connected? (:graph transaction) self p new-val))]]
-    (when (and delta? incorrect?)
-      (println "enforcing resource invariant on " (:_id self) p " [" old-val " -> " new-val "]" delta? incorrect?)
-      (when (not (empty? old-val))
-        (println "disconnecting " (:_id (ds/lookup-in-transaction transaction self old-val)) :content (:_id self) p)
-        (ds/disconnect (ds/lookup-in-transaction transaction self old-val) :content self p))
-      (when (not (empty? new-val))
-        (println "connecting " (:_id (ds/lookup-in-transaction transaction self new-val)) :content (:_id self) p)
-        (ds/connect (ds/lookup-in-transaction transaction self new-val) :content self p)))))
+  (doseq [prop  (ds/outputs-modified transaction self)
+          :when (resource? self prop)]
+    (ensure-resources-connected transaction self prop)))
 
 (def node-intrinsics
   [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
    (list 'output 'properties `t/Properties `gather-properties)
-   (list 'trigger 'dynamo.node/resource :added :modified `attach-resource)])
+   (list 'trigger 'dynamo.node/resource :added :modified `connect-resource)])
 

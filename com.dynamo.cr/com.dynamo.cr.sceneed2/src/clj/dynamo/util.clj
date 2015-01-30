@@ -1,5 +1,6 @@
 (ns dynamo.util
-  (:require [clojure.string :as str]))
+  (:require [clojure.set :as set]
+            [clojure.string :as str]))
 
 (defn map-keys
   [f m]
@@ -83,3 +84,9 @@
            (.worked ~monitor 1)
            (recur (.isCanceled ~monitor) (rest items#)))))
      (.done ~monitor)))
+
+(defn apply-deltas
+  [old new removed-f added-f]
+  (let [removed (set/difference old new)
+        added   (set/difference new old)]
+    [(removed-f removed) (added-f added)]))

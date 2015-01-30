@@ -223,6 +223,10 @@ inherits from dynamo.node/Scope."
   [transaction]
   (-> transaction :world-ref deref :graph))
 
+(defn in-transaction-graph
+  [transaction]
+  (-> transaction :graph))
+
 (defn- enclosing-scope
   [graph n]
   (node-consuming graph n :self))

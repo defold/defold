@@ -1,5 +1,6 @@
 (ns dynamo.util-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.set :as set]
+            [clojure.test :refer :all]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
@@ -57,3 +58,17 @@
       (or
         (= new-size (inc old-size))
         (= new-size min-size)))))
+
+(def gen-set (gen/fmap set (gen/vector gen/nat)))
+
+(defspec apply-deltas-invariants
+  100
+  (prop/for-all [[oldset newset] (gen/tuple gen-set gen-set)]
+    (let [[removal-ops addition-ops] (apply-deltas oldset newset (fn [out] (reduce conj [] out)) (fn [in] (reduce conj [] in)))
+          old-minus-new              (set/difference oldset newset)
+          new-minus-old              (set/difference newset oldset)]
+      (and
+        (= (count removal-ops) (count old-minus-new))
+        (= (count addition-ops) (count new-minus-old))
+        (= 1 (apply max 1 (vals (frequencies removal-ops))))
+        (= 1 (apply max 1 (vals (frequencies addition-ops))))))))
