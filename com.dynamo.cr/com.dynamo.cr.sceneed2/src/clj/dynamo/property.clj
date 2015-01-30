@@ -19,6 +19,9 @@
 (defproperty Resource s/Str (tag ::resource))
 (defproperty ImageResource Resource (tag ::image))
 
+(defproperty ResourceList [s/Str] (tag ::resource) (default []))
+(defproperty ImageResourceList ResourceList (tag ::image))
+
 (defproperty Vec3 t/Vec3
   (default [0.0 0.0 0.0]))
 

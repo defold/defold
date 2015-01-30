@@ -58,7 +58,7 @@
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
 
-  (input images [Image])
+  (property images dp/ImageResourceList)
 
   (property fps             dp/NonNegativeInt (default 30))
   (property flip-horizontal s/Bool)
@@ -573,19 +573,16 @@
     (ds/set-property self :extrude-borders (:extrude-borders atlas))
     (doseq [anim (:animations atlas)
             :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))]]
-      (bind-images (map #(lookup locator (:image %)) (:images anim)) anim-node)
+      (ds/set-property anim-node :images (mapv :image (:images anim)))
       (ds/connect anim-node :animation self :animations)
       (ds/connect anim-node :tree      self :children))
-    (bind-images (map #(lookup locator (:image %)) (:images atlas)) self)
+    (ds/set-property self :images (:images atlas))
     self))
 
 (defn remove-ancillary-nodes
   [self]
   (doseq [[animation-group _] (ds/sources-of self :animations)]
-    (ds/delete animation-group))
-  (doseq [[image _] (ds/sources-of self :images)]
-    (ds/disconnect image :content self :images)
-    (ds/disconnect image :tree  self :children)))
+    (ds/delete animation-group)))
 
 (defn construct-compiler
   [self]
@@ -627,8 +624,9 @@
   (inherits n/ResourceNode)
   (inherits n/Saveable)
 
-  (input images [Image])
   (input animations [Animation])
+
+  (property images dp/ImageResourceList (visible false))
 
   (property margin          dp/NonNegativeInt (default 0))
   (property extrude-borders dp/NonNegativeInt (default 0))

@@ -62,7 +62,7 @@ The input to the production function may be one of three things:
 2. A property of the node. In this case, the property is retrieved directly from the node.
 3. An output of this node or another node. The source node is asked to supply a value for this output. (This recurses back into get-node-value.)"
   [target-node g target-label]
-  (let [input-schema (some-> target-node t/input-types target-label)
+  (let [input-schema     (some-> target-node t/input-types target-label)
         output-transform (some-> target-node t/transforms target-label)]
     (cond
       (vector? input-schema)
@@ -187,7 +187,7 @@ maybe cache the value that was produced, and return it."
   (transforms'          [_] transforms)
   (transform-types'     [_] transform-types)
   (properties'          [_] properties)
-  (inputs'              [_] inputs)
+  (inputs'              [_] (map-vals #(if (satisfies? t/PropertyType %) (t/property-value-type %) %) inputs))
   (injectable-inputs'   [_] injectable-inputs)
   (outputs'             [_] (set (keys transforms)))
   (cached-outputs'      [_] cached-outputs)
@@ -579,5 +579,5 @@ for all properties of this node."
 (def node-intrinsics
   [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
    (list 'output 'properties `t/Properties `gather-properties)
-   (list 'trigger 'dynamo.node/resource :added :modified `connect-resource)])
+   (list 'trigger 'dynamo.node/resource :modified `connect-resource)])
 

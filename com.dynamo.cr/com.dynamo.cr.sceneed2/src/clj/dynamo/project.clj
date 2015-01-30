@@ -2,7 +2,7 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
   (:require [clojure.java.io :as io]
-            [plumbing.core :refer [defnk]]
+            [plumbing.core :refer [defnk fnk]]
             [schema.core :as s]
             [dynamo.system :as ds]
             [dynamo.file :as file]
@@ -58,7 +58,8 @@ ordinary paths."
   n)
 
 (n/defnode Placeholder
-  (inherits n/ResourceNode))
+  (inherits n/ResourceNode)
+  (output content s/Any (fnk [] nil)))
 
 (defn- new-node-for-path
   [project-node path]
