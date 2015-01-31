@@ -57,17 +57,25 @@ an event is in flight."
 (def ^:private delta-flags-of-interest
   (+ IResourceDelta/CONTENT IResourceDelta/REPLACED))
 
+(defn- interesting?
+  [^IResourceDelta delta]
+  (and
+    (not (instance? IContainer (.getResource delta)))
+    (not (.. delta getFullPath (removeFirstSegments 1) toOSString (startsWith "content/builtins")))
+    (< 2 (.. delta getFullPath segmentCount))
+    (or
+      (= IResourceDelta/REMOVED (.getKind delta))
+      (= 0 (.getFlags delta))
+      (not= 0 (bit-and (.getFlags delta) delta-flags-of-interest)))))
+
 (defn- rce->map
   [^IResourceChangeEvent event]
   (let [deltas (atom {})
         visitor (reify IResourceDeltaVisitor
                   (^boolean visit [this ^IResourceDelta delta]
-                    (when (and
-                            (not= 0 (bit-and (.getFlags delta) delta-flags-of-interest))
-                            (< 2 (.. delta getFullPath segmentCount))
-                            (not (.. delta getFullPath (removeFirstSegments 1) toOSString (startsWith "content/builtins")))
-                            (not (instance? IContainer (.getResource delta))))
-                      ;; ignore spurious change events on the builtins folder
+                    (println :resource-delta-visitor (.getFullPath delta) (.getKind delta) (.getFlags delta) (.. delta getFullPath segmentCount) (< 2 (.. delta getFullPath segmentCount)))
+                    (when (interesting? delta)
+                      (println :adding (delta-kinds (.getKind delta)) (.. delta getFullPath (removeFirstSegments 2)))
                       (swap! deltas update-in [(delta-kinds (.getKind delta))] conj (.. delta getFullPath (removeFirstSegments 2))))
                     (instance? IContainer (.getResource delta))))]
     (.accept (.getDelta event) visitor)
@@ -79,7 +87,7 @@ an event is in flight."
         l         (reify
                     IResourceChangeListener
                     (resourceChanged [_ event]
-                      (when (= IResourceChangeEvent/POST_CHANGE (.getType event))
+                      (when (some #{(.getType event)} [IResourceChangeEvent/POST_CHANGE IResourceChangeEvent/PRE_DELETE])
                         (let [m (rce->map event)]
                           (when-not (empty? m)
                             (schedule-workspace-job "Refresh resources" "Error refreshing resources" (.getResource event) f m))))))]

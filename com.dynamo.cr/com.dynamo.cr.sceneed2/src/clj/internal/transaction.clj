@@ -28,7 +28,7 @@
 (defn- new-txid [] (.getAndIncrement next-txid))
 
 (defmacro txerrstr [ctx & rest]
-  `(str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@rest))
+  `(pr-str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@rest))
 
 ; ---------------------------------------------------------------------------
 ; Transaction protocols
@@ -229,16 +229,19 @@
       :cache-keys          (assoc cache-keys node-id (node->cache-keys to-node)))))
 
 (defmethod perform :delete-node
-  [{:keys [graph nodes-deleted old-event-loops] :as ctx} {:keys [node-id]}]
+  [{:keys [graph nodes-deleted old-event-loops nodes-added obsolete-cache-keys cache-keys] :as ctx} {:keys [node-id]}]
   (when-not (dg/node graph (resolve-tempid ctx node-id))
     (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
         node        (dg/node graph node-id)
         ctx         (activate-all-outputs ctx node-id node)]
     (assoc ctx
-      :graph           (dg/remove-node graph node-id)
-      :old-event-loops (if (satisfies? t/MessageTarget node) (conj old-event-loops node) old-event-loops)
-      :nodes-deleted   (assoc nodes-deleted node-id node))))
+      :graph               (dg/remove-node graph node-id)
+      :old-event-loops     (if (satisfies? t/MessageTarget node) (conj old-event-loops node) old-event-loops)
+      :nodes-deleted       (assoc nodes-deleted node-id node)
+      :nodes-added         (disj nodes-added node-id)
+      :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
+      :cache-keys          (dissoc cache-keys node-id))))
 
 (defmethod perform :update-property
   [{:keys [graph] :as ctx} {:keys [node-id property fn args]}]

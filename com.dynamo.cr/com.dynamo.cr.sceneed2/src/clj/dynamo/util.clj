@@ -2,6 +2,9 @@
   (:require [clojure.set :as set]
             [clojure.string :as str]))
 
+(defn removev [pred coll]
+  (filterv (complement pred) coll))
+
 (defn map-keys
   [f m]
   (zipmap

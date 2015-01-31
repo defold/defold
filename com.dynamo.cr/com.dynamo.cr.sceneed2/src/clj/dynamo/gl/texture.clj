@@ -1,5 +1,5 @@
 (ns dynamo.gl.texture
-  (:require [dynamo.types :refer [IDisposable dispose]]
+  (:require [dynamo.image :as img :refer [placeholder-image]]
             [dynamo.gl.protocols :refer :all]
             [dynamo.gl :as gl])
   (:import [java.awt.image BufferedImage]
@@ -128,7 +128,7 @@
 
 (defn image-texture
   [^BufferedImage img]
-  (->TextureLifecycle img))
+  (->TextureLifecycle (or img (:contents placeholder-image))))
 
 (defrecord CubemapTexture [^BufferedImage right ^BufferedImage left ^BufferedImage top ^BufferedImage bottom ^BufferedImage front ^BufferedImage back]
   GlBind
@@ -170,6 +170,19 @@
       (when-let [texture ^Texture (context-local-data gl this)]
         (.disable texture gl)))))
 
+(def cubemap-placeholder
+  (memoize
+    (fn []
+      (img/flood (img/blank-image 512 512 BufferedImage/TYPE_3BYTE_BGR) 0.9568 0.0 0.6313))))
+
+(defn- safe-texture
+  [x]
+  (if (nil? x)
+    (cubemap-placeholder)
+    (if (= (:contents img/placeholder-image) x)
+      (cubemap-placeholder)
+      x)))
+
 (defn image-cubemap-texture
   [right left top bottom front back]
-  (->CubemapTexture right left top bottom front back))
+  (apply ->CubemapTexture (map #(safe-texture %) [right left top bottom front back])))

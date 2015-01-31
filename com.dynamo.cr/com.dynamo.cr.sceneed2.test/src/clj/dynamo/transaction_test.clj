@@ -13,6 +13,7 @@
             [dynamo.system.test-support :refer :all]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
+            [internal.either :as e]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [internal.transaction :as it]))
@@ -343,3 +344,34 @@
               tx-result (it/transact world-ref tx-data)]
           (is (= 1 (count (:outputs-modified tx-result))))
           (is (= [(:_id real-node) #{:properties :a-property :ordinary :self-dependent}] (first (:outputs-modified tx-result)))))))))
+
+(deftest short-lived-nodes
+  (with-clean-world
+    (let [node1 (n/construct CachedOutputInvalidation)]
+      (ds/transactional
+        (ds/add node1)
+        (ds/delete node1))
+      (is :ok))))
+
+(n/defnode CachedValueNode
+  (output cached-output s/Str :cached (fnk [] "an-output-value")))
+
+(defn cache-peek
+  [world-ref cache-key]
+  (some-> world-ref deref :cache (get cache-key)))
+
+(defn cache-locate-key
+  [world-ref node-id output]
+  (some-> world-ref deref :cache-keys (get-in [node-id :cached-output])))
+
+(deftest deleted-nodes-values-removed-from-cache
+  (with-clean-world
+    (let [node    (ds/transactional (ds/add (n/construct CachedValueNode)))
+          node-id (:_id node)]
+      (is (= "an-output-value" (n/get-node-value node :cached-output)))
+      (let [cache-key    (cache-locate-key world-ref node-id :cached-output)
+            cached-value (cache-peek world-ref cache-key)]
+        (is (= "an-output-value" (e/result cached-value)))
+        (ds/transactional (ds/delete node))
+        (is (nil? (cache-peek world-ref cache-key)))
+        (is (nil? (cache-locate-key world-ref node-id :cached-output)))))))

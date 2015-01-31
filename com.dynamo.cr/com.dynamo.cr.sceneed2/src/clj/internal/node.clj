@@ -560,14 +560,15 @@ for all properties of this node."
   [transaction self prop]
   (let  [actual-connections   (resources-connected transaction self prop)
          expected-connections (expected-resource-connection transaction self prop)]
-    (println :ensure-resources-connected :actual-connections actual-connections)
-    (println :ensure-resources-connected :expected-connections expected-connections)
+    (when (not= actual-connections expected-connections)
+      (println (:txid transaction) ":" (:txpass transaction) "actual   " actual-connections)
+      (println (:txid transaction) ":" (:txpass transaction) "expected " expected-connections))
     (apply-deltas (set actual-connections) (set expected-connections)
       #(doseq [[node label] %]
-         (println "disconnecting " (:_id node) label (:_id self) prop)
+         (println "\tdisconnecting: " (:_id node) label (:_id self) prop)
          (ds/disconnect node label self prop))
       #(doseq [[node label] %]
-         (println "connecting " (:_id node) label (:_id self) prop)
+         (println "\tconnecting: " (:_id node) label (:_id self) prop)
          (ds/connect    node label self prop)))))
 
 (defn connect-resource

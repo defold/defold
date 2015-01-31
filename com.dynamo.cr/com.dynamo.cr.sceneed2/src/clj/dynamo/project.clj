@@ -58,13 +58,15 @@ ordinary paths."
   n)
 
 (n/defnode Placeholder
+  "A Placeholder node represents a file-based asset that doesn't have any specific
+behavior."
   (inherits n/ResourceNode)
   (output content s/Any (fnk [] nil)))
 
 (defn- new-node-for-path
-  [project-node path]
+  [project-node path type-if-not-registered]
   (n/construct
-    (get-in project-node [:node-types (t/extension path)] Placeholder)
+    (get-in project-node [:node-types (t/extension path)] type-if-not-registered)
     :filename path))
 
 (defn load-resource
@@ -74,7 +76,7 @@ ordinary paths."
   (ds/transactional
     (ds/in project-node
       (ds/add
-        (new-node-for-path project-node path)))))
+        (new-node-for-path project-node path Placeholder)))))
 
 (n/defnode CannedProperties
   (property rotation     s/Str    (default "twenty degrees starboard"))
@@ -179,7 +181,9 @@ There is no guaranteed ordering of the sequence."
     (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
       (if-let [node (first (ds/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
         node
-        (load-resource this path))))
+        (ds/in this
+          (ds/add
+            (new-node-for-path this path Placeholder))))))
 
   (on :destroy
     (ds/delete self)))
@@ -232,34 +236,56 @@ There is no guaranteed ordering of the sequence."
       (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     monitor)))
     project-node))
 
+(defn- unload-nodes
+  [nodes]
+  (ds/transactional
+    (doseq [n nodes]
+      (ds/send-after n {:type :unload}))))
+
+(defn- replace-nodes
+  [project-node nodes-to-replace f]
+  (ds/transactional
+    (doseq [old nodes-to-replace
+            :let [new (f old)]]
+      (ds/become old new)
+      (ds/send-after old {:type :load :project project-node}))))
+
+(defn- add-or-replace?
+  [project-node resource]
+  (let [[node] (nodes-with-filename project-node (file/make-project-path project-node resource))]
+    (cond
+      (not (nil? node))                   :replace-existing
+      (clojure/clojure-source? resource)  :load-clojure
+      :else                               :load-other)))
+
 (defn- update-added-resources
   [project-node {:keys [added]}]
-  (let [resources       (group-by clojure/clojure-source? added)
-        clojure-sources (get resources true)
-        non-sources     (get resources false)]
-    (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) clojure-sources nil))
-    (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) non-sources     nil))
+  (when (not-empty added)
+    (println :update-added-resources added))
+  (let [with-placeholders (group-by #(add-or-replace? project-node %) added)
+        replacements      (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) (:replace-existing with-placeholders))]
+    (unload-nodes replacements)
+    (replace-nodes project-node replacements #(new-node-for-path project-node (:filename %) Placeholder))
+    (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) (:load-clojure with-placeholders) nil))
+    (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) (:load-other   with-placeholders) nil))
     project-node))
 
 (defn- update-deleted-resources
   [project-node {:keys [deleted]}]
+  (when (not-empty deleted)
+    (println :update-deleted-resources deleted))
   (let [nodes-to-delete (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) deleted)]
-    (ds/transactional
-      (doseq [n nodes-to-delete]
-        (ds/delete n))))
+    (unload-nodes nodes-to-delete)
+    (replace-nodes project-node nodes-to-delete #(new-node-for-path project-node (:filename %) Placeholder)))
   project-node)
 
 (defn- update-changed-resources
   [project-node {:keys [changed]}]
+  (when (not-empty changed)
+    (println :update-changed-resources changed))
   (let [nodes-to-replace (map #(first (nodes-with-filename project-node (file/make-project-path project-node %))) changed)]
-    (ds/transactional
-      (doseq [n nodes-to-replace]
-        (ds/send-after n {:type :unload})))
-    (ds/transactional
-      (doseq [n nodes-to-replace]
-        (let [replacement (new-node-for-path project-node (:filename n))]
-          (ds/become n replacement)
-          (ds/send-after n {:type :load :project project-node}))))))
+    (unload-nodes nodes-to-replace)
+    (replace-nodes project-node nodes-to-replace #(new-node-for-path project-node (:filename %) Placeholder))))
 
 (defn- update-resources
   [project-node changeset]

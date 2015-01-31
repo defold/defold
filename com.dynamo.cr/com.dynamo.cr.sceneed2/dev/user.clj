@@ -44,9 +44,11 @@
   [x]
   (clojure.pprint/write (macroexpand x) :dispatch clojure.pprint/code-dispatch))
 
-(defn the-world [] (-> is/the-system deref :world))
-(defn the-graph [] (-> (the-world) :state is/graph))
-(defn nodes     [] (-> (the-graph) :nodes vals))
+(defn the-world       [] (-> is/the-system deref :world))
+(defn the-world-state [] (-> (the-world) :state deref))
+(defn the-cache       [] (-> (the-world-state) :cache))
+(defn the-graph       [] (-> (the-world-state) :graph))
+(defn nodes           [] (-> (the-graph) :nodes vals))
 
 (defn nodes-and-classes
   []
@@ -57,9 +59,17 @@
   [id]
   (dg/node (the-graph) id))
 
+(defn node-type
+  [id]
+  (-> (node id) t/node-type :name))
+
 (defn image-nodes
   []
   (map (comp node first) (filter #(= "editors.image_node.ImageResourceNode__" (.getName (second %))) (nodes-and-classes))))
+
+(defn node-for-file
+  [file-name]
+  (filter #(= file-name (t/local-path (:filename %))) (filter (comp not nil? :filename) (nodes))))
 
 (defn inputs-to
   ([id]
@@ -80,6 +90,24 @@
 (defn get-value
   [id label & {:as opt-map}]
   (n/get-node-value (merge (node id) opt-map) label))
+
+(defn cache-peek
+  [id label]
+  (if-let [cache-key (some-> (the-world-state) :cache-keys (get-in [id label]))]
+    (if-let [x (get (the-cache) cache-key)]
+      x
+      :value-not-cached)
+    :output-not-cacheable))
+
+(defn decache
+  [id label]
+  (if-let [cache-key (some-> (the-world-state) :cache-keys (get-in [id label]))]
+    (if (get (the-cache) cache-key)
+      (dosync
+        (alter (:state (the-world)) update-in [:cache] clojure.core.cache/evict cache-key)
+        :ok)
+      :value-not-cached)
+    :output-not-cacheable))
 
 (defn projects-in-memory
   []
