@@ -24,7 +24,7 @@
       (deref [this] node-ids))))
 
 (defn fire-selection-changed
-  [graph self transaction]
+  [transaction graph self label kind]
   (when (ds/is-modified? transaction self :selection)
     (let [before  (n/get-node-value self :selection)
           release (promise)]
@@ -32,7 +32,7 @@
       (ui/swt-thread-safe*
         (fn []
           (if (deref release 50 false)
-            (let [after (n/get-node-value self :selection)]
+            (let [after (n/get-node-value (ds/refresh self) :selection)]
               (when (not= @before @after)
                (prn "fire-selection-changed: selection *has* changed from " @before " to " @after)
                (.setSelection ^ISelectionProvider self after)))
@@ -42,7 +42,8 @@
   (input selected-nodes ['t/Node])
 
   (property selection-listeners EventBroadcaster (default #(ui/make-event-broadcaster)))
-  (property triggers n/Triggers (default [#'fire-selection-changed]))
+
+  (trigger notify-listeners :modified fire-selection-changed)
 
   (output selection s/Any produce-selection)
   (output selection-node Selection (fnk [self] self))

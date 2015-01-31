@@ -14,6 +14,7 @@
             [dynamo.image :as img]
             [dynamo.node :as n]
             [dynamo.project :as p]
+            [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t :refer :all]
             [internal.render.pass :as pass])
@@ -64,7 +65,7 @@
   (gl/with-enabled gl [gpu-texture cubemap-shader vertex-binding]
     (shader/set-uniform cubemap-shader gl "world" world)
     (shader/set-uniform cubemap-shader gl "cameraPosition" (t/position camera))
-    (shader/set-uniform cubemap-shader gl "envMap" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform cubemap-shader gl "envMap" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-enable gl GL/GL_CULL_FACE)
     (gl/gl-cull-face gl GL/GL_BACK)
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* 16 32)))
@@ -83,47 +84,30 @@
   (input  camera        Camera)
 
   (output vertex-binding s/Any     :cached (fnk [] (vtx/use-with unit-sphere cubemap-shader)))
-  (output renderable    RenderData :cached produce-renderable)
+  (output renderable    RenderData  produce-renderable)
   (output aabb          AABB               (fnk [] g/unit-bounding-box)))
 
-(def ^:private cubemap-inputs
-  {:right  :image-right
-   :left   :image-left
-   :top    :image-top
-   :bottom :image-bottom
-   :front  :image-front
-   :back   :image-back})
-
 (defnk produce-gpu-texture
-  [image-right image-left image-top image-bottom image-front image-back]
-  (apply texture/image-cubemap-texture (map :contents [image-right image-left image-top image-bottom image-front image-back])))
+  [right left top bottom front back]
+  (apply texture/image-cubemap-texture (map :contents [right left top bottom front back])))
 
 (n/defnode CubemapNode
+  (inherits n/AutowireResources)
   (inherits n/OutlineNode)
 
-  (property right  s/Str)
-  (property left   s/Str)
-  (property top    s/Str)
-  (property bottom s/Str)
-  (property front  s/Str)
-  (property back   s/Str)
+  (property right  dp/ImageResource)
+  (property left   dp/ImageResource)
+  (property top    dp/ImageResource)
+  (property bottom dp/ImageResource)
+  (property front  dp/ImageResource)
+  (property back   dp/ImageResource)
 
-  (input image-right  Image)
-  (input image-left   Image)
-  (input image-top    Image)
-  (input image-bottom Image)
-  (input image-front  Image)
-  (input image-back   Image)
-
-  (output gpu-texture   s/Any :cached produce-gpu-texture)
+  (output gpu-texture   s/Any  :cached produce-gpu-texture)
 
   (on :load
-    (let [project         (:project event)
-          cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
+    (let [cubemap-message (protobuf/pb->map (protobuf/read-text Graphics$Cubemap (:filename self)))]
       (doseq [[side input] cubemap-message]
-        (let [img-node (t/lookup project input)]
-          (ds/set-property self side input)
-          (ds/connect img-node :image self (cubemap-inputs side)))))))
+        (ds/set-property self side input)))))
 
 (defn on-edit
   [project-node editor-site cubemap]

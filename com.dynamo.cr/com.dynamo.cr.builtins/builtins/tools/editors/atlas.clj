@@ -57,8 +57,9 @@
 
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
+  (inherits n/AutowireResources)
 
-  (input images [Image])
+  (property images dp/ImageResourceList)
 
   (property fps             dp/NonNegativeInt (default 30))
   (property flip-horizontal s/Bool)
@@ -139,13 +140,13 @@
 (defn render-textureset
   [ctx gl textureset vertex-binding gpu-texture]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords textureset))))))
 
 (defn render-quad
   [ctx gl textureset vertex-binding gpu-texture i]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
 
 (defn selection-renderables
@@ -177,14 +178,15 @@
   [this textureset selection]
   (let [project-root (p/project-root-node this)
         selected (set @selection)]
-    (vec (keep
-           (fn [rect]
-             (let [node (t/lookup project-root (:path rect))]
-               (when (selected (:_id node))
-                 {:world-transform g/Identity4d
-                  :render-fn (fn [ctx gl glu text-renderer]
-                               (render-selection-outline ctx gl this textureset rect))})))
-           (:coords textureset)))))
+    (vec 
+      (keep
+        (fn [rect]
+          (let [node (t/lookup project-root (:path rect))]
+            (when (selected (:_id node))
+              {:world-transform g/Identity4d
+               :render-fn (fn [ctx gl glu text-renderer]
+                            (render-selection-outline ctx gl this textureset rect))})))
+        (:coords textureset)))))
 
 (defnk produce-renderable :- RenderData
   [this textureset selection vertex-binding gpu-texture]
@@ -557,7 +559,7 @@
 (defn- bind-image-connections
   [img-node target-node]
   (when (:image (t/outputs img-node))
-    (ds/connect img-node :image target-node :images))
+    (ds/connect img-node :content target-node :images))
   (when (:tree (t/outputs img-node))
     (ds/connect img-node :tree  target-node :children)))
 
@@ -573,19 +575,16 @@
     (ds/set-property self :extrude-borders (:extrude-borders atlas))
     (doseq [anim (:animations atlas)
             :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))]]
-      (bind-images (map #(lookup locator (:image %)) (:images anim)) anim-node)
+      (ds/set-property anim-node :images (mapv :image (:images anim)))
       (ds/connect anim-node :animation self :animations)
       (ds/connect anim-node :tree      self :children))
-    (bind-images (map #(lookup locator (:image %)) (:images atlas)) self)
+    (ds/set-property self :images (:images atlas))
     self))
 
 (defn remove-ancillary-nodes
   [self]
   (doseq [[animation-group _] (ds/sources-of self :animations)]
-    (ds/delete animation-group))
-  (doseq [[image _] (ds/sources-of self :images)]
-    (ds/disconnect image :image self :images)
-    (ds/disconnect image :tree  self :children)))
+    (ds/delete animation-group)))
 
 (defn construct-compiler
   [self]
@@ -624,11 +623,13 @@
    textureset `[dynamo.types/TextureSet]` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.\"
    "
   (inherits n/OutlineNode)
+  (inherits n/AutowireResources)
   (inherits n/ResourceNode)
   (inherits n/Saveable)
 
-  (input images [Image])
   (input animations [Animation])
+
+  (property images dp/ImageResourceList (visible false))
 
   (property margin          dp/NonNegativeInt (default 0))
   (property extrude-borders dp/NonNegativeInt (default 0))

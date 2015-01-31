@@ -1,6 +1,8 @@
 (ns dynamo.system
+  "Functions for performing transactional changes to the system graph."
   (:require [clojure.core.async :as a]
             [clojure.core.cache :as cache]
+            [dynamo.file :as file]
             [dynamo.types :as t]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
@@ -87,7 +89,8 @@ to distinguish it from a function call."
     (node? val)        (or (dg/node (:graph tx-outcome) (it/resolve-tempid tx-outcome (:_id val))) val)
     :else              val))
 
-(defn transactional* [inner]
+(defn transactional*
+  [inner]
   (binding [*transaction* (it/tx-begin *transaction*)]
     (let [result     (inner)
           tx-outcome (it/tx-apply *transaction*)]
@@ -96,6 +99,7 @@ to distinguish it from a function call."
         result))))
 
 (defn in-transaction?
+  "Returns true if the call occurs within a transactional boundary."
   []
   (satisfies? Transaction *transaction*))
 
@@ -107,18 +111,30 @@ to distinguish it from a function call."
 ; High level Transaction API
 ; ---------------------------------------------------------------------------
 (defn current-scope
+  "Return the node that constitutes the current scope."
   []
   it/*scope*)
 
 (defmacro transactional
+  "Executes the body within a project transaction. All actions
+described in the body will happen atomically at the end of the transactional
+block.
+
+Transactional blocks nest nicely. The transaction will happen when the outermost
+block ends."
   [& forms]
   `(transactional* (fn [] ~@forms)))
 
 (defn connect
+  "Make a connection from an output of the source node to an input on the target node.
+Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/connect source-node source-label target-node target-label)))
 
 (defn disconnect
+  "Remove a connection from an output of the source node to the input on the target node.
+Note that there might still be connections between the two nodes, from other outputs to other inputs.
+Takes effect when a transaction is applied."
   [source-node source-label target-node target-label]
   (it/tx-bind *transaction* (it/disconnect source-node source-label target-node target-label)))
 
@@ -128,6 +144,7 @@ to distinguish it from a function call."
   new-node)
 
 (defn set-property
+  "Assign a value to a node's property (or properties) value(s) in a transaction."
   [n & kvs]
   (it/tx-bind *transaction*
     (for [[p v] (partition-all 2 kvs)]
@@ -135,12 +152,16 @@ to distinguish it from a function call."
   n)
 
 (defn update-property
+  "Apply a function to a node's property in a transaction. The function f will be
+invoked as if by (apply f current-value args)"
   [n p f & args]
   (it/tx-bind *transaction*
     (it/update-property n p f args))
   n)
 
 (defn add
+  "Add a newly created node to the world. This will attach the node to the
+current scope."
   [n]
   (it/tx-bind *transaction* (it/new-node n))
   (when (current-scope)
@@ -154,10 +175,14 @@ to distinguish it from a function call."
   (it/tx-bind *transaction* (it/delete-node n)))
 
 (defn send-after
+  "Spools messages for delivery after the transaction finishes.
+The messages will only be sent if the transaction completes successfully."
   [n args]
   (it/tx-bind *transaction* (it/send-message n args)))
 
 (defmacro in
+  "Execute the forms within the given scope. Scope is a node that
+inherits from dynamo.node/Scope."
   [s & forms]
   `(let [new-scope# ~s]
      (assert (satisfies? t/NamingContext new-scope#) (str new-scope# " cannot be used as a scope."))
@@ -191,51 +216,41 @@ to distinguish it from a function call."
 (defn is-deleted? [transaction node]
   (contains? (:nodes-deleted transaction) (:_id node)))
 
+(defn outputs-modified
+  [transaction node]
+  (get-in transaction [:outputs-modified (:_id node)]))
 
+(defn pre-transaction-graph
+  [transaction]
+  (-> transaction :world-ref deref :graph))
 
-; ---------------------------------------------------------------------------
-; Documentation
-; ---------------------------------------------------------------------------
-(doseq [[v doc]
-       {*ns*
-        "Functions for performing transactional changes to the system graph."
+(defn in-transaction-graph
+  [transaction]
+  (-> transaction :graph))
 
-        #'transactional
-        "Executes the body within a project transaction. All actions
-described in the body will happen atomically at the end of the transactional
-block.
+(defn- enclosing-scope
+  [graph n]
+  (node-consuming graph n :self))
 
-Transactional blocks nest nicely. The transaction will happen when the outermost
-block ends."
+(defn path-to-root
+  [graph n]
+  (take-while :_id
+    (iterate
+      (partial enclosing-scope graph)
+      n)))
 
-        #'current-scope
-        "Return the node that constitutes the current scope."
+(defn- transaction-added-nodes
+  [transaction]
+  (let [g (:graph transaction)]
+    (map #(dg/node g %) (:nodes-added transaction))))
 
-        #'connect
-        "Make a connection from an output of the source node to an input on the target node.
-Takes effect when a transaction is applied."
-
-        #'disconnect
-        "Remove a connection from an output of the source node to the input on the target node.
-Note that there might still be connections between the two nodes, from other outputs to other inputs.
-Takes effect when a transaction is applied."
-
-        #'set-property
-        "Assign a value to a node's property (or properties) value(s) in a transaction."
-
-        #'update-property
-        "Apply a function to a node's property in a transaction. The function f will be
-invoked as if by (apply f current-value args)"
-
-        #'add
-        "Add a newly created node to the world. This will attach the node to the
-current scope."
-
-        #'send-after
-        "Spools messages for delivery after the transaction finishes.
-The messages will only be sent if the transaction completes successfully."
-
-        #'in
-        "Execute the forms within the given scope. Scope is a node that
-inherits from dynamo.node/Scope."}]
-  (alter-meta! v assoc :doc doc))
+(defn lookup-in-transaction
+  "Attempt to find the node-name, as it exists at the present
+state of the transaction. This first looks at the newly created nodes,
+then moves to the enclosing scope of the origin."
+  [transaction origin node-name]
+  (let [parents (drop 1 (path-to-root (:graph transaction) origin))
+        path    (if (instance? dynamo.file.ProjectPath node-name) node-name (file/make-project-path (first parents) node-name))]
+    (if-let [added-this-txn (first (filter #(= path (:filename %)) (transaction-added-nodes transaction)))]
+      added-this-txn
+      (first (map #(t/lookup % node-name) parents)))))

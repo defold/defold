@@ -34,26 +34,6 @@ AssertionError will result."
   [node label]
   (in/get-node-value node label))
 
-(defnk selfie
-  "Passthrough for self. Needed only for dependency tracking."
-  [this] this)
-
-(defn- gather-property [this prop]
-  {:node-id (:_id this)
-   :value (get this prop)
-   :type  (-> this t/properties prop)})
-
-(defnk gather-properties :- Properties
-  "Production function that delivers the definition and value
-for all properties of this node."
-  [this]
-  (let [property-names (-> this t/properties keys)]
-    (zipmap property-names (map (partial gather-property this) property-names))))
-
-(def node-intrinsics
-  [(list 'output 'self `s/Any `selfie)
-   (list 'output 'properties `Properties `gather-properties)])
-
 (defn construct
   "Creates an instance of a node. The node-type must have been
 previously defined via `defnode`.
@@ -122,6 +102,33 @@ This will produce a record `AtlasCompiler`. `defnode` merges the behaviors appro
 
 Every node can receive messages. The node declares message handlers with a special syntax:
 
+(trigger _symbol_ _type_ _action_)
+
+A trigger is invoked during transaction execution, when a node of the type is touched by
+the transaction. _symbol_ is a label for the trigger. Triggers are inherited, colliding
+labels are overwritten by the descendant.
+
+_type_ is a keyword, one of:
+
+    :added    - The node was added in this transaction.
+    :modified - The node was modified, either directly, or as a result of an input changing.
+    :deleted  - The node was deleted in this transaction.
+
+_action_ is a function of five arguments:
+
+    1. The current transaction context.
+    2. The new graph as it has been modified during the transaction
+    3. The node itself
+    4. The label, as a keyword
+    5. The trigger type
+
+The trigger's return value is ignored. The action is allowed to call the `dynamo.system` transaction
+functions to request effects. These effects will be applied within the current transaction.
+
+It is allowed for a trigger to cause changes that activate more triggers. Triggers
+cascade until the limit `internal.transaction/maximum-retrigger-count` is reached.
+
+
 (on _message_type_ _form_)
 
 The form will be evaluated inside a transactional body. This means that it can
@@ -142,7 +149,7 @@ implement dynamo.types/MessageTarget."
         ctor-name    (symbol (str 'map-> record-name))]
     `(do
        (declare ~ctor-name ~symb)
-       (let [description#    ~(in/node-type-sexps symb (concat node-intrinsics forms))
+       (let [description#    ~(in/node-type-sexps symb (concat in/node-intrinsics forms))
              replacing#      (if-let [x# (and (resolve '~symb) (var-get (resolve '~symb)))]
                                (when (satisfies? t/NodeType x#) x#))
              whole-graph#    (some-> (ds/current-scope) :world-ref deref :graph)
@@ -185,7 +192,7 @@ This function should mainly be used to create 'plumbing'."
 (defn inject-new-nodes
   "Implementation function that performs dependency injection for nodes.
 This function should not be called directly."
-  [graph self transaction]
+  [transaction graph self label kind]
   (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
         nodes-added              (map #(dg/node graph %) (:nodes-added transaction))
         out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
@@ -202,14 +209,12 @@ This function should not be called directly."
 (defn dispose-nodes
   "Trigger to dispose nodes from a scope when the scope is destroyed.
 This should not be called directly."
-  [graph self transaction]
+  [transaction graph self label kind]
   (when (ds/is-deleted? transaction self)
     (let [graph-before-deletion (-> transaction :world-ref deref :graph)
           nodes-to-delete       (:nodes (in/collect-inputs self graph-before-deletion {:nodes :ok}))]
       (doseq [n nodes-to-delete]
         (ds/delete n)))))
-
-(defproperty Triggers Callbacks (visible false))
 
 (defnode Scope
   "Scope provides a level of grouping for nodes. Scopes nest.
@@ -221,7 +226,9 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
 
   (property tag      s/Keyword)
   (property parent   (s/protocol NamingContext))
-  (property triggers Triggers (visible false) (default [#'inject-new-nodes #'dispose-nodes]))
+
+  (trigger dependency-injection :modified inject-new-nodes)
+  (trigger garbage-collection   :deleted  dispose-nodes)
 
   (output dictionary s/Any in/scope-dictionary)
 
@@ -238,21 +245,6 @@ RootScope has no parent."
   [^RootScope__ v ^java.io.Writer w]
   (.write w (str "<RootScope{:_id " (:_id v) "}>")))
 
-(defn mark-dirty
-  "Trigger used to implement dirty tracking for content nodes.
-Do not call this directly."
-  [graph self transaction]
-  (when (and (ds/is-modified? transaction self) (not (ds/is-added? transaction self)) (not (ds/is-deleted? transaction self)))
-    (ds/set-property self :dirty true)))
-
-(defnode DirtyTracking
-  "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
-this node to set a dirty flag whenever the node is altered by a transaction."
-  (property triggers Triggers (default [#'mark-dirty]))
-  (property dirty s/Bool
-    (default false)
-    (visible false)))
-
 (defnode Saveable
   "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
 this node to indicate that 'Save' is a meaningful action.
@@ -262,7 +254,14 @@ Inheritors are required to supply a production function for the :save output."
 
 (defnode ResourceNode
   "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename (s/protocol PathManipulation) (visible false)))
+  (property filename (s/protocol PathManipulation) (visible false))
+
+  (output content s/Any :abstract))
+
+(defnode AutowireResources
+  "Mixin. Nodes with this behavior automatically keep their graph connections
+up to date with their resource properties."
+  (trigger autowire-resources :modified in/connect-resource))
 
 (defnode OutlineNode
   "Mixin. Any OutlineNode can be shown in an outline view.

@@ -305,6 +305,10 @@ This must be submitted to the driver for compilation before you can use it. See
   [^GL2 gl progn loc val]
   (.glUniform1i gl loc val))
 
+(defmethod set-uniform-at-index Long
+  [^GL2 gl progn loc val]
+  (.glUniform1i gl loc (int val)))
+
 (defn program-link-errors
   [^GL2 gl progn]
   (let [msg-len (IntBuffer/allocate 1)]

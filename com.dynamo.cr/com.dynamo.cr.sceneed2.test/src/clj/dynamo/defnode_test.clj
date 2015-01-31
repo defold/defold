@@ -365,3 +365,31 @@
         (is (= true       (:b-property node-after-mutation)))
         (is (= 42         (:c-property node-after-mutation)))
         (is (instance? MarkerInterface node-after-mutation))))))
+
+(n/defnode BaseTriggerNode
+  (trigger added-trigger    :added           (fn [& _] :ok))
+  (trigger multiway-trigger :added :modified (fn [& _] :ok))
+  (trigger on-delete        :deleted         (fn [& _] :ok)))
+
+(n/defnode InheritedTriggerNode
+  (inherits BaseTriggerNode)
+
+  (trigger extra-added      :added           (fn [& _] :extra))
+  (trigger on-delete        :deleted         (fn [& _] :override))
+  )
+
+(deftest nodes-can-have-triggers
+  (testing "basic trigger definition"
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:added :added-trigger])))
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:added :multiway-trigger])))
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:modified :multiway-trigger]))))
+
+  (testing "triggers are inherited"
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :added-trigger])))
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :multiway-trigger])))
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :extra-added])))
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:modified :multiway-trigger]))))
+
+  (testing "inherited triggers can be overridden"
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:deleted :on-delete])))
+    (is (= :override ((get-in (t/triggers InheritedTriggerNode) [:deleted :on-delete]))))))

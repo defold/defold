@@ -4,7 +4,7 @@
             [dynamo.node :as n]
             [dynamo.property :as dp]
             [dynamo.types :as t]
-            [plumbing.core :refer [defnk]]
+            [plumbing.core :refer [defnk fnk]]
             [schema.core :as s]
             [schema.macros :as sm])
   (:import [java.awt Color]
@@ -22,6 +22,7 @@
        ~rsym)))
 
 (sm/defn make-color :- java.awt.Color
+  "creates a color using rgb values (optional a). Color values between 0 and 1.0"
   ([ r :- Float g :- Float b :- Float]
     (java.awt.Color. r g b))
   ([ r :- Float g :- Float b :- Float a :- Float]
@@ -40,6 +41,7 @@
     (BufferedImage. width height t)))
 
 (sm/defn flood :- BufferedImage
+  "Floods the image with the specified color (r g b <a>). Color values between 0 and 1.0."
   [^BufferedImage img :- BufferedImage r :- Float g :- Float b :- Float]
   (let [gfx (.createGraphics img)
         color (make-color r g b)]
@@ -55,19 +57,12 @@
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
 
-;; Transform produces value
-(defnk image-from-resource :- Image
-  [this filename project]
-  (load-image filename (t/local-path filename)))
-
 ;; Behavior
 (n/defnode ImageSource
   (inherits n/ResourceNode)
 
-  ;; NOTE: Order is important here. `property` defines an
-  ;; output that is overridden by the later `output` clause.
-  #_(property image dp/Resource)
-  (output   image Image :cached :substitute-value placeholder-image image-from-resource))
+  (output image   Image :cached :substitute-value placeholder-image (fnk [filename] (load-image filename (t/local-path filename))))
+  (output content Image :cached :substitute-value placeholder-image (fnk [filename] (load-image filename (t/local-path filename)))))
 
 (sm/defn image-color-components :- long
   [src :- BufferedImage]
@@ -116,6 +111,10 @@
   `(* ~step (+ ~x (* ~y ~stride))))
 
 (sm/defn extrude-borders :- Image
+  "Return a new pixel array, larger than the original by `extrusion`
+with the orig-pixels centered in it. The source pixels on the edges
+will bleed into the surrounding empty space. The pixels in the border
+region will be identical to the nearest pixel of the source image."
   [extrusion :- s/Int src :- Image]
   (if-not (< 0 extrusion)
     src
@@ -149,22 +148,3 @@
       (doseq [^Rect rect placements]
         (.drawImage graphics (:contents (get src-by-path (.path rect))) (int (.x rect)) (int (.y rect)) nil)))
     onto))
-
-
-(doseq [[v doc]
-       {#'extrude-borders
-        "Return a new pixel array, larger than the original by `extrusion`
-with the orig-pixels centered in it. The source pixels on the edges
-will bleed into the surrounding empty space. The pixels in the border
-region will be identical to the nearest pixel of the source image."
-
-        #'image-from-resource
-        "Returns `{:path path :contents byte-array}` from an image resource."
-
-        #'make-color
-        "creates a color using rgb values (optional a). Color values between 0 and 1.0"
-
-        #'flood
-        "Floods the image with the specified color (r g b <a>). Color values between 0 and 1.0."
-        }]
-  (alter-meta! v assoc :doc doc))
