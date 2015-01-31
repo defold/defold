@@ -5,6 +5,7 @@
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.bus :as bus]
+            [internal.either :as e]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [service.log :as log]))
@@ -323,8 +324,8 @@
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
   (let [candidates (concat
-                     (filter t/disposable? (map #(get cache %) obsolete-cache-keys))
-                     (filter t/disposable? (vals nodes-deleted)))]
+                     (filter #(and (instance? internal.either.Right %) (t/disposable? (e/result %))) (map #(get cache %) obsolete-cache-keys))
+                     (filter #(and (instance? internal.either.Right %) (t/disposable? (e/result %))) (vals nodes-deleted)))]
     (assoc ctx :values-to-dispose (keep identity candidates))))
 
 (defn- evict-obsolete-caches
@@ -492,7 +493,8 @@
     (doseq [l new-event-loops]
       (start-event-loop! world-ref l))
     (when (= :ok (-> world :last-tx :status))
-      (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false)
+      (when (not-empty (-> world :last-tx :values-to-dispose))
+        (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false))
       (bus/publish-all (:message-bus world) messages))
     (:last-tx world)))
 

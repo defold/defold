@@ -1,7 +1,8 @@
 (ns dynamo.gl.texture
   (:require [dynamo.image :as img :refer [placeholder-image]]
             [dynamo.gl.protocols :refer :all]
-            [dynamo.gl :as gl])
+            [dynamo.gl :as gl]
+            [dynamo.types :refer [IDisposable dispose]])
   (:import [java.awt.image BufferedImage]
            [java.nio IntBuffer]
            [javax.media.opengl GL GL2 GLContext GLProfile]
@@ -81,6 +82,17 @@
   [gl]
   (swap! gl-texture-state update-in [:local] dissoc gl))
 
+(defn texture-occurrences
+  [tex]
+  (for [[gl asgns]    (dissoc @gl-texture-state :local)
+        [u t :as asgn] asgns
+        :when (= t tex)]
+    [gl asgn]))
+
+(defn unload-texture
+  [tex]
+  (doall (map unload-texture-from-unit (texture-occurrences tex))))
+
 (defn unload-all
   [gl]
   (doseq [a (texture-unit-assignments gl)]
@@ -124,7 +136,11 @@
   (disable [this gl]
     (when (texture-loaded? gl this)
       (when-let [texture ^Texture (context-local-data gl this)]
-        (.disable texture gl)))))
+        (.disable texture gl))))
+
+  IDisposable
+  (dispose [this]
+    (unload-texture this)))
 
 (defn image-texture
   [^BufferedImage img]
@@ -168,7 +184,11 @@
   (disable [this gl]
     (when (texture-loaded? gl this)
       (when-let [texture ^Texture (context-local-data gl this)]
-        (.disable texture gl)))))
+        (.disable texture gl))))
+
+  IDisposable
+  (dispose [this]
+    (unload-texture this)))
 
 (def cubemap-placeholder
   (memoize
