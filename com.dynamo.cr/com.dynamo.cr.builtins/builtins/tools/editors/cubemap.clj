@@ -92,6 +92,7 @@
   (apply texture/image-cubemap-texture (map :contents [right left top bottom front back])))
 
 (n/defnode CubemapNode
+  (inherits n/AutowireResources)
   (inherits n/OutlineNode)
 
   (property right  dp/ImageResource)

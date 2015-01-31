@@ -579,6 +579,5 @@ for all properties of this node."
 
 (def node-intrinsics
   [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
-   (list 'output 'properties `t/Properties `gather-properties)
-   (list 'trigger 'dynamo.node/resource :modified `connect-resource)])
+   (list 'output 'properties `t/Properties `gather-properties)])
 

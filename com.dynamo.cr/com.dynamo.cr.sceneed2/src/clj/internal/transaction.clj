@@ -325,7 +325,7 @@
   [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
   (let [candidates (concat
                      (filter #(and (instance? internal.either.Right %) (t/disposable? (e/result %))) (map #(get cache %) obsolete-cache-keys))
-                     (filter #(and (instance? internal.either.Right %) (t/disposable? (e/result %))) (vals nodes-deleted)))]
+                     (filter t/disposable? (vals nodes-deleted)))]
     (assoc ctx :values-to-dispose (keep identity candidates))))
 
 (defn- evict-obsolete-caches

@@ -74,10 +74,12 @@
             txname       "random-mcnally"
             texturesetc (tempfile txname "texturesetc" true)
             texturec    (tempfile txname "texturec" true)
-            compiler    (ds/transactional (ds/add (n/construct atlas/TextureSave
-                                                    :texture-name        txname
-                                                    :texture-filename    (file/native-path (.getPath texturec))
-                                                    :textureset-filename (file/native-path (.getPath texturesetc)))))]
+            compiler    (ds/transactional
+                          (ds/add
+                            (n/construct atlas/TextureSave
+                              :texture-name        txname
+                              :texture-filename    (file/native-path (.getPath texturec))
+                              :textureset-filename (file/native-path (.getPath texturesetc)))))]
         (ds/transactional (ds/connect atlas :textureset compiler :textureset))
         (is (= :ok (n/get-node-value compiler :texturec)))
         (is (= :ok (n/get-node-value compiler :texturesetc)))))))

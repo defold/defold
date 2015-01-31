@@ -79,4 +79,5 @@
         (ds/transactional (ds/delete scope))
         (let [last-tx   (:last-tx @world-ref)
               disposals (:values-to-dispose last-tx)]
+         
           (is (= (sort disposable-ids) (sort (map :_id disposals)))))))))

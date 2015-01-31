@@ -57,6 +57,7 @@
 
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
+  (inherits n/AutowireResources)
 
   (property images dp/ImageResourceList)
 
@@ -621,6 +622,7 @@
    textureset `[dynamo.types/TextureSet]` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.\"
    "
   (inherits n/OutlineNode)
+  (inherits n/AutowireResources)
   (inherits n/ResourceNode)
   (inherits n/Saveable)
 
