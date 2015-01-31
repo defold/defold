@@ -181,9 +181,11 @@ There is no guaranteed ordering of the sequence."
     (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
       (if-let [node (first (ds/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
         node
-        (ds/in this
-          (ds/add
-            (new-node-for-path this path Placeholder))))))
+        (when (ds/in-transaction?)
+          (println "Auto-creating node for " path)
+            (ds/in this
+              (ds/add
+                (new-node-for-path this path Placeholder)))))))
 
   (on :destroy
     (ds/delete self)))

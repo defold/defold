@@ -178,14 +178,15 @@
   [this textureset selection]
   (let [project-root (p/project-root-node this)
         selected (set @selection)]
-    (vec (keep
-           (fn [rect]
-             (let [node (t/lookup project-root (:path rect))]
-               (when (selected (:_id node))
-                 {:world-transform g/Identity4d
-                  :render-fn (fn [ctx gl glu text-renderer]
-                               (render-selection-outline ctx gl this textureset rect))})))
-           (:coords textureset)))))
+    (vec 
+      (keep
+        (fn [rect]
+          (let [node (t/lookup project-root (:path rect))]
+            (when (selected (:_id node))
+              {:world-transform g/Identity4d
+               :render-fn (fn [ctx gl glu text-renderer]
+                            (render-selection-outline ctx gl this textureset rect))})))
+        (:coords textureset)))))
 
 (defnk produce-renderable :- RenderData
   [this textureset selection vertex-binding gpu-texture]
