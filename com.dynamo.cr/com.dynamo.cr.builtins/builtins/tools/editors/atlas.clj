@@ -516,11 +516,11 @@
     (prn :mouse-down)
     (when (selection-event? event)
       (ds/set-property self
-       :selecting true
-       :start-x (:x event)
-       :start-y (:y event)
-       :current-x (:x event)
-       :current-y (:y event))))
+        :selecting true
+        :start-x (:x event)
+        :start-y (:y event)
+        :current-x (:x event)
+        :current-y (:y event))))
 
   (on :mouse-move
     (when (:selecting self)
