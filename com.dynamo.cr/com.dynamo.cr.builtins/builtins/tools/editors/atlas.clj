@@ -33,7 +33,7 @@
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
             [com.dynamo.tile.proto Tile$Playback]
             [com.jogamp.opengl.util.awt TextRenderer]
-            [dynamo.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB]
+            [dynamo.types Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
             [javax.media.opengl.glu GLU]
@@ -96,6 +96,48 @@
   (let [animations (concat animations (map animation-from-image images))
         texture-packing (tex/pack-textures margin extrude-borders (consolidate animations))]
     (assoc texture-packing :animations animations)))
+
+(defn build-textureset-animation-frame
+  [texture-packing image]
+  (let [coords (filter #(= (:path image) (:path %)) (:coords texture-packing))
+        ; TODO: may fail due to #87253110 "Atlas texture should not contain multiple instances of the same image"
+        ;_ (assert (= 1 (count coords)))
+        coord (first coords)
+        x-scale (/ 1.0 (.getWidth (.packed-image texture-packing)))
+        y-scale (/ 1.0 (.getHeight (.packed-image texture-packing)))
+        u0 (* x-scale (+ (.x coord)))
+        v0 (* y-scale (+ (.y coord)))
+        u1 (* x-scale (+ (.x coord) (.width  coord)))
+        v1 (* y-scale (+ (.y coord) (.height coord)))
+        x0 (* -0.5 (.width  coord))
+        y0 (* -0.5 (.height coord))
+        x1 (*  0.5 (.width  coord))
+        y1 (*  0.5 (.height coord))
+        outline-vertices [[x0 y0 0 (g/to-short-uv u0) (g/to-short-uv v1)]
+                          [x1 y0 0 (g/to-short-uv u1) (g/to-short-uv v1)]
+                          [x1 y1 0 (g/to-short-uv u1) (g/to-short-uv v0)]
+                          [x0 y1 0 (g/to-short-uv v0) (g/to-short-uv v0)]]]
+    (t/map->TextureSetAnimationFrame
+     {:image            image ; TODO: is this necessary?
+      :outline-vertices outline-vertices
+      :vertices         (mapv outline-vertices [0 1 2 0 2 3])
+      :tex-coords       [[u0 v0] [u1 v1]]})))
+
+(defn build-textureset-animation
+  [texture-packing animation]
+  (let [images (:images animation)
+        width  (int (:width  (first images)))
+        height (int (:height (first images)))
+        frames (mapv (partial build-textureset-animation-frame texture-packing) images)]
+    (-> (select-keys animation [:id :fps :flip-horizontal :flip-vertical :playback])
+        (assoc :width width :height height :frames frames)
+        t/map->TextureSetAnimation)))
+
+(defnk produce-textureset :- TextureSet
+  [this texture-packing :- TexturePacking]
+  (let [animations (:animations texture-packing)
+        textureset-animations (mapv (partial build-textureset-animation texture-packing) animations)]
+    (t/map->TextureSet {:animations textureset-animations})))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
@@ -634,6 +676,7 @@
   (output save            s/Keyword          save-atlas-file)
   (output text-format     s/Str              get-text-format)
   (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
+  (output textureset      TextureSet     :cached produce-textureset)
 
   (on :load
     (doto self
