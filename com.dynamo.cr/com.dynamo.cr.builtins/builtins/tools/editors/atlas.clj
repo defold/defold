@@ -42,6 +42,10 @@
 
 (def integers (iterate (comp int inc) (int 0)))
 
+(def min-drag-move
+  "Minimum number of pixels the mouse must travel to initiate a click-and-drag."
+  2)
+
 (vtx/defvertex engine-format-texture
   (vec3.float position)
   (vec2.short texcoord0 true))
@@ -468,7 +472,7 @@
     (ds/connect node :self selection-node :selected-nodes)))
 
 (defn- selection-mode
-  "True if the event has keyboard-modifier keys for multi-select.
+  "Either :replace for normal selection mode or :toggle for multi-select.
   On Mac: COMMAND or SHIFT.
   On non-Mac: CTRL or SHIFT."
   [event]
@@ -498,6 +502,14 @@
        :top (min start-y current-y)
        :bottom (max start-y current-y)})))
 
+(defn- drag-move?
+  "True if the mouse moved far enough for this to be considered a click-and-drag."
+  [self event]
+  (let [{:keys [start-x start-y]} self
+        {:keys [x y]} event]
+    (or (< min-drag-move (Math/abs (- x start-x)))
+        (< min-drag-move (Math/abs (- y start-y))))))
+
 (n/defnode SelectionController
   (property start-x s/Int)
   (property start-y s/Int)
@@ -513,7 +525,6 @@
   (output selection-box `t/Region selection-box)
 
   (on :mouse-down
-    (prn :mouse-down)
     (when (selection-event? event)
       (ds/set-property self
         :selecting true
@@ -523,14 +534,14 @@
         :current-y (:y event))))
 
   (on :mouse-move
-    (when (:selecting self)
+    (when (and (:selecting self)
+            (or (:dragging self) (drag-move? self event)))
       (ds/set-property self
-        :dragging true ; TODO: only after moving minimum distance
+        :dragging true
         :current-x (:x event)
         :current-y (:y event))))
 
   (on :mouse-up
-    (prn :mouse-up)
     (when (:selecting self)
       (let [{:keys [start-x start-y world-ref]} self
             [glcontext selection-node default-selection]
