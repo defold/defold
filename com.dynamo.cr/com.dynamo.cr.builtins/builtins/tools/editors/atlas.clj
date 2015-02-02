@@ -1,5 +1,6 @@
 (ns editors.atlas
   (:require [clojure.set :refer [difference union]]
+            [clojure.string :as str]
             [plumbing.core :refer [fnk defnk]]
             [schema.core :as s]
             [schema.macros :as sm]
@@ -72,12 +73,28 @@
   (property id s/Str))
 
 (defn- consolidate
-  [images animations]
-  (seq (into #{} (flatten (concat images (map :images animations))))))
+  [animations]
+  (seq (into #{} (mapcat :images animations))))
+
+(defn- basename [path]
+  (-> path
+      (str/split #"/")
+      last
+      (str/split #"\.(?=[^\.]+$)")
+      first))
+
+(defn- animation-from-image [image]
+  (map->Animation {:id              (basename (:path image))
+                   :images          [image]
+                   :fps             30
+                   :flip-horizontal 0
+                   :flip-vertical   0
+                   :playback        :PLAYBACK_ONCE_FORWARD}))
 
 (defnk produce-texture-packing :- TexturePacking
   [this images :- [Image] animations :- [Animation] margin extrude-borders]
-  (let [texture-packing (tex/pack-textures margin extrude-borders (consolidate images animations))]
+  (let [animations (concat animations (map animation-from-image images))
+        texture-packing (tex/pack-textures margin extrude-borders (consolidate animations))]
     (assoc texture-packing :animations animations)))
 
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
