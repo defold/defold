@@ -442,11 +442,54 @@
   (output   texturec    s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
-(defn find-nodes-at-point [this context x y]
-  (let [[renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
+(defnk selection-region
+  "Returns the Region currently being selected by a mouse drag."
+  [start-x start-y current-x current-y]
+  (t/map->Region
+    {:left (min start-x current-x)
+     :right (max start-x current-x)
+     :top (min start-y current-y)
+     :bottom (max start-y current-y)}))
+
+(def min-selection-size
+  "Minimum size, in pixels, of the selection area around a click.
+  Analagous to com.dynamo.cr.sceneed.ui.RenderView.MIN_SELECTION_BOX,
+  which is 16 pixels."
+  1)
+
+(defn pick-rect
+  "Given a Region, returns a Rect with x & y at the *center* of the region."
+  [pick-region]
+  (let [{:keys [left right top bottom]} pick-region
+        width (- right left)
+        height (- bottom top)
+        x (+ left (quot width 2))
+        y (+ top (quot height 2))]
+    (t/rect x y width height)))
+
+(defn rect-in-viewport
+  "Corrects the Rect for inverted screen coordinates based on the viewport Region."
+  [rect viewport]
+  (assoc rect :y (- (:bottom viewport) (:y rect))))
+
+(defn min-selection-rect
+  [rect]
+  (assoc rect
+    :width (max min-selection-size (:width rect))
+    :height (max min-selection-size (:height rect))))
+
+(defn find-nodes-in-selection [this]
+  (let [[glcontext renderable-inputs view-camera]
+          (n/get-node-inputs this :glcontext :renderables :view-camera)
         renderables (apply merge-with concat renderable-inputs)
-        pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
-    (ius/selection-renderer context renderables view-camera pick-rect)))
+        {:keys [viewport]} view-camera
+        pick-rect (-> this
+                    selection-region
+                    pick-rect
+                    min-selection-rect
+                    (rect-in-viewport viewport))]
+    (prn 'pick-rect pick-rect)
+    (ius/selection-renderer glcontext renderables view-camera pick-rect)))
 
 (defn- not-camera-movement?
   "True if the event does not have keyboard modifier-keys for a
@@ -494,13 +537,12 @@
      (difference clicked previous)))
 
 (defnk selection-box
-  [selecting dragging start-x start-y current-x current-y]
+  "Production function to trigger rendering of a selection box during a click-and-drag."
+  [dragging start-x start-y current-x current-y :as self]
+  ;; Have to declare start/current-x/y so that they are passed to this
+  ;; production function in 'self'
   (when dragging
-    (t/map->Region
-      {:left (min start-x current-x)
-       :right (max start-x current-x)
-       :top (min start-y current-y)
-       :bottom (max start-y current-y)})))
+    (selection-region self)))
 
 (defn- drag-move?
   "True if the mouse moved far enough for this to be considered a click-and-drag."
@@ -509,6 +551,22 @@
         {:keys [x y]} event]
     (or (< min-drag-move (Math/abs (- x start-x)))
         (< min-drag-move (Math/abs (- y start-y))))))
+
+(defn complete-selection
+  [self event]
+  (let [{:keys [start-x start-y dragging world-ref]} self
+        [selection-node default-selection] (n/get-node-inputs self :selection-node :default-selection)
+        previous (disj (set (selected-node-ids selection-node))
+                   (:_id default-selection))
+        clicked (set (cond->> (find-nodes-in-selection self)
+                       (not dragging) (take 1)))
+        new-node-ids (case (selection-mode event)
+                       :replace clicked
+                       :toggle (toggle previous clicked))
+        nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
+                [default-selection])]
+    (deselect-all selection-node)
+    (select-nodes selection-node nodes)))
 
 (n/defnode SelectionController
   (property start-x s/Int)
@@ -525,6 +583,7 @@
   (output selection-box `t/Region selection-box)
 
   (on :mouse-down
+    (prn :mouse-down :x (:x event) :y (:y event))
     (when (selection-event? event)
       (ds/set-property self
         :selecting true
@@ -542,20 +601,9 @@
         :current-y (:y event))))
 
   (on :mouse-up
+    (prn :mouse-up :x (:x event) :y (:y event))
     (when (:selecting self)
-      (let [{:keys [start-x start-y world-ref]} self
-            [glcontext selection-node default-selection]
-              (n/get-node-inputs self :glcontext :selection-node :default-selection)
-            previous (disj (selected-node-ids selection-node)
-                       (:_id default-selection))
-            clicked (set (find-nodes-at-point self glcontext start-x start-y))
-            new-node-ids (case (selection-mode event)
-                           :replace clicked
-                           :toggle (toggle previous clicked))
-            nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
-                    [default-selection])]
-        (deselect-all selection-node)
-        (select-nodes selection-node nodes)))
+      (complete-selection self event))
     (ds/set-property self
       :selecting false
       :dragging false)))
