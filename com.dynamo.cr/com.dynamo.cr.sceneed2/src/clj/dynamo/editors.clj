@@ -66,6 +66,7 @@ Outputs
   (property context GLContext)
   (property canvas  GLCanvas)
   (property text-renderer TextRenderer)
+  (property first-resize s/Bool (default true) (visible false))
 
   (output render-data t/RenderData iuse/produce-render-data)
   (output aabb AABB (fnk [aabb] aabb))
@@ -93,7 +94,10 @@ Outputs
                                             -100000
                                             100000)
                         (assoc :viewport viewport))]
-      (ds/set-property camera-node :camera new-camera)))
+      (ds/set-property camera-node :camera new-camera)
+      (when (:first-resize self)
+        (ds/set-property self :first-resize false)
+        (ds/send-after self {:type :reframe}))))
 
   (on :reframe
     (let [camera-node (ds/node-feeding-into self :view-camera)
