@@ -63,9 +63,11 @@
   [id]
   (-> (node id) t/node-type :name))
 
-(defn image-nodes
-  []
-  (map (comp node first) (filter #(= "editors.image_node.ImageResourceNode__" (.getName (second %))) (nodes-and-classes))))
+(defn nodes-of-type
+  [type-name]
+  (filter #(= type-name (node-type (:_id %))) (nodes)))
+
+(def image-nodes (partial nodes-of-type "ImageResourceNode"))
 
 (defn node-for-file
   [file-name]
