@@ -354,32 +354,10 @@
         starts (into [start-idx] (map #(+ start-idx (* 6 (count (:images %)))) animations))]
     (map (fn [anim start] (build-animation anim start)) animations starts)))
 
-(sm/defn extract-image-coords :- [Rect]
-  "Given an map of paths to coordinates and an animation,
-   return a seq of coordinates representing the images in that animation."
-  [coord-index :- {} animation :- Animation]
-  (map #(get coord-index (get-in % [:path :path])) (:images animation)))
-
-(sm/defn index-coords-by-path
-  "Given a list of coordinates, produce a map of path -> coordinates."
-  [coords :- [Rect]]
-  (zipmap (map #(get-in % [:path :path]) coords) coords))
-
-(sm/defn get-animation-image-coords :- [[Rect]]
-  "Given a set of Rect coordinates and a list of animations,
-   return a list of lists of coordinates for the images
-   in the animations."
-  [coords :- [Rect] animations :- [Animation]]
-  (let [idx (index-coords-by-path coords)]
-    (map #(extract-image-coords idx %) animations)))
-
 (defn texturesetc-protocol-buffer
   [texture-name {:keys [coords] :as textureset}]
   #_(s/validate TextureSet textureset)
-  (let [x-scale    (/ 1.0 (.getWidth (.packed-image textureset)))
-        y-scale    (/ 1.0 (.getHeight (.packed-image textureset)))
-        anims      (remove #(empty? (:images %)) (.animations textureset))
-        acoords    (get-animation-image-coords coords anims)
+  (let [anims      (remove #(empty? (:images %)) (.animations textureset))
         n-rects    (count coords)
         n-vertices (reduce + n-rects (map #(count (.images %)) anims))]
     (.build (doto (TextureSetProto$TextureSet/newBuilder)
