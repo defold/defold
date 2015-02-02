@@ -78,6 +78,6 @@
                                                     :texture-name        txname
                                                     :texture-filename    (file/native-path (.getPath texturec))
                                                     :textureset-filename (file/native-path (.getPath texturesetc)))))]
-        (ds/transactional (ds/connect atlas :textureset compiler :textureset))
+        (ds/transactional (ds/connect atlas :texture-packing compiler :texture-packing))
         (is (= :ok (n/get-node-value compiler :texturec)))
         (is (= :ok (n/get-node-value compiler :texturesetc)))))))

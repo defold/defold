@@ -184,7 +184,7 @@
    flip-vertical   :- s/Int
    playback        :- AnimationPlayback])
 
-(sm/defrecord TextureSet
+(sm/defrecord TexturePacking
   [aabb         :- Rect
    packed-image :- BufferedImage
    coords       :- [Rect]

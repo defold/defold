@@ -12,7 +12,7 @@
             [dynamo.system.test-support :refer [with-clean-world]]
             [internal.transaction :as it])
   (:import [com.dynamo.cr.sceneed2 TestAtlasProto TestAtlasProto$Atlas TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage]
-           [dynamo.types Animation Image TextureSet Rect EngineFormatTexture]))
+           [dynamo.types Animation Image]))
 
 (sm/defn produce-animation [this] nil)
 (sm/defn produce-tree      [this] nil)

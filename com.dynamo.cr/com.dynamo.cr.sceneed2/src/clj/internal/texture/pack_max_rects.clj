@@ -5,7 +5,7 @@
             [dynamo.image :refer :all]
             [dynamo.types :as t :refer [rect width height]]
             [internal.texture.math :refer :all])
-  (:import [dynamo.types Rect Image TextureSet]))
+  (:import [dynamo.types Rect Image TexturePacking]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,7 +45,7 @@
          :width (+ margin (:width r))
          :height (+ margin (:height r))))
 
-(sm/defn pack-at-size :- TextureSet
+(sm/defn pack-at-size :- TexturePacking
   [margin :- s/Int sources :- [Rect] space-available :- Rect]
   (loop [free-rects   [space-available]
          remaining    (reverse (sort-by area sources))
@@ -60,7 +60,7 @@
             (recur (reverse (sort-by area (concat remaining-free (split-rect best-fit (with-top-right-margin margin newly-placed)))))
                    (rest remaining)
                    (conj placed newly-placed)))))
-      (t/->TextureSet space-available nil placed sources []))))
+      (t/->TexturePacking space-available nil placed sources []))))
 
 (sm/defn ^:private stepwise-doubling-sizes :- [Rect]
   [start :- s/Int]
@@ -79,13 +79,13 @@
             short-side           (max short-side initial-power-of-two)]
         (stepwise-doubling-sizes short-side)))))
 
-(sm/defn max-rects-packing :- TextureSet
+(sm/defn max-rects-packing :- TexturePacking
   ([sources :- [Rect]]
     (max-rects-packing 0 sources))
   ([margin :- s/Int sources :- [Rect]]
     (case (count sources)
       0   :packing-failed
-      1   (t/->TextureSet (first sources) nil sources sources [])
+      1   (t/->TexturePacking (first sources) nil sources sources [])
       (->> sources
         plausible-sizes
         (map #(pack-at-size margin sources %))
