@@ -580,7 +580,7 @@ for all properties of this node."
       (let [[handling existing-node] (decide-resource-handling transaction parent self surplus-connections prop filename)]
         (cond
           (= :new-node handling)
-          (let [new-node (ds/add (t/node-for-path parent filename))]
+          (let [new-node (ds/in parent (ds/add (t/node-for-path parent filename)))]
             (ds/connect new-node :content self prop)
             (recur
               (update-in transaction [:filename-index] assoc filename (:_id new-node))
