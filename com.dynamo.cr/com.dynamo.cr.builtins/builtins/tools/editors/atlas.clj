@@ -84,7 +84,7 @@
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
   (.build (doto (AtlasProto$AtlasImage/newBuilder)
-            (.setImage (str (.path image))))))
+            (protobuf/set-if-present :image image (comp str :path)))))
 
 (sm/defn build-atlas-animation :- AtlasProto$AtlasAnimation
   [animation :- Animation]
@@ -178,7 +178,7 @@
   [this textureset selection]
   (let [project-root (p/project-root-node this)
         selected (set @selection)]
-    (vec 
+    (vec
       (keep
         (fn [rect]
           (let [node (t/lookup project-root (:path rect))]

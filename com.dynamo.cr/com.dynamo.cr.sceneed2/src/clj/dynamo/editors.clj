@@ -155,7 +155,7 @@ Messages:
 
   (on :destroy
     (when (:context self)
-      (texture/unload-all (.. (:context self) getGL)))
+      (texture/unload-all (.. ^GLContext (:context self) getGL)))
 
     (ds/delete self))
 

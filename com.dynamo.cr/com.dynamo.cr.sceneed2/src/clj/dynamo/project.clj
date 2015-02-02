@@ -179,13 +179,11 @@ There is no guaranteed ordering of the sequence."
   t/NamingContext
   (lookup [this name]
     (let [path (if (instance? dynamo.file.ProjectPath name) name (file/make-project-path this name))]
-      (if-let [node (first (ds/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))]
-        node
-        (when (ds/in-transaction?)
-          (println "Auto-creating node for " path)
-            (ds/in this
-              (ds/add
-                (new-node-for-path this path Placeholder)))))))
+      (first (ds/query (:world-ref this) [[:_id (:_id this)] '(input :nodes) [:filename path]]))))
+
+  t/FileContainer
+  (node-for-path [this path]
+    (new-node-for-path this (file/make-project-path this path) Placeholder))
 
   (on :destroy
     (ds/delete self)))
@@ -267,7 +265,7 @@ There is no guaranteed ordering of the sequence."
   (let [with-placeholders (group-by #(add-or-replace? project-node %) added)
         replacements      (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) (:replace-existing with-placeholders))]
     (unload-nodes replacements)
-    (replace-nodes project-node replacements #(new-node-for-path project-node (:filename %) Placeholder))
+    (replace-nodes project-node replacements #(t/node-for-path project-node (:filename %)))
     (apply post-load "Compiling"          (load-resource-nodes (ds/refresh project-node) (:load-clojure with-placeholders) nil))
     (apply post-load "Loading asset from" (load-resource-nodes (ds/refresh project-node) (:load-other   with-placeholders) nil))
     project-node))

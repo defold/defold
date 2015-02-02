@@ -227,8 +227,8 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   (property tag      s/Keyword)
   (property parent   (s/protocol NamingContext))
 
-  (trigger dependency-injection :modified inject-new-nodes)
-  (trigger garbage-collection   :deleted  dispose-nodes)
+  (trigger dependency-injection :modified #'inject-new-nodes)
+  (trigger garbage-collection   :deleted  #'dispose-nodes)
 
   (output dictionary s/Any in/scope-dictionary)
 
@@ -261,7 +261,7 @@ Inheritors are required to supply a production function for the :save output."
 (defnode AutowireResources
   "Mixin. Nodes with this behavior automatically keep their graph connections
 up to date with their resource properties."
-  (trigger autowire-resources :modified in/connect-resource))
+  (trigger autowire-resources :modified #'in/connect-resource))
 
 (defnode OutlineNode
   "Mixin. Any OutlineNode can be shown in an outline view.

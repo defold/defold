@@ -6,6 +6,7 @@
             [clojure.set :as set]
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
+            [dynamo.file :as file]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
@@ -194,6 +195,10 @@ maybe cache the value that was produced, and return it."
   (auto-update-outputs' [_] auto-update-outputs)
   (event-handlers'      [_] event-handlers)
   (output-dependencies' [_] output-dependencies))
+
+(defmethod print-method NodeTypeImpl
+  [^NodeTypeImpl v ^java.io.Writer w]
+  (.write w (str "<NodeTypeImpl{:name " (:name v) ", :supertypes " (mapv :name (:supertypes v)) "}>")))
 
 (defn- from-supertypes [local op]                (map op (:supertypes local)))
 (defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
@@ -537,47 +542,70 @@ for all properties of this node."
   (let [property-names (-> this t/properties keys)]
     (zipmap property-names (map (partial gather-property this) property-names))))
 
-(defn- ->set [x] (if (coll? x) (set x) (if (nil? x) #{} #{x})))
+(defn- ->vec [x] (if (coll? x) (vec x) (if (nil? x) [] [x])))
 
 (defn- resources-connected
   [transaction self prop]
   (let [graph (ds/in-transaction-graph transaction)]
-    (map
-      (fn [[node-id label]]
-        [(dg/node graph node-id)
-         label])
-      (lg/sources graph (:_id self) prop))))
+    (vec (lg/sources graph (:_id self) prop))))
 
-(defn- expected-resource-connection
-  [transaction self prop]
-  (map
-    (fn [nodename]
-      [(ds/lookup-in-transaction transaction self nodename)
-       :content])
-    (->set (get self prop))))
+(defn lookup-node-for-filename
+  [transaction parent self filename]
+  (or
+    (get-in transaction [:filename-index filename])
+    (if-let [added-this-txn (first (filter #(= filename (:filename %)) (ds/transaction-added-nodes transaction)))]
+      added-this-txn
+      (t/lookup parent filename))))
+
+(defn decide-resource-handling
+  [transaction parent self surplus-connections prop filename]
+  (if-let [existing-node (lookup-node-for-filename transaction parent self (file/make-project-path parent filename))]
+    (if (some #{[(:_id existing-node) :content]} surplus-connections)
+      [:existing-connection existing-node]
+      [:new-connection existing-node])
+    [:new-node nil]))
+
+(defn remove-vestigial-connections
+  [transaction self prop surplus-connections]
+  (doseq [[n l] surplus-connections]
+    (ds/disconnect {:_id n} l self prop))
+  transaction)
 
 (defn- ensure-resources-connected
-  [transaction self prop]
-  (let  [actual-connections   (resources-connected transaction self prop)
-         expected-connections (expected-resource-connection transaction self prop)]
-    (when (not= actual-connections expected-connections)
-      (println (:txid transaction) ":" (:txpass transaction) "actual   " actual-connections)
-      (println (:txid transaction) ":" (:txpass transaction) "expected " expected-connections))
-    (apply-deltas (set actual-connections) (set expected-connections)
-      #(doseq [[node label] %]
-         (println "\tdisconnecting: " (:_id node) label (:_id self) prop)
-         (ds/disconnect node label self prop))
-      #(doseq [[node label] %]
-         (println "\tconnecting: " (:_id node) label (:_id self) prop)
-         (ds/connect    node label self prop)))))
+  [transaction parent self prop]
+  (loop [transaction         transaction
+         filenames           (->vec (get self prop))
+         surplus-connections (resources-connected transaction self prop)]
+    (if-let [filename (first filenames)]
+      (let [[handling existing-node] (decide-resource-handling transaction parent self surplus-connections prop filename)]
+        (cond
+          (= :new-node handling)
+          (let [new-node (ds/add (t/node-for-path parent filename))]
+            (ds/connect new-node :content self prop)
+            (recur
+              (update-in transaction [:filename-index] assoc filename (:_id new-node))
+              (next filenames)
+              surplus-connections))
+
+          (= :new-connection handling)
+          (do
+            (ds/connect existing-node :content self prop)
+            (recur transaction (next filenames) surplus-connections))
+
+          (= :existing-connection handling)
+          (recur transaction (next filenames) (remove #{[(:_id existing-node) :content]} surplus-connections))))
+      (remove-vestigial-connections transaction self prop surplus-connections))))
 
 (defn connect-resource
   [transaction graph self label kind]
-  (doseq [prop  (ds/outputs-modified transaction self)
-          :when (resource? self prop)]
-    (ensure-resources-connected transaction self prop)))
+  (let [parent (ds/parent graph self)]
+    (reduce
+      (fn [transaction prop]
+        (when (resource? self prop)
+          (ensure-resources-connected transaction parent self prop)))
+      transaction
+      (get-in transaction [:properties-modified (:_id self)]))))
 
 (def node-intrinsics
   [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
    (list 'output 'properties `t/Properties `gather-properties)])
-

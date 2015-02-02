@@ -239,18 +239,11 @@ inherits from dynamo.node/Scope."
       (partial enclosing-scope graph)
       n)))
 
-(defn- transaction-added-nodes
+(defn transaction-added-nodes
   [transaction]
   (let [g (:graph transaction)]
     (map #(dg/node g %) (:nodes-added transaction))))
 
-(defn lookup-in-transaction
-  "Attempt to find the node-name, as it exists at the present
-state of the transaction. This first looks at the newly created nodes,
-then moves to the enclosing scope of the origin."
-  [transaction origin node-name]
-  (let [parents (drop 1 (path-to-root (:graph transaction) origin))
-        path    (if (instance? dynamo.file.ProjectPath node-name) node-name (file/make-project-path (first parents) node-name))]
-    (if-let [added-this-txn (first (filter #(= path (:filename %)) (transaction-added-nodes transaction)))]
-      added-this-txn
-      (first (map #(t/lookup % node-name) parents)))))
+(defn parent
+  [graph n]
+  (first (drop 1 (path-to-root graph n))))

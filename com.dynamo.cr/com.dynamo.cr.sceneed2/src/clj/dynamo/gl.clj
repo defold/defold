@@ -72,7 +72,7 @@
 (defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~gl ~mode))
 
 (defn gl-get-integer-v
-  [^GL2 gl param sz]
+  [^GL2 gl ^Integer param sz]
   (let [buff (int-array sz)]
     (.glGetIntegerv gl param buff 0)
     buff))

@@ -142,5 +142,6 @@
 
 (defn send-view-scope-message
   [transaction graph self label kind]
-  (doseq [id (:nodes-added transaction)]
-    (ds/send-after {:_id id} {:type :view-scope :scope self})))
+  (when (ds/is-modified? transaction self)
+    (doseq [id (:nodes-added transaction)]
+      (ds/send-after {:_id id} {:type :view-scope :scope self}))))
