@@ -145,6 +145,7 @@
   (verify-atlas-artifacts "single-image")
   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
   #_(verify-atlas-artifacts "single-animation")
+  (verify-atlas-artifacts "empty-animation")
   (verify-atlas-artifacts "missing-image")
   (verify-atlas-artifacts "missing-image-in-animation")
   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
