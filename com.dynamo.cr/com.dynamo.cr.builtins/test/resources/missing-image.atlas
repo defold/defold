@@ -1,0 +1,5 @@
+images {
+  image: "/images/missing.png"
+}
+margin: 0
+extrude_borders: 0

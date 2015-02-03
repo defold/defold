@@ -22,7 +22,7 @@
              Particle$SplinePoint]
             [com.jogamp.opengl.util.awt TextRenderer]
             [java.nio ByteBuffer IntBuffer]
-            [dynamo.types Animation Image TextureSet Rect EngineFormatTexture AABB]
+            [dynamo.types AABB]
             [java.awt.image BufferedImage]
             [javax.media.opengl GL GL2 GLContext GLDrawableFactory]
             [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
@@ -129,7 +129,7 @@
 
 (defnk compile-particlefx :- s/Bool
   [this g project particlefx]
-  #_(.toByteArray (particlefx-protocol-buffer (:texture-name this) textureset))
+  ; TODO
   )
 
 (n/defnode ParticlefxSave
