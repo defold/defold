@@ -1,7 +1,7 @@
 (ns editors.presenters
   (:require [schema.core :as s]
             [dynamo.project :as p]
-            [dynamo.property :refer :all]
+            [dynamo.property :as dp :refer :all]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
@@ -79,8 +79,30 @@
       :selection (final-value (ui/get-color (ui/widget widget-subtree path)))
       (no-change))))
 
+(defrecord ResourcePresenter []
+  Presenter
+  (control-for-property [this]
+    {:type :composite
+     :layout {:type :grid :margin-width 0 :margin-height 0 :horizontal-spacing 5 :columns [{:horizontal-alignment :fill} {:min-width 55}]}
+     :children [[:text {:type :text :listen #{:key-down :focus-out}}]
+                [:button {:type :button :text "..."}]]})
+  (settings-for-control [_ value]
+    {:children [[:text {:text (str value)}]]})
+
+  (on-event [_ widget-subtree path event _]
+    (case (last path)
+      :text (let [new-value (ui/get-text (ui/widget widget-subtree path))]
+             (case (:type event)
+               :key-down (if (is-enter-key? event)
+                           (final-value new-value)
+                           (no-change))
+               :focus-out (final-value new-value)
+               (no-change)))
+      (no-change))))
+
 (when (ds/in-transaction?)
-  (p/register-presenter {:value-type s/Str}              (->StringPresenter))
-  (p/register-presenter {:value-type s/Int}              (->IntPresenter))
-  (p/register-presenter {:value-type t/Vec3}             (->Vec3Presenter))
-  (p/register-presenter {:value-type t/Vec3 :tag :color} (->ColorPresenter)))
+  (p/register-presenter {:value-type s/Str}                     (->StringPresenter))
+  (p/register-presenter {:value-type s/Int}                     (->IntPresenter))
+  (p/register-presenter {:value-type t/Vec3}                    (->Vec3Presenter))
+  (p/register-presenter {:value-type t/Vec3 :tag :color}        (->ColorPresenter))
+  (p/register-presenter {:value-type s/Str  :tag ::dp/resource} (->ResourcePresenter)))

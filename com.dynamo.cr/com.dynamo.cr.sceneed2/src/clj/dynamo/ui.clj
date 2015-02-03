@@ -14,7 +14,7 @@ Some notable places to start:
            [org.eclipse.core.runtime SafeRunner]
            [org.eclipse.jface.util SafeRunnable]
            [org.eclipse.swt.custom StackLayout]
-           [org.eclipse.swt.widgets Control Composite Display Event Label Listener Shell Text Widget]
+           [org.eclipse.swt.widgets Button Control Composite Display Event Label Listener Shell Text Widget]
            [org.eclipse.swt.graphics Color RGB]
            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
            [org.eclipse.ui.forms.events HyperlinkAdapter HyperlinkEvent]
@@ -233,6 +233,11 @@ Some notable places to start:
   StatusLabel
   (apply-properties [this props]
     (gen-state-changes #{:status :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
+    this)
+
+  Button
+  (apply-properties [this props]
+    (gen-state-changes #{:text :layout-data :tooltip-text :listen :user-data} this props)
     this))
 
 (def swt-style
@@ -334,6 +339,12 @@ Some notable places to start:
 (defmethod make-control :color-selector
   [^FormToolkit toolkit parent [name props :as spec]]
   (let [control (ColorSelector. toolkit parent (swt-style (:style props :none)))]
+    (apply-properties control props)
+    {name {::widget control}}))
+
+(defmethod make-control :button
+  [^FormToolkit toolkit parent [name props :as spec]]
+  (let [control (.createButton toolkit parent nil (swt-style (:style props :none)))]
     (apply-properties control props)
     {name {::widget control}}))
 
