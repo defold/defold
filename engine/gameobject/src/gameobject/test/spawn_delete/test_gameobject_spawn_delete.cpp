@@ -61,7 +61,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        uint32_t resource_type;
+	dmResource::ResourceType resource_type;
         dmGameObject::Result go_result;
 
         // A has component_user_data
