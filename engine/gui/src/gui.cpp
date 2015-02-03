@@ -1217,6 +1217,7 @@ namespace dmGui
                         if (ret_count == 1 && lua_isboolean(L, -1))
                         {
                             input_args->m_Consumed = (bool) lua_toboolean(L, -1);
+                            lua_pop(L, 1);
                         }
                         else if (ret_count != 0)
                         {
@@ -1236,6 +1237,7 @@ namespace dmGui
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
+            assert(top == lua_gettop(L));
             return result;
         }
         assert(top == lua_gettop(L));
