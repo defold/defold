@@ -27,6 +27,8 @@ namespace dmGameSystem
         , m_Instance(0)
         , m_RenderObject()
         , m_ModelWorld(0x0)
+        , m_AddedToUpdate(0)
+        , m_Padding(0)
         {}
 
         Model* m_Model;
@@ -35,6 +37,8 @@ namespace dmGameSystem
         Quat   m_Rotation;
         dmRender::RenderObject m_RenderObject;
         ModelWorld* m_ModelWorld;
+        uint16_t m_AddedToUpdate : 1;
+        uint16_t m_Padding : 15;
     };
 
     struct ModelWorld
@@ -92,6 +96,14 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    dmGameObject::CreateResult CompModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        ModelWorld* model_world = (ModelWorld*)params.m_World;
+        uint32_t index = (uint32_t)*params.m_UserData;
+        ModelComponent* component = &model_world->m_Components.Get(index);
+        component->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
@@ -103,7 +115,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             ModelComponent& component = components[i];
-            if (component.m_Instance == 0)
+            if (component.m_Instance == 0 || !component.m_AddedToUpdate)
                 continue;
             model = component.m_Model;
             mesh = model->m_Mesh;

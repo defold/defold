@@ -268,6 +268,7 @@ namespace dmGameSystem
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_ComponentIndex = params.m_ComponentIndex;
         gui_component->m_Enabled = 1;
+        gui_component->m_AddedToUpdate = 0;
 
         dmGui::NewSceneParams scene_params;
         // 512 is a hard cap since the render key has 9 bits for node index
@@ -937,6 +938,12 @@ namespace dmGameSystem
         dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
     }
 
+    dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        gui_component->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
@@ -945,8 +952,10 @@ namespace dmGameSystem
         // update
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
-            if (gui_world->m_Components[i]->m_Enabled)
-                dmGui::UpdateScene(gui_world->m_Components[i]->m_Scene, params.m_UpdateContext->m_DT);
+            GuiComponent* gui_component = gui_world->m_Components[i];
+            if (gui_component->m_Enabled && gui_component->m_AddedToUpdate) {
+                dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
+            }
         }
 
         RenderGuiContext render_gui_context;
@@ -958,7 +967,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled)
+            if (c->m_Enabled && c->m_AddedToUpdate)
             {
                 total_node_count += dmGui::GetNodeCount(c->m_Scene);
             }
@@ -978,7 +987,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* c = gui_world->m_Components[i];
-            if (c->m_Enabled) {
+            if (c->m_Enabled && c->m_AddedToUpdate) {
                 dmGui::RenderSceneParams rp;
                 rp.m_RenderNodes = &RenderNodes;
                 rp.m_NewTexture = &NewTexture;

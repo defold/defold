@@ -19,6 +19,8 @@ namespace dmGameObject
 
     CreateResult CompScriptFinal(const ComponentFinalParams& params);
 
+    CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params);
+
     UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params);
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params);

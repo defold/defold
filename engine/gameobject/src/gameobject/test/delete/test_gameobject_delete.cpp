@@ -40,6 +40,7 @@ protected:
         ds_type.m_Name = "deleteself";
         ds_type.m_ResourceType = resource_type;
         ds_type.m_Context = this;
+        ds_type.m_AddToUpdateFunction = DeleteSelfComponentAddToUpdate;
         ds_type.m_UpdateFunction = DeleteSelfComponentsUpdate;
         dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, ds_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
@@ -58,6 +59,7 @@ protected:
     static dmResource::Result ResDeleteSelfCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename);
     static dmResource::Result ResDeleteSelfDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource);
 
+    static dmGameObject::CreateResult     DeleteSelfComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
     static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
 public:
@@ -104,6 +106,11 @@ dmResource::Result DeleteTest::ResDeleteSelfDestroy(dmResource::HFactory factory
 
     dmDDF::FreeMessage((void*) resource->m_Resource);
     return dmResource::RESULT_OK;
+}
+
+dmGameObject::CreateResult DeleteTest::DeleteSelfComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+{
+    return dmGameObject::CREATE_RESULT_OK;
 }
 
 dmGameObject::UpdateResult DeleteTest::DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -188,6 +195,7 @@ TEST_F(DeleteTest, TestScriptDelete)
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete.goc");
     ASSERT_NE((void*)0, (void*)instance);
     ASSERT_NE(0, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
@@ -201,6 +209,7 @@ TEST_F(DeleteTest, TestScriptDeleteOther)
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
     ASSERT_NE(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
@@ -214,6 +223,7 @@ TEST_F(DeleteTest, TestScriptDeleteNonExistent)
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
     ASSERT_NE(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());

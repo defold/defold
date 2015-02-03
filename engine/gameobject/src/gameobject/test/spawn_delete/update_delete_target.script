@@ -1,0 +1,6 @@
+function update(self, dt)
+    if not self.done then
+        go.delete("/target")
+        self.done = true
+    end
+end

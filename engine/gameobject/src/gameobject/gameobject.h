@@ -371,6 +371,30 @@ namespace dmGameObject
     typedef CreateResult (*ComponentFinal)(const ComponentFinalParams& params);
 
     /**
+     * Parameters to ComponentAddToUpdate callback.
+     */
+    struct ComponentAddToUpdateParams
+    {
+        /// Collection handle
+        HCollection m_Collection;
+        /// Game object instance
+        HInstance m_Instance;
+        /// Component world
+        void* m_World;
+        /// User context
+        void* m_Context;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
+
+    /**
+     * Component add to update function. Only components called with this function should be included in the update passes.
+     * @param params Input parameters
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef CreateResult (*ComponentAddToUpdate)(const ComponentAddToUpdateParams& params);
+
+    /**
      * Parameters to ComponentsUpdate callback.
      */
     struct ComponentsUpdateParams
@@ -561,6 +585,7 @@ namespace dmGameObject
         ComponentDestroy        m_DestroyFunction;
         ComponentInit           m_InitFunction;
         ComponentFinal          m_FinalFunction;
+        ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
         ComponentOnMessage      m_OnMessageFunction;
@@ -736,16 +761,17 @@ namespace dmGameObject
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
     /**
-     * Get gameobject instance from lua-argument. This function is typically used from lua-bindings
+     * Get component user data from lua-argument. This function is typically used from lua-bindings
      * and can only be used from protected lua-calls as luaL_error might be invoked
      * @param L lua-state
      * @param index index to argument
+     * @param collection in which to search
      * @param component_ext when specified, the call will fail if the found component does not have the specified extension
      * @param user_data will be overwritten component user-data output if available
      * @param url will be overwritten with a URL to the component when specified
      * @param world world associated when specified
      */
-    void GetComponentUserDataFromLua(lua_State* L, int index, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
     /**
      * Get current game object instance from the lua state, if any.

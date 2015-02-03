@@ -123,7 +123,7 @@ local dx = (v0 + self.velocity) * dt * 0.5
 
 . Apply it to the player character
 
-If you are unsure how to handle input in Defold, there's a guide about that link:http://www.defold.com/doc/input[here].
+If you are unsure how to handle input in Defold, there's a guide about that link:http://doc.defold.com/doc/input[here].
 
 At this stage, we can move the character left and right and have a weighted and smooth feel to the controls.
 Let's add gravity!
@@ -277,7 +277,7 @@ Below is a screen-shot of how the level looked in the Defold editor.
 image::images/platformer/editor.png["The Defold Editor with the level geometry and player placed into the world", align="center"]
 ((((
 
-Check out our guides about link:http://www.defold.com/doc/physics[physics] and link:http://www.defold.com/doc/tiles[tiles] for more info.
+Check out our guides about link:http://doc.defold.com/doc/physics[physics] and link:http://doc.defold.com/doc/2dgraphics[2D Graphics] for more info.
 
 Final Words
 -----------

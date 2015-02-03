@@ -967,8 +967,14 @@ void b2World::ClearForces()
 {
 	for (b2Body* body = m_bodyList; body; body = body->GetNext())
 	{
-		body->m_force.SetZero();
-		body->m_torque = 0.0f;
+		// Defold modification: Added IsActive() check; spawned objects are inactive
+		// their first (incomplete) frame, and should retain accumulated forces
+		// until active.
+		if (body->IsActive())
+		{
+			body->m_force.SetZero();
+			body->m_torque = 0.0f;
+		}
 	}
 }
 

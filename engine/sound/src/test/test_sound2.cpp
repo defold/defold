@@ -220,16 +220,16 @@ class dmSoundMixerTest : public dmSoundTest2
 };
 
 // Some arbitrary process "time" for loopback-device buffers
-#define LOOPBACK_DEVICE_PROCESS_TIME (8)
+#define LOOPBACK_DEVICE_PROCESS_TIME (4)
 
 struct LoopbackBuffer
 {
     dmArray<int16_t> m_Buffer;
     uint64_t m_Queued;
 
-    LoopbackBuffer(uint32_t capacity) {
+    LoopbackBuffer(uint32_t capacity, uint64_t queued) {
         m_Buffer.SetCapacity(capacity * 2);
-        m_Queued = 0;
+        m_Queued = queued;
     }
 };
 
@@ -238,7 +238,8 @@ struct LoopbackDevice
     dmArray<LoopbackBuffer*> m_Buffers;
     dmArray<int16_t> m_AllOutput;
     uint32_t         m_TotalBuffersQueued;
-    int      m_Time;
+    int              m_Time; // read cursor
+    int              m_QueueTime; // write cursor
 };
 
 
@@ -248,12 +249,22 @@ dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSo
 {
     LoopbackDevice* d = new LoopbackDevice;
 
+    // to avoid making big spammy requests and getting huge chunks all at the same time
+    // set up the buffers as if we have been playing continuously already. first call
+    // will only ask for one buffer and there will be no bursts
+    //
+    // 0 1 2 3 4 5
+    //             ^
+    //             +- time & queue time starts here
+    //
     d->m_Buffers.SetCapacity(params->m_BufferCount);
     for (uint32_t i = 0; i < params->m_BufferCount; ++i) {
-        d->m_Buffers.Push(new LoopbackBuffer(params->m_FrameCount));
+        d->m_Buffers.Push(new LoopbackBuffer(params->m_FrameCount, i));
     }
+
     d->m_TotalBuffersQueued = 0;
-    d->m_Time = 0;
+    d->m_Time = params->m_BufferCount;
+    d->m_QueueTime = params->m_BufferCount;
 
     *device = d;
     g_LoopbackDevice = d;
@@ -274,6 +285,7 @@ void DeviceLoopbackClose(dmSound::HDevice device)
 dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
+
     loopback->m_TotalBuffersQueued++;
     if (loopback->m_AllOutput.Remaining() < sample_count * 2) {
         loopback->m_AllOutput.OffsetCapacity(sample_count * 2);
@@ -282,13 +294,17 @@ dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const int16_t* samp
 
     LoopbackBuffer* b = 0;
     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
+        if (loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
+            continue;
         if (loopback->m_Time - loopback->m_Buffers[i]->m_Queued > LOOPBACK_DEVICE_PROCESS_TIME) {
             b = loopback->m_Buffers[i];
             break;
         }
     }
 
-    b->m_Queued = loopback->m_Time;
+    loopback->m_QueueTime += LOOPBACK_DEVICE_PROCESS_TIME;
+
+    b->m_Queued = loopback->m_QueueTime;
     b->m_Buffer.SetSize(0);
     b->m_Buffer.PushArray(samples, sample_count * 2);
 
@@ -301,13 +317,15 @@ uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
 
     uint32_t n = 0;
     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
+        if (loopback->m_Time < loopback->m_Buffers[i]->m_Queued)
+            continue;
         uint64_t diff = loopback->m_Time - loopback->m_Buffers[i]->m_Queued;
         if (diff > LOOPBACK_DEVICE_PROCESS_TIME) {
             ++n;
         }
     }
-    loopback->m_Time++;
 
+    loopback->m_Time++;
     return n;
 }
 
@@ -336,7 +354,6 @@ TEST_P(dmSoundVerifyTest, Mix)
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
     } while (dmSound::IsPlaying(instance));
-
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
@@ -639,23 +656,23 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
 
     do {
-    	r = dmSound::Update();
-    	ASSERT_EQ(dmSound::RESULT_OK, r);
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
         if (0 == killed && ++tick == killTick) {
-        	r =  dmSound::Stop(instanceB);
-        	ASSERT_EQ(dmSound::RESULT_OK, r);
-        	r = dmSound::Update();
-        	ASSERT_EQ(dmSound::RESULT_OK, r);
-        	r = dmSound::DeleteSoundInstance(instanceB);
-        	killed = 1;
-        	ASSERT_EQ(dmSound::RESULT_OK, r);
-        	r = dmSound::Update();
-        	ASSERT_EQ(dmSound::RESULT_OK, r);
+            r =  dmSound::Stop(instanceB);
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::Update();
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::DeleteSoundInstance(instanceB);
+            killed = 1;
+            ASSERT_EQ(dmSound::RESULT_OK, r);
+            r = dmSound::Update();
+            ASSERT_EQ(dmSound::RESULT_OK, r);
         }
     } while (dmSound::IsPlaying(instanceA));
 
     if (0 == killed) {
-    	r = dmSound::DeleteSoundInstance(instanceB);
+        r = dmSound::DeleteSoundInstance(instanceB);
     }
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
@@ -692,15 +709,15 @@ TEST_P(dmSoundTestPlayTest, Play)
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest,
                         dmSoundVerifyOggTest,
                         ::testing::Values(
-                        		TestParams("loopback",
-                                			MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
-                                			MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
-											dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
-											2000,
-											44100,
-											35200,
-											2048)
-								));
+                                TestParams("loopback",
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
+                                            MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_OGG_VORBIS,
+                                            2000,
+                                            44100,
+                                            35200,
+                                            2048)
+                                ));
 
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest,
                         dmSoundTestPlayTest,
