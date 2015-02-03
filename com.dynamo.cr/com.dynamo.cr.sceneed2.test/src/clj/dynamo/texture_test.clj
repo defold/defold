@@ -2,8 +2,8 @@
   (:require [dynamo.texture :refer :all]
             [dynamo.geom :refer :all]
             [dynamo.image :refer :all]
-            [dynamo.types :refer [rect]]
-            [internal.texture.pack-max-rects :refer [max-rects-packing]]
+            [dynamo.types :as t :refer [rect]]
+            [internal.texture.pack-max-rects :as itp :refer [max-rects-packing]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :refer [defspec]]
@@ -71,3 +71,45 @@
           (textures-have-non-negative-origins tex textures)
           (packed-textures-do-not-overlap tex textures)
           (total-texture-area-fits tex textures))))))
+
+;;; these should fit in 2048x512 or 512x2048.
+(def test-rectangles-for-packing
+  [(t/map->Rect {:path "/player/images/front_fist_open.png", :x 0, :y 0, :width 86, :height 87})
+   (t/map->Rect {:path "/player/images/rear_upper_arm.png", :x 0, :y 0, :width 47, :height 87})
+   (t/map->Rect {:path "/player/images/rear_thigh.png", :x 0, :y 0, :width 65, :height 104})
+   (t/map->Rect {:path "/player/images/rear_foot.png", :x 0, :y 0, :width 113, :height 60})
+   (t/map->Rect {:path "/player/images/head.png", :x 0, :y 0, :width 271, :height 298})
+   (t/map->Rect {:path "/player/images/rear_bracer.png", :x 0, :y 0, :width 56, :height 72})
+   (t/map->Rect {:path "/player/images/front_foot_bend1.png", :x 0, :y 0, :width 128, :height 70})
+   (t/map->Rect {:path "/player/images/front_foot_bend2.png", :x 0, :y 0, :width 108, :height 93})
+   (t/map->Rect {:path "/player/images/mouth_grind.png", :x 0, :y 0, :width 93, :height 59})
+   (t/map->Rect {:path "/player/images/gun.png", :x 0, :y 0, :width 210, :height 203})
+   (t/map->Rect {:path "/player/images/rear_shin.png", :x 0, :y 0, :width 75, :height 178})
+   (t/map->Rect {:path "/player/images/front_upper_arm.png", :x 0, :y 0, :width 54, :height 97})
+   (t/map->Rect {:path "/player/images/eye_surprised.png", :x 0, :y 0, :width 93, :height 89})
+   (t/map->Rect {:path "/player/images/eye_indifferent.png", :x 0, :y 0, :width 93, :height 89})
+   (t/map->Rect {:path "/player/images/muzzle.png", :x 0, :y 0, :width 462, :height 400})
+   (t/map->Rect {:path "/player/images/front_bracer.png", :x 0, :y 0, :width 58, :height 80})
+   (t/map->Rect {:path "/player/images/torso.png", :x 0, :y 0, :width 98, :height 180})
+   (t/map->Rect {:path "/player/images/front_foot.png", :x 0, :y 0, :width 126, :height 69})
+   (t/map->Rect {:path "/player/images/rear_foot_bend2.png", :x 0, :y 0, :width 103, :height 83})
+   (t/map->Rect {:path "/player/images/mouth_oooo.png", :x 0, :y 0, :width 93, :height 59})
+   (t/map->Rect {:path "/player/images/rear_foot_bend1.png", :x 0, :y 0, :width 117, :height 66})
+   (t/map->Rect {:path "/player/images/neck.png", :x 0, :y 0, :width 36, :height 41})
+   (t/map->Rect {:path "/player/images/front_shin.png", :x 0, :y 0, :width 82, :height 184})
+   (t/map->Rect {:path "/builtins/graphics/particle_blob.png", :x 0, :y 0, :width 32, :height 32})
+   (t/map->Rect {:path "/player/images/front_fist_closed.png", :x 0, :y 0, :width 75, :height 82})
+   (t/map->Rect {:path "/player/images/goggles.png", :x 0, :y 0, :width 261, :height 166})
+   (t/map->Rect {:path "/player/images/front_thigh.png", :x 0, :y 0, :width 48, :height 112})
+   (t/map->Rect {:path "/player/images/mouth_smile.png", :x 0, :y 0, :width 93, :height 59})])
+
+
+(defn packed-size
+  [rects]
+  (let [textureset (max-rects-packing 0 rects)]
+    ((juxt :width :height) (:aabb textureset))))
+
+(deftest known-size
+ (let [packed (packed-size test-rectangles-for-packing)]
+   (is (or (= [512 2048] packed) (= [2048 512] packed)))))
+
