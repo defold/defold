@@ -556,20 +556,8 @@
           (ds/connect atlas-node   :aabb        editor       :aabb))
         editor)))
 
-(defn- bind-image-connections
-  [img-node target-node]
-  (when (:image (t/outputs img-node))
-    (ds/connect img-node :content target-node :images))
-  (when (:tree (t/outputs img-node))
-    (ds/connect img-node :tree  target-node :children)))
-
-(defn- bind-images
-  [image-nodes target-node]
-  (doseq [img image-nodes]
-    (bind-image-connections img target-node)))
-
 (defn construct-ancillary-nodes
-  [self locator input]
+  [self input]
   (let [atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))]
     (ds/set-property self :margin (:margin atlas))
     (ds/set-property self :extrude-borders (:extrude-borders atlas))
@@ -643,7 +631,7 @@
 
   (on :load
     (doto self
-      (construct-ancillary-nodes (:project event) (:filename self))
+      (construct-ancillary-nodes (:filename self))
       (construct-compiler)
       (ds/set-property :dirty false)))
 

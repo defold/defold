@@ -49,7 +49,7 @@
   (ds/transactional
     (ds/in project-node
       (let [atlas (ds/add (n/construct atlas/AtlasNode))]
-        (atlas/construct-ancillary-nodes atlas project-node (StringReader. text-format))
+        (atlas/construct-ancillary-nodes atlas (StringReader. text-format))
         atlas))))
 
 (defn ->text
