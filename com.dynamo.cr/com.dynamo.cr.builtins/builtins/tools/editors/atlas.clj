@@ -570,20 +570,22 @@
   (property start-y s/Int)
   (property current-x s/Int)
   (property current-y s/Int)
-  (property selection-node s/Any)
-  (property default-selection s/Any)
+  (property selecting s/Bool (default false))
+  (property dragging s/Bool (default false))
+
+  ;; Cached inputs during click-and-drag
   (property glcontext s/Any)
   (property renderable-inputs s/Any)
   (property view-camera s/Any)
-  (property mouse-move-count s/Int (default 0))
-  (property mouse-move-start s/Int)
-  (property selecting s/Bool (default false))
-  (property dragging s/Bool (default false))
+  (property selection-node s/Any)
+  (property default-selection s/Any)
+
   (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (input selection-node s/Any :inject)
   (input default-selection s/Any)
+
   (output selection-box `t/Region selection-box)
 
   (on :mouse-down
