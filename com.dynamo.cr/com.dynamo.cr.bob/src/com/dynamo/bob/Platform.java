@@ -5,6 +5,7 @@ public enum Platform {
     X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib"),
     X86Win32("x86", "win32", ".exe", "", "", ".dll"),
     X86Linux("x86", "linux", "", "", "lib", ".so"),
+    X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
     JsWeb("js", "web", ".js", "", "lib", "");
@@ -55,13 +56,18 @@ public enum Platform {
 
     public static Platform getJavaPlatform() {
         String os_name = System.getProperty("os.name").toLowerCase();
+        String arch = System.getProperty("os.arch").toLowerCase();
 
         if (os_name.indexOf("win") != -1) {
             return Platform.X86Win32;
         } else if (os_name.indexOf("mac") != -1) {
             return Platform.X86_64Darwin;
         } else if (os_name.indexOf("linux") != -1) {
-            return Platform.X86Linux;
+	    if (arch.equals("x86_64") || arch.equals("amd64")) {
+		return Platform.X86_64Linux;
+	    } else {
+		return Platform.X86Linux;
+	    }
         } else {
             throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
         }
@@ -69,13 +75,21 @@ public enum Platform {
 
     public static Platform getHostPlatform() {
         String os_name = System.getProperty("os.name").toLowerCase();
+        String arch = System.getProperty("os.arch").toLowerCase();
+	System.out.println("!!!!!!!!!!!!!!!!!!!!!!");
+	System.out.println("arch: " + arch);
 
         if (os_name.indexOf("win") != -1) {
             return Platform.X86Win32;
         } else if (os_name.indexOf("mac") != -1) {
             return Platform.X86Darwin;
         } else if (os_name.indexOf("linux") != -1) {
-            return Platform.X86Linux;
+	    if (arch.equals("x86_64") || arch.equals("amd64")) {
+	       	System.out.println("YES!");
+		return Platform.X86_64Linux;
+	    } else {
+		return Platform.X86Linux;
+	    }
         } else {
             throw new RuntimeException(String.format("Could not identify OS: '%s'", os_name));
         }

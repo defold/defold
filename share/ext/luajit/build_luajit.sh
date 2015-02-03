@@ -78,6 +78,9 @@ case $1 in
 	linux)
 		export TARGET_SYS=Linux
 		;;
+	x86_64-linux)
+		export TARGET_SYS=Linux
+		;;
 	darwin)
 		function cmi_make() {
                     set -e

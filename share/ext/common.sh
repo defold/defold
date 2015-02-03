@@ -161,6 +161,10 @@ function cmi() {
             cmi_buildplatform $1
             ;;
 
+        x86_64-linux)
+            cmi_buildplatform $1
+            ;;
+
         win32)
             cmi_buildplatform $1
             ;;

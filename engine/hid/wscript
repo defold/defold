@@ -29,7 +29,7 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "linux":
+    if platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'darwin' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
