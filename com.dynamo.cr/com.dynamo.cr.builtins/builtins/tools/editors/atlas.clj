@@ -488,7 +488,6 @@
                     pick-rect
                     min-selection-rect
                     (rect-in-viewport viewport))]
-    (prn 'pick-rect pick-rect)
     (ius/selection-renderer glcontext renderables view-camera pick-rect)))
 
 (defn- not-camera-movement?
@@ -573,6 +572,8 @@
   (property start-y s/Int)
   (property current-x s/Int)
   (property current-y s/Int)
+  (property mouse-move-count s/Int (default 0))
+  (property mouse-move-start s/Int)
   (property selecting s/Bool (default false))
   (property dragging s/Bool (default false))
   (input glcontext GLContext :inject)
@@ -583,10 +584,11 @@
   (output selection-box `t/Region selection-box)
 
   (on :mouse-down
-    (prn :mouse-down :x (:x event) :y (:y event))
     (when (selection-event? event)
       (ds/set-property self
         :selecting true
+        :mouse-move-count 0
+        :mouse-move-start (System/currentTimeMillis)
         :start-x (:x event)
         :start-y (:y event)
         :current-x (:x event)
@@ -597,13 +599,21 @@
             (or (:dragging self) (drag-move? self event)))
       (ds/set-property self
         :dragging true
+        :mouse-move-count (inc (:mouse-move-count self))
         :current-x (:x event)
-        :current-y (:y event))))
+        :current-y (:y event))
+      ;;(complete-selection self event)
+      ))
 
   (on :mouse-up
-    (prn :mouse-up :x (:x event) :y (:y event))
     (when (:selecting self)
-      (complete-selection self event))
+      (complete-selection self event)
+      (let [stop-time (System/currentTimeMillis)
+            elapsed (- stop-time (:mouse-move-start self))]
+        (prn (format "%d mouse moves in %d ms: %.2f moves/sec"
+              (:mouse-move-count self)
+              elapsed
+              (/ (double (:mouse-move-count self)) (/ (double elapsed) 1000.0))))))
     (ds/set-property self
       :selecting false
       :dragging false)))
