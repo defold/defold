@@ -1,0 +1,3 @@
+function final(self)
+    local id = spawn("/a.goc")
+end

@@ -62,11 +62,13 @@ namespace dmGameSystem
         float                       m_AnimInvDuration;
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
-        uint8_t                     m_ComponentIndex;
-        uint8_t                     m_Enabled : 1;
-        uint8_t                     m_Playing : 1;
-        uint8_t                     m_FlipHorizontal : 1;
-        uint8_t                     m_FlipVertical : 1;
+        uint16_t                    m_ComponentIndex : 8;
+        uint16_t                    m_Enabled : 1;
+        uint16_t                    m_Playing : 1;
+        uint16_t                    m_FlipHorizontal : 1;
+        uint16_t                    m_FlipVertical : 1;
+        uint16_t                    m_AddedToUpdate : 1;
+        uint16_t                    m_Padding : 3;
     };
 
     struct SpriteWorld
@@ -234,6 +236,7 @@ namespace dmGameSystem
         }
         uint32_t index = sprite_world->m_Components.Alloc();
         SpriteComponent* component = &sprite_world->m_Components.Get(index);
+        memset(component, 0, sizeof(SpriteComponent));
         component->m_Instance = params.m_Instance;
         component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
@@ -287,7 +290,7 @@ namespace dmGameSystem
         {
             SpriteComponent* c = &components[i];
             uint32_t index = c - first;
-            if (c->m_Resource && c->m_Enabled)
+            if (c->m_Resource && c->m_Enabled && c->m_AddedToUpdate)
             {
                 float z = (c->m_World.getElem(3, 2) - min_z) * range * 65535;
                 z = dmMath::Clamp(z, 0.0f, 65535.0f);
@@ -473,7 +476,7 @@ namespace dmGameSystem
         for (uint32_t i = start_index; i < n; ++i)
         {
             const SpriteComponent* c = &components[sort_buffer[i]];
-            if (!c->m_Enabled || c->m_MixedHash != hash)
+            if (!c->m_Enabled || c->m_MixedHash != hash || !c->m_AddedToUpdate)
             {
                 end_index = i;
                 break;
@@ -550,7 +553,7 @@ namespace dmGameSystem
             SpriteComponent* c = &components[i];
 
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
-            if (!c->m_Enabled)
+            if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
             TextureSetResource* texture_set = c->m_Resource->m_TextureSet;
@@ -680,7 +683,7 @@ namespace dmGameSystem
         {
             SpriteComponent* component = &components[i];
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
-            if (!component->m_Enabled || !component->m_Playing)
+            if (!component->m_Enabled || !component->m_Playing || !component->m_AddedToUpdate)
                 continue;
 
             TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
@@ -710,6 +713,14 @@ namespace dmGameSystem
                 }
             }
         }
+    }
+
+    dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+        uint32_t index = (uint32_t)*params.m_UserData;
+        SpriteComponent* component = &sprite_world->m_Components.Get(index);
+        component->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params)
@@ -753,7 +764,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpriteComponent& component = components[i];
-            if (!component.m_Enabled)
+            if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
             uint32_t const_count = component.m_ConstantCount;
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
@@ -776,14 +787,21 @@ namespace dmGameSystem
 
         Animate(sprite_world, params.m_UpdateContext->m_DT);
 
-        uint32_t start_index = 0;
         uint32_t n = components.Size();
-        while (start_index < n && components[sort_buffer[start_index]].m_Enabled)
-        {
-            start_index = RenderBatch(sprite_world, render_context, vertex_buffer, start_index);
-        }
+        if (n > 0) {
+            uint32_t start_index = 0;
+            SpriteComponent* component = &components[sort_buffer[start_index]];
+            while (start_index < n && component->m_Enabled && component->m_AddedToUpdate)
+            {
+                start_index = RenderBatch(sprite_world, render_context, vertex_buffer, start_index);
+                if (start_index >= n) {
+                    break;
+                }
+                component = &components[sort_buffer[start_index]];
+            }
 
-        dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * start_index, sprite_world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            dmGraphics::SetVertexBufferData(sprite_world->m_VertexBuffer, 6 * sizeof(SpriteVertex) * start_index, sprite_world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        }
 
         PostMessages(sprite_world);
 

@@ -344,6 +344,7 @@ def build(bld):
     new_test('anim')
     new_test('bones', exts = ['.cpp', '.a_pb', '.go_pb', '.script'])
     new_test('collection', exts = ['.cpp', '.go_pb', '.script', '.collection', '.a_pb'])
+    new_test('spawn_delete', exts = ['.cpp', '.proto', '.go_pb', '.script', '.a_pb'])
     new_test('component', exts = ['.cpp', '.proto', '.go_pb', '.script', '.a_pb', '.b_pb', '.c_pb'])
     new_test('delete')
     new_test('factory', exts = ['.cpp', '.a_pb', '.go_pb', '.script'])

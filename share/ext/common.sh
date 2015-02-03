@@ -2,7 +2,7 @@
 
 IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
 ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=8.0
+IOS_SDK_VERSION=8.1
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10b
@@ -23,13 +23,17 @@ function cmi_make() {
     set +e
 }
 
+function cmi_unpack() {
+    tar xfz ../../download/$FILE_URL --strip-components=1
+}
+
 function cmi_do() {
     rm -rf $PREFIX
     rm -rf tmp
     mkdir tmp
     mkdir -p $PREFIX
     pushd tmp  >/dev/null
-    tar xfz ../../download/$FILE_URL --strip-components=1
+    cmi_unpack
     [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 
     ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
@@ -130,6 +134,7 @@ function cmi() {
             export CC=${bin}/arm-linux-androideabi-gcc
             export CXX=${bin}/arm-linux-androideabi-g++
             export AR=${bin}/arm-linux-androideabi-ar
+            export AS=${bin}/arm-linux-androideabi-as
             export LD=${bin}/arm-linux-androideabi-ld
             export RANLIB=${bin}/arm-linux-androideabi-ranlib
             cmi_cross $1 arm-linux

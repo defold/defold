@@ -1390,13 +1390,13 @@
          point="com.dynamo.cr.editor.ui.tip">
       <tip
             editor-id="com.dynamo.cr.tileeditor.GridEditor"
-            link="See &lt;a href=&quot;http://www.defold.com/doc/tiles&quot;&gt;Tiles&lt;/a&gt; for more info."
+            link="See &lt;a href=&quot;http://doc.defold.com/doc/2dgraphics&quot;&gt;2D Graphics&lt;/a&gt; for more info."
             tip="Select a layer in the outline to paint tiles. Use the space bar to show the palette or make a brush from existing tiles with right-click (three button) or shift-click (one button)."
             title="Painting Tiles">
       </tip>
       <tip
             editor-id="com.dynamo.cr.tileeditor.tileSetEditor"
-            link="See &lt;a href=&quot;http://www.defold.com/doc/tiles&quot;&gt;Tiles&lt;/a&gt; for more info."
+            link="See &lt;a href=&quot;http://doc.defold.com/doc/2dgraphics&quot;&gt;2D Graphics&lt;/a&gt; for more info."
             tip="Drag a tiled image into the Project Explorer to add it to the project. Specify it in the Properties View in the bottom right."
             title="Tiles">
       </tip>
