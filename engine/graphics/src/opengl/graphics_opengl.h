@@ -24,6 +24,8 @@ namespace dmGraphics
         // Version zero is never used
         uint32_t                m_ModificationVersion;
         uint32_t                m_TextureFormatSupport;
+        uint32_t                m_DepthBufferBits;
+        uint32_t                m_PackedDepthStencil : 1;
         uint32_t                m_WindowOpened : 1;
     };
 
@@ -78,8 +80,13 @@ namespace dmGraphics
     struct RenderTarget
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_BufferTextures[MAX_BUFFER_TYPE_COUNT];
+        HTexture        m_ColorBufferTexture;
+        GLuint          m_DepthBuffer;
+        GLuint          m_StencilBuffer;
+        GLuint          m_DepthStencilBuffer;
         GLuint          m_Id;
+        uint32_t        m_BufferTypeFlags;
+        uint32_t        m_DepthBufferBits;
     };
 
 }

@@ -14,6 +14,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params);
 
+    dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
+
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params);

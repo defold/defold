@@ -396,6 +396,12 @@ namespace dmGameSystem
         dmGraphics::SetVertexBufferData(ro->m_VertexBuffer, vertex_count * sizeof(Vertex), region->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     }
 
+    dmGameObject::CreateResult CompTileGridAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        TileGridComponent* component = (TileGridComponent*) *params.m_UserData;
+        component->m_AddedToUpdate = true;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompTileGridUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext)params.m_Context;
@@ -407,6 +413,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             TileGridComponent* tile_grid = tile_grids[i];
+            if (!tile_grid->m_AddedToUpdate) {
+                continue;
+            }
             TileGridResource* resource = tile_grid->m_TileGridResource;
             dmGraphics::HTexture texture = resource->m_TextureSet->m_Texture;
             dmTransform::Transform world = dmGameObject::GetWorldTransform(tile_grid->m_Instance);

@@ -683,6 +683,7 @@ namespace dmPhysics
         def.linearDamping = data.m_LinearDamping;
         def.angularDamping = data.m_AngularDamping;
         def.fixedRotation = data.m_LockedRotation;
+        def.active = data.m_Enabled;
         b2Body* body = world->m_World.CreateBody(&def);
         Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i) {
@@ -824,8 +825,6 @@ namespace dmPhysics
         body->SetActive(enabled);
         if (enabled)
         {
-            // Reset state
-            body->SetAwake(false);
             body->SetAwake(true);
             if (world->m_GetWorldTransformCallback)
             {
@@ -838,6 +837,11 @@ namespace dmPhysics
                 ToB2(position, b2_position, world->m_Context->m_Scale);
                 body->SetTransform(b2_position, angle);
             }
+        }
+        else
+        {
+            // Reset state
+            body->SetAwake(false);
         }
     }
 

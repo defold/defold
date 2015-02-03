@@ -57,7 +57,7 @@ div.message {
 }
 
 .gwt-DialogBox {
-    border: 1px solid #black;
+    border: 1px solid black;
     border-radius: 6px;
     background-color: #eee;
     padding: 24px;

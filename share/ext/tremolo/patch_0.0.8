@@ -1,0 +1,119 @@
+diff -u -r a/Makefile b/Makefile
+--- a/Makefile	2007-08-07 19:18:34.000000000 +0200
++++ b/Makefile	2014-11-28 15:03:57.000000000 +0100
+@@ -7,19 +7,12 @@
+ srcdir    = .
+ VPATH     = $(srcdir)
+ 
+-CC     = arm-wince-pe-gcc
+-CXX    = arm-wince-pe-g++
+-LD     = arm-wince-pe-g++
+-AR     = arm-wince-pe-ar cru
+-RANLIB = arm-wince-pe-ranlib
+-STRIP  = arm-wince-pe-strip
+-WINDRES= arm-wince-pe-windres
+ MKDIR  = mkdir -p
+ RM     = rm -f
+ RM_REC = rm -rf
+ ECHO   = echo -n
+ CAT    = cat
+-AS     = arm-wince-pe-as
++RANLIB = ranlib
+ 
+ DEFINES := 
+ 
+@@ -35,22 +28,22 @@
+ 
+ LIBOBJS := bitwise.o bitwiseARM.o codebook.o dpen.o dsp.o floor0.o \
+            floor1.o floor1ARM.o floor_lookup.o framing.o info.o mapping0.o \
+-           mdct.o mdctARM.o misc.o res012.o vorbisfile.o speed.o
++           mdct.o mdctARM.o misc.o res012.o vorbisfile.o 
+ EXEOBJS := testtremor.o
+ 
+ LIBOBJS_C := bitwise.oc codebook.oc dsp.oc floor0.oc floor1.oc \
+              floor_lookup.oc framing.oc info.oc mapping0.oc mdct.oc misc.oc \
+-             res012.oc vorbisfile.oc speed.o
++             res012.oc vorbisfile.oc
+ EXEOBJS_C := testtremor.oc
+ 
+ LIBOBJS_L := bitwise.ol bitwiseARM.o codebook.ol dpen.o dsp.ol floor0.ol \
+              floor1.ol floor1LARM.o floor_lookup.ol framing.ol info.ol mapping0.ol \
+-             mdct.ol mdctLARM.o misc.ol res012.ol vorbisfile.ol speed.o
++             mdct.ol mdctLARM.o misc.ol res012.ol vorbisfile.ol
+ EXEOBJS_L := testtremor.ol
+ 
+ LIBOBJS_LC := bitwise.olc codebook.olc dsp.olc floor0.olc floor1.olc \
+               floor_lookup.olc framing.olc info.olc mapping0.olc mdct.olc misc.olc \
+-              res012.olc vorbisfile.olc speed.o
++              res012.olc vorbisfile.olc
+ EXEOBJS_LC := testtremor.olc
+ 
+ # Rules
+@@ -65,17 +58,15 @@
+ .c.olc:
+ 	$(CC) $(CFLAGS) -c $(<) -o $*.olc -D_LOW_ACCURACY_ -DONLY_C
+ 
+-all: libTremolo006.lib bittest.exe testtremor.exe testtremorC.exe testtremorL.exe testtremorLC.exe annotate.exe
+-	cp libTremolo006.lib /cygdrive/c/cvs/scummvm/trunk/backends/platform/wince/libs/lib/
+-	cp ivorbisfile.h /cygdrive/c/cvs/scummvm/trunk/backends/platform/wince/libs/include/tremolo006/tremor/
+-	cp config_types.h /cygdrive/c/cvs/scummvm/trunk/backends/platform/wince/libs/include/tremolo006/
+-	cp ivorbiscodec.h /cygdrive/c/cvs/scummvm/trunk/backends/platform/wince/libs/include/tremolo006/
+-	cp ogg.h /cygdrive/c/cvs/scummvm/trunk/backends/platform/wince/libs/include/tremolo006/
+-	cp os_types.h /cygdrive/c/cvs/scummvm/trunk/backends/platform/wince/libs/include/tremolo006/
++all: libTremolo006-c.lib libTremolo006.lib bittest.exe testtremor.exe testtremorC.exe testtremorL.exe testtremorLC.exe annotate.exe
+ 
+ libTremolo006.lib: $(LIBOBJS)
+-	arm-wince-pe-ar cru $@ $^
+-	arm-wince-pe-ranlib $@
++	$(AR) cr $@ $^
++	$(RANLIB) $@
++
++libTremolo006-c.lib: $(LIBOBJS_C)
++	$(AR) cr $@ $^
++	$(RANLIB) $@
+ 
+ bitwiseTEST.o: bitwise.c
+ 	$(CC) $(CFLAGS) -c -o bitwiseTEST.o bitwise.c -D_V_BIT_TEST
+diff -u -r a/codebook.c b/codebook.c
+--- a/codebook.c	2010-02-01 21:45:48.000000000 +0100
++++ b/codebook.c	2014-11-28 14:43:54.000000000 +0100
+@@ -679,7 +679,6 @@
+     }
+     case 4:
+     {
+-      Output("32/32");
+       for(i=0;i<read;i++){
+ 	chase=((ogg_uint32_t *)(book->dec_table))[chase*2+((lok>>i)&1)];
+ 	if(chase&0x80000000UL)break;
+diff -u -r a/floor1.c b/floor1.c
+--- a/floor1.c	2007-08-06 20:31:14.000000000 +0200
++++ b/floor1.c	2014-11-28 14:44:29.000000000 +0100
+@@ -53,7 +53,7 @@
+   return(ret);
+ }
+ 
+-static void mergesort(char *index,ogg_uint16_t *vals,ogg_uint16_t n){
++static void trem_mergesort(char *index,ogg_uint16_t *vals,ogg_uint16_t n){
+   ogg_uint16_t i,j;
+   char *temp,*A=index,*B=_ogg_malloc(n*sizeof(*B));
+ 
+@@ -147,7 +147,7 @@
+ 
+   /* also store a sorted position index */
+   for(j=0;j<info->posts;j++)info->forward_index[j]=j;
+-  mergesort(info->forward_index,info->postlist,info->posts);
++  trem_mergesort(info->forward_index,info->postlist,info->posts);
+ 
+   /* discover our neighbors for decode where we don't use fit flags
+      (that would push the neighbors outward) */
+diff -u -r a/misc.h b/misc.h
+--- a/misc.h	2007-07-05 18:35:10.000000000 +0200
++++ b/misc.h	2014-11-28 15:42:37.000000000 +0100
+@@ -186,7 +186,3 @@
+ #endif
+ 
+ #endif
+-
+-
+-
+-
