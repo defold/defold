@@ -1223,6 +1223,7 @@ namespace dmGui
                         {
                             dmLogError("The function %s must either return true/false, or no value at all.", SCRIPT_FUNCTION_NAMES[script_function]);
                             result = RESULT_SCRIPT_ERROR;
+                            lua_settop(L, top);
                         }
                     }
                     break;
@@ -1231,6 +1232,7 @@ namespace dmGui
                     {
                         dmLogError("The function %s must have exactly %d return values.", SCRIPT_FUNCTION_NAMES[script_function], ret_count);
                         result = RESULT_SCRIPT_ERROR;
+                        lua_settop(L, top);
                     }
                     break;
                 }
