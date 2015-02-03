@@ -92,6 +92,11 @@
                     <file file="../../packages/luajit-2.0.3-linux.tar.gz" />
                 </gzipresource>
             </tarfileset>
+            <tarfileset includes="bin/x86_64-linux/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.3-x86_64-linux.tar.gz" />
+                </gzipresource>
+            </tarfileset>
             <tarfileset includes="bin/win32/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.0.3-win32.tar.gz" />
@@ -147,6 +152,11 @@
         <copy todir="lib/x86-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="linux/*texc_shared*"/>
+            </fileset>
+        </copy>
+        <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="x86_64-linux/*texc_shared*"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">

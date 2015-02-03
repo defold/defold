@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys, shutil, zipfile, re, itertools, json
+import os, sys, shutil, zipfile, re, itertools, json, platform
 import optparse, subprocess, urllib, urlparse, tempfile
 import imp
 from datetime import datetime
@@ -15,11 +15,11 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 luajit-2.0.3 tremolo-0.0.8".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-2.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.5 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 asciidoc-8.6.7 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 glut-3.7.6 cg-3.1 openal-1.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-3.5.3 luajit-2.0.3 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.5 luajit-2.0.3 vpx-v0.9.7-p1".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 luajit-2.0.3 vpx-v0.9.7-p1".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-3.7 android-support-v4 android-4.2.2 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-portable.tar.gz".split()
@@ -37,7 +37,14 @@ PACKAGES_FLASH="gtest-1.5.0".split()
 SHELL = os.environ.get('SHELL', 'bash')
 
 def get_host_platform():
-    return 'linux' if sys.platform == 'linux2' else sys.platform
+    arch = platform.architecture()[0]
+    if sys.platform == 'linux2':
+        if arch == '64bit':
+            return 'x86_64-linux'
+        else:
+            return 'linux'
+    else:
+        return sys.platform
 
 class ThreadPool(object):
     def __init__(self, worker_count):
@@ -214,6 +221,7 @@ class Configuration(object):
     def _install_go(self):
         urls = {'darwin' : 'http://go.googlecode.com/files/go1.1.darwin-amd64.tar.gz',
                 'linux' : 'http://go.googlecode.com/files/go1.1.linux-386.tar.gz',
+                'x86_64-linux' : 'http://go.googlecode.com/files/go1.1.linux-amd64.tar.gz',
                 'win32' : 'http://go.googlecode.com/files/go1.1.windows-386.zip'}
         url = urls[self.host]
         path = self._download(url)
@@ -420,8 +428,9 @@ class Configuration(object):
                 self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
                 cwd = join(self.defold_root, 'engine/%s' % (lib))
                 pf_arg = ""
-                if platform != self.host:
-                    pf_arg = "--platform=%s" % (platform)
+                #if platform != self.host:
+                # TODO: Any problems with this change?
+                pf_arg = "--platform=%s" % (platform)
                 cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
                 self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
 

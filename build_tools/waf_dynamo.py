@@ -67,7 +67,7 @@ def default_flags(self):
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions',])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
             if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
@@ -927,7 +927,7 @@ def run_gtests(valgrind = False):
 @after('apply_obj_vars')
 def linux_link_flags(self):
     platform = self.env['PLATFORM']
-    if platform == 'linux':
+    if re.match('.*?linux', platform):
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
 @feature('swf')
@@ -1124,7 +1124,7 @@ def detect(conf):
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
-    if platform == "linux":
+    if re.match('.*?linux', "linux"):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_DL'] = 'dl'
         conf.env['LIB_UUID'] = 'uuid'
@@ -1142,6 +1142,9 @@ def detect(conf):
         use_vanilla = True
     if build_util.get_target_platform() == 'x86_64-darwin':
         # TODO: LuaJIT is currently broken on x86_64-darwin
+        use_vanilla = True
+    if build_util.get_target_platform() == 'x86_64-linux':
+        # TODO: LuaJIT is currently broken on x86_64-linux
         use_vanilla = True
 
     if use_vanilla:

@@ -6,6 +6,7 @@ function usage() {
     echo " * darwin"
     echo " * x86_64-darwin"
     echo " * linux"
+    echo " * x86_64-linux"
     echo " * armv7-darwin"
     echo " * armv7-android"
     echo " * i586-mingw32msvc"
