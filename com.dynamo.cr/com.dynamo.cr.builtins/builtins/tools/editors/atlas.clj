@@ -479,8 +479,7 @@
     :height (max min-selection-size (:height rect))))
 
 (defn find-nodes-in-selection [this]
-  (let [[glcontext renderable-inputs view-camera]
-          (n/get-node-inputs this :glcontext :renderables :view-camera)
+  (let [{:keys [glcontext renderable-inputs view-camera]} this
         renderables (apply merge-with concat renderable-inputs)
         {:keys [viewport]} view-camera
         pick-rect (-> this
@@ -553,8 +552,7 @@
 
 (defn complete-selection
   [self event]
-  (let [{:keys [start-x start-y dragging world-ref]} self
-        [selection-node default-selection] (n/get-node-inputs self :selection-node :default-selection)
+  (let [{:keys [start-x start-y dragging world-ref selection-node default-selection]} self
         previous (disj (set (selected-node-ids selection-node))
                    (:_id default-selection))
         clicked (set (cond->> (find-nodes-in-selection self)
@@ -572,6 +570,11 @@
   (property start-y s/Int)
   (property current-x s/Int)
   (property current-y s/Int)
+  (property selection-node s/Any)
+  (property default-selection s/Any)
+  (property glcontext s/Any)
+  (property renderable-inputs s/Any)
+  (property view-camera s/Any)
   (property mouse-move-count s/Int (default 0))
   (property mouse-move-start s/Int)
   (property selecting s/Bool (default false))
@@ -585,35 +588,33 @@
 
   (on :mouse-down
     (when (selection-event? event)
-      (ds/set-property self
-        :selecting true
-        :mouse-move-count 0
-        :mouse-move-start (System/currentTimeMillis)
-        :start-x (:x event)
-        :start-y (:y event)
-        :current-x (:x event)
-        :current-y (:y event))))
+      (let [[selection-node default-selection glcontext renderables view-camera]
+              (n/get-node-inputs self :selection-node :default-selection :glcontext :renderables :view-camera)]
+        (ds/set-property self
+          :selecting true
+          :selection-node selection-node
+          :default-selection default-selection
+          :glcontext glcontext
+          :renderable-inputs renderables
+          :view-camera view-camera
+          :start-x (:x event)
+          :start-y (:y event)
+          :current-x (:x event)
+          :current-y (:y event)))))
 
   (on :mouse-move
     (when (and (:selecting self)
             (or (:dragging self) (drag-move? self event)))
       (ds/set-property self
         :dragging true
-        :mouse-move-count (inc (:mouse-move-count self))
         :current-x (:x event)
         :current-y (:y event))
-      ;;(complete-selection self event)
-      ))
+      ;; TODO: just update selection, don't trigger fire-selection-changed
+      (complete-selection self event)))
 
   (on :mouse-up
     (when (:selecting self)
-      (complete-selection self event)
-      (let [stop-time (System/currentTimeMillis)
-            elapsed (- stop-time (:mouse-move-start self))]
-        (prn (format "%d mouse moves in %d ms: %.2f moves/sec"
-              (:mouse-move-count self)
-              elapsed
-              (/ (double (:mouse-move-count self)) (/ (double elapsed) 1000.0))))))
+      (complete-selection self event))
     (ds/set-property self
       :selecting false
       :dragging false)))
