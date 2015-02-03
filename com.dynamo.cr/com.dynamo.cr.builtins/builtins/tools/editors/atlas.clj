@@ -55,8 +55,9 @@
 
 (n/defnode AnimationGroupNode
   (inherits n/OutlineNode)
+  (inherits n/AutowireResources)
 
-  (input images [Image])
+  (property images dp/ImageResourceList)
 
   (property fps             dp/NonNegativeInt (default 30))
   (property flip-horizontal s/Bool)
@@ -127,7 +128,7 @@
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
   (.build (doto (AtlasProto$AtlasImage/newBuilder)
-            (.setImage (str (.path image))))))
+            (protobuf/set-if-present :image image (comp str :path)))))
 
 (sm/defn build-atlas-animation :- AtlasProto$AtlasAnimation
   [animation :- Animation]
@@ -180,13 +181,13 @@
 (defn render-texture-packing
   [ctx gl texture-packing vertex-binding gpu-texture]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (count (:coords texture-packing))))))
 
 (defn render-quad
   [ctx gl texture-packing vertex-binding gpu-texture i]
   (gl/with-enabled gl [gpu-texture atlas-shader vertex-binding]
-    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gpu-texture))
+    (shader/set-uniform atlas-shader gl "texture" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES (* 6 i) 6)))
 
 (defn selection-renderables
@@ -218,14 +219,15 @@
   [this texture-packing selection]
   (let [project-root (p/project-root-node this)
         selected (set @selection)]
-    (vec (keep
-           (fn [rect]
-             (let [node (t/lookup project-root (:path rect))]
-               (when (selected (:_id node))
-                 {:world-transform g/Identity4d
-                  :render-fn (fn [ctx gl glu text-renderer]
-                               (render-selection-outline ctx gl this texture-packing rect))})))
-           (:coords texture-packing)))))
+    (vec
+      (keep
+        (fn [rect]
+          (let [node (t/lookup project-root (:path rect))]
+            (when (selected (:_id node))
+              {:world-transform g/Identity4d
+               :render-fn (fn [ctx gl glu text-renderer]
+                            (render-selection-outline ctx gl this texture-packing rect))})))
+        (:coords texture-packing)))))
 
 (defnk produce-renderable :- RenderData
   [this texture-packing selection vertex-binding gpu-texture]
@@ -514,38 +516,23 @@
           (ds/connect atlas-node   :aabb            editor       :aabb))
         editor)))
 
-(defn- bind-image-connections
-  [img-node target-node]
-  (when (:image (t/outputs img-node))
-    (ds/connect img-node :image target-node :images))
-  (when (:tree (t/outputs img-node))
-    (ds/connect img-node :tree  target-node :children)))
-
-(defn- bind-images
-  [image-nodes target-node]
-  (doseq [img image-nodes]
-    (bind-image-connections img target-node)))
-
 (defn construct-ancillary-nodes
-  [self locator input]
+  [self input]
   (let [atlas (protobuf/pb->map (protobuf/read-text AtlasProto$Atlas input))]
     (ds/set-property self :margin (:margin atlas))
     (ds/set-property self :extrude-borders (:extrude-borders atlas))
     (doseq [anim (:animations atlas)
             :let [anim-node (ds/add (apply n/construct AnimationGroupNode (mapcat identity (select-keys anim [:flip-horizontal :flip-vertical :fps :playback :id]))))]]
-      (bind-images (map #(lookup locator (:image %)) (:images anim)) anim-node)
+      (ds/set-property anim-node :images (mapv :image (:images anim)))
       (ds/connect anim-node :animation self :animations)
       (ds/connect anim-node :tree      self :children))
-    (bind-images (map #(lookup locator (:image %)) (:images atlas)) self)
+    (ds/set-property self :images (:images atlas))
     self))
 
 (defn remove-ancillary-nodes
   [self]
   (doseq [[animation-group _] (ds/sources-of self :animations)]
-    (ds/delete animation-group))
-  (doseq [[image _] (ds/sources-of self :images)]
-    (ds/disconnect image :image self :images)
-    (ds/disconnect image :tree  self :children)))
+    (ds/delete animation-group)))
 
 (defn construct-compiler
   [self]
@@ -586,11 +573,13 @@
    packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
    textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
   (inherits n/OutlineNode)
+  (inherits n/AutowireResources)
   (inherits n/ResourceNode)
   (inherits n/Saveable)
 
-  (input images [Image])
   (input animations [Animation])
+
+  (property images dp/ImageResourceList (visible false))
 
   (property margin          dp/NonNegativeInt (default 0))
   (property extrude-borders dp/NonNegativeInt (default 0))
@@ -606,7 +595,7 @@
 
   (on :load
     (doto self
-      (construct-ancillary-nodes (:project event) (:filename self))
+      (construct-ancillary-nodes (:filename self))
       (construct-compiler)
       (ds/set-property :dirty false)))
 

@@ -71,6 +71,16 @@
 (defmacro gl-disable [gl cap]                                            `(.glDisable ~gl ~cap))
 (defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~gl ~mode))
 
+(defn gl-get-integer-v
+  [^GL2 gl ^Integer param sz]
+  (let [buff (int-array sz)]
+    (.glGetIntegerv gl param buff 0)
+    buff))
+
+(defn gl-max-texture-units
+  [^GL2 gl]
+  (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
+
 (defn text-renderer [font-name font-style font-size]
   (TextRenderer. (Font. font-name font-style font-size) true true))
 

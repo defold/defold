@@ -6,6 +6,7 @@
             [clojure.set :as set]
             [plumbing.core :refer [fnk defnk]]
             [plumbing.fnk.pfnk :as pf]
+            [dynamo.file :as file]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.util :refer :all]
@@ -21,6 +22,12 @@
             [camel-snake-kebab :refer [->kebab-case]]))
 
 (set! *warn-on-reflection* true)
+
+(defn- resource?
+  ([property-type]
+    (some-> property-type t/property-tags (->> (some #{:dynamo.property/resource}))))
+  ([node label]
+    (some-> node t/node-type t/properties' label resource?)))
 
 ; ---------------------------------------------------------------------------
 ; Value handling
@@ -52,25 +59,33 @@
   "Gets an input (maybe with multiple values) needed to invoke a production function for a node.
 The input to the production function may be one of three things:
 
-1. A property of the node. In this case, the property is retrieved directly from the node.
-2. An output of the node. The node is asked to supply a value for this output. (This recurses back into get-node-value.)
-3. An input of the node. In this case, the nodes connected to this input are asked to supply their values."
+1. An input of the node. In this case, the nodes connected to this input are asked to supply their values.
+2. A property of the node. In this case, the property is retrieved directly from the node.
+3. An output of this node or another node. The source node is asked to supply a value for this output. (This recurses back into get-node-value.)"
   [target-node g target-label]
-  (if (contains? target-node target-label)
-    (get target-node target-label)
-    (let [schema (some-> target-node t/input-types target-label)
-          output-transform (some-> target-node t/transforms target-label)]
-      (cond
-        (vector? schema)     (mapv (fn [[source-node source-label]]
-                                     (get-node-value (dg/node g source-node) source-label))
-                                  (lg/sources g (:_id target-node) target-label))
-        (not (nil? schema))  (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
-                               (when first-source-node
-                                 (get-node-value (dg/node g first-source-node) first-source-label)))
-        (not (nil? output-transform)) (get-node-value target-node target-label)
-        :else                (let [missing (missing-input target-node target-label)]
-                               (service.log/warn :missing-input missing)
-                               missing)))))
+  (let [input-schema     (some-> target-node t/input-types target-label)
+        output-transform (some-> target-node t/transforms target-label)]
+    (cond
+      (vector? input-schema)
+      (mapv (fn [[source-node source-label]]
+              (get-node-value (dg/node g source-node) source-label))
+           (lg/sources g (:_id target-node) target-label))
+
+      (not (nil? input-schema))
+      (let [[first-source-node first-source-label] (first (lg/sources g (:_id target-node) target-label))]
+        (when first-source-node
+          (get-node-value (dg/node g first-source-node) first-source-label)))
+
+      (contains? target-node target-label)
+      (get target-node target-label)
+
+      (not (nil? output-transform))
+      (get-node-value target-node target-label)
+
+      :else
+      (let [missing (missing-input target-node target-label)]
+        (service.log/warn :missing-input missing)
+        missing))))
 
 (defn collect-inputs
   "Return a map of all inputs needed for the input-schema. The schema will usually
@@ -162,23 +177,28 @@ maybe cache the value that was produced, and return it."
 ; Definition handling
 ; ---------------------------------------------------------------------------
 (defrecord NodeTypeImpl
-  [name supertypes interfaces protocols method-impls transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
+  [name supertypes interfaces protocols method-impls triggers transforms transform-types properties inputs injectable-inputs cached-outputs event-handlers auto-update-outputs output-dependencies]
 
   t/NodeType
   (supertypes           [_] supertypes)
   (interfaces           [_] interfaces)
   (protocols            [_] protocols)
   (method-impls         [_] method-impls)
+  (triggers             [_] triggers)
   (transforms'          [_] transforms)
   (transform-types'     [_] transform-types)
   (properties'          [_] properties)
-  (inputs'              [_] inputs)
+  (inputs'              [_] (map-vals #(if (satisfies? t/PropertyType %) (t/property-value-type %) %) inputs))
   (injectable-inputs'   [_] injectable-inputs)
   (outputs'             [_] (set (keys transforms)))
   (cached-outputs'      [_] cached-outputs)
   (auto-update-outputs' [_] auto-update-outputs)
   (event-handlers'      [_] event-handlers)
   (output-dependencies' [_] output-dependencies))
+
+(defmethod print-method NodeTypeImpl
+  [^NodeTypeImpl v ^java.io.Writer w]
+  (.write w (str "<NodeTypeImpl{:name " (:name v) ", :supertypes " (mapv :name (:supertypes v)) "}>")))
 
 (defn- from-supertypes [local op]                (map op (:supertypes local)))
 (defn- combine-with    [local op zero into-coll] (op (reduce op zero into-coll) local))
@@ -223,6 +243,8 @@ maybe cache the value that was produced, and return it."
   [description]
   (assoc description :output-dependencies (description->output-dependencies description)))
 
+(def ^:private map-merge (partial merge-with merge))
+
 (defn make-node-type
   "Create a node type object from a maplike description of the node.
 This is really meant to be used during macro expansion of `defnode`,
@@ -240,9 +262,9 @@ not called directly."
     (update-in [:interfaces]          combine-with set/union #{} (from-supertypes description t/interfaces))
     (update-in [:protocols]           combine-with set/union #{} (from-supertypes description t/protocols))
     (update-in [:method-impls]        combine-with merge      {} (from-supertypes description t/method-impls))
+    (update-in [:triggers]            combine-with map-merge  {} (from-supertypes description t/triggers))
     attach-output-dependencies
     map->NodeTypeImpl))
-
 
 (defn attach-supertype
   "Update the node type description with the given supertype."
@@ -289,15 +311,29 @@ not called directly."
 (defn attach-property
   "Update the node type description with the given property."
   [description label property-type passthrough]
-  (-> description
-    (update-in [:properties] assoc label property-type)
+  (cond-> (update-in description [:properties] assoc label property-type)
+
+    (resource? property-type)
+    (assoc-in [:inputs label] property-type)
+
+    true
     (update-in [:transforms] assoc-in [label :production-fn] passthrough)
+
+    true
     (update-in [:transform-types] assoc label (:value-type property-type))))
 
 (defn attach-event-handler
   "Update the node type description with the given event handler."
   [description label handler]
   (assoc-in description [:event-handlers label] handler))
+
+(defn attach-trigger
+  "Update the node type description with the given trigger."
+  [description label kinds action]
+  (reduce
+    (fn [description kind] (assoc-in description [:triggers kind label] action))
+    description
+    kinds))
 
 (defn attach-interface
   "Update the node type description with the given interface."
@@ -330,6 +366,9 @@ must be part of a protocol or interface attached to the description."
         :else [properties options args])
       [properties options args])))
 
+(defn classname
+  [^Class c]
+  (.getName c))
 
 (defn fqsymbol
   [s]
@@ -359,6 +398,11 @@ build the node type description (map). These are emitted where you invoked
     [(['on label & fn-body] :seq)]
     `(attach-event-handler ~(keyword label) (fn [~'self ~'event] (dynamo.system/transactional ~@fn-body)))
 
+    [(['trigger label & rest] :seq)]
+    (let [kinds (vec (take-while keyword? rest))
+          action (drop-while keyword? rest)]
+      `(attach-trigger ~(keyword label) ~kinds ~@action))
+
     ;; Interface or protocol function
     [([nm [& argvec] & remainder] :seq)]
     `(attach-method-implementation '~nm '~argvec (fn ~argvec ~@remainder))
@@ -366,7 +410,7 @@ build the node type description (map). These are emitted where you invoked
     [impl :guard symbol?]
     `(cond->
         (class? ~impl)
-        (attach-interface (symbol (.getName ~impl)))
+        (attach-interface (symbol (classname ~impl)))
 
         (not (class? ~impl))
         (attach-protocol (fqsymbol '~impl)))))
@@ -483,3 +527,85 @@ and protocols that the node type requires."
               [o o-l] (t/transform-types node)]
             [node o o-l target i i-l]))))
 
+; ---------------------------------------------------------------------------
+; Intrinsics
+; ---------------------------------------------------------------------------
+(defn- gather-property [this prop]
+  {:node-id (:_id this)
+   :value (get this prop)
+   :type  (-> this t/properties prop)})
+
+(defnk gather-properties :- t/Properties
+  "Production function that delivers the definition and value
+for all properties of this node."
+  [this]
+  (let [property-names (-> this t/properties keys)]
+    (zipmap property-names (map (partial gather-property this) property-names))))
+
+(defn- ->vec [x] (if (coll? x) (vec x) (if (nil? x) [] [x])))
+
+(defn- resources-connected
+  [transaction self prop]
+  (let [graph (ds/in-transaction-graph transaction)]
+    (vec (lg/sources graph (:_id self) prop))))
+
+(defn lookup-node-for-filename
+  [transaction parent self filename]
+  (or
+    (get-in transaction [:filename-index filename])
+    (if-let [added-this-txn (first (filter #(= filename (:filename %)) (ds/transaction-added-nodes transaction)))]
+      added-this-txn
+      (t/lookup parent filename))))
+
+(defn decide-resource-handling
+  [transaction parent self surplus-connections prop filename]
+  (if-let [existing-node (lookup-node-for-filename transaction parent self (file/make-project-path parent filename))]
+    (if (some #{[(:_id existing-node) :content]} surplus-connections)
+      [:existing-connection existing-node]
+      [:new-connection existing-node])
+    [:new-node nil]))
+
+(defn remove-vestigial-connections
+  [transaction self prop surplus-connections]
+  (doseq [[n l] surplus-connections]
+    (ds/disconnect {:_id n} l self prop))
+  transaction)
+
+(defn- ensure-resources-connected
+  [transaction parent self prop]
+  (loop [transaction         transaction
+         filenames           (->vec (get self prop))
+         surplus-connections (resources-connected transaction self prop)]
+    (if-let [filename (first filenames)]
+      (let [[handling existing-node] (decide-resource-handling transaction parent self surplus-connections prop filename)]
+        (cond
+          (= :new-node handling)
+          (let [new-node (ds/in parent (ds/add (t/node-for-path parent filename)))]
+            (ds/connect new-node :content self prop)
+            (recur
+              (update-in transaction [:filename-index] assoc filename (:_id new-node))
+              (next filenames)
+              surplus-connections))
+
+          (= :new-connection handling)
+          (do
+            (ds/connect existing-node :content self prop)
+            (recur transaction (next filenames) surplus-connections))
+
+          (= :existing-connection handling)
+          (recur transaction (next filenames) (remove #{[(:_id existing-node) :content]} surplus-connections))))
+      (remove-vestigial-connections transaction self prop surplus-connections))))
+
+(defn connect-resource
+  [transaction graph self label kind]
+  (let [parent (ds/parent graph self)]
+    (reduce
+      (fn [transaction prop]
+        (when (resource? self prop)
+          (ensure-resources-connected transaction parent self prop)))
+      transaction
+      (get-in transaction [:properties-modified (:_id self)]))))
+
+(def node-intrinsics
+  [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
+   (list 'output 'properties `t/Properties `gather-properties)])

@@ -1,7 +1,8 @@
 (ns internal.graph.dgraph
   "Directed graph implementation. Nodes are simply a map from id to value.
    Arcs are a relation over node IDs."
-  (:require [clojure.set :as set]))
+  (:require [clojure.set :as set]
+            [dynamo.util :refer [removev]]))
 
 ;;; Implementation details
 
@@ -10,9 +11,6 @@
   {:nodes {}
    :last-node 0
    :arcs []})
-
-(defn- removev [pred coll]
-  (filterv (complement pred) coll))
 
 
 ;;; Published API

@@ -4,6 +4,7 @@
             [plumbing.core :refer [fnk]]
             [dynamo.camera :as c]
             [dynamo.gl :as gl]
+            [dynamo.gl.texture :as texture]
             [dynamo.node :as n]
             [dynamo.system :as ds]
             [dynamo.types :as t]
@@ -14,7 +15,7 @@
   (:import  [internal.ui GenericEditor IDirtyable]
             [dynamo.types Camera AABB]
             [java.awt Font]
-            [javax.media.opengl GL2 GLContext GLDrawableFactory]
+            [javax.media.opengl GL2 GLAutoDrawable GLContext GLDrawableFactory GLEventListener]
             [com.jogamp.opengl.util.awt TextRenderer]
             [org.eclipse.swt.opengl GLCanvas]
             [org.eclipse.core.commands ExecutionEvent]))
@@ -65,6 +66,7 @@ Outputs
   (property context GLContext)
   (property canvas  GLCanvas)
   (property text-renderer TextRenderer)
+  (property first-resize s/Bool (default true) (visible false))
 
   (output render-data t/RenderData iuse/produce-render-data)
   (output aabb AABB (fnk [aabb] aabb))
@@ -92,7 +94,10 @@ Outputs
                                             -100000
                                             100000)
                         (assoc :viewport viewport))]
-      (ds/set-property camera-node :camera new-camera)))
+      (ds/set-property camera-node :camera new-camera)
+      (when (:first-resize self)
+        (ds/set-property self :first-resize false)
+        (ds/send-after self {:type :reframe}))))
 
   (on :reframe
     (let [camera-node (ds/node-feeding-into self :view-camera)
@@ -133,15 +138,7 @@ Messages:
   (input  presenter-registry t/Registry)
   (output presenter-registry t/Registry (fnk [presenter-registry] presenter-registry))
 
-  (input dirty s/Bool)
-
-  (property triggers n/Triggers (default [#'n/inject-new-nodes #'n/dispose-nodes #'iuse/send-view-scope-message #'iuse/mark-editor-dirty]))
-
-  (on :init
-    (let [tracker (:dirty-tracker event)]
-      (when (in/get-inputs self (-> self :world-ref deref :graph) :dirty)
-        (.markDirty ^IDirtyable tracker))
-      (ds/set-property self :dirty-tracker tracker)))
+  (trigger view-scope :modified iuse/send-view-scope-message)
 
   (on :create
     (let [canvas        (gl/glcanvas (:parent event))
@@ -154,16 +151,17 @@ Messages:
       (.release context)
       (iuse/pipe-events-to-node canvas :resize self)
       (iuse/start-event-pump canvas self)
+      (texture/initialize gl)
       (ds/set-property self
         :context context
         :canvas canvas
         :text-renderer (gl/text-renderer Font/SANS_SERIF Font/BOLD 12))))
 
   (on :destroy
+    (when (:context self)
+      (texture/unload-all (.. ^GLContext (:context self) getGL)))
+
     (ds/delete self))
 
   (on :save
-    (let [result (n/get-node-value self :saveable)]
-      (when (= :ok result)
-        (when-let [tracker (:dirty-tracker self)]
-          (.markClean ^IDirtyable tracker))))))
+    (n/get-node-value self :saveable)))

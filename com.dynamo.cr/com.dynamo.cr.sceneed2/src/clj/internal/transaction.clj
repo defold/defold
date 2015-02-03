@@ -5,6 +5,7 @@
             [dynamo.types :as t]
             [dynamo.util :refer :all]
             [internal.bus :as bus]
+            [internal.either :as e]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
             [service.log :as log]))
@@ -13,20 +14,23 @@
 ; ---------------------------------------------------------------------------
 ; Configuration parameters
 ; ---------------------------------------------------------------------------
-(def maximum-retrigger-count 50)
+(def maximum-retrigger-count 100)
 (def maximum-graph-coloring-recursion 1000)
 
 ; ---------------------------------------------------------------------------
 ; Internal state
 ; ---------------------------------------------------------------------------
+(def ^:dynamic *tx-debug* nil)
 (def ^:dynamic *scope* nil)
 
-(def ^:private ^java.util.concurrent.atomic.AtomicInteger
-     nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
+(def ^:private ^java.util.concurrent.atomic.AtomicInteger nextkey (java.util.concurrent.atomic.AtomicInteger. 1000000))
+(defn- new-cache-key [] (.getAndIncrement nextkey))
 
-(defn- new-cache-key
-  []
-  (.getAndIncrement nextkey))
+(def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))
+(defn- new-txid [] (.getAndIncrement next-txid))
+
+(defmacro txerrstr [ctx & rest]
+  `(str (:txid ~ctx) ":" (:txpass ~ctx) " " ~@(interpose " " rest)))
 
 ; ---------------------------------------------------------------------------
 ; Transaction protocols
@@ -54,7 +58,10 @@
   (tx-begin [this]      (make-transaction-level this (inc depth)))
 
   Transaction
-  (tx-bind  [this work] (conj! accumulator work))
+  (tx-bind  [this work] (do
+                          (when *tx-debug*
+                            (println "\t\tbinding " work))
+                          (conj! accumulator work)))
   (tx-apply [this]      (tx-merge receiver (persistent! accumulator)))
 
   TransactionReceiver
@@ -227,19 +234,22 @@
       :cache-keys          (assoc cache-keys node-id (node->cache-keys to-node)))))
 
 (defmethod perform :delete-node
-  [{:keys [graph nodes-deleted old-event-loops] :as ctx} {:keys [node-id]}]
+  [{:keys [graph nodes-deleted old-event-loops nodes-added obsolete-cache-keys cache-keys] :as ctx} {:keys [node-id]}]
   (when-not (dg/node graph (resolve-tempid ctx node-id))
     (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
         node        (dg/node graph node-id)
         ctx         (activate-all-outputs ctx node-id node)]
     (assoc ctx
-      :graph           (dg/remove-node graph node-id)
-      :old-event-loops (if (satisfies? t/MessageTarget node) (conj old-event-loops node) old-event-loops)
-      :nodes-deleted   (assoc nodes-deleted node-id node))))
+      :graph               (dg/remove-node graph node-id)
+      :old-event-loops     (if (satisfies? t/MessageTarget node) (conj old-event-loops node) old-event-loops)
+      :nodes-deleted       (assoc nodes-deleted node-id node)
+      :nodes-added         (disj nodes-added node-id)
+      :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
+      :cache-keys          (dissoc cache-keys node-id))))
 
 (defmethod perform :update-property
-  [{:keys [graph] :as ctx} {:keys [node-id property fn args]}]
+  [{:keys [graph properties-modified] :as ctx} {:keys [node-id property fn args]}]
   (let [node-id   (resolve-tempid ctx node-id)
         old-value (get (dg/node graph node-id) property)
         new-graph (apply dg/transform-node graph node-id update-in [property] fn args)
@@ -248,7 +258,9 @@
       ctx
       (-> ctx
          (mark-activated node-id property)
-         (assoc :graph new-graph)))))
+         (assoc
+           :graph new-graph
+           :properties-modified (update-in properties-modified [node-id] conj property))))))
 
 (defmethod perform :connect
   [{:keys [graph] :as ctx} {:keys [source-id source-label target-id target-label]}]
@@ -302,7 +314,7 @@
   ([ctx]
     (trace-trigger-activation ctx (:nodes-triggered ctx) maximum-graph-coloring-recursion))
   ([ctx next-batch iterations-remaining]
-    (assert (< 0 iterations-remaining) "Output tracing stopped; probable cycle in the graph")
+    (assert (< 0 iterations-remaining) (txerrstr ctx "Output tracing stopped; probable cycle in the graph"))
     (let [new-ctx    (downstream-activation ctx next-batch)
           next-batch (map-diff (:nodes-triggered new-ctx) (:nodes-triggered ctx) set/difference)]
       (if (empty? next-batch)
@@ -318,7 +330,7 @@
 (defn- dispose-obsoletes
   [{:keys [cache obsolete-cache-keys nodes-deleted] :as ctx}]
   (let [candidates (concat
-                     (filter t/disposable? (map #(get cache %) obsolete-cache-keys))
+                     (filter #(and (instance? internal.either.Right %) (t/disposable? (e/result %))) (map #(get cache %) obsolete-cache-keys))
                      (filter t/disposable? (vals nodes-deleted)))]
     (assoc ctx :values-to-dispose (keep identity candidates))))
 
@@ -343,19 +355,54 @@
       (seq work)
       (update-in [:pending] conj work))))
 
+(def ^:private trigger-ordering
+  [:added :modified :deleted])
+
+(def ^:private context-trigger-keys
+  {:added    :nodes-added
+   :modified :outputs-modified
+   :deleted  :nodes-deleted})
+
+(defn- node-triggers
+  [node]
+  (-> node t/node-type t/triggers (select-keys trigger-ordering)))
+
+(defn- all-triggers
+  [all-activated]
+  (for [kind    trigger-ordering
+       n        all-activated
+       [l tr]   (-> n t/node-type t/triggers (get kind) seq)]
+   [tr n l kind]))
+
+(defn- should-trigger?
+  [ctx node kind]
+  (contains? (get ctx (context-trigger-keys kind)) (:_id node)))
+
+(defn- activated-triggers
+  [ctx triggers]
+  (filter (fn [[tr n l k]] (should-trigger? ctx n k)) triggers))
+
+(defn- invoke-trigger
+  [csub [tr & args]]
+  (apply tr csub (:graph csub) args)
+  csub)
+
+(defn trigger-debug
+  [csub [tr & args :as trvec]]
+  (println (txerrstr csub "invoking" tr "on" (:_id (first args))))
+  (invoke-trigger csub trvec))
+
 (defn- process-triggers
   [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-deleted] :as ctx}]
   (let [all-activated  (concat (filter identity (map #(dg/node graph %) (keys nodes-triggered))) (vals nodes-deleted))
-        invoke-trigger (fn [csub [n tr]]
-                         (binding [*transaction* (make-transaction-level (->TriggerReceiver csub))]
-                           (tr (:graph csub) n csub)
-                           (tx-apply *transaction*)))
         trigger-ctx    (-> ctx
                          (update-in [:nodes-added]      set/intersection (into #{} (keys nodes-triggered)))
                          (update-in [:nodes-deleted]    select-keys (keys nodes-triggered))
-                         (update-in [:outputs-modified] select-keys (keys nodes-triggered)))
-        trigger-ctx    (reduce invoke-trigger trigger-ctx (pairwise :triggers all-activated))]
-    (assoc ctx :pending (:pending trigger-ctx))))
+                         (update-in [:outputs-modified] select-keys (keys nodes-triggered)))]
+    (binding [*transaction* (make-transaction-level (->TriggerReceiver trigger-ctx))]
+      (reduce invoke-trigger trigger-ctx (activated-triggers trigger-ctx (all-triggers all-activated)))
+      (let [trigger-ctx (tx-apply *transaction*)]
+        (assoc ctx :pending (:pending trigger-ctx))))))
 
 (defn- mark-outputs-modified
   [ctx]
@@ -363,7 +410,8 @@
 
 (defn- one-transaction-pass
   [ctx actions]
-  (-> (assoc ctx :nodes-triggered {})
+  (-> (update-in ctx [:txpass] inc)
+    (assoc :nodes-triggered {})
     (apply-tx actions)
     trace-trigger-activation
     mark-outputs-modified
@@ -374,12 +422,12 @@
   ([ctx]
     (exhaust-actions-and-triggers ctx maximum-retrigger-count))
   ([{[current-action & pending-actions] :pending :as ctx} retrigger-count]
-    (assert (< 0 retrigger-count) "Maximum number of trigger executions reached; probable infinite recursion.")
+    (assert (< 0 retrigger-count) (txerrstr ctx "Maximum number of trigger executions reached; probable infinite recursion."))
     (if (empty? current-action)
       ctx
       (recur (one-transaction-pass (assoc ctx :pending pending-actions) current-action) (dec retrigger-count)))))
 
-(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :label])
+(def tx-report-keys [:status :expired-outputs :values-to-dispose :new-event-loops :tempids :graph :nodes-added :nodes-deleted :outputs-modified :properties-modified :label])
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph.
@@ -413,7 +461,9 @@
      :nodes-deleted       {}
      :messages            []
      :pending             [actions]
-     :completed           []}))
+     :completed           []
+     :txid                (new-txid)
+     :txpass              0}))
 
 (defn start-event-loop!
   [world-ref id]
@@ -456,7 +506,8 @@
     (doseq [l new-event-loops]
       (start-event-loop! world-ref l))
     (when (= :ok (-> world :last-tx :status))
-      (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false)
+      (when (not-empty (-> world :last-tx :values-to-dispose))
+        (a/onto-chan (:disposal-queue world) (-> world :last-tx :values-to-dispose) false))
       (bus/publish-all (:message-bus world) messages))
     (:last-tx world)))
 

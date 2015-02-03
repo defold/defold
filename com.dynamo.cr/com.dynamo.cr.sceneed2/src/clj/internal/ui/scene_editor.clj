@@ -141,13 +141,7 @@
   (ui/listen component type #(t/process-one-event (ds/node world-ref _id) %)))
 
 (defn send-view-scope-message
-  [graph self transaction]
-  (doseq [id (:nodes-added transaction)]
-    (ds/send-after {:_id id} {:type :view-scope :scope self})))
-
-(defn mark-editor-dirty
-  [graph self transaction]
-  (when (and (ds/is-modified? transaction self)
-          (in/get-inputs self graph :dirty))
-    (when-let [tracker (:dirty-tracker self)]
-      (.markDirty ^IDirtyable tracker))))
+  [transaction graph self label kind]
+  (when (ds/is-modified? transaction self)
+    (doseq [id (:nodes-added transaction)]
+      (ds/send-after {:_id id} {:type :view-scope :scope self}))))

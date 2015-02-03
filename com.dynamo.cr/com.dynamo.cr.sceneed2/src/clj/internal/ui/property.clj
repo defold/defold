@@ -124,7 +124,7 @@
     (ui/scroll-to-top!  (ui/widget properties-form [:form]))))
 
 (defn- refresh-after-a-while
-  [graph this transaction]
+  [transaction graph this label kind]
   (when (and (ds/is-modified? transaction this :content)
              (not (ds/is-deleted? transaction this))
              (:debouncer this))
@@ -145,7 +145,7 @@
   (input  presenter-registry t/Registry :inject)
   (output presenter-registry t/Registry passthrough-presenter-registry)
 
-  (property triggers n/Triggers (default [#'refresh-after-a-while]))
+  (trigger delayed-refresh :modified refresh-after-a-while)
 
   (on :create
     (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))

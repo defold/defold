@@ -27,11 +27,15 @@
 (defprotocol NamingContext
   (lookup [this nm] "Locate a value by name"))
 
+(defprotocol FileContainer
+  (node-for-path [this path] "Create a new node from a path within the container."))
+
 (defprotocol NodeType
   (supertypes           [this])
   (interfaces           [this])
   (protocols            [this])
   (method-impls         [this])
+  (triggers             [this])
   (transforms'          [this])
   (transform-types'     [this])
   (properties'          [this])
@@ -55,13 +59,13 @@
 
 (defprotocol Node
   (node-type           [this]        "Return the node type that created this node.")
+  (transforms          [this]        "temporary")
+  (transform-types     [this]        "temporary")
   (properties          [this]        "Produce a description of properties supported by this node.")
   (inputs              [this]        "Return a set of labels for the allowed inputs of the node.")
   (injectable-inputs   [this]        "temporary")
   (input-types         [this]        "Return a map from input label to schema of the value type allowed for the input")
   (outputs             [this]        "Return a set of labels for the outputs of this node.")
-  (transforms          [this]        "temporary")
-  (transform-types     [this]        "temporary")
   (cached-outputs      [this]        "Return a set of labels for the outputs of this node which are cached. This must be a subset of 'outputs'.")
   (auto-update-outputs [this]        "Return a set of labels for the outputs of this node which are updated whenever they get invalidated. This must be a subset of 'outputs'.")
   (output-dependencies [this]        "Return a map of labels for the inputs and properties to outputs that depend on them."))
