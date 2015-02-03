@@ -84,7 +84,8 @@
                                                     :texture-name        txname
                                                     :texture-filename    (file/native-path (.getPath texturec))
                                                     :textureset-filename (file/native-path (.getPath texturesetc)))))]
-        (ds/transactional (ds/connect atlas :texture-packing compiler :texture-packing))
+        (ds/transactional (ds/connect atlas :textureset   compiler :textureset))
+        (ds/transactional (ds/connect atlas :packed-image compiler :packed-image))
         (is (= :ok (n/get-node-value compiler :texturec)))
         (is (= :ok (n/get-node-value compiler :texturesetc)))))))
 
@@ -132,7 +133,8 @@
                             :texture-name        (format "atlases/%s.texturesetc" fixture-basename)
                             :textureset-filename (file/native-path (.getPath texturesetc))
                             :texture-filename    (file/native-path (.getPath texturec)))))]
-      (ds/transactional (ds/connect atlas :texture-packing compiler :texture-packing))
+      (ds/transactional (ds/connect atlas :textureset   compiler :textureset))
+      (ds/transactional (ds/connect atlas :packed-image compiler :packed-image))
       ; TODO: fails when placeholder image is used
       #_(is (= atlas-text (n/get-node-value atlas :text-format)))
       (is (= :ok (n/get-node-value compiler :texturec)))

@@ -41,8 +41,6 @@
             [org.eclipse.swt SWT]
             [org.eclipse.ui IEditorSite]))
 
-(def integers (iterate (comp int inc) (int 0)))
-
 (vtx/defvertex engine-format-texture
   (vec3.float position)
   (vec2.short texcoord0 true))
@@ -103,7 +101,7 @@
         ; TODO: may fail due to #87253110 "Atlas texture should not contain multiple instances of the same image"
         ;_ (assert (= 1 (count coords)))
         coord (first coords)
-        x-scale (/ 1.0 (.getWidth (.packed-image texture-packing)))
+        x-scale (/ 1.0 (.getWidth  (.packed-image texture-packing)))
         y-scale (/ 1.0 (.getHeight (.packed-image texture-packing)))
         u0 (* x-scale (+ (.x coord)))
         v0 (* y-scale (+ (.y coord)))
@@ -170,9 +168,6 @@
   (let [text (n/get-node-value this :text-format)]
     (file/write-file filename (.getBytes text))
     :ok))
-
-(defn vertex-starts [n-vertices] (take n-vertices (take-nth 6 integers)))
-(defn vertex-counts [n-vertices] (take n-vertices (repeat (int 6))))
 
 (defn render-overlay
   [ctx ^GL2 gl ^TextRenderer text-renderer texture-packing]
@@ -317,90 +312,17 @@
   (output vertex-binding s/Any        :cached (fnk [vertex-buffer] (vtx/use-with vertex-buffer atlas-shader)))
   (output renderable RenderData       produce-renderable))
 
-(def ^:private outline-vertices-per-placement 4)
-(def ^:private vertex-size (.getNumber TextureSetProto$Constants/VERTEX_SIZE))
-
-(sm/defn texture-packing->texcoords
-  [{:keys [coords] :as texture-packing}]
-  (let [x-scale    (/ 1.0 (.getWidth (.packed-image texture-packing)))
-        y-scale    (/ 1.0 (.getHeight (.packed-image texture-packing)))
-        vbuf       (->uv-only (* 2 (count coords)))]
-    (doseq [coord coords]
-      (let [x0 (.x coord)
-            y0 (.y coord)
-            x1 (+ (.x coord) (.width coord))
-            y1 (+ (.y coord) (.height coord))
-            u0 (* x0 x-scale)
-            u1 (* x1 x-scale)
-            v0 (* y0 y-scale)
-            v1 (* y1 y-scale)]
-        (doto vbuf
-          (conj! [u0 v0])
-          (conj! [u1 v1]))))
-    (persistent! vbuf)))
-
-(sm/defn texture-packing->vertices
-  [{:keys [coords] :as texture-packing}]
-  (let [x-scale    (/ 1.0 (.getWidth (.packed-image texture-packing)))
-        y-scale    (/ 1.0 (.getHeight (.packed-image texture-packing)))
-        vbuf       (->engine-format-texture (* 6 (count coords)))]
-    (doseq [coord coords]
-      (let [x0 (.x coord)
-            y0 (.y coord)
-            x1 (+ (.x coord) (.width coord))
-            y1 (+ (.y coord) (.height coord))
-            w2 (* (.width coord) 0.5)
-            h2 (* (.height coord) 0.5)
-            u0 (g/to-short-uv (* x0 x-scale))
-            u1 (g/to-short-uv (* x1 x-scale))
-            v0 (g/to-short-uv (* y0 y-scale))
-            v1 (g/to-short-uv (* y1 y-scale))]
-        (doto vbuf
-          (conj! [(- w2) (- h2) 0 u0 v1])
-          (conj! [   w2  (- h2) 0 u1 v1])
-          (conj! [   w2     h2  0 u1 v0])
-
-          (conj! [(- w2) (- h2) 0 u0 v1])
-          (conj! [   w2     h2  0 u1 v0])
-          (conj! [(- w2)    h2  0 v0 v0]))))
-    (persistent! vbuf)))
-
-(sm/defn texture-packing->outline-vertices
-  [texture-packing]
-  (let [x-scale    (/ 1.0 (.getWidth (.packed-image texture-packing)))
-        y-scale    (/ 1.0 (.getHeight (.packed-image texture-packing)))
-        coords     (:coords texture-packing)
-        bounds     (:aabb texture-packing)
-        vbuf       (->engine-format-texture (* 6 (count coords)))]
-    (doseq [coord coords]
-      (let [x0 (.x coord)
-            y0 (.y coord)
-            x1 (+ (.x coord) (.width coord))
-            y1 (+ (.y coord) (.height coord))
-            w2 (* (.width coord) 0.5)
-            h2 (* (.height coord) 0.5)
-            u0 (g/to-short-uv (* x0 x-scale))
-            u1 (g/to-short-uv (* x1 x-scale))
-            v0 (g/to-short-uv (* y0 y-scale))
-            v1 (g/to-short-uv (* y1 y-scale))]
-        (doto vbuf
-          (conj! [(- w2) (- h2) 0 u0 v1])
-          (conj! [   w2  (- h2) 0 u1 v1])
-          (conj! [   w2     h2  0 u1 v0])
-          (conj! [(- w2)    h2  0 v0 v0]))))
-    (persistent! vbuf)))
-
 (defn build-animation
   [anim begin]
-  (let [start     (int begin)
-        end       (int (+ begin (* 6 (count (:images anim)))))]
+  (let [start begin
+        end   (+ begin (count (:frames anim)))]
     (.build
       (doto (TextureSetProto$TextureSetAnimation/newBuilder)
          (.setId                  (:id anim))
-         (.setWidth               (int (:width  (first (:images anim)))))
-         (.setHeight              (int (:height (first (:images anim)))))
-         (.setStart               start)
-         (.setEnd                 end)
+         (.setWidth               (int (:width  anim)))
+         (.setHeight              (int (:height anim)))
+         (.setStart               (int start))
+         (.setEnd                 (int end))
          (protobuf/set-if-present :playback anim (partial protobuf/val->pb-enum Tile$Playback))
          (protobuf/set-if-present :fps anim)
          (protobuf/set-if-present :flip-horizontal anim)
@@ -408,36 +330,49 @@
          (protobuf/set-if-present :is-animation anim)))))
 
 (defn build-animations
-  [start-idx aseq]
-  (let [animations (remove #(empty? (:images %)) aseq)
-        starts (into [start-idx] (map #(+ start-idx (* 6 (count (:images %)))) animations))]
-    (map (fn [anim start] (build-animation anim start)) animations starts)))
+  [start-idx animations]
+  (let [frame-counts     (map #(count (:frames %)) animations)
+        animation-starts (butlast (reductions + start-idx frame-counts))]
+    (map build-animation animations animation-starts)))
+
+(defn summarize-frames [key vbuf-factory-fn frames]
+  (let [counts (map #(count (get % key)) frames)
+        starts (reductions + 0 counts)
+        total  (last starts)
+        starts (butlast starts)
+        vbuf   (vbuf-factory-fn total)]
+    (doseq [frame frames
+            vtx (get frame key)]
+      (conj! vbuf vtx))
+    {:starts (map int starts) :counts (map int counts) :vbuf (persistent! vbuf)}))
 
 (defn texturesetc-protocol-buffer
-  [texture-name {:keys [coords] :as texture-packing}]
-  #_(s/validate TexturePacking texture-packing)
-  (let [anims      (remove #(empty? (:images %)) (.animations texture-packing))
-        n-rects    (count coords)
-        n-vertices (reduce + n-rects (map #(count (.images %)) anims))]
+  [texture-name textureset]
+  #_(s/validate TextureSet textureset)
+  (let [animations             (remove #(empty? (:frames %)) (:animations textureset))
+        frames                 (mapcat :frames animations)
+        vertex-summary         (summarize-frames :vertices         ->engine-format-texture frames)
+        outline-vertex-summary (summarize-frames :outline-vertices ->engine-format-texture frames)
+        tex-coord-summary      (summarize-frames :tex-coords       ->uv-only               frames)]
     (.build (doto (TextureSetProto$TextureSet/newBuilder)
             (.setTexture               texture-name)
-            (.setTexCoords             (byte-pack (texture-packing->texcoords texture-packing)))
-            (.addAllAnimations         (build-animations (* 6 n-rects) anims))
+            (.setTexCoords             (byte-pack (:vbuf tex-coord-summary)))
+            (.addAllAnimations         (build-animations 0 animations))
 
-            (.addAllVertexStart        (vertex-starts n-vertices))
-            (.addAllVertexCount        (vertex-counts n-vertices))
-            (.setVertices              (byte-pack (texture-packing->vertices texture-packing)))
+            (.addAllVertexStart        (:starts vertex-summary))
+            (.addAllVertexCount        (:counts vertex-summary))
+            (.setVertices              (byte-pack (:vbuf vertex-summary)))
 
-            (.addAllOutlineVertexStart (take n-vertices (take-nth 4 integers)))
-            (.addAllOutlineVertexCount (take n-vertices (repeat (int 4))))
-            (.setOutlineVertices       (byte-pack (texture-packing->outline-vertices texture-packing)))
+            (.addAllOutlineVertexStart (:starts outline-vertex-summary))
+            (.addAllOutlineVertexCount (:counts outline-vertex-summary))
+            (.setOutlineVertices       (byte-pack (:vbuf outline-vertex-summary)))
 
             (.setTileCount             (int 0))))))
 
 (defnk compile-texturesetc :- s/Bool
-  [this g project texture-packing :- TexturePacking]
+  [this g project textureset :- TextureSet]
   (file/write-file (:textureset-filename this)
-    (.toByteArray (texturesetc-protocol-buffer (:texture-name this) texture-packing)))
+    (.toByteArray (texturesetc-protocol-buffer (:texture-name this) textureset)))
   :ok)
 
 (defn- texturec-protocol-buffer
@@ -458,13 +393,14 @@
             (.setCount           1))))
 
 (defnk compile-texturec :- s/Bool
-  [this g project texture-packing :- TexturePacking]
+  [this g project packed-image :- BufferedImage]
   (file/write-file (:texture-filename this)
-    (.toByteArray (texturec-protocol-buffer (tex/->engine-format (:packed-image texture-packing)))))
+    (.toByteArray (texturec-protocol-buffer (tex/->engine-format packed-image))))
   :ok)
 
 (n/defnode TextureSave
-  (input texture-packing TexturePacking)
+  (input textureset   TextureSet)
+  (input packed-image BufferedImage)
 
   (property texture-filename    s/Str (default ""))
   (property texture-name        s/Str)
@@ -631,12 +567,13 @@
                            :texture-name        (clojure.string/replace (local-path (replace-extension path "texturesetc")) "content/" "")
                            :textureset-filename (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturesetc")) path)
                            :texture-filename    (if (satisfies? file/ProjectRelative path) (file/in-build-directory (replace-extension path "texturec")) path)))]
-    (ds/connect self :texture-packing compiler :texture-packing)
+    (ds/connect self :textureset   compiler :textureset)
+    (ds/connect self :packed-image compiler :packed-image)
     self))
 
 (defn remove-compiler
   [self]
-  (let [candidates (ds/nodes-consuming self :texture-packing)]
+  (let [candidates (ds/nodes-consuming self :textureset)]
     (doseq [[compiler _]  (filter #(= TextureSave (t/node-type (first %))) candidates)]
       (ds/delete compiler))))
 
@@ -658,8 +595,9 @@
    aabb `dynamo.types.AABB` - The AABB of the packed texture, in pixel space.
    gpu-texture `Texture` - A wrapper for the BufferedImage with the actual pixels. Conforms to the right protocols so you can directly use this in rendering.
    text-format `String` - A saveable representation of the atlas, its animations, and images. Built as a text-formatted protocol buffer.
-   texture-packing `[dynamo.types/TexturePacking]` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.\"
-   "
+   texture-packing `dynamo.types/TexturePacking` - A data structure with full access to the original image bounds, their coordinates in the packed image, the BufferedImage, and outline coordinates.
+   packed-image `BufferedImage` - BufferedImage instance with the actual pixels.
+   textureset `dynamo.types/TextureSet` - A data structure that logically mirrors the texturesetc protocol buffer format."
   (inherits n/OutlineNode)
   (inherits n/ResourceNode)
   (inherits n/Saveable)
@@ -672,10 +610,11 @@
   (property filename (s/protocol PathManipulation) (visible false))
 
   (output aabb            AABB               (fnk [texture-packing] (g/rect->aabb (:aabb texture-packing))))
-  (output gpu-texture     s/Any      :cached (fnk [texture-packing] (texture/image-texture (:packed-image texture-packing))))
+  (output gpu-texture     s/Any      :cached (fnk [packed-image] (texture/image-texture packed-image)))
   (output save            s/Keyword          save-atlas-file)
   (output text-format     s/Str              get-text-format)
   (output texture-packing TexturePacking :cached :substitute-value (tex/blank-texture-packing) produce-texture-packing)
+  (output packed-image    BufferedImage  :cached (fnk [texture-packing] (:packed-image texture-packing)))
   (output textureset      TextureSet     :cached produce-textureset)
 
   (on :load
