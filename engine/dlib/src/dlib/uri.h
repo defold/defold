@@ -44,22 +44,20 @@ namespace dmURI
     Result Parse(const char* uri, Parts* parts);
 
     /**
-     * Encodes the provided URI into escaped format.
-     * @note This function currently only replaces spaces with '+'
-     * @param uri URI to encode
-     * @param out Decoded URI
-     * @param out_size size of the provided out buffer
+     * Performs URL encoding of the supplied buffer
+     * @param src String to encode
+     * @param dst Encoded string
+     * @param dst_size size of the provided out buffer
      */
-    void Encode(const char* uri, char* out, uint32_t out_size);
+    void Encode(const char* src, char* dst, uint32_t dst_size);
 
     /**
-     * Decodes the provided URI into escaped format.
-     * @note This function currently only replaces '+' with ' '
-     * @param uri URI to decode
-     * @param out Decoded URI
-     * @param out_size size of the provided out buffer
+     * Undoes URL decoding on a buffer.
+     * @note The output will never be larger than the input.
+     * @param src Input
+     * @param dst Decoded output
      */
-    void Decode(const char* uri, char* out, uint32_t out_size);
+    void Decode(const char* src, char* dst);
 }
 
 #endif // DM_URI_H

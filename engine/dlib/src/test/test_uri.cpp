@@ -213,6 +213,98 @@ TEST(dmURI, TestOverflow2)
     delete uri_parts;
 }
 
+TEST(dmURI, Escape)
+{
+    char src[1024];
+    char dst[1024];
+#define CPY_TO_BUF(s) strcpy(src, s);
+
+    CPY_TO_BUF("")
+    dmURI::Encode(src, dst, sizeof(dst));
+    ASSERT_STREQ("", dst);
+
+    CPY_TO_BUF(" ")
+    dmURI::Encode(src, dst, sizeof(dst));
+    ASSERT_STREQ("%20", dst);
+
+    CPY_TO_BUF("foo")
+    dmURI::Encode(src, dst, sizeof(dst));
+    ASSERT_STREQ("foo", dst);
+
+    CPY_TO_BUF("foo bar")
+    dmURI::Encode(src, dst, sizeof(dst));
+    ASSERT_STREQ("foo%20bar", dst);
+
+    CPY_TO_BUF("to[0]")
+    dmURI::Encode(src, dst, sizeof(dst));
+    ASSERT_STREQ("to%5B0%5D", dst);
+
+#undef CPY_TO_BUF
+}
+
+TEST(dmURI, EscapeBufferSize)
+{
+    char src[1024];
+    char dst[1024];
+#define CPY_TO_BUF(s) strcpy(src, s);
+
+    CPY_TO_BUF("")
+    dmURI::Encode(src, dst, 1);
+    ASSERT_STREQ("", dst);
+
+    dst[1] = '!';
+    CPY_TO_BUF(" ")
+    dmURI::Encode(src, dst, 1);
+    ASSERT_EQ('!', dst[1]);
+
+    dst[2] = '!';
+    CPY_TO_BUF(" ")
+    dmURI::Encode(src, dst, 2);
+    ASSERT_EQ('!', dst[2]);
+
+    dst[3] = '!';
+    CPY_TO_BUF(" ")
+    dmURI::Encode(src, dst, 3);
+    ASSERT_EQ('!', dst[3]);
+
+    dst[4] = '!';
+    CPY_TO_BUF(" ")
+    dmURI::Encode(src, dst, 4);
+    ASSERT_STREQ("%20", dst);
+    ASSERT_EQ('!', dst[4]);
+
+#undef CPY_TO_BUF
+}
+
+TEST(dmURI, Unescape)
+{
+    char buf[1024];
+#define CPY_TO_BUF(s) strcpy(buf, s);
+
+    CPY_TO_BUF("")
+    dmURI::Decode(buf, buf);
+    ASSERT_STREQ("", buf);
+
+    CPY_TO_BUF("foo")
+    dmURI::Decode(buf, buf);
+    ASSERT_STREQ("foo", buf);
+
+    CPY_TO_BUF("%20")
+    dmURI::Decode(buf, buf);
+    ASSERT_STREQ(" ", buf);
+
+    CPY_TO_BUF("fbconnect://success?request=575262345875717&to%5B0%5D=100006469467942&to%5B1%5D=100006622931864&to%5B2%5D=100006677888489&to%5B3%5D=100006751147236&to%5B4%5D=100006793533882")
+    dmURI::Decode(buf, buf);
+    ASSERT_STREQ("fbconnect://success?request=575262345875717&to[0]=100006469467942&to[1]=100006622931864&to[2]=100006677888489&to[3]=100006751147236&to[4]=100006793533882", buf);
+
+    CPY_TO_BUF("foo+bar")
+    dmURI::Decode(buf, buf);
+    ASSERT_STREQ("foo bar", buf);
+
+#undef CPY_TO_BUF
+}
+
+
 TEST(dmURI, TestEncodeDecode)
 {
     const char* uri = "http://my_domain.com/my spaced file.html";
@@ -221,7 +313,7 @@ TEST(dmURI, TestEncodeDecode)
     ASSERT_EQ((void*)0, strchr(enc_uri, ' '));
     ASSERT_STRNE(uri, enc_uri);
     char dec_uri[DMPATH_MAX_PATH];
-    dmURI::Decode(uri, dec_uri, DMPATH_MAX_PATH);
+    dmURI::Decode(uri, dec_uri);
     ASSERT_NE((void*)0, strchr(dec_uri, ' '));
     ASSERT_STRNE(dec_uri, enc_uri);
     ASSERT_STREQ(uri, dec_uri);
