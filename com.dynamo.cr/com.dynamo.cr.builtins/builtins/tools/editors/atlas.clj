@@ -526,7 +526,7 @@
       (ds/set-property anim-node :images (mapv :image (:images anim)))
       (ds/connect anim-node :animation self :animations)
       (ds/connect anim-node :tree      self :children))
-    (ds/set-property self :images (:images atlas))
+    (ds/set-property self :images (mapv :image (:images atlas)))
     self))
 
 (defn remove-ancillary-nodes
@@ -597,7 +597,7 @@
     (doto self
       (construct-ancillary-nodes (:filename self))
       (construct-compiler)
-      (ds/set-property :dirty false)))
+      #_(ds/set-property :dirty false)))
 
   (on :unload
     (doto self
