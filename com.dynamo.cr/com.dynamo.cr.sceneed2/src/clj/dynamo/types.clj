@@ -118,15 +118,23 @@
     var-or-value))
 
 (defprotocol PropertyType
-  (property-value-type    [this] "Prismatic schema for property value type")
-  (default-property-value [this])
-  (valid-property-value?  [this v])
-  (property-visible       [this] "If true, this property appears in the UI")
+  (property-value-type    [this]   "Prismatic schema for property value type")
+  (property-default-value [this])
+  (property-validate      [this v] "Returns a possibly-empty seq of messages.")
+  (property-valid-value?  [this v] "If valid, returns nil. If invalid, returns seq of Marker")
+  (property-visible       [this]   "If true, this property appears in the UI")
   (property-tags          [this]))
 
 (defn property-type? [x] (satisfies? PropertyType x))
 
 (def Properties {s/Keyword {:value s/Any :type (s/protocol PropertyType)}})
+
+(defprotocol Marker
+  "Annotates a location with extra information."
+  (marker-kind     [this] "Keyword denoting the marker's intent")
+  (marker-status   [this] "Keyword denoting the status. Predefined statuses are :error, :information, :ok")
+  (marker-location [this] "Map that must include :node-ref, may include other keys added by the marker's creator.")
+  (marker-message  [this] "Human readable string"))
 
 (def Int32   (s/pred #(instance? java.lang.Integer %) 'int32?))
 (def Icon    s/Str)

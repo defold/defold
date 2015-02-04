@@ -14,19 +14,31 @@
 
 (def ^:private default-validation-fn (constantly true))
 
-(defn- valid-value? [property-type-descriptor value]
-  (s/validate (t/property-value-type property-type-descriptor) value)
+(defn- validation-fns
+  [property-type-descriptor]
   (-> property-type-descriptor
-      (:validation default-validation-fn)
-      t/var-get-recursive
-      (t/apply-if-fn value)))
+    :validations
+    vals
+    :fn))
 
-(sm/defrecord PropertyTypeImpl
-  [value-type :- s/Schema]
+(defn- validation-problems
+  [property-type-descriptor value]
+  (if (s/check (t/property-value-type property-type-descriptor) value)
+    "invalid value"
+    (let [validations (validation-fns property-type-descriptor)]
+      (reduce (fn [errs v] (conj errs (t/apply-if-fn (t/var-get-recursive v) value))) [] validations))))
+
+(defn- valid-value?
+  [property-type-descriptor value]
+  (empty? (validation-problems property-type-descriptor value)))
+
+(defrecord PropertyTypeImpl
+  [value-type visible default]
   t/PropertyType
   (property-value-type    [this]   (:value-type this))
-  (default-property-value [this]   (get-default-value this))
-  (valid-property-value?  [this v] (valid-value? this v))
+  (property-default-value [this]   (get-default-value this))
+  (property-validate      [this v] (validation-problems this v))
+  (property-valid-value?  [this v] (valid-value? this v))
   (property-visible       [this]   (if (contains? this :visible) (:visible this) true))
   (property-tags          [this]   (:tags this)))
 
@@ -42,8 +54,17 @@
     [(['default default] :seq)]
     {:default (resolve-if-symbol default)}
 
+    [(['validate label :message formatter-fn validation-fn] :seq)]
+    {:validation {(keyword label) {:fn (resolve-if-symbol validation-fn)
+                                   :formatter (resolve-if-symbol formatter-fn)}}}
+
+    [(['validate label validation-fn] :seq)]
+    {:validation {(keyword label) {:fn (resolve-if-symbol validation-fn)
+                                   :formatter "invalid value"}}}
+
     [(['validation validation-fn] :seq)]
-    {:validation (resolve-if-symbol validation-fn)}
+    {:validation {(keyword (gensym)) {:fn (resolve-if-symbol validation-fn)
+                                      :formatter "invalid value"}}}
 
     [(['visible visibility] :seq)]
     {:visible (resolve-if-symbol visibility)}
@@ -55,8 +76,9 @@
     (assert false (str "invalid form within property type definition: " (pr-str form)))))
 
 (defn merge-props [props new-props]
-  (-> (merge props new-props)
-      (assoc :tags (into (vec (:tags new-props)) (:tags props)))))
+  (-> (merge (dissoc props :validation) (dissoc new-props :validation))
+    (assoc :validation (merge (:validation props) (:validation new-props)))
+    (assoc :tags (into (vec (:tags new-props)) (:tags props)))))
 
 (defn property-type-descriptor [name-sym value-type body-forms]
   `(let [value-type#     ~value-type

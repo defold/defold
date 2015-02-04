@@ -427,7 +427,7 @@ build the node type description (map). These are emitted where you invoked
 (defn defaults
   "Return a map of default values for the node type."
   [node-type]
-  (map-vals t/default-property-value (t/properties' node-type)))
+  (map-vals t/property-default-value (t/properties' node-type)))
 
 (defn classname-for [prefix] (symbol (str prefix "__")))
 

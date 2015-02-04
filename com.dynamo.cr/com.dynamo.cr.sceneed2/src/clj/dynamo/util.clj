@@ -1,6 +1,7 @@
 (ns dynamo.util
   (:require [clojure.set :as set]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [camel-snake-kebab :refer :all]))
 
 (defn removev [pred coll]
   (filterv (complement pred) coll))
@@ -93,3 +94,11 @@
   (let [removed (set/difference old new)
         added   (set/difference new old)]
     [(removed-f removed) (added-f added)]))
+
+(defn keyword->label
+  "Turn a keyword into a human readable string"
+  [k]
+  (-> k
+    name
+    ->Camel_Snake_Case_String
+    (str/replace "_" " ")))

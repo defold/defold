@@ -12,8 +12,7 @@
             [dynamo.ui.widgets :as widgets]
             [dynamo.util :refer :all]
             [internal.node :as in]
-            [internal.system :as is]
-            [camel-snake-kebab :refer :all])
+            [internal.system :as is])
   (:import [org.eclipse.core.runtime IStatus Status]
            [org.eclipse.swt.widgets Composite]
            [org.eclipse.ui ISelectionListener]
@@ -28,13 +27,6 @@
                  [prop-name prop]     node-prop-map
                  :when (some-> prop :type t/property-visible)]
              [prop-name prop])))
-
-(defn- niceify-label
-  [k]
-  (-> k
-    name
-    ->Camel_Snake_Case_String
-    (str/replace "_" " ")))
 
 (defnk passthrough-presenter-registry
   [presenter-registry]
@@ -67,7 +59,7 @@
 
 (defn- property-control-strip
   [node [prop-name {:keys [presenter]}]]
-  (let [label-text (niceify-label prop-name)]
+  (let [label-text (keyword->label prop-name)]
     [[:label-composite {:type :composite
                         :layout {:type :stack}
                         :children [[:label      {:type :label :text label-text}]
@@ -179,7 +171,7 @@
               result (dp/on-event presenter widget-subtree path presenter-event old-value)]
           (when-let [new-value (:value result)]
             (when (not= new-value old-value)
-              (ds/tx-label (str "Set " (niceify-label prop-name)))
+              (ds/tx-label (str "Set " (keyword->label prop-name)))
               (ds/set-property {:_id (:node-id prop)} prop-name new-value))))
         (log/warn :message "Expected event from widget on active property page"))))
 
