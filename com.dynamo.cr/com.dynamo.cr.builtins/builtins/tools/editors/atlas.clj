@@ -552,14 +552,12 @@
 
 (defn complete-selection
   [self event]
-  (let [{:keys [start-x start-y dragging world-ref selection-node default-selection]} self
-        previous (disj (set (selected-node-ids selection-node))
-                   (:_id default-selection))
+  (let [{:keys [start-x start-y dragging world-ref previous-selection selection-node default-selection]} self
         clicked (set (cond->> (find-nodes-in-selection self)
                        (not dragging) (take 1)))
         new-node-ids (case (selection-mode event)
                        :replace clicked
-                       :toggle (toggle previous clicked))
+                       :toggle (toggle previous-selection clicked))
         nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
                 [default-selection])]
     (deselect-all selection-node)
@@ -572,6 +570,7 @@
   (property current-y s/Int)
   (property selecting s/Bool (default false))
   (property dragging s/Bool (default false))
+  (property previous-selection [s/Int])
 
   ;; Cached inputs during click-and-drag
   (property glcontext s/Any)
@@ -591,7 +590,9 @@
   (on :mouse-down
     (when (selection-event? event)
       (let [[selection-node default-selection glcontext renderables view-camera]
-              (n/get-node-inputs self :selection-node :default-selection :glcontext :renderables :view-camera)]
+              (n/get-node-inputs self :selection-node :default-selection :glcontext :renderables :view-camera)
+            previous-selection (disj (selected-node-ids selection-node)
+                                 (:_id default-selection))]
         (ds/set-property self
           :selecting true
           :selection-node selection-node
@@ -599,6 +600,7 @@
           :glcontext glcontext
           :renderable-inputs renderables
           :view-camera view-camera
+          :previous-selection previous-selection
           :start-x (:x event)
           :start-y (:y event)
           :current-x (:x event)
