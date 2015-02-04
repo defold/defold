@@ -138,8 +138,6 @@
 
 (def MouseType (s/enum :one-button :three-button))
 
-(def Callbacks [clojure.lang.IFn])
-
 (def Registry {s/Any s/Any})
 
 (sm/defrecord Rect
