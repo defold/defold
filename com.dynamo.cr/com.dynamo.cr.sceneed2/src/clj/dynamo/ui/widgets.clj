@@ -1,5 +1,6 @@
 (ns dynamo.ui.widgets
-  (:require [dynamo.ui :as ui]
+  (:require [dynamo.project :as p]
+            [dynamo.ui :as ui]
             [internal.java :refer [map-beaner]])
   (:import [org.eclipse.swt SWT]
            [org.eclipse.swt.custom StackLayout]
@@ -9,7 +10,7 @@
            [org.eclipse.ui.forms.events HyperlinkAdapter]
            [org.eclipse.ui.forms.widgets FormToolkit Hyperlink ScrolledForm]
            [com.dynamo.cr.properties StatusLabel]
-           [internal.ui ColorSelector]))
+           [internal.ui ColorSelector ResourceSelector]))
 
 (set! *warn-on-reflection* true)
 
@@ -111,6 +112,12 @@
   Button
   (apply-properties [this props]
     (gen-state-changes #{:text :layout-data :tooltip-text :listen :user-data} this props)
+    this)
+
+  ResourceSelector
+  (apply-properties [this props]
+    (gen-state-changes #{:layout-data :listen :user-data} this props)
+    (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
     this))
 
 (def swt-style
@@ -218,6 +225,18 @@
 (defmethod make-control :button
   [^FormToolkit toolkit parent [name props :as spec]]
   (let [control (.createButton toolkit parent nil (swt-style (:style props :none)))]
+    (apply-properties control props)
+    {name {::widget control}}))
+
+(defmethod make-control :resource-selector
+  [^FormToolkit toolkit parent [name props :as spec]]
+  #_"ResourceSelect widget is rendered as a browse button.
+  Click this button to reveal a modal resource selection dialog; select a resource and click \"OK\".
+  This will fire a `:selection` event; the selection (seq of ResourceNode) is accessible in the event map under the `:data` key.
+  No events are fired when the user clicks \"Cancel\", presses Esc, or otherwise dismisses the dialog without making a selection."
+  (let [project-node       (get-in props [:user-data :project-node])
+        selection-callback (fn [] (p/select-resources project-node (:extensions props) (:title props)))
+        control            (ResourceSelector. toolkit parent (swt-style (:style props :none)) selection-callback)]
     (apply-properties control props)
     {name {::widget control}}))
 

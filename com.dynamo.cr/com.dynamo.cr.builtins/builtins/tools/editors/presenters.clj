@@ -79,25 +79,28 @@
       :selection (final-value (widgets/get-color (widgets/widget widget-subtree path)))
       (no-change))))
 
-(defrecord ResourcePresenter []
+(defrecord ResourcePresenter [extensions title]
   Presenter
   (control-for-property [this]
     {:type :composite
-     :layout {:type :grid :margin-width 0 :margin-height 0 :horizontal-spacing 5 :columns [{:horizontal-alignment :fill} {:min-width 55}]}
+     :layout {:type :grid :margin-width 0 :margin-height 0 :horizontal-spacing 5 :columns [{:horizontal-alignment :fill} {:min-width 25}]}
      :children [[:text {:type :text :listen #{:key-down :focus-out}}]
-                [:button {:type :button :text "..."}]]})
+                [:selector {:type :resource-selector :extensions extensions :title title :listen #{:selection}}]]})
   (settings-for-control [_ value]
     {:children [[:text {:text (str value)}]]})
 
   (on-event [_ widget-subtree path event _]
     (case (last path)
-      :text (let [new-value (widgets/get-text (widgets/widget widget-subtree path))]
-             (case (:type event)
-               :key-down (if (is-enter-key? event)
-                           (final-value new-value)
-                           (no-change))
-               :focus-out (final-value new-value)
-               (no-change)))
+      :text     (let [new-value (widgets/get-text (widgets/widget widget-subtree path))]
+                  (case (:type event)
+                    :key-down (if (is-enter-key? event)
+                                (final-value new-value)
+                                (no-change))
+                    :focus-out (final-value new-value)
+                    (no-change)))
+      :selector (if-let [selection (first (:data event))]
+                  (final-value (t/local-path (:filename selection)))
+                  (no-change))
       (no-change))))
 
 (when (ds/in-transaction?)
@@ -105,4 +108,4 @@
   (p/register-presenter {:value-type s/Int}                     (->IntPresenter))
   (p/register-presenter {:value-type t/Vec3}                    (->Vec3Presenter))
   (p/register-presenter {:value-type t/Vec3 :tag :color}        (->ColorPresenter))
-  (p/register-presenter {:value-type s/Str  :tag ::dp/resource} (->ResourcePresenter)))
+  (p/register-presenter {:value-type s/Str  :tag ::dp/image}    (map->ResourcePresenter {:extensions ["png" "jpg"] :title "Select Image"})))
