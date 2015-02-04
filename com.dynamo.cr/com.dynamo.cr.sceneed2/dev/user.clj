@@ -9,6 +9,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [dynamo.ui.widgets :as widgets]
             [clojure.java.io :refer [file]]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
@@ -168,7 +169,7 @@
     (ui/swt-safe
       (let [shell (ui/shell)
             toolkit (FormToolkit. (.getDisplay shell))
-            widgets (ui/make-control toolkit shell widgets)]
+            widgets (widgets/make-control toolkit shell widgets)]
         (deliver r widgets)
         (.pack shell)
         (.open shell)))
