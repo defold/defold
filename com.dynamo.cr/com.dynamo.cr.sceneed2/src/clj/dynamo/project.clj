@@ -183,7 +183,7 @@ There is no guaranteed ordering of the sequence."
 
   t/FileContainer
   (node-for-path [this path]
-    (new-node-for-path this (file/make-project-path this path) Placeholder))
+    (new-node-for-path this path Placeholder))
 
   (on :destroy
     (ds/delete self)))

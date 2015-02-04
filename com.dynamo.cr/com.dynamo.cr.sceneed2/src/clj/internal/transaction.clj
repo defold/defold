@@ -168,7 +168,7 @@
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys nodes-triggered world-ref new-event-loops nodes-added] :as ctx}
+  [{:keys [graph tempids cache-keys triggers-to-fire nodes-triggered world-ref new-event-loops nodes-added] :as ctx}
    {:keys [node]}]
   (let [next-id     (dg/next-node graph)
         full-node   (assoc node :_id next-id :world-ref world-ref) ;; TODO: can we remove :world-ref from nodes?
@@ -180,6 +180,7 @@
       :tempids             (assoc tempids (:_id node) next-id)
       :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
+      :triggers-to-fire    (assoc-in triggers-to-fire [next-id :added] true)
       :nodes-triggered     (merge-with set/union nodes-triggered {next-id (t/outputs full-node)}))))
 
 (defn- disconnect-inputs
@@ -234,7 +235,7 @@
       :cache-keys          (assoc cache-keys node-id (node->cache-keys to-node)))))
 
 (defmethod perform :delete-node
-  [{:keys [graph nodes-deleted old-event-loops nodes-added obsolete-cache-keys cache-keys] :as ctx} {:keys [node-id]}]
+  [{:keys [graph nodes-deleted old-event-loops nodes-added triggers-to-fire obsolete-cache-keys cache-keys] :as ctx} {:keys [node-id]}]
   (when-not (dg/node graph (resolve-tempid ctx node-id))
     (prn :delete-node "Can't locate node for ID " node-id))
   (let [node-id     (resolve-tempid ctx node-id)
@@ -246,10 +247,11 @@
       :nodes-deleted       (assoc nodes-deleted node-id node)
       :nodes-added         (disj nodes-added node-id)
       :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
+      :triggers-to-fire    (assoc-in triggers-to-fire [node-id :deleted] node)
       :cache-keys          (dissoc cache-keys node-id))))
 
 (defmethod perform :update-property
-  [{:keys [graph properties-modified] :as ctx} {:keys [node-id property fn args]}]
+  [{:keys [graph triggers-to-fire properties-modified] :as ctx} {:keys [node-id property fn args]}]
   (let [node-id   (resolve-tempid ctx node-id)
         old-value (get (dg/node graph node-id) property)
         new-graph (apply dg/transform-node graph node-id update-in [property] fn args)
@@ -259,7 +261,8 @@
       (-> ctx
          (mark-activated node-id property)
          (assoc
-           :graph new-graph
+           :graph               new-graph
+           :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] conj property)
            :properties-modified (update-in properties-modified [node-id] conj property))))))
 
 (defmethod perform :connect
@@ -363,10 +366,6 @@
    :modified :outputs-modified
    :deleted  :nodes-deleted})
 
-(defn- node-triggers
-  [node]
-  (-> node t/node-type t/triggers (select-keys trigger-ordering)))
-
 (defn- all-triggers
   [all-activated]
   (for [kind    trigger-ordering
@@ -390,17 +389,33 @@
 (defn trigger-debug
   [csub [tr & args :as trvec]]
   (println (txerrstr csub "invoking" tr "on" (:_id (first args))))
+  (println (txerrstr csub "nodes triggered" (:nodes-triggered csub)))
+  (println (txerrstr csub (select-keys csub [:nodes-added :nodes-deleted :outputs-modified :properties-modified])))
   (invoke-trigger csub trvec))
 
 (defn- process-triggers
-  [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-deleted] :as ctx}]
+  [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-deleted triggers-to-fire] :as ctx}]
   (let [all-activated  (concat (filter identity (map #(dg/node graph %) (keys nodes-triggered))) (vals nodes-deleted))
         trigger-ctx    (-> ctx
-                         (update-in [:nodes-added]      set/intersection (into #{} (keys nodes-triggered)))
-                         (update-in [:nodes-deleted]    select-keys (keys nodes-triggered))
-                         (update-in [:outputs-modified] select-keys (keys nodes-triggered)))]
+                         (update-in [:nodes-added]         set/intersection (into #{} (keys nodes-triggered)))
+                         (update-in [:nodes-deleted]       select-keys (keys nodes-triggered))
+                         (update-in [:outputs-modified]    select-keys (keys nodes-triggered))
+                         (update-in [:properties-modified] select-keys (keys nodes-triggered)))]
     (binding [*transaction* (make-transaction-level (->TriggerReceiver trigger-ctx))]
-      (reduce invoke-trigger trigger-ctx (activated-triggers trigger-ctx (all-triggers all-activated)))
+      (let [get-node (fn [node-id] (or (dg/node graph node-id) (get nodes-deleted node-id)))
+            triggers (for [[node-id m] triggers-to-fire
+                           [kind args] m
+                           :let [node (get-node node-id)]
+                           [l tr] (-> node t/node-type t/triggers (get kind) seq)]
+                       [tr node l kind])
+            #_triggers-with-params #_(for [[tr node l kind] triggers]
+                                      (let [foo (filter #(= kind (nth % 0)) triggers-to-fire)
+                                            bar (filter #(= (:_id node) (nth % 1)) foo)
+                                            args (set (map #(first (drop 2 %)) bar))]
+                                        [tr node l kind args]))]
+        #_(println (txerrstr ctx :triggers-to-fire triggers-to-fire (into [] triggers)))
+        (reduce (if *tx-debug* trigger-debug invoke-trigger) trigger-ctx triggers))
+      #_(reduce (if *tx-debug* trigger-debug invoke-trigger) trigger-ctx (activated-triggers trigger-ctx (all-triggers all-activated)))
       (let [trigger-ctx (tx-apply *transaction*)]
         (assoc ctx :pending (:pending trigger-ctx))))))
 
@@ -411,11 +426,13 @@
 (defn- one-transaction-pass
   [ctx actions]
   (-> (update-in ctx [:txpass] inc)
+    (assoc :triggers-to-fire {})
     (assoc :nodes-triggered {})
     (apply-tx actions)
     trace-trigger-activation
     mark-outputs-modified
     process-triggers
+    (dissoc :triggers-to-fire)
     (dissoc :nodes-triggered)))
 
 (defn- exhaust-actions-and-triggers

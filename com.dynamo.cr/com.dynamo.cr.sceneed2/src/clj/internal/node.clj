@@ -376,6 +376,8 @@ must be part of a protocol or interface attached to the description."
   (let [{:keys [ns name]} (meta (resolve s))]
     (symbol (str ns) (str name))))
 
+(def ^:private valid-trigger-kinds #{:added :deleted :property-touched :input-connections :modified})
+
 (defn- node-type-form
   "Translate the sugared `defnode` forms into function calls that
 build the node type description (map). These are emitted where you invoked
@@ -401,6 +403,7 @@ build the node type description (map). These are emitted where you invoked
     [(['trigger label & rest] :seq)]
     (let [kinds (vec (take-while keyword? rest))
           action (drop-while keyword? rest)]
+      (assert (every? valid-trigger-kinds kinds) (apply str "Invalid trigger kind. Valid trigger kinds are: " (interpose ", " valid-trigger-kinds)))
       `(attach-trigger ~(keyword label) ~kinds ~@action))
 
     ;; Interface or protocol function
@@ -551,6 +554,7 @@ for all properties of this node."
 
 (defn lookup-node-for-filename
   [transaction parent self filename]
+  (prn :lookup-node filename (:filename-index transaction))
   (or
     (get-in transaction [:filename-index filename])
     (if-let [added-this-txn (first (filter #(= filename (:filename %)) (ds/transaction-added-nodes transaction)))]
@@ -558,8 +562,8 @@ for all properties of this node."
       (t/lookup parent filename))))
 
 (defn decide-resource-handling
-  [transaction parent self surplus-connections prop filename]
-  (if-let [existing-node (lookup-node-for-filename transaction parent self (file/make-project-path parent filename))]
+  [transaction parent self surplus-connections prop project-path]
+  (if-let [existing-node (lookup-node-for-filename transaction parent self project-path)]
     (if (some #{[(:_id existing-node) :content]} surplus-connections)
       [:existing-connection existing-node]
       [:new-connection existing-node])
@@ -574,30 +578,31 @@ for all properties of this node."
 (defn- ensure-resources-connected
   [transaction parent self prop]
   (loop [transaction         transaction
-         filenames           (->vec (get self prop))
+         project-paths       (map #(file/make-project-path parent %) (->vec (get self prop)))
          surplus-connections (resources-connected transaction self prop)]
-    (if-let [filename (first filenames)]
-      (let [[handling existing-node] (decide-resource-handling transaction parent self surplus-connections prop filename)]
+    (if-let [project-path (first project-paths)]
+      (let [[handling existing-node] (decide-resource-handling transaction parent self surplus-connections prop project-path)]
         (cond
           (= :new-node handling)
-          (let [new-node (ds/in parent (ds/add (t/node-for-path parent filename)))]
+          (let [new-node (ds/in parent (ds/add (t/node-for-path parent project-path)))]
             (ds/connect new-node :content self prop)
             (recur
-              (update-in transaction [:filename-index] assoc filename (:_id new-node))
-              (next filenames)
+              (update-in transaction [:filename-index] assoc project-path new-node)
+              (next project-paths)
               surplus-connections))
 
           (= :new-connection handling)
           (do
             (ds/connect existing-node :content self prop)
-            (recur transaction (next filenames) surplus-connections))
+            (recur transaction (next project-paths) surplus-connections))
 
           (= :existing-connection handling)
-          (recur transaction (next filenames) (remove #{[(:_id existing-node) :content]} surplus-connections))))
+          (recur transaction (next project-paths) (remove #{[(:_id existing-node) :content]} surplus-connections))))
       (remove-vestigial-connections transaction self prop surplus-connections))))
 
 (defn connect-resource
   [transaction graph self label kind]
+  (prn :connect-resource (get-in transaction [:properties-modified (:_id self)]))
   (let [parent (ds/parent graph self)]
     (reduce
       (fn [transaction prop]
