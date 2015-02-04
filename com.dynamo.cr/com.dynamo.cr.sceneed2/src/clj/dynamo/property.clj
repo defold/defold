@@ -41,7 +41,7 @@
 (defn presenter-event-map
   "Translate event map (from `dynamo.ui/event->map`) to stable external event map exposed to property presenters."
   [event-map]
-  (let [whitelist #{:type}
+  (let [whitelist #{:type :data}
         qualified #{:character}]
     (merge
       (select-keys event-map whitelist)
