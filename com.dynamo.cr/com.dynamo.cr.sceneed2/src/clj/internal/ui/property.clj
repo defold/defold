@@ -8,6 +8,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [dynamo.ui.widgets :as widgets]
             [dynamo.util :refer :all]
             [internal.node :as in]
             [internal.system :as is]
@@ -79,7 +80,7 @@
 
 (defn- make-property-page
   [toolkit ui-event-listener properties-form properties]
-  (ui/make-control toolkit (ui/widget properties-form [:form :composite])
+  (widgets/make-control toolkit (widgets/widget properties-form [:form :composite])
     (property-page (mapcat #(property-control-strip ui-event-listener %) properties))))
 
 (def empty-property-page
@@ -90,7 +91,7 @@
 
 (defn- make-empty-property-page
   [toolkit properties-form]
-  (ui/make-control toolkit (ui/widget properties-form [:form :composite]) empty-property-page))
+  (widgets/make-control toolkit (widgets/widget properties-form [:form :composite]) empty-property-page))
 
 (defn- settings-for-page
   [properties]
@@ -119,9 +120,9 @@
   (let [content (attach-presenters node (in/get-node-value node :content))
         key     (cache-key content)
         page    (lookup-or-create sheet-cache key make-property-page toolkit ui-event-listener properties-form content)]
-    (ui/update-ui!      (get-in page [:page-content]) (settings-for-page content))
-    (ui/bring-to-front! (ui/widget page [:page-content]))
-    (ui/scroll-to-top!  (ui/widget properties-form [:form]))))
+    (widgets/update-ui!      (get-in page [:page-content]) (settings-for-page content))
+    (widgets/bring-to-front! (widgets/widget page [:page-content]))
+    (widgets/scroll-to-top!  (widgets/widget properties-form [:form]))))
 
 (defn- refresh-after-a-while
   [transaction graph this label kind]
@@ -149,7 +150,7 @@
 
   (on :create
     (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))
-          properties-form   (ui/make-control toolkit (:parent event) gui)
+          properties-form   (widgets/make-control toolkit (:parent event) gui)
           sheet-cache       (atom {})
           ui-event-listener (ui/make-listener #(n/dispatch-message self :ui-event :ui-event %) [])]
       (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page toolkit properties-form)
@@ -162,11 +163,11 @@
 
   (on :ui-event
     (let [ui-event (:ui-event event)
-          {:keys [presenter prop-name path]} (ui/get-user-data (:widget ui-event))
+          {:keys [presenter prop-name path]} (widgets/get-user-data (:widget ui-event))
           content (in/get-node-value self :content)
           page (get @(:sheet-cache self) (cache-key content))
           widget-subtree (get-in page [:page-content prop-name])]
-      (if (identical? (:widget ui-event) (ui/widget widget-subtree path))
+      (if (identical? (:widget ui-event) (widgets/widget widget-subtree path))
         (let [prop (get content prop-name)
               presenter-event (dp/presenter-event-map ui-event)
               old-value (:value prop)
@@ -203,4 +204,4 @@
   (-> property-view-node
       ds/refresh
       :properties-form
-      (ui/widget [:form])))
+      (widgets/widget [:form])))

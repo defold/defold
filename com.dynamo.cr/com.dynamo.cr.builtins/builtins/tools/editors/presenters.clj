@@ -4,7 +4,7 @@
             [dynamo.property :as dp :refer :all]
             [dynamo.system :as ds]
             [dynamo.types :as t]
-            [dynamo.ui :as ui]
+            [dynamo.ui.widgets :as widgets]
             [dynamo.util :refer :all]))
 
 (defrecord StringPresenter []
@@ -15,7 +15,7 @@
     {:text (str value)})
 
   (on-event [_ widget-subtree path event _]
-    (let [new-value (ui/get-text (ui/widget widget-subtree path))]
+    (let [new-value (widgets/get-text (widgets/widget widget-subtree path))]
       (case (:type event)
         :key-down (if (is-enter-key? event)
                     (final-value new-value)
@@ -31,7 +31,7 @@
     {:text (str value)})
 
   (on-event [_ widget-subtree path event _]
-    (let [new-value (parse-int (ui/get-text (ui/widget widget-subtree path)))]
+    (let [new-value (parse-int (widgets/get-text (widgets/widget widget-subtree path)))]
       (case (:type event)
         :key-down (if (is-enter-key? event)
                     (final-value new-value)
@@ -55,8 +55,8 @@
                 [:z {:text (str (nth value 2))}]]})
   (on-event [_ widget-subtree path event value]
     (when-let [index (get {:x 0 :y 1 :z 2} (first path))]
-      (let [widget (ui/widget widget-subtree path)
-            new-value (assoc value index (parse-number (ui/get-text widget)))]
+      (let [widget (widgets/widget widget-subtree path)
+            new-value (assoc value index (parse-number (widgets/get-text widget)))]
         (case (:type event)
           :key-down (if (is-enter-key? event)
                       (final-value new-value)
@@ -76,7 +76,7 @@
                 [:selector {:color (mapv int value)}]]})
   (on-event [_ widget-subtree path event _]
     (case (:type event)
-      :selection (final-value (ui/get-color (ui/widget widget-subtree path)))
+      :selection (final-value (widgets/get-color (widgets/widget widget-subtree path)))
       (no-change))))
 
 (defrecord ResourcePresenter []
@@ -91,7 +91,7 @@
 
   (on-event [_ widget-subtree path event _]
     (case (last path)
-      :text (let [new-value (ui/get-text (ui/widget widget-subtree path))]
+      :text (let [new-value (widgets/get-text (widgets/widget widget-subtree path))]
              (case (:type event)
                :key-down (if (is-enter-key? event)
                            (final-value new-value)
