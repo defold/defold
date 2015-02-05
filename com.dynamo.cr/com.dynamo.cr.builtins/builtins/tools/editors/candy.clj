@@ -271,8 +271,10 @@
             level-cells (layout-level level)
             level-hit (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
         (when palette-hit
+          (ds/tx-label "Select Brush")
           (ds/set-property self :active-brush (:image palette-hit)))
         (when level-hit
+          (ds/tx-label "Paint Cell")
           (ds/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self))))))
   (on :load
       (let [project (:project event)
