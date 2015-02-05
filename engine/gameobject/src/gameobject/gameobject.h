@@ -725,7 +725,7 @@ namespace dmGameObject
      * @param scale Scale of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale);
+    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
 
     struct InstancePropertyBuffer
     {
@@ -1032,7 +1032,14 @@ namespace dmGameObject
      * @param instance Gameobject instance
      * @return Uniform scale
      */
-    float GetScale(HInstance instance);
+    float GetUniformScale(HInstance instance);
+
+    /**
+     * Get gameobject instance scale
+     * @param instance Gameobject instance
+     * @return Uniform scale
+     */
+    Vector3 GetScale(HInstance instance);
 
     /**
      * Get gameobject instance world position
@@ -1051,16 +1058,30 @@ namespace dmGameObject
     /**
      * Get game object instance world transform
      * @param instance Game object instance
-     * @return World uniform scale
+     * @return World scale
      */
-    float GetWorldScale(HInstance instance);
+    Vector3 GetWorldScale(HInstance instance);
 
     /**
-     * Get game object instance world uniform scale
+     * Get game object instance uniform scale
      * @param instance Game object instance
      * @return World uniform scale
      */
-    const dmTransform::Transform& GetWorldTransform(HInstance instance);
+    float GetWorldUniformScale(HInstance instance);
+
+    /**
+     * Get game object instance world transform
+     * @param instance Game object instance
+     * @return World transform
+     */
+    const dmTransform::Transform GetWorldTransform(HInstance instance);
+
+    /**
+     * Get game object instance world transform as Matrix4.
+     * @param instance Game object instance
+     * @return World transform matrix.
+     */
+    const Matrix4 & GetWorldMatrix(HInstance instance);
 
     /**
      * Set parent instance to child

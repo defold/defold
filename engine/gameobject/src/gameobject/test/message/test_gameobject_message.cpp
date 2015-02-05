@@ -413,10 +413,10 @@ TEST_F(MessageTest, TestGameObjectTransform)
 
     Vectormath::Aos::Point3 position = dmGameObject::GetPosition(go);
     Vectormath::Aos::Quat rotation = dmGameObject::GetRotation(go);
-    float scale = dmGameObject::GetScale(go);
+    float scale = dmGameObject::GetUniformScale(go);
     Vectormath::Aos::Point3 world_position = dmGameObject::GetWorldPosition(go);
     Vectormath::Aos::Quat world_rotation = dmGameObject::GetWorldRotation(go);
-    float world_scale = dmGameObject::GetWorldScale(go);
+    float world_scale = dmGameObject::GetWorldUniformScale(go);
 
     ASSERT_EQ(position.getX(), context.m_Position.getX());
     ASSERT_EQ(rotation.getX(), context.m_Rotation.getX());

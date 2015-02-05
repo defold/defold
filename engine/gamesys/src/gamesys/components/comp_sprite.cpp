@@ -453,17 +453,19 @@ namespace dmGameSystem
             uint32_t* anim_id = texture_set->m_AnimationIds.Get(c->m_CurrentAnimation);
             if (anim_id)
             {
-                dmTransform::Transform world = dmGameObject::GetWorldTransform(c->m_Instance);
-                dmTransform::Transform local(Vector3(c->m_Position), c->m_Rotation, 1.0f);
+                Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(Vector3(c->m_Position), c->m_Rotation, 1.0f));
+                Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
+                Matrix4 w;
+
                 if (dmGameObject::ScaleAlongZ(c->m_Instance))
                 {
-                    world = dmTransform::Mul(world, local);
+                    w = world * local;
                 }
                 else
                 {
-                    world = dmTransform::MulNoScaleZ(world, local);
+                    w = dmTransform::MulNoScaleZ(world, local);
                 }
-                Matrix4 w = dmTransform::ToMatrix4(world);
+
                 w = appendScale(w, ComputeScaledSize(c));
                 Vector4 position = w.getCol3();
                 if (!sub_pixels)

@@ -248,7 +248,7 @@ namespace dmTransform
          */
         inline float GetUniformScale() const
         {
-        	return minElem(m_Scale);
+            return minElem(m_Scale);
         }
 
         inline void SetUniformScale(float scale)
@@ -375,6 +375,85 @@ namespace dmTransform
     {
         Matrix4 res(t.GetRotation(), t.GetTranslation());
         res = appendScale(res, t.GetScale());
+        return res;
+    }
+
+    /**
+     * Extract the scale component from a matrix
+     * @param mtx Source matrix
+     * @return Vector3 with scale values for x,y,z
+     */
+    inline Vector3 ExtractScale(const Matrix4& mtx)
+    {
+        Vector4 col0(mtx.getCol(0));
+        Vector4 col1(mtx.getCol(1));
+        Vector4 col2(mtx.getCol(2));
+        return Vector3(length(col0), length(col1), length(col2));
+    }
+
+    /**
+     * Convert a matrix into a transform
+     * @param mtx Matrix4 to convert
+     * @return Transform representing the same transform
+     */
+    inline Transform ToTransform(const Matrix4& mtx)
+    {
+        Vector3 scale = ExtractScale(mtx);
+        Vector4 col3(mtx.getCol(3));
+        return dmTransform::Transform(Vector3(col3.getX(), col3.getY(), col3.getZ()), Quat(mtx.getUpper3x3()), scale);
+    }
+
+    /**
+     * Eliminate the scaling components in a matrix
+     * @param mtx Matrix to operate on
+     */
+    inline Vector3 ResetScale(Matrix4 *mtx)
+    {
+        Vector3 scale = ExtractScale(*mtx);
+        mtx->setCol(0, mtx->getCol(0) * (1.0f / scale.getX()));
+        mtx->setCol(1, mtx->getCol(1) * (1.0f / scale.getX()));
+        mtx->setCol(2, mtx->getCol(2) * (1.0f / scale.getX()));
+        return scale;
+    }
+
+    /**
+     * Eliminate the z scaling components in a matrix
+     * @param mtx Matrix to operate on
+     */
+    inline void NormalizeZScale(Matrix4 *mtx)
+    {
+        Vector4 col3(mtx->getCol(2));
+        float zMagSqr = lengthSqr(col3);
+        if (zMagSqr > 0.0f)
+        {
+             mtx->setCol(2, col3 * (1.0f / sqrtf(zMagSqr)));
+        }
+    }
+
+    /**
+     * Eliminate the z scaling components in a matrix
+     * @param source Source matrix
+     * @param target Target matrix
+     */
+    inline void NormalizeZScale(Matrix4 const &source, Matrix4 *target)
+    {
+        *target = source;
+        NormalizeZScale(target);
+    }
+
+    /**
+     * Multiply two matrices without z-scaling the translation in m2
+     * @param m1 First matrix
+     * @param m2 Second matrix
+     * @return The resulting transform
+     */
+    inline Matrix4 MulNoScaleZ(Matrix4 const &m1, Matrix4 const &m2)
+    {
+        // tmp is the non-z scaling version of m1
+        Matrix4 tmp, res;
+        NormalizeZScale(m1, &tmp);
+        res = m1 * m2;
+        res.setCol(3, tmp * m2.getCol(3));
         return res;
     }
 }

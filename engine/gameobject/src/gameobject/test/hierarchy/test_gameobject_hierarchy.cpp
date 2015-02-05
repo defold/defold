@@ -592,6 +592,27 @@ TEST_F(HierarchyTest, TestHierarchyScale)
     dmGameObject::Delete(m_Collection, parent);
 }
 
+TEST_F(HierarchyTest, TestHierarchyNonUniformScale)
+{
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, "/go.goc");
+
+    const Vector3 scale(4,5,6);
+    dmGameObject::SetScale(parent, scale);
+    dmGameObject::SetPosition(child, Point3(7.0f, 8.0f, 9.0f));
+    dmGameObject::SetParent(child, parent);
+    
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    
+    dmTransform::Transform world = dmGameObject::GetWorldTransform(child);
+    ASSERT_EQ(world.GetScale().getX(), scale.getX());
+    ASSERT_EQ(world.GetScale().getY(), scale.getY());
+    ASSERT_EQ(world.GetScale().getZ(), scale.getZ());
+
+    dmGameObject::Delete(m_Collection, child);
+    dmGameObject::Delete(m_Collection, parent);
+}
+
 TEST_F(HierarchyTest, TestHierarchyInheritScale)
 {
     dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/go.goc");

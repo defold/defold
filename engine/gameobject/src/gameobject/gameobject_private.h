@@ -97,6 +97,7 @@ namespace dmGameObject
         }
 
         dmTransform::Transform m_Transform;
+        
         // Shadowed rotation expressed in euler coordinates
         Vector3 m_EulerRotation;
         // Previous euler rotation, used to detect if the euler rotation has changed and should overwrite the real rotation (needed by animation)
@@ -257,7 +258,7 @@ namespace dmGameObject
         dmArray<uint16_t>        m_LevelIndices[MAX_HIERARCHICAL_DEPTH];
 
         // Array of world transforms. Calculated using m_LevelIndices above
-        dmArray<dmTransform::Transform> m_WorldTransforms;
+        dmArray<Matrix4> m_WorldTransforms;
 
         // Identifier to Instance mapping
         dmHashTable64<Instance*> m_IDToInstance;

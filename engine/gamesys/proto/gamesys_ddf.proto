@@ -22,6 +22,7 @@ message Create
     required dmMath.Quat    rotation = 2;
     optional uint64         id       = 3 [default=0];
     optional float          scale    = 4 [default=1];
+    optional dmMath.Vector3 scale3   = 5; // if zero, 'scale' is used instead
 }
 
 message CollectionProxyDesc

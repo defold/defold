@@ -67,8 +67,7 @@ public abstract class Node implements IAdaptable, Serializable {
     protected Vector3d euler = new Vector3d(0, 0, 0);
 
     @Property
-    @GreaterThanZero
-    private double scale = 1.0;
+    private Vector3d scale = new Vector3d(1.0, 1.0, 1.0);
 
     @Property(displayName = "scale")
     private Vector3d componentScale = new Vector3d(1.0, 1.0, 1.0);
@@ -250,13 +249,13 @@ public abstract class Node implements IAdaptable, Serializable {
         return new Vector3d(euler);
     }
 
-    public void setScale(double scale) {
+    public void setScale(Vector3d scale) {
         this.scale = scale;
         setAABBDirty();
         transformChanged();
     }
 
-    public double getScale() {
+    public Vector3d getScale() {
         return this.scale;
     }
 
@@ -336,9 +335,9 @@ public abstract class Node implements IAdaptable, Serializable {
         rotationScale.set(rotation);
         Matrix3d scale = new Matrix3d();
         scale.setIdentity();
-        scale.setElement(0, 0, this.scale * this.componentScale.getX());
-        scale.setElement(1, 1, this.scale * this.componentScale.getY());
-        scale.setElement(2, 2, this.scale * this.componentScale.getZ());
+        scale.setElement(0, 0, this.scale.x * this.componentScale.getX());
+        scale.setElement(1, 1, this.scale.y * this.componentScale.getY());
+        scale.setElement(2, 2, this.scale.z * this.componentScale.getZ());
         rotationScale.mul(scale);
         transform.setRotationScale(rotationScale);
     }
@@ -390,9 +389,9 @@ public abstract class Node implements IAdaptable, Serializable {
             localRotationScale.set(rotation);
             Matrix3d scale = new Matrix3d();
             scale.setIdentity();
-            scale.setElement(0, 0, this.scale * this.componentScale.getX());
-            scale.setElement(1, 1, this.scale * this.componentScale.getY());
-            scale.setElement(2, 2, this.scale * this.componentScale.getZ());
+            scale.setElement(0, 0, this.scale.x * this.componentScale.getX());
+            scale.setElement(1, 1, this.scale.y * this.componentScale.getY());
+            scale.setElement(2, 2, this.scale.z * this.componentScale.getZ());
             localRotationScale.mul(scale);
             local.setRotationScale(localRotationScale);
             transform.mul(local);
@@ -604,11 +603,23 @@ public abstract class Node implements IAdaptable, Serializable {
         return super.toString();
     }
 
+    public static Vector3d get3dScaleFromMatrix(Matrix4d mtx) {
+        Vector4d tmp = new Vector4d();
+        Vector3d out = new Vector3d();
+        mtx.getColumn(0, tmp);
+        out.x = tmp.length();
+        mtx.getColumn(1, tmp);
+        out.y = tmp.length();
+        mtx.getColumn(2, tmp);
+        out.z = tmp.length();
+        return out;
+    }
+
     public void setLocalTransform(Matrix4d transform) {
         Vector3d translation = new Vector3d();
         transform.get(translation);
         this.translation.set(translation);
-        this.scale = transform.getScale();
+        this.scale = get3dScaleFromMatrix(transform);
         transform.get(this.rotation);
         quatToEuler(this.rotation, euler);
         setAABBDirty();
@@ -624,7 +635,7 @@ public abstract class Node implements IAdaptable, Serializable {
         out.writeObject(this.translation);
         out.writeObject(this.rotation);
         out.writeObject(this.euler);
-        out.writeDouble(this.scale);
+        out.writeObject(this.scale);
         out.writeObject(this.componentScale);
     }
 
@@ -644,7 +655,7 @@ public abstract class Node implements IAdaptable, Serializable {
         this.translation = (Point3d)in.readObject();
         this.rotation = (Quat4d)in.readObject();
         this.euler = (Vector3d)in.readObject();
-        this.scale = in.readDouble();
+        this.scale = (Vector3d)in.readObject();
         this.componentScale = (Vector3d) in.readObject();
     }
 }

@@ -85,7 +85,7 @@ public class NodeTest extends AbstractNodeTest {
         assertEquals(new Vector3d(0, 180, 0), node.getEuler());
     }
 
-    void assertWorld(Node node, Point3d translation, Quat4d rotation, double scale) {
+    void assertWorld(Node node, Point3d translation, Quat4d rotation, Vector3d scale) {
         Matrix4d world = new Matrix4d();
         node.getWorldTransform(world);
         Vector3d t = new Vector3d();
@@ -96,7 +96,7 @@ public class NodeTest extends AbstractNodeTest {
         double epsilon = 0.0000000001;
         assertTrue(translation.epsilonEquals(new Point3d(t.x, t.y, t.z), epsilon));
         assertTrue(rotation.epsilonEquals(r, epsilon));
-        assertThat(s, is(scale));
+        assertThat(new Vector3d(s, s, s), is(scale));
     }
 
     @Test
@@ -108,7 +108,7 @@ public class NodeTest extends AbstractNodeTest {
         Point3d translation = new Point3d(1, 0, 0);
         Quat4d rotation = new Quat4d();
         rotation.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), Math.PI * 0.5));
-        double scale = 2.0;
+        Vector3d scale = new Vector3d(2.0, 2.0, 2.0);
 
         parent.setTranslation(translation);
         parent.setRotation(rotation);
@@ -125,7 +125,7 @@ public class NodeTest extends AbstractNodeTest {
         Point3d worldTranslation = new Point3d(1.0, 2.0, 0.0);
         Quat4d worldRotation = new Quat4d(rotation);
         worldRotation.mul(rotation);
-        double worldScale = scale * scale;
+        Vector3d worldScale = new Vector3d(scale.x * scale.x, scale.y * scale.y, scale.z * scale.z);
         assertWorld(child, worldTranslation, worldRotation, worldScale);
 
     }
@@ -143,7 +143,7 @@ public class NodeTest extends AbstractNodeTest {
         Point3d translation = new Point3d(1, 0, 0);
         Quat4d rotation = new Quat4d();
         rotation.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), Math.PI * 0.5));
-        double scale = 2.0;
+        Vector3d scale = new Vector3d(2.0, 2.0, 2.0);
 
         parent.setTranslation(translation);
         parent.setRotation(rotation);
@@ -161,7 +161,7 @@ public class NodeTest extends AbstractNodeTest {
         Point3d worldTranslationNoScale = new Point3d(1.0, 1.0, 0.0);
         Quat4d worldRotation = new Quat4d(rotation);
         worldRotation.mul(rotation);
-        double worldScale = scale * scale;
+        Vector3d worldScale = new Vector3d(scale.x * scale.x, scale.y * scale.y, scale.z * scale.z);
 
         assertWorld(childNoRotation, worldTranslationNoRotation, rotation, worldScale);
         assertWorld(childNoScale, worldTranslationNoScale, worldRotation, scale);
@@ -178,7 +178,7 @@ public class NodeTest extends AbstractNodeTest {
         Point3d translation = new Point3d(0, 0, 1);
         Quat4d rotation = new Quat4d();
         rotation.set(new AxisAngle4d(new Vector3d(0.0, 1.0, 0.0), Math.PI * 0.5));
-        double scale = 2.0;
+        Vector3d scale = new Vector3d(2.0, 2.0, 2.0);
 
         parent.setTranslation(translation);
         parent.setRotation(rotation);
@@ -196,7 +196,7 @@ public class NodeTest extends AbstractNodeTest {
         Point3d worldTranslationNoScale = new Point3d(1.0, 0.0, 1.0);
         Quat4d worldRotation = new Quat4d(rotation);
         worldRotation.mul(rotation);
-        double worldScale = scale * scale;
+        Vector3d worldScale = new Vector3d(scale.x * scale.x, scale.y * scale.y, scale.z * scale.z);
 
         assertWorld(childScale, worldTranslationScale, worldRotation, worldScale);
         assertWorld(childNoScale, worldTranslationNoScale, worldRotation, worldScale);

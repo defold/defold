@@ -60,7 +60,13 @@ namespace dmGameObject
             if (instance != 0x0)
             {
                 instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
-                instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, instance_desc.m_Scale);
+
+                // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
+                Vector3 scale = instance_desc.m_Scale3;
+                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
+                        scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+
+                instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
 
                 dmHashInit64(&instance->m_CollectionPathHashState, true);
                 const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);

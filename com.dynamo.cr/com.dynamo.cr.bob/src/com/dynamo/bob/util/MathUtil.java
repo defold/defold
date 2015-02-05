@@ -14,6 +14,10 @@ public class MathUtil {
         return new Point3d(p.getX(), p.getY(), p.getZ());
     }
 
+    public static Vector3d ddfToVecmath(Vector3 p) {
+        return new Vector3d(p.getX(), p.getY(), p.getZ());
+    }
+
     public static Quat4d ddfToVecmath(Quat q) {
         return new Quat4d(q.getX(), q.getY(), q.getZ(), q.getW());
     }
