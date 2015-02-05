@@ -496,14 +496,6 @@
      (difference previous clicked)
      (difference clicked previous)))
 
-(defnk selection-box
-  "Production function to trigger rendering of a selection box during a click-and-drag."
-  []
-  ;; Have to declare start/current-x/y so that they are passed to this
-  ;; production function in 'self'
-  #_(when dragging
-     (selection-region self)))
-
 (defn- drag-move?
   "True if the mouse moved far enough for this to be considered a click-and-drag."
   [self event]
@@ -528,22 +520,7 @@
     (select-nodes selection-node nodes)))
 
 (n/defnode SelectionController
-  (property start-x s/Int)
-  (property start-y s/Int)
-  (property current-x s/Int)
-  (property current-y s/Int)
-  (property selecting s/Bool (default false))
-  (property dragging s/Bool (default false))
-  (property previous-selection [s/Int])
-
   (property ui-state s/Any (default (constantly (atom {}))))
-
-  ;; Cached inputs during click-and-drag
-  (property glcontext s/Any)
-  (property renderable-inputs s/Any)
-  (property view-camera s/Any)
-  (property selection-node s/Any)
-  (property default-selection s/Any)
 
   (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
@@ -551,7 +528,7 @@
   (input selection-node s/Any :inject)
   (input default-selection s/Any)
 
-  (output selection-box `t/Region selection-box)
+  (output renderable t/RenderData selection-box-renderable)
 
   (on :mouse-down
     (when (selection-event? event)
@@ -608,16 +585,13 @@
     (.glEnd gl)))
 
 (defnk selection-box-renderable
-  [selection-box]
-  (when selection-box
-    {pass/overlay
-     [{:world-transform g/Identity4d
-       :render-fn (fn [ctx gl glu text-renderer]
-                    (render-selection-box ctx gl glu selection-box))}]}))
-
-(n/defnode SelectionBoxNode
-  (input selection-box `t/Region)
-  (output renderable RenderData selection-box-renderable))
+  [ui-state]
+  (let [{:keys [selection-box]} @ui-state]
+    (when selection-box
+      {pass/overlay
+       [{:world-transform g/Identity4d
+         :render-fn (fn [ctx gl glu text-renderer]
+                      (render-selection-box ctx gl glu selection-box))}]})))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -646,8 +620,7 @@
               grid         (ds/add (n/construct grid/Grid))
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
               controller   (ds/add (n/construct BroadcastController))
-              selector     (ds/add (n/construct SelectionController))
-              selection-box (ds/add (n/construct SelectionBoxNode))]
+              selector     (ds/add (n/construct SelectionController))]
           (ds/connect atlas-node   :texture-packing atlas-render :texture-packing)
           (ds/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
           (ds/connect atlas-node   :self            selector     :default-selection)
@@ -661,8 +634,7 @@
           (ds/connect background   :renderable      editor       :renderables)
           (ds/connect atlas-render :renderable      editor       :renderables)
           (ds/connect grid         :renderable      editor       :renderables)
-          (ds/connect selector     :selection-box   selection-box :selection-box)
-          (ds/connect selection-box :renderable     editor       :renderables)
+          (ds/connect selector     :renderable      editor       :renderables)
           (ds/connect atlas-node   :aabb            editor       :aabb))
         editor)))
 
