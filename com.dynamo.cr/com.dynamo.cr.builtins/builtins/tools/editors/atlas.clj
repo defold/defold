@@ -128,7 +128,7 @@
 (sm/defn build-atlas-image :- AtlasProto$AtlasImage
   [image :- Image]
   (.build (doto (AtlasProto$AtlasImage/newBuilder)
-            (protobuf/set-if-present :image image (comp str :path)))))
+            (.setImage (str (.path image))))))
 
 (sm/defn build-atlas-animation :- AtlasProto$AtlasAnimation
   [animation :- Animation]

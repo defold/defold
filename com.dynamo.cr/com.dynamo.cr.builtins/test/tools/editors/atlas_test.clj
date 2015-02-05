@@ -16,8 +16,7 @@
             [dynamo.system.test-support :refer [with-clean-world tempfile mock-iproject fixture]]
             [dynamo.types :as t]
             [schema.test]
-            [editors.atlas :as atlas]
-            [editors.image-node :as image-node])
+            [editors.atlas :as atlas])
   (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [java.io StringReader]
            [dynamo.types Image]
@@ -62,6 +61,10 @@
   [atlas]
   (n/get-node-value atlas :text-format))
 
+(n/defnode WildcardImageResourceNode
+  (property filename (s/protocol t/PathManipulation) (visible false))
+  (output content Image :cached (fnk [filename] (assoc image/placeholder-image :path (t/local-path filename)))))
+
 (defn test-project
   []
   (ds/transactional
@@ -70,8 +73,7 @@
       (ds/in project-node
         (p/register-editor "atlas" #'editors.atlas/on-edit)
         (p/register-node-type "atlas" editors.atlas/AtlasNode)
-        (p/register-node-type "png" editors.image-node/ImageResourceNode)
-        (p/register-node-type "jpg" editors.image-node/ImageResourceNode)
+        (p/register-node-type "png" WildcardImageResourceNode)
         project-node))))
 
 (defn round-trip
@@ -82,13 +84,7 @@
           second-gen   (->text (<-text project-node first-gen))]
       (= first-gen second-gen))))
 
-;; MTN - Removed on 2014-02-02
-;;
-;; This is failing due to the autowiring work. We now need to have legit image references.
-;;
-;; Sam has a test fixture on its way that we can use to resurrect this test.
-;;
-#_(defspec round-trip-preserves-fidelity
+(defspec round-trip-preserves-fidelity
   10
   (prop/for-all* [atlas] round-trip))
 
