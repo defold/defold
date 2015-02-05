@@ -260,8 +260,6 @@ There is no guaranteed ordering of the sequence."
 
 (defn- update-added-resources
   [project-node {:keys [added]}]
-  (when (not-empty added)
-    (println :update-added-resources added))
   (let [with-placeholders (group-by #(add-or-replace? project-node %) added)
         replacements      (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) (:replace-existing with-placeholders))]
     (unload-nodes replacements)
@@ -272,8 +270,6 @@ There is no guaranteed ordering of the sequence."
 
 (defn- update-deleted-resources
   [project-node {:keys [deleted]}]
-  (when (not-empty deleted)
-    (println :update-deleted-resources deleted))
   (let [nodes-to-delete (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) deleted)]
     (unload-nodes nodes-to-delete)
     (replace-nodes project-node nodes-to-delete #(new-node-for-path project-node (:filename %) Placeholder)))
@@ -281,8 +277,6 @@ There is no guaranteed ordering of the sequence."
 
 (defn- update-changed-resources
   [project-node {:keys [changed]}]
-  (when (not-empty changed)
-    (println :update-changed-resources changed))
   (let [nodes-to-replace (map #(first (nodes-with-filename project-node (file/make-project-path project-node %))) changed)]
     (unload-nodes nodes-to-replace)
     (replace-nodes project-node nodes-to-replace #(new-node-for-path project-node (:filename %) Placeholder))))
