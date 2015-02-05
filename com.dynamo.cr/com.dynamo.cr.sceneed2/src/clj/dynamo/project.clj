@@ -117,9 +117,10 @@ behavior."
     editor-node))
 
 (defn- send-project-scope-message
-  [txn graph self label kind]
-  (doseq [id (:nodes-added txn)]
-    (ds/send-after {:_id id} {:type :project-scope :scope self})))
+  [txn graph self label kind inputs-affected]
+  (when (inputs-affected :nodes)
+    (doseq [id (:nodes-added txn)]
+      (ds/send-after {:_id id} {:type :project-scope :scope self}))))
 
 (defn project-enclosing
   [node]
@@ -165,7 +166,7 @@ There is no guaranteed ordering of the sequence."
 (n/defnode Project
   (inherits n/Scope)
 
-  (trigger notify-content-nodes :modified send-project-scope-message)
+  (trigger notify-content-nodes :input-connections send-project-scope-message)
 
   (property tag                s/Keyword (default :project))
   (property eclipse-project    IProject)

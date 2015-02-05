@@ -155,7 +155,7 @@
 (defn- mark-activated
   [{:keys [graph] :as ctx} node-id input-label]
   (let [dirty-deps (get (t/output-dependencies (dg/node graph node-id)) input-label)]
-    (update-in ctx [:nodes-triggered node-id] set/union dirty-deps)))
+    (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
 
 (defn- activate-all-outputs
   [ctx node-id node]
@@ -168,7 +168,7 @@
 (defmulti perform (fn [ctx m] (:type m)))
 
 (defmethod perform :create-node
-  [{:keys [graph tempids cache-keys triggers-to-fire nodes-triggered world-ref new-event-loops nodes-added] :as ctx}
+  [{:keys [graph tempids cache-keys triggers-to-fire nodes-affected world-ref new-event-loops nodes-added] :as ctx}
    {:keys [node]}]
   (let [next-id     (dg/next-node graph)
         full-node   (assoc node :_id next-id :world-ref world-ref) ;; TODO: can we remove :world-ref from nodes?
@@ -180,8 +180,8 @@
       :tempids             (assoc tempids (:_id node) next-id)
       :cache-keys          (assoc cache-keys next-id (node->cache-keys full-node))
       :new-event-loops     (if (satisfies? t/MessageTarget full-node) (conj new-event-loops next-id) new-event-loops)
-      :triggers-to-fire    (assoc-in triggers-to-fire [next-id :added] true)
-      :nodes-triggered     (merge-with set/union nodes-triggered {next-id (t/outputs full-node)}))))
+      :triggers-to-fire    (update-in triggers-to-fire [next-id :added] concat [])
+      :nodes-affected      (merge-with set/union nodes-affected {next-id (t/outputs full-node)}))))
 
 (defn- disconnect-inputs
   [ctx target-node target-label]
@@ -208,7 +208,7 @@
     (lg/targets (:graph ctx) (:_id source-node) source-label)))
 
 (defmethod perform :become
-  [{:keys [graph tempids cache-keys nodes-triggered world-ref new-event-loops obsolete-cache-keys old-event-loops] :as ctx}
+  [{:keys [graph tempids cache-keys nodes-affected world-ref new-event-loops obsolete-cache-keys old-event-loops] :as ctx}
    {:keys [node-id to-node]}]
   (let [old-node         (dg/node graph node-id)
         to-node-id       (:_id to-node)
@@ -247,7 +247,7 @@
       :nodes-deleted       (assoc nodes-deleted node-id node)
       :nodes-added         (disj nodes-added node-id)
       :obsolete-cache-keys (concat obsolete-cache-keys (vals (get cache-keys node-id)))
-      :triggers-to-fire    (assoc-in triggers-to-fire [node-id :deleted] node)
+      :triggers-to-fire    (update-in triggers-to-fire [node-id :deleted] concat [])
       :cache-keys          (dissoc cache-keys node-id))))
 
 (defmethod perform :update-property
@@ -262,24 +262,28 @@
          (mark-activated node-id property)
          (assoc
            :graph               new-graph
-           :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] conj property)
+           :triggers-to-fire    (update-in triggers-to-fire [node-id :property-touched] concat [property])
            :properties-modified (update-in properties-modified [node-id] conj property))))))
 
 (defmethod perform :connect
-  [{:keys [graph] :as ctx} {:keys [source-id source-label target-id target-label]}]
+  [{:keys [graph triggers-to-fire] :as ctx} {:keys [source-id source-label target-id target-label]}]
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
-        (mark-activated target-id target-label)
-        (assoc :graph (lg/connect graph source-id source-label target-id target-label)))))
+      (mark-activated target-id target-label)
+      (assoc
+        :graph            (lg/connect graph source-id source-label target-id target-label)
+        :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
 (defmethod perform :disconnect
-  [{:keys [graph] :as ctx} {:keys [source-id source-label target-id target-label]}]
+  [{:keys [graph triggers-to-fire] :as ctx} {:keys [source-id source-label target-id target-label]}]
   (let [source-id (resolve-tempid ctx source-id)
         target-id (resolve-tempid ctx target-id)]
     (-> ctx
-        (mark-activated target-id target-label)
-        (assoc :graph (lg/disconnect graph source-id source-label target-id target-label)))))
+      (mark-activated target-id target-label)
+      (assoc
+        :graph            (lg/disconnect graph source-id source-label target-id target-label)
+        :triggers-to-fire (update-in triggers-to-fire [target-id :input-connections] concat [target-label])))))
 
 (defmethod perform :message
   [ctx {:keys [to-node body]}]
@@ -307,19 +311,19 @@
         x (f n)]
     [n x]))
 
-(defn- downstream-activation
+(defn- downstream-affected-nodes
   [{:keys [graph] :as ctx} outputs]
   (->> (pairs outputs)
        (mapcat #(apply lg/targets graph %))
        (reduce #(apply mark-activated %1 %2) ctx)))
 
-(defn- trace-trigger-activation
+(defn- trace-affected-nodes
   ([ctx]
-    (trace-trigger-activation ctx (:nodes-triggered ctx) maximum-graph-coloring-recursion))
+    (trace-affected-nodes ctx (:nodes-affected ctx) maximum-graph-coloring-recursion))
   ([ctx next-batch iterations-remaining]
     (assert (< 0 iterations-remaining) (txerrstr ctx "Output tracing stopped; probable cycle in the graph"))
-    (let [new-ctx    (downstream-activation ctx next-batch)
-          next-batch (map-diff (:nodes-triggered new-ctx) (:nodes-triggered ctx) set/difference)]
+    (let [new-ctx    (downstream-affected-nodes ctx next-batch)
+          next-batch (map-diff (:nodes-affected new-ctx) (:nodes-affected ctx) set/difference)]
       (if (empty? next-batch)
         new-ctx
         (recur new-ctx next-batch (dec iterations-remaining))))))
@@ -358,82 +362,59 @@
       (seq work)
       (update-in [:pending] conj work))))
 
-(def ^:private trigger-ordering
-  [:added :modified :deleted])
+(defn- last-seen-node
+  [{:keys [graph nodes-deleted]} node-id]
+  (or
+    (dg/node graph node-id)
+    (get nodes-deleted node-id)))
 
-(def ^:private context-trigger-keys
-  {:added    :nodes-added
-   :modified :outputs-modified
-   :deleted  :nodes-deleted})
-
-(defn- all-triggers
-  [all-activated]
-  (for [kind    trigger-ordering
-       n        all-activated
-       [l tr]   (-> n t/node-type t/triggers (get kind) seq)]
-   [tr n l kind]))
-
-(defn- should-trigger?
-  [ctx node kind]
-  (contains? (get ctx (context-trigger-keys kind)) (:_id node)))
-
-(defn- activated-triggers
-  [ctx triggers]
-  (filter (fn [[tr n l k]] (should-trigger? ctx n k)) triggers))
+(defn- trigger-activations
+  [{:keys [triggers-to-fire] :as ctx}]
+  (for [[node-id m] triggers-to-fire
+        [kind args] m
+        :let [node (last-seen-node ctx node-id)]
+        :when node
+        [l tr] (-> node t/node-type t/triggers (get kind) seq)]
+    (if (empty? args)
+      [tr node l kind]
+      [tr node l kind (set args)])))
 
 (defn- invoke-trigger
   [csub [tr & args]]
   (apply tr csub (:graph csub) args)
   csub)
 
-(defn trigger-debug
+(defn debug-invoke-trigger
   [csub [tr & args :as trvec]]
-  (println (txerrstr csub "invoking" tr "on" (:_id (first args))))
-  (println (txerrstr csub "nodes triggered" (:nodes-triggered csub)))
+  (println (txerrstr csub "invoking" tr "on" (:_id (first args)) "with" (rest args)))
+  (println (txerrstr csub "nodes triggered" (:nodes-affected csub)))
   (println (txerrstr csub (select-keys csub [:nodes-added :nodes-deleted :outputs-modified :properties-modified])))
   (invoke-trigger csub trvec))
 
 (defn- process-triggers
-  [{:keys [graph nodes-triggered nodes-added outputs-modified nodes-deleted triggers-to-fire] :as ctx}]
-  (let [all-activated  (concat (filter identity (map #(dg/node graph %) (keys nodes-triggered))) (vals nodes-deleted))
-        trigger-ctx    (-> ctx
-                         (update-in [:nodes-added]         set/intersection (into #{} (keys nodes-triggered)))
-                         (update-in [:nodes-deleted]       select-keys (keys nodes-triggered))
-                         (update-in [:outputs-modified]    select-keys (keys nodes-triggered))
-                         (update-in [:properties-modified] select-keys (keys nodes-triggered)))]
-    (binding [*transaction* (make-transaction-level (->TriggerReceiver trigger-ctx))]
-      (let [get-node (fn [node-id] (or (dg/node graph node-id) (get nodes-deleted node-id)))
-            triggers (for [[node-id m] triggers-to-fire
-                           [kind args] m
-                           :let [node (get-node node-id)]
-                           [l tr] (-> node t/node-type t/triggers (get kind) seq)]
-                       [tr node l kind])
-            #_triggers-with-params #_(for [[tr node l kind] triggers]
-                                      (let [foo (filter #(= kind (nth % 0)) triggers-to-fire)
-                                            bar (filter #(= (:_id node) (nth % 1)) foo)
-                                            args (set (map #(first (drop 2 %)) bar))]
-                                        [tr node l kind args]))]
-        #_(println (txerrstr ctx :triggers-to-fire triggers-to-fire (into [] triggers)))
-        (reduce (if *tx-debug* trigger-debug invoke-trigger) trigger-ctx triggers))
-      #_(reduce (if *tx-debug* trigger-debug invoke-trigger) trigger-ctx (activated-triggers trigger-ctx (all-triggers all-activated)))
-      (let [trigger-ctx (tx-apply *transaction*)]
-        (assoc ctx :pending (:pending trigger-ctx))))))
+  [ctx]
+  (when *tx-debug*
+    (println (txerrstr ctx "triggers to fire: " (:triggers-to-fire ctx))))
+  (binding [*transaction* (make-transaction-level (->TriggerReceiver ctx))]
+    (reduce (if *tx-debug* debug-invoke-trigger invoke-trigger) ctx (trigger-activations ctx))
+    (let [trigger-ctx (tx-apply *transaction*)]
+      (assoc ctx :pending (:pending trigger-ctx)))))
 
 (defn- mark-outputs-modified
   [ctx]
-  (update-in ctx [:outputs-modified] #(merge-with set/union % (:nodes-triggered ctx))))
+  (update-in ctx [:outputs-modified] #(merge-with set/union % (:nodes-affected ctx))))
 
 (defn- one-transaction-pass
   [ctx actions]
   (-> (update-in ctx [:txpass] inc)
     (assoc :triggers-to-fire {})
-    (assoc :nodes-triggered {})
+    (assoc :nodes-affected {})
     (apply-tx actions)
-    trace-trigger-activation
+    trace-affected-nodes
     mark-outputs-modified
     process-triggers
     (dissoc :triggers-to-fire)
-    (dissoc :nodes-triggered)))
+    (dissoc :nodes-affected)))
 
 (defn- exhaust-actions-and-triggers
   ([ctx]

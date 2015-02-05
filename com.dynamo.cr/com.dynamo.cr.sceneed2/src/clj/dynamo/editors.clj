@@ -138,7 +138,7 @@ Messages:
   (input  presenter-registry t/Registry)
   (output presenter-registry t/Registry (fnk [presenter-registry] presenter-registry))
 
-  (trigger view-scope :modified iuse/send-view-scope-message)
+  (trigger view-scope :input-connections iuse/send-view-scope-message)
 
   (on :create
     (let [canvas        (gl/glcanvas (:parent event))

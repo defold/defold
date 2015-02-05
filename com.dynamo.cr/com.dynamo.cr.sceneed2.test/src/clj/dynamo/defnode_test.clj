@@ -368,7 +368,7 @@
 
 (n/defnode BaseTriggerNode
   (trigger added-trigger        :added             (fn [& _] :ok))
-  (trigger multiway-trigger     :added :modified   (fn [& _] :ok))
+  (trigger multiway-trigger     :added :deleted    (fn [& _] :ok))
   (trigger on-delete            :deleted           (fn [& _] :ok))
   (trigger on-property-touched  :property-touched  (fn [& _] :ok))
   (trigger on-input-connections :input-connections (fn [& _] :ok)))
@@ -383,7 +383,7 @@
   (testing "basic trigger definition"
     (is (fn? (get-in (t/triggers BaseTriggerNode) [:added :added-trigger])))
     (is (fn? (get-in (t/triggers BaseTriggerNode) [:added :multiway-trigger])))
-    (is (fn? (get-in (t/triggers BaseTriggerNode) [:modified :multiway-trigger])))
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:deleted :multiway-trigger])))
     (is (fn? (get-in (t/triggers BaseTriggerNode) [:deleted :on-delete])))
     (is (fn? (get-in (t/triggers BaseTriggerNode) [:property-touched :on-property-touched])))
     (is (fn? (get-in (t/triggers BaseTriggerNode) [:input-connections :on-input-connections]))))
@@ -392,7 +392,7 @@
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :added-trigger])))
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :multiway-trigger])))
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :extra-added])))
-    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:modified :multiway-trigger]))))
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:deleted :multiway-trigger]))))
 
   (testing "inherited triggers can be overridden"
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:deleted :on-delete])))

@@ -554,7 +554,6 @@ for all properties of this node."
 
 (defn lookup-node-for-filename
   [transaction parent self filename]
-  (prn :lookup-node filename (:filename-index transaction))
   (or
     (get-in transaction [:filename-index filename])
     (if-let [added-this-txn (first (filter #(= filename (:filename %)) (ds/transaction-added-nodes transaction)))]
@@ -601,15 +600,15 @@ for all properties of this node."
       (remove-vestigial-connections transaction self prop surplus-connections))))
 
 (defn connect-resource
-  [transaction graph self label kind]
-  (prn :connect-resource (get-in transaction [:properties-modified (:_id self)]))
+  [transaction graph self label kind properties-affected]
   (let [parent (ds/parent graph self)]
     (reduce
       (fn [transaction prop]
         (when (resource? self prop)
-          (ensure-resources-connected transaction parent self prop)))
+          (ensure-resources-connected transaction parent self prop))
+        transaction)
       transaction
-      (get-in transaction [:properties-modified (:_id self)]))))
+      properties-affected)))
 
 (def node-intrinsics
   [(list 'output 'self `s/Any `(fnk [~'this] ~'this))
