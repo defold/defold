@@ -500,6 +500,7 @@
               camera       (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
               controller   (ds/add (n/construct BroadcastController))
               selector     (ds/add (n/construct SelectionController))]
+          (ds/update-property camera :movements-enabled disj :tumble)
           (ds/connect atlas-node   :texture-packing atlas-render :texture-packing)
           (ds/connect atlas-node   :gpu-texture     atlas-render :gpu-texture)
           (ds/connect atlas-node   :self            selector     :default-selection)

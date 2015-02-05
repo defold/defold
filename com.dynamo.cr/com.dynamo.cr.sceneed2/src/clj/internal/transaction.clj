@@ -158,12 +158,14 @@
     (update-in ctx [:nodes-affected node-id] set/union dirty-deps)))
 
 (defn- activate-all-outputs
-  [ctx node-id node]
-  (reduce
-    (fn [ctx out]
-      (mark-activated ctx node-id out))
-    ctx
-    (concat (t/outputs node) (keys (t/properties node)))))
+  [{:keys [graph] :as ctx} node-id node]
+  (let [all-labels  (concat (t/outputs node) (keys (t/properties node)))
+        all-targets (into #{[node-id nil]} (mapcat #(lg/targets graph node-id %) all-labels))]
+    (reduce
+      (fn [ctx [target-id target-label]]
+        (mark-activated ctx target-id target-label))
+      ctx
+      all-targets)))
 
 (defmulti perform (fn [ctx m] (:type m)))
 

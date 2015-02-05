@@ -73,9 +73,7 @@ an event is in flight."
   (let [deltas (atom {})
         visitor (reify IResourceDeltaVisitor
                   (^boolean visit [this ^IResourceDelta delta]
-                    (println :resource-delta-visitor (.getFullPath delta) (.getKind delta) (.getFlags delta) (.. delta getFullPath segmentCount) (< 2 (.. delta getFullPath segmentCount)))
                     (when (interesting? delta)
-                      (println :adding (delta-kinds (.getKind delta)) (.. delta getFullPath (removeFirstSegments 2)))
                       (swap! deltas update-in [(delta-kinds (.getKind delta))] conj (.. delta getFullPath (removeFirstSegments 2))))
                     (instance? IContainer (.getResource delta))))]
     (.accept (.getDelta event) visitor)
