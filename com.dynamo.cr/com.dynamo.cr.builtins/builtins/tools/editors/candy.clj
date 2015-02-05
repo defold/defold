@@ -63,22 +63,26 @@
 
 (vtx/defvertex texture-vtx
   (vec4 position)
-  (vec2 texcoord0))
+  (vec2 texcoord0)
+  (vec4 color))
 
 (shader/defshader vertex-shader
   (attribute vec4 position)
   (attribute vec2 texcoord0)
+  (attribute vec4 color)
   (varying vec2 var_texcoord0)
+  (varying vec4 var_color)
   (defn void main []
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
+    (setq var_texcoord0 texcoord0)
+    (setq var_color color)))
 
 (shader/defshader fragment-shader
   (varying vec2 var_texcoord0)
   (uniform sampler2D texture)
-  (uniform vec4 color)
+  (varying vec4 var_color)
   (defn void main []
-    (setq gl_FragColor (texture2D texture var_texcoord0.xy))
+    (setq gl_FragColor (* var_color (texture2D texture var_texcoord0.xy)))
     #_(setq gl_FragColor (vec4 var_texcoord0 0 1))))
 
 (def shader (shader/make-shader vertex-shader fragment-shader))
@@ -155,13 +159,6 @@
                 idx [i j]]]
       {:x x :y y :idx idx :image ((:blocks level) idx)})))
 
-(defn render-cells [^GL2 gl cells active-brush cell-size-half]
-  #_(gl/with-enabled gl [shader]
-     (doseq [cell cells]
-       (let [color (if (= active-brush (:image cell)) (get-selected-image-color (:image cell)) (get-image-color (:image cell)))]
-         (shader/set-uniform shader gl "color" (float-array color))
-         (render-quad gl (:x cell) (:y cell) (/ cell-size-half 1.1))))))
-
 (defn render-palette [ctx ^GL2 gl text-renderer gpu-texture vertex-binding layout]
   (doseq [group layout]
     (render-text ctx gl text-renderer (:name group) (- (:x group) palette-cell-size-half) (+ (* 0.25 group-spacing) (- palette-cell-size-half (:y group))) 0 1))
@@ -187,6 +184,9 @@
 (defn flip [v0 v1]
   [v1 v0])
 
+(defn gen-vertex [x y u v color]
+  (doall (concat [x y 0 1 u v] color)))
+
 (defn gen-quad [textureset cell size-half flip-vert]
   (let [x (:x cell)
         y (:y cell)
@@ -195,24 +195,25 @@
         x1 (+ x size-half)
         y1 (+ y size-half)
         [[u0 v0] [u1 v1]] (anim-uvs textureset (:image cell))
-        [v0 v1] (if flip-vert (flip v0 v1) [v0 v1])]
-    [[x0 y0 0 1 u0 v0]
-     [x1 y0 0 1 u1 v0]
-     [x0 y1 0 1 u0 v1]
-     [x1 y0 0 1 u1 v0]
-     [x1 y1 0 1 u1 v1]
-     [x0 y1 0 1 u0 v1]]
-    ))
+        [v0 v1] (if flip-vert (flip v0 v1) [v0 v1])
+        color (if (:color cell) (:color cell) [1 1 1 1])]
+    [(gen-vertex x0 y0 u0 v0 color)
+     (gen-vertex x1 y0 u1 v0 color)
+     (gen-vertex x0 y1 u0 v1 color)
+     (gen-vertex x1 y0 u1 v0 color)
+     (gen-vertex x1 y1 u1 v1 color)
+     (gen-vertex x0 y1 u0 v1 color)]))
 
 (defn cells->quads [textureset cells size-half flip-vert]
   (mapcat (fn [cell] (gen-quad textureset cell size-half flip-vert)) cells))
 
 (defn gen-palette-vertex-buffer
-  [textureset layout size-half]
+  [textureset layout size-half active-brush]
   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)
         vbuf  (->texture-vtx (* 6 cell-count))]
     (doseq [group layout]
-      (doseq [vertex (cells->quads textureset (:cells group) palette-cell-size-half false)]
+      (prn (map (fn [cell] (if (= active-brush (:image cell)) (assoc cell :color []) cell)) (:cells group)))
+      (doseq [vertex (cells->quads textureset (map (fn [cell] (if (= active-brush (:image cell)) cell (assoc cell :color [0.9 0.9 0.9 0.6]))) (:cells group)) palette-cell-size-half false)]
         (conj! vbuf vertex)))
     (persistent! vbuf)))
 
@@ -244,7 +245,7 @@
   (input active-brush s/Str)
   (output palette-layout s/Any (fnk [] (layout-palette palette)))
   (output level-layout s/Any (fnk [level] (layout-level level)))
-  (output palette-vertex-binding s/Any        (fnk [textureset palette-layout] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half) shader)))
+  (output palette-vertex-binding s/Any        (fnk [textureset palette-layout active-brush] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half active-brush) shader)))
   (output level-vertex-binding s/Any        (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
   (output renderable t/RenderData produce-renderable))
 
