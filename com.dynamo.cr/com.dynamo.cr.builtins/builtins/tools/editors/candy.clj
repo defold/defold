@@ -22,6 +22,7 @@
             [dynamo.selection :as sel]
             [dynamo.system :as ds]
             [internal.ui.scene-editor :as ius]
+            [internal.repaint :as repaint]
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
@@ -100,8 +101,8 @@
    {:name "Striped"
     :images (map (fn [color] (str color "_polka_horisontal")) candy-colors)}
    #_DEMO
-   #_{:name "Drop"
-     :images ["cherry" "hazelnut"]}])
+   {:name "Drop"
+    :images ["cherry" "hazelnut"]}])
 
 (defn- hit? [cell pos cell-size-half]
   (let [xc (:x cell)
@@ -215,9 +216,12 @@
         (conj! vbuf vertex)))
     (persistent! vbuf)))
 
+(def active-cell (atom {}))
+
 (defn gen-level-vertex-buffer
-  [textureset layout size-half]
-  (let [cell-count (count layout)
+  [textureset layout size-half active-brush]
+  (let [layout (map (fn [cell] (if (= @active-cell cell) (assoc cell :image active-brush) cell)) layout)
+        cell-count (count layout)
         vbuf  (->texture-vtx (* 6 cell-count))]
     (doseq [vertex (cells->quads textureset layout cell-size-half true)]
       (conj! vbuf vertex))
@@ -241,7 +245,7 @@
   (output palette-layout s/Any (fnk [] (layout-palette palette)))
   (output level-layout s/Any (fnk [level] (layout-level level)))
   (output palette-vertex-binding s/Any        (fnk [textureset palette-layout] (vtx/use-with (gen-palette-vertex-buffer textureset palette-layout palette-cell-size-half) shader)))
-  (output level-vertex-binding s/Any        (fnk [textureset level-layout] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half) shader)))
+  (output level-vertex-binding s/Any        (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
   (output renderable t/RenderData produce-renderable))
 
 (def prev-move-event (atom {:x 0 :y 0}))
@@ -262,7 +266,15 @@
                                      (Point3d. half-width half-height 0)))))
   
   (on :mouse-move
-      (reset! prev-move-event event))
+      (reset! prev-move-event event)
+      (let [camera (first (n/get-node-inputs self :camera))
+            world-pos-v4 (camera-unproject camera (:x event) (:y event) 0)
+            world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)} 
+            level (:level self)
+            level-cells (layout-level level)
+            level-hit (some #(hit? % world-pos cell-size-half) level-cells)]
+        (reset! active-cell level-hit)
+        (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [(ds/node-consuming self :aabb)])))
   (on :mouse-down
       (let [camera (first (n/get-node-inputs self :camera))
             pos {:x (:x event) :y (:y event)}
