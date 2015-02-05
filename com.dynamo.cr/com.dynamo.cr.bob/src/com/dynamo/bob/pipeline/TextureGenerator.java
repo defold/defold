@@ -32,7 +32,7 @@ public class TextureGenerator {
 
 
     // Two generate() methods to generate TextureImages without any texture profile.
-	static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
+    static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
         return generate(origImage, null);
      }
 
@@ -54,7 +54,7 @@ public class TextureGenerator {
         return image;
     }
 
-    private static TextureImage.Image.Builder generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat) throws TextureGeneratorException, IOException {
+    private static TextureImage.Image.Builder generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, boolean generateMipMaps, int maxTextureSize) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -119,10 +119,27 @@ public class TextureGenerator {
         }
 
         try {
-            int widthPOT = TextureUtil.closestPOT(image.getWidth());
-            int heightPOT = TextureUtil.closestPOT(image.getHeight());
-            if (width != widthPOT || height != heightPOT) {
-                if (!TexcLibrary.TEXC_Resize(texture, widthPOT, heightPOT)) {
+
+            int newWidth  = image.getWidth();
+            int newHeight = image.getHeight();
+
+            newWidth = TextureUtil.closestPOT(newWidth);
+            newHeight = TextureUtil.closestPOT(newHeight);
+
+            if (maxTextureSize > 0) {
+                while (newWidth > maxTextureSize) {
+                    newWidth = newWidth / 2;
+                }
+
+                while (newHeight > maxTextureSize) {
+                    newHeight = newHeight / 2;
+                }
+
+                assert( newWidth <= maxTextureSize && newHeight <= maxTextureSize );
+            }
+
+            if (width != newWidth || height != newHeight) {
+                if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
                     throw new TextureGeneratorException("could not resize texture to POT");
                 }
             }
@@ -131,23 +148,30 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
             }
-            if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
-                throw new TextureGeneratorException("could not generate mip-maps");
+            if (generateMipMaps)
+            {
+                if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
+                    throw new TextureGeneratorException("could not generate mip-maps");
+                }
             }
             if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB)) {
                 throw new TextureGeneratorException("could not transcode");
             }
-            // twice the size for mip maps
-            int bufferSize = widthPOT * heightPOT * componentCount * 2;
+
+            int bufferSize = newWidth * newHeight * componentCount;
+
+            if (generateMipMaps)
+                bufferSize *= 2; // twice the size for mip maps
+
             buffer = ByteBuffer.allocateDirect(bufferSize);
             dataSize = TexcLibrary.TEXC_GetData(texture, buffer, bufferSize);
             buffer.limit(dataSize);
 
-            TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(widthPOT).setHeight(heightPOT)
+            TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
 
-            int w = widthPOT;
-            int h = heightPOT;
+            int w = newWidth;
+            int h = newHeight;
             int offset = 0;
             while (w != 0 || h != 0) {
                 w = Math.max(w, 1);
@@ -158,6 +182,9 @@ public class TextureGenerator {
                 offset += size;
                 w >>= 1;
                 h >>= 1;
+
+                if (!generateMipMaps) // Run only once for non-mipmaps
+                    break;
             }
 
             raw.setData(ByteString.copyFrom(buffer));
@@ -197,7 +224,7 @@ public class TextureGenerator {
                 {
                     textureFormat = platformProfile.getFormats(i).getFormat();
 
-                    TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat);
+                    TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
                     raw.setTargetPlatform(platformProfile.getPlatform());
 
                     // TODO(sven): We should skip adding if generateFromColorAndFormat failed.
@@ -223,7 +250,7 @@ public class TextureGenerator {
                 break;
             }
 
-            TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat);
+            TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat, true, 0);
             textureBuilder.addAlternatives(raw.build());
             textureBuilder.setCount(1);
 
