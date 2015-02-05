@@ -35,31 +35,27 @@
 
 (set! *warn-on-reflection* true)
 
-(defn load-level [str]
-  (edn/read-string str))
+; Config
 
-(def test-level
-  {:width 2
-   :height 2
-   :game-mode "foo"
-   :blocks {[0 0] "red_candy"
-            [0 1] "blue_candy"
-            [1 0] "yellow_candy"
-            [1 1] "red_candy"}})
+(def palette-columns 2)
+(def group-spacing 20)
+(def cell-size 10)
+(def cell-size-half (/ cell-size 2.0))
+(def palette-cell-size 80)
+(def palette-cell-size-half (/ palette-cell-size 2.0))
 
-(defn- get-image-color [image]
-  (case image
-        "red_candy" [0.8 0 0 1]
-        "blue_candy" [0 0 0.8 1]
-        "yellow_candy" [0.8 0.8 0 1]
-        [0.8 0.8 0.8 1]))
+(def candy-colors ["red" "blue" "yellow" "green" "orange" "purple"])
 
-(defn- get-selected-image-color [image]
-  (case image
-        "red_candy" [1.0 0 0 1]
-        "blue_candy" [0 0 1.0 1]
-        "yellow_candy" [1.0 1.0 0 1]
-        [1.0 1.0 1.0 1]))
+(def palette
+  [{:name "Regular"
+    :images (map (fn [color] (str color "_candy")) candy-colors)}
+   {:name "Striped"
+    :images (map (fn [color] (str color "_polka_horisontal")) candy-colors)}
+   #_DEMO
+   #_{:name "Drop"
+     :images ["cherry" "hazelnut"]}])
+
+; Render assets
 
 (vtx/defvertex texture-vtx
   (vec4 position)
@@ -87,34 +83,7 @@
 
 (def shader (shader/make-shader vertex-shader fragment-shader))
 
-(defn- frange [n step]
-  (map #(* step %) (range n)))
-
-(def palette-columns 2)
-(def group-spacing 20)
-(def cell-size 10)
-(def cell-size-half (/ cell-size 2.0))
-(def palette-cell-size 80)
-(def palette-cell-size-half (/ palette-cell-size 2.0))
-
-(def candy-colors ["red" "blue" "yellow" "green" "orange" "purple"])
-
-(def palette
-  [{:name "Regular"
-    :images (map (fn [color] (str color "_candy")) candy-colors)}
-   {:name "Striped"
-    :images (map (fn [color] (str color "_polka_horisontal")) candy-colors)}
-   #_DEMO
-   {:name "Drop"
-    :images ["cherry" "hazelnut"]}])
-
-(defn- hit? [cell pos cell-size-half]
-  (let [xc (:x cell)
-        yc (:y cell)
-        d cell-size-half]
-    (when (and (<= (- xc d) (:x pos) (+ xc d))
-               (<= (- yc d) (:y pos) (+ yc d)))
-      cell)))
+; Layout
 
 (defn- layout-row [row x y cell-size]
   (let [column-f (fn [idx image] { :x (+ x (* cell-size idx)) :y y :image image})]
@@ -138,15 +107,6 @@
         (conj (layout-palette (rest groups) x
                               (+ y group-spacing (:height g'))) g')))))
 
-(defn render-text
-  [ctx ^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float zloc ^Float scale]
-  (gl/gl-push-matrix gl
-    (.glScaled gl 1 -1 1)
-    (.setColor text-renderer 1 1 1 1)
-    (.begin3DRendering text-renderer)
-    (.draw3D text-renderer chars xloc yloc zloc scale)
-    (.end3DRendering text-renderer)))
-
 (defn layout-level [level]
   (let [width (:width level)
         height (:height level)
@@ -158,6 +118,17 @@
                 y (- (+ offset-y (* j cell-size)))
                 idx [i j]]]
       {:x x :y y :idx idx :image ((:blocks level) idx)})))
+
+; Rendering
+
+(defn render-text
+  [ctx ^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc ^Float zloc ^Float scale]
+  (gl/gl-push-matrix gl
+    (.glScaled gl 1 -1 1)
+    (.setColor text-renderer 1 1 1 1)
+    (.begin3DRendering text-renderer)
+    (.draw3D text-renderer chars xloc yloc zloc scale)
+    (.end3DRendering text-renderer)))
 
 (defn render-palette [ctx ^GL2 gl text-renderer gpu-texture vertex-binding layout]
   (doseq [group layout]
@@ -172,6 +143,8 @@
    (gl/with-enabled gl [gpu-texture shader vertex-binding]
     (shader/set-uniform shader gl "texture" (texture/texture-unit-index gl gpu-texture))
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 cell-count)))))
+
+; Vertex generation
 
 (defn anim-uvs [textureset id]
   (let [anim (first (filter (fn [anim] (= id (:id anim))) (:animations textureset)))
@@ -212,7 +185,6 @@
   (let [cell-count (reduce (fn [v0 v1] (+ v0 (count (:cells v1)))) 0 layout)
         vbuf  (->texture-vtx (* 6 cell-count))]
     (doseq [group layout]
-      (prn (map (fn [cell] (if (= active-brush (:image cell)) (assoc cell :color []) cell)) (:cells group)))
       (doseq [vertex (cells->quads textureset (map (fn [cell] (if (= active-brush (:image cell)) cell (assoc cell :color [0.9 0.9 0.9 0.6]))) (:cells group)) palette-cell-size-half false)]
         (conj! vbuf vertex)))
     (persistent! vbuf)))
@@ -227,6 +199,8 @@
     (doseq [vertex (cells->quads textureset layout cell-size-half true)]
       (conj! vbuf vertex))
     (persistent! vbuf)))
+
+; Node defs
 
 (defnk produce-renderable
   [this level gpu-texture texture-packing palette-vertex-binding level-vertex-binding active-brush palette-layout level-layout]
@@ -249,7 +223,13 @@
   (output level-vertex-binding s/Any        (fnk [textureset level-layout active-brush] (vtx/use-with (gen-level-vertex-buffer textureset level-layout cell-size-half active-brush) shader)))
   (output renderable t/RenderData produce-renderable))
 
-(def prev-move-event (atom {:x 0 :y 0}))
+(defn- hit? [cell pos cell-size-half]
+  (let [xc (:x cell)
+        yc (:y cell)
+        d cell-size-half]
+    (when (and (<= (- xc d) (:x pos) (+ xc d))
+               (<= (- yc d) (:y pos) (+ yc d)))
+      cell)))
 
 (n/defnode CandyNode
   (inherits n/OutlineNode)
@@ -266,8 +246,9 @@
                            (t/->AABB (Point3d. (- half-width) (- half-height) 0)
                                      (Point3d. half-width half-height 0)))))
   
+  ; Input handling
+
   (on :mouse-move
-      (reset! prev-move-event event)
       (let [camera (first (n/get-node-inputs self :camera))
             world-pos-v4 (camera-unproject camera (:x event) (:y event) 0)
             world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)} 
@@ -292,10 +273,12 @@
           (ds/set-property self :level (assoc-in level [:blocks (:idx level-hit)] (:active-brush self))))))
   (on :load
       (let [project (:project event)
-            level (load-level (slurp (:filename self)))]
+            level (edn/read-string (slurp (:filename self)))]
         (ds/set-property self :width (:width level))
         (ds/set-property self :height (:height level))
         (ds/set-property self :level level))))
+
+; Temp - should be removed
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -314,6 +297,8 @@
   (on :mouse-wheel (broadcast-event self event))
   (on :key-down (broadcast-event self event))
   (on :key-up (broadcast-event self event)))
+
+; Graph connections
 
 (defn on-edit
   [project-node editor-site candy-node]
