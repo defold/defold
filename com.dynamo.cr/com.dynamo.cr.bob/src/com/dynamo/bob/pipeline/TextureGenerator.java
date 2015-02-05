@@ -13,23 +13,37 @@ import java.nio.ByteBuffer;
 
 import javax.imageio.ImageIO;
 
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.TexcLibrary;
 import com.dynamo.bob.TexcLibrary.ColorSpace;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.google.protobuf.ByteString;
 import com.sun.jna.Pointer;
 
 
 public class TextureGenerator {
 
+
+    // Two generate() methods to generate TextureImages without any texture profile.
+	static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
+        return generate(origImage, null);
+     }
+
     static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
+        return generate(inputStream, null);
+     }
+
+    static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
-        return generate(origImage);
+        return generate(origImage, texProfile);
      }
 
     private static BufferedImage convertImage(BufferedImage origImage, int type) {
@@ -40,36 +54,13 @@ public class TextureGenerator {
         return image;
     }
 
-    static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
-        // Convert image into readable format
-        // Always convert to ABGR since the texc lib demands that for resizing etc
-        BufferedImage image;
-        if (origImage.getType() != BufferedImage.TYPE_4BYTE_ABGR) {
-            image = convertImage(origImage, BufferedImage.TYPE_4BYTE_ABGR);
-        } else {
-            image = origImage;
-        }
+    private static TextureImage.Image.Builder generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
-        ColorModel colorModel = origImage.getColorModel();
         int componentCount = colorModel.getNumComponents();
         int pixelFormat = PixelFormat.R8G8B8A8;
-        TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
-        switch (componentCount) {
-        case 1:
-            pixelFormat = PixelFormat.L8;
-            textureFormat = TextureFormat.TEXTURE_FORMAT_LUMINANCE;
-            break;
-        case 3:
-            pixelFormat = PixelFormat.R8G8B8;
-            textureFormat = TextureFormat.TEXTURE_FORMAT_RGB;
-            break;
-        case 4:
-            pixelFormat = PixelFormat.R8G8B8A8;
-            textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
-            break;
-        }
+
         int dataSize = width * height * 4;
         ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
         int[] rasterData = new int[dataSize];
@@ -79,9 +70,57 @@ public class TextureGenerator {
         }
         buffer.flip();
         Pointer texture = TexcLibrary.TEXC_Create(width, height, PixelFormat.R8G8B8A8, ColorSpace.SRGB, buffer);
+
+        // pick a pixel format (for texc) based on the texture format
+        switch (textureFormat)
+        {
+        case TEXTURE_FORMAT_LUMINANCE:
+            pixelFormat = PixelFormat.L8;
+            break;
+        case TEXTURE_FORMAT_RGB:
+            pixelFormat = PixelFormat.R8G8B8;
+            break;
+        case TEXTURE_FORMAT_RGBA:
+            pixelFormat = PixelFormat.R8G8B8A8;
+            break;
+
+        case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            pixelFormat = PixelFormat.RGB_PVRTC_2BPPV1;
+            break;
+        case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            pixelFormat = PixelFormat.RGB_PVRTC_4BPPV1;
+            break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            pixelFormat = PixelFormat.RGBA_PVRTC_2BPPV1;
+            break;
+        case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            pixelFormat = PixelFormat.RGBA_PVRTC_4BPPV1;
+            break;
+
+        case TEXTURE_FORMAT_RGB_ETC1:
+            pixelFormat = PixelFormat.RGB_ETC1;
+            break;
+
+        case TEXTURE_FORMAT_RGB_DXT1:
+            pixelFormat = PixelFormat.RGB_DXT1;
+            break;
+        case TEXTURE_FORMAT_RGBA_DXT1:
+            pixelFormat = PixelFormat.RGBA_DXT1;
+            break;
+        case TEXTURE_FORMAT_RGBA_DXT3:
+            pixelFormat = PixelFormat.RGBA_DXT3;
+            break;
+        case TEXTURE_FORMAT_RGBA_DXT5:
+            pixelFormat = PixelFormat.RGBA_DXT5;
+            break;
+
+        default:
+            throw new TextureGeneratorException( "Invalid texture format." );
+        }
+
         try {
-            int widthPOT = TextureUtil.closestPOT(origImage.getWidth());
-            int heightPOT = TextureUtil.closestPOT(origImage.getHeight());
+            int widthPOT = TextureUtil.closestPOT(image.getWidth());
+            int heightPOT = TextureUtil.closestPOT(image.getHeight());
             if (width != widthPOT || height != heightPOT) {
                 if (!TexcLibrary.TEXC_Resize(texture, widthPOT, heightPOT)) {
                     throw new TextureGeneratorException("could not resize texture to POT");
@@ -104,8 +143,6 @@ public class TextureGenerator {
             dataSize = TexcLibrary.TEXC_GetData(texture, buffer, bufferSize);
             buffer.limit(dataSize);
 
-            TextureImage.Builder textureBuilder = TextureImage.newBuilder();
-
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(widthPOT).setHeight(heightPOT)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
 
@@ -125,14 +162,75 @@ public class TextureGenerator {
 
             raw.setData(ByteString.copyFrom(buffer));
             raw.setFormat(textureFormat);
-            textureBuilder.addAlternatives(raw);
-            textureBuilder.setType(Type.TYPE_2D);
-            textureBuilder.setCount(1);
-            return textureBuilder.build();
+
+            return raw;
 
         } finally {
             TexcLibrary.TEXC_Destroy(texture);
         }
+
+    }
+
+    static TextureImage generate(BufferedImage origImage, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+        // Convert image into readable format
+        // Always convert to ABGR since the texc lib demands that for resizing etc
+        BufferedImage image;
+        if (origImage.getType() != BufferedImage.TYPE_4BYTE_ABGR) {
+            image = convertImage(origImage, BufferedImage.TYPE_4BYTE_ABGR);
+        } else {
+            image = origImage;
+        }
+
+        // Setup texture format and settings
+        TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
+        ColorModel colorModel = origImage.getColorModel();
+        TextureImage.Builder textureBuilder = TextureImage.newBuilder();
+
+        if (texProfile != null)
+        {
+
+            // Generate an image for each format specified in the profile
+            int altCount = 0;
+            for ( PlatformProfile platformProfile : texProfile.getPlatformsList())
+            {
+                for ( int i = 0; i < platformProfile.getFormatsList().size(); ++i)
+                {
+                    textureFormat = platformProfile.getFormats(i).getFormat();
+
+                    TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat);
+                    raw.setTargetPlatform(platformProfile.getPlatform());
+
+                    // TODO(sven): We should skip adding if generateFromColorAndFormat failed.
+                    textureBuilder.addAlternatives(raw.build());
+                    altCount += 1;
+                }
+            }
+            textureBuilder.setCount(altCount);
+
+        } else {
+
+            // Guess texture format based on number color components of input image
+            int componentCount = colorModel.getNumComponents();
+            switch (componentCount) {
+            case 1:
+                textureFormat = TextureFormat.TEXTURE_FORMAT_LUMINANCE;
+                break;
+            case 3:
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGB;
+                break;
+            case 4:
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
+                break;
+            }
+
+            TextureImage.Image.Builder raw = generateFromColorAndFormat(image, colorModel, textureFormat);
+            textureBuilder.addAlternatives(raw.build());
+            textureBuilder.setCount(1);
+
+        }
+
+        textureBuilder.setType(Type.TYPE_2D);
+        return textureBuilder.build();
 
     }
 

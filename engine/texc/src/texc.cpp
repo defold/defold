@@ -14,12 +14,35 @@ namespace dmTexc
     {
         switch (pixel_format)
         {
+        // Raw
         case PF_L8:
             return pvrtexture::PixelType('l', 0, 0, 0, 8, 0, 0, 0);
         case PF_R8G8B8:
             return pvrtexture::PixelType('r', 'g', 'b', 0, 8, 8, 8, 0);
         case PF_R8G8B8A8:
             return pvrtexture::PixelType('r', 'g', 'b', 'a', 8, 8, 8, 8);
+
+        // PVRTC
+        case PF_RGB_PVRTC_2BPPV1:
+            return ePVRTPF_PVRTCI_2bpp_RGB;
+        case PF_RGB_PVRTC_4BPPV1:
+            return ePVRTPF_PVRTCI_4bpp_RGB;
+        case PF_RGBA_PVRTC_2BPPV1:
+            return ePVRTPF_PVRTCI_2bpp_RGBA;
+        case PF_RGBA_PVRTC_4BPPV1:
+            return ePVRTPF_PVRTCI_4bpp_RGBA;
+
+        // ETC
+        case PF_RGB_ETC1:
+            return ePVRTPF_ETC1;
+
+        // DXT
+        case PF_RGB_DXT1:
+        case PF_RGBA_DXT1:
+        case PF_RGBA_DXT3:
+        case PF_RGBA_DXT5:
+            printf( "DXT formats not supported in PVRTexTool.\n" );
+            break;
         }
         // Should never get here
         assert(false);

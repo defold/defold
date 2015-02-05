@@ -16,6 +16,7 @@ import java.util.Set;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -33,6 +34,7 @@ import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesystem.proto.GameSystem.LightDesc;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -94,6 +96,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".camerac", CameraDesc.class);
         extToMessageClass.put(".lightc", LightDesc.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
+        extToMessageClass.put(".texture_profilesc", TextureProfiles.class);
 
         leafResourceTypes.add(".texturec");
         leafResourceTypes.add(".vpc");
