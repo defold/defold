@@ -440,11 +440,11 @@
     :width (max min-selection-size (:width rect))
     :height (max min-selection-size (:height rect))))
 
-(defn find-nodes-in-selection [this]
-  (let [{:keys [glcontext renderable-inputs view-camera]} this
+(defn find-nodes-in-selection [ui-state]
+  (let [{:keys [glcontext renderable-inputs view-camera]} ui-state
         renderables (apply merge-with concat renderable-inputs)
         {:keys [viewport]} view-camera
-        pick-rect (-> this
+        pick-rect (-> ui-state
                     selection-region
                     pick-rect
                     min-selection-rect
@@ -498,11 +498,11 @@
 
 (defnk selection-box
   "Production function to trigger rendering of a selection box during a click-and-drag."
-  [dragging start-x start-y current-x current-y :as self]
+  []
   ;; Have to declare start/current-x/y so that they are passed to this
   ;; production function in 'self'
-  (when dragging
-    (selection-region self)))
+  #_(when dragging
+     (selection-region self)))
 
 (defn- drag-move?
   "True if the mouse moved far enough for this to be considered a click-and-drag."
@@ -514,8 +514,10 @@
 
 (defn complete-selection
   [self event]
-  (let [{:keys [start-x start-y dragging world-ref previous-selection selection-node default-selection]} self
-        clicked (set (cond->> (find-nodes-in-selection self)
+  (let [{:keys [world-ref ui-state]} self
+        ui-state @ui-state
+        {:keys [start-x start-y dragging previous-selection selection-node default-selection]} ui-state
+        clicked (set (cond->> (find-nodes-in-selection ui-state)
                        (not dragging) (take 1)))
         new-node-ids (case (selection-mode event)
                        :replace clicked
@@ -533,6 +535,8 @@
   (property selecting s/Bool (default false))
   (property dragging s/Bool (default false))
   (property previous-selection [s/Int])
+
+  (property ui-state s/Any (default (constantly (atom {}))))
 
   ;; Cached inputs during click-and-drag
   (property glcontext s/Any)
@@ -555,7 +559,7 @@
               (n/get-node-inputs self :selection-node :default-selection :glcontext :renderables :view-camera)
             previous-selection (disj (selected-node-ids selection-node)
                                  (:_id default-selection))]
-        (ds/set-property self
+        (swap! (:ui-state self) assoc
           :selecting true
           :selection-node selection-node
           :default-selection default-selection
@@ -569,21 +573,21 @@
           :current-y (:y event)))))
 
   (on :mouse-move
-    (when (and (:selecting self)
-            (or (:dragging self) (drag-move? self event)))
-      (ds/set-property self
-        :dragging true
-        :current-x (:x event)
-        :current-y (:y event))
-      ;; TODO: just update selection, don't trigger fire-selection-changed
-      (complete-selection self event)))
+    (let [{:keys [selecting dragging] :as ui-state} @(:ui-state self)]
+      (when (and selecting (or dragging (drag-move? ui-state event)))
+       (swap! (:ui-state self) assoc
+         :dragging true
+         :current-x (:x event)
+         :current-y (:y event))
+       ;; TODO: just update selection, don't trigger fire-selection-changed
+       ;; (complete-selection self event)
+       )))
 
   (on :mouse-up
-    (when (:selecting self)
-      (complete-selection self event))
-    (ds/set-property self
-      :selecting false
-      :dragging false)))
+    (let [{:keys [selecting] :as ui-state} @(:ui-state self)]
+      (when selecting
+        (complete-selection self event)
+        (reset! (:ui-state self) {})))))
 
 (defn- render-selection-box
   [ctx ^GL2 gl glu selection-box]
