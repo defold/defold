@@ -26,7 +26,8 @@
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [internal.render.pass :as pass])
+            [internal.render.pass :as pass]
+            [internal.repaint :as repaint])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -534,11 +535,13 @@
     (when (selection-event? event)
       (let [[selection-node default-selection glcontext renderables view-camera]
               (n/get-node-inputs self :selection-node :default-selection :glcontext :renderables :view-camera)
+            editor-node (ds/node-consuming self :renderable)
             previous-selection (disj (selected-node-ids selection-node)
                                  (:_id default-selection))]
         (swap! (:ui-state self) assoc
           :selecting true
           :selection-node selection-node
+          :editor-node editor-node
           :default-selection default-selection
           :glcontext glcontext
           :renderable-inputs renderables
@@ -550,15 +553,14 @@
           :current-y (:y event)))))
 
   (on :mouse-move
-    (let [{:keys [selecting dragging] :as ui-state} @(:ui-state self)]
+    (let [{:keys [selecting dragging editor-node] :as ui-state} @(:ui-state self)]
       (when (and selecting (or dragging (drag-move? ui-state event)))
-       (swap! (:ui-state self) assoc
-         :dragging true
-         :current-x (:x event)
-         :current-y (:y event))
-       ;; TODO: just update selection, don't trigger fire-selection-changed
-       ;; (complete-selection self event)
-       )))
+        (swap! (:ui-state self) assoc
+          :dragging true
+          :current-x (:x event)
+          :current-y (:y event)
+          :selection-region (selection-region (assoc ui-state :current-x (:x event) :current-y (:y event))))
+       (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
 
   (on :mouse-up
     (let [{:keys [selecting] :as ui-state} @(:ui-state self)]
@@ -586,12 +588,12 @@
 
 (defnk selection-box-renderable
   [ui-state]
-  (let [{:keys [selection-box]} @ui-state]
-    (when selection-box
-      {pass/overlay
-       [{:world-transform g/Identity4d
-         :render-fn (fn [ctx gl glu text-renderer]
-                      (render-selection-box ctx gl glu selection-box))}]})))
+  {pass/overlay
+   [{:world-transform g/Identity4d
+     :render-fn (fn [ctx gl glu text-renderer]
+                  (let [{:keys [selection-region]} @ui-state]
+                    (when selection-region
+                      (render-selection-box ctx gl glu selection-region))))}]})
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
