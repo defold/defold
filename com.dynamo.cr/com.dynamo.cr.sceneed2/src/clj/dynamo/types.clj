@@ -138,8 +138,6 @@
 
 (def MouseType (s/enum :one-button :three-button))
 
-(def Callbacks [clojure.lang.IFn])
-
 (def Registry {s/Any s/Any})
 
 (sm/defrecord Rect
@@ -188,7 +186,7 @@
    flip-vertical   :- s/Int
    playback        :- AnimationPlayback])
 
-(sm/defrecord TextureSet
+(sm/defrecord TexturePacking
   [aabb         :- Rect
    packed-image :- BufferedImage
    coords       :- [Rect]
@@ -209,6 +207,25 @@
    data            :- ByteBuffer
    mipmap-sizes    :- [Int32]
    mipmap-offsets  :- [Int32]])
+
+(sm/defrecord TextureSetAnimationFrame
+  [image            :- Image ; TODO: is this necessary?
+   vertices         :- [[s/Num]]
+   outline-vertices :- [[s/Num]]
+   tex-coords       :- [[s/Num]]])
+
+(sm/defrecord TextureSetAnimation
+  [id              :- s/Str
+   width           :- Int32
+   height          :- Int32
+   fps             :- Int32
+   flip-horizontal :- s/Int
+   flip-vertical   :- s/Int
+   playback        :- AnimationPlayback
+   frames          :- [TextureSetAnimationFrame]])
+
+(sm/defrecord TextureSet
+  [animations :- [TextureSetAnimation]])
 
 (defprotocol Pass
   (selection?       [this])

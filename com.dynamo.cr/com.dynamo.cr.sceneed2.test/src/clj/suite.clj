@@ -7,6 +7,7 @@
 
 (def test-namespaces ['internal.either-test
                       'internal.injection-test
+                      'internal.math-test
                       'internal.node-test
                       'internal.refresh-test
                       'internal.scope-test

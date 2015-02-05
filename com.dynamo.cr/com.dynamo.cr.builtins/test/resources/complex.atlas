@@ -1,0 +1,60 @@
+images {
+  image: "/images/frame-01.png"
+}
+images {
+  image: "/images/frame-02.png"
+}
+images {
+  image: "/images/small.png"
+}
+images {
+  image: "/images/large.png"
+}
+animations {
+  id: "anim1"
+  images {
+    image: "/images/frame-01.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "anim2"
+  images {
+    image: "/images/frame-02.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "anim3"
+  images {
+    image: "/images/frame-03.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+animations {
+  id: "anim4"
+  images {
+    image: "/images/frame-01.png"
+  }
+  images {
+    image: "/images/frame-02.png"
+  }
+  images {
+    image: "/images/frame-03.png"
+  }
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+margin: 0
+extrude_borders: 0
