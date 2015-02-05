@@ -6,6 +6,10 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.dynamo.graphics.proto.Graphics.PathSettings;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+
 public class TextureUtil {
     public static int closestPOT(int i) {
         int nextPow2 = 1;
@@ -139,5 +143,40 @@ public class TextureUtil {
             result = src;
         }
         return result;
+    }
+
+    /**
+     * Util method to get the correct texture profile for a specific resource path.
+     * We need a "built" texture profile message, i.e. where path entries has been
+     * substituted with their regex counterpart.
+     *
+     * Returns null if no profile was found, as will be expected by the second parameter
+     * to TextureGenerator.generate().
+     */
+    public static TextureProfile getTextureProfileByPath( TextureProfiles textureProfiles, String path ) {
+
+        // Look through the path settings if the current input filepath matches,
+        // if found, lookup the correct texture profile to use.
+        for (PathSettings pathSettings : textureProfiles.getPathSettingsList())
+        {
+            // Paths are stored as regex strings (they are converted from ant-glob in
+            // the build step for .texture_profiles).
+            String regexPath = pathSettings.getPath().toString();
+            if (path.matches(regexPath))
+            {
+
+                // Find matching profile name (there could be a reference to an non-existent profile):
+                for ( TextureProfile texProfile : textureProfiles.getProfilesList() ) {
+                    if ( texProfile.getName().toString().equals( pathSettings.getProfile().toString() ) )
+                    {
+                        return texProfile;
+                    }
+                }
+                break;
+            }
+        }
+
+        return null;
+
     }
 }

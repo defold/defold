@@ -50,6 +50,7 @@ message TextureImage
         repeated uint32 mip_map_offset  = 6;
         repeated uint32 mip_map_size    = 7;
         required bytes data             = 8;
+        optional string target_platform = 9; // FIXME(sven): Is this really the best solution? We need some way to check in runtime.
     }
 
     repeated Image alternatives = 1;
@@ -57,4 +58,44 @@ message TextureImage
     // When count > 1 count mipmaps are laid out contiguously in memory and
     // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
     required uint32 count       = 3;
+}
+
+// We encapsulate the texture format in its own message due
+// to we cant have repeated enums.
+message TextureFormatAlternative
+{
+    required TextureImage.TextureFormat format = 1;
+}
+
+message PathSettings
+{
+    required string path    = 1;
+    required string profile = 2;
+}
+
+message PlatformProfile
+{
+    required string platform                  = 1;
+    repeated TextureFormatAlternative formats = 2;
+    required bool mipmaps                     = 3;
+    optional uint32 max_texture_size          = 4;
+}
+
+message TextureProfile
+{
+    required string name = 1;
+    repeated PlatformProfile platforms = 2;
+}
+
+message TextureProfiles
+{
+    enum CompressionLevel {
+        LOW    = 0;
+        MEDIUM = 1;
+        HIGH   = 2;
+    }
+
+    repeated PathSettings path_settings         = 1;
+    repeated TextureProfile profiles            = 2;
+    required CompressionLevel compression_level = 3;
 }

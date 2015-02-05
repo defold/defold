@@ -19,9 +19,18 @@ public class TexcLibrary {
     }
 
     public interface PixelFormat {
-        public static int L8 = 0;
-        public static int R8G8B8 = 1;
-        public static int R8G8B8A8 = 2;
+        public static int L8                = 0;
+        public static int R8G8B8            = 1;
+        public static int R8G8B8A8          = 2;
+        public static int RGB_PVRTC_2BPPV1  = 3;
+        public static int RGB_PVRTC_4BPPV1  = 4;
+        public static int RGBA_PVRTC_2BPPV1 = 5;
+        public static int RGBA_PVRTC_4BPPV1 = 6;
+        public static int RGB_ETC1          = 7;
+        public static int RGB_DXT1          = 8;
+        public static int RGBA_DXT1         = 9;
+        public static int RGBA_DXT3         = 10;
+        public static int RGBA_DXT5         = 11;
     }
 
     public interface ColorSpace {
