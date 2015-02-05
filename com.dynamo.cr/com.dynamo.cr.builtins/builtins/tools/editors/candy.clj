@@ -324,6 +324,7 @@
             grid           (ds/add (n/construct grid/Grid))
             camera         (ds/add (n/construct CameraController :camera (make-camera :orthographic)))
             atlas-node      (t/lookup project-node "/candy/candy.atlas")]
+        (ds/update-property camera :movements-enabled disj :tumble)
         (ds/connect camera         :camera      grid           :camera)
         (ds/connect camera         :camera      editor         :view-camera)
         (ds/connect camera         :camera      candy-node     :camera)

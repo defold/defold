@@ -309,12 +309,13 @@
   (property camera Camera)
 
   (property ui-state s/Any (default (constantly (atom {:movement :idle}))))
+  (property movements-enabled s/Any (default #{:dolly :track :tumble}))
 
   (on :mouse-down
     (swap! (:ui-state self) assoc
       :last-x (:x event)
       :last-y (:y event)
-      :movement (camera-movement event)))
+      :movement (get (:movements-enabled self) (camera-movement event) :idle)))
 
   (on :mouse-move
     (let [{:keys [movement last-x last-y]} @(:ui-state self)
@@ -336,4 +337,5 @@
       :movement :idle))
 
   (on :mouse-wheel
-    (ds/update-property self :camera dolly (* -0.02 (:count event)))))
+    (when (contains? (:movements-enabled self) :dolly)
+      (ds/update-property self :camera dolly (* -0.02 (:count event))))))
