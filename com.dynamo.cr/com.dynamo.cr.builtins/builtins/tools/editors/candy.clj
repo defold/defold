@@ -250,11 +250,14 @@
 
   (on :mouse-move
       (let [camera (first (n/get-node-inputs self :camera))
+            pos {:x (:x event) :y (:y event)}
             world-pos-v4 (camera-unproject camera (:x event) (:y event) 0)
             world-pos {:x (.x world-pos-v4) :y (.y world-pos-v4)} 
             level (:level self)
+            palette-cells (mapcat :cells (layout-palette palette))
+            palette-hit (some #(hit? % pos palette-cell-size-half) palette-cells)
             level-cells (layout-level level)
-            level-hit (some #(hit? % world-pos cell-size-half) level-cells)]
+            level-hit (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
         (reset! active-cell level-hit)
         (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [(ds/node-consuming self :aabb)])))
   (on :mouse-down
@@ -266,7 +269,7 @@
             palette-cells (mapcat :cells (layout-palette palette))
             palette-hit (some #(hit? % pos palette-cell-size-half) palette-cells)
             level-cells (layout-level level)
-            level-hit (some #(hit? % world-pos cell-size-half) level-cells)]
+            level-hit (if palette-hit nil (some #(hit? % world-pos cell-size-half) level-cells))]
         (when palette-hit
           (ds/set-property self :active-brush (:image palette-hit)))
         (when level-hit
