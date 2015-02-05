@@ -308,28 +308,29 @@
 (n/defnode CameraController
   (property camera Camera)
 
-  (property movement s/Keyword (default :idle))
+  (property ui-state s/Any (default (constantly (atom {:movement :idle}))))
 
   (on :mouse-down
-    (ds/set-property self
-       :last-x (:x event)
-       :last-y (:y event)
-       :movement (camera-movement event)))
+    (swap! (:ui-state self) assoc
+      :last-x (:x event)
+      :last-y (:y event)
+      :movement (camera-movement event)))
 
   (on :mouse-move
-    (when (not (= :idle (:movement self)))
-      (let [{:keys [x y]} event]
-       (case (:movement self)
-         :dolly  (ds/update-property self :camera dolly (* -0.002 (- y (:last-y self))))
-         :track  (ds/update-property self :camera track (:last-x self) (:last-y self) x y)
-         :tumble (ds/update-property self :camera tumble (:last-x self) (:last-y self) x y)
-         nil)
-       (ds/set-property self
-         :last-x x
-         :last-y y))))
+    (let [{:keys [movement last-x last-y]} @(:ui-state self)
+          {:keys [x y]} event]
+      (when (not (= :idle movement))
+        (case movement
+          :dolly  (ds/update-property self :camera dolly  (* -0.002 (- y last-y)))
+          :track  (ds/update-property self :camera track  last-x last-y x y)
+          :tumble (ds/update-property self :camera tumble last-x last-y x y)
+          nil)
+        (swap! (:ui-state self) assoc
+          :last-x x
+          :last-y y))))
 
   (on :mouse-up
-    (ds/set-property self
+    (swap! (:ui-state self) assoc
       :last-x nil
       :last-y nil
       :movement :idle))
