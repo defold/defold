@@ -23,10 +23,11 @@
 
 (defnk aggregate-properties
   [properties]
-  (into {} (for [node-prop-map        properties
-                 [prop-name prop]     node-prop-map
-                 :when (some-> prop :type t/property-visible)]
-             [prop-name prop])))
+  (into {}
+    (for [node-prop-map        properties
+          [prop-name prop]     node-prop-map
+          :when (some-> prop :type t/property-visible)]
+      [prop-name prop])))
 
 (defnk passthrough-presenter-registry
   [presenter-registry]

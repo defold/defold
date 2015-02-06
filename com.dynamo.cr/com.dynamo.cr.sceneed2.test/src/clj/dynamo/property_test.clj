@@ -12,7 +12,8 @@
     (is (var? property-defn))
     (is (identical? (resolve `SomeProperty) property-defn))
     (is (satisfies? t/PropertyType (var-get property-defn)))
-    (is (= s/Any (-> property-defn var-get :value-type))))
+    (is (= s/Any (-> property-defn var-get :value-type)))
+    (is (t/property-visible SomeProperty)))
   (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"\(schema.core/protocol dynamo.property-test/MyProtocol\)"
         (eval '(dynamo.property/defproperty BadProp dynamo.property-test/MyProtocol)))))
 
@@ -78,8 +79,8 @@
   (validate no-value false))
 
 (defproperty PropWithMultipleValidations s/Num
-  (validate must-be-pos pos?)
-  (validate must-be-neg neg?))
+  (validate same-label pos?)
+  (validate same-label neg?))
 
 (defn ^:dynamic *validation-fn* [v] (= 42 v))
 

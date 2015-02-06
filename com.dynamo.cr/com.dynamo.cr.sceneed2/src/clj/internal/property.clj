@@ -14,26 +14,32 @@
 
 (def ^:private default-validation-fn (constantly true))
 
-(defn- validation-fns
+(defn- validations
   [property-type-descriptor]
-  (-> property-type-descriptor
-    :validations
-    vals
-    :fn))
+  (->> property-type-descriptor
+    :validation
+    vals))
 
 (defn- validation-problems
   [property-type-descriptor value]
   (if (s/check (t/property-value-type property-type-descriptor) value)
-    "invalid value"
-    (let [validations (validation-fns property-type-descriptor)]
-      (reduce (fn [errs v] (conj errs (t/apply-if-fn (t/var-get-recursive v) value))) [] validations))))
+    (list "invalid value type")
+    (keep identity
+      (reduce
+        (fn [errs {:keys [fn formatter]}]
+          (conj errs
+            (let [valid? (try (t/apply-if-fn (t/var-get-recursive fn) value) (catch Exception e false))]
+              (when-not valid?
+                (t/apply-if-fn formatter value)))))
+        []
+        (validations property-type-descriptor)))))
 
 (defn- valid-value?
   [property-type-descriptor value]
   (empty? (validation-problems property-type-descriptor value)))
 
 (defrecord PropertyTypeImpl
-  [value-type visible default]
+  [value-type]
   t/PropertyType
   (property-value-type    [this]   (:value-type this))
   (property-default-value [this]   (get-default-value this))
