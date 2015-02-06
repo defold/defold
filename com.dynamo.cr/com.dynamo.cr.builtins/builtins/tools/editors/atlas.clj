@@ -223,14 +223,13 @@
     (.glEnd gl)))
 
 (defn selection-outline-renderables
-  [this texture-packing selection]
+  [this texture-packing selection pending-selection]
   (let [project-root (p/project-root-node this)
         current-selection (set @selection)]
     (vec
       (keep
         (fn [rect]
-          (let [[pending-selection] (n/get-node-inputs this :pending-selection)
-                node-id (:_id (t/lookup project-root (:path rect)))
+          (let [node-id (:_id (t/lookup project-root (:path rect)))
                 active-selection (or @pending-selection current-selection)]
             (when (contains? active-selection node-id)
               {:world-transform g/Identity4d
@@ -239,7 +238,7 @@
         (:coords texture-packing)))))
 
 (defnk produce-renderable :- RenderData
-  [this texture-packing selection vertex-binding gpu-texture]
+  [this texture-packing selection pending-selection vertex-binding gpu-texture]
   {pass/overlay
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer texture-packing))}]
@@ -247,7 +246,7 @@
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-texture-packing ctx gl texture-packing vertex-binding gpu-texture))}]
    pass/outline
-   (selection-outline-renderables this texture-packing selection)
+   (selection-outline-renderables this texture-packing selection pending-selection)
    pass/selection
    (selection-renderables this texture-packing vertex-binding gpu-texture)})
 
@@ -563,8 +562,7 @@
       :dragging true
       :current-x (:x event)
       :current-y (:y event))
-    (assoc state :selection-region (selection-region state))
-    (assoc state :pending-selection (pending-selection state event))))
+    (assoc state :selection-region (selection-region state))))
 
 (n/defnode SelectionController
   (property ui-state s/Any (default (constantly (atom {}))))
@@ -608,7 +606,7 @@
           ;; Don't want rendering inside swap!, and this is all on the
           ;; event-handling thread so reset! is safe.
           (reset! (:ui-state self) new-ui-state)
-          (reset! (:pending-selection self) (:pending-selection new-ui-state)))
+          (reset! (:pending-selection self) (pending-selection new-ui-state event)))
         (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
 
   (on :mouse-up
