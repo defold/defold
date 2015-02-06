@@ -249,6 +249,33 @@
    pass/selection
    (selection-renderables this texture-packing vertex-binding gpu-texture)})
 
+(defn- render-selection-box
+  [ctx ^GL2 gl glu selection-box]
+  (let [{:keys [left right bottom top]} selection-box]
+    (.glColor3ub gl 115 -81 -52)
+    (.glBegin gl GL2/GL_LINE_LOOP)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)
+    (.glBegin gl GL2/GL_QUADS)
+    (.glColor4ub gl 115 -81 -52 64)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)))
+
+(defnk selection-box-renderable
+  [ui-state]
+  {pass/overlay
+   [{:world-transform g/Identity4d
+     :render-fn (fn [ctx gl glu text-renderer]
+                  (let [{:keys [selection-region]} @ui-state]
+                    (when selection-region
+                      (render-selection-box ctx gl glu selection-region))))}]})
+
 (defnk produce-renderable-vertex-buffer
   [[:texture-packing aabb coords]]
   (let [vbuf       (->texture-vtx (* 6 (count coords)))
@@ -567,33 +594,6 @@
       (when selecting
         (complete-selection self event)
         (reset! (:ui-state self) {})))))
-
-(defn- render-selection-box
-  [ctx ^GL2 gl glu selection-box]
-  (let [{:keys [left right bottom top]} selection-box]
-    (.glColor3ub gl 115 -81 -52)
-    (.glBegin gl GL2/GL_LINE_LOOP)
-    (.glVertex2i gl left top)
-    (.glVertex2i gl right top)
-    (.glVertex2i gl right bottom)
-    (.glVertex2i gl left bottom)
-    (.glEnd gl)
-    (.glBegin gl GL2/GL_QUADS)
-    (.glColor4ub gl 115 -81 -52 64)
-    (.glVertex2i gl left top)
-    (.glVertex2i gl right top)
-    (.glVertex2i gl right bottom)
-    (.glVertex2i gl left bottom)
-    (.glEnd gl)))
-
-(defnk selection-box-renderable
-  [ui-state]
-  {pass/overlay
-   [{:world-transform g/Identity4d
-     :render-fn (fn [ctx gl glu text-renderer]
-                  (let [{:keys [selection-region]} @ui-state]
-                    (when selection-region
-                      (render-selection-box ctx gl glu selection-region))))}]})
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
