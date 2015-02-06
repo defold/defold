@@ -225,13 +225,14 @@
 (defn selection-outline-renderables
   [this texture-packing selection]
   (let [project-root (p/project-root-node this)
-        selected (set @selection)]
+        current-selection (set @selection)]
     (vec
       (keep
         (fn [rect]
-          (let [node (t/lookup project-root (:path rect))]
-            ;; TODO: close over ui-state, when dragging render outlines based on that
-            (when (selected (:_id node))
+          (let [[pending-selection] (n/get-node-inputs this :pending-selection)
+                node-id (:_id (t/lookup project-root (:path rect)))
+                active-selection (or @pending-selection current-selection)]
+            (when (contains? active-selection node-id)
               {:world-transform g/Identity4d
                :render-fn (fn [ctx gl glu text-renderer]
                             (render-selection-outline ctx gl this texture-packing rect))})))
@@ -330,6 +331,7 @@
   (input gpu-texture s/Any)
   (input texture-packing s/Any)
   (input selection s/Any :inject)
+  (input pending-selection s/Any :inject)
 
   (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
   (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
@@ -566,6 +568,7 @@
 
 (n/defnode SelectionController
   (property ui-state s/Any (default (constantly (atom {}))))
+  (property pending-selection s/Any (default (constantly (atom nil))))
 
   (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
@@ -574,6 +577,7 @@
   (input default-selection s/Any)
 
   (output renderable t/RenderData selection-box-renderable)
+  (output pending-selection s/Any (fnk [pending-selection] pending-selection))
 
   (on :mouse-down
     (when (selection-event? event)
@@ -582,6 +586,7 @@
             editor-node (ds/node-consuming self :renderable)
             previous-selection (disj (selected-node-ids selection-node)
                                  (:_id default-selection))]
+        (reset! (:pending-selection self) #{})
         (swap! (:ui-state self) assoc
           :selecting true
           :selection-node selection-node
@@ -602,14 +607,16 @@
         (let [new-ui-state (update-drag-state ui-state event)]
           ;; Don't want rendering inside swap!, and this is all on the
           ;; event-handling thread so reset! is safe.
-          (reset! (:ui-state self) new-ui-state))
+          (reset! (:ui-state self) new-ui-state)
+          (reset! (:pending-selection self) (:pending-selection new-ui-state)))
         (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
 
   (on :mouse-up
     (let [{:keys [selecting] :as ui-state} @(:ui-state self)]
       (when selecting
         (complete-selection self event)
-        (reset! (:ui-state self) {})))))
+        (reset! (:ui-state self) {})
+        (reset! (:pending-selection self) nil)))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
