@@ -44,6 +44,42 @@ namespace dmGameSystem
         lua_rawset(L, -3);
     }
 
+    /*# Spawn a new instance of a collection into the existing collection.
+     * The URL identifies which collection factory should be used.
+     *
+     * Spawning happens instantly, but spawned game objects get their first update calls the following frame. An extra game object is added,
+     * which will be the parent of all root objects in the collection being spawned. The supplied parameters for position, rotation and scale
+     * will be applied to this new object.
+     *
+     * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
+     * See go.property for more information on script properties.
+     *
+     * @name collectionfactory.create
+     * @param url the collection factory to be used (url)
+     * @param [position] position to assign to the root of the newly spawned collection (vector3)
+     * @param [rotation] rotation to assign to the root of the newly spawned collection (quat)
+     * @param [properties] table of script properties to propagate to the new instances (table)
+     * @param [scale] scale to assign to the root of the newly spawned collection (must be greater than 0). (number)
+     * @return a table mapping the ids from the collection to the new instance ids 
+     * @examples
+     * <p>
+     * How to spawn spawn in a new collection:
+     * </p>
+     * <pre>
+     * function init(self)
+     *     self.my_new_tree = collectionfactory.create("#collectionfactory", nil, nil, { [hash("button")] = { button_prop = 1 } })
+     *     -- send message to one of the new objects
+     *     msg.post(msg.url(nil, self.my_new_tree["titlebar"], "hello")
+     * end
+     * </pre>
+     * <p>
+     * How to unspawn the new collection
+     * </p>
+     * <pre>
+     * go.delete_all(self.my_new_tree)
+     * </pre>
+     */
+
     int CollectionFactoryComp_Create(lua_State* L)
     {
         int top = lua_gettop(L);
