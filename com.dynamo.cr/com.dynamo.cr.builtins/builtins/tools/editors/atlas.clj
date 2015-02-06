@@ -230,6 +230,7 @@
       (keep
         (fn [rect]
           (let [node (t/lookup project-root (:path rect))]
+            ;; TODO: close over ui-state, when dragging render outlines based on that
             (when (selected (:_id node))
               {:world-transform g/Identity4d
                :render-fn (fn [ctx gl glu text-renderer]
@@ -532,20 +533,36 @@
     (or (< min-drag-move (Math/abs (- x start-x)))
         (< min-drag-move (Math/abs (- y start-y))))))
 
+(defn pending-selection
+  "Returns a set of node IDs for the selection being created by the
+  current click or click-and-drag operation."
+  [ui-state event]
+  (let [{:keys [start-x start-y dragging previous-selection]} ui-state
+        clicked (set (cond->> (find-nodes-in-selection ui-state)
+                       (not dragging) (take 1)))]
+    (case (selection-mode event)
+      :replace clicked
+      :toggle (toggle previous-selection clicked))))
+
 (defn complete-selection
   [self event]
-  (let [{:keys [world-ref ui-state]} self
-        ui-state @ui-state
-        {:keys [start-x start-y dragging previous-selection selection-node default-selection]} ui-state
-        clicked (set (cond->> (find-nodes-in-selection ui-state)
-                       (not dragging) (take 1)))
-        new-node-ids (case (selection-mode event)
-                       :replace clicked
-                       :toggle (toggle previous-selection clicked))
+  (let [ui-state @(:ui-state self)
+        {:keys [world-ref]} self
+        {:keys [default-selection selection-node]} ui-state
+        new-node-ids (pending-selection ui-state event)
         nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
                 [default-selection])]
     (deselect-all selection-node)
     (select-nodes selection-node nodes)))
+
+(defn update-drag-state [ui-state event]
+  (as-> ui-state state
+    (assoc state
+      :dragging true
+      :current-x (:x event)
+      :current-y (:y event))
+    (assoc state :selection-region (selection-region state))
+    (assoc state :pending-selection (pending-selection state event))))
 
 (n/defnode SelectionController
   (property ui-state s/Any (default (constantly (atom {}))))
@@ -582,12 +599,11 @@
   (on :mouse-move
     (let [{:keys [selecting dragging editor-node] :as ui-state} @(:ui-state self)]
       (when (and selecting (or dragging (drag-move? ui-state event)))
-        (swap! (:ui-state self) assoc
-          :dragging true
-          :current-x (:x event)
-          :current-y (:y event)
-          :selection-region (selection-region (assoc ui-state :current-x (:x event) :current-y (:y event))))
-       (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
+        (let [new-ui-state (update-drag-state ui-state event)]
+          ;; Don't want rendering inside swap!, and this is all on the
+          ;; event-handling thread so reset! is safe.
+          (reset! (:ui-state self) new-ui-state))
+        (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
 
   (on :mouse-up
     (let [{:keys [selecting] :as ui-state} @(:ui-state self)]
