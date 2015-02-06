@@ -606,6 +606,17 @@ namespace dmGameObject
         return dmHashString64(id_s);
     }
 
+    void GenerateUniqueCollectionInstanceId(HCollection collection, char* buf, uint32_t bufsize)
+    {
+        // global path
+        const char* id_format = "%scollection%d";
+        uint32_t index = 0;
+        dmMutex::Lock(collection->m_Mutex);
+        index = collection->m_GenCollectionInstanceCounter++;
+        dmMutex::Unlock(collection->m_Mutex);
+        DM_SNPRINTF(buf, bufsize, id_format, ID_SEPARATOR, index);
+    }
+
     Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t id)
     {
         if (collection->m_IDToInstance.Get(id))
@@ -813,35 +824,35 @@ namespace dmGameObject
         return instance;
     }
 
-    // sets new identifier on new_root
-    bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping)
+    // Returns a new root on success
+    HInstance CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping)
     {
-        // Construct the path onto which all objects will be put
-        char root_path[16];
-        GenerateUniqueInstanceId(collection, root_path, sizeof(root_path));
-        dmhash_t root_hash = dmHashBuffer64(root_path, strlen(root_path));
-
+        // New object onto which all parent-less objects will be attached
         HInstance new_root = NewInstance(collection, &EMPTY_PROTOTYPE, 0);
         if (!new_root)
         {
-            return false;
+            return 0;
         }
 
-        if (dmGameObject::SetIdentifier(collection, new_root, root_hash) != dmGameObject::RESULT_OK)
+        dmhash_t root_id_hash = GenerateUniqueInstanceId(collection);
+        if (dmGameObject::SetIdentifier(collection, new_root, root_id_hash) != dmGameObject::RESULT_OK)
         {
-            dmLogError("Failed to set identifier on collection root %s", root_path);
+            dmLogError("Failed to set identifier on new collection root");
             ReleaseIdentifier(collection, new_root);
             UndoNewInstance(collection, new_root);
-            return false;
+            return 0;
         }
 
+        // Path prefix for collection objects
+        char root_path[32];
         HashState64 prefixHashState;
+        GenerateUniqueCollectionInstanceId(collection, root_path, sizeof(root_path));
         dmHashInit64(&prefixHashState, true);
         dmHashUpdateBuffer64(&prefixHashState, root_path, strlen(root_path));
 
-        // Initialize & supply with the root object (which isn't created here)
+        // Initialize & supply with the root object
         id_mapping->SetCapacity(32, collection_desc->m_Instances.m_Count + 1);
-        id_mapping->Put(dmHashBuffer64(ID_SEPARATOR, strlen(ID_SEPARATOR)), root_hash);
+        id_mapping->Put(dmHashBuffer64(ID_SEPARATOR, strlen(ID_SEPARATOR)), root_id_hash);
 
         dmArray<HInstance> new_instances;
         new_instances.SetCapacity(collection_desc->m_Instances.m_Count);
@@ -969,7 +980,7 @@ namespace dmGameObject
                 UndoNewInstance(collection, new_instances[i]);
             }
             id_mapping->Clear();
-            return false;
+            return 0;
         }
 
         // Create components and set properties
@@ -1069,7 +1080,7 @@ namespace dmGameObject
             for (uint32_t i=0;i!=created.Size();i++)
                 dmGameObject::Delete(collection, created[i]);
             id_mapping->Clear();
-            return false;
+            return 0;
         }
 
         for (uint32_t i=0;i!=created.Size();i++)
@@ -1077,24 +1088,13 @@ namespace dmGameObject
             AddToUpdate(collection, created[i]);
         }
 
-        return true;
+        return new_root;
     }
 
     bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
                              const Point3& position, const Quat& rotation, float scale,
                              InstanceIdMap *instances)
     {
-        HInstance new_root = NewInstance(collection, &EMPTY_PROTOTYPE, 0);
-        if (!new_root) {
-            dmLogError("Failed to create root instance for spawning collection into.");
-            return false;
-        }
-
-        // positions stuffs
-        SetPosition(new_root, position);
-        SetRotation(new_root, rotation);
-        SetScale(new_root, scale);
-
         // Bypassing the resource system a little bit in order to do this.
         void *msg;
         uint32_t msg_size;
@@ -1112,11 +1112,19 @@ namespace dmGameObject
             return false;
         }
 
-        bool res = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances);
+        HInstance new_root = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances);
 
         dmDDF::FreeMessage(collection_desc);
         free(msg);
-        return res;
+
+        if (new_root)
+        {
+            SetPosition(new_root, position);
+            SetRotation(new_root, rotation);
+            SetScale(new_root, scale);
+        }
+
+        return new_root != 0;
     }
 
     HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, float scale)

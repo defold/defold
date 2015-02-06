@@ -533,6 +533,9 @@
                id="com.dynamo.cr.ddfeditor.wizards.FactoryNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.CollectionFactoryNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CollisionObjectNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
