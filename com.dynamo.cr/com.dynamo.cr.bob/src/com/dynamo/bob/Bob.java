@@ -162,6 +162,8 @@ public class Bob {
 
         options.addOption("re", "release", false, "Release mode (when bundling)");
 
+        options.addOption("tc", "enable-texture-compression", false, "Enable texture compression formats.");
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {

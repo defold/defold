@@ -8,6 +8,7 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -18,7 +19,20 @@ public class TextureBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException {
-        return defaultTask(input);
+
+        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+        // If there is a texture profiles file, we need to make sure
+        // it has been read before building this tile set, add it as an input.
+        String textureProfilesPath = this.project.getProjectProperties().getStringValue("graphics", "texture_profiles");
+        if (textureProfilesPath != null) {
+            taskBuilder.addInput( this.project.getResource(textureProfilesPath) );
+        }
+
+        return taskBuilder.build();
     }
 
     @Override
