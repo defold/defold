@@ -26,7 +26,8 @@
             [dynamo.texture :as tex]
             [dynamo.types :as t :refer :all]
             [dynamo.ui :refer :all]
-            [internal.render.pass :as pass])
+            [internal.render.pass :as pass]
+            [internal.repaint :as repaint])
   (:import  [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
             [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
             [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
@@ -39,6 +40,18 @@
             [javax.vecmath Matrix4d]
             [org.eclipse.swt SWT]
             [org.eclipse.ui IEditorSite]))
+
+(def integers (iterate (comp int inc) (int 0)))
+
+(def min-drag-move
+  "Minimum number of pixels the mouse must travel to initiate a click-and-drag."
+  2)
+
+(def toggle-select-modifiers
+  "Bitmask of modifier keys which turn on toggle selection.
+  COMMAND or SHIFT on Mac OS X.
+  CTRL or SHIFT everywhere else."
+  (bit-or SWT/MOD1 SWT/SHIFT))
 
 (vtx/defvertex engine-format-texture
   (vec3.float position)
@@ -216,21 +229,22 @@
     (.glEnd gl)))
 
 (defn selection-outline-renderables
-  [this texture-packing selection]
+  [this texture-packing selection pending-selection]
   (let [project-root (p/project-root-node this)
-        selected (set @selection)]
+        current-selection (set @selection)]
     (vec
       (keep
         (fn [rect]
-          (let [node (t/lookup project-root (:path rect))]
-            (when (selected (:_id node))
+          (let [node-id (:_id (t/lookup project-root (:path rect)))
+                active-selection (or @pending-selection current-selection)]
+            (when (contains? active-selection node-id)
               {:world-transform g/Identity4d
                :render-fn (fn [ctx gl glu text-renderer]
                             (render-selection-outline ctx gl this texture-packing rect))})))
         (:coords texture-packing)))))
 
 (defnk produce-renderable :- RenderData
-  [this texture-packing selection vertex-binding gpu-texture]
+  [this texture-packing selection pending-selection vertex-binding gpu-texture]
   {pass/overlay
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-overlay ctx gl text-renderer texture-packing))}]
@@ -238,9 +252,36 @@
    [{:world-transform g/Identity4d
      :render-fn       (fn [ctx gl glu text-renderer] (render-texture-packing ctx gl texture-packing vertex-binding gpu-texture))}]
    pass/outline
-   (selection-outline-renderables this texture-packing selection)
+   (selection-outline-renderables this texture-packing selection pending-selection)
    pass/selection
    (selection-renderables this texture-packing vertex-binding gpu-texture)})
+
+(defn- render-selection-box
+  [ctx ^GL2 gl glu selection-box]
+  (let [{:keys [left right bottom top]} selection-box]
+    (.glColor3ub gl 115 -81 -52)
+    (.glBegin gl GL2/GL_LINE_LOOP)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)
+    (.glBegin gl GL2/GL_QUADS)
+    (.glColor4ub gl 115 -81 -52 64)
+    (.glVertex2i gl left top)
+    (.glVertex2i gl right top)
+    (.glVertex2i gl right bottom)
+    (.glVertex2i gl left bottom)
+    (.glEnd gl)))
+
+(defnk selection-box-renderable
+  [ui-state]
+  {pass/overlay
+   [{:world-transform g/Identity4d
+     :render-fn (fn [ctx gl glu text-renderer]
+                  (let [{:keys [selection-region]} @ui-state]
+                    (when selection-region
+                      (render-selection-box ctx gl glu selection-region))))}]})
 
 (defnk produce-renderable-vertex-buffer
   [[:texture-packing aabb coords]]
@@ -295,6 +336,7 @@
   (input gpu-texture s/Any)
   (input texture-packing s/Any)
   (input selection s/Any :inject)
+  (input pending-selection s/Any :inject)
 
   (output vertex-buffer s/Any         :cached produce-renderable-vertex-buffer)
   (output outline-vertex-buffer s/Any :cached produce-outline-vertex-buffer)
@@ -398,17 +440,56 @@
   (output   texturec    s/Any :on-update compile-texturec)
   (output   texturesetc s/Any :on-update compile-texturesetc))
 
-(defn find-nodes-at-point [this context x y]
-  (let [[renderable-inputs view-camera] (n/get-node-inputs this :renderables :view-camera)
+(defnk selection-region
+  "Returns the Region currently being selected by a mouse drag."
+  [start-x start-y current-x current-y]
+  (t/map->Region
+    {:left (min start-x current-x)
+     :right (max start-x current-x)
+     :top (min start-y current-y)
+     :bottom (max start-y current-y)}))
+
+(def min-selection-size
+  "Minimum size, in pixels, of the selection area around a click.
+  Analagous to com.dynamo.cr.sceneed.ui.RenderView.MIN_SELECTION_BOX,
+  which is 16 pixels."
+  1)
+
+(defn pick-rect
+  "Given a Region, returns a Rect with x & y at the *center* of the region."
+  [pick-region]
+  (let [{:keys [left right top bottom]} pick-region
+        width (- right left)
+        height (- bottom top)
+        x (+ left (quot width 2))
+        y (+ top (quot height 2))]
+    (t/rect x y width height)))
+
+(defn rect-in-viewport
+  "Corrects the Rect for inverted screen coordinates based on the viewport Region."
+  [rect viewport]
+  (assoc rect :y (- (:bottom viewport) (:y rect))))
+
+(defn min-selection-rect
+  [rect]
+  (assoc rect
+    :width (max min-selection-size (:width rect))
+    :height (max min-selection-size (:height rect))))
+
+(defn find-nodes-in-selection [ui-state]
+  (let [{:keys [glcontext renderable-inputs view-camera]} ui-state
         renderables (apply merge-with concat renderable-inputs)
-        pick-rect {:x x :y (- (:bottom (:viewport view-camera)) y) :width 1 :height 1}]
-    (ius/selection-renderer context renderables view-camera pick-rect)))
+        {:keys [viewport]} view-camera
+        pick-rect (-> ui-state
+                    selection-region
+                    pick-rect
+                    min-selection-rect
+                    (rect-in-viewport viewport))]
+    (ius/selection-renderer glcontext renderables view-camera pick-rect)))
 
 (defn- not-camera-movement?
   "True if the event does not have keyboard modifier-keys for a
-  camera movement action (CTRL or ALT). Note that this won't
-  necessarily apply to mouse-up events because the modifier keys
-  can be released before the mouse button."
+  camera movement action (CTRL or ALT)."
   [event]
   (zero? (bit-and (:state-mask event) (bit-or SWT/CTRL SWT/ALT))))
 
@@ -428,12 +509,9 @@
     (ds/connect node :self selection-node :selected-nodes)))
 
 (defn- selection-mode
-  "True if the event has keyboard-modifier keys for multi-select.
-  On Mac: COMMAND or SHIFT.
-  On non-Mac: CTRL or SHIFT."
-  [event]
-  ;; SWT/MOD1 maps to COMMAND on Mac and CTRL elsewhere
-  (if (zero? (bit-and (:state-mask event) (bit-or SWT/MOD1 SWT/SHIFT)))
+  "Either :replace for normal selection mode or :toggle for multi-select."
+  [modifiers]
+  (if (zero? (bit-and modifiers toggle-select-modifiers))
     :replace
     :toggle))
 
@@ -449,28 +527,129 @@
      (difference previous clicked)
      (difference clicked previous)))
 
+(defn- drag-move?
+  "True if the mouse moved far enough for this to be considered a click-and-drag."
+  [self event]
+  (let [{:keys [start-x start-y]} self
+        {:keys [x y]} event]
+    (or (< min-drag-move (Math/abs (- x start-x)))
+        (< min-drag-move (Math/abs (- y start-y))))))
+
+(defn pending-selection
+  "Returns a set of node IDs for the selection being created by the
+  current click or click-and-drag operation."
+  [ui-state]
+  (let [{:keys [start-x start-y dragging previous-selection modifiers]} ui-state
+        clicked (set (cond->> (find-nodes-in-selection ui-state)
+                       (not dragging) (take 1)))]
+    (case (selection-mode modifiers)
+      :replace clicked
+      :toggle (toggle previous-selection clicked))))
+
+(defn complete-selection
+  [self]
+  (let [ui-state @(:ui-state self)
+        {:keys [world-ref]} self
+        {:keys [default-selection selection-node]} ui-state
+        new-node-ids (pending-selection ui-state)
+        nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
+                [default-selection])]
+    (deselect-all selection-node)
+    (select-nodes selection-node nodes)))
+
+(defn update-drag-mouse
+  "Returns updated UI state after a mouse-move event during a
+  click-and-drag selection."
+  [ui-state event]
+  (as-> ui-state state
+    (assoc state
+      :dragging true
+      :current-x (:x event)
+      :current-y (:y event))
+    (assoc state :selection-region (selection-region state))))
+
+(defn update-select-keydown
+  "Returns updated UI state if the key-down event changed the state
+  of the selection modifier keys."
+  [ui-state event]
+  (if (zero? (bit-and toggle-select-modifiers (:key-code event)))
+    ui-state
+    (update-in ui-state [:modifiers] bit-or (:key-code event))))
+
+(defn update-select-keyup
+  "Returns updated UI state if the key-up event changed the state
+  of the selection modifier keys."
+  [ui-state event]
+  (if (zero? (bit-and toggle-select-modifiers (:key-code event)))
+    ui-state
+    (update-in ui-state [:modifiers] bit-and-not (:key-code event))))
+
 (n/defnode SelectionController
+  (property ui-state s/Any (default (constantly (atom {}))))
+  (property pending-selection s/Any (default (constantly (atom nil))))
+
   (input glcontext GLContext :inject)
   (input renderables [t/RenderData])
   (input view-camera Camera)
   (input selection-node s/Any :inject)
   (input default-selection s/Any)
+
+  (output renderable t/RenderData selection-box-renderable)
+  (output pending-selection s/Any (fnk [pending-selection] pending-selection))
+
   (on :mouse-down
     (when (selection-event? event)
-      (let [{:keys [x y]} event
-            {:keys [world-ref]} self
-            [glcontext selection-node default-selection]
-              (n/get-node-inputs self :glcontext :selection-node :default-selection)
-            previous (disj (selected-node-ids selection-node)
-                       (:_id default-selection))
-            clicked (set (find-nodes-at-point self glcontext x y))
-            new-node-ids (case (selection-mode event)
-                           :replace clicked
-                           :toggle (toggle previous clicked))
-            nodes (or (seq (map #(ds/node world-ref %) new-node-ids))
-                    [default-selection])]
-        (deselect-all selection-node)
-        (select-nodes selection-node nodes)))))
+      (let [[selection-node default-selection glcontext renderables view-camera]
+              (n/get-node-inputs self :selection-node :default-selection :glcontext :renderables :view-camera)
+            editor-node (ds/node-consuming self :renderable)
+            previous-selection (disj (selected-node-ids selection-node)
+                                 (:_id default-selection))
+            new-ui-state (swap! (:ui-state self) assoc
+                           :selecting true
+                           :selection-node selection-node
+                           :modifiers (:state-mask event)
+                           :editor-node editor-node
+                           :default-selection default-selection
+                           :glcontext glcontext
+                           :renderable-inputs renderables
+                           :view-camera view-camera
+                           :previous-selection previous-selection
+                           :start-x (:x event)
+                           :start-y (:y event)
+                           :current-x (:x event)
+                           :current-y (:y event))]
+        (reset! (:pending-selection self) (pending-selection new-ui-state))
+        (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
+
+  (on :mouse-move
+    (let [{:keys [selecting dragging editor-node] :as ui-state} @(:ui-state self)]
+      (when (and selecting (or dragging (drag-move? ui-state event)))
+        (let [new-ui-state (update-drag-mouse ui-state event)]
+          ;; Don't want rendering inside swap!, and this is all on the
+          ;; event-handling thread so reset! is safe.
+          (reset! (:ui-state self) new-ui-state)
+          (reset! (:pending-selection self) (pending-selection new-ui-state)))
+        (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))
+
+  (on :mouse-up
+    (when (:selecting @(:ui-state self))
+      (complete-selection self)
+      (reset! (:ui-state self) {})
+      (reset! (:pending-selection self) nil)))
+
+  (on :key-down
+    (let [{:keys [selecting editor-node]} @(:ui-state self)]
+      (when selecting
+        (let [new-ui-state (swap! (:ui-state self) update-select-keydown event)]
+          (reset! (:pending-selection self) (pending-selection new-ui-state))
+          (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node])))))
+
+  (on :key-up
+    (let [{:keys [selecting editor-node]} @(:ui-state self)]
+      (when selecting
+        (let [new-ui-state (swap! (:ui-state self) update-select-keyup event)]
+          (reset! (:pending-selection self) (pending-selection new-ui-state))
+          (repaint/schedule-repaint (-> self :world-ref deref :repaint-needed) [editor-node]))))))
 
 (defn broadcast-event [this event]
   (let [[controllers] (n/get-node-inputs this :controllers)]
@@ -514,6 +693,7 @@
           (ds/connect background   :renderable      editor       :renderables)
           (ds/connect atlas-render :renderable      editor       :renderables)
           (ds/connect grid         :renderable      editor       :renderables)
+          (ds/connect selector     :renderable      editor       :renderables)
           (ds/connect atlas-node   :aabb            editor       :aabb))
         editor)))
 
