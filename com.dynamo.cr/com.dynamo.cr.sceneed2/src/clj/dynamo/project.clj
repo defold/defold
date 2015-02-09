@@ -117,9 +117,10 @@ behavior."
     editor-node))
 
 (defn- send-project-scope-message
-  [txn graph self label kind]
-  (doseq [id (:nodes-added txn)]
-    (ds/send-after {:_id id} {:type :project-scope :scope self})))
+  [txn graph self label kind inputs-affected]
+  (when (inputs-affected :nodes)
+    (doseq [id (:nodes-added txn)]
+      (ds/send-after {:_id id} {:type :project-scope :scope self}))))
 
 (defn project-enclosing
   [node]
@@ -165,7 +166,7 @@ There is no guaranteed ordering of the sequence."
 (n/defnode Project
   (inherits n/Scope)
 
-  (trigger notify-content-nodes :modified send-project-scope-message)
+  (trigger notify-content-nodes :input-connections send-project-scope-message)
 
   (property tag                s/Keyword (default :project))
   (property eclipse-project    IProject)
@@ -183,7 +184,7 @@ There is no guaranteed ordering of the sequence."
 
   t/FileContainer
   (node-for-path [this path]
-    (new-node-for-path this (file/make-project-path this path) Placeholder))
+    (new-node-for-path this path Placeholder))
 
   (on :destroy
     (ds/delete self)))
@@ -260,8 +261,6 @@ There is no guaranteed ordering of the sequence."
 
 (defn- update-added-resources
   [project-node {:keys [added]}]
-  (when (not-empty added)
-    (println :update-added-resources added))
   (let [with-placeholders (group-by #(add-or-replace? project-node %) added)
         replacements      (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) (:replace-existing with-placeholders))]
     (unload-nodes replacements)
@@ -272,8 +271,6 @@ There is no guaranteed ordering of the sequence."
 
 (defn- update-deleted-resources
   [project-node {:keys [deleted]}]
-  (when (not-empty deleted)
-    (println :update-deleted-resources deleted))
   (let [nodes-to-delete (mapcat #(nodes-with-filename project-node (file/make-project-path project-node %)) deleted)]
     (unload-nodes nodes-to-delete)
     (replace-nodes project-node nodes-to-delete #(new-node-for-path project-node (:filename %) Placeholder)))
@@ -281,8 +278,6 @@ There is no guaranteed ordering of the sequence."
 
 (defn- update-changed-resources
   [project-node {:keys [changed]}]
-  (when (not-empty changed)
-    (println :update-changed-resources changed))
   (let [nodes-to-replace (map #(first (nodes-with-filename project-node (file/make-project-path project-node %))) changed)]
     (unload-nodes nodes-to-replace)
     (replace-nodes project-node nodes-to-replace #(new-node-for-path project-node (:filename %) Placeholder))))

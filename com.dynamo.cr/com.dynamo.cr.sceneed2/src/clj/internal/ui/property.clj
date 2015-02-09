@@ -4,10 +4,12 @@
             [plumbing.core :refer [defnk]]
             [service.log :as log]
             [dynamo.node :as n]
+            [dynamo.project :as p]
             [dynamo.property :as dp]
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [dynamo.ui.widgets :as widgets]
             [dynamo.util :refer :all]
             [internal.node :as in]
             [internal.system :as is]
@@ -42,10 +44,14 @@
   (dp/lookup-presenter (n/get-node-value node :presenter-registry) (:type property)))
 
 (defn- attach-user-data
-  [spec prop-name presenter path]
+  [spec node prop-name presenter path]
   (assoc spec
-    :user-data {:presenter presenter :prop-name prop-name :path path}
-    :children  (mapv (fn [[child-name child-spec]] [child-name (attach-user-data child-spec prop-name presenter (conj path child-name))]) (:children spec))))
+    :user-data {:property-view-node node
+                :project-node (p/project-root-node node)
+                :presenter presenter
+                :prop-name prop-name
+                :path path}
+    :children  (mapv (fn [[child-name child-spec]] [child-name (attach-user-data child-spec node prop-name presenter (conj path child-name))]) (:children spec))))
 
 (defn- attach-listeners
   [spec ui-event-listener]
@@ -54,19 +60,19 @@
     :children (mapv (fn [[child-name child-spec]] [child-name (attach-listeners child-spec ui-event-listener)]) (:children spec))))
 
 (defn- control-spec
-  [ui-event-listener prop-name presenter]
+  [node prop-name presenter]
   (-> (merge (dp/control-for-property presenter))
-      (attach-user-data prop-name presenter [])
-      (attach-listeners ui-event-listener)))
+      (attach-user-data node prop-name presenter [])
+      (attach-listeners (:ui-event-listener node))))
 
 (defn- property-control-strip
-  [ui-event-listener [prop-name {:keys [presenter]}]]
+  [node [prop-name {:keys [presenter]}]]
   (let [label-text (niceify-label prop-name)]
     [[:label-composite {:type :composite
                         :layout {:type :stack}
                         :children [[:label      {:type :label :text label-text}]
                                    [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text Messages/FormPropertySheetViewer_RESET_VALUE}]]}]
-     [prop-name (control-spec ui-event-listener prop-name presenter)]
+     [prop-name (control-spec node prop-name presenter)]
      [:dummy           {:type :label :layout-data {:exclude true}}]
      [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:min-width 50 :exclude true}}]]))
 
@@ -78,9 +84,9 @@
     :children control-strips}])
 
 (defn- make-property-page
-  [toolkit ui-event-listener properties-form properties]
-  (ui/make-control toolkit (ui/widget properties-form [:form :composite])
-    (property-page (mapcat #(property-control-strip ui-event-listener %) properties))))
+  [toolkit node properties-form properties]
+  (widgets/make-control toolkit (widgets/widget properties-form [:form :composite])
+    (property-page (mapcat #(property-control-strip node %) properties))))
 
 (def empty-property-page
   [:page-content
@@ -90,7 +96,7 @@
 
 (defn- make-empty-property-page
   [toolkit properties-form]
-  (ui/make-control toolkit (ui/widget properties-form [:form :composite]) empty-property-page))
+  (widgets/make-control toolkit (widgets/widget properties-form [:form :composite]) empty-property-page))
 
 (defn- settings-for-page
   [properties]
@@ -115,13 +121,13 @@
   (map-vals #(assoc % :presenter (presenter-for-property node %)) content))
 
 (defn- refresh-property-page
-  [{:keys [sheet-cache toolkit properties-form ui-event-listener] :as node}]
+  [{:keys [sheet-cache toolkit properties-form] :as node}]
   (let [content (attach-presenters node (in/get-node-value node :content))
         key     (cache-key content)
-        page    (lookup-or-create sheet-cache key make-property-page toolkit ui-event-listener properties-form content)]
-    (ui/update-ui!      (get-in page [:page-content]) (settings-for-page content))
-    (ui/bring-to-front! (ui/widget page [:page-content]))
-    (ui/scroll-to-top!  (ui/widget properties-form [:form]))))
+        page    (lookup-or-create sheet-cache key make-property-page toolkit node properties-form content)]
+    (widgets/update-ui!      (get-in page [:page-content]) (settings-for-page content))
+    (widgets/bring-to-front! (widgets/widget page [:page-content]))
+    (widgets/scroll-to-top!  (widgets/widget properties-form [:form]))))
 
 (defn- refresh-after-a-while
   [transaction graph this label kind]
@@ -149,7 +155,7 @@
 
   (on :create
     (let [toolkit           (FormToolkit. (.getDisplay ^Composite (:parent event)))
-          properties-form   (ui/make-control toolkit (:parent event) gui)
+          properties-form   (widgets/make-control toolkit (:parent event) gui)
           sheet-cache       (atom {})
           ui-event-listener (ui/make-listener #(n/dispatch-message self :ui-event :ui-event %) [])]
       (lookup-or-create sheet-cache (cache-key {}) make-empty-property-page toolkit properties-form)
@@ -162,11 +168,11 @@
 
   (on :ui-event
     (let [ui-event (:ui-event event)
-          {:keys [presenter prop-name path]} (ui/get-user-data (:widget ui-event))
+          {:keys [presenter prop-name path]} (widgets/get-user-data (:widget ui-event))
           content (in/get-node-value self :content)
           page (get @(:sheet-cache self) (cache-key content))
           widget-subtree (get-in page [:page-content prop-name])]
-      (if (identical? (:widget ui-event) (ui/widget widget-subtree path))
+      (if (identical? (:widget ui-event) (widgets/widget widget-subtree path))
         (let [prop (get content prop-name)
               presenter-event (dp/presenter-event-map ui-event)
               old-value (:value prop)
@@ -203,4 +209,4 @@
   (-> property-view-node
       ds/refresh
       :properties-form
-      (ui/widget [:form])))
+      (widgets/widget [:form])))

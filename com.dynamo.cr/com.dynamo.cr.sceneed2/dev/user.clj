@@ -9,6 +9,7 @@
             [dynamo.system :as ds]
             [dynamo.types :as t]
             [dynamo.ui :as ui]
+            [dynamo.ui.widgets :as widgets]
             [clojure.java.io :refer [file]]
             [internal.graph.dgraph :as dg]
             [internal.graph.lgraph :as lg]
@@ -24,6 +25,10 @@
            [javax.swing JFrame JPanel]
            [org.eclipse.ui PlatformUI]
            [org.eclipse.e4.ui.workbench IWorkbench]
+           [org.eclipse.swt SWT]
+           [org.eclipse.swt.graphics Color RGB]
+           [org.eclipse.swt.layout GridLayout GridData]
+           [org.eclipse.swt.widgets Canvas Display Listener Shell Slider]
            [org.eclipse.ui.forms.widgets FormToolkit]))
 
 (defn method->function [m]
@@ -164,7 +169,7 @@
     (ui/swt-safe
       (let [shell (ui/shell)
             toolkit (FormToolkit. (.getDisplay shell))
-            widgets (ui/make-control toolkit shell widgets)]
+            widgets (widgets/make-control toolkit shell widgets)]
         (deliver r widgets)
         (.pack shell)
         (.open shell)))
@@ -179,6 +184,94 @@
         node
         extensions)))
     p))
+
+(defn shell
+  [display & styles]
+  (Shell. display (reduce bit-and styles)))
+
+(defn darker
+  [c]
+  (let [[h s b] (.. c getRGB getHSB)
+        b       (* b 0.8)
+        rgb     (RGB. (float h) (float s) (float b))]
+    (Color. (.getDevice c) rgb)))
+
+(defn outlined-rect
+  [gc scale {:keys [x y width height]}]
+  (.setAlpha gc 255)
+  (.drawRectangle gc (* scale x) (* scale y) (* scale width) (* scale height))
+  (.setAlpha gc 192)
+  (.fillRectangle gc (* scale x) (* scale y) (* scale width) (* scale height)))
+
+(defn pack-viz-draw
+  [gc evt trace t]
+  (let [trace-time (nth trace t)
+        client-area (.. evt widget getClientArea)
+        text-c      (Color. (.. evt display) 251 250 217)
+        gray1-c     (Color. (.. evt display)  64  64  64)
+        gray2-c     (Color. (.. evt display) 128 128 145)
+        free-c      (Color. (.. evt display) 251 250 217)
+        free-b      (darker free-c)
+        placed-c    (Color. (.. evt display) 172   0  16)
+        placed-b    (darker placed-c)
+        scale       0.4]
+    (.setForeground gc gray2-c)
+    (.setBackground gc gray1-c)
+    (.fillGradientRectangle gc (.x client-area) (.y client-area) (.width client-area) (.height client-area) true)
+    (.setForeground gc placed-c)
+    (.setBackground gc placed-b)
+    (doseq [r (:placed trace-time)]
+      (outlined-rect gc scale r))
+    (.setForeground gc free-c)
+    (.setBackground gc free-b)
+    (doseq [r (:free-rects trace-time)]
+      (outlined-rect gc scale r))
+    (.setAlpha gc 255)
+    (.setForeground gc text-c)
+    (.setBackground gc placed-b)
+    (.drawString gc (str "t = " t) 10 10)
+    (.dispose placed-c)
+    (.dispose placed-b)
+    (.dispose free-c)
+    (.dispose free-b)
+    (.dispose gray1-c)
+    (.dispose gray2-c)))
+
+(defn pack-viz [trace]
+  (let [min-t 0
+        max-t (count trace)
+        t     (atom min-t)]
+    (ui/swt-safe
+      (let [display (Display/getDefault)
+            shell   (shell display SWT/SHELL_TRIM)
+            layout  (GridLayout. 1 true)
+            canvas  (Canvas. shell 0)
+            slider  (Slider. shell SWT/HORIZONTAL)]
+        (.setLayoutData canvas (GridData. SWT/FILL SWT/FILL true true))
+        (.setLayoutData slider (GridData. SWT/FILL SWT/FILL true false))
+        (.setMinimum slider min-t)
+        (.setIncrement slider 1)
+        (.setPageIncrement slider 1)
+        (.setMaximum slider max-t)
+        (.setLayout shell layout)
+        (.addListener slider SWT/Selection
+          (reify Listener
+            (handleEvent [this evt]
+              (try
+                (reset! t (.getSelection slider))
+                (.redraw canvas)
+                (catch Exception e
+                  (println e))))))
+        (.addListener canvas SWT/Paint
+          (reify Listener
+            (handleEvent [this evt]
+              (try
+                (let [gc (.gc evt)]
+                  (pack-viz-draw gc evt trace @t))
+                (catch Exception e
+                  (println e))))))
+        (.pack shell)
+        (.open shell)))))
 
 (comment
   (use 'criterium-core)
@@ -195,3 +288,18 @@
   (defcommand speak-command "com.dynamo.cr.menu-items.EDIT" "com.dynamo.cr.clojure-eclipse.commands.speak" "Speak!")
   (defhandler handle-speak-command speak-command (fn [^ExecutionEvent ev & args] (prn "Arf Arf! - " args)) "w/args")
 )
+
+(comment
+
+  (require 'internal.texture.pack)
+  (require 'dynamo.texture-test)
+
+  (defn viz-trects
+    []
+    (let [res (internal.texture.pack/max-rects-packing dynamo.texture-test/test-rectangles-for-packing)]
+      (user/pack-viz @internal.texture.pack-max-rects/trace)
+      res))
+
+  (viz-trects)
+
+  )
