@@ -29,7 +29,6 @@ def configure(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
-    conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_RESOURCE'] = 'resource'

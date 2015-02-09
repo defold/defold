@@ -82,8 +82,9 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "factory",
                 "go",
                 "gui",
-                //"http",
-                //"json",
+                "http",
+                "image",
+                "json",
                 "msg",
                 "particlefx",
                 "render",
@@ -92,7 +93,8 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "sys",
                 "tilemap",
                 "vmath",
-                "spine"
+                "spine",
+                "zlib"
         };
         for (String doc : docs) {
             loadDocumentation(String.format("doc/%s_doc.sdoc", doc));

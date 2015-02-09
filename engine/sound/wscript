@@ -17,6 +17,7 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
+    conf.check_tool('java')
 
     waf_ddf.configure(conf)
 
@@ -25,9 +26,9 @@ def configure(conf):
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
-    conf.env['STATICLIB_LUA'] = 'lua'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
+    conf.env['STATICLIB_TREMOLO'] = 'tremolo'
 
     platform = conf.env['PLATFORM']
 

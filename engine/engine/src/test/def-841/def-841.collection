@@ -1,0 +1,57 @@
+name: "test_physics"
+instances {
+  id: "first"
+  prototype: "/def-841/first.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}
+instances {
+  id: "second"
+  prototype: "/def-841/second.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}
+instances {
+  id: "third"
+  prototype: "/def-841/third.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}
+instances {
+  id: "fourth"
+  prototype: "/def-841/fourth.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}

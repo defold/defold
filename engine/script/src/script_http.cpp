@@ -30,7 +30,8 @@ namespace dmScript
     int g_ServiceRefCount = 0;
     uint64_t g_Timeout = 0;
 
-    /*# perform http request
+    /*# perform a HTTP request
+     * Perform a HTTP request.
      *
      * @name http.request
      * @param url target url
@@ -40,10 +41,11 @@ namespace dmScript
      * @param [post_data] option data to send
      * @examples
      * <p>
-     * Basic HTTP-GET request:
+     * Basic HTTP-GET request. The callback receives a table with the response
+     * in the fields status, payload (the data) and headers (a table).
      * </p>
      * <pre>
-     * local function http_result(response)
+     * local function http_result(self, id, response)
      *     print(response.status)
      *     print(response.payload)
      *     print(response.headers)

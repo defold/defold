@@ -14,6 +14,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCameraDestroy(const dmGameObject::ComponentDestroyParams& params);
 
+    dmGameObject::CreateResult CompCameraAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
+
     dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
     dmGameObject::UpdateResult CompCameraOnMessage(const dmGameObject::ComponentOnMessageParams& params);

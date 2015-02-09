@@ -57,6 +57,7 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
         text.getText().addListener(SWT.KeyDown, this);
         text.getText().addListener(SWT.FocusOut, this);
         text.getText().addListener(SWT.DefaultSelection, this);
+        text.getText().addFocusListener(new com.dynamo.cr.properties.util.SelectAllOnFocus());
         return text;
     }
 
@@ -94,7 +95,12 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
             } else {
                 s = "";
             }
-            spinnerFields[i].getText().setText(s);
+
+            // Avoid setText unless necessary since it messes with selections.
+            if (!spinnerFields[i].getText().getText().equals(s)) {
+                String old = spinnerFields[i].getText().getText();
+                spinnerFields[i].getText().setText(s);
+            }
             oldValue[i] = s;
         }
     }
@@ -122,10 +128,12 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
             return;
         }
 
+        boolean releaseFocus = false;
         boolean updateValue = false;
         IMergeableOperation.Type type = Type.OPEN;
         if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
             updateValue = true;
+            releaseFocus = true;
         } else if (event.type == SWT.FocusOut && !Arrays.equals(newStringValue, oldValue)) {
             updateValue = true;
         } else if (event.type == SWT.DefaultSelection) {
@@ -146,6 +154,14 @@ public class ArrayPropertyEditor<V, T, U extends IPropertyObjectWorld> implement
             if (combinedOperation != null)
                 models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
         }
+
         oldValue = newStringValue;
+
+        // When pressing the return key, give up focus. (DEF-923). Unfortunately there seems to be no way of
+        // removing focus; it has to be moved elsewhere. So just force it to the parent to avoid users entering text
+        // elsewhere.
+        if (releaseFocus) {
+            composite.forceFocus();
+        }
     }
 }

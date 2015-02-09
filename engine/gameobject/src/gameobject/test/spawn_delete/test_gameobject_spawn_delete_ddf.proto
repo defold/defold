@@ -1,0 +1,6 @@
+package TestGameObjectDDF;
+
+message AResource
+{
+    required uint32 a = 1;
+}

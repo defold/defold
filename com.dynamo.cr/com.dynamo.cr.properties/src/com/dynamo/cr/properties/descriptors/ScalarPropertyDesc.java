@@ -66,6 +66,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
         private SpinnerText spinnerText;
         private Combo combo;
         private Control control;
+        private Composite controlParent;
 
         public EditorWidget(Composite parent) {
             if (editorType == EditorType.DEFAULT) {
@@ -82,6 +83,11 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
             } else {
                 control = combo = new Combo(parent, SWT.DROP_DOWN);
             }
+            controlParent = parent;
+
+            if (text != null) {
+                control.addFocusListener(new com.dynamo.cr.properties.util.SelectAllOnFocus());
+            }
         }
 
         private void setText(String text) {
@@ -96,6 +102,11 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                 return this.text.getText();
             else
                 return this.combo.getText();
+        }
+
+        // Remove focus from the actual control. More precisely, set focus to its parent.
+        public void releaseFocus() {
+            controlParent.forceFocus();
         }
 
         public Control getControl() {
@@ -140,6 +151,7 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
         private String oldValue;
         private IPropertyModel<T, U>[] models;
         private EditorWidget widget;
+
         Editor(Composite parent) {
             widget = new EditorWidget(parent);
             widget.addListener(SWT.KeyDown, this);
@@ -201,9 +213,11 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                 value = fromString("0");
 
             boolean updateValue = false;
+            boolean releaseFocus = false;
             IMergeableOperation.Type type = Type.OPEN;
             if (event.type == SWT.KeyDown && (event.character == '\r' || event.character == '\n')) {
                 updateValue = true;
+                releaseFocus = true;
             } else if (event.type == SWT.FocusOut && !value.equals(oldValue)) {
                 updateValue = true;
             } else if (event.type == SWT.DefaultSelection && !value.equals(oldValue)) {
@@ -219,6 +233,10 @@ public abstract class ScalarPropertyDesc<S, T, U extends IPropertyObjectWorld> e
                     models[0].getCommandFactory().execute(combinedOperation, models[0].getWorld());
 
                 oldValue = value.toString();
+            }
+
+            if (releaseFocus) {
+                widget.releaseFocus();
             }
         }
     }

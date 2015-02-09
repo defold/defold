@@ -11,6 +11,7 @@ namespace dmGameSystem
 {
 #define SPINE_MODEL_EXT "spinemodelc"
 #define TILE_MAP_EXT "tilegridc"
+#define FACTORY_EXT "factoryc"
 
     /**
      * Return current game object instance, if any.

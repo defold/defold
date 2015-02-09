@@ -3,8 +3,15 @@
 
 #include <gameobject/gameobject.h>
 
+#include "../resources/res_factory.h"
+
 namespace dmGameSystem
 {
+    struct FactoryComponent
+    {
+        FactoryResource*    m_Resource;
+    };
+
     dmGameObject::CreateResult CompFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompFactoryDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

@@ -31,6 +31,118 @@ namespace dmGameSystem
         dmMessage::HSocket m_Socket;
         uint32_t m_ComponentIndex;
     };
+    
+    /*# collision object mass (number)
+     *
+     * [READ ONLY] Returns the defined physical mass of the collision object component as a number.
+     *
+     * @name mass
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to query a collision object component's mass:
+     * </p>
+     * <pre>
+     * -- get mass from collision object component "boulder"
+     * local mass = go.get("#boulder", "mass")
+     * -- do something useful
+     * assert(mass > 1)
+     * </pre>
+     */
+
+    /*# collision object linear velocity (vector3)
+     *
+     * [READ ONLY] Returns the current linear velocity of the collision object component as a vector3.
+     * The velocity is measured in units/s (pixels/s).
+     *
+     * @name linear_velocity
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to query a collision object component's linear velocity:
+     * </p>
+     * <pre>
+     * -- get linear velocity from collision object "collisionobject" in gameobject "ship"
+     * local source = "ship#collisionobject"
+     * local velocity = go.get(source, "linear_velocity")
+     * -- apply the velocity on target game object "boulder"'s collision object as a force
+     * local target = "boulder#collisionobject"
+     * local pos = go.get_position(target)
+     * msg.post(target, "apply_force", { force = velocity, position = pos })
+     * </pre>
+     */
+
+    /*# collision object angular velocity (vector3)
+     *
+     * [READ ONLY] Returns the current linear velocity of the collision object component as a vector3.
+     * The velocity is measured as a rotation around the vector with a speed equivalent to the vector length
+     * in radians/s.
+     *
+     * @name angular_velocity
+     * @property
+     *
+     * @examples
+     * <p>
+     * How to query a collision object component's angular velocity:
+     * </p>
+     * <pre>
+     * -- get angular velocity from collision object "collisionobject" in gameobject "boulder"
+     * -- this is a 2d game so rotation around z is the only one available.
+     * local velocity = go.get("boulder#collisionobject", "angular_velocity.z")
+     * -- do something interesting
+     * if velocity < 0 then
+     *     -- clockwise rotation
+     *     ...
+     * else
+     *     -- counter clockwise rotation
+     *     ...
+     * end
+     * </pre>
+     */
+
+    /*# collision object linear damping (number)
+     *
+     * The linear damping value for the collision object. Setting this value alters the damping of
+     * linear motion of the object. Valid values are between 0 (no damping) and 1 (full damping).
+     *
+     * @name linear_damping
+     * @property
+     * @examples
+     * <p>
+     * How to increase a collision object component's linear damping:
+     * </p>
+     * <pre>
+     * -- get linear damping from collision object "collisionobject" in gameobject "floater"
+     * local target = "floater#collisionobject"
+     * local damping = go.get(target, "linear_damping")
+     * -- increase it by 10% if it's below 0.9
+     * if damping <= 0.9 then
+     *     go.set(target, "linear_damping", damping * 1.1)
+     * end
+     * </pre>
+     */
+
+    /*# collision object angular damping (number)
+     *
+     * The angular damping value for the collision object. Setting this value alters the damping of
+     * angular motion of the object (rotation). Valid values are between 0 (no damping) and 1 (full damping).
+     *
+     * @name angular_damping
+     * @property
+     * @examples
+     * <p>
+     * How to decrease a collision object component's angular damping:
+     * </p>
+     * <pre>
+     * -- get angular damping from collision object "collisionobject" in gameobject "floater"
+     * local target = "floater#collisionobject"
+     * local damping = go.get(target, "angular_damping")
+     * -- decrease it by 10%
+     * go.set(target, "angular_damping", damping * 0.9)
+     * </pre>
+     */
 
     /*# requests a ray cast to be performed
      * Ray casts are used to test for intersections against collision objects in the physics world.

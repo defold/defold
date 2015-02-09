@@ -85,6 +85,11 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    dmGameObject::CreateResult CompSoundAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+        // Intentional pass-through
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
@@ -205,7 +210,13 @@ namespace dmGameSystem
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
                 if (result == dmSound::RESULT_OK)
                 {
-                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(play_sound->m_Gain, 0, 0, 0));
+                    result = dmSound::SetInstanceGroup(entry.m_SoundInstance, entry.m_Sound->m_GroupHash);
+                    if (result != dmSound::RESULT_OK) {
+                        dmLogError("Failed to set sound group (%d)", result);
+                    }
+
+                    float gain = play_sound->m_Gain * entry.m_Sound->m_Gain;
+                    dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_GAIN, Vectormath::Aos::Vector4(gain, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping);
                 }
                 else

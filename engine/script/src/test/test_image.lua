@@ -7,6 +7,13 @@ function test_image()
     assert(img.height == 2)
     assert(#img.buffer == 2 * 2 * 4)
     assert(img.type == image.TYPE_RGBA)
+
+    img = image.load(buf, true)
+    assert(img.width == 2)
+    assert(img.height == 2)
+    assert(#img.buffer == 2 * 2 * 4)
+    assert(img.type == image.TYPE_RGBA)
+
     file:close()
 end
 

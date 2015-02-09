@@ -17,6 +17,7 @@ namespace dmGameSystem
         dmGameObject::HInstance m_Instance;
         uint8_t                 m_ComponentIndex;
         uint8_t                 m_Enabled : 1;
+        uint8_t                 m_AddedToUpdate : 1;
     };
 
     struct BoxVertex
@@ -39,9 +40,6 @@ namespace dmGameSystem
     struct GuiWorld
     {
         dmArray<GuiComponent*>           m_Components;
-        dmRender::HMaterial              m_Material;
-        dmGraphics::HVertexProgram       m_VertexProgram;
-        dmGraphics::HFragmentProgram     m_FragmentProgram;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexBuffer        m_VertexBuffer;
         dmArray<BoxVertex>               m_ClientVertexBuffer;
@@ -60,6 +58,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompGuiInit(const dmGameObject::ComponentInitParams& params);
 
     dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params);
+
+    dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params);
 
