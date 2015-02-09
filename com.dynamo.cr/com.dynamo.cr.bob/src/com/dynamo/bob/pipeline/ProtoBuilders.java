@@ -132,6 +132,7 @@ public class ProtoBuilders {
         @Override
         protected SceneDesc.Builder transform(Task<Void> task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".gui_script", ".gui_scriptc"));
+            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
             Set<String> fontNames = new HashSet<String>();
             Set<String> textureNames = new HashSet<String>();
             Set<String> layerNames = new HashSet<String>();

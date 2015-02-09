@@ -1,0 +1,38 @@
+
+-- Timeline
+--
+-- t=0: first object starts animation on second (duration 1s) & callback installed
+--		third object starts animation on fourth (duration 0.05s) & callback installed
+--
+-- t= 0.02: fourth object deletes third
+--
+-- t= 0.05: callback for end of fourth animation is potentially executed: no crash expected
+--
+-- t= 0.2: engine exits: callback for end of second animation is potentially executed: no crash expected
+
+
+local function callback(self, url, property_id)
+   print "Animation 2 complete" -- should not arrive here
+end
+
+function init(self)
+    print "First animates second"
+    go.animate("second", "position.x", go.PLAYBACK_ONCE_FORWARD, 1, go.EASING_LINEAR, 1, 0, callback)
+
+    self.timer = 0
+    self.requested_exit = False
+end
+
+function update(self, dt)
+    self.timer = self.timer + dt
+
+    if self.timer >= 0.2 and not self.requested_exit then
+        print ("Test exits @ t ="..tostring(self.timer))
+        msg.post("@system:", "exit", { code = 0 })
+        self.requested_exit = True
+    end
+end
+
+function final(self)
+    print "First object has been finalised"
+end

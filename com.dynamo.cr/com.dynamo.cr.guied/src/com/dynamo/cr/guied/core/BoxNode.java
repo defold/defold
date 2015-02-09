@@ -16,9 +16,9 @@ import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.TextureHandle;
 
 @SuppressWarnings("serial")
-public class BoxNode extends GuiNode {
+public class BoxNode extends ClippingNode {
 
-    @Property(editorType = EditorType.DROP_DOWN)
+    @Property(editorType = EditorType.DROP_DOWN, category = "")
     private String texture = "";
 
     @Property

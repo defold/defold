@@ -9,6 +9,7 @@
 #include "gamesys.h"
 #include "gamesys_ddf.h"
 #include "../gamesys_private.h"
+#include "../components/comp_factory.h"
 
 #include "script_factory.h"
 
@@ -21,8 +22,8 @@ extern "C"
 namespace dmGameSystem
 {
     /*# make a factory create a new game object
-     * Which factory to create the game object is identified by the URL.
-     * The game object will be created between this frame and the next.
+     * The URL identifies which factory should create the game object.
+     * If the game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.
      *
      * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
      * See go.property for more information on script properties.
@@ -41,9 +42,6 @@ namespace dmGameSystem
      * <pre>
      * function init(self)
      *     self.my_created_object = factory.create("#factory", nil, nil, {my_value = 1})
-     * end
-     *
-     * function update(self, dt)
      *     -- communicate with the object
      *     msg.post(msg.url(nil, self.my_created_object), "hello")
      * end
@@ -66,57 +64,84 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        const uint32_t buffer_size = 512;
-        uint8_t buffer[buffer_size];
-        dmGameSystemDDF::Create* request = (dmGameSystemDDF::Create*)buffer;
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
+        FactoryComponent* component = (FactoryComponent*) user_data;
 
-        uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
+        Vectormath::Aos::Point3 position;
         if (top >= 2 && !lua_isnil(L, 2))
         {
-            request->m_Position = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
+            position = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
         }
         else
         {
-            request->m_Position = dmGameObject::GetWorldPosition(sender_instance);
+            position = dmGameObject::GetWorldPosition(sender_instance);
         }
+        Vectormath::Aos::Quat rotation;
         if (top >= 3 && !lua_isnil(L, 3))
         {
-            request->m_Rotation = *dmScript::CheckQuat(L, 3);
+            rotation = *dmScript::CheckQuat(L, 3);
         }
         else
         {
-            request->m_Rotation = dmGameObject::GetWorldRotation(sender_instance);
+            rotation = dmGameObject::GetWorldRotation(sender_instance);
         }
+        const uint32_t buffer_size = 512;
+        uint8_t buffer[buffer_size];
         uint32_t actual_prop_buffer_size = 0;
+        uint8_t* prop_buffer = buffer;
+        uint32_t prop_buffer_size = buffer_size;
+        bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
+        if (msg_passing) {
+            const uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
+            prop_buffer = &(buffer[msg_size]);
+            prop_buffer_size -= msg_size;
+        }
         if (top >= 4)
         {
-            char* prop_buffer = (char*)&buffer[msg_size];
-            uint32_t prop_buffer_size = buffer_size - msg_size;
-            actual_prop_buffer_size = dmScript::CheckTable(L, prop_buffer, prop_buffer_size, 4);
+            actual_prop_buffer_size = dmScript::CheckTable(L, (char*)prop_buffer, prop_buffer_size, 4);
             if (actual_prop_buffer_size > prop_buffer_size)
                 return luaL_error(L, "the properties supplied to factory.create are too many.");
         }
+        float scale;
         if (top >= 5 && !lua_isnil(L, 5))
         {
-            request->m_Scale = luaL_checknumber(L, 5);
-            if (request->m_Scale <= 0.0f)
+            scale = luaL_checknumber(L, 5);
+            if (scale <= 0.0f)
             {
                 return luaL_error(L, "The scale supplied to factory.create must be greater than 0.");
             }
         }
         else
         {
-            request->m_Scale = dmGameObject::GetWorldScale(sender_instance);
+            scale = dmGameObject::GetWorldScale(sender_instance);
         }
-        request->m_Id = dmGameObject::GenerateUniqueInstanceId(collection);
+        dmhash_t id = dmGameObject::GenerateUniqueInstanceId(collection);
 
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
+        if (msg_passing) {
+            dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
+            create_msg->m_Id = id;
+            create_msg->m_Position = position;
+            create_msg->m_Rotation = rotation;
+            create_msg->m_Scale = scale;
+            dmMessage::URL sender;
+            if (!dmScript::GetURL(L, &sender)) {
+                luaL_error(L, "factory.create can not be called from this script type");
+                return 1;
+            }
+            dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size);
+        } else {
+            dmScript::GetInstance(L);
+            int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype, id, buffer, actual_prop_buffer_size,
+                    position, rotation, scale);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+            dmScript::SetInstance(L);
+            luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        }
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, msg_size + actual_prop_buffer_size);
-        dmScript::PushHash(L, request->m_Id);
-
+        dmScript::PushHash(L, id);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }

@@ -75,12 +75,13 @@ namespace dmScript
         return index;
     }
 
-    /*# decode json from a string to a lua-table
-     * A lua error is raised for syntax errors.
+    /*# decode JSON from a string to a lua-table
+     * Decode a string of JSON data into a Lua table.
+     * A Lua error is raised for syntax errors.
      *
      * @name json.decode
      * @param json json data (string)
-     * @return decoded json as a lua-table
+     * @return decoded json (table)
      */
     int Json_Decode(lua_State* L)
     {

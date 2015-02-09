@@ -169,10 +169,14 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
         uintptr_t user_data;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, SPINE_MODEL_EXT, &user_data, &receiver);
-        SpineModelComponent* component = (SpineModelComponent*) user_data;
+        SpineModelWorld* world = 0;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
+        SpineModelComponent* component = world->m_Components.Get(user_data);
 
         dmhash_t bone_id;
         if (lua_isstring(L, 2))
@@ -203,12 +207,12 @@ namespace dmGameSystem
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
-        if (instance == 0x0)
+        dmhash_t instance_id = component->m_NodeIds[bone_index];
+        if (instance_id == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
         }
-        dmScript::PushHash(L, dmGameObject::GetIdentifier(instance));
+        dmScript::PushHash(L, instance_id);
 
         assert(top + 1 == lua_gettop(L));
         return 1;

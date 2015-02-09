@@ -11,10 +11,13 @@ namespace dmGameSystem
     {
         dmGameObject::HInstance      m_Instance;
         dmGameSystemDDF::LightDesc** m_LightResource;
+        uint16_t                     m_AddedToUpdate : 1;
+        uint16_t                     m_Padding : 15;
         Light(dmGameObject::HInstance instance, dmGameSystemDDF::LightDesc** light_resource)
         {
             m_Instance = instance;
             m_LightResource = light_resource;
+            m_AddedToUpdate = 1;
         }
     };
 
@@ -30,6 +33,8 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompLightCreate(const dmGameObject::ComponentCreateParams& params);
 
     dmGameObject::CreateResult CompLightDestroy(const dmGameObject::ComponentDestroyParams& params);
+
+    dmGameObject::CreateResult CompLightAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
     dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params);
 

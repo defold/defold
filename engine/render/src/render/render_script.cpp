@@ -9,6 +9,7 @@
 #include <dlib/profile.h>
 
 #include <script/script.h>
+#include <script/lua_source_ddf.h>
 
 #include "font_renderer.h"
 #include "render/render_ddf.h"
@@ -450,6 +451,11 @@ namespace dmRender
      */
 
     /*#
+     * @name render.FORMAT_STENCIL
+     * @variable
+     */
+
+    /*#
      * @name render.FILTER_LINEAR
      * @variable
      */
@@ -493,6 +499,7 @@ namespace dmRender
      *      render.FORMAT_RGBA_DXT3<br/>
      *      render.FORMAT_RGBA_DXT5<br/>
      *      render.FORMAT_DEPTH<br/>
+     *      render.FORMAT_STENCIL<br/>
      *     </td></tr>
      *   <tr><td>"width"</td><td>number</td></tr>
      *   <tr><td>"height"</td><td>number</td></tr>
@@ -551,6 +558,20 @@ namespace dmRender
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
                     p->m_Format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, -1);
+                    if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                    {
+                        if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
+                        {
+                            return luaL_error(L, "The only valid format for depth buffers is FORMAT_DEPTH.");
+                        }
+                    }
+                    if(buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                    {
+                        if(p->m_Format != dmGraphics::TEXTURE_FORMAT_STENCIL)
+                        {
+                            return luaL_error(L, "The only valid format for stencil buffers is FORMAT_STENCIL.");
+                        }
+                    }
                 }
                 else if (strncmp(key, RENDER_SCRIPT_WIDTH_NAME, strlen(RENDER_SCRIPT_WIDTH_NAME)) == 0)
                 {
@@ -715,10 +736,14 @@ namespace dmRender
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
             dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
-            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uint32_t)texture)))
-                return 0;
-            else
-                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            if(texture != 0)
+            {
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uint32_t)texture)))
+                    return 0;
+                else
+                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            }
+            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
         }
         else
         {
@@ -943,7 +968,7 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*# draws all 2d debug graphics
+    /*# draws all 2d debug graphics (Deprecated)
      *
      * @name render.draw_debug2d
      */
@@ -1196,42 +1221,42 @@ namespace dmRender
     }
 
     /*#
-     * @name render.STENCIL_FUNC_NEVER
+     * @name render.COMPARE_FUNC_NEVER
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_LESS
+     * @name render.COMPARE_FUNC_LESS
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_LEQUAL
+     * @name render.COMPARE_FUNC_LEQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_GREATER
+     * @name render.COMPARE_FUNC_GREATER
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_GEQUAL
+     * @name render.COMPARE_FUNC_GEQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_EQUAL
+     * @name render.COMPARE_FUNC_EQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_NOTEQUAL
+     * @name render.COMPARE_FUNC_NOTEQUAL
      * @variable
      */
 
     /*#
-     * @name render.STENCIL_FUNC_ALWAYS
+     * @name render.COMPARE_FUNC_ALWAYS
      * @variable
      */
 
@@ -1240,14 +1265,14 @@ namespace dmRender
     * @name render.set_stencil_func
     * @param func stencil test function (constant)
     * <ul>
-    *   <li><code>render.STENCIL_FUNC_NEVER</code></li>
-    *   <li><code>render.STENCIL_FUNC_LESS</code></li>
-    *   <li><code>render.STENCIL_FUNC_LEQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_GREATER</code></li>
-    *   <li><code>render.STENCIL_FUNC_GEQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_EQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_NOTEQUAL</code></li>
-    *   <li><code>render.STENCIL_FUNC_ALWAYS</code></li>
+    *   <li><code>render.COMPARE_FUNC_NEVER</code></li>
+    *   <li><code>render.COMPARE_FUNC_LESS</code></li>
+    *   <li><code>render.COMPARE_FUNC_LEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_GREATER</code></li>
+    *   <li><code>render.COMPARE_FUNC_GEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_EQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_NOTEQUAL</code></li>
+    *   <li><code>render.COMPARE_FUNC_ALWAYS</code></li>
     * </ul>
     * @param ref reference value for the stencil test (number)
     * @param mask mask that is ANDed with both the reference value and the stored stencil value when the test is done (number)
@@ -1258,14 +1283,14 @@ namespace dmRender
         uint32_t func = luaL_checknumber(L, 1);
         switch (func)
         {
-            case dmGraphics::STENCIL_FUNC_NEVER:
-            case dmGraphics::STENCIL_FUNC_LESS:
-            case dmGraphics::STENCIL_FUNC_LEQUAL:
-            case dmGraphics::STENCIL_FUNC_GREATER:
-            case dmGraphics::STENCIL_FUNC_GEQUAL:
-            case dmGraphics::STENCIL_FUNC_EQUAL:
-            case dmGraphics::STENCIL_FUNC_NOTEQUAL:
-            case dmGraphics::STENCIL_FUNC_ALWAYS:
+            case dmGraphics::COMPARE_FUNC_NEVER:
+            case dmGraphics::COMPARE_FUNC_LESS:
+            case dmGraphics::COMPARE_FUNC_LEQUAL:
+            case dmGraphics::COMPARE_FUNC_GREATER:
+            case dmGraphics::COMPARE_FUNC_GEQUAL:
+            case dmGraphics::COMPARE_FUNC_EQUAL:
+            case dmGraphics::COMPARE_FUNC_NOTEQUAL:
+            case dmGraphics::COMPARE_FUNC_ALWAYS:
                 break;
             default:
                 return luaL_error(L, "Invalid stencil func: %s.set_stencil_func(self, %d)", RENDER_SCRIPT_LIB_NAME, func);
@@ -1664,6 +1689,7 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(RGBA_DXT3);
         REGISTER_FORMAT_CONSTANT(RGBA_DXT5);
         REGISTER_FORMAT_CONSTANT(DEPTH);
+        REGISTER_FORMAT_CONSTANT(STENCIL);
 
 #undef REGISTER_FORMAT_CONSTANT
 
@@ -1709,20 +1735,20 @@ namespace dmRender
 
 #undef REGISTER_BLEND_CONSTANT
 
-#define REGISTER_STENCIL_FUNC_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_FUNC_##name); \
-        lua_setfield(L, -2, "STENCIL_FUNC_"#name);
+#define REGISTER_COMPARE_FUNC_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::COMPARE_FUNC_##name); \
+        lua_setfield(L, -2, "COMPARE_FUNC_"#name);
 
-        REGISTER_STENCIL_FUNC_CONSTANT(NEVER);
-        REGISTER_STENCIL_FUNC_CONSTANT(LESS);
-        REGISTER_STENCIL_FUNC_CONSTANT(LEQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(GREATER);
-        REGISTER_STENCIL_FUNC_CONSTANT(GEQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(EQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(NOTEQUAL);
-        REGISTER_STENCIL_FUNC_CONSTANT(ALWAYS);
+        REGISTER_COMPARE_FUNC_CONSTANT(NEVER);
+        REGISTER_COMPARE_FUNC_CONSTANT(LESS);
+        REGISTER_COMPARE_FUNC_CONSTANT(LEQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(GREATER);
+        REGISTER_COMPARE_FUNC_CONSTANT(GEQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(EQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(NOTEQUAL);
+        REGISTER_COMPARE_FUNC_CONSTANT(ALWAYS);
 
-#undef REGISTER_STENCIL_FUNC_CONSTANT
+#undef REGISTER_COMPARE_FUNC_CONSTANT
 
 #define REGISTER_STENCIL_OP_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::STENCIL_OP_##name); \
@@ -1769,28 +1795,7 @@ namespace dmRender
         context.m_LuaState = 0;
     }
 
-    struct LuaData
-    {
-        const char* m_Buffer;
-        uint32_t m_Size;
-    };
-
-    const char* ReadScript(lua_State *L, void *data, size_t *size)
-    {
-        LuaData* lua_data = (LuaData*)data;
-        if (lua_data->m_Size == 0)
-        {
-            return 0x0;
-        }
-        else
-        {
-            *size = lua_data->m_Size;
-            lua_data->m_Size = 0;
-            return lua_data->m_Buffer;
-        }
-    }
-
-    static bool LoadRenderScript(lua_State* L, const void* buffer, uint32_t buffer_size, const char* filename, RenderScript* script)
+    static bool LoadRenderScript(lua_State* L, dmLuaDDF::LuaSource *source, RenderScript* script)
     {
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -1799,10 +1804,7 @@ namespace dmRender
         int top = lua_gettop(L);
         (void) top;
 
-        LuaData data;
-        data.m_Buffer = (const char*)buffer;
-        data.m_Size = buffer_size;
-        int ret = lua_load(L, &ReadScript, &data, filename);
+        int ret = dmScript::LuaLoad(L, source);
         if (ret == 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
@@ -1822,7 +1824,7 @@ namespace dmRender
                         }
                         else
                         {
-                            dmLogError("The global name '%s' in '%s' must be a function.", RENDER_SCRIPT_FUNCTION_NAMES[i], filename);
+                            dmLogError("The global name '%s' in '%s' must be a function.", RENDER_SCRIPT_FUNCTION_NAMES[i], source->m_Filename);
                             lua_pop(L, 1);
                             goto bail;
                         }
@@ -1861,7 +1863,7 @@ bail:
         }
     }
 
-    HRenderScript NewRenderScript(HRenderContext render_context, const void* buffer, uint32_t buffer_size, const char* filename)
+    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
@@ -1874,7 +1876,7 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT);
         lua_setmetatable(L, -2);
         render_script->m_InstanceReference = luaL_ref(L, LUA_REGISTRYINDEX);
-        if (LoadRenderScript(L, buffer, buffer_size, filename, render_script))
+        if (LoadRenderScript(L, source, render_script))
         {
             assert(top == lua_gettop(L));
             return render_script;
@@ -1887,9 +1889,9 @@ bail:
         }
     }
 
-    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, const void* buffer, uint32_t buffer_size, const char* filename)
+    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
     {
-        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, buffer, buffer_size, filename, render_script);
+        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)

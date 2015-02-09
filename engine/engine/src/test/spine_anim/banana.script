@@ -1,0 +1,34 @@
+function init(self)
+    -- Add initialization code here
+    -- Remove this function if not needed
+    self.ticks = 0
+end
+
+function final(self)
+    -- Add finalization code here
+    -- Remove this function if not needed
+end
+
+function update(self, dt)
+    -- Add update code here
+    -- Remove this function if not needed
+    self.ticks = self.ticks + 1
+    if 10 == self.ticks then
+    	msg.post("@system:", "exit", { code = 0 })
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    -- Add message-handling code here
+    -- Remove this function if not needed
+end
+
+function on_input(self, action_id, action)
+    -- Add input-handling code here
+    -- Remove this function if not needed
+end
+
+function on_reload(self)
+    -- Add reload-handling code here
+    -- Remove this function if not needed
+end

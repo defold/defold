@@ -28,6 +28,26 @@ protected:
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+
+        dmResource::Result e;
+        e = dmResource::RegisterType(m_Factory, "a", this, ACreate, ADestroy, 0);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+
+        uint32_t resource_type;
+        dmGameObject::Result result;
+
+        // A has component_user_data
+        e = dmResource::GetTypeFromExtension(m_Factory, "a", &resource_type);
+        ASSERT_EQ(dmResource::RESULT_OK, e);
+        dmGameObject::ComponentType a_type;
+        a_type.m_Name = "a";
+        a_type.m_ResourceType = resource_type;
+        a_type.m_Context = this;
+        a_type.m_CreateFunction = AComponentCreate;
+        a_type.m_DestroyFunction = AComponentDestroy;
+        result = dmGameObject::RegisterComponentType(m_Register, a_type);
+        dmGameObject::SetUpdateOrderPrio(m_Register, resource_type, 2);
+        ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
     virtual void TearDown()
@@ -40,6 +60,11 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
+    static dmResource::FResourceCreate    ACreate;
+    static dmResource::FResourceDestroy   ADestroy;
+    static dmGameObject::ComponentCreate  AComponentCreate;
+    static dmGameObject::ComponentDestroy AComponentDestroy;
+
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
@@ -48,6 +73,40 @@ public:
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
 };
+
+static dmResource::Result NullResourceCreate(dmResource::HFactory factory, void* context, const void* buffer, uint32_t buffer_size, dmResource::SResourceDescriptor* resource, const char* filename)
+{
+    resource->m_Resource = (void*)1; // asserted for != 0 in dmResource
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result NullResourceDestroy(dmResource::HFactory factory, void* context, dmResource::SResourceDescriptor* resource)
+{
+    return dmResource::RESULT_OK;
+}
+
+static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::ComponentCreateParams& params)
+{
+    // Hard coded for the specific case "CreateCallback" below
+    dmGameObject::HInstance instance = params.m_Instance;
+    if (dmGameObject::GetIdentifier(instance) != dmHashString64("/instance0")) {
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+    if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+static dmGameObject::CreateResult TestComponentDestroy(const dmGameObject::ComponentDestroyParams& params)
+{
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+dmResource::FResourceCreate FactoryTest::ACreate              = NullResourceCreate;
+dmResource::FResourceDestroy FactoryTest::ADestroy            = NullResourceDestroy;
+dmGameObject::ComponentCreate FactoryTest::AComponentCreate   = TestComponentCreate;
+dmGameObject::ComponentDestroy FactoryTest::AComponentDestroy = TestComponentDestroy;
 
 TEST_F(FactoryTest, Factory)
 {
@@ -146,6 +205,13 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
     dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
     dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), 2.0f);
     ASSERT_EQ((void*)0, instance);
+}
+
+TEST_F(FactoryTest, FactoryCreateCallback)
+{
+    dmhash_t id = dmGameObject::GenerateUniqueInstanceId(m_Collection);
+    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_create.goc", id, 0x0, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), 2.0f);
+    ASSERT_NE((void*)0, instance);
 }
 
 int main(int argc, char **argv)

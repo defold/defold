@@ -25,9 +25,9 @@ import com.google.protobuf.TextFormat;
  * This class is only kept for legacy reasons (used by gamesys to build
  * content). It has been completely replaced by TileSetBuilder +
  * TileSetGenerator inside bob.
- * 
+ *
  * @author rasv
- * 
+ *
  */
 public class TileSetc {
 
@@ -84,7 +84,7 @@ public class TileSetc {
             int index = compiledImageName.lastIndexOf('.');
             compiledImageName = compiledImageName.substring(0, index) + ".texturec";
             TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage,
-                    false);
+                    false, false);
             TextureSet.Builder textureSetBuilder = result.builder;
             textureSetBuilder.setTexture(compiledImageName).setTileWidth(tileSet.getTileWidth())
                     .setTileHeight(tileSet.getTileHeight());

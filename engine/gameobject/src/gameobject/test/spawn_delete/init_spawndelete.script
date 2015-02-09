@@ -1,0 +1,4 @@
+function init(self)
+    local id = spawn("/a.goc")
+    go.delete(id)
+end

@@ -42,8 +42,8 @@
                 <artifactId>tycho-compiler-plugin</artifactId>
                 <version>${tycho-version}</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.7</source>
+                    <target>1.7</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -104,6 +104,7 @@
         <module>../com.dynamo.cr.client</module>
         <module>../com.dynamo.cr.client.test</module>
         <module>../com.dynamo.cr.guied</module>
+        <module>../com.dynamo.cr.guied.test</module>
         <module>../com.dynamo.cr.tileeditor</module>
         <module>../com.dynamo.cr.tileeditor.test</module>
         <module>../com.dynamo.cr.properties</module>

@@ -158,6 +158,8 @@ TEST_F(ScriptTest, TestFailingScript03)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go3.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
     // Avoid logging expected errors. Better solution?
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -186,9 +188,9 @@ static void CreateScriptFile(const char* file_name, const char* contents)
 {
     dmLuaDDF::LuaModule lua_module;
     memset(&lua_module, 0, sizeof(lua_module));
-    lua_module.m_Type = dmLuaDDF::LuaModule::TYPE_TEXT;
-    lua_module.m_Script.m_Data = (uint8_t*) contents;
-    lua_module.m_Script.m_Count = strlen(contents);
+    lua_module.m_Source.m_Script.m_Data = (uint8_t*) contents;
+    lua_module.m_Source.m_Script.m_Count = strlen(contents);
+    lua_module.m_Source.m_Filename = file_name;
     dmDDF::Result r = dmDDF::SaveMessageToFile(&lua_module, dmLuaDDF::LuaModule::m_DDFDescriptor, file_name);
     assert(r == dmDDF::RESULT_OK);
 }
@@ -225,6 +227,8 @@ TEST_F(ScriptTest, TestReload)
     dmGameObject::HInstance go;
     go = dmGameObject::New(m_Collection, go_resource_name);
     ASSERT_NE((dmGameObject::HInstance) 0, go);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     Point3 p1 = dmGameObject::GetPosition(go);

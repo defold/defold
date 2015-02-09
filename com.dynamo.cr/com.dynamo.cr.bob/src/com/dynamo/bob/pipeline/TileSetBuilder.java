@@ -106,7 +106,7 @@ public class TileSetBuilder extends Builder<Void>  {
         if (collisionImage != null && !collisionImage.getColorModel().hasAlpha()) {
             throw new CompileExceptionError(task.input(0), -1, "the collision image does not have an alpha channel");
         }
-        TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage, false);
+        TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage, false, false);
         TextureSet.Builder textureSetBuilder = result.builder;
 
         int buildDirLen = project.getBuildDirectory().length();

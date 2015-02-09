@@ -36,8 +36,8 @@ namespace dmScript
      * A lua error is raised is on error
      *
      * @name zlib.inflate
-     * @param buf buffer to inflate
-     * @return inflated buffer
+     * @param buf buffer to inflate (string)
+     * @return inflated buffer (string)
      */
     int Zlib_Inflate(lua_State* L)
     {
@@ -66,8 +66,8 @@ namespace dmScript
      * A lua error is raised is on error
      *
      * @name zlib.deflate
-     * @param buf buffer to deflate
-     * @return deflated buffer
+     * @param buf buffer to deflate (string)
+     * @return deflated buffer (string)
      */
     int Zlib_Deflate(lua_State* L)
     {

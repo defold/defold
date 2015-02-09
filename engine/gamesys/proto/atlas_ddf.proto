@@ -29,4 +29,5 @@ message Atlas
     repeated AtlasAnimation animations  = 2;
     optional uint32 margin              = 3 [default = 0];
     optional uint32 extrude_borders     = 4 [default = 0];
+    optional uint32 inner_padding       = 5 [default = 0];
 }

@@ -1,0 +1,19 @@
+
+
+function init(self)
+    self.timer = 0
+    self.third_id = go.get_id("third")
+end
+
+function update(self, dt)
+    self.timer = self.timer + dt
+    if self.timer >= 0.02 and self.third_id ~= nil then
+        print "Fourth kills third"
+        go.delete(self.third_id)
+        self.third_id = nil
+    end
+end
+
+function final(self)
+    print "Fourth object has been finalised"
+end

@@ -23,13 +23,14 @@ using namespace AS3::ui;
 
 // Render states
 #define DMGRAPHICS_STATE_DEPTH_TEST                         (0)
-#define DMGRAPHICS_STATE_STENCIL_TEST                       (1)
-#define DMGRAPHICS_STATE_ALPHA_TEST                         (2)
-#define DMGRAPHICS_STATE_BLEND                              (3)
-#define DMGRAPHICS_STATE_CULL_FACE                          (4)
-#define DMGRAPHICS_STATE_POLYGON_OFFSET_FILL                (5)
-#define DMGRAPHICS_STATE_POLYGON_OFFSET_LINE                (6)
-#define DMGRAPHICS_STATE_POLYGON_OFFSET_POINT               (7)
+#define DMGRAPHICS_STATE_SCISSOR_TEST                       (1)
+#define DMGRAPHICS_STATE_STENCIL_TEST                       (2)
+#define DMGRAPHICS_STATE_ALPHA_TEST                         (3)
+#define DMGRAPHICS_STATE_BLEND                              (4)
+#define DMGRAPHICS_STATE_CULL_FACE                          (5)
+#define DMGRAPHICS_STATE_POLYGON_OFFSET_FILL                (6)
+#define DMGRAPHICS_STATE_POLYGON_OFFSET_LINE                (7)
+#define DMGRAPHICS_STATE_POLYGON_OFFSET_POINT               (8)
 
 // Types
 #define DMGRAPHICS_TYPE_BYTE                                (0)
