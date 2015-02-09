@@ -9,10 +9,12 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.google.protobuf.ByteString;
 
 @BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".texturec")
@@ -43,11 +45,13 @@ public class CubemapBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
 
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath( this.project.getTextureProfiles(), task.output(0).getPath() );
+
         TextureImage[] textures = new TextureImage[6];
         try {
             for (int i = 0; i < 6; i++) {
                 ByteArrayInputStream is = new ByteArrayInputStream(task.input(i + 1).getContent());
-                TextureImage texture = TextureGenerator.generate(is);
+                TextureImage texture = TextureGenerator.generate(is, texProfile);
                 textures[i] = texture;
             }
             validate(task, textures);
