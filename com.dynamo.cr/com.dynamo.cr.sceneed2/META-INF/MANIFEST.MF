@@ -26,7 +26,7 @@ Require-Bundle: org.eclipse.core.runtime;visibility:=reexport,
  org.eclipse.ui.forms,
  com.dynamo.cr.properties,
  com.ibm.icu;bundle-version="52.1.0"
-Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Bundle-ActivationPolicy: lazy
 Export-Package: clojure,
  clojure.asm,
