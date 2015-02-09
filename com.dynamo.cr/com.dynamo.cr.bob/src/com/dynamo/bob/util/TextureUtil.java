@@ -155,14 +155,15 @@ public class TextureUtil {
      */
     public static TextureProfile getTextureProfileByPath( TextureProfiles textureProfiles, String path ) {
 
+        if (textureProfiles == null)
+            return null;
+
         // Look through the path settings if the current input filepath matches,
         // if found, lookup the correct texture profile to use.
         for (PathSettings pathSettings : textureProfiles.getPathSettingsList())
         {
-            // Paths are stored as regex strings (they are converted from ant-glob in
-            // the build step for .texture_profiles).
-            String regexPath = pathSettings.getPath().toString();
-            if (path.matches(regexPath))
+            // Path matches are stored as ant-glob
+            if (PathUtil.wildcardMatch( path, pathSettings.getPath() ))
             {
 
                 // Find matching profile name (there could be a reference to an non-existent profile):
