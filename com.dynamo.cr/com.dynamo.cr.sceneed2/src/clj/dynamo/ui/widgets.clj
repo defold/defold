@@ -56,7 +56,8 @@
            :layout       `(when-let [v# (:layout ~props)]           (.setLayout ~control (make-layout ~control v#)))
            :layout-data  `(let [v# (:layout-data ~props)]
                             (when-let [parent-type# (-> (.getParent ~control) (get-widget-data ::layout) :type)]
-                              (.setLayoutData ~control (make-layout-data ~control (assoc v# :type parent-type#)))))
+                              (.setLayoutData ~control (make-layout-data ~control (assoc v# :type parent-type#)))
+                              (.layout (.getParent ~control))))
            :listen       `(doseq [[e# t#] (:listen ~props)]         (.addListener ~control (ui/event-map e#) t#))
            :status       `(when-let [v# (:status ~props)]           (.setStatus ~control v#))
            :text         `(when-let [v# (:text ~props)]             (.setText ~control v#))
@@ -64,7 +65,8 @@
            :top-index    `(when-let [v# (:top-index ~props)]        (.setTopIndex ~control v#))
            :tooltip-text `(when-let [v# (:tooltip-text ~props)]     (.setToolTipText ~control v#))
            :underlined   `(when-let [v# (:underlined ~props)]       (.setUnderlined ~control v#))
-           :user-data    `(when-let [v# (:user-data ~props)]        (set-user-data ~control v#))}]
+           :user-data    `(when-let [v# (:user-data ~props)]        (set-user-data ~control v#))
+           :visible      `(when-not (nil? (:visible ~props))        (.setVisible ~control (:visible ~props)))}]
     `(do ~@(vals (select-keys m desiderata)))))
 
 (defprotocol Mutable
@@ -73,50 +75,50 @@
 (extend-protocol Mutable
   ScrolledForm
   (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :tooltip-text :layout-data :listen :user-data} this props)
+    (gen-state-changes #{:text :foreground :background :visible :tooltip-text :layout-data :listen :user-data} this props)
     (gen-state-changes #{:layout} (.getBody this) props)
     this)
 
   Composite
   (apply-properties [this props]
-    (gen-state-changes #{:foreground :background :layout :layout-data :tooltip-text :listen :user-data} this props)
+    (gen-state-changes #{:foreground :background :visible :layout :layout-data :tooltip-text :listen :user-data} this props)
     this)
 
   ColorSelector
   (apply-properties [this props]
-    (gen-state-changes #{:layout-data :listen :user-data} this props)
+    (gen-state-changes #{:layout-data :listen :user-data :visible} this props)
     (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
     (when-let [[^int r ^int g ^int b] (:color props)] (.setColorValue this (RGB. r g b)))
     this)
 
   Hyperlink
   (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :on-click :layout-data :underlined :tooltip-text :listen :user-data} this props)
+    (gen-state-changes #{:text :foreground :background :visible :on-click :layout-data :underlined :tooltip-text :listen :user-data} this props)
     this)
 
   Label
   (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
+    (gen-state-changes #{:text :foreground :background :visible :layout-data :tooltip-text :listen :user-data} this props)
     this)
 
   Text
   (apply-properties [this props]
-    (gen-state-changes #{:text :foreground :background :layout-data :tooltip-text :echo-char :text-limit :top-index :editable :listen :user-data} this props)
+    (gen-state-changes #{:text :foreground :background :visible :layout-data :tooltip-text :echo-char :text-limit :top-index :editable :listen :user-data} this props)
     this)
 
   StatusLabel
   (apply-properties [this props]
-    (gen-state-changes #{:status :foreground :background :layout-data :tooltip-text :listen :user-data} this props)
+    (gen-state-changes #{:status :foreground :background :visible :layout-data :tooltip-text :listen :user-data} this props)
     this)
 
   Button
   (apply-properties [this props]
-    (gen-state-changes #{:text :layout-data :tooltip-text :listen :user-data} this props)
+    (gen-state-changes #{:text :layout-data :tooltip-text :listen :user-data :visible} this props)
     this)
 
   ResourceSelector
   (apply-properties [this props]
-    (gen-state-changes #{:layout-data :listen :user-data} this props)
+    (gen-state-changes #{:layout-data :listen :user-data :visible} this props)
     (gen-state-changes #{:foreground :tooltip-text :text} (.getButton this) props)
     this))
 

@@ -12,7 +12,9 @@
             [dynamo.ui.widgets :as widgets]
             [dynamo.util :refer :all]
             [internal.node :as in]
-            [internal.system :as is])
+            [internal.system :as is]
+            [eclipse.markers :as marker]
+            [camel-snake-kebab :refer :all])
   (:import [org.eclipse.core.runtime IStatus Status]
            [org.eclipse.swt.widgets Composite]
            [org.eclipse.ui ISelectionListener]
@@ -20,6 +22,33 @@
            [com.dynamo.cr.properties Messages]))
 
 (set! *warn-on-reflection* true)
+
+(defrecord ValidationPresenter []
+  dp/Presenter
+  (control-for-property [this]
+    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:min-width 50 :exclude true}})
+  (settings-for-control [_ value]
+    (if (empty? value)
+      {:status Status/OK_STATUS :layout-data {:exclude true} :visible false}
+      {:status (marker/error-status (str/join "\n" value)) :layout-data {:min-width 50 :exclude false} :visible true})))
+
+(def validation-presenter (->ValidationPresenter))
+
+(defrecord FillerPresenter []
+  dp/Presenter
+  (control-for-property [this]
+    {:type :label :layout-data {:exclude true}})
+  (settings-for-control [_ value]
+    (if (empty? value)
+      {:layout-data {:exclude true}  :visible false}
+      {:layout-data {:exclude false} :visible true})))
+
+(def filler-presenter (->FillerPresenter))
+
+(defn- prop-name-modifier [suffix prop-name]
+  (keyword (str (name prop-name) suffix)))
+(def ^:private prop-filler-label (partial prop-name-modifier "-filler"))
+(def ^:private prop-status-label (partial prop-name-modifier "-status"))
 
 (defnk aggregate-properties
   [properties]
@@ -58,16 +87,22 @@
       (attach-user-data node prop-name presenter [])
       (attach-listeners (:ui-event-listener node))))
 
+(defn- prop-label
+  [prop-name label-text]
+  {:type :composite
+   :layout {:type :stack}
+   :children [[:label      {:type :label :text label-text}]
+              [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text Messages/FormPropertySheetViewer_RESET_VALUE}]]})
+
 (defn- property-control-strip
   [node [prop-name {:keys [presenter]}]]
-  (let [label-text (keyword->label prop-name)]
-    [[:label-composite {:type :composite
-                        :layout {:type :stack}
-                        :children [[:label      {:type :label :text label-text}]
-                                   [:label-link {:type :hyperlink :text label-text :underlined true :on-click (fn [_] (prn "RESET " prop-name)) :foreground [0 0 255] :tooltip-text Messages/FormPropertySheetViewer_RESET_VALUE}]]}]
-     [prop-name (control-spec node prop-name presenter)]
-     [:dummy           {:type :label :layout-data {:exclude true}}]
-     [:status-label    {:type :status-label :style :border :status Status/OK_STATUS :layout-data {:min-width 50 :exclude true}}]]))
+  (let [label-text          (keyword->label prop-name)
+        filler-control-name (prop-filler-label prop-name)
+        status-control-name (prop-status-label prop-name)]
+    [[:label-composite    (prop-label prop-name label-text)]
+     [prop-name           (control-spec node prop-name presenter)]
+     [filler-control-name (dp/control-for-property filler-presenter)]
+     [status-control-name (dp/control-for-property validation-presenter)]]))
 
 (defn- property-page
   [control-strips]
@@ -94,8 +129,13 @@
 (defn- settings-for-page
   [properties]
   {:children
-   (for [[prop-name {:keys [presenter value]}] properties]
-     [prop-name (dp/settings-for-control presenter value)])})
+   (concat
+     (for [[prop-name {:keys [presenter value]}] properties]
+       [prop-name (dp/settings-for-control presenter value)])
+     (for [[prop-name {:keys [validation-problems]}] properties]
+       [(prop-filler-label prop-name) (dp/settings-for-control filler-presenter validation-problems)])
+     (for [[prop-name {:keys [validation-problems]}] properties]
+       [(prop-status-label prop-name) (dp/settings-for-control validation-presenter validation-problems)]))})
 
 (defn- cache-key
   [properties]
@@ -118,6 +158,7 @@
   (let [content (attach-presenters node (in/get-node-value node :content))
         key     (cache-key content)
         page    (lookup-or-create sheet-cache key make-property-page toolkit node properties-form content)]
+    (def page* page)
     (widgets/update-ui!      (get-in page [:page-content]) (settings-for-page content))
     (widgets/bring-to-front! (widgets/widget page [:page-content]))
     (widgets/scroll-to-top!  (widgets/widget properties-form [:form]))))
