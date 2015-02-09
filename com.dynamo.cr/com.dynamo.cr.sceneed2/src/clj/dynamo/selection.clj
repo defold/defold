@@ -24,8 +24,8 @@
       (deref [this] node-ids))))
 
 (defn fire-selection-changed
-  [transaction graph self label kind]
-  (when (ds/is-modified? transaction self :selection)
+  [transaction graph self label kind inputs-affected]
+  (when (inputs-affected :selected-nodes)
     (let [before  (n/get-node-value self :selection)
           release (promise)]
       (ds/send-after self {:type :release :latch release})
@@ -34,8 +34,8 @@
           (if (deref release 50 false)
             (let [after (n/get-node-value (ds/refresh self) :selection)]
               (when (not= @before @after)
-               (prn "fire-selection-changed: selection *has* changed from " @before " to " @after)
-               (.setSelection ^ISelectionProvider self after)))
+                (prn "fire-selection-changed: selection *has* changed from " @before " to " @after)
+                (.setSelection ^ISelectionProvider self after)))
             (log/warn "Timed out waiting for transaction to finish.")))))))
 
 (n/defnode Selection
@@ -43,7 +43,7 @@
 
   (property selection-listeners EventBroadcaster (default #(ui/make-event-broadcaster)))
 
-  (trigger notify-listeners :modified fire-selection-changed)
+  (trigger notify-listeners :input-connections fire-selection-changed)
 
   (output selection s/Any produce-selection)
   (output selection-node Selection (fnk [self] self))

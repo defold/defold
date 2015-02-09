@@ -141,7 +141,7 @@
   (ui/listen component type #(t/process-one-event (ds/node world-ref _id) %)))
 
 (defn send-view-scope-message
-  [transaction graph self label kind]
-  (when (ds/is-modified? transaction self)
+  [transaction graph self label kind inputs-touched]
+  (when (inputs-touched :nodes)
     (doseq [id (:nodes-added transaction)]
       (ds/send-after {:_id id} {:type :view-scope :scope self}))))

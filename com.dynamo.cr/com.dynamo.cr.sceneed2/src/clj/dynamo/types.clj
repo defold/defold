@@ -28,7 +28,7 @@
   (lookup [this nm] "Locate a value by name"))
 
 (defprotocol FileContainer
-  (node-for-path [this path] "Create a new node from a path within the container."))
+  (node-for-path [this path] "Create a new node from a path within the container. `path` must be a ProjectPath."))
 
 (defprotocol NodeType
   (supertypes           [this])

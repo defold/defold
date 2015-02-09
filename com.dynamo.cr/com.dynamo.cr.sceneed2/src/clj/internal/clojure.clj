@@ -42,7 +42,7 @@
   (on :load
     (compile-source-node self (:project event) (:filename self)))
 
-  (on :unload
-    (when (:namespace self)
-      (t/dispose (:namespace self)))))
+  #_(on :unload
+     (when (:namespace self)
+       (t/dispose (:namespace self)))))
 

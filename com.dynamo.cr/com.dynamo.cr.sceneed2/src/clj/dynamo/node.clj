@@ -110,11 +110,12 @@ labels are overwritten by the descendant.
 
 _type_ is a keyword, one of:
 
-    :added    - The node was added in this transaction.
-    :modified - The node was modified, either directly, or as a result of an input changing.
-    :deleted  - The node was deleted in this transaction.
+    :added             - The node was added in this transaction.
+    :input-connections - One or more inputs to the node were connected to or disconnected from
+    :property-touched  - One or more properties on the node were changed.
+    :deleted           - The node was deleted in this transaction.
 
-_action_ is a function of five arguments:
+For :added and :deleted triggers, _action_ is a function of five arguments:
 
     1. The current transaction context.
     2. The new graph as it has been modified during the transaction
@@ -122,10 +123,15 @@ _action_ is a function of five arguments:
     4. The label, as a keyword
     5. The trigger type
 
+The :input-connections and :property-touched triggers each have an additional argument, which is
+a collection of labels. For :input-connections, those are the inputs that were affected. For
+:property-touched, those are the properties that were modified.
+
 The trigger's return value is ignored. The action is allowed to call the `dynamo.system` transaction
 functions to request effects. These effects will be applied within the current transaction.
 
-It is allowed for a trigger to cause changes that activate more triggers. Triggers
+It is allowed for a trigger to cause changes that activate more triggers, up to a limit.
+Triggers should not be used for timed actions or automatic counters. So they will only
 cascade until the limit `internal.transaction/maximum-retrigger-count` is reached.
 
 
@@ -192,19 +198,20 @@ This function should mainly be used to create 'plumbing'."
 (defn inject-new-nodes
   "Implementation function that performs dependency injection for nodes.
 This function should not be called directly."
-  [transaction graph self label kind]
-  (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
-        nodes-added              (map #(dg/node graph %) (:nodes-added transaction))
-        out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
-        in-to-new-connections    (in/injection-candidates nodes-added existing-nodes)
-        candidates               (set/union out-from-new-connections in-to-new-connections)
-        candidates               (remove (fn [[out out-label in in-label]]
-                                           (or
-                                             (= (:_id out) (:_id in))
-                                             (lg/connected? graph (:_id out) out-label (:_id in) in-label)))
-                                   candidates)]
-    (doseq [connection candidates]
-      (apply ds/connect connection))))
+  [transaction graph self label kind inputs-affected]
+  (when (inputs-affected :nodes)
+    (let [existing-nodes           (cons self (in/get-inputs self graph :nodes))
+          nodes-added              (map #(dg/node graph %) (:nodes-added transaction))
+          out-from-new-connections (in/injection-candidates existing-nodes nodes-added)
+          in-to-new-connections    (in/injection-candidates nodes-added existing-nodes)
+          candidates               (set/union out-from-new-connections in-to-new-connections)
+          candidates               (remove (fn [[out out-label in in-label]]
+                                             (or
+                                               (= (:_id out) (:_id in))
+                                               (lg/connected? graph (:_id out) out-label (:_id in) in-label)))
+                                     candidates)]
+      (doseq [connection candidates]
+        (apply ds/connect connection)))))
 
 (defn dispose-nodes
   "Trigger to dispose nodes from a scope when the scope is destroyed.
@@ -227,7 +234,7 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
   (property tag      s/Keyword)
   (property parent   (s/protocol NamingContext))
 
-  (trigger dependency-injection :modified #'inject-new-nodes)
+  (trigger dependency-injection :input-connections #'inject-new-nodes)
   (trigger garbage-collection   :deleted  #'dispose-nodes)
 
   (output dictionary s/Any in/scope-dictionary)
@@ -261,7 +268,7 @@ Inheritors are required to supply a production function for the :save output."
 (defnode AutowireResources
   "Mixin. Nodes with this behavior automatically keep their graph connections
 up to date with their resource properties."
-  (trigger autowire-resources :modified #'in/connect-resource))
+  (trigger autowire-resources :property-touched #'in/connect-resource))
 
 (defnode OutlineNode
   "Mixin. Any OutlineNode can be shown in an outline view.

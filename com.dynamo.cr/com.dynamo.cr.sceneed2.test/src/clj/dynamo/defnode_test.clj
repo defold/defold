@@ -341,7 +341,7 @@
 
 (def original-node-definition
   '(n/defnode MutagenicNode
-     (property a-property s/Str (default "a-string"))
+     (property a-property s/Str  (default "a-string"))
      (property b-property s/Bool (default true))))
 
 (def replacement-node-definition
@@ -351,45 +351,54 @@
      (property c-property s/Int  (default 42))
      MarkerInterface))
 
-(deftest redefining-nodes-updates-existing-world-instances
-  (ts/with-clean-world
-    (eval original-node-definition)
+#_(deftest redefining-nodes-updates-existing-world-instances
+   (ts/with-clean-world
+     (eval original-node-definition)
 
-    (let [node-before-mutation (ds/transactional (ds/add (n/construct (resolve 'MutagenicNode))))
-          original-node-id     (:_id node-before-mutation)]
-      (eval replacement-node-definition)
+     (let [node-before-mutation (ds/transactional (ds/add (n/construct (resolve 'MutagenicNode))))
+           original-node-id     (:_id node-before-mutation)]
+       (eval replacement-node-definition)
 
-      (let [node-after-mutation (ds/refresh node-before-mutation)]
-        (is (not (instance? MarkerInterface node-before-mutation)))
-        (is (= "a-string" (:a-property node-after-mutation)))
-        (is (= true       (:b-property node-after-mutation)))
-        (is (= 42         (:c-property node-after-mutation)))
-        (is (instance? MarkerInterface node-after-mutation))))))
+       (let [node-after-mutation (ds/refresh node-before-mutation)]
+         (is (not (instance? MarkerInterface node-before-mutation)))
+         (is (= "a-string" (:a-property node-after-mutation)))
+         (is (= true       (:b-property node-after-mutation)))
+         (is (= 42         (:c-property node-after-mutation)))
+         (is (instance? MarkerInterface node-after-mutation))))))
 
 (n/defnode BaseTriggerNode
-  (trigger added-trigger    :added           (fn [& _] :ok))
-  (trigger multiway-trigger :added :modified (fn [& _] :ok))
-  (trigger on-delete        :deleted         (fn [& _] :ok)))
+  (trigger added-trigger        :added             (fn [& _] :ok))
+  (trigger multiway-trigger     :added :deleted    (fn [& _] :ok))
+  (trigger on-delete            :deleted           (fn [& _] :ok))
+  (trigger on-property-touched  :property-touched  (fn [& _] :ok))
+  (trigger on-input-connections :input-connections (fn [& _] :ok)))
 
 (n/defnode InheritedTriggerNode
   (inherits BaseTriggerNode)
 
   (trigger extra-added      :added           (fn [& _] :extra))
-  (trigger on-delete        :deleted         (fn [& _] :override))
-  )
+  (trigger on-delete        :deleted         (fn [& _] :override)))
 
 (deftest nodes-can-have-triggers
   (testing "basic trigger definition"
     (is (fn? (get-in (t/triggers BaseTriggerNode) [:added :added-trigger])))
     (is (fn? (get-in (t/triggers BaseTriggerNode) [:added :multiway-trigger])))
-    (is (fn? (get-in (t/triggers BaseTriggerNode) [:modified :multiway-trigger]))))
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:deleted :multiway-trigger])))
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:deleted :on-delete])))
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:property-touched :on-property-touched])))
+    (is (fn? (get-in (t/triggers BaseTriggerNode) [:input-connections :on-input-connections]))))
 
   (testing "triggers are inherited"
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :added-trigger])))
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :multiway-trigger])))
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:added :extra-added])))
-    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:modified :multiway-trigger]))))
+    (is (fn? (get-in (t/triggers InheritedTriggerNode) [:deleted :multiway-trigger]))))
 
   (testing "inherited triggers can be overridden"
     (is (fn? (get-in (t/triggers InheritedTriggerNode) [:deleted :on-delete])))
-    (is (= :override ((get-in (t/triggers InheritedTriggerNode) [:deleted :on-delete]))))))
+    (is (= :override ((get-in (t/triggers InheritedTriggerNode) [:deleted :on-delete])))))
+
+  (testing "disallows unknown trigger kinds"
+    (is (thrown-with-msg? clojure.lang.Compiler$CompilerException #"Valid trigger kinds are"
+          (eval '(n/defnode NoSuchTriggerNode
+                   (trigger nope :not-a-real-trigger-kind (fn [& _] :nope))))))))
