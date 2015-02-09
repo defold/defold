@@ -143,7 +143,7 @@
           compiler     (ds/transactional
                          (ds/add
                            (n/construct atlas/TextureSave
-                             :texture-name        (format "atlases/%s.texturesetc" fixture-basename)
+                             :texture-name        (str fixture-basename ".texturesetc")
                              :textureset-filename (file/native-path (.getPath texturesetc))
                              :texture-filename    (file/native-path (.getPath texturec)))))]
       (ds/transactional (ds/connect atlas :textureset   compiler :textureset))
@@ -152,16 +152,16 @@
       #_(is (= atlas-text (n/get-node-value atlas :text-format)))
       (is (= :ok (n/get-node-value compiler :texturec)))
       (is (= :ok (n/get-node-value compiler :texturesetc)))
-      (is (matches-fixture? (str fixture-basename ".texturesetc") texturesetc))
-      (is (matches-fixture? (str fixture-basename ".texturec")    texturec)))))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturesetc") texturesetc))
+      (is (matches-fixture? (str "build/default/" fixture-basename ".texturec")    texturec)))))
 
 (deftest expected-atlas-artifacts
-  (verify-atlas-artifacts "empty")
-  (verify-atlas-artifacts "single-image")
+  (verify-atlas-artifacts "atlases/empty")
+  (verify-atlas-artifacts "atlases/single-image")
   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-  #_(verify-atlas-artifacts "single-animation")
-  (verify-atlas-artifacts "empty-animation")
-  (verify-atlas-artifacts "missing-image")
-  (verify-atlas-artifacts "missing-image-in-animation")
+  #_(verify-atlas-artifacts "atlases/single-animation")
+  (verify-atlas-artifacts "atlases/empty-animation")
+  (verify-atlas-artifacts "atlases/missing-image")
+  (verify-atlas-artifacts "atlases/missing-image-in-animation")
   ; TODO: fails sometimes due to non-deterministic layout/sort order of images in output texture
-  #_(verify-atlas-artifacts "complex"))
+  #_(verify-atlas-artifacts "atlases/complex"))
